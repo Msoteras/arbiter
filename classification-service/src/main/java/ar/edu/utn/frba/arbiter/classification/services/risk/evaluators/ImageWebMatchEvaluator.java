@@ -8,18 +8,8 @@ import ar.edu.utn.frba.arbiter.common.dto.ImageForensicReport.WebFinding;
 import org.springframework.stereotype.Component;
 
 /**
- * A claim image found already published on the web (stock/catalog photo or a marketplace listing
- * passed off as the insured's damaged item). Graded from the PoC calibration:
- *
- * <ul>
- *   <li>an <b>exact</b> match is the strongest signal (a byte-level copy of a public image);</li>
- *   <li><b>partial</b> matches (cropped/resized) are weaker and noisier;</li>
- *   <li>appearing on <b>many pages</b> points to a catalog/stock image (the item may not even be
- *       the insured's) rather than the insured's own single listing.</li>
- * </ul>
- *
- * Only counts when the web search actually ran ({@code webFinding != null}); "not searched"
- * (external integration disabled) leaves the factor non-evaluable, never a false 0-risk signal.
+ * An exact web match is the strongest signal; partial matches are noisier; many pages suggest a
+ * catalog image. Not evaluable when the web search didn't run, never a false 0.
  */
 @Component
 public class ImageWebMatchEvaluator implements RiskFactorEvaluator {
@@ -61,11 +51,6 @@ public class ImageWebMatchEvaluator implements RiskFactorEvaluator {
                 strongest.fullMatches(), strongest.partialMatches(), strongest.pages().size()));
     }
 
-    /**
-     * Exact matches dominate; partial matches and page spread add smaller, capped increments.
-     * Weights favour precision (an exact hit alone already reads as high risk) while letting a
-     * broad partial-match footprint push the score up without ever exceeding 1.
-     */
     private double gradeWebFinding(WebFinding web) {
         double fromExact = web.fullMatches() > 0 ? 0.9 : 0.0;
         double fromPartial = Math.min(0.5, web.partialMatches() * 0.15);

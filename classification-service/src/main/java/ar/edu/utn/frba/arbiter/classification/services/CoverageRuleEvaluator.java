@@ -12,25 +12,14 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Deterministic evaluation of the hard coverage rules — today, the <b>exclusions</b>: which claim
- * causes the claim's coverage does NOT cover. It runs <b>before</b> the Fast Track gate (a hard
- * exclusion makes Fast Track irrelevant) and without the LLM: it's code comparing ids, not model
- * interpretation. It closes the handoff's D3 (nothing validated the claim cause was covered) and,
- * together with writing {@code rule_result}, D4c.
- *
- * <p><b>It doesn't decide the case.</b> It produces a finding, not a resolution: an exclusion blocks
- * Fast Track and routes to review, but the decision is still the analyst's (CLAUDE.md #5,
- * human-in-the-loop). The result is audited in {@code rule_result} on both PASS and FAIL.
+ * Coverage exclusions by claim cause id, evaluated in code before the Fast Track gate. An exclusion
+ * blocks Fast Track and routes to review; it never decides the case.
  */
 @Service
 public class CoverageRuleEvaluator {
 
     private static final Logger log = LoggerFactory.getLogger(CoverageRuleEvaluator.class);
 
-    /**
-     * @param excluded {@code true} if any hard exclusion applies to the claim's claim cause.
-     * @param findings one row per evaluated rule (PASS/FAIL), to audit in {@code rule_result}.
-     */
     public record Result(boolean excluded, List<RuleFinding> findings) {}
 
     public Result evaluate(ClaimReport claim, BusinessRules rules) {
@@ -46,14 +35,12 @@ public class CoverageRuleEvaluator {
             if (!RuleType.COVERAGE_EXCLUSION.name().equals(rule.ruleType())) {
                 continue;
             }
-            // An exclusion with no claim causes configured excludes nothing: there's no rule to
-            // evaluate or audit (the referente can leave the list empty from the UI).
+            // The referente can save an exclusion with no claim causes: nothing to evaluate or audit.
             if (rule.excludedClaimCauseIds() == null || rule.excludedClaimCauseIds().isEmpty()) {
                 continue;
             }
             boolean causeExcluded = isExcludedBy(rule, claim.claimCauseId());
-            // PASS = the coverage covers the claim cause (rule satisfied);
-            // FAIL = it excludes it (the rule fires).
+            // PASS = covered; FAIL = excluded.
             findings.add(new RuleFinding(
                     rule.id(),
                     rule.ruleType(),
@@ -72,12 +59,8 @@ public class CoverageRuleEvaluator {
     }
 
     /**
-     * Whether the coverage excludes a claim cause, by id. Same check {@link #evaluate} runs against
-     * the <b>declared</b> cause, exposed so the narrative-consistency pass can ask it about the
-     * cause the account actually describes — which is the whole point: the model says which cause
-     * the story is, the engine says whether that one is covered (CLAUDE.md #4).
-     *
-     * @param claimCauseId the cause to check; {@code null} (unmappable) is never excluded
+     * Lets the cause-consistency pass ask about the cause the account describes: the model says which
+     * cause it is, the engine says whether it's covered. A null id is never excluded.
      */
     public boolean isExcluded(Long claimCauseId, BusinessRules rules) {
         List<BusinessRules.EvaluableRule> evaluableRules = rules.evaluableRules();
@@ -95,7 +78,6 @@ public class CoverageRuleEvaluator {
                 && rule.excludedClaimCauseIds().contains(claimCauseId);
     }
 
-    /** Readable reasons for the analyst, from the findings that failed. */
     public List<String> excludedReasons(Result result, ClaimReport claim) {
         return result.findings().stream()
                 .filter(f -> !f.passed())

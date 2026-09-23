@@ -10,11 +10,7 @@ import org.springframework.web.client.RestClient;
 import java.util.List;
 import java.util.Map;
 
-/**
- * Client for the CLIP embedding sidecar (embedding-service). Unlike the vision LLM,
- * CLIP is deterministic: the same image always produces the same 512-dim vector,
- * which is what pgvector similarity search requires.
- */
+/** Client for the CLIP sidecar: unlike the vision LLM it is deterministic, which pgvector similarity search requires. */
 @Component
 public class ClipClient {
 

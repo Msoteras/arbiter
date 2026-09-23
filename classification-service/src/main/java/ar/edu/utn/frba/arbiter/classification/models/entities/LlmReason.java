@@ -13,11 +13,6 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-/**
- * One factor behind an {@link LlmAnalysis} ("razon_llm" in the DER). Replaces the JSON list the
- * old classification log kept: as rows they can be queried, which is what the audit requirement
- * is actually for.
- */
 @Entity
 @Table(name = "llm_reason")
 @Getter

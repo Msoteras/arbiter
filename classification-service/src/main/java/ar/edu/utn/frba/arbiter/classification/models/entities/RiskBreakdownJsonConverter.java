@@ -9,12 +9,7 @@ import jakarta.persistence.Converter;
 
 import java.util.List;
 
-/**
- * Serializes the risk breakdown to a JSON string in a {@code text} column — same convention as
- * {@link StringListJsonConverter}, no JSONB. {@code null} is preserved (not turned into an empty
- * list) so the "sin scorear" state survives the round-trip and isn't confused with a real score
- * that happened to have an empty breakdown.
- */
+/** Preserves {@code null} so "not scored" isn't confused with a real score with an empty breakdown. */
 @Converter
 public class RiskBreakdownJsonConverter implements AttributeConverter<List<RiskBreakdownItem>, String> {
 

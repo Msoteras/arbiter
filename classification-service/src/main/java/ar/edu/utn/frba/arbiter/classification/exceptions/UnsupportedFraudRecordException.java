@@ -1,10 +1,8 @@
 package ar.edu.utn.frba.arbiter.classification.exceptions;
 
 /**
- * An {@code EXPERT_BACKED} record arrived without the expert assessment that is supposed to back
- * it. Checked here and not only in cases-service on purpose: this side is the one that later lets
- * the record move a score and veto Fast Track, and "con respaldo pericial" has to mean there is a
- * report to point at, not that someone ticked the stronger of two options.
+ * An {@code EXPERT_BACKED} record without an expert assessment. Checked here too, not only in
+ * cases-service, because this side lets the record move the score and veto Fast Track.
  */
 public class UnsupportedFraudRecordException extends RuntimeException {
 

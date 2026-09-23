@@ -21,43 +21,17 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Primary {@link RulesAdapter}: reads what the referente configured in rules-service (the DB) and
- * overlays it on {@link BaselineRulesAdapter}'s baseline — the Fast Track thresholds that gate the
- * expedited path, the free-text rules/exclusions that go into the LLM prompt, the document agenda
- * that the missing-docs gate checks, and the hard evaluable rules (exclusions + hard temporal
- * rules). Whatever the insurer hasn't configured (a 200 with an empty/null body — a real
- * answer, not a failure) keeps working off the baseline; that composition is unaffected by this
- * class's error handling.
+ * Overlays what the referente configured in rules-service on {@link BaselineRulesAdapter}'s baseline.
+ * An empty 200 means "not configured" and keeps the baseline. Runs async, so it authenticates with a
+ * service token carrying the tenant schema from {@link TenantContext}.
  *
- * <p>Classification runs async: there's no user request/JWT on the thread, but the tenant schema is
- * propagated via {@link TenantContext}. So the call authenticates with a <b>service token</b> that
- * carries that schema — the same mechanism cases-service uses for its system-to-system calls, and
- * the reason rules-service exposes a role-free {@code /internal/fast-track} endpoint (the engine is
- * not a referente).
+ * <p>An unreachable rules-service is <b>not</b> best-effort: silently falling back to the baseline
+ * could Fast Track a claim with rules nobody at the insurer configured. The exception propagates to
+ * {@code @Retryable} and, if it persists, the case ends up {@code CLASSIFICATION_FAILED}. Only
+ * {@link #overlayScoring} is best-effort, since the fraud score never gates a decision.
  *
- * <p><b>rules-service unreachable is NOT best-effort.</b> These endpoints carry configuration a
- * human (the referente) entered — Fast Track thresholds, exclusions, document agenda, hard rules —
- * and silently substituting the generic baseline for that is worse than not classifying: a
- * claim could Fast Track or skip an exclusion using rules nobody at the insurer configured. So every
- * overlay but {@link #overlayScoring} lets the connectivity exception propagate instead of catching
- * it. That exception ({@code HttpServerErrorException}/{@code ResourceAccessException}) is exactly
- * what {@code ClaimClassificationService}'s {@code @Retryable} already retries on; once it gives up,
- * no result gets persisted, the case stays without a classification, and cases-service's own poller
- * ({@code ClassificationRefreshScheduler}) eventually marks it {@code CLASSIFICATION_FAILED} —
- * retryable by the analyst, same path as any other stuck classification. No new failure mode, no new
- * exception type: this reuses the retry/failure pipeline that already exists for exactly this case.
- *
- * <p>{@link #overlayScoring} is the one exception and stays best-effort on purpose: the fraud score
- * is a parallel signal that never gates a classification decision (see {@code BusinessRules
- * .ScoringConfig}'s javadoc), so losing it for one run isn't a reason to fail the whole thing.
+ * <p>Excluded in the {@code test} profile so integration tests run against the baseline only.
  */
-// Excluded when the "test" profile is active: ClassificationOrchestratorIntegrationTest
-// (@ActiveProfiles("test")) runs the orchestrator synchronously and asserts against
-// BaselineRulesAdapter's baseline (coverage-scoped Fast Track thresholds, the Hurto exclusion on
-// coverage 1) — with this bean still @Primary there, it made a real HTTP call to whatever
-// happened to be listening on rules-service's port (a leftover local/Railway container, if any),
-// 401ing against a JWT_SECRET that doesn't match. Not a fake profile invented for this: it's the
-// same "test" this test class already activates.
 @Component
 @Primary
 @Profile("!test")
@@ -87,9 +61,6 @@ public class RulesRestAdapter implements RulesAdapter {
         if (coverageId == null) {
             return base;
         }
-        // Chained on purpose: if any of these five doesn't respond, none of them papers over it —
-        // the exception propagates whole (see the class javadoc). Only overlayScoring, at the end,
-        // stays best-effort.
         return overlayScoring(
                 overlayFraudRecordPolicy(
                         overlayCoverageLimits(
@@ -101,12 +72,7 @@ public class RulesRestAdapter implements RulesAdapter {
                                 coverageId)));
     }
 
-    /**
-     * The insurer's fraud-record policy. Insurer-wide, so no coverageId — same as the scoring
-     * config, but <b>not</b> best-effort like it: this one can veto Fast Track, and swallowing an
-     * outage would expedite a claim the insurer decided not to expedite. It rides the same
-     * propagate-and-retry path as the other overlays (see the class javadoc).
-     */
+    /** Insurer-wide like scoring, but not best-effort: it can veto Fast Track. */
     private BusinessRules overlayFraudRecordPolicy(BusinessRules rules) {
         return rules.toBuilder().fraudRecordPolicy(getFraudRecordPolicy()).build();
     }
@@ -134,13 +100,7 @@ public class RulesRestAdapter implements RulesAdapter {
                 .build();
     }
 
-    /**
-     * The fraud score (factors + bands) the referente configures. A single config per insurer (not
-     * per coverage), so it's read without a coverageId. Replaces the baseline when the insurer
-     * has a config enabled; if it doesn't have one (or it can't be read), keeps the baseline's
-     * reference scoring. This is what makes the referente's scoring panel actually affect the
-     * classification (scoring used to always come from the baseline).
-     */
+    /** One config per insurer; replaces the baseline only when enabled and usable. */
     private BusinessRules overlayScoring(BusinessRules rules) {
         try {
             ScoringResponse scoring = restClient.get()
@@ -168,11 +128,6 @@ public class RulesRestAdapter implements RulesAdapter {
         }
     }
 
-    /**
-     * The coverage's intrinsic limits (report deadline D11, events-per-year cap D10, waiting
-     * period D9), which the engine evaluates by code. No coverage configured (empty 200) keeps the
-     * baseline; if rules-service doesn't respond, it propagates — see the class javadoc.
-     */
     private BusinessRules overlayCoverageLimits(BusinessRules rules, Long coverageId) {
         CoverageLimitsResponse limits = restClient.get()
                 .uri(uri -> uri.path("/api/v1/rules/internal/coverage-limits")
@@ -197,12 +152,6 @@ public class RulesRestAdapter implements RulesAdapter {
                 .build();
     }
 
-    /**
-     * The coverage's hard evaluable rules: hecho generador exclusions and the temporal ones the
-     * insurer has active (D9/D10/D11/D12/D13, plus arrears). Replaces the baseline: if the insurer
-     * configured something, theirs wins. An empty list (200 with no rows) is "not configured" and
-     * keeps the baseline; if rules-service doesn't respond, it propagates — see the class javadoc.
-     */
     private BusinessRules overlayEvaluableRules(BusinessRules rules, Long coverageId) {
         EvaluableRulesResponse resp = restClient.get()
                 .uri(uri -> uri.path("/api/v1/rules/internal/evaluable")
@@ -247,22 +196,15 @@ public class RulesRestAdapter implements RulesAdapter {
                         ft.priorClaimsWindowMonths(), ft.minPolicyAgeMonths(),
                         ft.requiresUpToDatePolicy(), ft.requiredDocumentTypes()));
 
-        // The Spanish criteria get replaced along with the thresholds, not merged: the baseline's list
-        // described different numbers and reached the prompt contradicting what the referente had
-        // configured. If they saved a config with no criteria, the prompt goes without that
-        // section — better that than resurrecting text nobody on the business side wrote (D14).
+        // Replaced, not merged: the baseline's criteria describe different thresholds and would
+        // contradict the referente's in the prompt.
         if (ft.criteria() != null) {
             overlaid.fastTrackCriteria(List.copyOf(ft.criteria()));
         }
         return overlaid.build();
     }
 
-    /**
-     * What the referente writes in Coverages (exclusions) and Business Rules. Replaces the
-     * baseline instead of adding to it: if the insurer configured their own rules, the baseline's
-     * generic ones don't matter. An empty list (200 with no text) is "not configured" and keeps
-     * the baseline; if rules-service doesn't respond, it propagates — see the class javadoc.
-     */
+    /** Free-text rules and exclusions for the prompt; replaces the baseline rather than adding to it. */
     private BusinessRules overlayRuleTexts(BusinessRules rules, Long coverageId) {
         RuleTextsResponse texts = restClient.get()
                 .uri(uri -> uri.path("/api/v1/rules/internal/rule-texts")
@@ -289,17 +231,8 @@ public class RulesRestAdapter implements RulesAdapter {
     }
 
     /**
-     * The document agenda the referente configured for the coverage's branch <b>and claim cause</b>.
-     * Replaces the baseline: it's what the missing-docs gate ({@code checkRequiredDocuments})
-     * compares against what the insured uploaded. An empty list (200 with no rows) is "not
-     * configured" and keeps the baseline; if rules-service doesn't respond, it propagates — see the
-     * class javadoc.
-     *
-     * <p>{@code claimCause} viaja como <b>nombre</b>, no como id: es lo único que trae el
-     * {@code ClaimReport} que llega al motor, y rules-service lo resuelve a id contra el ramo de la
-     * cobertura ({@code InternalDocumentRequirementService}). Es obligatorio desde que la agenda
-     * documental se segmentó por hecho generador — antes bastaba el ramo, y omitirlo ahora devuelve
-     * 400 y voltea la clasificación entera.
+     * {@code claimCause} goes as a name (all {@code ClaimReport} carries); rules-service resolves it
+     * against the coverage's branch. It is required: omitting it returns 400 and fails the classification.
      */
     private BusinessRules overlayDocumentRequirements(BusinessRules rules, Long coverageId, String claimCause) {
         List<String> agenda = restClient.get()
@@ -309,10 +242,7 @@ public class RulesRestAdapter implements RulesAdapter {
                 .header(HttpHeaders.AUTHORIZATION, serviceToken())
                 .retrieve()
                 .body(new ParameterizedTypeReference<List<String>>() {});
-        // Empty is an answer ("this claim cause needs no documents"), null is the absence of one
-        // (unknown coverage or claim cause). Treating both as "not configured" meant a referente who
-        // cleared every document from the panel still got the baseline's — see the null contract in
-        // InternalDocumentRequirementService.
+        // Empty is an answer ("no documents required"); only null means "not configured".
         if (agenda == null) {
             log.debug("[RulesRestAdapter] No document agenda in DB for coverage {} — using baseline", coverageId);
             return rules;
@@ -326,7 +256,7 @@ public class RulesRestAdapter implements RulesAdapter {
         return "Bearer " + JwtSupport.issueServiceToken(jwtKey, "classification-service", TenantContext.get());
     }
 
-    /** Mirrors rules-service's RuleTextsDto (the referente's free-text lists for the branch). */
+    /** Mirrors rules-service's RuleTextsDto. */
     private record RuleTextsResponse(List<String> exclusions, List<String> businessRules) {
 
         boolean isEmpty() {
@@ -335,7 +265,7 @@ public class RulesRestAdapter implements RulesAdapter {
         }
     }
 
-    /** Mirrors rules-service's EvaluableRulesDto (the coverage's hard evaluable rules). */
+    /** Mirrors rules-service's EvaluableRulesDto. */
     private record EvaluableRulesResponse(List<EvaluableRuleJson> rules) {
 
         boolean isEmpty() {
@@ -353,10 +283,8 @@ public class RulesRestAdapter implements RulesAdapter {
             Long deadlineHours) {}
 
     /**
-     * Mirrors rules-service's FraudRecordRuleDto (window + Fast Track veto). Boxed booleans, not
-     * primitives: "this insurer configured nothing" is a 200 with an empty body, and a primitive
-     * would turn that legitimate answer into a parse error — which, since this overlay propagates,
-     * would sink the whole classification.
+     * Mirrors rules-service's FraudRecordRuleDto. Boxed on purpose: "nothing configured" is an empty
+     * 200, and a primitive would turn it into a parse error that sinks the classification.
      */
     private record FraudRecordRuleResponse(
             Long ruleId, Integer windowMonths, Boolean blocksFastTrack) {
@@ -366,7 +294,7 @@ public class RulesRestAdapter implements RulesAdapter {
         }
     }
 
-    /** Mirrors rules-service's CoverageLimitsDto (report deadline + events-per-year cap). */
+    /** Mirrors rules-service's CoverageLimitsDto. */
     private record CoverageLimitsResponse(
             Long reportDeadlineHours, Integer maxEventsPerYear, Integer waitingPeriodDays,
             Boolean coversFamilyGroup, Boolean claimExhaustsCoverage) {
@@ -377,7 +305,7 @@ public class RulesRestAdapter implements RulesAdapter {
         }
     }
 
-    /** Mirrors rules-service's ScoringConfigDto (fraud-scoring factors + bands). */
+    /** Mirrors rules-service's ScoringConfigDto. */
     private record ScoringResponse(Long id, boolean enabled, boolean fullAnalysisOnFastTrack,
                                    List<ScoringFactorJson> factors, List<ScoringBandJson> bands) {
 
@@ -415,7 +343,7 @@ public class RulesRestAdapter implements RulesAdapter {
 
     private record ScoringBandJson(String band, Double minScoreInclusive) {}
 
-    /** Mirrors rules-service's FastTrackConfigDto (JSON shape of the persisted thresholds). */
+    /** Mirrors rules-service's FastTrackConfigDto. */
     private record FastTrackResponse(
             Double maxClaimedAmountRatio,
             Integer maxPriorClaims,

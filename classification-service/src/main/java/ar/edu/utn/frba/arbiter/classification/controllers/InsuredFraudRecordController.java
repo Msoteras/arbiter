@@ -21,12 +21,8 @@ import java.net.URI;
 import java.util.List;
 
 /**
- * Internal REST API for the insured's fraud records — cases-service registers them here when the
- * analyst confirms one on a case, and reads them back for the analyst reviewing a later claim.
- *
- * <p>Module-to-module, same as {@link ClaimController}: the identity checks belong to the caller
- * (cases-service resolves the analyst from the token and validates the case), and this side owns
- * the record and what it means.
+ * Internal API for the insured's fraud records. Identity and case checks belong to the caller
+ * (cases-service); this side owns the record and what it means.
  */
 @RestController
 @RequestMapping("/api/v1/fraud-records")

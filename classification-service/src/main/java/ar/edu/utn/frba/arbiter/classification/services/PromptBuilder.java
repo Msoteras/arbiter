@@ -25,21 +25,9 @@ public class PromptBuilder {
     private static final DateTimeFormatter EVENT_DATE_FORMAT = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
 
     /**
-     * How each prior claim's status is worded for the model. The insured's history now merges two
-     * sources —what the company settled in its own systems and what was filed through Arbiter— and
-     * they don't speak the same language: the company writes {@code LIQUIDADO}/{@code RECHAZADO},
-     * Arbiter carries its {@code CaseStatus} literals, which are English by convention. Sending
-     * both raw put two vocabularies in the same list and asked the model to guess.
-     *
-     * <p>The translation lives here and not in the DTO on purpose: the literal is what the rules
-     * compare ({@code CoverageScopeEvaluator} matches {@code LIQUIDADO} to decide what consumed the
-     * coverage), so it has to travel untouched. This is the boundary where the data becomes prose
-     * for a reader — the same job the frontend does for the analyst, except the reader is the model
-     * and the whole prompt is already written in Spanish.
-     *
-     * <p><b>{@code APPROVED} is not "liquidado".</b> The analyst's approval is a decision, and
-     * paying is a later step that happens at the company: wording it as settled would have the
-     * model reading a payment that may never have happened.
+     * Arbiter's {@code CaseStatus} literals worded for the model, so it doesn't see two vocabularies
+     * mixed with the insurer's. Translated here, not in the DTO, because the rules compare the raw
+     * literals. {@code APPROVED} is not "liquidado": approval doesn't mean it was paid.
      */
     private static final Map<String, String> READABLE_STATUS = Map.of(
             "PENDING_CLASSIFICATION", "en análisis",
@@ -51,11 +39,7 @@ public class PromptBuilder {
             "REJECTED", "rechazado",
             "LAPSED", "caducado por falta de documentación");
 
-    /**
-     * Unknown values pass through untouched — that's what leaves the company's own vocabulary
-     * ({@code LIQUIDADO}, {@code RECHAZADO}) exactly as its records write it, instead of forcing a
-     * catalog of someone else's states in here.
-     */
+    /** Unknown values (the insurer's own vocabulary) pass through untouched. */
     private static String readableStatus(String status) {
         return status == null ? "—" : READABLE_STATUS.getOrDefault(status, status);
     }
@@ -63,13 +47,8 @@ public class PromptBuilder {
     private final String promptTemplate;
 
     /**
-     * The template is resolved <b>from</b> the configured version
-     * ({@code arbiter.llm.prompt-version}), which is what {@code ClassificationResultsService}
-     * persists in {@code llm_analysis.prompt_version} for SSN Disposition 2/2023's audit. They used
-     * to be two independent constants — the classpath here and the version in the yml — and they
-     * already drifted once: the template was v2 and it was audited as v1. Now the file that gets
-     * sent and the version that gets audited can't disagree, and bumping the version without
-     * creating the file breaks at startup, which is when you want to find out.
+     * Resolved from the audited prompt version so the file sent and the version persisted can't
+     * disagree; a version with no file fails at startup.
      */
     public PromptBuilder(LlmProperties properties, ResourceLoader resourceLoader) throws IOException {
         Resource promptResource =
@@ -103,8 +82,7 @@ public class PromptBuilder {
                 ? "No especificado"
                 : request.eventLocation();
 
-        // claimedAmount is nullable (the wizard doesn't require it): with no value it sends text,
-        // not null — String.replace doesn't accept a null replacement.
+        // String.replace rejects a null replacement.
         String claimedAmount = request.claimedAmount() == null
                 ? "No declarado"
                 : formatAmount(request.claimedAmount());
@@ -126,15 +104,7 @@ public class PromptBuilder {
                 .replace("{{claimCauseCatalog}}", renderClaimCauseCatalog(request));
     }
 
-    /**
-     * The branch's claim causes, each marked with whether the coverage covers it. This is the only
-     * place the model learns that causes other than the declared one exist — and the same list the
-     * output schema restricts {@code suggestedClaimCause} to, so whatever it answers maps back to
-     * an id without guessing.
-     *
-     * <p>An empty catalog (the branch has none loaded) renders a line that shuts the check down
-     * rather than leaving the model to improvise against a blank list.
-     */
+    /** An empty catalog renders an instruction to skip the check rather than a blank list to improvise on. */
     private static String renderClaimCauseCatalog(ClassificationRequest request) {
         List<ClassificationRequest.ClaimCauseOption> catalog = request.claimCauseCatalog();
         if (catalog == null || catalog.isEmpty()) {
@@ -149,18 +119,13 @@ public class PromptBuilder {
                 .orElse("");
     }
 
-    /** Claimed amount with thousands separator (es-AR): 1234567 → "$1.234.567". */
     private static String formatAmount(BigDecimal amount) {
         return "$" + NumberFormat.getNumberInstance(Locale.of("es", "AR")).format(amount);
     }
 
     /**
-     * One attachment, as the classifier sees it: the transcription and — separately, under its own
-     * heading — what the vision pass observed in the image (D5).
-     *
-     * <p>The separation is the point: without a heading, "the signature is pixelated" reads as if
-     * the document said it. The heading text tells the model where it came from and how much it
-     * weighs; the classification prompt repeats it on the other side.
+     * Visual findings go under their own heading so the model doesn't read them as document content;
+     * the classification prompt refers to that heading.
      */
     public String renderAttachment(String documentType, DocumentExtraction extraction) {
         String rendered = documentType + ": " + extraction.transcription();

@@ -21,8 +21,7 @@ public class PgVectorConfig {
     void ensurePgVector() {
         jdbcTemplate.execute("CREATE EXTENSION IF NOT EXISTS vector");
 
-        // If the column exists with a different dimension (e.g. from an older
-        // embedding model), drop it — stored vectors are incompatible anyway.
+        // A column with another dimension holds vectors from a different model: incompatible, so drop it.
         jdbcTemplate.execute("""
                 DO $$
                 DECLARE current_dims int;

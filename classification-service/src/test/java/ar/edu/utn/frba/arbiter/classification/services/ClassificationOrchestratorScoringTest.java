@@ -35,10 +35,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/**
- * Unit test of the scoring wiring in the orchestrator (no Spring context): scoring runs once per
- * classification, on both routes, and never breaks the classification when it fails.
- */
+/** Scoring runs once per classification on every route, and its failure never breaks the classification. */
 @ExtendWith(MockitoExtension.class)
 class ClassificationOrchestratorScoringTest {
 

@@ -6,9 +6,6 @@ import ar.edu.utn.frba.arbiter.classification.dto.ClassificationResponse;
 
 import java.util.List;
 
-/**
- * Canned implementation for unit tests. Does not call Ollama.
- */
 public class MockClaimClassifier implements ClaimClassifier {
 
     @Override

@@ -8,11 +8,7 @@ import java.util.Optional;
 
 public interface InsuredFraudRecordRepository extends JpaRepository<InsuredFraudRecord, Long> {
 
-    /**
-     * Every record about the insured, newest first — the lapsed ones included. Filtering by window
-     * happens in code, where the insurer's configured window is: "no antecedentes" and "hubo uno,
-     * ya vencido" are different answers for the analyst, and only one query has to serve both.
-     */
+    /** Lapsed records included: "none" and "one that expired" are different answers for the analyst. */
     List<InsuredFraudRecord> findByInsuredDniOrderByDeclaredAtDesc(String insuredDni);
 
     Optional<InsuredFraudRecord> findByCaseId(Long caseId);

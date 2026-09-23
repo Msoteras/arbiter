@@ -7,6 +7,5 @@ import java.util.List;
 
 public interface RuleResultRepository extends JpaRepository<RuleResult, Long> {
 
-    /** PASS included: "no rule ran" and "all passed" must not read the same on screen. */
     List<RuleResult> findByCaseIdOrderByEvaluatedAtAsc(Long caseId);
 }

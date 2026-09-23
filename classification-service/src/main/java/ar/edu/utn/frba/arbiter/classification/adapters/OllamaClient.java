@@ -18,14 +18,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 
-/**
- * Low-level Ollama transport: owns the {@code /api/chat} protocol (request shape, num_ctx
- * option, NDJSON stream accumulation). Adapters build prompts and parse results on top of
- * this; they don't touch HTTP. See {@link ClaimClassifierImpl}, {@link DocumentAnalyzerImpl}.
- *
- * <p>The default provider: a model running on our own infrastructure is what the architecture
- * document describes, so this is what gets wired when {@code arbiter.llm.provider} says nothing.
- */
+/** Default {@link LlmClient}: Ollama's {@code /api/chat}, streamed as NDJSON. */
 @Component
 @ConditionalOnProperty(name = "arbiter.llm.provider", havingValue = "ollama", matchIfMissing = true)
 public class OllamaClient implements LlmClient {
@@ -43,12 +36,8 @@ public class OllamaClient implements LlmClient {
             OllamaProperties properties,
             ObjectMapper objectMapper,
             @Value("${arbiter.ollama.num-ctx:8192}") int numCtx,
-            // Tope duro de tokens generados por respuesta. Sin esto, un loop de repetición del
-            // modelo (fallo conocido, no específico de este proyecto) sigue generando hasta pegar
-            // contra num_ctx entero — con qwen3-vl corriendo por CPU a ~3 tokens/seg eso son horas
-            // bloqueando el thread de clasificación por una sola respuesta. 4096 es generoso para
-            // lo que este flujo realmente pide (transcripción de un documento corto, o la
-            // clasificación en sí — ninguna de las dos necesita miles de tokens de salida).
+            // Hard cap on generated tokens: a repetition loop would otherwise run to num_ctx,
+            // which on CPU means hours blocking the classification thread.
             @Value("${arbiter.ollama.num-predict:4096}") int numPredict
     ) {
         this.ollamaRestClient = ollamaRestClient;
@@ -68,29 +57,15 @@ public class OllamaClient implements LlmClient {
         return properties.model();
     }
 
-    /** How often the in-progress content gets logged while a chat is still generating. */
     private static final long PROGRESS_LOG_INTERVAL_MS = 5000;
-    /** How much of the tail of the accumulated content each progress log line shows. */
     private static final int PROGRESS_LOG_TAIL_CHARS = 200;
 
     /**
-     * One logical chat call. {@code stream=true}: {@code retrieve().body(...)} blocks until the
-     * whole response lands, so with {@code stream=false} nothing was visible from this side while
-     * Ollama was generating — a hung or looping response (repetition is a known LLM failure mode)
-     * looked identical in the logs to a normal one that just hadn't finished yet. Streaming lets
-     * {@link #readStreamingResponse} log a snippet of what's actually coming out periodically,
-     * so a loop shows up as literal repeated text in the logs instead of only as a low
-     * tokens/second number in Ollama's own logs. The accumulated result is the same either way —
-     * callers don't see a difference beyond the logging.
+     * Streams so progress can be logged periodically: a repetition loop then shows up as repeated
+     * text in the logs instead of looking like a slow but healthy response.
      *
-     * @param images base64-encoded images for the vision model, or empty for text-only.
-     * @param format optional JSON schema to force structured output, or null for free text.
-     * @param think  whether to let the model reason before answering. <b>Ojo: no alcanza por sí
-     *               solo.</b> Se midió contra Ollama 0.30.8 que {@code qwen3-vl:8b-thinking}
-     *               ignora tanto {@code think:false} como la directiva {@code /no_think} de Qwen y
-     *               razona igual. Lo que de verdad decide es <b>qué modelo se usa</b>: la variante
-     *               {@code -instruct} no tiene fase de razonamiento. Esto viaja igual porque es la
-     *               instrucción correcta a la API y deja la intención explícita.
+     * <p>{@code think=false} alone is not enough: {@code qwen3-vl:8b-thinking} ignores it and reasons
+     * anyway. What actually matters is using the {@code -instruct} variant.
      */
     @Override
     public String chat(String prompt, List<String> images, Map<String, Object> format, boolean think) {
@@ -120,9 +95,7 @@ public class OllamaClient implements LlmClient {
 
     private String readStreamingResponse(InputStream inputStream, long start) {
         StringBuilder fullContent = new StringBuilder();
-        // Solo para el log: los tokens de razonamiento no son la respuesta, pero saber que el
-        // modelo está pensando (y no colgado, ni respondiendo) es exactamente el dato que faltaba
-        // cuando una corrida devolvió 0 chars después de 27 minutos.
+        // Logged only: tells "still thinking" apart from "hung".
         int thinkingChars = 0;
         long lastLogAt = start;
         int lastLoggedProgress = 0;
@@ -135,7 +108,6 @@ public class OllamaClient implements LlmClient {
                     continue;
                 }
                 try {
-                    // Each line is a valid JSON: { "message": { "content": "..." }, "done": false }
                     Map<String, Object> chunk = objectMapper.readValue(line, Map.class);
                     Map<String, Object> message = (Map<String, Object>) chunk.get("message");
                     if (message != null) {
@@ -180,19 +152,9 @@ public class OllamaClient implements LlmClient {
                 .replace("\n", "\\n");
     }
 
-    // --- Internal records for the Ollama API protocol ---
-
     private record ChatMessage(String role, String content, List<String> images) {}
 
-    /**
-     * @param think pide al modelo que no razone antes de responder. Por qué importa: con
-     *              {@code num_predict} acotando cuánto puede generar, un modelo que piensa gasta
-     *              el presupuesto entero razonando (en {@code message.thinking}) y termina sin
-     *              emitir un solo carácter de {@code message.content} — se midió: dos documentos
-     *              seguidos tardaron 27 min cada uno, exactamente lo que toma generar 4096 tokens,
-     *              y devolvieron 0 chars. La solución real fue pasar al modelo {@code -instruct};
-     *              ver el javadoc de {@link #chat}.
-     */
+    /** A thinking model can spend the whole {@code num_predict} budget reasoning and return empty content. */
     private record ChatRequest(String model, List<ChatMessage> messages, boolean stream,
                                Map<String, Object> format, boolean think, Map<String, Object> options) {}
 }

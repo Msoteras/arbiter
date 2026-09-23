@@ -9,24 +9,9 @@ import org.springframework.stereotype.Repository;
 import java.util.List;
 
 /**
- * The few {@code cases} columns this module writes and reads directly.
- *
- * <p>A deliberate exception to "each module owns its tables". Classification runs
- * asynchronously: by the time cases-service polls for the result, the request that produced it
- * is long gone, so whatever the analysis decided has to be durable somewhere. Two of those
- * outcomes have no table on this side —
- *
- * <ul>
- *   <li>{@code was_fast_track}: a deterministic Fast Track produces no {@code llm_analysis} row
- *       (the model never ran, and the table's CHECK rejects {@code FAST_TRACK}), so "no row"
- *       would be indistinguishable from "not classified yet".</li>
- *   <li>{@code forensic_report}: the per-image findings are normalized into
- *       {@code image_analysis}, but the assembled report the analyst UI renders is not.</li>
- * </ul>
- *
- * <p>Plain JDBC rather than an entity on purpose: mapping {@code cases} here would mean two
- * modules owning one entity, which is exactly what the rule protects against. This is a narrow,
- * named set of columns instead.
+ * The few {@code cases} columns this module writes and reads directly: outcomes with no table on this
+ * side (e.g. {@code was_fast_track}, since a Fast Track writes no {@code llm_analysis} row). Plain
+ * JDBC on named columns so {@code cases} isn't mapped by two modules.
  */
 @Repository
 @RequiredArgsConstructor
@@ -34,46 +19,30 @@ public class CaseOutcomeRepository {
 
     private final JdbcTemplate jdbcTemplate;
 
-    /**
-     * El esquema del tenant, explícito. {@code TenantConnectionProvider} solo enruta las conexiones
-     * de Hibernate; este repositorio usa {@code JdbcTemplate} crudo y recibe una conexión del pool
-     * con el {@code search_path} en {@code arbiter_common}, donde {@code cases} no existe. Ver el
-     * javadoc de {@code TenantContext#schemaForSql()}.
-     */
+    /** Raw {@code JdbcTemplate} connections aren't tenant-routed, so every table is qualified. */
     private static String schema() {
         return TenantContext.schemaForSql();
     }
 
-    /** Records that the deterministic gate resolved this case, with no model run. */
     public void markFastTracked(Long caseId) {
         jdbcTemplate.update(
                 "UPDATE %s.cases SET was_fast_track = TRUE WHERE id = ?".formatted(schema()), caseId);
     }
 
-    /** The cast is needed because the column is jsonb and the codec hands us plain text. */
     public void saveForensicReport(Long caseId, String reportJson) {
         jdbcTemplate.update(
                 "UPDATE %s.cases SET forensic_report = ?::jsonb WHERE id = ?".formatted(schema()),
                 reportJson, caseId);
     }
 
-    /**
-     * Which scoring configuration produced the case's risk score (D29). Written next to the score
-     * and not derived later: the referent can retune the weights the next day, and then the band on
-     * the case no longer matches any configuration you can look up.
-     */
+    /** Stored with the score, not derived later: the referente may retune the weights afterwards. */
     public void saveScoringConfiguration(Long caseId, Long scoringConfigurationId) {
         jdbcTemplate.update(
                 "UPDATE %s.cases SET scoring_configuration_id = ? WHERE id = ?".formatted(schema()),
                 scoringConfigurationId, caseId);
     }
 
-    /**
-     * Records why the last async run gave up, when {@code caseId} isn't null (the isolated flow
-     * has no case to write to). {@code caseId} may not exist in this tenant yet — a service token
-     * classification triggered before the case's own insert commits — so a 0-row update is not an
-     * error, just a run that had nothing to record onto.
-     */
+    /** A 0-row update is fine: the case's own insert may not have committed yet. */
     public void recordClassificationFailure(Long caseId, ClassificationFailureReason reason, String message) {
         if (caseId == null) {
             return;
@@ -84,7 +53,6 @@ public class CaseOutcomeRepository {
                 reason.name(), message, caseId);
     }
 
-    /** Clears a stale failure once a run actually succeeds — a resolved case shouldn't look failed. */
     public void clearClassificationFailure(Long caseId) {
         if (caseId == null) {
             return;
@@ -95,15 +63,9 @@ public class CaseOutcomeRepository {
                 caseId);
     }
 
-    // The rest of the read model (analysis_classification, risk_score, risk_band, ...) is NOT
-    // written here: cases-service's poller already copies it off the getStatus response. A
-    // second write path for the same values is how they drift apart.
+    // The rest of the read model is copied by cases-service's poller from getStatus; don't add a
+    // second write path here.
 
-    /**
-     * Everything {@code getStatus} needs from the case itself, in one round trip. The insured's
-     * name is joined rather than stored on the case: it lives on {@code insured} now, and copying
-     * it onto every classification is what the old log did.
-     */
     public CaseOutcome findOutcome(Long caseId) {
         List<CaseOutcome> rows = jdbcTemplate.query("""
                         SELECT c.was_fast_track, c.forensic_report, i.name, i.surname
@@ -119,7 +81,7 @@ public class CaseOutcomeRepository {
         return rows.isEmpty() ? CaseOutcome.unknown() : rows.getFirst();
     }
 
-    /** @param insuredName null when the case isn't in this schema (isolated classification) */
+    /** @param insuredName null when the case isn't in this schema */
     public record CaseOutcome(boolean wasFastTrack, String forensicReport, String insuredName) {
 
         static CaseOutcome unknown() {

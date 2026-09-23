@@ -66,7 +66,7 @@ class ImageEmbeddingServiceTest {
 
         service.processAndFindDuplicates(1L, null, "att-0", "data");
 
-        // The isolated-classification endpoint has no case_documents row to anchor to.
+        // No case_documents row to anchor to.
         verify(repository, never()).save(any());
         verify(repository, never()).setEmbedding(any(), anyString());
         verify(repository).findSimilar(anyString(), eq(1L), eq(0.90), eq(5));
@@ -82,7 +82,7 @@ class ImageEmbeddingServiceTest {
         when(clipClient.embed("img")).thenReturn(vector);
         saveAssignsId(7L);
 
-        // (case_id, document_id, type, filename, similarity) — as the join against case_documents returns it.
+        // (case_id, document_id, type, filename, similarity)
         Object[] row = new Object[]{42L, 555L, "item_photo", "stolen.jpg", 0.965};
         when(repository.findSimilar(anyString(), eq(10L), eq(0.90), eq(5)))
                 .thenReturn(Collections.singletonList(row));
@@ -117,7 +117,7 @@ class ImageEmbeddingServiceTest {
         ImageAnalysis saved = captor.getValue();
         assertThat(saved.getCaseDocumentId()).isEqualTo(200L);
         assertThat(saved.getModel()).isEqualTo("clip-vit-b-32-openai");
-        // findSimilar orders by similarity desc, so the first row is the one worth recording.
+        // findSimilar orders by similarity desc.
         assertThat(saved.getSimilarDocumentId()).isEqualTo(555L);
         assertThat(saved.getSimilarityScore()).isEqualByComparingTo(BigDecimal.valueOf(0.965));
         assertThat(saved.isSuspicious()).isTrue();
@@ -177,7 +177,7 @@ class ImageEmbeddingServiceTest {
         verify(repository).setEmbedding(eq(7L), eq("[1.0,-0.5,0.0]"));
     }
 
-    /** Mimics the DB assigning an id on save, which is where the analysis id comes from. */
+    /** Mimics the DB assigning an id on save. */
     private void saveAssignsId(long id) {
         when(repository.save(any(ImageAnalysis.class))).thenAnswer(invocation -> {
             ImageAnalysis saved = invocation.getArgument(0);

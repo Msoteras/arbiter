@@ -9,10 +9,7 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * Pure unit test of the hard coverage rule evaluator (D3): no Spring, no database. Seed ids:
- * cobertura 1 = "Robo de celular", claim_cause 3 = "Hurto".
- */
+/** Seed ids: coverage 1 = cellphone robbery, claim_cause 3 = theft (hurto). */
 class CoverageRuleEvaluatorTest {
 
     private final CoverageRuleEvaluator evaluator = new CoverageRuleEvaluator();
@@ -66,7 +63,7 @@ class CoverageRuleEvaluatorTest {
 
     @Test
     void nonExcludedCause_isNotExcluded_andRecordsPass() {
-        // Un robo (claim_cause 2) sobre la misma cobertura no está en la lista negra.
+        // A robbery (claim_cause 2) on the same coverage isn't excluded.
         CoverageRuleEvaluator.Result result =
                 evaluator.evaluate(claim("Robo en vía pública", 2L), rulesWith(List.of(EXCLUDE_HURTO)));
 
@@ -91,7 +88,7 @@ class CoverageRuleEvaluatorTest {
 
     @Test
     void nullClaimCauseId_cannotMatch_recordsPass() {
-        // The isolated flow (no case) may not carry the id: it can't exclude blindly.
+        // Without a claim cause id it can't exclude blindly.
         CoverageRuleEvaluator.Result result =
                 evaluator.evaluate(claim("Hurto", null), rulesWith(List.of(EXCLUDE_HURTO)));
 

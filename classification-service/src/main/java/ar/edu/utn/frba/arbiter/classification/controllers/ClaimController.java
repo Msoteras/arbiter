@@ -24,10 +24,8 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Internal REST API for claim classification — this is the contract cases-service's
- * ClaimsAnalysisClient calls to get a case classified. This module does not persist the
- * claim/case itself (cases-service owns it); it only runs the analysis and keeps the
- * audit log, correlated to the caller's {@code caseId}.
+ * Internal API cases-service calls to classify a case. The case itself is owned by cases-service;
+ * this module only runs the analysis and keeps its audit trail, keyed by {@code caseId}.
  */
 @RestController
 @RequestMapping("/api/v1/claims")
@@ -102,8 +100,7 @@ public class ClaimController {
         return ResponseEntity.ok(resultsService.getRuleResults(caseId));
     }
 
-    // Solo token de servicio (sin claim `rol`): el analystId viaja en el body y cases-service es el
-    // único que lo resuelve contra claims_analyst.
+    // Service token only (no `rol` claim): the analystId comes in the body, resolved by cases-service.
     @PostMapping("/{caseId}/decision")
     @PreAuthorize("authentication.authorities.isEmpty()")
     @Operation(
@@ -119,7 +116,7 @@ public class ClaimController {
         return ResponseEntity.ok(Map.of(
                 "caseId", caseId,
                 "status", "decision-recorded",
-                // cases-service stores this on cases.classification_id — see Case.classificationId.
+                // cases-service stores this on cases.classification_id.
                 "classificationId", classificationId
         ));
     }

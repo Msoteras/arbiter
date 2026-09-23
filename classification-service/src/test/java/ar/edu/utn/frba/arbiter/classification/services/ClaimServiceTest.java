@@ -29,11 +29,7 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/**
- * The analyst's decision, against the normalized model. The old shape copied the whole
- * classification snapshot onto a second log row so a later read would still find it; now the
- * decision points at the analysis, and these tests assert that link instead of the copy.
- */
+/** The analyst's decision points at the analysis it was based on. */
 @ExtendWith(MockitoExtension.class)
 class AnalystDecisionTest {
 
@@ -56,13 +52,7 @@ class AnalystDecisionTest {
     private ClassificationResultsService resultsService;
 
     /**
-     * {@code JpaRepository.save} returns the already-persisted entity, and {@code
-     * recordAnalystDecision} uses its id so cases-service can point
-     * {@code cases.classification_id} at the verdict. The mock returned null.
-     *
-     * <p>A different instance is returned and not the argument: the tests capture what was passed
-     * to {@code save} and check it goes without an id (it's a new row), so assigning it to the
-     * argument would invalidate exactly that.
+     * Returns a different instance with an id, not the argument: tests assert the argument had no id.
      */
     @BeforeEach
     void savedDecisionComesBackWithAnId() {
@@ -78,8 +68,7 @@ class AnalystDecisionTest {
 
     @Test
     void recordAnalystDecision_returnsTheIdOfThePersistedDecision() {
-        // It's what ties the case to the model run that backed the verdict: without this id,
-        // cases.classification_id stays null and the audit link is lost.
+        // cases-service stores this id on cases.classification_id: it's the audit link.
         Long caseId = 42L;
         when(llmAnalysisRepository.findFirstByCaseIdOrderByIdDesc(caseId))
                 .thenReturn(Optional.of(analysis(caseId, Classification.LLM_RECOMIENDA_APROBAR)));
@@ -92,8 +81,6 @@ class AnalystDecisionTest {
 
     @Test
     void recordAnalystDecision_freezesTheAttemptCounterOntoTheAuditRow() {
-        // The live counter is cases.classification_attempts; its final value has to land in the
-        // auditable record, which used to always be stored as 0.
         Long caseId = 42L;
         when(llmAnalysisRepository.findFirstByCaseIdOrderByIdDesc(caseId))
                 .thenReturn(Optional.of(analysis(caseId, Classification.LLM_RECOMIENDA_APROBAR)));
@@ -105,7 +92,7 @@ class AnalystDecisionTest {
 
     @Test
     void recordAnalystDecision_withoutAnAttemptCount_defaultsToZero() {
-        // The column is NOT NULL and the request field is optional (an old caller doesn't send it).
+        // The column is NOT NULL but the request field is optional.
         Long caseId = 42L;
         when(llmAnalysisRepository.findFirstByCaseIdOrderByIdDesc(caseId))
                 .thenReturn(Optional.of(analysis(caseId, Classification.LLM_RECOMIENDA_APROBAR)));
@@ -129,8 +116,7 @@ class AnalystDecisionTest {
         assertThat(saved.getLlmAnalysis()).isSameAs(analysis);
         assertThat(saved.getAnalystId()).isEqualTo(1L);
         assertThat(saved.getDecision()).isEqualTo("APPROVE");
-        // SSN Disposition 2/2023's auditable record has to store the justification, not drop it —
-        // a bug found because the front asked for it and never sent it.
+        // The audit record must keep the justification.
         assertThat(saved.getAnalystJustification()).isEqualTo("Documentación completa y consistente");
         assertThat(saved.getDecidedAt()).isNotNull();
     }
@@ -169,8 +155,7 @@ class AnalystDecisionTest {
 
         resultsService.recordAnalystDecision(caseId, new AnalystDecisionRequest(1L, "APROBAR", null, null));
 
-        // Fast Track skips the model but not the analyst (decision #5) — so the decision exists
-        // with nothing to point at.
+        // Fast Track skips the model but not the analyst: the decision has no analysis to point at.
         CaseClassification saved = captureDecision();
         assertThat(saved.getLlmAnalysis()).isNull();
         assertThat(saved.getDecision()).isEqualTo("APPROVE");
