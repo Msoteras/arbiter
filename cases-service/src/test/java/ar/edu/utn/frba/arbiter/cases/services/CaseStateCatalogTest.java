@@ -38,8 +38,8 @@ class CaseStateCatalogTest {
 
     @Test
     void resolve_hitsTheDatabaseOnlyOncePerStatus() {
-        // El catálogo se lee en cada transición y en cada alta; sin cache sería un SELECT extra
-        // por expediente creado.
+        // The catalog is read on every transition and every creation; without a cache that is an
+        // extra SELECT per case.
         when(caseStateRepository.findByName("APPROVED"))
                 .thenReturn(Optional.of(CaseStates.of(CaseStatus.APPROVED)));
 

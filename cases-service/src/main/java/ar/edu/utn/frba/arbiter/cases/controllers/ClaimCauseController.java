@@ -22,18 +22,9 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Catálogo de hechos generadores (claim_cause) por ramo, para poblar el selector del alta de
- * denuncia del asegurado. Los hechos son distintos por ramo (Celulares tiene "Rotura accidental",
- * Tecnología tiene "Daño accidental", etc.), así que el wizard NO puede ofrecer una lista fija:
- * pide los del ramo de la póliza elegida. Por NOMBRE de ramo, que es lo que la póliza tiene a mano.
- * Es el mismo eje que valida {@code CaseReferenceResolver} al crear el caso, así que lo que ofrece
- * el selector siempre resuelve (no más 422 por elegir un hecho que no existe en el ramo).
- *
- * <p>Con {@code policyNumber}, además recorta los hechos que la cobertura de esa póliza excluye
- * ({@code COVERAGE_EXCLUSION}, rules-service) — una lista negra: la cobertura cubre todos los
- * hechos del ramo salvo los marcados ahí. Sin esto, el wizard dejaba elegir "Hurto" sobre una
- * póliza cuya cobertura de Robo no lo cubre, y recién se enteraba en la clasificación, ya subida
- * la documentación.
+ * Claim causes are looked up by branch name, the same key {@code CaseReferenceResolver} validates
+ * against, so whatever the selector offers resolves. With {@code policyNumber}, causes excluded by
+ * the policy's coverages ({@code COVERAGE_EXCLUSION}) are removed.
  */
 @RestController
 @RequestMapping("/api/v1/claim-causes")
@@ -66,11 +57,8 @@ public class ClaimCauseController {
     }
 
     /**
-     * Best-effort: an insured typing through the wizard shouldn't lose the whole selector because
-     * rules-service hiccuped, or because the policy isn't locally synced yet and the insurer DB is
-     * unreachable — those are exactly the failure modes {@link CaseReferenceResolver} already
-     * tolerates elsewhere. Worst case, the wizard shows the unfiltered list and
-     * {@code CoverageRuleEvaluator} still catches a genuinely excluded hecho during classification.
+     * Best-effort: on failure the wizard shows the unfiltered list, and the coverage rules still catch
+     * an excluded claim cause during classification.
      */
     private Set<Long> excludedForPolicy(String policyNumber) {
         try {
@@ -80,9 +68,7 @@ public class ClaimCauseController {
             }
             Insured insured = referenceResolver.resolveInsured(insuredId);
             Policy policy = referenceResolver.resolvePolicy(policyNumber, insured.getId());
-            // Unión de lo que cubren TODAS las coberturas de la póliza: un hecho se ofrece si al
-            // menos una responde por él. Filtrar por una sola cobertura le escondía al asegurado
-            // hechos que su póliza cubre.
+            // A claim cause is offered if at least one of the policy's coverages covers it.
             return policyCoverageResolver.excludedClaimCauseIds(policy.getId());
         } catch (RuntimeException e) {
             log.warn("[ClaimCause] Couldn't resolve coverage exclusions for policy {} — showing the "

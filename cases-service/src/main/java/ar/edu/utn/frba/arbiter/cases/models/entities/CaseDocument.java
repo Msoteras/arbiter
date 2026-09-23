@@ -17,9 +17,8 @@ import org.hibernate.annotations.CreationTimestamp;
 import java.time.Instant;
 
 /**
- * A document attached to a case by the insured, kept so the required-documentation check
- * runs against everything the case has accumulated — not just what came in the last upload.
- * One row per document type per case (upsert by type): re-uploading a type replaces it.
+ * Kept so the required-documentation check runs against everything the case accumulated, not just
+ * the last upload. One row per document type per case: re-uploading a type replaces it.
  */
 @Entity
 @Table(name = "case_documents",
@@ -38,7 +37,7 @@ public class CaseDocument {
     @Column(name = "case_id", nullable = false)
     private Long caseId;
 
-    /** What the document IS: police_report, invoice, quote, item_photo, ... */
+    /** e.g. police_report, invoice, quote, item_photo. */
     @Column(nullable = false, length = 80)
     private String type;
 

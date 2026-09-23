@@ -37,10 +37,9 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 /**
- * Quién puede engancharse a la conversación de un expediente por el socket. Es la superficie más
- * fácil de dejar abierta: los dos filtros de servlet no corren acá, así que sin este interceptor
- * cualquier sesión autenticada podría suscribirse a los ids uno por uno y leer todos los hilos del
- * tenant. Lo que se prueba es que <b>niegue</b>.
+ * Who may attach to a case conversation over the socket. The servlet filters don't run here, so
+ * without this interceptor any authenticated session could subscribe to every thread in the tenant
+ * by id. What is tested is that it <b>denies</b>.
  */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -78,8 +77,6 @@ class StompAuthChannelInterceptorTest {
         CallerContext.clear();
     }
 
-    // ----- conexión -----
-
     @Test
     void connectWithoutAToken_isRejected() {
         assertThatThrownBy(() -> send(connect(null)))
@@ -101,8 +98,6 @@ class StompAuthChannelInterceptorTest {
         assertThatCode(() -> send(connect("Bearer " + tokenFor("ASEGURADO", OWNER_DNI))))
                 .doesNotThrowAnyException();
     }
-
-    // ----- suscripción -----
 
     @Test
     void insuredSubscribingToSomeoneElsesCase_isRejected() {
@@ -128,7 +123,6 @@ class StompAuthChannelInterceptorTest {
                 .doesNotThrowAnyException();
     }
 
-    /** Un destino que no es un hilo de expediente no tiene por qué existir. */
     @Test
     void subscribingToAnythingElse_isRejected() {
         Map<String, Object> session = sessionOf("ANALISTA_SINIESTROS", null);
@@ -139,14 +133,12 @@ class StompAuthChannelInterceptorTest {
                 .isInstanceOf(StompAccessDeniedException.class);
     }
 
-    /** Sin pasar por CONNECT no hay identidad que evaluar. */
+    /** Without a CONNECT there is no identity to evaluate. */
     @Test
     void subscribingWithoutHavingConnected_isRejected() {
         assertThatThrownBy(() -> send(subscribe("/topic/cases/bbva/" + CASE_ID, new HashMap<>())))
                 .isInstanceOf(StompAccessDeniedException.class);
     }
-
-    // ----- helpers -----
 
     private void send(Message<byte[]> message) {
         interceptor.preSend(message, null);
@@ -170,7 +162,7 @@ class StompAuthChannelInterceptorTest {
         return MessageBuilder.createMessage(new byte[0], accessor.getMessageHeaders());
     }
 
-    /** El estado que deja un CONNECT válido, para no reconstruirlo a mano en cada test. */
+    /** The session state a valid CONNECT leaves behind. */
     private Map<String, Object> sessionOf(String rol, String dni) {
         StompHeaderAccessor accessor = StompHeaderAccessor.create(StompCommand.CONNECT);
         accessor.setLeaveMutable(true);

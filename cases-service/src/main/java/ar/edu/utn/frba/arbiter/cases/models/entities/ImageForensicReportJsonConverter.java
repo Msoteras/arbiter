@@ -7,10 +7,8 @@ import jakarta.persistence.AttributeConverter;
 import jakarta.persistence.Converter;
 
 /**
- * Serializes the cached {@link ImageForensicReport} to a JSON string (same convention as
- * {@link RiskBreakdownJsonConverter}, no JSONB). Null when no analysis ran (Fast Track, or a
- * claim with no image attachments) — preserved as null so the analyst UI reads "no analysis"
- * instead of an empty report.
+ * Null when no analysis ran (Fast Track, or no image attachments), preserved so the analyst UI
+ * reads "no analysis" instead of an empty report.
  */
 @Converter
 public class ImageForensicReportJsonConverter implements AttributeConverter<ImageForensicReport, String> {

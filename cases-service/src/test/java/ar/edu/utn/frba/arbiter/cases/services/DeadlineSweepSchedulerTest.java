@@ -61,8 +61,8 @@ class DeadlineSweepSchedulerTest {
 
     @Test
     void notifiesEachDueCaseWithItsComputedPriority() {
-        Case critical = caseDue(1L, TODAY.plusDays(1));   // CRITICAL
-        Case overdue = caseDue(2L, TODAY.minusDays(2));   // OVERDUE
+        Case critical = caseDue(1L, TODAY.plusDays(1));
+        Case overdue = caseDue(2L, TODAY.minusDays(2));
         when(caseRepository.findUnansweredDueBy(any(), any()))
                 .thenReturn(List.of(critical, overdue));
 

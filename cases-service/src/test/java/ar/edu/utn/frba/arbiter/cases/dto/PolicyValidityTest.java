@@ -8,11 +8,8 @@ import java.time.LocalDateTime;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * La vigencia la decide el backend y viaja calculada. Antes cada consumidor la derivaba de las
- * fechas: el alta de denuncia con {@code NOW()} de Postgres, la tarjeta del portal con el reloj del
- * navegador. Con {@code vigencia_hasta} guardado sin zona y el backend en UTC contra un navegador
- * en hora argentina, el día del vencimiento había una ventana de tres horas en la que el portal
- * mostraba la póliza "Vigente" y el alta ya no la ofrecía.
+ * Validity is computed by the backend and sent precomputed, so consumers with different clocks
+ * (backend in UTC, browser in Argentine time) can't disagree on the day a policy expires.
  */
 class PolicyValidityTest {
 
@@ -30,14 +27,13 @@ class PolicyValidityTest {
                 .isEqualTo(Validity.EXPIRED);
     }
 
-    /** La compañía vende con fecha de inicio futura: sin este caso se mostraba como vigente. */
+    /** Insurers sell policies with a future start date; those must not read as current. */
     @Test
     void aPolicyThatHasNotStartedYet_isNotYetActive() {
         assertThat(Validity.at(NOW.plusDays(20), NOW.plusYears(1), NOW))
                 .isEqualTo(Validity.NOT_YET_ACTIVE);
     }
 
-    /** Con la hora, no por día: vencer hoy a las 08:00 no cubre a las 12:00. */
     @Test
     void theEndOfCoverageIsComparedWithItsTime_notJustTheDay() {
         LocalDateTime endsThisMorning = NOW.withHour(8);
@@ -49,7 +45,7 @@ class PolicyValidityTest {
                 .isEqualTo(Validity.CURRENT);
     }
 
-    /** Una vigencia incompleta no puede leerse como "vencida" y esconder la póliza. */
+    /** Incomplete dates must not read as expired and hide the policy. */
     @Test
     void missingDates_readAsCurrent() {
         assertThat(Validity.at(null, null, NOW)).isEqualTo(Validity.CURRENT);

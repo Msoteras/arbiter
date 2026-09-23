@@ -386,8 +386,7 @@ public class CaseController {
         return ResponseEntity.accepted().body(response);
     }
 
-    // También el referente: destrabar un expediente clavado es supervisión, no decidirlo. No
-    // resuelve al que llama porque no atribuye nada — solo reencola la clasificación.
+    // The referente may also retry: unblocking a stuck case is supervision, not a decision.
     @PostMapping("/{caseId}/retry-classification")
     @PreAuthorize("hasAnyRole('ANALISTA_SINIESTROS', 'REFERENTE_ASEGURADORA')")
     @Operation(summary = "Reintentar la clasificación de un expediente fallido",
@@ -414,9 +413,8 @@ public class CaseController {
         return ResponseEntity.ok(caseService.getInsuredPolicies(caseId));
     }
 
-    // La propuesta de liquidación. GET y no POST aunque reciba un parámetro: no persiste nada,
-    // recalcula sobre entradas ya congeladas, y el analista la va a pedir varias veces mientras
-    // prueba un valor de reposición. Lo que sí escribe es la aprobación (POST /decision).
+    // GET even with a parameter: it persists nothing and is recomputed as the analyst tries values.
+    // The settlement is written by POST /decision.
     @GetMapping("/{caseId}/settlement")
     @PreAuthorize("hasAnyRole('ANALISTA_SINIESTROS', 'REFERENTE_ASEGURADORA')")
     @Operation(summary = "Amount to be paid on the claim",
@@ -430,9 +428,6 @@ public class CaseController {
         return ResponseEntity.ok(settlementService.forCase(caseId, replacementValue));
     }
 
-    // ─── Atribuciones: lo que excede el tope del analista lo firma el referente ──────────
-    // Va antes de {caseId} en el orden de lectura, pero no compite con él: caseId es Long y
-    // "settlements" no bindea. Mismo patrón que /lens-summary y /analysts/workload.
     @GetMapping("/settlements/pending-authorization")
     @PreAuthorize("hasRole('REFERENTE_ASEGURADORA')")
     @Operation(summary = "Settlements waiting for the referente",
@@ -479,10 +474,7 @@ public class CaseController {
         return ResponseEntity.ok(Map.of("caseId", caseId, "status", "settlement-returned"));
     }
 
-    // Solo el analista: la decisión se atribuye resolviendo al que llama contra claims_analyst, así
-    // que un referente ya venía recibiendo 403 acá. Decisión #5 de CLAUDE.md.
-    // Y no cualquier analista: caseService.recordAnalystDecision valida además que sea el
-    // asignado al expediente puntual — @PreAuthorize acá solo filtra por rol.
+    // @PreAuthorize only filters by role; the service also checks the caller is the assigned analyst.
     @PostMapping("/{caseId}/decision")
     @PreAuthorize("hasRole('ANALISTA_SINIESTROS')")
     @Operation(summary = "Persist the analyst's decision",

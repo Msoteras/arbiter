@@ -17,14 +17,7 @@ import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.Instant;
 
-/**
- * One message in the conversation an analyst and an insured have about a case. Separate from
- * {@link Notification}, which is outbound and automatic: this one has two sides and somebody typed
- * it, so it has to be answerable.
- *
- * <p>Only {@code readAt} is mutable — editing a message the other party already read would rewrite
- * a conversation a decision may hang off.
- */
+/** Only {@code readAt} is mutable: a decision may hang off what the other party already read. */
 @Entity
 @Table(name = "case_message")
 @Getter
@@ -44,11 +37,7 @@ public class CaseMessage {
     @Column(name = "sender_id", nullable = false)
     private Long senderId;
 
-    /**
-     * Which side wrote it, frozen at write time so it keeps reading right if that person later
-     * changes role or leaves. Only {@code INSURED} and {@code ANALYST} are ever written: a
-     * referente reads the thread but doesn't post to it.
-     */
+    /** Frozen at write time so it survives role changes. Only {@code INSURED} or {@code ANALYST}. */
     @Enumerated(EnumType.STRING)
     @Column(name = "sender_role", nullable = false, length = 30)
     private StatusChangeActor senderRole;
@@ -60,7 +49,7 @@ public class CaseMessage {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
-    /** When the <b>other</b> side read it. Null is what the unread badge counts. */
+    /** When the other side read it. */
     @Setter
     @Column(name = "read_at")
     private Instant readAt;

@@ -3,10 +3,8 @@ package ar.edu.utn.frba.arbiter.cases.dto;
 import ar.edu.utn.frba.arbiter.cases.models.entities.ExpertAssessment;
 
 /**
- * Quién tiene el bien mientras el expediente espera. Es lo único de una derivación que SÍ se le
- * cuenta al asegurado, y solo para el servicio técnico: sin saber a qué taller fue, no puede
- * acercarlo ni preguntar por él. El peritaje sigue siendo invisible para él — ahí nombrar al
- * proveedor delataría la sospecha que motivó la derivación.
+ * The only derivation detail shown to the insured, and only for repair services: they need to know
+ * where to take the item. Expert assessments stay hidden, since naming the firm would reveal the suspicion.
  */
 public record RepairProviderResponse(String name, String email, String zone) {
 

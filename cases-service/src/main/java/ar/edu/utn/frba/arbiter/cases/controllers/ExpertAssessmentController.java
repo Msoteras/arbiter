@@ -28,10 +28,8 @@ import org.springframework.web.multipart.MultipartFile;
 import java.math.BigDecimal;
 
 /**
- * Derivación a peritaje. Separado de {@code POST /cases/{id}/decision} a propósito: derivar no
- * es un veredicto, es suspender el expediente para conseguir evidencia. El endpoint de decisión
- * escribe en el registro auditable inmutable, y mezclar las dos cosas ensuciaría justo el
- * registro que la Disposición SSN 2/2023 pide mantener limpio.
+ * Kept apart from {@code POST /cases/{id}/decision} on purpose: deriving is not a verdict, and the
+ * decision endpoint writes the immutable audit record required by SSN Disposition 2/2023.
  */
 @RestController
 @RequestMapping("/api/v1/cases/{caseId}/expert-assessment")
@@ -87,8 +85,7 @@ public class ExpertAssessmentController {
         return ResponseEntity.ok(expertAssessmentService.findAll(caseId));
     }
 
-    // Solo el analista: la derivación queda atribuida (ExpertAssessment.derivedBy es un
-    // ClaimsAnalyst) y el servicio ya devolvía 403 al referente por no tener perfil.
+    // Analyst only: the derivation is attributed to a ClaimsAnalyst, which a referente doesn't have.
     @PostMapping
     @PreAuthorize("hasRole('ANALISTA_SINIESTROS')")
     @Operation(summary = "Derivar el expediente a un perito",
@@ -110,8 +107,7 @@ public class ExpertAssessmentController {
                 .body(expertAssessmentService.derive(caseId, request, providerType));
     }
 
-    // También el referente: transcribe el veredicto del perito y devuelve el caso a la cola del
-    // analista, que sigue siendo quien decide. No atribuye nada a quien lo sube.
+    // The referente may also upload it: it only transcribes the verdict and hands the case back to the analyst.
     @PostMapping(value = "/report", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasAnyRole('ANALISTA_SINIESTROS', 'REFERENTE_ASEGURADORA')")
     @Operation(summary = "Cargar el informe del perito",

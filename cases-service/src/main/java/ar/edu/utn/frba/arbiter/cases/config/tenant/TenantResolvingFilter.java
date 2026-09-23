@@ -15,16 +15,8 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * Sets {@link TenantContext} and {@link CallerContext} for the duration of a request, from the
- * JWT's {@code tenantSchema}, {@code insuredId} and {@code insurerIds} claims (set at login by
- * auth-service once it resolves which insurer to use).
- * Parses the token independently of {@code common-lib}'s JwtAuthenticationFilter
- * — that one only keeps the role, not the full claim set, and duplicating one field's
- * worth of parsing here is cheaper than changing a class shared by all 5 modules.
- *
- * <p>Same implementation as auth-service's, minus its login carve-out: every endpoint in
- * this module requires a token already, so there is no request that has to resolve a
- * tenant without one.
+ * Parses the token on its own because common-lib's {@code JwtAuthenticationFilter} only keeps the
+ * role, and widening it would change a class shared by every module.
  */
 public class TenantResolvingFilter extends OncePerRequestFilter {
 
@@ -54,9 +46,7 @@ public class TenantResolvingFilter extends OncePerRequestFilter {
                     CallerContext.set(new CallerContext.Caller(
                             claims.get("insuredId", String.class), insurerIds(claims), tenantSchema));
                 } catch (JwtException | IllegalArgumentException ex) {
-                    // Invalid/expired token: JwtAuthenticationFilter already left the request
-                    // unauthenticated, so downstream authorization rejects it — nothing to do
-                    // here beyond not resolving a tenant.
+                    // Invalid token: JwtAuthenticationFilter already left the request unauthenticated.
                 }
             }
             filterChain.doFilter(request, response);
@@ -66,10 +56,7 @@ public class TenantResolvingFilter extends OncePerRequestFilter {
         }
     }
 
-    /**
-     * Jackson deserializes the claim's numbers as Integer when they fit, so this normalizes to
-     * Long rather than casting — a blind {@code (List<Long>)} blows up at first use.
-     */
+    /** Jackson yields Integer when the number fits, so a blind {@code (List<Long>)} cast would blow up. */
     private static List<Long> insurerIds(Claims claims) {
         Object raw = claims.get("insurerIds");
         if (!(raw instanceof List<?> values)) {

@@ -29,9 +29,8 @@ import java.util.Optional;
 public interface CaseRepository extends JpaRepository<Case, Long>, JpaSpecificationExecutor<Case>,
         CaseLensCountRepository {
 
-    // Los dos listados (barrido del asegurado y bandeja del analista) traen en la misma query todo
-    // lo que CaseServiceImpl.toResponse navega. LOAD y no el FETCH por default: FETCH deja en LAZY
-    // todo lo que no se liste, y el mapeo llega hasta claimCause.branch con la sesión ya cerrada.
+    // Loads everything CaseServiceImpl.toResponse navigates. LOAD rather than the default FETCH: FETCH
+    // leaves every unlisted attribute LAZY, and the mapping reaches claimCause.branch after the session closes.
     @Override
     @EntityGraph(type = EntityGraph.EntityGraphType.LOAD,
             attributePaths = {"claimCause", "claimCause.branch", "insured", "policy", "coverage",
@@ -45,16 +44,8 @@ public interface CaseRepository extends JpaRepository<Case, Long>, JpaSpecificat
     Page<Case> findAll(Specification<Case> spec, Pageable pageable);
 
     /**
-     * Cases whose response deadline is on or before {@code threshold} and whose term is actually
-     * running — the pool the deadline sweep looks at each day. The statuses whose deadline is not
-     * running are excluded in SQL: a case already answered (or closed by inaction) is never
-     * overdue, and one waiting on a third party has its term interrupted, so its stored
-     * {@code responseDeadline} is a frozen date and not a real urgency.
-     *
-     * @param threshold        the sweep asks for {@code today + 2} (critical or worse); the exact
-     *                         priority per case is then resolved with {@code DeadlinePriority.of}
-     * @param finalStatuses    names of the states to exclude — see
-     *                         {@code DeadlineSweepScheduler.DEADLINE_INACTIVE_STATUSES}
+     * Cases due by {@code threshold} whose term is actually running. Answered cases are never overdue,
+     * and one waiting on a third party has a frozen {@code responseDeadline}, so both are excluded.
      */
     @Query("""
             select c from Case c
@@ -65,19 +56,9 @@ public interface CaseRepository extends JpaRepository<Case, Long>, JpaSpecificat
                                    @Param("finalStatuses") Collection<String> finalStatuses);
 
     /**
-     * The insured's OTHER claims, to travel with the {@code ClaimReport} as antecedents. The only
-     * one left out is the case being classified: it isn't its own antecedent.
-     *
-     * <p><b>No status filter, on purpose.</b> The company's own history doesn't have one either —
-     * {@code InsurerDatabaseAdapter.getHistory} reads every {@code siniestro_historico} row
-     * regardless of {@code estado_resolucion}, so a RECHAZADO already counts towards the annual cap
-     * and the Fast Track's previous-claims criterion. Filtering here would leave the two sources
-     * answering the same rule by different criteria. Whatever distinction a rule needs, it makes
-     * itself off the status that travels with each claim — the coverage-exhaustion check already
-     * does exactly that, counting only {@code LIQUIDADO}.
-     *
-     * <p>Scoped to the request's schema like every other query here, so it can only ever return
-     * claims of the same insurer: an antecedent at one company says nothing at another.
+     * The insured's other claims, sent as antecedents with the {@code ClaimReport}. No status filter on
+     * purpose: {@code InsurerDatabaseAdapter.getHistory} doesn't filter either, and both sources must
+     * answer the same rules by the same criteria; each rule filters by the status it cares about.
      */
     @EntityGraph(attributePaths = {"policy", "coverage", "claimCause", "claimCause.branch", "currentStatus"})
     @Query("""
@@ -88,10 +69,7 @@ public interface CaseRepository extends JpaRepository<Case, Long>, JpaSpecificat
             """)
     List<Case> findAntecedentsOf(@Param("dni") String dni, @Param("excludedCaseId") Long excludedCaseId);
 
-    /**
-     * Cases sitting in a given state. Takes the enum and navigates to {@code case_status.name}
-     * rather than the FK id, so callers never need to know the catalog's ids.
-     */
+    /** Navigates to {@code case_status.name} so callers never need the catalog's ids. */
     default List<Case> findByStatus(CaseStatus status) {
         return findByCurrentStatusName(status.name());
     }
@@ -99,11 +77,8 @@ public interface CaseRepository extends JpaRepository<Case, Long>, JpaSpecificat
     List<Case> findByCurrentStatusName(String statusName);
 
     /**
-     * Cases stuck in {@code statusName} since before {@code threshold} — the pool
-     * {@code LapseSweepScheduler} closes as {@code LAPSED} (18 meses de inacción del asegurado,
-     * regla interna). Counted from {@code reportedAt} (fecha de denuncia), not from when the
-     * documentation was requested: it's the simplest reading that matches the doc de dominio
-     * BBVA's own framing of the rule ("18 meses desde la denuncia").
+     * Pool that {@code LapseSweepScheduler} closes as {@code LAPSED}. Counted from {@code reportedAt},
+     * not from when documentation was requested: the lapse rule runs from the claim report date.
      */
     @Query("""
             select c from Case c
@@ -112,13 +87,6 @@ public interface CaseRepository extends JpaRepository<Case, Long>, JpaSpecificat
             """)
     List<Case> findStaleByStatus(@Param("statusName") String statusName, @Param("threshold") Instant threshold);
 
-    List<Case> findByRiskBand(RiskBand riskBand);
-
-    /**
-     * Cases stuck in {@code CLASSIFICATION_FAILED} for a reason worth auto-requeuing —
-     * {@code ClassificationRefreshScheduler.recoverInfrastructureFailures}. Same enum-to-name
-     * navigation as {@link #findByStatus}: the state itself is a catalog row, not a column.
-     */
     default List<Case> findFailedByReason(ClassificationFailureReason reason) {
         return findByCurrentStatusNameAndClassificationFailureReason(
                 CaseStatus.CLASSIFICATION_FAILED.name(), reason);
@@ -128,47 +96,12 @@ public interface CaseRepository extends JpaRepository<Case, Long>, JpaSpecificat
             String statusName, ClassificationFailureReason reason);
 
     /**
-     * Bumps only the attempt counter, without touching the rest of the row.
+     * Compare-and-set on the attempt counter: several sweeps may run against the same database, and
+     * advancing the counter is what claims the turn. Writes only this column, never the whole entity,
+     * so a stale copy can't revert concurrent changes. {@code @Transactional} is explicit on these
+     * because, called from a scheduler, Spring Data's implicit transaction didn't cover the flush.
      *
-     * <p>{@code ClassificationRefreshScheduler} used {@code save(caseRecord)} for this, which
-     * writes the <b>whole</b> entity from a copy loaded at the start of the sweep — so any change
-     * made to that case in between (an analyst's retry, a status transition, a manual fix) got
-     * silently reverted on the next tick, every few seconds. The counter is the only thing the
-     * sweep owns, so it's the only thing it should write.
-     *
-     * <p>{@code flushAutomatically}/{@code clearAutomatically} keep the in-memory entity from
-     * shadowing the value this just wrote.
-     *
-     * <p>{@code @Transactional} explícito: llamado desde el scheduler (sin request/JWT detrás),
-     * el auto-wrap transaccional que Spring Data le da por defecto a un método {@code @Modifying}
-     * no alcanzaba a cubrir el {@code flush} — mismo síntoma que rompía en
-     * {@code CaseStatusService} y en {@code ClassificationResultsService.getStatus}
-     * ("No EntityManager with actual transaction available ... cannot reliably process 'flush'
-     * call"), acá también resuelto haciendo la transacción explícita en vez de confiar en la
-     * implícita.
-     */
-    @Transactional
-    @Modifying(flushAutomatically = true, clearAutomatically = true)
-    @Query("update Case c set c.classificationAttempts = :attempts where c.id = :caseId")
-    void updateClassificationAttempts(@Param("caseId") Long caseId, @Param("attempts") int attempts);
-
-    /**
-     * Igual que {@link #updateClassificationAttempts}, pero <b>condicional</b>: sólo avanza el
-     * contador si en la base sigue valiendo lo que el barrido leyó. Un compare-and-set.
-     *
-     * <p>Existe porque el contador lo escriben varios barridos a la vez. No es hipotético: la base
-     * de Railway es <b>compartida por todo el equipo</b>, así que cada desarrollador que levanta el
-     * stack local suma un {@code ClassificationRefreshScheduler} más barriendo LOS MISMOS
-     * expedientes. Sin condición, dos barridos leen 120, los dos escriben 121, y los dos se creen
-     * con derecho a marcar el expediente como fallido — de ahí las transiciones duplicadas en
-     * {@code case_status_history}, dos filas con el mismo número de reintentos separadas por
-     * segundos.
-     *
-     * <p>Con la condición, el segundo actualiza 0 filas y se retira: el avance del contador es lo
-     * que hace de turno, y sólo uno se lo puede quedar por vuelta.
-     *
-     * @param expected el valor que el barrido leyó; si ya cambió, no se pisa
-     * @return 1 si este barrido se quedó con el turno, 0 si otro llegó primero
+     * @return 1 if this sweep claimed the turn, 0 if another one got there first
      */
     @Transactional
     @Modifying(flushAutomatically = true, clearAutomatically = true)
@@ -183,28 +116,11 @@ public interface CaseRepository extends JpaRepository<Case, Long>, JpaSpecificat
                                       @Param("attempts") int attempts);
 
     /**
-     * El compare-and-set del barrido de recuperación, con el mismo rol que
-     * {@link #advanceClassificationAttempts} tiene en el otro: quedarse con el turno.
+     * Compare-and-set for the recovery sweep: clearing the failure reason claims the requeue, so two
+     * sweeps can't requeue the same case. Known gap: if the status transition fails right after this,
+     * the case stays failed with no reason and only the analyst's manual retry picks it up.
      *
-     * <p>Limpiar el motivo es lo que hace de token porque es el campo que significa exactamente
-     * "este expediente está esperando que lo reencolen": el que consigue pasarlo de
-     * {@code INFRASTRUCTURE} a null se lo quedó, el que llega tarde actualiza 0 filas y se retira.
-     * Sin esto, dos barridos leen el mismo {@code CLASSIFICATION_FAILED}, los dos pasan el filtro y
-     * los dos reencolan — dos clasificaciones y dos filas en {@code case_status_history}, el mismo
-     * bug que el CAS del otro barrido existe para prevenir. Con un solo proceso no se nota; con la
-     * instancia desplegada corriendo al lado de los stacks locales del equipo, sí.
-     *
-     * <p>Limpiarlo además es correcto por sí solo: el motivo describe la corrida anterior, y a
-     * partir de acá el expediente vuelve a clasificarse. Si la corrida nueva falla, se escribe uno
-     * fresco ({@code CaseOutcomeRepository.recordClassificationFailure}); si sale bien, ya estaba
-     * limpio ({@code ClassificationResultsService.saveResult} lo limpia igual).
-     *
-     * <p><b>Ventana conocida:</b> si la transición de estado falla justo después de este update, el
-     * expediente queda {@code CLASSIFICATION_FAILED} sin motivo y este barrido no lo vuelve a
-     * levantar — sale por el botón manual del analista. Es una ventana angosta (un error de base
-     * entre dos escrituras) y se prefirió a la alternativa, que es reencolar de más.
-     *
-     * @return 1 si este barrido se quedó con el turno, 0 si otro llegó primero
+     * @return 1 if this sweep claimed the turn, 0 if another one got there first
      */
     @Transactional
     @Modifying(flushAutomatically = true, clearAutomatically = true)
@@ -218,26 +134,11 @@ public interface CaseRepository extends JpaRepository<Case, Long>, JpaSpecificat
                                   @Param("expected") ClassificationFailureReason expected);
 
     /**
-     * El tercer compare-and-set del barrido, y el que faltaba: el del camino <b>feliz</b>.
+     * Compare-and-set on the status itself, so concurrent sweeps can't both transition the case (and
+     * notify the insured twice). Writes only {@code current_status_id}: the winner must re-read the
+     * entity afterwards rather than persist its stale copy.
      *
-     * <p>{@link #advanceClassificationAttempts} y {@link #claimFailedCaseForRequeue} cubren qué
-     * pasa cuando la clasificación falla o hay que reencolarla, pero cuando el resultado llega
-     * bien no había turno que tomar. {@code ClassificationServiceClient.refreshClassification}
-     * chequeaba el estado sobre la copia que el barrido cargó al principio de la vuelta, no sobre
-     * la base: con varios schedulers contra la misma base de Railway, los dos leían
-     * {@code PENDING_CLASSIFICATION} en su copia, los dos consultaban el resultado y los dos
-     * transicionaban — dos filas idénticas en {@code case_status_history} separadas por segundos,
-     * y dos mails al asegurado cuando el destino es uno de los que notifica.
-     *
-     * <p>Mover el estado <b>es</b> el turno acá: sólo uno puede pasar la fila de {@code expected}
-     * a {@code target}, el que llega tarde actualiza 0 filas y se retira sin escribir historial.
-     *
-     * <p>Escribe únicamente {@code current_status_id} — el resto de la fila lo persiste el que se
-     * quedó con el turno, releyendo la entidad después del CAS y no desde su copia vieja (mismo
-     * motivo que documenta {@link #updateClassificationAttempts}).
-     *
-     * @param expected el estado que el llamador da por cierto; si en la base ya es otro, no se pisa
-     * @return 1 si este barrido se quedó con el turno, 0 si otro llegó primero
+     * @return 1 if this sweep claimed the turn, 0 if another one got there first
      */
     @Transactional
     @Modifying(flushAutomatically = true, clearAutomatically = true)
@@ -251,15 +152,12 @@ public interface CaseRepository extends JpaRepository<Case, Long>, JpaSpecificat
                               @Param("expected") CaseState expected,
                               @Param("target") CaseState target);
 
-    /** Cases filed while their document schedule couldn't be read — {@code DocumentRecheckScheduler}. */
+    /** Cases filed while their document schedule couldn't be read. */
     List<Case> findByDocumentsUnverifiedSinceIsNotNull();
 
     /**
-     * The document recheck sweep's turn, same role as {@link #claimFailedCaseForRequeue}: clearing
-     * the mark is what claims the case. The mark means exactly "nobody has checked this case's
-     * documents yet", so whoever clears it is the one who acts; a second sweep — the next tick, or
-     * another local stack against the shared database — updates 0 rows and walks away. That is
-     * what keeps the transition and the insured's notice from happening twice.
+     * Clearing the mark claims the case, so the status transition and the insured's notice happen
+     * only once even with concurrent sweeps.
      *
      * @return 1 if this sweep claimed the case, 0 if another one got there first
      */
@@ -273,23 +171,13 @@ public interface CaseRepository extends JpaRepository<Case, Long>, JpaSpecificat
             """)
     int claimUnverifiedDocuments(@Param("caseId") Long caseId);
 
-    /** Fila de {@link #countActiveByAnalyst(Collection)}: un analista y cuántos activos tiene. */
     interface AnalystCaseCount {
         Long getAnalystId();
 
         long getTotal();
     }
 
-    /**
-     * Cuenta expedientes ACTIVOS (los que no están en un estado final) agrupados por analista
-     * asignado, en un solo query por el esquema del tenant activo. Solo aparecen analistas con al
-     * menos un expediente activo; los que no tienen ninguno los completa el service con cero, para
-     * que el panel muestre a todo el equipo. Los expedientes sin asignar quedan afuera
-     * ({@code c.analyst is not null}).
-     *
-     * @param finalStatuses nombres de los estados terminales a excluir — ver
-     *                      {@code CaseServiceImpl.FINAL_STATUS_NAMES}
-     */
+    /** Only analysts with at least one active case appear; the service fills in the rest with zero. */
     @Query("""
             select c.analyst.id as analystId, count(c) as total
             from Case c
@@ -299,18 +187,12 @@ public interface CaseRepository extends JpaRepository<Case, Long>, JpaSpecificat
             """)
     List<AnalystCaseCount> countActiveByAnalyst(@Param("finalStatuses") Collection<String> finalStatuses);
 
-    /** Fila de {@link #countByStatusForAnalyst(Long)}: un estado y cuántos expedientes hay en él. */
     interface StatusCount {
         String getStatus();
 
         long getTotal();
     }
 
-    /**
-     * Cuenta los expedientes asignados a un analista agrupados por estado, en un solo query. Base
-     * del resumen del inicio del analista (pendientes / en trámite / resueltos). Solo aparecen los
-     * estados con al menos un expediente; el resto es cero.
-     */
     @Query("""
             select c.currentStatus.name as status, count(c) as total
             from Case c
@@ -330,7 +212,6 @@ public interface CaseRepository extends JpaRepository<Case, Long>, JpaSpecificat
             """)
     long countAwaitingReferentForAnalyst(@Param("analystId") Long analystId);
 
-    /** Cuántos expedientes del analista tienen una de las bandas de riesgo dadas (ej. HIGH, CRITICAL). */
     @Query("""
             select count(c)
             from Case c
@@ -341,10 +222,8 @@ public interface CaseRepository extends JpaRepository<Case, Long>, JpaSpecificat
                                      @Param("bands") Collection<RiskBand> bands);
 
     /**
-     * The case's snapshot, already loaded. {@code Case.policySnapshot} is LAZY and the detail is
-     * mapped outside any transaction, so reading it off the entity threw
-     * {@code LazyInitializationException}. Making it EAGER would join it on every listing too,
-     * where nobody reads it.
+     * {@code Case.policySnapshot} is LAZY and the detail is mapped outside a transaction; making it
+     * EAGER would also join it on every listing, where nobody reads it.
      */
     @Query("select c.policySnapshot from Case c where c.id = :caseId")
     Optional<PolicySnapshot> findPolicySnapshot(@Param("caseId") Long caseId);

@@ -39,8 +39,8 @@ import java.util.function.Function;
 /**
  * Tells the insured their case moved, by email and in the in-app panel.
  *
- * <p>Only statuses that ask them for something or are the outcome. The rest is internal traffic,
- * and telling them would leak what the story forbids: no classification, no score, no reasons.
+ * <p>Only statuses that ask them for something or are the outcome: the rest is internal and would
+ * leak classification, score or reasons.
  */
 @Service
 @RequiredArgsConstructor
@@ -53,18 +53,14 @@ public class CaseNotificationService {
     private static final Period PANEL_WINDOW = Period.ofMonths(6);
 
     /**
-     * Hard cap across every siniestro: a newer notice pushes the oldest one out of the panel.
-     * Raised from 6 when case messages started sharing the bell with status changes — at 6 a
-     * conversation could push the resolution of a claim out of sight. Twelve covers roughly the
-     * last three cases end to end for an insured with policies at two companies, and the panel
-     * scrolls (max-height 60vh), so it is the badge that bounds this, not the layout.
+     * Hard cap across all cases: a newer notice pushes the oldest out. Case messages share the bell
+     * with status changes, so a lower cap could hide a claim's resolution behind a conversation.
      */
     private static final int PANEL_LIMIT = 12;
 
     /**
-     * Separate from the frontend's status labels, which collapse APPROVED and REJECTED into a
-     * single "Terminado" — precisely the distinction that matters in an email. Says "siniestro"
-     * because that's what the portal calls it; the expediente is the analyst's side of it.
+     * Separate from the frontend's status labels, which collapse APPROVED and REJECTED into one —
+     * precisely the distinction that matters in an email.
      */
     private static final Map<CaseStatus, Message> MESSAGES = Map.of(
             CaseStatus.PENDING_CLASSIFICATION, new Message(
@@ -79,9 +75,7 @@ public class CaseNotificationService {
                     "Tu siniestro fue aprobado",
                     "Revisamos tu siniestro y fue aprobado. Vas a recibir la información sobre "
                             + "los pasos siguientes."),
-            // El monto se agrega aparte, en approvedAmountLine(): no es parte de la plantilla
-            // porque no siempre está (un expediente aprobado antes de que existiera la
-            // liquidación no tiene fila) y un "$null" en el mail es peor que no decir el monto.
+            // The amount is appended separately in approvedAmountLine(), since it may be missing.
             CaseStatus.REJECTED, new Message(
                     "Novedades sobre tu siniestro",
                     "Revisamos tu siniestro y no fue aprobado. Si querés conocer los motivos o no "
@@ -93,13 +87,9 @@ public class CaseNotificationService {
                             + "querés continuar con el reclamo, comunicate con nosotros."));
 
     /**
-     * Reopening doesn't fit {@link #MESSAGES}, which is keyed by destination status: a reopened
-     * case lands in {@code PENDING_ANALYST_REVIEW}, and putting a message there would greet the
-     * insured on every ordinary classification that reaches the analyst's desk. The notice belongs
-     * to the <b>move</b>, not to where it lands, so it has its own entry point.
-     *
-     * <p>Says nothing about why. The reason the analyst typed is internal (it can name a suspicion,
-     * an error, a fraud lead) — the insured gets the fact, and the invitation to ask.
+     * Not in {@link #MESSAGES}, which is keyed by destination: a reopened case lands in
+     * {@code PENDING_ANALYST_REVIEW}, like every ordinary classification. The analyst's reason is
+     * internal and never sent.
      */
     private static final String REOPENED_TYPE = "REOPENED";
 
@@ -109,7 +99,7 @@ public class CaseNotificationService {
                     + "Te vamos a avisar por este medio cuando haya una resolución. Si querés saber "
                     + "más, podés comunicarte con nosotros.");
 
-    /** Los importes se le muestran al asegurado con formato argentino, no con el del servidor. */
+    /** Amounts are shown in the insured's locale, not the server's. */
     private static final Locale AR = Locale.forLanguageTag("es-AR");
 
     private final NotificationRepository notificationRepository;
@@ -128,9 +118,7 @@ public class CaseNotificationService {
     }
 
     /**
-     * Tells the insured a case that was already closed is open again. Called from
-     * {@code CaseStatusService.transition} when the move comes out of a terminal status, so it
-     * fires no matter who reopens the case — and inside the same transaction, which is what lets
+     * Called from {@code CaseStatusService} inside the transition's transaction, which is what lets
      * it read the insured off the entity.
      */
     public void notifyReopened(Case caseRecord) {
@@ -141,8 +129,7 @@ public class CaseNotificationService {
         try {
             deliver(caseRecord, type, message);
         } catch (Exception | LinkageError e) {
-            // LinkageError too: a missing mail SDK surfaces as NoClassDefFoundError, which isn't an
-            // Exception, and cost us a 500 on an approval that had already been applied.
+            // LinkageError too: a missing mail SDK surfaces as NoClassDefFoundError, not an Exception.
             log.error("Could not notify case {} ({})", caseRecord.getId(), type, e);
         }
     }
@@ -177,8 +164,7 @@ public class CaseNotificationService {
     private void send(Notification notification, String address, Message message, Case caseRecord,
                       String type) {
         try {
-            // sent=true only if the mail really went out: with no API key the adapter no-ops, and
-            // marking those as sent hides from the panel exactly what never reached the insured.
+            // sent=true only if the mail really went out: with no API key the adapter no-ops.
             if (!sendGridAdapter.send(address, message.subject(), body(message, caseRecord, type))) {
                 return;
             }
@@ -192,11 +178,8 @@ public class CaseNotificationService {
     }
 
     /**
-     * The insurer's contact address, falling back to the account's. {@code insured} is a snapshot
-     * of the insurer's DB so its email can be stale or absent; the account's always exists.
-     *
-     * <p>Public because {@link MessageNotificationService} reaches the same person by the same
-     * rule — how you contact an insured belongs here, and copying it would let the two drift.
+     * The insurer's contact address, falling back to the account's: {@code insured} is a snapshot of
+     * the insurer's DB, so its email can be stale or absent. Shared with {@link MessageNotificationService}.
      */
     public Optional<String> recipientEmail(Insured insured) {
         if (insured.getEmail() != null && !insured.getEmail().isBlank()) {
@@ -250,13 +233,9 @@ public class CaseNotificationService {
     }
 
     /**
-     * An insured can be a client of more than one insurer, and their notifications live in each
-     * insurer's schema — like their cases, which the portal already merges. Reading only the active
-     * tenant would show them siniestros from both companies under a bell that counts one.
-     *
-     * <p>For an analyst or a referente the list comes back empty and this runs once on the active
-     * tenant: they belong to a single insurer, and reaching into another would be a tenant leak.
-     * The schemas come from {@code insurerIds}, a <b>signed</b> claim, never from request input.
+     * An insured's notifications live in each of their insurers' schemas, so they are merged. For
+     * analysts and referents it runs once on the active tenant. The schemas come from the signed
+     * {@code insurerIds} claim, never from request input.
      */
     private <T> List<T> acrossOwnInsurers(Function<String, List<T>> perTenant) {
         List<Insurer> insurers = ownInsurers();
@@ -271,8 +250,7 @@ public class CaseNotificationService {
                 merged.addAll(perTenant.apply(InsurerSlug.of(insurer)));
             }
         } finally {
-            // Sin esto la conexión vuelve al pool viendo el esquema equivocado y se lo lleva puesto
-            // el próximo request. Mismo cuidado que en InsuredCaseAggregator.
+            // Otherwise the pooled connection goes back on the wrong schema.
             TenantContext.set(callerTenant);
         }
         return merged;
@@ -289,10 +267,8 @@ public class CaseNotificationService {
     }
 
     /**
-     * Idempotent: the timestamp keeps the first time it was seen.
-     *
-     * <p>{@code insurerSlug} disambiguates the id, which repeats across schemas. It's matched
-     * against the caller's own insurers, so naming another company's is a 404 and not a read of it.
+     * Idempotent: the timestamp keeps the first time it was seen. {@code insurerSlug} disambiguates
+     * the id, which repeats across schemas; another insurer's slug is a 404.
      */
     public void markRead(Long notificationId, String insurerSlug) {
         Long userId = currentUserId().orElseThrow(NotificationNotFoundException::new);
@@ -324,10 +300,7 @@ public class CaseNotificationService {
         notificationRepository.save(notification);
     }
 
-    /**
-     * Opening the panel means the whole list was seen — one call beats one per notification. Clears
-     * every insurer's, because the panel showed every insurer's.
-     */
+    /** Opening the panel means the whole list, across every insurer, was seen. */
     public void markAllRead() {
         currentUserId().ifPresent(userId -> acrossOwnInsurers(slug -> {
             Instant now = Instant.now();
@@ -359,14 +332,8 @@ public class CaseNotificationService {
     }
 
     /**
-     * El monto a pagar, en el único mail donde corresponde. Es lo primero que el asegurado quiere
-     * saber cuando le aprueban el siniestro, y tenerlo por escrito le da con qué comparar cuando
-     * la aseguradora le acredite.
-     *
-     * <p>Cadena vacía si no hay liquidación: los expedientes aprobados antes de que existiera este
-     * paso no tienen fila, y un mail que promete un importe que no está es peor que uno que no lo
-     * menciona. Best-effort como el resto del servicio — que no se pueda leer el monto no puede
-     * hacer que no salga el aviso de que le aprobaron el siniestro.
+     * Empty when there is no settlement row, and best-effort: failing to read the amount must not
+     * stop the approval email.
      */
     private String approvedAmountLine(Case caseRecord, String type) {
         if (!CaseStatus.APPROVED.name().equals(type)) {

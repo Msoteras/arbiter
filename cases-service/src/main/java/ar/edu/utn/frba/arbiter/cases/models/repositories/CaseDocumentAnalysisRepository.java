@@ -18,24 +18,9 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * What the vision pass read out of each attachment of a case, straight from
- * {@code document_analysis} / {@code document_visual_finding} (H0031).
- *
- * <p>Same deliberate exception to "each module owns its tables" as {@link CaseAnalysisRepository},
- * and for the same reason: both tables live in the <b>same tenant schema</b> as {@code cases}, so
- * this is one query instead of a REST hop. Plain JDBC over a narrow, named set of columns rather
- * than entities, so cases-service never claims ownership of them — classification-service writes
- * them, this only reads.
- *
- * <p><b>Detail only, not batched.</b> Unlike {@code CaseAnalysisRepository}, there is no
- * {@code findByCaseIds}: this feeds one open case, never a page of the inbox. Adding a batched
- * version would invite calling it from the listing, which is the join-per-row this codebase
- * already avoids elsewhere.
- *
- * <p><b>Las queries corren sobre la conexión de Hibernate, no sobre una del pool</b> — las tablas
- * se nombran sin calificar y dependen del {@code search_path} que setea {@code
- * TenantConnectionProvider}, que sólo interviene en las conexiones que pide Hibernate. Ver el
- * javadoc de {@link CaseAnalysisRepository}, donde está el detalle de por qué.
+ * Reads classification-service's {@code document_analysis} tables directly, under the same
+ * read-only, plain-JDBC terms as {@link CaseAnalysisRepository}, and on Hibernate's connection for the
+ * same {@code search_path} reason. Detail only: deliberately not batched, so the inbox never calls it.
  */
 @Repository
 @RequiredArgsConstructor
@@ -43,18 +28,13 @@ public class CaseDocumentAnalysisRepository {
 
     private final EntityManager entityManager;
 
-    /**
-     * @return one entry per attachment already read by the model, ordered by document type so the
-     *         tab doesn't reshuffle between reloads. Empty when the case was never classified, was
-     *         fast tracked without reading anything, or was classified before this table existed —
-     *         all three are ordinary, and the tab simply doesn't show.
-     */
+    /** Ordered by document type so the tab doesn't reshuffle between reloads. */
     @Transactional(readOnly = true)
     public List<DocumentAnalysisSummary> findByCaseId(Long caseId) {
         if (caseId == null) {
             return List.of();
         }
-        // suppressClose: la conexión es de Hibernate y la cierra Hibernate; el template no debe.
+        // suppressClose: Hibernate owns this connection and closes it; the template must not.
         return entityManager.unwrap(Session.class).doReturningWork(connection ->
                 query(new NamedParameterJdbcTemplate(
                         new SingleConnectionDataSource(connection, true)), caseId));
@@ -69,8 +49,6 @@ public class CaseDocumentAnalysisRepository {
                  WHERE d.case_id = :caseId
                  ORDER BY d.type
                 """, Map.of("caseId", caseId), (rs, rowNum) -> {
-            // getDate devuelve java.sql.Date y null si la columna es NULL, que es el caso normal
-            // para un documento que no trae fecha — de ahí el chequeo antes de convertir.
             Date documentDate = rs.getDate("document_date");
             return new Row(
                     rs.getLong("id"),
@@ -110,10 +88,7 @@ public class CaseDocumentAnalysisRepository {
                 .toList();
     }
 
-    /**
-     * The name/value data of each analysis, in insertion order — that is the order the model read
-     * them off the document, which is the one that reads naturally on the page.
-     */
+    /** Insertion order, which is the order the model read them off the document. */
     private Map<Long, List<DocumentAnalysisSummary.Detail>> detailsFor(
             NamedParameterJdbcTemplate jdbcTemplate, List<Long> analysisIds) {
         Map<Long, List<DocumentAnalysisSummary.Detail>> byAnalysis = new HashMap<>();
@@ -132,8 +107,8 @@ public class CaseDocumentAnalysisRepository {
     private Map<Long, List<String>> findingsFor(NamedParameterJdbcTemplate jdbcTemplate,
                                                 List<Long> analysisIds) {
         Map<Long, List<String>> byAnalysis = new HashMap<>();
-        // RowMapper y no RowCallbackHandler: con un lambda de bloque las dos sobrecargas de query()
-        // compilan, y ésta es la forma que ya usa CaseAnalysisRepository. El resultado se descarta.
+        // RowMapper, not RowCallbackHandler: with a block lambda both query() overloads compile.
+        // The result is discarded.
         jdbcTemplate.query("""
                 SELECT analysis_id, finding
                   FROM document_visual_finding

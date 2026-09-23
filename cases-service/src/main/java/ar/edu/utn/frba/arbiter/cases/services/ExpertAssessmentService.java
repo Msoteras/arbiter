@@ -42,25 +42,18 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Derivation of a case to an external expert, and the return of their report.
+ * Referral of a case to an external expert or repair shop, and the return of their report.
  *
- * <p>Kept out of {@code CaseServiceImpl} and off {@code POST /cases/{id}/decision} on purpose:
- * deriving is <b>not</b> a verdict. The decision endpoint writes to classification-service's
- * immutable audit log, and putting "I need more evidence" in the same row as "I approved this"
- * would blur the record Disposición SSN 2/2023 exists to keep clean.
- *
- * <p>The report does not re-run the model. The expert's finding is evidence produced by a person
- * who inspected the claim; feeding it back to the LLM would either have it restate the report or,
- * worse, contradict it — a model recommendation against expert evidence. The verdict is shown
- * beside the classification and the analyst decides.
+ * <p>Kept off the decision endpoint on purpose: referring is not a verdict, and mixing "I need more
+ * evidence" into the immutable decision audit log would blur it. The report doesn't re-run the
+ * model either — the LLM could only restate or contradict expert evidence; the analyst decides.
  */
 @Service
 @RequiredArgsConstructor
 public class ExpertAssessmentService {
 
-    /** Same key space as every other attachment; the unique (case_id, type) fits one per case. */
+    /** Unique per (case_id, type), so each provider kind needs its own type or one overwrites the other. */
     static final String REPORT_DOCUMENT_TYPE = "expert_report";
-    // Its own type: under the same one, the repair answer would overwrite the expert's report.
     static final String REPAIR_DOCUMENT_TYPE = "repair_report";
 
     private final CaseRepository caseRepository;
@@ -74,14 +67,11 @@ public class ExpertAssessmentService {
     private final FraudRecordService fraudRecordService;
 
     /**
-     * Whether this case can be derived, and to whom. Eligibility is the insurer's rule (the
-     * claimed amount against its threshold) AND there being someone to derive to — a policy that
-     * allows it with an empty catalog still leaves the analyst nowhere to send it.
+     * Eligible only if the insurer's rule allows it AND there is someone in the catalog to refer to.
      */
     @Transactional(readOnly = true)
     public DerivationOptionsResponse options(Long caseId, ProviderType providerType) {
         Case caseRecord = findCase(caseId);
-        // Before the catalog: a stolen phone has nothing to repair, whoever is on file.
         if (providerType == ProviderType.SERVICIO_TECNICO && !repairAllowed(caseRecord)) {
             return new DerivationOptionsResponse(false, null, caseRecord.getClaimedAmount(), List.of());
         }
@@ -109,7 +99,7 @@ public class ExpertAssessmentService {
                 .map(ExpertAssessmentResponse::from);
     }
 
-    /** Las derivaciones del expediente, de la más reciente a la más vieja. */
+    /** Newest first. */
     @Transactional(readOnly = true)
     public List<ExpertAssessmentResponse> findAll(Long caseId) {
         return expertAssessmentRepository.findByCaseIdOrderByDerivedAtDesc(caseId).stream()
@@ -118,18 +108,9 @@ public class ExpertAssessmentService {
     }
 
     /**
-     * Derives the case and tells the expert. The state machine is the guard for "can this case be
-     * derived": only PENDING_ANALYST_REVIEW leads to PENDING_EXPERT_REPORT, so a second derivation
-     * (or one on a closed case) 409s instead of quietly creating a row the unique index would
-     * reject later with a 500.
-     *
-     * <p><b>Only the assigned analyst derives.</b> {@code @PreAuthorize} validates the role, which
-     * every analyst in the tenant has; this validates the case. Deriving is not a verdict, but it
-     * is not harmless either: it emails an outside firm and parks the case in
-     * {@code PENDING_EXPERT_REPORT}, where the analyst who does own it can no longer decide. Same
-     * rule and same two exceptions as {@code CaseServiceImpl.recordAnalystDecision} — the check was
-     * added there when it turned out any analyst could decide on any case, and derivation, added
-     * later, never got it.
+     * The state machine guards against a second referral or one on a closed case (409). Only the
+     * assigned analyst may refer: it emails an outside firm and parks the case where its owner can
+     * no longer decide, so the role check alone isn't enough.
      */
     @Transactional
     public ExpertAssessmentResponse derive(Long caseId, DeriveToExpertRequest request,
@@ -159,23 +140,14 @@ public class ExpertAssessmentService {
         caseStatusService.transition(caseRecord, waitingStateFor(providerType),
                 StatusChangeActor.ANALYST, "derivado a " + what + ": " + firm.getName());
 
-        // After the transition: emailing about a derivation that then fails to persist would ask
-        // an expert to verify a case that never left the analyst's desk. Same order as
-        // CaseStatusService's own notification.
+        // After the transition, so an expert is never asked about a referral that failed to persist.
         assessment.setNotifiedAt(expertNotificationService.notifyDerivation(caseRecord, assessment));
         return ExpertAssessmentResponse.from(expertAssessmentRepository.save(assessment));
     }
 
     /**
-     * Files the expert's report and hands the case back to the analyst. The verdict and the
-     * document land together — a verdict with no report behind it is a claim, not evidence.
-     *
-     * <p>A {@code FRAUD_CONFIRMED} verdict also leaves the fraud record on the insured, without a
-     * second click: see {@link FraudRecordService#registerFromExpertReport}.
-     *
-     * <p>{@code indemnifiableAmount} is what the expert put the claim at, and it's optional: not
-     * every report ends in a number. It doesn't settle anything on its own — it reaches the
-     * settlement as the accredited amount's suggestion, and the analyst still takes it.
+     * A {@code FRAUD_CONFIRMED} verdict also records fraud on the insured automatically. The optional
+     * {@code indemnifiableAmount} only reaches the settlement as a suggestion.
      */
     @Transactional
     public ExpertAssessmentResponse receiveReport(Long caseId, ExpertVerdict verdict, String note,
@@ -194,15 +166,9 @@ public class ExpertAssessmentService {
     }
 
     /**
-     * La devolución del servicio técnico. Sin antecedente de fraude: una reparación no investiga
-     * nada, y el resultado va en su propia columna y no en {@code verdict} por lo mismo.
-     *
-     * <p>{@code repairCost} es lo que el taller cobra por el trabajo —presupuestado si todavía no
-     * lo hizo, facturado si ya lo hizo— y va atado al resultado. {@code QUOTE_SENT} lo exige: sin
-     * importe, decir que mandaron presupuesto no contesta nada. {@code REPAIRED} lo acepta
-     * opcional, porque la factura puede llegar después del informe. {@code IRREPARABLE} no lo
-     * lleva: no hubo arreglo que cobrar. Llega a la liquidación como el monto acreditado de la
-     * fórmula de reparación, que es literalmente lo que esa fórmula necesita saber.
+     * No fraud record: a repair investigates nothing. {@code repairCost} (quoted or invoiced) is
+     * required for {@code QUOTE_SENT}, optional for {@code REPAIRED} since the invoice may come
+     * later, and not allowed for {@code IRREPARABLE}. It becomes the repair formula's accredited amount.
      */
     @Transactional
     public ExpertAssessmentResponse receiveRepairReport(Long caseId, RepairOutcome outcome, String note,
@@ -236,11 +202,7 @@ public class ExpertAssessmentService {
     }
 
     /**
-     * Lo que las dos vueltas tienen en común y nada más: archivar el informe, marcar que llegó y
-     * devolverle el expediente al analista. Lo que cada proveedor contesta —el veredicto y el monto
-     * indemnizable del perito, el resultado y el presupuesto del taller— lo setea su propio flujo
-     * antes de llamar acá. Mientras esto recibía un monto, el taller tenía que pasar null y el
-     * presupuesto no tenía dónde entrar.
+     * Only what both provider kinds share; each flow sets its own outcome fields before calling.
      */
     private void finishRound(Case caseRecord, ExpertAssessment assessment, String note,
                              MultipartFile report, String transitionNote) {
@@ -256,10 +218,7 @@ public class ExpertAssessmentService {
                 StatusChangeActor.ANALYST, transitionNote);
     }
 
-    /**
-     * What a colleague reads years from now next to the mark on the person: who found it and what
-     * they wrote. The expert's note goes in whole — it is the evidence, not a summary of it.
-     */
+    /** The expert's note goes in whole: it is the evidence, not a summary of it. */
     private String fraudRecordReason(ExpertAssessment assessment, String note) {
         String header = "Peritaje de " + assessment.getExpertName() + ": fraude confirmado.";
         return note == null || note.isBlank() ? header : header + " " + note.trim();
@@ -282,9 +241,8 @@ public class ExpertAssessmentService {
     }
 
     /**
-     * The threshold is enforced here and not only by hiding the button: a rule the frontend
-     * applies is a suggestion. The two failures are told apart on purpose — "esta aseguradora no
-     * deriva este ramo" and "el monto no alcanza" are different answers for the analyst.
+     * Enforced server side, not only by hiding the button. "Not enabled" and "amount below
+     * threshold" are distinct errors because they mean different things to the analyst.
      */
     private void assertInsurerDerivesThisCase(Case caseRecord) {
         RulesServiceClient.ExpertDerivationPolicy policy =
@@ -303,10 +261,7 @@ public class ExpertAssessmentService {
                 .allows(caseRecord.getClaimCause().getId());
     }
 
-    /**
-     * The firm has to be one this case could actually go to, not just any id in the catalog: an
-     * inactive firm, or a specialist in the other branch, is a 404 and not a silent derivation.
-     */
+    /** An inactive firm, or one specialised in another branch, is a 404, not a silent referral. */
     private ExpertFirm availableFirm(Case caseRecord, Long expertFirmId, ProviderType providerType) {
         return availableFirms(caseRecord, providerType).stream()
                 .filter(firm -> firm.getId().equals(expertFirmId))
@@ -329,13 +284,7 @@ public class ExpertAssessmentService {
     }
 
     /**
-     * Never off the request body: an analyst id sent by the client would let anyone pin a
-     * derivation on someone else. Same mechanism as the decision endpoint.
-     */
-    /**
-     * The caller, once confirmed to be the analyst this case is assigned to. Resolved from the JWT
-     * and never from the request body: an id sent by the client would let anyone attribute the
-     * derivation to someone else.
+     * Resolved from the JWT, never the request body, so nobody can attribute a referral to someone else.
      *
      * @return the calling analyst, so the caller doesn't resolve them twice
      */

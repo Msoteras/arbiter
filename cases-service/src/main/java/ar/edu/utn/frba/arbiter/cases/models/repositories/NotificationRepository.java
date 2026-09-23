@@ -10,7 +10,6 @@ import java.util.Optional;
 
 public interface NotificationRepository extends JpaRepository<Notification, Long> {
 
-    /** The panel's window, newest first and capped by the pageable. */
     List<Notification> findByRecipientIdAndCreatedAtAfterOrderByCreatedAtDesc(
             Long recipientId, Instant since, Pageable pageable);
 
@@ -18,17 +17,12 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
 
     List<Notification> findByRecipientIdAndReadFalse(Long recipientId);
 
-    /**
-     * Scoped by recipient on purpose: marking one as read takes the id from the URL, and without
-     * this anyone could clear someone else's notifications by guessing ids.
-     */
+    /** Scoped by recipient so nobody can mark someone else's notifications by guessing ids. */
     Optional<Notification> findByIdAndRecipientId(Long id, Long recipientId);
 
     /**
-     * Whether this recipient was already told about this case at this level. The deadline sweep
-     * runs daily, so without this it would re-notify the same critical case every morning. A case
-     * escalating from CRITICAL to OVERDUE has a different {@code type}, so it notifies once more —
-     * the intended escalation, not a duplicate.
+     * Keeps the daily deadline sweep from re-notifying the same case every morning. Escalating to a
+     * new level has a different {@code type}, so it notifies once more.
      */
     boolean existsByCaseEntityIdAndRecipientIdAndType(Long caseId, Long recipientId, String type);
 }

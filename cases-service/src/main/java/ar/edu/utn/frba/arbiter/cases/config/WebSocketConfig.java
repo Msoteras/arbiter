@@ -9,13 +9,9 @@ import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
 import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurer;
 
 /**
- * Live delivery for the case conversation. Read-only by design: there is no application
- * destination, so a client can subscribe but cannot publish — writing stays on
- * {@code POST /cases/{id}/messages}, which already owns the access checks, the reply window and
- * the length limit.
- *
- * <p>The broker is in memory, which bounds this to a single instance: with two replicas, two
- * people on different ones would not see each other. Wider needs an external relay.
+ * Subscribe-only: there is no application destination, so writing stays on
+ * {@code POST /cases/{id}/messages}, which owns the access checks. The broker is in memory, which
+ * bounds this service to a single instance.
  */
 @Configuration
 @EnableWebSocketMessageBroker

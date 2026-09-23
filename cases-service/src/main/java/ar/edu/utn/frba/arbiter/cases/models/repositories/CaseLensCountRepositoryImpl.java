@@ -26,18 +26,16 @@ public class CaseLensCountRepositoryImpl implements CaseLensCountRepository {
         CriteriaBuilder cb = entityManager.getCriteriaBuilder();
         CriteriaQuery<Tuple> query = cb.createTupleQuery();
         Root<Case> root = query.from(Case.class);
-        // LEFT y no el join implícito de root.get("analyst").get("id"): ese es INNER, y en el FROM
-        // de esta query dejaría afuera los expedientes sin analista — o sea, rompería los otros
-        // cuatro conteos para arreglar uno.
+        // Explicit LEFT join: the implicit one from root.get("analyst") is INNER and would drop
+        // unassigned cases from every other count.
         Join<Object, Object> analyst = root.join("analyst", JoinType.LEFT);
 
         Expression<Long> mine = me == null
                 ? cb.literal(0L)
                 : countWhen(cb, cb.equal(analyst.get("id"), me));
 
-        // Mismo criterio que CaseSpecifications.scope: cerrado es un estado terminal, abierto es
-        // cualquier otro. Se cuenta acá en vez de aplicarlo al WHERE porque el WHERE ya trae el
-        // scope de la pestaña activa, y este par tiene que valer lo mismo se esté donde se esté.
+        // Same criterion as CaseSpecifications.scope. Counted here rather than filtered in the WHERE,
+        // which already carries the active tab's scope: these counts must not depend on it.
         Predicate closed = root.get("currentStatus").get("name").in(
                 CaseStatusService.TERMINAL_STATUSES.stream().map(CaseStatus::name).toList());
 
@@ -61,7 +59,7 @@ public class CaseLensCountRepositoryImpl implements CaseLensCountRepository {
                 value(row, 5), value(row, 6));
     }
 
-    /** {@code sum(case when … then 1 else 0)} y no {@code count(*) filter}, que no es estándar JPA. */
+    /** {@code sum(case when ... then 1 else 0)} because {@code count(*) filter} isn't standard JPA. */
     private static Expression<Long> countWhen(CriteriaBuilder cb, Predicate condition) {
         return cb.sum(cb.<Long>selectCase().when(condition, 1L).otherwise(0L));
     }

@@ -34,7 +34,7 @@ class LapseSweepSchedulerTest {
 
     private static final LocalDate TODAY = LocalDate.of(2026, 8, 24);
 
-    /** 18 meses antes de TODAY, medianoche UTC — lo que el scheduler le pasa al repositorio. */
+    /** 18 months before TODAY at UTC midnight: what the scheduler passes to the repository. */
     private static final Instant EXPECTED_THRESHOLD =
             LocalDateTime.of(2025, 2, 24, 0, 0).toInstant(ZoneOffset.UTC);
 
@@ -82,8 +82,8 @@ class LapseSweepSchedulerTest {
     }
 
     /**
-     * El barrido que llega segundo. No reintenta ni rompe la vuelta: el expediente ya está donde
-     * quería dejarlo, y el turno lo decide el compare-and-set adentro de transitionIfStillIn.
+     * The sweep that arrives second neither retries nor aborts: the case is already where it wanted
+     * it, and the compare-and-set inside transitionIfStillIn decides the turn.
      */
     @Test
     void aCaseAlreadyLapsedByAnotherSweep_doesNotStopTheRest() {
@@ -101,7 +101,7 @@ class LapseSweepSchedulerTest {
                 eq(CaseStatus.LAPSED), eq(StatusChangeActor.SYSTEM), any());
     }
 
-    /** El motivo queda en el historial: no puede ser un texto vacío ni genérico. */
+    /** The reason is kept in the status history, so it can't be empty or generic. */
     @Test
     void theReasonNamesTheRuleAndTheWindow() {
         Case stale = staleCase(1L);
@@ -141,7 +141,7 @@ class LapseSweepSchedulerTest {
         verifyNoInteractions(caseStatusService);
     }
 
-    /** El caso normal: nadie más está barriendo, este se queda con todos los turnos. */
+    /** The normal case: nobody else is sweeping, so this one wins every turn. */
     private void winsTheTurn() {
         when(caseStatusService.transitionIfStillIn(any(), any(), any(), any(), any()))
                 .thenAnswer(invocation -> Optional.of(invocation.getArgument(0)));

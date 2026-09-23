@@ -6,12 +6,7 @@ import ar.edu.utn.frba.arbiter.common.enums.ExpertVerdict;
 import java.math.BigDecimal;
 import java.time.Instant;
 
-/**
- * The peritaje as the analyst sees it: who it went to, why, and what came back.
- *
- * <p>{@code notified} says whether the email actually left. A firm that was never told is a case
- * waiting on nobody, and that is invisible unless the screen says so.
- */
+/** {@code notified} tells whether the email actually left: a firm never told is a case waiting on nobody. */
 public record ExpertAssessmentResponse(
         Long id,
         String expertName,
@@ -26,12 +21,9 @@ public record ExpertAssessmentResponse(
         RepairOutcome repairOutcome,
         ProviderType providerType,
         String verdictNote,
-        /** Lo que el perito determinó que vale el siniestro. Null cuando el informe no puso número. */
+        /** Null when the report gave no figure. */
         BigDecimal indemnifiableAmount,
-        /**
-         * Lo que el taller cobra por el trabajo: presupuestado si todavía no lo hizo, facturado si
-         * ya lo hizo. Null cuando el equipo era irreparable, o cuando la factura no llegó aún.
-         */
+        /** Quoted before the repair, invoiced after. Null if irreparable or the invoice hasn't arrived. */
         BigDecimal repairCost,
         Long reportDocumentId
 ) {

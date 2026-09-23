@@ -12,12 +12,9 @@ import org.springframework.stereotype.Component;
 /**
  * Who is allowed to read a given case.
  *
- * <p>{@code @PreAuthorize} on the controller only answers "which roles may call this endpoint",
- * which for {@code GET /cases/{id}} was gating "logged in" and not "yours" — any authenticated
- * user could read any case in the tenant. This closes that: an ASEGURADO sees only their own.
- *
- * <p>Analysts and referents are deliberately unrestricted <b>within their tenant</b>: reviewing
- * other people's claims is their job, and the schema already bounds them to one insurer.
+ * <p>{@code @PreAuthorize} only checks the role; this checks ownership: an ASEGURADO sees only their
+ * own cases. Analysts and referents are unrestricted within their tenant — the schema already
+ * bounds them to one insurer.
  */
 @Component
 public class CaseAccessPolicy {
@@ -27,9 +24,8 @@ public class CaseAccessPolicy {
     private static final String ANALYST_ROLE = "ROLE_ANALISTA_SINIESTROS";
 
     /**
-     * Fails as {@link CaseNotFoundException} (404) rather than a 403 on purpose: telling a
-     * stranger "this case exists but isn't yours" leaks that it exists, and case ids are
-     * sequential, so a 403 would let anyone map the whole table by probing.
+     * 404 rather than 403 on purpose: case ids are sequential, so a 403 would let anyone map
+     * which cases exist by probing.
      */
     public void assertCanRead(Case caseRecord) {
         if (!canRead(caseRecord)) {
@@ -45,25 +41,20 @@ public class CaseAccessPolicy {
         return callerDni != null && callerDni.equals(caseRecord.getInsured().getDni());
     }
 
-    /** True when the caller's role is ASEGURADO — the only role scoped to its own cases. */
     public boolean currentUserIsInsured() {
         return hasAuthority(INSURED_ROLE);
     }
 
     /**
-     * Which of the two roles that can own an ownership change (assign/reassign/release) is
-     * actually calling — {@code ANALISTA_SINIESTROS} and {@code REFERENTE_ASEGURADORA} share the
-     * endpoint (see {@code CaseController#assignAnalyst}), and the audit trail needs to tell them
-     * apart instead of attributing every call to the analyst.
+     * Analysts and referents share the assignment endpoint; the audit trail needs to tell them apart.
      */
     public StatusChangeActor currentAssignmentActor() {
         return hasAuthority(REFERENT_ROLE) ? StatusChangeActor.REFERENT : StatusChangeActor.ANALYST;
     }
 
     /**
-     * Which side of a case's conversation the caller is on. {@code REFERENT} is a reader, not a
-     * party: they see the thread the same way they see the rest of the case, and don't write to it.
-     * Null for anyone else — no role outside these three reaches a case at all.
+     * Which side of a case's conversation the caller is on. {@code REFERENT} reads the thread but
+     * doesn't write to it. Null for any other role.
      */
     public StatusChangeActor currentParty() {
         if (hasAuthority(INSURED_ROLE)) {

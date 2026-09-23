@@ -39,10 +39,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.tuple;
 
 /**
- * El ciclo de vida contra Postgres real, no con repositorios mockeados: desde que
- * {@code cases.current_status_id} y {@code case_status_history.initial/final_status_id} son FKs,
- * lo que puede romper es la persistencia (el NOT NULL del estado final, el nullable del inicial),
- * y eso solo lo ejercita Hibernate escribiendo de verdad.
+ * The lifecycle against real Postgres: {@code cases.current_status_id} and
+ * {@code case_status_history.initial/final_status_id} are FKs, so what can break is persistence
+ * (NOT NULL final status, nullable initial one), and only Hibernate writing for real exercises it.
  */
 @SpringBootTest
 @Transactional
@@ -82,10 +81,9 @@ class CaseStatusLifecycleTests extends AbstractPersistenceIT {
     private UserRepository userRepository;
 
     /**
-     * El catálogo se siembra COMMITEADO, fuera de la transacción que el test revierte: en producción
-     * son datos de plataforma que ya existen, y {@code CaseStateCatalog} los cachea en memoria. Si
-     * se sembraran dentro del rollback, el segundo test insertaría filas nuevas con ids nuevos
-     * mientras la cache sigue apuntando a las anteriores — y la FK explota.
+     * The catalog is seeded COMMITTED, outside the test's rolled-back transaction:
+     * {@code CaseStateCatalog} caches it in memory, so seeding inside the rollback would give the
+     * next test new ids while the cache still points at the old ones, and the FK would fail.
      */
     @BeforeEach
     void seedCatalog() {
@@ -112,8 +110,8 @@ class CaseStatusLifecycleTests extends AbstractPersistenceIT {
         assertThat(reloaded.getStatus()).isEqualTo(CaseStatus.PENDING_ANALYST_REVIEW);
 
         List<CaseStatusHistory> trail = caseStatusService.history(saved.getId());
-        // Sin orden: las dos filas se escriben en el mismo instante y changed_at puede empatar.
-        // El alta no tiene estado inicial — la FK es nullable justamente para esa fila.
+        // Unordered: both rows are written in the same instant and changed_at may tie. The creation
+        // row has no initial status, which is why that FK is nullable.
         assertThat(trail)
                 .extracting(CaseStatusHistory::getFromStatus, CaseStatusHistory::getToStatus)
                 .containsExactlyInAnyOrder(
@@ -135,7 +133,7 @@ class CaseStatusLifecycleTests extends AbstractPersistenceIT {
         Branch branch = branchRepository.save(CaseFixtures.branch("Celulares"));
         ClaimCause claimCause = claimCauseRepository.save(
                 ClaimCause.builder().name("Robo en vía pública").branch(branch).build());
-        // insured.user_id es NOT NULL: identidad en el esquema común, perfil en el del tenant.
+        // insured.user_id is NOT NULL: identity lives in the common schema, the profile in the tenant's.
         Insured person = CaseFixtures.insured("40.123.456", "Laura", "Fernández");
         person.setUser(userRepository.save(CaseFixtures.user("laura@example.com")));
         Insured insured = insuredRepository.save(person);
@@ -158,19 +156,14 @@ class CaseStatusLifecycleTests extends AbstractPersistenceIT {
                 .build();
     }
 
-    /**
-     * La cobertura del catálogo del tenant. Idempotente, mismo patrón que {@code claimCause()}:
-     * varias pólizas de un test comparten la definición, que es lo que pasa en la realidad.
-     */
     private Coverage testCoverage() {
         return coverageRepository.findByName("Cobertura Celulares")
                 .orElseGet(() -> coverageRepository.save(CaseFixtures.coverage("Celulares")));
     }
 
     /**
-     * Deja la póliza con su cobertura contratada. Desde que una póliza tiene VARIAS coberturas, la
-     * suma asegurada vive en {@code policy_coverage} y no en {@code policy}, así que sin esta fila
-     * la póliza no tiene contra qué evaluarse.
+     * The sum insured lives in {@code policy_coverage}, not in {@code policy}: without this row the
+     * policy has nothing to be evaluated against.
      */
     private Policy withCoverage(Policy policy) {
         policyCoverageRepository.save(CaseFixtures.policyCoverage(policy.getId(), testCoverage(), 1));

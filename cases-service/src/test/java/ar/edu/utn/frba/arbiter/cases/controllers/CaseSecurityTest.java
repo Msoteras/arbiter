@@ -22,8 +22,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * H0003 - RBAC por endpoint. Usa tokens firmados a mano con el mismo secreto de test
- * (ver {@link AbstractPersistenceIT}) porque cases-service solo valida el JWT, no lo emite.
+ * RBAC per endpoint. Uses hand-signed tokens with the shared test secret (see
+ * {@link AbstractPersistenceIT}) because cases-service only validates the JWT, it doesn't issue it.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -85,9 +85,6 @@ class CaseSecurityTest extends AbstractPersistenceIT {
 
     @Test
     void createCase_asReferente_returns403() throws Exception {
-        // Denunciar es del asegurado y de nadie más. El endpoint estaba en
-        // hasAnyRole('ASEGURADO','REFERENTE_ASEGURADORA'), más laxo que la regla de negocio — el
-        // frontend ya restringía la ruta `new-claim` a ASEGURADO.
         MockMultipartFile casePart = new MockMultipartFile(
                 "case", "", MediaType.APPLICATION_JSON_VALUE,
                 """
@@ -114,7 +111,6 @@ class CaseSecurityTest extends AbstractPersistenceIT {
 
     @Test
     void uploadDocuments_asReferente_returns403() throws Exception {
-        // Misma regla: la documentación adicional la sube el asegurado dueño del expediente (H0005).
         MockMultipartFile doc = new MockMultipartFile(
                 "police_report", "denuncia.pdf", MediaType.APPLICATION_PDF_VALUE, "contenido".getBytes());
 
@@ -133,9 +129,9 @@ class CaseSecurityTest extends AbstractPersistenceIT {
                 .andExpect(status().isForbidden());
     }
 
-    // Los bodies de acá abajo llevan `justification` porque es obligatoria (@NotBlank): la
-    // validación del @RequestBody corre ANTES que el @PreAuthorize, así que un body incompleto
-    // devuelve 400 y estos tests dejarían de medir el gate de seguridad, que es lo suyo.
+    // The bodies below carry `justification` because it's @NotBlank: @RequestBody validation runs
+    // BEFORE @PreAuthorize, so an incomplete body would return 400 and these tests would stop
+    // measuring the security gate.
 
     @Test
     void recordDecision_asAsegurado_returns403() throws Exception {
@@ -150,9 +146,8 @@ class CaseSecurityTest extends AbstractPersistenceIT {
     }
 
     /**
-     * La contracara: la justificación es obligatoria para toda decisión, coincida o no con el
-     * modelo (el paper §2.2 exige que cada decisión quede explícita y fundada). Sin este test, que
-     * volviera a ser opcional no rompería nada.
+     * Justification is mandatory for every decision, whether or not it matches the model. Without
+     * this test, making it optional again would break nothing.
      */
     @Test
     void recordDecision_withoutJustification_isRejected() throws Exception {
@@ -167,8 +162,8 @@ class CaseSecurityTest extends AbstractPersistenceIT {
 
     @Test
     void recordDecision_asAnalista_passesTheRoleGate() throws Exception {
-        // Caso inexistente a propósito: si pasa el @PreAuthorize, la lógica de negocio
-        // responde 404 (CaseNotFoundException) en vez de 401/403.
+        // Non-existent case on purpose: once past @PreAuthorize, the business logic answers 404
+        // (CaseNotFoundException) instead of 401/403.
         mockMvc.perform(post("/api/v1/cases/999999/decision")
                         .header("Authorization", "Bearer " + tokenFor("ANALISTA_SINIESTROS"))
                         .contentType(MediaType.APPLICATION_JSON)
@@ -192,8 +187,8 @@ class CaseSecurityTest extends AbstractPersistenceIT {
 
     @Test
     void assignAnalyst_asAnalista_passesTheRoleGate() throws Exception {
-        // Asignar es de los dos roles operativos, no solo del referente: el analista puede tomar
-        // un expediente sin depender de que se lo repartan. Mismo truco del 404 que en decision.
+        // Both operational roles may assign: an analyst can take a case without waiting to be given
+        // one. Same 404 trick as in decision.
         mockMvc.perform(post("/api/v1/cases/999999/assign")
                         .header("Authorization", "Bearer " + tokenFor("ANALISTA_SINIESTROS"))
                         .contentType(MediaType.APPLICATION_JSON)
@@ -222,8 +217,8 @@ class CaseSecurityTest extends AbstractPersistenceIT {
     }
 
     /**
-     * Para el asegurado la derivación no existe: su expediente sigue 'En análisis'. Leer el
-     * peritaje le contaría que se sospecha de él, que es justo lo que el estado esconde.
+     * For the insured the derivation doesn't exist: their case still reads as under analysis.
+     * Reading the expert assessment would reveal they're suspected, which the status hides.
      */
     @Test
     void readExpertAssessment_asAsegurado_returns403() throws Exception {

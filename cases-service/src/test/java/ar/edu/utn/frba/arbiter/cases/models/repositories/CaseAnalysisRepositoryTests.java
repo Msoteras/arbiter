@@ -27,20 +27,14 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Contra Postgres real (Testcontainers), no con {@link CaseAnalysisRepository} mockeado. Cierra el
- * gap #1 del handoff multi-tenant: {@code llm_analysis}/{@code llm_reason}/{@code risk_analysis} no
- * son entidades JPA de este módulo (las escribe classification-service), así que
- * {@code ddl-auto=update} nunca las crea — sin este test, la lógica real del repositorio (el
- * {@code DISTINCT ON}, el parseo de JSONB, el join de factores) no se ejercita nunca contra
- * Postgres, y así pasó desapercibido el bug donde las queries se armaban sobre una conexión del
- * pool en vez de la de Hibernate (ver el comentario de {@link CaseAnalysisRepository}).
+ * Against real Postgres, not a mocked {@link CaseAnalysisRepository}. {@code llm_analysis},
+ * {@code llm_reason} and {@code risk_analysis} aren't JPA entities of this module (classification-
+ * service writes them), so {@code ddl-auto=update} never creates them; without this test the
+ * repository's real logic ({@code DISTINCT ON}, JSONB parsing, the factor join, running on
+ * Hibernate's connection) would never run against Postgres.
  *
- * <p>Las tablas se crean por SQL crudo en {@link #createAnalysisTables()} — mismo shape que
- * {@code db/init-multitenant.sql}, sin la lógica multi-esquema (acá todo es {@code public}).
- *
- * <p>Nombre con sufijo {@code Tests}, no {@code IT}: Surefire (el único plugin de test wireado en
- * este proyecto, sin Failsafe) excluye {@code *IT.java} por default — así corre en {@code mvn test}
- * como el resto de los tests contra Testcontainers de este módulo.
+ * <p>The tables are created by raw SQL in {@link #createAnalysisTables()}, same shape as
+ * {@code db/init-multitenant.sql} but all in {@code public}.
  */
 @SpringBootTest
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
@@ -79,7 +73,7 @@ class CaseAnalysisRepositoryTests extends AbstractPersistenceIT {
     @Autowired
     private UserRepository userRepository;
 
-    /** DDL, no DML: corre una sola vez, fuera de cualquier transacción de test. */
+    /** DDL, not DML: runs once, outside any test transaction. */
     @BeforeAll
     void createAnalysisTables() {
         jdbcTemplate.execute("""
@@ -118,9 +112,8 @@ class CaseAnalysisRepositoryTests extends AbstractPersistenceIT {
 
     @BeforeEach
     void cleanAnalysisTables() {
-        // TRUNCATE, no DELETE: @Transactional no envuelve este @BeforeEach porque las tablas de
-        // arriba viven fuera del EntityManager, así que cada test limpia lo que dejó el anterior
-        // a mano en vez de depender del rollback de Spring.
+        // These tables live outside the EntityManager, so Spring's rollback doesn't clean them:
+        // each test truncates what the previous one left.
         jdbcTemplate.execute("TRUNCATE llm_reason, llm_analysis, risk_analysis");
     }
 
@@ -207,8 +200,8 @@ class CaseAnalysisRepositoryTests extends AbstractPersistenceIT {
 
         CaseAnalysisRepository.CaseAnalysis analysis = result.get(caseId);
         assertThat(analysis.classification()).isEqualTo(Classification.LLM_RECOMIENDA_APROBAR);
-        // numeric(5,3): confirma que el BigDecimal->Double de queryAnalysis() lee bien la columna
-        // real, no un stub — es justo el punto que el bug de CaseAnalysisRepository rompía.
+        // numeric(5,3): checks that queryAnalysis()'s BigDecimal -> Double conversion reads the
+        // real column.
         assertThat(analysis.confidence()).isEqualTo(0.812);
         assertThat(analysis.factors()).containsExactly(
                 "Denuncia coherente con la imagen", "Sin siniestros previos");
@@ -249,8 +242,8 @@ class CaseAnalysisRepositoryTests extends AbstractPersistenceIT {
     @Test
     @Transactional
     void caseWithNoAnalysisRow_readsAsNone_notAsAnError() {
-        // El caso Fast Track: nunca escribe en llm_analysis (constraint de la tabla real lo
-        // rechazaría), así que esto también prueba que el repositorio no asume que la fila existe.
+        // Fast Track never writes llm_analysis (the real table's constraint would reject it), so
+        // the repository must not assume the row exists.
         Long caseId = seedCase("50.111.114", LocalDate.of(2026, 6, 4));
 
         CaseAnalysisRepository.CaseAnalysis analysis =
@@ -276,19 +269,14 @@ class CaseAnalysisRepositoryTests extends AbstractPersistenceIT {
         assertThat(result.get(caseB).classification()).isEqualTo(Classification.LLM_NO_RECOMIENDA_APROBAR);
     }
 
-    /**
-     * La cobertura del catálogo del tenant. Idempotente, mismo patrón que {@code claimCause()}:
-     * varias pólizas de un test comparten la definición, que es lo que pasa en la realidad.
-     */
     private Coverage testCoverage() {
         return coverageRepository.findByName("Cobertura Celulares")
                 .orElseGet(() -> coverageRepository.save(CaseFixtures.coverage("Celulares")));
     }
 
     /**
-     * Deja la póliza con su cobertura contratada. Desde que una póliza tiene VARIAS coberturas, la
-     * suma asegurada vive en {@code policy_coverage} y no en {@code policy}, así que sin esta fila
-     * la póliza no tiene contra qué evaluarse.
+     * The sum insured lives in {@code policy_coverage}, not in {@code policy}: without this row the
+     * policy has nothing to be evaluated against.
      */
     private Policy withCoverage(Policy policy) {
         policyCoverageRepository.save(CaseFixtures.policyCoverage(policy.getId(), testCoverage(), 1));
