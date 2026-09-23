@@ -15,6 +15,7 @@ import org.springframework.stereotype.Component;
 
 import java.time.Clock;
 import java.time.LocalDate;
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -31,13 +32,11 @@ public class DeadlineSweepScheduler {
 
     private static final Logger log = LoggerFactory.getLogger(DeadlineSweepScheduler.class);
 
-    /**
-     * Never due: terminal cases are closed, and in a pausing status the art. 56 term is interrupted,
-     * so {@code responseDeadline} is a frozen date. Must match {@code CaseStatusService.isDeadlineRunning}.
-     */
-    private static final List<String> DEADLINE_INACTIVE_STATUSES = List.of(
-            CaseStatus.APPROVED.name(), CaseStatus.REJECTED.name(), CaseStatus.LAPSED.name(),
-            CaseStatus.AWAITING_DOCUMENTATION.name(), CaseStatus.PENDING_EXPERT_REPORT.name());
+    /** Never due: closed, or paused with a frozen {@code responseDeadline}. */
+    private static final List<String> DEADLINE_INACTIVE_STATUSES = Arrays.stream(CaseStatus.values())
+            .filter(status -> !CaseStatusService.isDeadlineRunning(status))
+            .map(CaseStatus::name)
+            .toList();
 
     /** Only critical or worse notifies; a case is critical at 2 days out, so that's the query window. */
     private static final long NOTIFY_WINDOW_DAYS = 2;

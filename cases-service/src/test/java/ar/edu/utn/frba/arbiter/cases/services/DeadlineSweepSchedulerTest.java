@@ -8,14 +8,18 @@ import ar.edu.utn.frba.arbiter.common.models.entities.Insurer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.util.Collection;
 import java.util.List;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
@@ -28,6 +32,9 @@ import static org.mockito.Mockito.when;
 class DeadlineSweepSchedulerTest {
 
     private static final LocalDate TODAY = LocalDate.of(2026, 8, 24);
+
+    @Captor
+    private ArgumentCaptor<Collection<String>> excludedStatuses;
 
     @Mock
     private CaseRepository caseRepository;
@@ -53,9 +60,10 @@ class DeadlineSweepSchedulerTest {
 
         scheduler.sweepDeadlines();
 
-        verify(caseRepository).findUnansweredDueBy(
-                eq(TODAY.plusDays(2)),
-                eq(List.of("APPROVED", "REJECTED", "LAPSED", "AWAITING_DOCUMENTATION", "PENDING_EXPERT_REPORT")));
+        verify(caseRepository).findUnansweredDueBy(eq(TODAY.plusDays(2)), excludedStatuses.capture());
+        assertThat(excludedStatuses.getValue()).containsExactlyInAnyOrder(
+                "APPROVED", "REJECTED", "LAPSED",
+                "AWAITING_DOCUMENTATION", "PENDING_EXPERT_REPORT", "PENDING_REPAIR");
         verifyNoInteractions(analystNotificationService);
     }
 
