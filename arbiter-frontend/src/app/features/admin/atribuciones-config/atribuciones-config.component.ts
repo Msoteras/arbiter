@@ -1,14 +1,15 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { forkJoin } from 'rxjs';
 
 import {
   SettlementAuthoritiesService,
   SettlementAuthority,
 } from '../settlement-authorities.service';
-import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { CardComponent } from '../../../shared/ui/card/card.component';
 import { InputComponent } from '../../../shared/ui/input/input.component';
 import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
+import { SaveBarComponent } from '../../../shared/ui/save-bar/save-bar.component';
 
 /**
  * Hasta cuánto autoriza un analista por su cuenta en cada ramo — las atribuciones del Anexo II del
@@ -25,21 +26,28 @@ import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline
  */
 @Component({
   selector: 'app-atribuciones-config',
-  imports: [ButtonComponent, CardComponent, InputComponent, InlineLoadingComponent],
+  imports: [CardComponent, InputComponent, InlineLoadingComponent, SaveBarComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './atribuciones-config.component.html',
   styleUrl: './atribuciones-config.component.scss',
 })
 export class AtribucionesConfigComponent {
   private readonly service = inject(SettlementAuthoritiesService);
+  private static readonly miles = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 0 });
 
   protected readonly authorities = signal<SettlementAuthority[]>([]);
   protected readonly loading = signal(true);
+  protected readonly saving = signal(false);
   protected readonly error = signal<string | null>(null);
 
-  /** Lo tipeado por ramo, como texto: vacío es "sin tope", que no es lo mismo que 0. */
+  /** Lo tipeado por ramo, solo dígitos: vacío es "sin tope", que no es lo mismo que 0. */
   protected readonly drafts = signal<Record<number, string>>({});
-  protected readonly savingBranchId = signal<number | null>(null);
+
+  /** Los ramos cuyo tope cambió respecto de lo guardado. Un solo "Guardar cambios" los manda todos. */
+  private readonly changed = computed(() =>
+    this.authorities().filter((a) => (this.drafts()[a.branchId] ?? '') !== stored(a)),
+  );
+  protected readonly dirty = computed(() => this.changed().length > 0);
 
   constructor() {
     this.load();
@@ -50,11 +58,7 @@ export class AtribucionesConfigComponent {
     this.service.list().subscribe({
       next: (list) => {
         this.authorities.set(list);
-        this.drafts.set(
-          Object.fromEntries(
-            list.map((a) => [a.branchId, a.maxAmount == null ? '' : String(a.maxAmount)]),
-          ),
-        );
+        this.resetDrafts(list);
         this.loading.set(false);
       },
       error: (e: HttpErrorResponse) => {
@@ -64,50 +68,53 @@ export class AtribucionesConfigComponent {
     });
   }
 
-  protected draftFor(branchId: number): string {
-    return this.drafts()[branchId] ?? '';
+  private resetDrafts(list: SettlementAuthority[]): void {
+    this.drafts.set(Object.fromEntries(list.map((a) => [a.branchId, stored(a)])));
   }
 
+  /** El monto con puntos de miles, como se lee una cifra en pesos. */
+  protected draftLabel(branchId: number): string {
+    const digits = this.drafts()[branchId] ?? '';
+    return digits === '' ? '' : AtribucionesConfigComponent.miles.format(Number(digits));
+  }
+
+  /** Se guarda solo el número: los puntos que agrega el formato no son parte del valor. */
   protected setDraft(branchId: number, value: string): void {
-    this.drafts.update((d) => ({ ...d, [branchId]: value }));
+    const digits = value.replace(/\D/g, '').replace(/^0+(?=\d)/, '');
+    this.drafts.update((d) => ({ ...d, [branchId]: digits }));
   }
 
-  /** Cambió respecto de lo guardado: sin esto el botón ofrece guardar lo mismo que ya está. */
-  protected isDirty(a: SettlementAuthority): boolean {
-    const stored = a.maxAmount == null ? '' : String(a.maxAmount);
-    return this.draftFor(a.branchId).trim() !== stored;
+  protected discard(): void {
+    this.error.set(null);
+    this.resetDrafts(this.authorities());
   }
 
-  protected save(a: SettlementAuthority): void {
-    const raw = this.draftFor(a.branchId).trim();
-    const amount = raw === '' ? null : Number(raw);
-    if (amount != null && (!Number.isFinite(amount) || amount < 0)) {
-      this.error.set('El tope tiene que ser un número mayor o igual a cero.');
+  protected save(): void {
+    const changed = this.changed();
+    if (changed.length === 0) {
       return;
     }
-
-    this.savingBranchId.set(a.branchId);
+    this.saving.set(true);
     this.error.set(null);
-    this.service.set(a.branchId, amount).subscribe({
+    forkJoin(
+      changed.map((a) => {
+        const digits = this.drafts()[a.branchId] ?? '';
+        return this.service.set(a.branchId, digits === '' ? null : Number(digits));
+      }),
+    ).subscribe({
       next: () => {
-        this.savingBranchId.set(null);
+        this.saving.set(false);
         this.load();
       },
       error: (e: HttpErrorResponse) => {
-        this.savingBranchId.set(null);
-        this.error.set(e.error?.detail ?? 'No se pudo guardar el tope.');
+        this.saving.set(false);
+        // Sin releer: lo tipeado queda en pantalla para reintentar, en vez de perderse.
+        this.error.set(e.error?.detail ?? 'No se pudieron guardar los topes.');
       },
     });
   }
+}
 
-  protected montoLabel(amount: number | null): string {
-    if (amount == null) {
-      return 'Sin tope';
-    }
-    return new Intl.NumberFormat('es-AR', {
-      style: 'currency',
-      currency: 'ARS',
-      maximumFractionDigits: 0,
-    }).format(amount);
-  }
+function stored(a: SettlementAuthority): string {
+  return a.maxAmount == null ? '' : String(Math.round(a.maxAmount));
 }

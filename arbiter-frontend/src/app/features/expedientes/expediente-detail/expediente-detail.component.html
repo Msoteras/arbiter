@@ -32,7 +32,10 @@
   </header>
 
   <main class="det-content">
-    <!-- Reasoning cards (orden de razonamiento) -->
+    <!-- Tres cards del mismo peso: un título, un dato principal y como mucho una línea de detalle.
+         Lo que no entra en ese molde (el cruce del relato, la liquidación devuelta, la sugerencia
+         de peritaje) va a la franja de avisos de abajo, a lo ancho, en vez de estirar una sola
+         card y desequilibrar la fila. -->
     <div class="reasoning" @staggerReveal>
       <!-- El encabezado y la letra chica cambian según quién produjo el resultado: el LLM (una
            recomendación no vinculante que el analista aprueba o rechaza) o el motor de reglas
@@ -48,71 +51,41 @@
         "
       >
         @if (classificationLabel()) {
-          <div class="reco-body">
-            <div class="reco-text">
-              <p
-                class="reco-value"
-                [attr.data-tone]="classificationTone() !== 'neutral' ? classificationTone() : null"
-              >
-                {{ classificationLabel() }}
-              </p>
-              @if (!isDeterministicOutcome()) {
-                <p class="note">Confianza del modelo: {{ confidencePercent() }}%</p>
-              } @else if (needsDocs()) {
-                <!-- Sin el "lo determinó el motor de reglas, no el modelo": el encabezado de la
-                     card ya lo dice cuando el resultado es determinístico. -->
-                <p class="note">Falta documentación obligatoria de la agenda del ramo.</p>
-              } @else {
-                <!-- Fast Track no es "aprobar rápido": es que nadie opinó antes que el analista.
-                     Decirlo con todas las letras es la mitad de H0038; la otra mitad son los
-                     criterios, abajo. -->
-                <p class="note">
-                  <strong>Fast Track:</strong> la vía express para un siniestro que cumple ciertos
-                  criterios objetivos.
-                </p>
-                @if (fastTrackCriteria().length > 0) {
-                  <p class="note">Qué se verificó, en «Análisis» → Criterios de Fast Track.</p>
-                }
-              }
-            </div>
-          </div>
-        } @else {
-          <p class="nodata">El modelo todavía no generó una recomendación para este expediente.</p>
-        }
-
-        <!-- El cruce relato ↔ hecho generador declarado. Va acá y no en una card aparte porque es
-             lo que explica la recomendación de arriba: el asegurado eligió un hecho del selector y
-             después contó otra cosa. Quién tiene razón lo decide el analista. -->
-        @if (showCauseConsistency()) {
-          <div class="consistencia">
-            <app-badge variant="solid" [tone]="causeConsistencyTone()">
-              {{ causeConsistencyLabel() }}
-            </app-badge>
-            <dl class="consistencia-cruce">
-              <div>
-                <dt class="t-field-label">Hecho declarado</dt>
-                <dd>{{ data()?.claimCause }}</dd>
-              </div>
-              @if (data()?.suggestedClaimCause; as sugerido) {
-                <div>
-                  <dt class="t-field-label">El relato sugiere</dt>
-                  <dd>{{ sugerido }}</dd>
-                </div>
-              }
-            </dl>
-            @if (data()?.causeEvidence; as cita) {
-              <blockquote class="consistencia-cita">{{ cita }}</blockquote>
-            }
+          <p
+            class="reco-value"
+            [attr.data-tone]="classificationTone() !== 'neutral' ? classificationTone() : null"
+          >
+            {{ classificationLabel() }}
+          </p>
+          @if (!isDeterministicOutcome()) {
+            <p class="note">Confianza del modelo: {{ confidencePercent() }}%</p>
+          } @else if (needsDocs()) {
+            <p class="note">Falta documentación obligatoria de la agenda del ramo.</p>
+          } @else {
+            <!-- Fast Track no es "aprobar rápido": es que nadie opinó antes que el analista. -->
             <p class="note">
-              Lectura del modelo sobre el relato, no un veredicto de cobertura. Verificá la
-              descripción antes de decidir.
+              Cumplió los criterios objetivos del carril rápido.
+              <app-info-tip>
+                Fast Track es la vía express para un siniestro que cumple ciertos criterios
+                objetivos. No es una recomendación de aprobar: la decisión sigue siendo del
+                analista.
+                @if (fastTrackCriteria().length > 0) {
+                  Qué se verificó está en «Evaluación de reglas».
+                }
+              </app-info-tip>
             </p>
-          </div>
+          }
+        } @else {
+          <p class="nodata">El modelo todavía no generó una recomendación.</p>
         }
       </app-card>
 
       <app-card class="rcard" heading="Nivel de riesgo de fraude">
-        <app-fraud-gauge [band]="riskGaugeBand()" [emptyLabel]="riskGaugeEmptyLabel()" />
+        <app-fraud-gauge
+          [band]="riskGaugeBand()"
+          [score]="riskScorePct()"
+          [emptyLabel]="riskGaugeEmptyLabel()"
+        />
       </app-card>
 
       <app-card class="rcard" [heading]="decisionCardHeading()">
@@ -123,12 +96,11 @@
               @if (s.confirmed) {
                 <p class="rcard-note">
                   Monto a pagar: <strong>{{ montoExacto(s.settledAmount) }}</strong>
+                  @if (s.adjustmentReason) {
+                    · ajustado sobre {{ montoExacto(s.calculatedAmount) }}
+                    <app-info-tip>{{ s.adjustmentReason }}</app-info-tip>
+                  }
                 </p>
-                @if (s.adjustmentReason) {
-                  <p class="rcard-note">
-                    Ajustado sobre {{ montoExacto(s.calculatedAmount) }}: {{ s.adjustmentReason }}
-                  </p>
-                }
               }
             }
           }
@@ -136,11 +108,11 @@
             <p class="registered">✓ Registrado: Rechazado</p>
           }
           @case ('lapsed') {
-            <!-- Nadie decidió: el expediente se cerró solo por inacción del asegurado. Sin esta
-                 rama caía en el @default y mostraba "Sin clasificación disponible todavía". -->
-            <p class="nodata">
-              Cerrado por caducidad: pasaron 18 meses desde la denuncia sin que el asegurado trajera
-              la documentación pedida.
+            <!-- Nadie decidió: el expediente se cerró solo por inacción del asegurado. -->
+            <p class="registered">Cerrado por caducidad</p>
+            <p class="rcard-note">
+              Pasaron 18 meses desde la denuncia sin que el asegurado trajera la documentación
+              pedida.
             </p>
           }
           @case ('pending') {
@@ -150,171 +122,125 @@
               <p class="registered">⏳ Esperando autorización del referente</p>
               @if (settlement(); as s) {
                 <p class="rcard-note">
-                  Monto determinado: <strong>{{ montoExacto(s.settledAmount) }}</strong
-                  >, por encima del tope de {{ montoExacto(s.authorityLimit) }} del ramo.
+                  Monto <strong>{{ montoExacto(s.settledAmount) }}</strong> · tope del ramo
+                  {{ montoExacto(s.authorityLimit) }}
                 </p>
               }
             } @else if (canAct()) {
               <!-- Lo que hay que tener a la vista para decidir, sin recorrer las solapas. Solo
-                   acerca evidencia que ya existe: no sugiere qué decidir. -->
-              <dl class="brief">
-                @if (plazoTexto(); as plazo) {
-                  <div class="brief-row">
-                    <dt class="t-field-label">Plazo legal</dt>
-                    <dd>
+                   acerca evidencia que ya existe: no sugiere qué decidir. Si el expediente no
+                   tiene dueño, "Asignarme" va al costado: es la única acción, y abajo estiraba la
+                   card y con ella toda la fila. -->
+              <div class="decision-row">
+                <div class="decision-info">
+                  <p class="brief">
+                    @if (plazoTexto(); as plazo) {
                       @if (plazoTone() !== 'neutral') {
                         <app-badge variant="solid" [tone]="plazoTone()">{{ plazo }}</app-badge>
                       } @else {
-                        {{ plazo }}
+                        <span>{{ plazo }}</span>
                       }
-                    </dd>
-                  </div>
-                }
-                @if (settlement(); as s) {
-                  <div class="brief-row">
-                    <dt class="t-field-label">Si aprobás</dt>
-                    <dd>
-                      <span class="tabular">{{ montoExacto(s.calculatedAmount) }}</span>
-                      @if (s.authorityLimit != null && s.calculatedAmount > s.authorityLimit) {
-                        <span class="brief-sub">Supera tu atribución: firma el referente</span>
-                      }
-                    </dd>
-                  </div>
-                }
-                @for (p of derivacionesRespondidas(); track p.id) {
-                  <div class="brief-row">
-                    <dt class="t-field-label">
-                      {{ p.providerType === 'SERVICIO_TECNICO' ? 'Respuesta' : 'Informe' }}
-                    </dt>
-                    <dd>
+                    }
+                    @if (settlement(); as s) {
+                      <span
+                        >Si aprobás
+                        <strong class="tabular">{{ montoExacto(s.calculatedAmount) }}</strong></span
+                      >
+                    }
+                    @for (p of derivacionesRespondidas(); track p.id) {
                       <app-badge variant="solid" [tone]="resultadoDerivacionTone(p)">
                         {{ resultadoDerivacion(p) }}
                       </app-badge>
-                    </dd>
-                  </div>
-                }
-                @if (alertasDecision().length > 0) {
-                  <div class="brief-row">
-                    <dt class="t-field-label">Revisar</dt>
-                    <dd class="brief-alerts">
+                    }
+                  </p>
+                  @if (alertasDecision().length > 0) {
+                    <p class="brief-alerts">
                       @for (a of alertasDecision(); track a.tab) {
                         <button type="button" class="brief-link" (click)="setTab(a.tab)">
                           <span aria-hidden="true">▲</span> {{ a.label }}
                         </button>
                       }
-                    </dd>
-                  </div>
-                }
-              </dl>
-              @if (liquidacionDevuelta() && settlement(); as s) {
-                <!-- Devuelta no es rechazada: el expediente sigue siendo suyo y puede volver a
-                     determinar el monto. El motivo es lo único que tiene para saber qué corregir. -->
-                <p class="settlement-callout returned">
-                  El referente devolvió la liquidación: {{ s.returnReason }}
-                </p>
-              }
-              @if (canDecide()) {
-                <div class="decision-btns">
-                  <app-button
-                    variant="secondary"
-                    [block]="true"
-                    [disabled]="decisionSaving()"
-                    (click)="askDecision('rechazar')"
-                    >Rechazar</app-button
-                  >
-                  <app-button
-                    variant="secondary"
-                    [block]="true"
-                    [disabled]="decisionSaving()"
-                    (click)="askDecision('aprobar')"
-                    >Aprobar</app-button
-                  >
+                    </p>
+                  }
                 </div>
-              } @else {
-                <p class="nodata">{{ decisionBlockedReason() }}</p>
-                <!-- El mensaje pide asignarse, así que la acción va acá mismo: antes el botón estaba
-                     solo en la card "Analista asignado", más abajo, y había que ir a buscarlo. -->
-                @if (!isAssigned() && canTake()) {
+                @if (canDecide()) {
+                  <!-- Solo las dos decisiones, apiladas al costado. Derivar no es una tercera: es
+                       suspender para conseguir evidencia, y vive en la card "Analista asignado". -->
+                  <div class="decision-side">
+                    <app-button
+                      variant="secondary"
+                      tone="ok"
+                      [block]="true"
+                      [disabled]="decisionSaving()"
+                      (click)="askDecision('aprobar')"
+                      >✓ Aprobar</app-button
+                    >
+                    <app-button
+                      variant="secondary"
+                      tone="danger"
+                      [block]="true"
+                      [disabled]="decisionSaving()"
+                      (click)="askDecision('rechazar')"
+                      >✕ Rechazar</app-button
+                    >
+                  </div>
+                } @else if (!isAssigned() && canTake()) {
                   <app-button
                     variant="accent"
-                    [block]="true"
+                    size="sm"
                     [disabled]="assignSaving()"
                     (click)="take()"
                   >
                     {{ assignSaving() ? 'Asignando…' : '+ Asignarme' }}
                   </app-button>
-                  @if (assignError()) {
-                    <p class="rcard-note error">{{ assignError() }}</p>
-                  }
                 }
-              }
-              @if (puedeDerivar()) {
-                @if (sugerenciaDerivacion(); as sugerencia) {
-                  <p class="rcard-note suggested">{{ sugerencia }}</p>
-                }
-                <app-button
-                  [variant]="derivacionSugerida() ? 'accent' : 'secondary'"
-                  [block]="true"
-                  [disabled]="!derivacionHabilitada() || decisionSaving()"
-                  (click)="askDerivar()"
-                >
-                  Derivar a peritaje
-                </app-button>
-                @if (motivoNoDerivable(); as motivo) {
-                  <p class="rcard-note">{{ motivo }}</p>
-                }
-              }
-              @if (puedeDerivarAReparacion()) {
-                <app-button
-                  variant="secondary"
-                  [block]="true"
-                  [disabled]="decisionSaving()"
-                  (click)="askDerivar('SERVICIO_TECNICO')"
-                >
-                  Derivar a servicio técnico
-                </app-button>
+              </div>
+              @if (!canDecide() && isAssigned()) {
+                <p class="rcard-note">{{ decisionBlockedReason() }}</p>
+              } @else if (assignError()) {
+                <p class="rcard-note error">{{ assignError() }}</p>
               }
             } @else {
-              <p class="nodata">{{ esperaDecisionTexto() }}</p>
+              <p class="rcard-note">{{ esperaDecisionTexto() }}</p>
             }
           }
           @default {
             @if (derivado()) {
-              <!-- Con el panel movido a su solapa, sin esta línea el analista no tendría desde
-                   dónde cargar el informe ni por qué el expediente está frenado. -->
-              <p class="nodata">
-                El expediente está en peritaje. Cargá el informe desde la solapa
-                <strong>{{ derivacionesTabLabel() }}</strong
+              <p class="registered">En peritaje</p>
+              <p class="rcard-note">
+                Cargá el informe desde la solapa <strong>{{ derivacionesTabLabel() }}</strong
                 >.
               </p>
             } @else if (enReparacion()) {
-              <p class="nodata">
-                El expediente está en el servicio técnico. Cargá su respuesta desde la solapa
-                <strong>{{ derivacionesTabLabel() }}</strong
+              <p class="registered">En servicio técnico</p>
+              <p class="rcard-note">
+                Cargá su respuesta desde la solapa <strong>{{ derivacionesTabLabel() }}</strong
                 >.
               </p>
             } @else if (isFailed()) {
-              <p class="nodata">No se pudo clasificar automáticamente tras varios intentos.</p>
+              <p class="registered">No se pudo clasificar</p>
+              <p class="rcard-note">Falló la clasificación automática tras varios intentos.</p>
               @if (canGestionar()) {
-                <app-button
-                  variant="secondary"
-                  [block]="true"
-                  [disabled]="retrying()"
-                  (click)="retryClassification()"
-                >
-                  {{ retrying() ? 'Reintentando…' : 'Reintentar clasificación' }}
-                </app-button>
+                <div class="decision-btns">
+                  <app-button
+                    variant="secondary"
+                    [disabled]="retrying()"
+                    (click)="retryClassification()"
+                  >
+                    {{ retrying() ? 'Reintentando…' : 'Reintentar clasificación' }}
+                  </app-button>
+                </div>
                 @if (retryError()) {
                   <p class="rcard-note error">{{ retryError() }}</p>
                 }
               }
             } @else if (needsDocs()) {
               <!-- Hay clasificación, pero no le toca decidir al analista: el expediente espera que
-                   el asegurado complete la documentación. "Sin clasificación disponible" era
-                   directamente falso acá. -->
-              <p class="nodata">
-                Esperando que el asegurado cargue la documentación faltante. Cuando la complete, el
-                expediente se reclasifica y recién entonces pasa a tu decisión.
+                   el asegurado complete la documentación. -->
+              <p class="registered">Esperando al asegurado</p>
+              <p class="rcard-note">
+                Cuando cargue la documentación faltante, el expediente se reclasifica y pasa a tu
+                decisión.
               </p>
             } @else {
               <p class="nodata">Sin clasificación disponible todavía</p>
@@ -322,17 +248,13 @@
           }
         }
         @if (puedeReabrir()) {
-          <!-- Fuera del @switch: vale para los tres terminales por igual. Reabrir no revierte la
-               decisión anterior (su registro es inmutable), solo devuelve el expediente a una
-               persona. -->
-          <app-button
-            variant="secondary"
-            [block]="true"
-            [disabled]="reopening()"
-            (click)="askReopen()"
-          >
-            {{ reopening() ? 'Reabriendo…' : 'Reabrir expediente' }}
-          </app-button>
+          <!-- Reabrir no revierte la decisión anterior (su registro es inmutable), solo devuelve
+               el expediente a una persona. -->
+          <div class="decision-btns">
+            <app-button variant="secondary" [disabled]="reopening()" (click)="askReopen()">
+              {{ reopening() ? 'Reabriendo…' : 'Reabrir expediente' }}
+            </app-button>
+          </div>
           <p class="rcard-note">Vuelve a revisión con el plazo de respuesta corriendo de nuevo.</p>
           @if (reopenError()) {
             <p class="rcard-note error">{{ reopenError() }}</p>
@@ -347,6 +269,54 @@
       </app-card>
     </div>
 
+    <!-- Avisos: lo que explica o condiciona la fila de arriba pero no entra en una línea. -->
+    @if (hayAvisos()) {
+      <div class="avisos">
+        <!-- El cruce relato ↔ hecho generador declarado: el asegurado eligió un hecho del selector
+             y después contó otra cosa. Quién tiene razón lo decide el analista. -->
+        @if (showCauseConsistency()) {
+          <p class="aviso" [attr.data-tone]="causeConsistencyTone()">
+            <strong class="aviso-titulo">{{ causeConsistencyLabel() }}</strong>
+            <span
+              >Declarado <strong>{{ data()?.claimCause }}</strong>
+              @if (data()?.suggestedClaimCause; as sugerido) {
+                → el relato sugiere <strong>{{ sugerido }}</strong>
+              }
+            </span>
+            @if (data()?.causeEvidence; as cita) {
+              <q class="aviso-cita">{{ cita }}</q>
+            }
+          </p>
+        }
+        @if (canAct() && liquidacionDevuelta() && settlement(); as s) {
+          <!-- Devuelta no es rechazada: el expediente sigue siendo suyo y puede volver a
+               determinar el monto. El motivo es lo único que tiene para saber qué corregir. -->
+          <p class="aviso" data-tone="info">
+            <strong class="aviso-titulo">El referente devolvió la liquidación</strong>
+            <span>{{ s.returnReason }}</span>
+          </p>
+        }
+        @if (superaAtribucion()) {
+          <p class="aviso" data-tone="risk">
+            <strong class="aviso-titulo">Supera tu atribución</strong>
+            <span>Si aprobás, el monto lo tiene que firmar el referente.</span>
+          </p>
+        }
+        @if (puedeDerivar() && sugerenciaDerivacion(); as sugerencia) {
+          <p class="aviso" data-tone="risk">
+            <strong class="aviso-titulo">Se sugiere peritaje</strong>
+            <span>{{ sugerencia }}</span>
+          </p>
+        }
+        @if (puedeDerivar() && motivoNoDerivable(); as motivo) {
+          <p class="aviso">
+            <strong class="aviso-titulo">Sin peritaje</strong>
+            <span>{{ motivo }}</span>
+          </p>
+        }
+      </div>
+    }
+
     <!-- Tabs -->
     <nav class="tabs" role="tablist">
       @for (t of tabs(); track t.id) {
@@ -358,6 +328,9 @@
           (click)="setTab(t.id)"
         >
           {{ t.label }}
+          @if (t.count) {
+            <span class="tab-count">{{ t.count }}</span>
+          }
           @if (t.dot) {
             <span class="tab-dot" [attr.aria-label]="t.dotLabel"></span>
           }
@@ -371,19 +344,44 @@
         @case ('resumen') {
           <div class="resumen-grid">
             <div class="col-main">
-              <app-card heading="Resumen del siniestro">
-                <dl class="fields">
-                  @for (f of fields(); track f.label) {
-                    <div class="field" [class.full]="f.full">
-                      <dt class="t-field-label">{{ f.label }}</dt>
-                      @if (f.value) {
-                        <dd [class.mono]="f.mono">{{ f.value }}</dd>
-                      } @else {
-                        <dd class="nodata">Sin datos</dd>
+              <!-- Una card, tres bloques en el orden en que se lee un siniestro: qué pasó, qué se
+                   reclama y de quién es la póliza. -->
+              <app-card class="resumen-card">
+                @for (g of resumenGroups(); track g.heading; let first = $first) {
+                  <section class="resumen-bloque">
+                    <div class="resumen-bloque-head">
+                      <h2 class="t-section-label">{{ g.heading }}</h2>
+                      @if (first) {
+                        <span class="t-note mono">Siniestro #{{ d.id }}</span>
                       }
                     </div>
-                  }
-                </dl>
+                    <dl class="resumen-fields">
+                      @for (f of g.fields; track f.label) {
+                        <div class="field">
+                          <dt class="t-field-label">{{ f.label }}</dt>
+                          @if (f.value) {
+                            <dd [class.mono]="f.mono">{{ f.value }}</dd>
+                            @if (f.sub) {
+                              <dd class="t-note">{{ f.sub }}</dd>
+                            }
+                          } @else {
+                            <dd class="nodata">Sin datos</dd>
+                          }
+                        </div>
+                      }
+                    </dl>
+                    @if (first) {
+                      <div class="relato">
+                        <span class="t-field-label">Relato del asegurado</span>
+                        @if (d.description) {
+                          <p class="t-body">{{ d.description }}</p>
+                        } @else {
+                          <p class="nodata">Sin datos</p>
+                        }
+                      </div>
+                    }
+                  </section>
+                }
               </app-card>
             </div>
 
@@ -403,26 +401,40 @@
                   </div>
                   @if (canGestionar()) {
                     <div class="assign-actions">
+                      <!-- Liberar va dentro de Reasignar: es la otra forma de soltar el expediente. -->
                       <app-menu-button
                         class="grow"
                         [block]="true"
-                        [items]="analystMenuItems()"
+                        [items]="reasignarMenuItems()"
                         heading="Asignar a otro analista"
                         [disabled]="assignSaving() || analystsLoading()"
-                        (itemSelected)="assignTo($event)"
+                        (itemSelected)="onReasignarMenu($event)"
                       >
                         <span aria-hidden="true">⟳</span>
                         {{ analystsLoading() ? 'Cargando…' : 'Reasignar' }}
                       </app-menu-button>
-                      <app-menu-button
-                        [items]="overflowMenuItems"
-                        [disabled]="assignSaving()"
-                        align="end"
-                        (itemSelected)="onOverflowMenu($event)"
-                      >
-                        <span aria-hidden="true">⋯</span>
-                        <span class="sr-only">Más acciones de asignación</span>
-                      </app-menu-button>
+                      <!-- Derivar es del dueño del expediente, así que va con la asignación. Con un
+                           solo destino es un botón; con dos, un menú, para no apretar la fila. -->
+                      @if (opcionesDerivacion().length === 1) {
+                        <app-button
+                          class="grow"
+                          variant="secondary"
+                          [block]="true"
+                          [disabled]="decisionSaving()"
+                          (click)="askDerivar(opcionesDerivacion()[0].tipo)"
+                          >{{ opcionesDerivacion()[0].label }}</app-button
+                        >
+                      } @else if (opcionesDerivacion().length > 1) {
+                        <app-menu-button
+                          class="grow"
+                          [block]="true"
+                          [items]="derivarMenuItems()"
+                          [disabled]="decisionSaving()"
+                          align="end"
+                          (itemSelected)="onDerivarMenu($event)"
+                          >Derivar a…</app-menu-button
+                        >
+                      }
                     </div>
                   }
                 } @else {
@@ -484,8 +496,13 @@
                     </div>
                   } @empty {
                     @if (!antecedentePropio()) {
-                      <p class="nodata">
-                        El asegurado no tiene antecedentes de fraude registrados.
+                      <p class="fraude-vacio">
+                        <span class="fraude-vacio-texto">Sin antecedentes registrados</span>
+                        @if (puedeRegistrarAntecedente()) {
+                          <button type="button" class="brief-link" (click)="askAntecedente()">
+                            + Registrar
+                          </button>
+                        }
                       </p>
                     }
                   }
@@ -504,10 +521,14 @@
                       <p class="t-body">{{ propio.reason }}</p>
                       <p class="t-note">Lo registró {{ propio.declaredByAnalystName }}.</p>
                     </div>
-                  } @else if (puedeRegistrarAntecedente()) {
-                    <app-button variant="secondary" (click)="askAntecedente()">
-                      Registrar antecedente de fraude
-                    </app-button>
+                  } @else if (puedeRegistrarAntecedente() && antecedentesPrevios().length > 0) {
+                    <button
+                      type="button"
+                      class="brief-link fraude-registrar"
+                      (click)="askAntecedente()"
+                    >
+                      + Registrar antecedente
+                    </button>
                   }
                   @if (antecedenteError()) {
                     <p class="rcard-note error">{{ antecedenteError() }}</p>
@@ -540,58 +561,71 @@
           }
         }
 
-        <!-- Toda la cadena de una misma decisión, en una sola solapa: primero el score (es lo que
-           continúa el medidor del Resumen), después la foto con la que se evaluó y las reglas que
-           corrieron sobre ella. Nada se pide en vivo: todo se persistió al clasificar. -->
+        <!-- Análisis: lo que leyó el sistema. Las razones del modelo a la izquierda (es lo que el
+           analista lee primero) y el score con su desglose al costado. -->
         @case ('analisis') {
-          <div class="traza">
-            <app-card heading="Desglose del score de fraude" [collapsible]="true">
+          <div class="analisis-grid">
+            <app-card heading="Razones del modelo">
+              @if (analysisReasons().length > 0) {
+                <ol class="razones">
+                  @for (reason of analysisReasons(); track $index) {
+                    <li class="razon">
+                      <span class="razon-num mono" aria-hidden="true">{{
+                        ($index + 1).toString().padStart(2, '0')
+                      }}</span>
+                      <span class="t-body">{{ reason }}</span>
+                    </li>
+                  }
+                </ol>
+              } @else {
+                <app-empty-state
+                  message="El modelo no dejó razones"
+                  sub="En Fast Track no se consulta al modelo; el score sale de los datos."
+                />
+              }
+            </app-card>
+
+            <app-card heading="Score de fraude">
               @if (riskScorePct(); as scorePct) {
-                <p class="risk-score">
-                  Score de fraude: <strong>{{ scorePct }}%</strong>
+                <p class="score-valor tabular" [attr.data-tone]="scoreTone()">
+                  <strong>{{ scorePct }}</strong
+                  ><span class="score-max">/100</span>
                 </p>
+                <div
+                  class="score-barra"
+                  role="img"
+                  [attr.aria-label]="'Score de fraude ' + scorePct + ' sobre 100'"
+                  [attr.data-tone]="scoreTone()"
+                >
+                  @for (seg of scoreSegments(); track seg.factorId) {
+                    <span class="score-seg" [style.flex-basis.%]="seg.aporte"></span>
+                  }
+                </div>
                 @if (fastTrackScoreScope() === 'partial') {
-                  <p class="factor-detail">
-                    Siniestro Fast Track: score parcial, calculado solo con factores de datos
-                    estructurados. El análisis de documentación e imágenes no corrió (la aseguradora
-                    no lo activó para Fast Track).
+                  <p class="t-note">
+                    Fast Track: score parcial, solo con datos estructurados. El análisis de
+                    documentación e imágenes no corrió (la aseguradora no lo activó para Fast
+                    Track).
                   </p>
                 } @else if (fastTrackScoreScope() === 'full') {
-                  <p class="factor-detail">
-                    Siniestro Fast Track con análisis completo: el score incluye documentación e
-                    imágenes.
+                  <p class="t-note">
+                    Fast Track con análisis completo: el score incluye documentación e imágenes.
                   </p>
                 }
                 @if (riskBreakdown().length > 0) {
-                  <div class="risk-breakdown">
-                    <span class="t-field-label">Cómo se compone el score</span>
-                    <table class="traza-table breakdown-table">
-                      <thead>
-                        <tr>
-                          <th>Factor</th>
-                          <th>Aporte al score</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        @for (item of riskBreakdown(); track item.factorId) {
-                          <tr>
-                            <td>
-                              <span class="factor-name">{{ factorLabel(item.factorId) }}</span>
-                              @if (item.rationale) {
-                                <span class="factor-rationale">{{ item.rationale }}</span>
-                              }
-                            </td>
-                            <td class="factor-contrib">+{{ aporteAlScore(item) }}</td>
-                          </tr>
-                        }
-                      </tbody>
-                    </table>
-                    <span class="factor-detail"
-                      >Cada factor aporta una parte; los aportes suman el score ({{
-                        scorePct
-                      }}).</span
-                    >
-                  </div>
+                  <ul class="score-factores">
+                    @for (item of riskBreakdown(); track item.factorId) {
+                      <li class="score-factor" [class.nulo]="aporteAlScore(item) === 0">
+                        <span class="score-factor-texto">
+                          <span class="score-factor-nombre">{{ factorLabel(item.factorId) }}</span>
+                          @if (item.rationale) {
+                            <span class="t-note">{{ item.rationale }}</span>
+                          }
+                        </span>
+                        <span class="score-factor-aporte tabular">+{{ aporteAlScore(item) }}</span>
+                      </li>
+                    }
+                  </ul>
                 }
               } @else {
                 <app-empty-state
@@ -600,39 +634,18 @@
                 />
               }
             </app-card>
+          </div>
+        }
 
-            <app-card heading="Datos de clasificación" [collapsible]="true">
-              @if (policySnapshot(); as s) {
-                @for (g of snapshotGroups(); track $index) {
-                  @if (g.heading) {
-                    <h4 class="t-section-label traza-subhead">{{ g.heading }}</h4>
-                  }
-                  <dl class="fields">
-                    @for (f of g.fields; track f.label) {
-                      <div class="field">
-                        <dt class="t-field-label">{{ f.label }}</dt>
-                        @if (f.value) {
-                          <dd [class.mono]="f.mono">{{ f.value }}</dd>
-                        } @else {
-                          <dd class="nodata">Sin datos</dd>
-                        }
-                      </div>
-                    }
-                  </dl>
-                }
-                <span class="t-note">
-                  Valores al {{ formatDateTime(s.queriedAt) }}. La suma asegurada es la de esa
-                  cobertura.
-                </span>
-              } @else {
-                <p class="nodata">Todavía no hay foto: se toma al clasificar.</p>
-              }
-            </app-card>
-
+        <!-- Evaluación de reglas: lo determinístico. Las reglas duras primero (dicen si está
+           cubierto), después el carril rápido y la foto de la póliza con la que se evaluó todo.
+           Nada se pide en vivo: todo se persistió al clasificar. -->
+        @case ('reglas') {
+          <div class="traza">
             <!-- Avisos arriba de las reglas: un "No cumple" entre ellas se leería como una exclusión,
                y esto no decide nada — marca algo que el analista tiene que mirar antes de resolver. -->
             @if (advisoryChecks().length > 0) {
-              <app-card heading="Para revisar antes de resolver" [collapsible]="true">
+              <app-card heading="Para revisar antes de resolver">
                 <p class="t-note traza-intro">
                   @if (hasAdvisoryWarning()) {
                     La documentación narra un hecho distinto del que declaró el asegurado. No cambia
@@ -670,8 +683,12 @@
               </app-card>
             }
 
-            <app-card heading="Reglas evaluadas" [collapsible]="true">
+            <app-card heading="Reglas evaluadas">
               @if (hardRuleResults().length > 0) {
+                <p class="t-note reglas-meta">
+                  {{ reglasCumplidas() }} de {{ hardRuleResults().length }} cumplen · evaluadas el
+                  {{ formatDateTime(hardRuleResults()[0].evaluatedAt) }}
+                </p>
                 <div class="traza-scroll">
                   <table class="traza-table">
                     <thead>
@@ -683,7 +700,7 @@
                     </thead>
                     <tbody>
                       @for (r of hardRuleResults(); track r.id) {
-                        <tr>
+                        <tr [class.fila-falla]="r.result === 'FAIL'">
                           <td>{{ ruleTypeLabel(r.ruleType) }}</td>
                           <td>
                             <app-badge variant="solid" [tone]="ruleResultTone(r.result)">
@@ -698,9 +715,6 @@
                     </tbody>
                   </table>
                 </div>
-                <span class="t-note"
-                  >Evaluadas el {{ formatDateTime(hardRuleResults()[0].evaluatedAt) }}.</span
-                >
               } @else {
                 <p class="nodata traza-sin-reglas" [class.error]="ruleResultsUnavailable()">
                   {{ sinReglasMotivo() }}
@@ -708,64 +722,72 @@
               }
             </app-card>
 
-            <!-- Card aparte y no filas más en la tabla de arriba: un "No cumple" acá no dice que el
-               siniestro no esté cubierto, dice que no fue por el carril rápido. Mezclarlos hacía
-               leer una exclusión donde solo hubo un umbral de agilidad. -->
-            @if (fastTrackCriteria().length > 0) {
-              <app-card heading="Criterios de Fast Track" [collapsible]="true">
-                <p class="t-note traza-intro">
-                  @if (esFastTrack()) {
-                    Los cumplió todos, así que se resolvió sin pasar por el modelo. No es una
-                    recomendación de aprobar: la decisión sigue siendo del analista.
-                  } @else {
-                    No los cumplió todos, así que el expediente fue al modelo en vez del carril
-                    rápido. Un criterio no cumplido no dice que el siniestro no esté cubierto — eso
-                    lo dicen las reglas de arriba.
-                  }
-                </p>
-                <div class="traza-scroll">
-                  <table class="traza-table">
-                    <thead>
-                      <tr>
-                        <th>Criterio</th>
-                        <th>Resultado</th>
-                        <th>Qué se comparó</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      @for (c of fastTrackCriteria(); track c.id) {
-                        <tr>
-                          <td>{{ ruleTypeLabel(c.ruleType) }}</td>
-                          <td>
-                            <app-badge variant="solid" [tone]="ruleResultTone(c.result)">
-                              {{ ruleResultLabel(c.result) }}
-                            </app-badge>
-                          </td>
-                          <td class="traza-valor">
-                            {{ ruleEvaluationText(c.ruleType, c.evaluatedValue) }}
-                          </td>
-                        </tr>
-                      }
-                    </tbody>
-                  </table>
-                </div>
-                <span class="t-note">
-                  Umbrales de la aseguradora al momento de clasificar, el
-                  {{ formatDateTime(fastTrackCriteria()[0].evaluatedAt) }}.
-                </span>
-              </app-card>
-            }
+            <div class="reglas-grid">
+              <!-- Card aparte y no filas más en la tabla de arriba: un "No cumple" acá no dice que
+                 el siniestro no esté cubierto, dice que no fue por el carril rápido. Mezclarlos
+                 hacía leer una exclusión donde solo hubo un umbral de agilidad. -->
+              @if (fastTrackCriteria().length > 0) {
+                <app-card heading="Criterios de Fast Track">
+                  <p class="t-note traza-intro">
+                    @if (esFastTrack()) {
+                      Los cumplió todos, así que se resolvió sin pasar por el modelo. No es una
+                      recomendación de aprobar: la decisión sigue siendo del analista.
+                    } @else {
+                      No los cumplió todos, así que el expediente fue al modelo en vez del carril
+                      rápido. Un criterio no cumplido no dice que el siniestro no esté cubierto —
+                      eso lo dicen las reglas de arriba.
+                    }
+                  </p>
+                  <ul class="criterios">
+                    @for (c of fastTrackCriteria(); track c.id) {
+                      <li class="criterio">
+                        <span class="criterio-texto">
+                          <span class="criterio-nombre">{{ ruleTypeLabel(c.ruleType) }}</span>
+                          <span class="t-note">{{
+                            ruleEvaluationText(c.ruleType, c.evaluatedValue)
+                          }}</span>
+                        </span>
+                        <app-badge variant="solid" [tone]="ruleResultTone(c.result)">
+                          {{ ruleResultLabel(c.result) }}
+                        </app-badge>
+                      </li>
+                    }
+                  </ul>
+                  <span class="t-note">
+                    Umbrales de la aseguradora al momento de clasificar, el
+                    {{ formatDateTime(fastTrackCriteria()[0].evaluatedAt) }}.
+                  </span>
+                </app-card>
+              }
 
-            <!-- Below the rules: the engine runs first, and the model reads on top of it. -->
-            @if (analysisReasons().length > 0) {
-              <app-card heading="Razones del modelo" [collapsible]="true">
-                <ul class="reasons-list">
-                  @for (reason of analysisReasons(); track $index) {
-                    <li>{{ reason }}</li>
+              <app-card heading="Datos de clasificación">
+                @if (policySnapshot(); as s) {
+                  @for (g of snapshotGroups(); track $index) {
+                    @if (g.heading) {
+                      <h4 class="t-section-label traza-subhead">{{ g.heading }}</h4>
+                    }
+                    <dl class="fields">
+                      @for (f of g.fields; track f.label) {
+                        <div class="field">
+                          <dt class="t-field-label">{{ f.label }}</dt>
+                          @if (f.value) {
+                            <dd [class.mono]="f.mono">{{ f.value }}</dd>
+                          } @else {
+                            <dd class="nodata">Sin datos</dd>
+                          }
+                        </div>
+                      }
+                    </dl>
                   }
-                </ul>
+                  <span class="t-note">
+                    Valores al {{ formatDateTime(s.queriedAt) }}. La suma asegurada es la de esa
+                    cobertura.
+                  </span>
+                } @else {
+                  <p class="nodata">Todavía no hay foto: se toma al clasificar.</p>
+                }
               </app-card>
-            }
+            </div>
           </div>
         }
         @case ('asegurado') {

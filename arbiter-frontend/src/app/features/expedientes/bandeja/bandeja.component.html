@@ -436,11 +436,13 @@
                         <span class="t-note">Sin asignar</span>
                       }
                       @if (canAssign()) {
-                        <div class="assign-actions">
+                        <div class="assign-actions" [class.fill]="!c.assignedAnalystId">
                           @if (!c.assignedAnalystId && canTake()) {
                             <app-button
+                              class="grow"
                               variant="accent"
                               size="sm"
+                              [block]="true"
                               [loading]="assigning() === c.id"
                               [disabled]="assigning() !== null"
                               (click)="take(c)"

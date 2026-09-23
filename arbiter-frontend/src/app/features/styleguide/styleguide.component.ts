@@ -279,6 +279,8 @@ interface Swatch {
         <div class="row">
           <app-button variant="primary">Primary</app-button>
           <app-button variant="secondary">Secondary</app-button>
+          <app-button variant="secondary" tone="danger">✕ Rechazar</app-button>
+          <app-button variant="secondary" tone="ok">✓ Aprobar</app-button>
           <app-button variant="accent">Accent</app-button>
           <app-button variant="primary" [disabled]="true">Disabled</app-button>
           <app-button variant="primary" [loading]="true">Loading</app-button>
@@ -392,6 +394,7 @@ interface Swatch {
         <h3 class="sg-h3">Input / Textarea</h3>
         <div class="col narrow">
           <app-input [(value)]="sampleInput" placeholder="N° de expediente" />
+          <app-input prefix="$" align="end" inputmode="numeric" value="500.000" />
           <app-input type="password" [(value)]="samplePassword" placeholder="Contraseña" />
           <app-input type="date" [(value)]="sampleDate" />
           <app-textarea [(value)]="sampleArea" placeholder="Justificación…" [rows]="3" />
@@ -535,6 +538,7 @@ interface Swatch {
           <app-fraud-gauge [band]="2" />
           <app-fraud-gauge [band]="3" />
           <app-fraud-gauge [band]="4" />
+          <app-fraud-gauge [band]="2" [score]="43" />
           <app-fraud-gauge [band]="null" />
         </div>
       </section>
