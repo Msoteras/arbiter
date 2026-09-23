@@ -35,9 +35,11 @@ public class BranchController {
 
     private final BranchCatalogService service;
 
+    // Reading is also for the analyst: the reports screen filters by branch.
     @GetMapping("/branches")
-    @PreAuthorize("hasRole('REFERENTE_ASEGURADORA')")
-    @Operation(summary = "Ramos disponibles", description = "Catálogo de ramos (id + nombre) para la pantalla de reglas.")
+    @PreAuthorize("hasAnyRole('REFERENTE_ASEGURADORA', 'ANALISTA_SINIESTROS')")
+    @Operation(summary = "Ramos disponibles",
+            description = "Catálogo de ramos (id + nombre) para la pantalla de reglas y el filtro de reportes.")
     public List<CatalogOption> list() {
         return service.list();
     }
