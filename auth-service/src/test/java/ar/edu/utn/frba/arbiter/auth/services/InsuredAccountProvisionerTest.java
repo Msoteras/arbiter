@@ -25,11 +25,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/**
- * The bulk "dar de alta usuarios" run. What matters here is that it never splits one person's
- * identity in two: the same human insured at two companies is one login, and re-running the alta
- * has to be a no-op rather than a second account.
- */
+/** The same person insured at two companies is one login, and re-running provisioning is a no-op. */
 @ExtendWith(MockitoExtension.class)
 class InsuredAccountProvisionerTest {
 
@@ -79,15 +75,10 @@ class InsuredAccountProvisionerTest {
 
         assertThat(outcome.userCreated()).isTrue();
         assertThat(outcome.inviteToken()).isNotBlank();
-        // Nobody exists in Auth0 until they choose a password — the sub is a placeholder until then.
         assertThat(outcome.user().getAuth0Sub()).startsWith("pending:");
         assertThat(outcome.user().isActivated()).isFalse();
     }
 
-    /**
-     * The case the whole design turns on: Roman is insured at BBVA and at Provincia. Provisioning
-     * the second company must reuse his account and only add the membership.
-     */
     @Test
     void knownEmail_reusesTheAccountAndOnlyLinksTheInsurer() {
         when(userRepository.findByEmail("roman@example.com")).thenReturn(Optional.of(existingUser(9L)));
@@ -98,7 +89,6 @@ class InsuredAccountProvisionerTest {
 
         assertThat(outcome.userCreated()).isFalse();
         assertThat(outcome.insurerLinked()).isTrue();
-        // No second identity, and no unsolicited mail to someone who already has an account.
         verify(userRepository, never()).save(any(User.class));
         assertThat(outcome.inviteToken()).isNull();
         verify(userInsurerRepository).save(any(UserInsurer.class));

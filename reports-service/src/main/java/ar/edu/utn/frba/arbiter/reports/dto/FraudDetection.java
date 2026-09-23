@@ -3,23 +3,15 @@ package ar.edu.utn.frba.arbiter.reports.dto;
 import java.math.BigDecimal;
 
 /**
- * Cuánto fraude se determinó en el período y, sobre todo, cuánta plata no se pagó por haberlo
- * detectado. Es el indicador que justifica el costo de investigar: sin él, derivar a un perito
- * figura sólo como demora.
+ * Fraud determined in the period and the money not paid because of it.
  *
- * <p>Sobre los expedientes DECIDIDOS en el período, no sobre los denunciados: el fraude se
- * determina durante la gestión, y anclarlo a la denuncia dejaría afuera el de los expedientes que
- * entraron el mes pasado y se resolvieron en éste, que son justamente los que más se investigan.
+ * <p>Over the claims <b>decided</b> in the period, not the ones filed: fraud is determined during
+ * handling, and anchoring on the filing date would drop the claims investigated the longest.
  *
- * @param decided         decididos en el período, el universo contra el que se lee el resto
- * @param fraudDetermined cuántos de ésos terminaron con el fraude determinado. Es una decisión
- *                        humana, no la banda de riesgo del modelo: el puntaje sugiere, el analista
- *                        determina
- * @param backedByExpert  cuántos de ésos tienen además un peritaje que lo confirmó. La diferencia
- *                        con el anterior son las determinaciones que tomó el analista por su cuenta
- * @param amountNotPaid   lo que reclamaban los expedientes con fraude determinado que además se
- *                        rechazaron. Los aprobados no entran: ahí se determinó el fraude pero se
- *                        pagó igual, así que no hay nada ahorrado que contar
+ * @param fraudDetermined an analyst's decision, not the model's risk band
+ * @param backedByExpert  determinations confirmed by an expert assessment
+ * @param amountNotPaid   claimed amount of the cases with fraud determined that were also rejected;
+ *                        approved ones were paid anyway, so they saved nothing
  */
 public record FraudDetection(
         long decided,

@@ -11,13 +11,8 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Calls Google Cloud Vision's Web Detection to find out whether a claim image is already
- * published somewhere on the web — a stock/catalog photo or a marketplace listing passed off
- * as the insured's own damaged item.
- *
- * <p>Unlike {@link ClipClient} (which compares against our own pgvector index and never leaves
- * the host), this integration sends the image to a third party. It stays disabled by default
- * and never breaks the classification: any failure degrades to {@link WebImageMatch#none()}.
+ * Google Vision Web Detection: is the claim image already published on the web (stock photo,
+ * marketplace listing)? Sends the image to a third party, so it is disabled by default.
  */
 @Component
 public class GoogleVisionClient {
@@ -34,7 +29,6 @@ public class GoogleVisionClient {
                 .build();
     }
 
-    /** Whether the integration is configured to actually perform a web search. */
     public boolean isEnabled() {
         return properties.enabled() && properties.apiKey() != null && !properties.apiKey().isBlank();
     }
@@ -91,7 +85,7 @@ public class GoogleVisionClient {
         List<Map<String, Object>> labels = (List<Map<String, Object>>) webDetection.get("bestGuessLabels");
         String bestGuess = labels == null || labels.isEmpty() ? null : (String) labels.getFirst().get("label");
 
-        // visuallySimilarImages is intentionally NOT read — see WebImageMatch's javadoc.
+        // visuallySimilarImages is intentionally not read (see WebImageMatch).
         return new WebImageMatch(fullMatches, partialMatches, pages, bestGuess);
     }
 

@@ -3,19 +3,17 @@ import { Observable, forkJoin, map } from 'rxjs';
 
 import { ExpedienteService } from '../../expedientes/expediente.service';
 
-/** Cuán urgente es un ítem del panel. Mapea a los tonos del semáforo en la pantalla. */
 export type AttentionSeverity = 'risk' | 'warning' | 'info';
 
-/** Un renglón de "Requiere atención": qué pasa, cuántos, y cómo llegar a ellos. */
 export interface AttentionItem {
   key: string;
-  /** El texto ya armado, con el número adentro: "2 expedientes sin movimiento hace +15 días". */
+  /** Ready-made text with the count inside: "2 expedientes sin movimiento hace +15 días". */
   title: string;
   /** Texto de contexto, sin números de expediente: esos van aparte en `namedIds`. */
   detail: string;
   count: number;
   severity: AttentionSeverity;
-  /** Parámetros de la bandeja que muestran exactamente estos expedientes. */
+  /** Inbox query params that show exactly these cases. */
   queryParams: Record<string, string>;
   /** Hasta `NAMED` expedientes puntuales, para ir directo a cada uno sin pasar por la bandeja. */
   namedIds: number[];
@@ -23,20 +21,14 @@ export interface AttentionItem {
   remaining: number;
 }
 
-/** Sin movimiento hace más de esto, un expediente abierto está frenado. */
 const STALE_DAYS = 15;
 
-/** Cuántos números de expediente se nombran en el renglón antes de resumir. */
+/** Case numbers named in the line before summarizing. */
 const NAMED = 3;
 
 /**
- * El panel "Requiere atención" del tablero: qué expedientes están frenados, esperando, sin revisar
- * o sin dueño.
- *
- * <p>No consulta a reports-service: pregunta a la bandeja, que es la que ya sabe filtrar
- * expedientes accionables y la que el usuario abre al hacer clic. Calcularlo aparte en el módulo de
- * reportes daría dos lugares respondiendo "qué está frenado", y el día que discrepen nadie va a
- * saber cuál creer.
+ * Deliberately asks the inbox, not reports-service: the inbox already filters actionable cases and is
+ * what the user opens on click, so there's a single source for "what is stuck".
  */
 @Injectable({ providedIn: 'root' })
 export class AttentionService {
@@ -99,11 +91,7 @@ export class AttentionService {
     );
   }
 
-  /**
-   * Pide apenas las primeras filas: del total se lee `totalElements`, y de las filas solo los
-   * números de expediente que el renglón nombra. Traer la página entera sería cargar la bandeja
-   * cuatro veces para mostrar cuatro líneas de texto.
-   */
+  /** Fetches only the first rows: the count comes from `totalElements`, the rows only name cases. */
   private probe(
     params: Parameters<ExpedienteService['list']>[0],
   ): Observable<{ total: number; ids: number[] }> {

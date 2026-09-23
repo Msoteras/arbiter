@@ -38,29 +38,18 @@ import java.util.List;
 import java.util.function.Function;
 
 /**
- * The aggregations behind the referent's dashboard. Every figure is counted by the database and
- * comes back as a handful of rows: a dashboard over a quarter would otherwise drag every case of
- * the quarter into memory just to count it here.
+ * The dashboard's aggregations, all counted by the database so a quarter never loads every case into
+ * memory. Same direct, read-only access to other modules' tables as {@link ResolvedCaseRepository}.
  *
- * <p>Like {@code ResolvedCaseRepository}, it reads tables other modules own ({@code cases} and
- * {@code case_status_history} from cases-service, {@code llm_analysis} from
- * classification-service). The architecture document connects Reportes straight to PostgreSQL
- * rather than through REST (section 3, and section 10: the database is shared between all of
- * them), and every one of those tables lives in the same tenant schema. Read-only, plain JDBC over
- * a named set of columns and no entities, so this module never claims ownership of them.
- *
- * <p><b>The queries run on Hibernate's connection, not on one from the pool.</b> The table names
- * are unqualified and resolve through the {@code search_path} that {@code TenantConnectionProvider}
- * sets, and it only sets it on the connections Hibernate asks for. A template built over the
- * {@code DataSource} would borrow straight from the pool, with no search_path, and fail with
- * "relation cases does not exist" against the real multi-tenant database — invisible in tests,
- * where the schema is flat and everything lands in {@code public}.
+ * <p><b>Queries run on Hibernate's connection, not one from the pool.</b> Table names are unqualified
+ * and resolve through the tenant {@code search_path}; a template over the {@code DataSource} fails with
+ * "relation cases does not exist" in production while passing in tests, where the schema is flat.
  */
 @Repository
 @RequiredArgsConstructor
 public class ClaimMetricsRepository {
 
-    /** The newest model run per case — the analyses are append-only, one row per run. */
+    /** The newest model run per case; analyses are append-only. */
     private static final String LATEST_LLM_CTE = """
             latest_llm AS (
                 SELECT DISTINCT ON (case_id) case_id, recommendation
@@ -68,23 +57,18 @@ public class ClaimMetricsRepository {
                  ORDER BY case_id, id DESC
             )""";
 
-    /**
-     * Claim cause is joined everywhere, not only where its name is read: the branch filter hangs
-     * off it, and one uniform join beats a query shape that changes depending on the filter.
-     */
-    // The leading newline is explicit, not decoration: a text block strips its own indentation, so
-    // without it this would weld itself onto whatever SELECT it is concatenated after.
+    // Claim cause is always joined because the branch filter hangs off it. The leading newline keeps
+    // this from welding onto the SELECT it is concatenated after.
     private static final String FROM_CASES = "\n" + """
               FROM cases c
               JOIN claim_cause cc ON cc.id = c.claim_cause_id""";
 
-    /** Claims FILED in the period — the population every distribution below is drawn from. */
+    /** Claims FILED in the period: the population every distribution is drawn from. */
     private static final String REPORTED_WINDOW = " WHERE c.reported_at >= :from AND c.reported_at < :to";
 
     /**
-     * Cómo escribe {@code classification-service} una regla que no se cumplió ({@code RuleFinding}).
-     * Literal y no enum: es el formato de una tabla de ese módulo, y subirlo a common-lib haría de
-     * un detalle suyo un tipo de la plataforma para que lo lea una sola consulta.
+     * How classification-service writes a failed rule ({@code RuleFinding}). A literal rather than a
+     * shared enum: it is that module's table format, read by a single query here.
      */
     private static final String FAILED = "FAIL";
 
@@ -93,20 +77,10 @@ public class ClaimMetricsRepository {
 
     private final EntityManager entityManager;
 
-    /**
-     * How many claims came in, and how many of them the rules engine let through on Fast Track.
-     *
-     * @param fastTrack claims carrying the Fast Track flag. The flag on the case is the only trace
-     *                  of it: a Fast Track never runs the model, so it leaves no analysis row.
-     */
+    /** @param fastTrack the case flag is the only trace: a Fast Track leaves no analysis row */
     public record IntakeTotals(long reported, long fastTrack) {}
 
-    /**
-     * One final status and how the claims that ended there behaved.
-     *
-     * @param averageSeconds from filing to resolution, averaged over this status alone; null when
-     *                       the average is not computable
-     */
+    /** @param averageSeconds from filing to resolution for this status alone; null when not computable */
     public record ResolvedTotals(String status, long count, Double averageSeconds) {}
 
     @Transactional(readOnly = true)
@@ -117,10 +91,7 @@ public class ClaimMetricsRepository {
                 (rs, rowNum) -> new IntakeTotals(rs.getLong("reported"), rs.getLong("fast_track"))));
     }
 
-    /**
-     * The period's intake followed forward. One pass over the same cohort, five counters: splitting
-     * it into five queries would scan the same rows five times to draw one strip of the screen.
-     */
+    /** One pass over the cohort with five counters, instead of five scans. */
     @Transactional(readOnly = true)
     public IntakeFunnel intakeFunnel(Instant from, Instant to, MetricsFilter filter) {
         String sql = "WITH " + LATEST_LLM_CTE + """
@@ -145,14 +116,10 @@ public class ClaimMetricsRepository {
     }
 
     /**
-     * How often the analyst landed where the model pointed, over the claims resolved in the period
-     * — the same population the summary's rates are drawn from, on purpose, so the two panels can
-     * be read side by side.
+     * Over the claims resolved in the period, the same population as the summary's rates.
      *
-     * <p><b>Agreement is measured against the final status, not against the decision string.</b>
-     * That column holds "APPROVE" for decisions the app recorded and "APROBAR" for the ones that
-     * came from the seed data, because classification-service normalizes to English on write and
-     * the seed predates it. The status is enum-backed and has no such split.
+     * <p>Agreement is measured against the final status, not the decision string: that column holds
+     * "APPROVE" from the app and "APROBAR" from seed data, while the status is enum-backed.
      */
     @Transactional(readOnly = true)
     public RecommendationAgreement recommendationAgreement(Instant from, Instant to, MetricsFilter filter) {
@@ -181,11 +148,7 @@ public class ClaimMetricsRepository {
                 RecommendationAgreement.of(rs.getLong("decided"), rs.getLong("agreed"))));
     }
 
-    /**
-     * The claims filed in the period, by the status they sit in now. Ordered by the lifecycle (the
-     * catalog's own ids) and not by size, so the bar chart reads left to right as the claim
-     * advances.
-     */
+    /** Ordered by the catalog's ids (the lifecycle), not by size, so the chart reads as the claim advances. */
     @Transactional(readOnly = true)
     public List<MetricCount> countByStatus(Instant from, Instant to, MetricsFilter filter) {
         String sql = "SELECT s.name AS label, count(*) AS total"
@@ -203,9 +166,8 @@ public class ClaimMetricsRepository {
     }
 
     /**
-     * By classification, with the same precedence the resolution report uses: Fast Track is decided
-     * by the rules engine and the model never runs, so the flag wins over any older run; otherwise
-     * it is the newest model run. A claim still being classified contributes a null label.
+     * Same precedence as the resolution report: the Fast Track flag wins over any older model run,
+     * else the newest run. A claim still being classified contributes a null label.
      */
     @Transactional(readOnly = true)
     public List<MetricCount> countByClassification(Instant from, Instant to, MetricsFilter filter) {
@@ -218,10 +180,7 @@ public class ClaimMetricsRepository {
         return query(template -> template.query(sql, period(from, to, filter), COUNT_ROW));
     }
 
-    /**
-     * By risk band, read off the denormalized column on the case — the same copy the analyst's
-     * inbox filters by. A claim the scoring never reached contributes a null label.
-     */
+    /** Read off the denormalized column on the case, the same one the inbox filters by. */
     @Transactional(readOnly = true)
     public List<MetricCount> countByRiskBand(Instant from, Instant to, MetricsFilter filter) {
         String sql = "SELECT c.risk_band AS label, count(*) AS total" + FROM_CASES
@@ -230,15 +189,9 @@ public class ClaimMetricsRepository {
     }
 
     /**
-     * El tiempo de resolución partido en dos: cuánto tardó en total y cuánto de eso fue esperando a
-     * alguien de afuera de la compañía.
-     *
-     * @param totalSeconds  de la denuncia a la decisión, promedio. Es el tiempo que vivió el
-     *                      asegurado, y por eso sigue siendo el número principal.
-     * @param waitingSeconds la parte de ese tiempo en la que el expediente estuvo esperando
-     *                      documentación del asegurado, el informe de un perito o el equipo del
-     *                      servicio técnico, promedio. Null junto con el total cuando no hubo
-     *                      decisiones en el período.
+     * @param totalSeconds   average from filing to decision: the time the insured lived through
+     * @param waitingSeconds average part spent waiting on third parties; null along with the total when
+     *                       nothing was decided
      */
     public record ResolutionSplit(Double totalSeconds, Double waitingSeconds) {
 
@@ -246,18 +199,9 @@ public class ClaimMetricsRepository {
     }
 
     /**
-     * Promedio del tiempo total y de la parte que no le corre a la compañía.
-     *
-     * <p>El procedimiento de la aseguradora es explícito: pedir documentación adicional o derivar a
-     * un perito o a un servicio técnico <b>interrumpe</b> el plazo legal para expedirse. Medir sólo
-     * el reloj de pared le carga a la gestión semanas que ni la ley ni el procedimiento le imputan,
-     * y deja un número que el referente no puede accionar: no sabe cuánto de eso es suyo.
-     *
-     * <p>La espera sale de {@link CaseResolutionSql#WAITING_CTE}, la misma definición que usa el objetivo de
-     * resolución.
-     *
-     * <p>Sobre los DECIDIDOS, igual que el promedio del resumen: un caducado son 18 meses de
-     * silencio del asegurado y arruinaría las dos mitades a la vez.
+     * Total time and the part spent waiting on third parties ({@link CaseResolutionSql#WAITING_CTE}):
+     * the insurer's procedure says those derivations interrupt the legal term, so they are not the
+     * operation's time. Over DECIDED cases only; a lapsed case is months of the insured's silence.
      */
     @Transactional(readOnly = true)
     public ResolutionSplit resolutionSplit(Instant from, Instant to, MetricsFilter filter) {
@@ -288,23 +232,9 @@ public class ClaimMetricsRepository {
     }
 
     /**
-     * Cuántos de los expedientes DECIDIDOS en el período tardaron más que el objetivo que fijó la
-     * aseguradora.
-     *
-     * <p><b>Contra el tiempo de gestión, no contra el reloj de pared.</b> Al total se le descuenta
-     * lo que el expediente pasó esperando documentación del asegurado, el informe de un perito o el
-     * equipo del servicio técnico, porque el procedimiento de la compañía dice que esas
-     * derivaciones <i>interrumpen</i> el plazo para expedirse. Medido sobre el reloj de pared, el
-     * objetivo le imputaba a la gestión semanas que ni la ley ni el procedimiento le imputan, y el
-     * referente no tenía cómo accionar el número: un expediente se pasaba del objetivo por haber
-     * pedido un peritaje, que es exactamente lo que debía hacer.
-     *
-     * <p>Decididos y no resueltos, igual que el promedio: un caducado cerró sin que nadie lo
-     * decidiera, y contarlo como "fuera de objetivo" mediría los 18 meses de silencio del asegurado
-     * y no la operación de la compañía.
-     *
-     * <p>La comparación es estricta: un expediente que cerró justo en el día del objetivo lo
-     * cumplió, no lo excedió.
+     * Decided cases whose handling time (total minus waiting on third parties) exceeded the insurer's
+     * target; otherwise requesting an expert report, the right move, would count against the target.
+     * Lapsed cases excluded. Strict comparison: closing on the target day meets it.
      */
     @Transactional(readOnly = true)
     public long countDecidedOverTarget(Instant from, Instant to, int targetDays, MetricsFilter filter) {
@@ -332,16 +262,9 @@ public class ClaimMetricsRepository {
     }
 
     /**
-     * Cumplimiento del plazo del art. 56 sobre los expedientes DECIDIDOS en el período.
-     *
-     * <p>La fecha límite se lee del expediente, no se recalcula: cases-service la mantiene con la
-     * regla del procedimiento —las derivaciones la congelan y el requerimiento cumplido la reinicia
-     * en 30 días enteros—, así que la columna ya trae el vencimiento que regía el día que se
-     * decidió. Rehacer la cuenta acá sería una segunda implementación de la misma regla, y la que
-     * discrepara sería siempre ésta, que no ve las transiciones en vivo.
-     *
-     * <p>La comparación es por día y no por instante: el plazo vence al terminar su último día, así
-     * que decidir a las 23:00 del día del vencimiento es haberse pronunciado en término.
+     * Art. 56 compliance over the cases DECIDED in the period. The deadline is read from the case, not
+     * recomputed: cases-service owns that rule, and a second implementation here would drift.
+     * Compared by day: the term expires at the end of its last day.
      */
     @Transactional(readOnly = true)
     public LegalDeadline legalDeadlineCompliance(
@@ -368,14 +291,8 @@ public class ClaimMetricsRepository {
     }
 
     /**
-     * Cuántos de los expedientes que cerraron en el período habían sido reabiertos alguna vez.
-     *
-     * <p>Una reapertura no tiene estado propio: se reconoce por la forma de la transición, un
-     * expediente que estaba en un estado final y volvió a uno que no lo es. Definirla así en vez de
-     * contra una lista de estados la deja andando el día que se agregue un estado final nuevo.
-     *
-     * <p>{@code EXISTS} y no un conteo de transiciones: se cuentan expedientes reabiertos, no
-     * reaperturas. Uno que fue y vino tres veces es un expediente con problemas, no tres.
+     * A reopening is a transition from a final status to a non-final one, so a new final status needs
+     * no change here. {@code EXISTS}, not a count: it counts reopened cases, not reopenings.
      */
     @Transactional(readOnly = true)
     public ReopeningRate reopeningRate(Instant from, Instant to, MetricsFilter filter) {
@@ -400,16 +317,8 @@ public class ClaimMetricsRepository {
     }
 
     /**
-     * Lo liquidado en el período y de dónde salió ese número.
-     *
-     * <p>Se ancla en {@code confirmed_at} de la liquidación: el día en que la obligación nace. Y
-     * sólo las {@code AUTHORIZED}: una que espera la firma del referente puede volver con un motivo
-     * y rehacerse por otro monto, así que sumarla diría que la compañía se obligó por una plata que
-     * nadie firmó.
-     *
-     * <p>Las deducciones vienen congeladas en la propia liquidación, no se recalculan: el referente
-     * puede cambiar mañana la franquicia del ramo y esta liquidación tiene que seguir explicándose
-     * con la que se le aplicó.
+     * Only {@code AUTHORIZED} settlements, anchored to {@code confirmed_at}. Deductions are read frozen
+     * from the settlement, not recomputed: the branch's deductible may have changed since.
      */
     @Transactional(readOnly = true)
     public SettledAmounts settledAmounts(Instant from, Instant to, MetricsFilter filter) {
@@ -440,15 +349,8 @@ public class ClaimMetricsRepository {
     }
 
     /**
-     * El fraude determinado sobre los expedientes decididos en el período, y lo que se dejó de
-     * pagar por haberlo detectado.
-     *
-     * <p>Lo ahorrado se cuenta sólo sobre los rechazados: en un expediente donde se determinó el
-     * fraude y aun así se aprobó no hay nada ahorrado, y sumarlo infla el número que justifica
-     * investigar.
-     *
-     * <p>El respaldo pericial se mira por {@code EXISTS} y no por join: un expediente puede tener
-     * más de una derivación —un peritaje y un servicio técnico— y con join contaría dos veces.
+     * The amount saved counts only rejected cases: one approved despite fraud saved nothing. Expert
+     * backing uses {@code EXISTS}, since a case may have several derivations and a join would double-count.
      */
     @Transactional(readOnly = true)
     public FraudDetection fraudDetection(Instant from, Instant to, MetricsFilter filter) {
@@ -481,11 +383,7 @@ public class ClaimMetricsRepository {
                 rs.getBigDecimal("amount_not_paid"))));
     }
 
-    /**
-     * El tiempo de los decididos partido por la marca de Fast Track. Una sola pasada con dos
-     * {@code FILTER}: son las mismas filas leídas con dos cortes, y separarlo en dos consultas las
-     * escanearía dos veces para pintar un renglón.
-     */
+    /** One pass with two {@code FILTER}s rather than two queries over the same rows. */
     @Transactional(readOnly = true)
     public FastTrackImpact fastTrackImpact(Instant from, Instant to, MetricsFilter filter) {
         String sql = CaseResolutionSql.RESOLUTION_CTE + """
@@ -507,7 +405,7 @@ public class ClaimMetricsRepository {
                 .addValue("approved", CaseStatus.APPROVED.name())
                 .addValue("rejected", CaseStatus.REJECTED.name());
         return query(template -> template.queryForObject(sql, params, (rs, rowNum) -> {
-            // Cada promedio se lee antes de su conteo: wasNull() habla de la última columna leída.
+            // wasNull() refers to the last column read, so each average is checked as soon as it is read.
             long fastTrackDecided = rs.getLong("fast_track_decided");
             Double fastTrackHours = hours(rs, "fast_track_seconds");
             long standardDecided = rs.getLong("standard_decided");
@@ -517,12 +415,8 @@ public class ClaimMetricsRepository {
     }
 
     /**
-     * Cuántas derivaciones salieron en el período por cada clase de tercero, cuántas volvieron y en
-     * cuánto tiempo.
-     *
-     * <p>El promedio corre sólo sobre las que contestaron —{@code avg} ignora los nulos por sí
-     * mismo—: mientras una sigue afuera no se sabe cuánto va a tardar, y medirla contra hoy haría
-     * que el promedio cambiara solo cada vez que se abre el tablero.
+     * Derivations sent in the period per kind of third party. The average covers only the answered ones
+     * ({@code avg} skips nulls): measuring pending ones against now would shift it on every refresh.
      */
     @Transactional(readOnly = true)
     public List<DerivationTurnaround> derivationTurnaround(Instant from, Instant to, MetricsFilter filter) {
@@ -545,24 +439,11 @@ public class ClaimMetricsRepository {
     }
 
     /**
-     * Qué reglas frenaron más expedientes de los denunciados en el período: le dice al referente
-     * cuál de las que configuró está mordiendo de verdad.
-     *
-     * <p>Sólo los {@code FAIL}. La tabla guarda también los {@code PASS} —la auditoría de la
-     * Disposición 2/2023 es qué regla se evaluó y con qué resultado, no sólo los rechazos—, pero
-     * acá la pregunta es cuál frena.
-     *
-     * <p>{@code count(DISTINCT case_id)} y no {@code count(*)}: {@code rule_result} es append-only,
-     * una fila por corrida, así que un expediente reclasificado tres veces dejó tres filas de la
-     * misma regla y contarlas diría que frenó a tres expedientes.
-     *
-     * <p>Sin los avisos ({@link RuleType#advisoryRules()}): un FAIL de esos no frenó nada, marca algo
-     * para que el analista revise, y contarlo acá le diría al referente que una regla muerde cuando
-     * no hizo más que avisar.
-     *
-     * <p>El nombre sale de la regla configurada, y cae al tipo cuando no hay fila que nombrar: las
-     * reglas de alcance de cobertura y los criterios del Fast Track se auditan con
-     * {@code rule_id} nulo porque son columnas de {@code coverage}, no filas de {@code insurer_rule}.
+     * Which rules stopped the most claims filed in the period. Only {@code FAIL} rows (the table also
+     * audits {@code PASS}), and no advisory checks ({@link RuleType#advisoryRules()}): their FAIL
+     * stopped nothing. {@code count(DISTINCT case_id)} because {@code rule_result} is append-only,
+     * one row per run. The name falls back to the rule type for coverage and Fast Track checks, which
+     * are audited with a null {@code rule_id}.
      */
     @Transactional(readOnly = true)
     public List<MetricCount> countByBlockingRule(Instant from, Instant to, MetricsFilter filter) {
@@ -604,12 +485,8 @@ public class ClaimMetricsRepository {
     }
 
     /**
-     * Claims filed and claims resolved, bucketed by calendar day, week or month. Buckets are
-     * truncated in the insurer's time zone rather than UTC, so a claim filed at 9 PM in Buenos
-     * Aires belongs to that day and not to the next one.
-     *
-     * <p>Buckets where neither series moved are simply absent — filling the gaps is the service's
-     * job, which is the one that knows the whole period.
+     * Buckets are truncated in the insurer's time zone, not UTC, so a claim filed at 9 PM in Buenos Aires
+     * belongs to that day. Empty buckets are absent; the service fills the gaps.
      */
     @Transactional(readOnly = true)
     public List<TimelinePoint> timeline(
@@ -653,10 +530,8 @@ public class ClaimMetricsRepository {
     }
 
     /**
-     * The optional cuts, as extra {@code AND}s. They are appended rather than written as
-     * {@code :branchId IS NULL OR ...} because Postgres can't infer the type of a parameter that is
-     * only ever compared to NULL and rejects the statement — the same reason
-     * {@code ResolvedCaseRepository} appends its claim-cause filter.
+     * Appended rather than {@code :branchId IS NULL OR ...}: Postgres can't infer the type of a
+     * parameter only ever compared to NULL and rejects the statement.
      */
     private static String filters(MetricsFilter filter) {
         StringBuilder sql = new StringBuilder();
@@ -682,17 +557,13 @@ public class ClaimMetricsRepository {
         return params;
     }
 
-    /**
-     * Un promedio en segundos pasado a horas, respetando que {@code avg} devuelve NULL cuando no
-     * tuvo nada que promediar: sin esto un período sin derivaciones diría "0 h de respuesta", que
-     * es lo contrario de lo que pasó.
-     */
+    /** Keeps {@code avg}'s NULL as null, so a period with nothing to average doesn't read as 0 h. */
     private static Double hours(ResultSet rs, String column) throws SQLException {
         double seconds = rs.getDouble(column);
         return rs.wasNull() ? null : seconds / 3600;
     }
 
-    /** See the class Javadoc: the connection has to be Hibernate's, or the search_path is wrong. */
+    /** On Hibernate's connection so the tenant search_path applies (see the class Javadoc). */
     private <T> T query(Function<NamedParameterJdbcTemplate, T> work) {
         // suppressClose: the connection is Hibernate's and Hibernate closes it.
         return entityManager.unwrap(Session.class).doReturningWork(connection ->

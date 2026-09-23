@@ -17,11 +17,7 @@ import lombok.Setter;
 
 import java.time.Instant;
 
-/**
- * Record of a notification sent about a case ("notificacion" in the DER). Written by
- * {@link ar.edu.utn.frba.arbiter.cases.services.CaseNotificationService} on every status change the
- * insured is told about. {@code recipientId} is a logical reference to a user in arbiter_common.
- */
+/** {@code recipientId} is a logical reference to a user in arbiter_common (no FK across schemas). */
 @Entity
 @Table(name = "notification")
 @Getter
@@ -50,7 +46,7 @@ public class Notification {
     @Column(length = 30)
     private String channel;
 
-    /** When the notice was raised. Separate from {@code sentAt}, null if the mail never went out. */
+    /** Separate from {@code sentAt}, which stays null if the mail never went out. */
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 

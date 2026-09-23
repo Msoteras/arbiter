@@ -1,15 +1,8 @@
 import { ChangeDetectionStrategy, Component, input, model } from '@angular/core';
 
 /**
- * Checkbox del design system.
- *
- * A diferencia de app-select, acá el control nativo se conserva: `accent-color` ya deja
- * pintar la marca con el color del sistema, y el nativo trae gratis el foco por teclado,
- * el estado indeterminado y el soporte de lectores de pantalla. Lo que aporta el
- * componente es el tamaño, el área de toque y la etiqueta clickeable, que es lo que se
- * venía copiando a mano en cada pantalla.
- *
- * Valor two-way vía model() → `[(checked)]`.
+ * Unlike app-select, this keeps the native control: `accent-color` paints it, and the native input
+ * brings keyboard focus, the indeterminate state and screen-reader support for free.
  */
 @Component({
   selector: 'app-checkbox',
@@ -34,7 +27,7 @@ import { ChangeDetectionStrategy, Component, input, model } from '@angular/core'
       display: flex;
       align-items: center;
       gap: var(--space-2);
-      /* 40px de alto mínimo: el cuadrito son 18px, chico para tocar cómodo. */
+      /* The 18px box alone is too small a touch target. */
       min-height: 40px;
       font-size: var(--font-size-body);
       color: var(--text-primary);
@@ -50,9 +43,8 @@ import { ChangeDetectionStrategy, Component, input, model } from '@angular/core'
       width: 18px;
       height: 18px;
       flex-shrink: 0;
-      /* --accent-strong y no --accent: el color del tilde lo elige el navegador por contraste
-         contra el relleno, y con el teal de marca (claro) le toca un tilde oscuro que se lee mal.
-         Con el teal fuerte el tilde sale blanco, que además es como está en el diseño. */
+      /* --accent-strong, not --accent: the browser picks the tick color by contrast, and on the
+         light brand teal it picks a dark tick that reads poorly. */
       accent-color: var(--accent-strong);
       cursor: inherit;
     }

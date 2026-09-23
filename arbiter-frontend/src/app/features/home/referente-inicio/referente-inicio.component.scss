@@ -2,7 +2,6 @@
   display: block;
 }
 
-// Carga parcial (revisita al home): spinner centrado en el área de contenido, sin tapar el shell.
 .partial-load {
   min-height: 60vh;
   display: flex;
@@ -17,7 +16,6 @@
   gap: var(--space-5);
 }
 
-// ───────────────── Encabezado / saludo (banner de marca) ─────────────────
 .hero {
   position: relative;
   overflow: hidden;
@@ -31,8 +29,6 @@
   color: var(--brand-panel-fg);
   box-shadow: var(--shadow-card);
 }
-// Halo suave arriba a la derecha (mismo recurso que el inicio del analista): profundidad sin
-// sumar color nuevo. Decorativo.
 .hero::after {
   content: '';
   position: absolute;
@@ -72,14 +68,12 @@
   text-decoration: underline;
 }
 
-// ───────────────── Tarjetas de métrica ─────────────────
 .stats {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: var(--space-4);
 }
 
-// ───────────────── Columnas inferiores ─────────────────
 .cols {
   display: grid;
   grid-template-columns: 1.6fr 1fr;
@@ -95,8 +89,6 @@
   flex-direction: column;
   gap: var(--space-1);
 }
-// Fila como "chip" clickeable: resalte + leve desplazamiento al hover (igual que el inicio del
-// analista), en vez de separadores.
 .alert-item {
   display: flex;
   align-items: center;
@@ -142,7 +134,6 @@
   gap: var(--space-2);
   flex: none;
 }
-// Chevron tenue que aparece al hover, para reforzar que la fila lleva al expediente.
 .alert-chevron {
   flex: none;
   color: var(--text-muted);
@@ -168,7 +159,6 @@
   text-decoration: underline;
 }
 
-// ───────────────── Carga del equipo ─────────────────
 .team-list {
   list-style: none;
   margin: 0;
@@ -210,7 +200,6 @@
   white-space: nowrap;
 }
 
-// ───────────────── Responsive ─────────────────
 @media (max-width: 960px) {
   .stats {
     grid-template-columns: repeat(2, 1fr);

@@ -39,23 +39,17 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * Which document list gates what, and in what order.
- *
- * <p>The insured is asked at intake for the short list the expedited path requires
- * ({@code fastTrackThresholds.requiredDocumentTypes}); the FULL schedule
- * ({@code requiredDocumentTypes}) is the contract for a complete case and is only demanded once
- * Fast Track is off the table. The order is the whole point: while the schedule was checked first,
- * a denuncia filed with the short list stopped at {@code FALTA_DOCUMENTACION} every time and never
- * reached the gate that would have expedited it.
+ * The Fast Track gate's short document list is checked first; the full schedule is only demanded once
+ * Fast Track is off the table, so a claim filed with the short list can still be expedited.
  */
 @ExtendWith(MockitoExtension.class)
 class ClassificationOrchestratorDocumentGateTest {
 
-    /** Lo que pide la agenda para robo: cuatro documentos, todos obligatorios. */
+    /** The robbery schedule: four mandatory documents. */
     private static final List<String> AGENDA =
             List.of("police_report", "purchase_proof", "imei_deregistration", "last_connection");
 
-    /** La primera tanda: lo que el carril rápido exige y lo único que se pide en el alta. */
+    /** The short list Fast Track requires, the only one asked for at intake. */
     private static final List<String> MINIMOS = List.of("police_report", "purchase_proof");
 
     @Mock private ClaimClassifier classifier;
@@ -91,15 +85,14 @@ class ClassificationOrchestratorDocumentGateTest {
                 .thenReturn(FraudRecordRuleEvaluator.Result.empty());
         when(coverageScopeEvaluator.evaluate(any(), any(), any(), any(), any()))
                 .thenReturn(CoverageScopeEvaluator.Result.none());
-        // Cada documento de la tanda mínima se lee y trae texto: el gate compara transcripciones,
-        // no presencia, así que un adjunto ilegible no alcanzaría.
+        // The gate compares transcriptions, not presence, so every document needs text.
         lenient().when(documentAnalyzer.extract(any(), any(), any()))
                 .thenReturn(DocumentExtraction.of("texto legible del documento"));
         lenient().when(riskScoringService.score(any()))
                 .thenReturn(new RiskScore(true, 0.1, RiskBand.LOW, List.of(), 1L));
     }
 
-    /** El caso de la historia: entró con la tanda mínima y la agenda incompleta, y fast-trackea. */
+    /** Filed with just the short list and an incomplete schedule: it still Fast Tracks. */
     @Test
     void onlyTheShortIntakeList_stillFastTracks() {
         when(fastTrackValidator.evaluate(any(), any(), any(), any(), any()))
@@ -112,10 +105,7 @@ class ClassificationOrchestratorDocumentGateTest {
         verify(classifier, never()).classify(any());
     }
 
-    /**
-     * The acta narrates a hurto and the insured declared a robo. Team's call: it warns, it doesn't
-     * block — the case stays FAST_TRACK, and the analyst gets the reason and the audit row.
-     */
+    /** The acta narrates a hurto, a robo was declared: stays FAST_TRACK, with the warning and the audit row. */
     @Test
     void anActaNarratingAnotherCause_staysFastTrackButWarns() {
         when(fastTrackValidator.evaluate(any(), any(), any(), any(), any()))
@@ -136,7 +126,7 @@ class ClassificationOrchestratorDocumentGateTest {
         verify(classifier, never()).classify(any());
     }
 
-    /** Sin carril rápido, la agenda completa vuelve a ser el contrato y se le pide lo que falta. */
+    /** Without Fast Track, the full schedule applies and the missing documents are requested. */
     @Test
     void noFastTrackAndAnIncompleteSchedule_asksForTheRest() {
         RuleFinding gateFinding = new RuleFinding(null, "FT_AMOUNT_RATIO", false, "ratio=94.0% max=50.0%");
@@ -152,13 +142,12 @@ class ClassificationOrchestratorDocumentGateTest {
                 .anyMatch(f -> f.contains("imei_deregistration"))
                 .anyMatch(f -> f.contains("last_connection"))
                 .noneMatch(f -> f.contains("police_report"));
-        // Al analista no le alcanza con qué falta: el hallazgo del gate explica por qué el caso no
-        // entró al carril rápido, y por eso viaja en esta respuesta también.
+        // The gate's findings travel too: they explain why the case missed the fast lane.
         assertThat(response.ruleFindings()).contains(gateFinding);
         verify(classifier, never()).classify(any());
     }
 
-    /** Con la agenda completa y sin carril rápido, sigue su curso normal hacia el modelo. */
+    /** Complete schedule, no Fast Track: goes on to the model. */
     @Test
     void noFastTrackButACompleteSchedule_goesToTheModel() {
         when(fastTrackValidator.evaluate(any(), any(), any(), any(), any()))

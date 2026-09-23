@@ -35,55 +35,44 @@ this fits into the platform.
 classification-service/
 ├── src/main/java/.../classification/
 │   ├── controllers/
-│   │   ├── ClaimController.java            # internal API — called by cases-service (§ below)
-│   │   ├── ClassificationController.java   # isolated-testing API — no case required
-│   │   ├── ImageEmbeddingController.java   # duplicate-image check (CLIP + pgvector)
-│   │   └── InsuredFraudRecordController.java
+│   │   ├── ClaimController.java               # internal API — called by cases-service (see below)
+│   │   └── InsuredFraudRecordController.java  # fraud records per insured (/api/v1/fraud-records)
 │   ├── adapters/
-│   │   ├── ClaimClassifier / ClaimClassifierImpl   # orchestrates Fast Track + LLM fallback
+│   │   ├── ClaimClassifier / ClaimClassifierImpl    # LLM classification call
 │   │   ├── LlmClient (OllamaClient / GeminiClient)  # provider-agnostic LLM interface
 │   │   ├── DocumentAnalyzer / DocumentAnalyzerImpl  # vision OCR on attachments
-│   │   ├── ClipClient                                # embedding-service sidecar client
-│   │   ├── GoogleVisionClient                        # optional web-match escalation
-│   │   └── InsurerAdapter / RulesAdapter (+ Mock/REST impls)
+│   │   ├── ClipClient                               # embedding-service sidecar client
+│   │   ├── GoogleVisionClient                       # optional web-match escalation
+│   │   ├── InsurerAdapter (db/InsurerDatabaseAdapter, mock/MockInsurerAdapter)
+│   │   └── RulesAdapter (RulesRestAdapter, BaselineRulesAdapter)
 │   ├── services/
 │   │   ├── ClaimClassificationService / ClassificationOrchestrator
 │   │   ├── FastTrackValidator, CoverageRuleEvaluator, CoverageScopeEvaluator,
 │   │   │   TemporalRuleEvaluator, FraudRecordRuleEvaluator   # deterministic rule evaluators
-│   │   ├── PromptBuilder                              # loads prompts/<prompt-version>.md
+│   │   ├── risk/                                  # risk score and its factor evaluators
+│   │   ├── PromptBuilder                          # loads prompts/<prompt-version>.md
 │   │   ├── ImageEmbeddingService, ImageFraudAnalysisService
 │   │   └── ClassificationResultsService, InsuredFraudRecordService
-│   ├── config/          # Ollama/Gemini/Embedding/GoogleVision properties, security, async, pgvector
-│   ├── dto/              # ClassificationRequest/Response, BusinessRules, InsuredHistory, ...
-│   ├── models/           # entities + repositories owned by this module
+│   ├── config/          # Ollama/Gemini/Embedding/GoogleVision properties, security, async, tenant
+│   ├── dto/
+│   ├── models/          # entities + repositories owned by this module
 │   └── exceptions/
-├── src/main/resources/
-│   ├── application.yml
-│   └── prompts/
-│       ├── classification-v4.md          # current prompt (see `arbiter.llm.prompt-version`)
-│       ├── classification-v3.md          # superseded — kept only so old ClassificationLog
-│       │                                  # entries logged with this version stay auditable
-│       └── extraccion-documento-v6.md    # document-OCR prompt (DocumentAnalyzerImpl)
-└── src/test/
-    ├── java/.../adapters/
-    │   ├── OllamaAdapterIntegrationTest.java
-    │   ├── OllamaClassificationScenariosTest.java   # parameterized tests with fixtures
-    │   └── MockClaimClassifier.java
-    └── resources/fixtures/          # escenario-*.json used by the parameterized tests
+└── src/main/resources/
+    ├── application.yml
+    └── prompts/
+        ├── classification-v5.md          # current prompt (`arbiter.llm.prompt-version`)
+        ├── extraccion-documento-v6.md    # current document-OCR prompt
+        └── *-v3.md, *-v4.md, extraccion-documento-v5.md
+                                          # superseded, kept so older analyses stay auditable
 ```
 
-`ClaimReport` (the shared input DTO) lives in `common-lib` — see it for the exact fields
-(`branch`, `product`, `claimCause`, `coverageId`, `claimCauseId`, `insuredItem`, `insuredId`,
-`policyNumber`, `description`, `eventDate`, `eventLocation`, `claimedAmount`, `reportedAt`,
-`policeReportAt`, `imageConsent`, `attachmentsOcr`).
+`ClaimReport` (the shared input DTO) lives in `common-lib`.
 
 ## How to Run
 
-For the full dev workflow (Docker Compose, Ollama vs. Gemini, everything-together, against
-Railway's DB) see the root [`Readme.md`](../Readme.md#desarrollo-local) — it's shared across all
-backend modules and kept there to avoid two copies drifting apart.
-
-Quick local run against mocks (no Ollama, no Postgres needed for `dev` profile adapters):
+For the full dev workflow (Docker Compose, Ollama vs. Gemini, against Railway's DB) see the root
+[`Readme.md`](../Readme.md#desarrollo-local). The module needs Postgres with the schema from `db/`
+loaded, and a model provider (Ollama or Gemini) to classify.
 
 ```bash
 # From project root
@@ -91,12 +80,6 @@ mvn spring-boot:run -pl classification-service
 ```
 
 Service starts at `http://localhost:8082`. Swagger UI: `http://localhost:8082/swagger-ui.html`.
-
-Parameterized scenario tests against a real Ollama container:
-
-```bash
-docker compose -f docker-compose.test.yml up --exit-code-from siniestros-test
-```
 
 ## Environment Variables
 
@@ -114,52 +97,17 @@ docker compose -f docker-compose.test.yml up --exit-code-from siniestros-test
 | `DB_URL` / `DB_USER` / `DB_PASSWORD` | local Postgres | Shared with the rest of the platform |
 | `JWT_SECRET` | — | Same secret across all modules (see `auth-service`) |
 
-## Testing with Postman
-
-Two collections in `docs/postman/`:
-
-- **`Arbiter_Cases_EndToEnd.postman_collection.json`** — the real flow: creates a case in
-  `cases-service`, which calls this module's internal `POST /api/v1/claims` for you. This is how
-  production traffic actually reaches classification.
-- **`Arbiter_Claims_Classification.postman_collection.json`** — hits this module directly, for
-  testing the analysis in isolation.
-
-### Isolated testing (no case, no cases-service)
+## Internal API (module-to-module — this is what `cases-service` calls)
 
 ```
-POST http://localhost:8082/api/v1/classifications
-  multipart/form-data:
-    - part "claim" (application/json): branch, product, claimCause, description, etc.
-    - part "documents" (0..N, optional, one part per document type, e.g. "police_report", "item_photo")
-  → runs the deterministic Fast Track gate first; if it doesn't qualify, extracts the attached
-    documents with the vision model and falls back to full LLM classification.
-  → 202 Accepted, async — poll GET /results below.
+POST   /api/v1/claims                        multipart, requires "caseId" — kicks off async analysis
+GET    /api/v1/claims/{caseId}               poll for the result (null fields until it finishes)
+GET    /api/v1/claims/{caseId}/rule-results  every rule evaluated for the case
+POST   /api/v1/claims/{caseId}/decision      persist the analyst's verdict (service-token only)
 ```
 
-Requires a JWT with role `ANALISTA_SINIESTROS` or `REFERENTE_ASEGURADORA`.
-
-```
-GET http://localhost:8082/api/v1/classifications/results
-```
-
-- Returns a markdown table (`Content-Type: text/markdown`) with every isolated run — one row per
-  classification.
-
-### Internal API (module-to-module — this is what `cases-service` calls)
-
-```
-POST   /api/v1/claims                    multipart, requires "caseId" — kicks off async analysis
-GET    /api/v1/claims/{caseId}           poll for the result (null fields until it finishes)
-POST   /api/v1/claims/{caseId}/decision  persist the analyst's verdict (service-token only)
-```
-
-### Duplicate-image check
-
-```
-POST /api/v1/image-embeddings/check-duplicate
-  multipart/form-data: "caseId", optional "attachmentLabel", part "image"
-  → embeds the image via the CLIP sidecar and searches pgvector for matches above the threshold.
-```
+To exercise it end to end, use `docs/postman/Arbiter_Cases_EndToEnd.postman_collection.json`: it
+creates a case in `cases-service`, which calls this module for you.
 
 ## Classification Flow Architecture
 
@@ -175,9 +123,9 @@ ClaimController ──► ClaimClassificationService ──► ClassificationOrc
             + rule evaluators   (policy+history) (branch rules) (vision OCR)    (CLIP + pgvector)
                     │              │               │           │               │
                     ▼              ▼               ▼           ▼               ▼
-              (deterministic)  Mock / REST     Mock / REST   LlmClient       ClipClient
-                                (insurer DB)    (rules-service) (Ollama/Gemini) (embedding-service)
+              (deterministic)  insurer DB      rules-service  LlmClient       ClipClient
+                                                              (Ollama/Gemini) (embedding-service)
 ```
 
-In dev/test the mocks are used (`MockInsurerAdapter`, `MockRulesAdapter`). In production they're
-replaced by the REST implementations against the insurer's DB and `rules-service` respectively.
+With the `insurer-db` Spring profile, `InsurerDatabaseAdapter` reads the insurer's DB; without it,
+`MockInsurerAdapter` serves made-up policies (and logs a warning at startup).

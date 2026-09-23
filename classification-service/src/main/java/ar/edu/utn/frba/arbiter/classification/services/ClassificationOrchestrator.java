@@ -42,16 +42,9 @@ public class ClassificationOrchestrator {
     private static final Logger log = LoggerFactory.getLogger(ClassificationOrchestrator.class);
 
     /**
-     * Art. 58 Ley 17.418, párr. 1: the insured's right to claim prescribes 1 year after the
-     * obligation becomes exigible — read here as 1 year from the event, the same simplification
-     * the doc de dominio BBVA's own worked example uses ("alguien denuncia hoy un siniestro que
-     * pasó hace dos años... el derecho vence al año del hecho"). Scoped to the ramos patrimoniales
-     * this platform covers today (Celulares, Tecnología Portátil) — the 3-year term for Vida or
-     * reclamos de terceros doesn't apply to any configured branch, so it isn't modeled.
-     *
-     * <p>A plain constant, not an {@code insurer_rule} like the D9-D13 temporal rules: it's the
-     * law, not a term of the contract, so it isn't the referente's to turn off — same reasoning as
-     * {@code CaseStatusService.RESPONSE_TERM_DAYS}.
+     * Art. 58 Ley 17.418: the right to claim prescribes 1 year from the event for property lines (the
+     * 3-year term for life insurance doesn't apply to any configured branch). A constant, not an
+     * {@code insurer_rule}: it's the law, not the referente's to turn off.
      */
     private static final long PRESCRIPTION_YEARS = 1;
 
@@ -76,7 +69,6 @@ public class ClassificationOrchestrator {
     private final ClaimCauseRepository claimCauseRepository;
     private final ObjectMapper objectMapper;
 
-    /** Classifies a claim whose attachments' OCR has already been resolved. */
     public ClassificationResponse classify(ClaimReport claim) {
         log.info("[Orchestrator] Starting classification — policy='{}' insuredId='{}' branch='{}' claimCause='{}'",
                 claim.policyNumber(), claim.insuredId(), claim.branch(), claim.claimCause());
@@ -88,33 +80,29 @@ public class ClassificationOrchestrator {
 
     private ClassificationResponse resolveClassification(ClaimReport claim, Context ctx) {
 
-        // Prescripción first: a time-barred claim makes every other hard rule moot (art. 58).
+        // A time-barred claim makes every other rule moot.
         if (isPrescribed(claim)) {
             return prescriptionResponse(claim);
         }
 
-        // Hard rules first: a coverage exclusion makes Fast Track irrelevant (D3).
+        // A coverage exclusion makes Fast Track irrelevant.
         CoverageRuleEvaluator.Result exclusion = coverageRuleEvaluator.evaluate(claim, ctx.rules());
         if (exclusion.excluded()) {
             return attachRuleFindings(coverageExclusionResponse(exclusion, claim), exclusion.findings());
         }
 
-        // Temporal rules (D9/D10/D11/D12/D13): block Fast Track, add reasons for the analyst,
-        // and leave their own auditable trace in rule_result.
         TemporalRuleEvaluator.Result temporal =
                 temporalRuleEvaluator.evaluate(claim, ctx.policy(), ctx.history(), ctx.rules());
         FraudRecordRuleEvaluator.Result fraud =
                 fraudRecordRuleEvaluator.evaluate(ctx.rules(), ctx.fraudRecords());
 
-        // Coverage scope (D9). With no documents read it can only evaluate coverage already used
-        // up; the family group needs the injured party, which comes from the extraction.
+        // No documents read here, so the family-group rule can't be evaluated.
         CoverageScopeEvaluator.Result scope =
                 coverageScopeEvaluator.evaluate(claim, ctx.policy(), ctx.history(), ctx.rules(), Map.of());
 
         FastTrackValidator.Result fastTrack = fastTrackValidator.evaluate(claim, ctx.policy(), ctx.history(), ctx.rules(), null);
 
-        // After the scope and the gate, not before: their criteria are audited like the rest. No
-        // documents read, so nothing narrates a claim cause to compare.
+        // No documents read, so nothing narrates a claim cause to compare.
         List<RuleFinding> ruleFindings = mergeFindings(
                 exclusion, temporal, fraud, scope, ClaimCauseConsistencyEvaluator.Result.none(), fastTrack);
 
@@ -141,12 +129,8 @@ public class ClassificationOrchestrator {
     }
 
     /**
-     * Classifies an isolated claim, with its raw unprocessed documents (test endpoint, no
-     * claim creation involved). OCR is deferred and depends on the business rules for the
-     * branch/claim cause (see {@link BusinessRules.FastTrackThresholds#requiredDocumentTypes()}):
-     * - if the Fast Track gate doesn't need any document, it evaluates with structured data only.
-     * - if it needs one (e.g. "police_report"), ONLY that one gets extracted before deciding.
-     * - if the gate doesn't resolve, only then are all documents extracted (or reused) for the LLM.
+     * Without a case: no policy snapshot, extraction records or image-fraud cascade. OCR is lazy: only
+     * the documents the Fast Track gate requires are read before it, and the rest only if it doesn't resolve.
      */
     public ClassificationResponse classify(ClaimReport claim, List<AttachmentDocument> documents) {
         log.info("[Orchestrator] Starting isolated classification — policy='{}' insuredId='{}' branch='{}' " +
@@ -159,16 +143,8 @@ public class ClassificationOrchestrator {
     }
 
     /**
-     * Classification for a real case: same flow as above, plus the image-fraud cascade that needs
-     * the {@code caseId} (to exclude self-matches and persist embeddings). The forensic report is
-     * threaded into scoring so the {@code image_reuse}/{@code image_web_match} factors weigh in, and
-     * attached to the response for persistence + the analyst UI.
-     *
-     * <p>The cascade runs <b>exactly when the documentation is analyzed</b> (see {@link Resolution}):
-     * images are just another attachment, so they're examined together with the rest — including a
-     * Fast Track that examined a required document, and excluding a Fast Track resolved on structured
-     * data alone. Not a separate "analyze images?" toggle: it follows the documentation, which the
-     * business rules govern.
+     * Adds the image-fraud cascade, which needs the {@code caseId} to exclude self-matches and persist
+     * embeddings. It runs exactly when the documentation was analyzed: images are just another attachment.
      */
     public ClassificationResponse classify(Long caseId, ClaimReport claim, List<AttachmentDocument> documents) {
         Context ctx = fetchContext(claim);
@@ -182,19 +158,8 @@ public class ClassificationOrchestrator {
     }
 
     /**
-     * Persists what the vision pass read out of each attachment (H0031). Until now this was
-     * computed on every run — it feeds the prompt and {@code DocumentInconsistencyEvaluator} — and
-     * then dropped when the run ended, so the analyst only ever saw the indirect result (a risk
-     * factor naming the field, without the value).
-     *
-     * <p>Keyed by document type on the extraction side and by {@code documentId} on the attachment
-     * side, joined here: within a case {@code case_documents} is unique per type, which is the same
-     * assumption the extraction itself makes (the schedule asks for "a police report", not several).
-     * An attachment with no {@code documentId} is skipped — the isolated flow has no stored row to
-     * point the FK at.
-     *
-     * <p>Best-effort, like the policy snapshot and the fraud cascade around it: a supporting read
-     * that fails to write must not sink a classification an analyst is waiting on.
+     * Joins extractions (by type) to attachments (by {@code documentId}): {@code case_documents} is
+     * unique per type within a case. Best-effort: failing to write must not sink the classification.
      */
     private void recordDocumentExtractions(
             List<AttachmentDocument> documents, Map<String, DocumentExtraction> extractions) {
@@ -220,8 +185,7 @@ public class ClassificationOrchestrator {
                 return;
             }
 
-            // The extraction is redone on every reclassification and the table holds one row per
-            // document, so the old ones go first — otherwise the unique constraint rejects the write.
+            // One row per document: delete first or reclassification hits the unique constraint.
             documentAnalysisRepository.deleteByCaseDocumentIdIn(
                     rows.stream().map(DocumentAnalysis::getCaseDocumentId).toList());
             documentAnalysisRepository.saveAll(rows);
@@ -243,16 +207,14 @@ public class ClassificationOrchestrator {
         row.setBrand(fields.brand());
         row.setModel(fields.model());
         row.setImei(fields.imei());
-        // The column is NOT NULL and DESCONOCIDO is a real answer, not a missing one: the
-        // extraction leaves it null when the model didn't state it, which means the same thing.
+        // NOT NULL column: a null from the extraction means the same as DESCONOCIDO.
         row.setAffectedParty(fields.affectedParty() == null
                 ? DocumentExtraction.AffectedParty.DESCONOCIDO
                 : fields.affectedParty());
         row.setDescribedClaimCause(fields.describedClaimCause());
         row.setExtractedAt(Instant.now());
         extraction.visualFindings().forEach(row::addVisualFinding);
-        // Skipping the nameless or valueless ones: both columns are NOT NULL, and a detail missing
-        // either half says nothing to the analyst — it would only fail the whole insert.
+        // Both columns are NOT NULL: one incomplete detail would fail the whole insert.
         fields.details().stream()
                 .filter(detail -> StringUtils.hasText(detail.name()) && StringUtils.hasText(detail.value()))
                 .forEach(detail -> row.addDetail(detail.name(), detail.value()));
@@ -260,17 +222,9 @@ public class ClassificationOrchestrator {
     }
 
     /**
-     * Freezes what the insurer's DB answered for this claim (D27), right where that answer enters
-     * the decision. Without it the classification isn't reproducible: the insurer's DB is an
-     * external system that keeps changing, so "the insured caught up on payments" or "another
-     * claim got settled" move the score of a re-run with no record of what the first one saw —
-     * exactly what Disposición SSN 2/2023 asks to be able to show.
-     *
-     * <p>Only for a real case: the isolated flow has no row to hang the snapshot on.
-     *
-     * <p>Best-effort, like the fraud cascade and the risk score around it: an audit row that fails
-     * to write must not sink a classification an analyst is waiting on. It's logged as an error
-     * because it <b>is</b> one.
+     * Freezes what the insurer DB answered, since it keeps changing and a re-run must be explainable.
+     * Best-effort: an audit row that fails to write must not sink the classification, but it's logged
+     * as an error.
      */
     private void recordPolicySnapshot(Long caseId, ClaimReport claim, Context ctx) {
         if (caseId == null) {
@@ -280,17 +234,13 @@ public class ClassificationOrchestrator {
             InsuredPolicy policy = ctx.policy();
             policySnapshotRepository.save(caseId, new PolicySnapshotRepository.Snapshot(
                     policy.policyNumber(),
-                    // NOT NULL in the schema. A policy with no sum insured is broken data from the
-                    // insurer's DB, not a real zero: the faithful value stays in the payload.
+                    // NOT NULL column; the faithful (null) value stays in the payload.
                     policy.insuredAmount() != null ? policy.insuredAmount() : BigDecimal.ZERO,
-                    // Sin truncar a fecha: inForceOn ya compara por timestamp completo (D13).
                     policy.inForceOn(claim.eventDate()),
                     policy.upToDate(),
                     ctx.history().previousClaimsCount(),
                     ctx.history().totalAmountClaimed(),
-                    // Lo que la liquidación necesita congelado: sin esto el monto que autorice el
-                    // analista dentro de tres meses no se puede volver a explicar, porque la BD
-                    // Aseguradora ya se movió. Mismo fundamento que las columnas de arriba (D27).
+                    // Frozen for the settlement, which may be authorized months later.
                     policy.effectiveTo(),
                     policy.installmentAmount(),
                     policy.overdueBalance(),
@@ -305,7 +255,6 @@ public class ClassificationOrchestrator {
         }
     }
 
-    /** Both insurer-DB answers, whole: it's the faithful record the columns are derived from. */
     private String insurerPayload(InsuredPolicy policy, InsuredHistory history) {
         try {
             return objectMapper.writeValueAsString(Map.of("policy", policy, "history", history));
@@ -315,10 +264,7 @@ public class ClassificationOrchestrator {
         }
     }
 
-    /**
-     * @return the report, or null when there's no case (isolated flow) or no images to analyze.
-     *         Whether it's called at all is decided by the caller from {@link Resolution}.
-     */
+    /** Null when there's no case or no images to analyze. */
     private ImageForensicReport runImageFraudAnalysis(
             Long caseId, List<AttachmentDocument> documents, boolean imageConsent) {
         if (caseId == null) {
@@ -328,29 +274,19 @@ public class ClassificationOrchestrator {
         return report.imagesAnalyzed() == 0 ? null : report;
     }
 
-    /**
-     * A resolved classification plus whether the flow actually <b>examined</b> the claim's
-     * documents. Image-fraud analysis rides on that flag: images are just another attachment, so
-     * they're analyzed exactly when the documentation is — not on a separate toggle. It's
-     * {@code false} only when the case resolves without touching any document (Fast Track on
-     * structured data with no required doc, or a hard rule that settles the path before any
-     * extraction). A missing-schedule exit now carries whatever the gate had already read.
-     */
+    /** {@code documentationAnalyzed} decides whether the image-fraud cascade runs. */
     private record Resolution(
             ClassificationResponse response,
             boolean documentationAnalyzed,
-            /** What the vision pass read from each attachment, by type. Empty if none was analyzed. */
             Map<String, DocumentExtraction> extractions) {}
 
     private Resolution resolveClassification(ClaimReport claim, List<AttachmentDocument> documents, Context ctx) {
-        // Prescripción first: a time-barred claim makes every other hard rule moot (art. 58). No
-        // documents or images are analyzed — there's nothing left to check.
+        // A time-barred claim makes every other rule moot; no documents are analyzed.
         if (isPrescribed(claim)) {
             return new Resolution(prescriptionResponse(claim), false, Map.of());
         }
 
-        // Hard rules first: a coverage exclusion cuts in before the document gate and Fast Track
-        // (D3). No documents or images are analyzed — the exclusion already settles the path.
+        // A coverage exclusion settles the path before any document is analyzed.
         CoverageRuleEvaluator.Result exclusion = coverageRuleEvaluator.evaluate(claim, ctx.rules());
         if (exclusion.excluded()) {
             return new Resolution(
@@ -368,38 +304,28 @@ public class ClassificationOrchestrator {
                 extractRequiredDocuments(documents, requiredForGate, causeNames);
         Map<String, String> gateDocumentTexts = transcriptions(gateExtractions);
 
-        // Temporal rules (D9/D10/D11/D12/D13): block Fast Track, add reasons for the analyst,
-        // and leave their own auditable trace in rule_result.
         TemporalRuleEvaluator.Result temporal =
                 temporalRuleEvaluator.evaluate(claim, ctx.policy(), ctx.history(), ctx.rules());
-        // The insured's fraud record: the only hard rule that isn't about this claim. Whether it
-        // vetoes Fast Track is the insurer's call, on the rule row.
         FraudRecordRuleEvaluator.Result fraud =
                 fraudRecordRuleEvaluator.evaluate(ctx.rules(), ctx.fraudRecords());
 
-        // Coverage scope (D9): family group and coverage already used up. It goes here and not
-        // earlier because the family group depends on what the extraction read in the documents.
+        // After extraction: the family-group rule needs the affected party read from the documents.
         CoverageScopeEvaluator.Result scope =
                 coverageScopeEvaluator.evaluate(claim, ctx.policy(), ctx.history(), ctx.rules(), gateExtractions);
 
         FastTrackValidator.Result fastTrack =
                 fastTrackValidator.evaluate(claim, ctx.policy(), ctx.history(), ctx.rules(), gateDocumentTexts);
 
-        // Whether the documents narrate the cause the insured declared. It warns and never blocks
-        // (see ClaimCauseConsistencyEvaluator), so it stays out of the Fast Track condition below.
+        // Warns, never blocks: it stays out of the Fast Track condition below.
         ClaimCauseConsistencyEvaluator.Result causeMatch =
                 claimCauseConsistencyEvaluator.evaluate(claim, gateExtractions, catalog);
 
-        // The gate's own trace: if the claim Fast Tracks below, these are the rules that decided —
-        // the hard ones, plus the gate's criteria and what each one compared.
         List<RuleFinding> ruleFindings = mergeFindings(exclusion, temporal, fraud, scope, causeMatch, fastTrack);
 
         if (fastTrack.fastTrack() && !temporal.blocksFastTrack() && !scope.blocksFastTrack()
                 && !fraud.blocksFastTrack()) {
-            // The insurer may want the full fraud analysis even on Fast Track (per-insurer flag). When
-            // on, extract every attachment and mark the documentation as analyzed so the image-fraud
-            // cascade runs and the score comes out complete — not just on structured-data factors.
-            // When off (default), Fast Track stays fast: only the gate's docs were read, if any.
+            // Per-insurer flag: read every attachment and run the image cascade even on Fast Track,
+            // for a complete score. Off by default so Fast Track stays fast.
             boolean fullAnalysis = fullAnalysisOnFastTrack(ctx.rules());
             Map<String, DocumentExtraction> fastTrackExtractions = fullAnalysis
                     ? extractAllAttachments(documents, gateExtractions, causeNames)
@@ -418,19 +344,13 @@ public class ClassificationOrchestrator {
                     fullAnalysis || !gateExtractions.isEmpty(), fastTrackExtractions);
         }
 
-        // The full document schedule is the contract for a COMPLETE case, and a claim that Fast
-        // Tracks never needed it: what it had to bring is the gate's own list, already checked
-        // above. So the schedule is demanded here, once the expedited path is off the table.
-        //
-        // It used to run before the gate, which is what made the short intake list impossible: a
-        // denuncia filed with only what Fast Track requires stopped at FALTA_DOCUMENTACION every
-        // time and never reached the gate that would have expedited it.
+        // The full document schedule is only demanded once Fast Track is off the table: a claim
+        // filed with just the gate's short list must still be able to Fast Track.
         List<String> missingDocs = checkRequiredDocuments(
                 ctx.rules(), documents.stream().map(AttachmentDocument::type).toList());
         if (!missingDocs.isEmpty()) {
             log.info("[Orchestrator] Not Fast Track and missing required documents: {}", missingDocs);
-            // Con los hallazgos del gate y no solo los de la exclusión: al analista no le alcanza
-            // con qué documento falta, necesita por qué el caso no entró al carril rápido.
+            // With the gate's findings too: the analyst needs to know why it missed the fast lane.
             return new Resolution(
                     appendReasons(attachRuleFindings(missingDocumentationResponse(missingDocs), ruleFindings),
                             causeMatch.reasons()),
@@ -443,20 +363,18 @@ public class ClassificationOrchestrator {
         Map<String, DocumentExtraction> extractions = extractAllAttachments(documents, gateExtractions, causeNames);
         ClaimReport claimWithOcr = withAttachmentsOcr(claim, renderAttachments(documents, extractions));
 
-        // Scope is re-evaluated with ALL documents read: the gate had only extracted the ones Fast
-        // Track requires, and who the injured party is can be in any of them.
+        // Re-evaluated with every document read: the affected party can be in any of them.
         CoverageScopeEvaluator.Result fullScope =
                 coverageScopeEvaluator.evaluate(claim, ctx.policy(), ctx.history(), ctx.rules(), extractions);
 
         List<String> engineFindings = engineFindings(exclusion, temporal);
         engineFindings.addAll(fullScope.reasons());
 
-        // Same for the cause the documents narrate: every attachment read now, not just the gate's.
+        // Every attachment is read now, not just the gate's.
         ClaimCauseConsistencyEvaluator.Result fullCauseMatch =
                 claimCauseConsistencyEvaluator.evaluate(claim, extractions, catalog);
 
-        // fullScope y no `scope`: la foto que vale es la de todos los documentos leídos, y es la
-        // que hay que auditar — el gate solo había extraído los que el Fast Track exige.
+        // fullScope, not scope, is what gets audited.
         ClassificationResponse response = attachRuleFindings(
                 classifyWithLlm(claimWithOcr, ctx, engineFindings, catalog),
                 mergeFindings(exclusion, temporal, fraud, fullScope, fullCauseMatch, fastTrack));
@@ -467,14 +385,7 @@ public class ClassificationOrchestrator {
         return new Resolution(response, true, extractions);
     }
 
-    /**
-     * Attaches the parallel fraud/risk score and the insured's name to the classification, both
-     * sourced from the {@link Context} already assembled by {@code fetchContext()} — no extra
-     * adapter hits. A single scoring invocation per classification, shared by every route (missing
-     * docs, Fast Track and LLM). Scoring is best-effort: if it fails, the classification is
-     * returned as-is (riskScore null) — the score is a support signal and must never break the
-     * classification. The insured's name always comes from the policy, regardless of scoring.
-     */
+    /** Scoring is best-effort: a support signal must never break the classification. */
     private ClassificationResponse withRiskScore(
             ClassificationResponse classification, ClaimReport claim, Context ctx,
             ImageForensicReport forensic, Map<String, DocumentExtraction> extractions) {
@@ -496,7 +407,6 @@ public class ClassificationOrchestrator {
         }
     }
 
-    /** Appends the forensic traces to the classification factors (the analyst's reading of the case). */
     private List<String> foldForensicTraces(List<String> factors, ImageForensicReport forensic) {
         if (forensic == null) {
             return factors;
@@ -514,23 +424,10 @@ public class ClassificationOrchestrator {
                            List<InsuredFraudRecord> fraudRecords) {}
 
     /**
-     * The insured's history as the rules have to see it: what the company settled in its own
-     * systems <b>plus</b> what they already filed through Arbiter.
-     *
-     * <p>The company's {@code siniestro_historico} only holds the claims it processed; every claim
-     * filed from the portal is born here and never travels back. Reading only the first source
-     * meant the annual event cap (D10) and the Fast Track's previous-claims criterion answered
-     * zero to someone who had filed that same week — and the prompt told the model the same thing,
-     * which is worse than saying nothing.
-     *
-     * <p>Merged into the one list every rule already reads, instead of a second counter each rule
-     * would have to remember to add: the cap filters by branch and date window, the exhaustion
-     * check by coverage, and none of that works on a scalar. The claim id is prefixed so a merged
-     * record can be told apart from the company's — the hook for de-duplicating the day the
-     * company starts syncing settled Arbiter claims back into its history.
-     *
-     * <p>{@code totalAmountClaimed} stays untouched: it sums what the company <b>paid</b>, and an
-     * Arbiter case has no settled amount to add.
+     * Adds the claims filed through Arbiter to the insurer's history, which never receives them back;
+     * otherwise the rules would count zero for someone who filed that same week. The {@code arbiter-}
+     * prefix allows de-duplicating if the insurer ever syncs them. {@code totalAmountClaimed} is what
+     * was paid, so it's left untouched.
      */
     private InsuredHistory withArbiterAntecedents(InsuredHistory history, ClaimReport claim) {
         if (claim.priorClaims().isEmpty()) {
@@ -562,9 +459,7 @@ public class ClassificationOrchestrator {
 
     private Context fetchContext(ClaimReport claim) {
         log.debug("[Orchestrator] Fetching policy '{}'...", claim.policyNumber());
-        // Narrowed to the coverage that answers for this claim: a policy has several, each with
-        // its own sum insured and deductible, and everything downstream (Fast Track, amount_ratio,
-        // the exhaustion check, the prompt, the audited snapshot) reads the top-level pair.
+        // Narrowed to the claim's coverage: everything downstream reads the top-level sum insured.
         InsuredPolicy policy = insurerAdapter.getPolicy(claim.policyNumber())
                 .forCoverage(claim.coverageName());
         log.info("[Orchestrator] Policy OK — insured='{}' upToDate={} coverage='{}' insuredAmount={}",
@@ -581,9 +476,7 @@ public class ClassificationOrchestrator {
         log.info("[Orchestrator] Rules OK — {} rules, {} exclusions, {} fast-track criteria",
                 rules.rules().size(), rules.exclusions().size(), rules.fastTrackCriteria().size());
 
-        // What this insurer already determined about the person, not about this claim. Read here
-        // with the rest of the context so the score and the hard rule work off one snapshot, and
-        // read locally: the table is this module's, so it costs a query and not a REST hop.
+        // Read with the rest of the context so the score and the hard rule see the same records.
         List<InsuredFraudRecord> fraudRecords =
                 fraudRecordRepository.findByInsuredDniOrderByDeclaredAtDesc(claim.insuredId());
         if (!fraudRecords.isEmpty()) {
@@ -606,25 +499,14 @@ public class ClassificationOrchestrator {
     }
 
     /**
-     * Turns the model's reading of the account into where the claim goes. The insured picks a claim
-     * cause from a selector and writes the account separately, and nothing checked the two agreed:
-     * the hard rules evaluate the <b>declared</b> cause, so someone who picks "Robo en vía pública"
-     * (covered) and describes a hurto (excluded) sailed through the exclusion gate unnoticed.
-     *
-     * <p><b>The model doesn't decide coverage — this does.</b> It only names which cause of the
-     * branch's catalog the account describes; whether that one is excluded is asked of
-     * {@link CoverageRuleEvaluator}, on the insurer's configured rule (CLAUDE.md #4). And nothing
-     * here resolves the case: both outcomes land on the analyst's desk (#5).
+     * The hard rules evaluate the <b>declared</b> claim cause, so an account describing an excluded
+     * one would otherwise slip through. The model only names the cause; coverage is decided by
+     * {@link CoverageRuleEvaluator}.
      *
      * <ul>
-     *   <li>{@code MATCHES} — untouched.
-     *   <li>{@code AMBIGUOUS} — a factor for the analyst, no change of classification. "Me robaron"
-     *       is how people describe a robo, a hurto and an olvido alike, so a doubtful reading must
-     *       not reroute an honest claim.
-     *   <li>{@code CONTRADICTS} + the suggested cause is excluded — {@code LLM_NO_RECOMIENDA_APROBAR}.
-     *   <li>{@code CONTRADICTS} + covered, or a name that maps to nothing —
-     *       {@code LLM_SOLICITA_REVISION_MANUAL}: something is off, but not in a direction this code
-     *       can call.
+     *   <li>{@code AMBIGUOUS}: only a factor; everyday wording is too vague to reroute an honest claim.
+     *   <li>{@code CONTRADICTS} with an excluded cause: {@code LLM_NO_RECOMIENDA_APROBAR}.
+     *   <li>{@code CONTRADICTS} otherwise: {@code LLM_SOLICITA_REVISION_MANUAL}.
      * </ul>
      */
     private ClassificationResponse applyCauseConsistency(
@@ -679,14 +561,8 @@ public class ClassificationOrchestrator {
     }
 
     /**
-     * What the FULL document schedule asks for and the claim didn't bring — {@code
-     * document_requirement}, per branch + claim cause, the contract for a complete case.
-     *
-     * <p>Not to be confused with {@link BusinessRules.FastTrackThresholds#requiredDocumentTypes()},
-     * the short list the expedited path requires and the insured is asked for at intake. This one
-     * is only evaluated once Fast Track is off the table, and by presence: whether the schedule's
-     * slot was filled. The gate's own list is checked by extracted TEXT instead, because an
-     * unreadable document can't expedite anything.
+     * The full document schedule, checked by presence. Not the Fast Track gate's short list, which is
+     * checked by extracted text because an unreadable document can't expedite anything.
      */
     private List<String> checkRequiredDocuments(BusinessRules rules, List<String> providedDocumentTypes) {
         if (rules.requiredDocumentTypes() == null || rules.requiredDocumentTypes().isEmpty()) {
@@ -717,12 +593,7 @@ public class ClassificationOrchestrator {
                 .build();
     }
 
-    /**
-     * A hard exclusion doesn't close the case (CLAUDE.md #5, human-in-the-loop): it routes to the
-     * analyst with the reason in plain sight and without calling the LLM. Deterministic, like Fast
-     * Track and FALTA_DOCUMENTACION, but in the opposite direction. The finding is audited in
-     * {@code rule_result} via {@code ruleFindings}.
-     */
+    /** Routes to the analyst without calling the LLM; an exclusion never closes the case on its own. */
     private ClassificationResponse coverageExclusionResponse(CoverageRuleEvaluator.Result exclusion, ClaimReport claim) {
         log.info("[Orchestrator] Coverage exclusion — deriva a revisión manual sin LLM. claimCause='{}'",
                 claim.claimCause());
@@ -735,17 +606,9 @@ public class ClassificationOrchestrator {
     }
 
     /**
-     * Art. 58 Ley 17.418: the claim is older than {@link #PRESCRIPTION_YEARS} — the insured's
-     * right to claim it is already time-barred. Deterministic and code-evaluated like a coverage
-     * exclusion, and for the same reason: there's nothing interpretive left for the LLM to add,
-     * and running it would spend a full inference on a claim the analyst rejects without
-     * analyzing anything else (doc de dominio BBVA, worked example in §9's discussion).
-     *
-     * <p>Doesn't close the case by itself (CLAUDE.md #5, human-in-the-loop): the analyst still has
-     * to reject formally with cause. But unlike a coverage exclusion — which can turn on a fact
-     * only the analyst can weigh, and so asks for {@code LLM_SOLICITA_REVISION_MANUAL} — a
-     * prescripción is a closed legal question once the two dates are read: nothing left to
-     * review, so the recommendation is a straight {@code LLM_NO_RECOMIENDA_APROBAR}.
+     * Evaluated in code, skipping the LLM: nothing interpretive is left. Unlike a coverage exclusion it
+     * recommends {@code LLM_NO_RECOMIENDA_APROBAR}, since prescription is a closed legal question; the
+     * analyst still rejects formally.
      */
     private boolean isPrescribed(ClaimReport claim) {
         if (claim.eventDate() == null || claim.reportedAt() == null) {
@@ -768,7 +631,6 @@ public class ClassificationOrchestrator {
                 .build();
     }
 
-    /** Hangs the evaluated rules' results (PASS/FAIL) so they get audited in rule_result. */
     private ClassificationResponse attachRuleFindings(ClassificationResponse response, List<RuleFinding> findings) {
         if (findings.isEmpty()) {
             return response;
@@ -777,14 +639,8 @@ public class ClassificationOrchestrator {
     }
 
     /**
-     * The auditable trace of everything the engine evaluated: the coverage exclusions, the temporal
-     * rules, the fraud record, the coverage scope, and the Fast Track gate's criteria. They travel
-     * together because {@code rule_result} is one row per thing evaluated, regardless of which
-     * evaluator ran it — what tells them apart in the table is their {@code rule_type}.
-     *
-     * <p>The gate's criteria go last and are <b>not</b> hard rules: failing one only means the claim
-     * doesn't take the fast lane. The analyst's screen has to keep the two groups apart, which is
-     * what the {@code FT_*} prefix is for.
+     * The Fast Track gate's criteria go last and are not hard rules (failing one only loses the fast
+     * lane); the {@code FT_*} rule type prefix keeps them apart on the analyst's screen.
      */
     private List<RuleFinding> mergeFindings(CoverageRuleEvaluator.Result exclusion,
                                             TemporalRuleEvaluator.Result temporal,
@@ -801,7 +657,6 @@ public class ClassificationOrchestrator {
         return findings;
     }
 
-    /** Adds the temporal rules' reasons to the factors the analyst sees. */
     private ClassificationResponse appendReasons(ClassificationResponse response, List<String> reasons) {
         if (reasons.isEmpty()) {
             return response;
@@ -811,12 +666,6 @@ public class ClassificationOrchestrator {
         return response.toBuilder().factors(merged).build();
     }
 
-    /**
-     * Whether this insurer wants the heavy analysis (OCR of every attachment + the image-fraud
-     * cascade) to run on Fast Track claims, so their fraud score is complete rather than partial.
-     * Off by default — the score is a parallel signal and never gates Fast Track; this only widens
-     * how much gets analyzed on the expedited path. Null-safe: no scoring config ⇒ off.
-     */
     private boolean fullAnalysisOnFastTrack(BusinessRules rules) {
         return rules.scoringConfig() != null && rules.scoringConfig().fullAnalysisOnFastTrack();
     }
@@ -849,21 +698,13 @@ public class ClassificationOrchestrator {
         return extractions;
     }
 
-    /**
-     * The document gate only checks the required document is there and could be read, so it gets
-     * the transcription alone: visual signals are interpretive and can't decide a Fast Track (D4a's
-     * lesson — the deterministic is evaluated, the interpretive is shown).
-     */
+    /** Transcription only: visual findings are interpretive and can't decide a Fast Track. */
     private Map<String, String> transcriptions(Map<String, DocumentExtraction> extractions) {
         return extractions.entrySet().stream()
                 .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().transcription()));
     }
 
-    /**
-     * Every attachment read, reusing the ones the gate already extracted. Indexed by type, like
-     * {@link #extractRequiredDocuments}: the flow assumes one document per type (the schedule asks
-     * for "a police report", not several).
-     */
+    /** Reuses the gate's extractions. Keyed by type: the flow assumes one document per type. */
     private Map<String, DocumentExtraction> extractAllAttachments(
             List<AttachmentDocument> documents, Map<String, DocumentExtraction> alreadyExtracted,
             List<String> causeNames) {
@@ -886,7 +727,6 @@ public class ClassificationOrchestrator {
         return extractions;
     }
 
-    /** The text that goes into the prompt, in the order the attachments arrived. */
     private List<String> renderAttachments(
             List<AttachmentDocument> documents, Map<String, DocumentExtraction> extractions) {
         return documents.stream()
@@ -941,13 +781,8 @@ public class ClassificationOrchestrator {
     }
 
     /**
-     * The branch's claim causes, each flagged with whether this coverage covers it, so the model can
-     * tell the declared cause apart from the one the account actually describes. Coverage comes from
-     * the same {@code COVERAGE_EXCLUSION} rule the engine evaluates — the model is told what the
-     * engine already decided, it doesn't decide it (CLAUDE.md #4).
-     *
-     * <p>Best-effort like the policy snapshot: if the catalog can't be read the classification still
-     * runs, just without the consistency check (the prompt handles the empty list explicitly).
+     * Coverage flags come from the engine's {@code COVERAGE_EXCLUSION} rule, not from the model.
+     * Best-effort: without a catalog the classification runs without the consistency check.
      */
     private List<ClassificationRequest.ClaimCauseOption> claimCauseCatalog(
             ClaimReport claim, BusinessRules rules) {
@@ -969,20 +804,9 @@ public class ClassificationOrchestrator {
     }
 
     /**
-     * The verdict of the hard rules the engine already evaluated (D4a step 6), to inject into the
-     * prompt as established fact: the temporal breaches (deadline/validity/frequency) and, if there
-     * was an exclusion rule that didn't apply, confirmation that the coverage covers the claim cause.
-     */
-    /**
-     * Lo que el motor ya resolvió por código y viaja al prompt como hecho establecido, para que el
-     * LLM no lo vuelva a decidir.
-     *
-     * <p><b>El antecedente de fraude queda deliberadamente afuera</b> (decisión #6 del handoff, y la
-     * misma razón por la que el score tampoco entra): decirle al modelo que esta persona defraudó
-     * antes contamina toda su lectura interpretativa, y después no hay forma de saber si la
-     * recomendación sale de la denuncia o del prejuicio. Sus motivos se agregan a la respuesta
-     * <i>después</i> de que el clasificador contestó — ver {@code resolveClassification}. Sumarlos
-     * acá los metería en el prompt en silencio.
+     * What the engine already decided, injected into the prompt as established fact. The fraud record
+     * is deliberately left out (like the score): it would bias the model's reading of this claim, so its
+     * reasons are appended after the classifier answers.
      */
     private List<String> engineFindings(CoverageRuleEvaluator.Result exclusion, TemporalRuleEvaluator.Result temporal) {
         List<String> findings = new ArrayList<>(temporal.reasons());

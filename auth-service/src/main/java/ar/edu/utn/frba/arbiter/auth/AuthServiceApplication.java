@@ -6,11 +6,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.persistence.autoconfigure.EntityScan;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 
-/**
- * {@code @EntityScan} is explicit because the common-schema entities (insurer, users,
- * role, ...) live in common-lib, outside this module's package — the default scan only
- * covers the application class's own package.
- */
+// Explicit @EntityScan: the common-schema entities live in common-lib, outside this package.
 @SpringBootApplication
 @EntityScan({
         "ar.edu.utn.frba.arbiter.auth.models.entities",

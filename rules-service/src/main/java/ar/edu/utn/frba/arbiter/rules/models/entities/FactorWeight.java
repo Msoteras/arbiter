@@ -18,10 +18,9 @@ import lombok.Setter;
 import java.math.BigDecimal;
 
 /**
- * How much a factor weighs within a {@link ScoringConfiguration} ("peso_factor" in the
- * DER). {@code factorCode} matches classification-service's RiskFactorIds constants
- * (e.g. "amount_ratio") by string, not by FK to {@link Factor} — same loose-coupling
- * as the DER draws it.
+ * How much a factor weighs within a {@link ScoringConfiguration}. {@code factorCode} matches
+ * classification-service's RiskFactorIds constants (e.g. "amount_ratio") by string, not by FK to
+ * {@link Factor}.
  */
 @Entity
 @Table(name = "factor_weight")

@@ -5,15 +5,7 @@ import { catchError, throwError } from 'rxjs';
 
 import { AuthSessionService } from '../auth/auth-session.service';
 
-/**
- * Adjunta el JWT de la sesión (login propio, H0001) a las llamadas /api/*.
- * Cuando se integre Auth0 el token sale de ahí en vez de AuthSessionService,
- * pero el resto de la request queda igual.
- *
- * También maneja el 401 global: sin esto, un token vencido (60 min, H0001) hacía que
- * cada pantalla mostrara su propio error genérico sin decirle al usuario que tenía que
- * volver a loguearse.
- */
+/** Attaches the session JWT to /api/* calls and sends the user to login on an expired session. */
 export const authInterceptor: HttpInterceptorFn = (req, next) => {
   const session = inject(AuthSessionService);
   const router = inject(Router);
@@ -24,8 +16,7 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
   }
   return next(req).pipe(
     catchError((err: unknown) => {
-      // El login manda su propio 401 (credenciales inválidas) — eso no es una sesión
-      // vencida, así que no dispara el logout automático.
+      // A 401 from login itself means bad credentials, not an expired session.
       if (
         err instanceof HttpErrorResponse &&
         err.status === 401 &&

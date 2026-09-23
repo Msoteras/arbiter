@@ -23,46 +23,22 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Read side of the fraud report: the cases filed in a period that carry at least one fraud signal.
- *
- * <p>Like {@code ResolvedCaseRepository}, it reads tables other modules own — {@code cases},
- * {@code case_documents}, {@code image_analysis} and {@code risk_analysis} (classification-service).
- * That is what the architecture document draws for this module (§3: Reportes connects straight to
- * PostgreSQL with no REST link to Expedientes; §10: the database is shared between all of them),
- * and every one of those tables lives in the same tenant schema. Read-only, plain JDBC over a named
- * set of columns and no entities, so this module never claims ownership of them.
- *
- * <p>The query runs on Hibernate's connection and not on one from the pool: the table names are
- * unqualified and resolve through the {@code search_path} that {@code TenantConnectionProvider}
- * sets, which it only does on the connections Hibernate asks for (see {@code ResolvedCaseRepository}
- * for the bug that caused).
+ * Read side of the fraud report. Same direct, read-only access to other modules' tables on Hibernate's
+ * connection as {@link ResolvedCaseRepository}, for the same reasons.
  */
 @Repository
 @RequiredArgsConstructor
 public class FlaggedCaseRepository {
 
     /**
-     * The insured's claims in the 12 months up to this one, and how many of the case's images the
-     * forensic pass flagged. Correlated subqueries rather than joins: both are counts over a
-     * different grain than the row, and joining them would multiply the case by its own documents.
+     * Correlated subqueries rather than joins: they count over a different grain than the row, and
+     * joining would multiply the case by its documents.
      *
-     * <p>The window is counted from each case's own {@code reported_at} and not from the period's
-     * end, so a case reads the same whenever the report is run — a number that changes depending on
-     * when you asked is not something you can put in front of an auditor.
+     * <p>The 12-month window is counted from each case's own {@code reported_at}, so a row reads the
+     * same whenever the report is run. {@code claims_in_window} is context only, not a signal.
      *
-     * <p>{@code signal_count} repeats the conditions of the WHERE because it is what the listing is
-     * ordered by; see the ORDER BY in {@link #findFlaggedBetween}.
-     *
-     * <p>{@code claims_in_window} is NOT one of them: how often the insured claims does not put a
-     * case in this report (see {@link FraudSignal}), it travels as context of the rows another
-     * signal already flagged. It is still counted for every candidate because the row shows it.
-     *
-     * <p>{@code document_inconsistency_note} looks only at the case's LATEST {@code risk_analysis}
-     * row (the subquery orders by {@code analyzed_at} and takes one) and, inside it, only at the
-     * {@code document_inconsistency} entry of the {@code risk_breakdown} JSONB array. A case
-     * reclassified after the insured fixed their documentation reads clean, the same way
-     * {@code cases.risk_band} already reflects only the latest scoring run and not every run that
-     * ever touched the case.
+     * <p>{@code document_inconsistency_note} only reads the case's LATEST {@code risk_analysis}, so a
+     * case reclassified after its documentation was fixed reads clean, like {@code cases.risk_band}.
      */
     private static final String FLAGGED_CASES = """
             WITH candidate AS (
@@ -131,8 +107,7 @@ public class FlaggedCaseRepository {
                 .addValue("highBands", List.of(RiskBand.HIGH.name(), RiskBand.CRITICAL.name()));
         StringBuilder sql = new StringBuilder(FLAGGED_CASES);
         // Appended rather than `:branchId IS NULL OR ...`: Postgres can't infer the type of a
-        // parameter that is only ever compared to NULL and rejects the statement. Same reason
-        // ResolvedCaseRepository appends its own cuts.
+        // parameter that is only ever compared to NULL and rejects the statement.
         if (branchId != null) {
             sql.append("   AND cc.branch_id = :branchId\n");
             params.addValue("branchId", branchId);
@@ -141,11 +116,8 @@ public class FlaggedCaseRepository {
             sql.append("   AND c.risk_band = :riskBand\n");
             params.addValue("riskBand", riskBand.name());
         }
-        // Read order, not filing order: the cases whose signals coincide go first, and among them
-        // the higher band. One signal is a hint and two is a shortlist, so a critical case with
-        // three signals sitting on page three because it was filed on the 2nd is the report failing
-        // at the one thing it is for. Sorted in the query and not in each surface so the screen,
-        // the CSV and the PDF all lead with the same case.
+        // Coinciding signals first, then the higher band. Sorted here rather than in each surface so
+        // the screen, the CSV and the PDF all lead with the same case.
         params.addValue("criticalBand", RiskBand.CRITICAL.name())
                 .addValue("highBand", RiskBand.HIGH.name());
         sql.append("""
@@ -159,18 +131,14 @@ public class FlaggedCaseRepository {
         List<FraudReportRow> rows = entityManager.unwrap(Session.class).doReturningWork(connection ->
                 new NamedParameterJdbcTemplate(new SingleConnectionDataSource(connection, true))
                         .query(sql.toString(), params, (rs, rowNum) -> toRow(rs)));
-        // The WHERE above pushes the same two conditions into the database so a period doesn't
-        // drag every case into memory. signalsOf is the definition: anything that got through
-        // without a signal would be a row the report can't explain, so it doesn't go out.
+        // The WHERE only pre-filters; signalsOf is the definition, and a row without a signal
+        // would be one the report can't explain.
         return rows.stream().filter(row -> !row.signals().isEmpty()).toList();
     }
 
     /**
-     * Every claim filed in the period and branch, flagged or not: the denominator the report needs
-     * to say what share of the period carries an indication.
-     *
-     * <p>No alert-level cut here on purpose — the denominator is the whole period, so the share
-     * stays readable when the screen is filtered to one band.
+     * Every claim filed in the period and branch, flagged or not: the report's denominator. No
+     * alert-level cut, so the share stays readable when the screen is filtered to one band.
      *
      * @param from inclusive
      * @param to   exclusive
@@ -197,11 +165,7 @@ public class FlaggedCaseRepository {
     }
 
     /**
-     * The branch's name, so the report can say what it was filtered by even when the filter matched
-     * nothing — a document that doesn't name its own filter is indistinguishable from an unfiltered
-     * one. Its own copy of the read rather than a shared one, same as each read-side here carries
-     * the SQL it needs ({@code ResolvedCaseRepository} and {@code ClaimMetricsRepository} already
-     * keep a resolution CTE each).
+     * Lets the report name its branch filter even when it matched nothing.
      *
      * @return null if no branch has that id
      */
@@ -237,7 +201,7 @@ public class FlaggedCaseRepository {
                 rs.getBoolean("expert_backed"));
     }
 
-    /** The one definition of what "suspicious" means here; the SQL predicate mirrors it. */
+    /** The one definition of a fraud signal; the SQL predicate mirrors it. */
     private static List<FraudSignal> signalsOf(RiskBand riskBand, int suspiciousImages,
                                                String documentInconsistencyNote) {
         List<FraudSignal> signals = new ArrayList<>(FraudSignal.values().length);

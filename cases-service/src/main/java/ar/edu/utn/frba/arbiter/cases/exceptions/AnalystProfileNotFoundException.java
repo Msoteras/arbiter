@@ -1,11 +1,8 @@
 package ar.edu.utn.frba.arbiter.cases.exceptions;
 
 /**
- * The authenticated caller has no {@code claims_analyst} row in the current tenant, so there is
- * no id to attribute a decision to. {@code POST /cases/{id}/decision} allows both
- * ANALISTA_SINIESTROS and REFERENTE_ASEGURADORA (H0003), but only the former has a
- * claims_analyst profile — a referente hitting this means the role/profile mismatch needs a
- * product decision, not a silent 500.
+ * The caller has no {@code claims_analyst} row in the current tenant, so a decision can't be
+ * attributed. Referentes may call the decision endpoint but have no such profile.
  */
 public class AnalystProfileNotFoundException extends RuntimeException {
 

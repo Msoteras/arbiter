@@ -1,32 +1,13 @@
 import { ChangeDetectionStrategy, Component, input, model } from '@angular/core';
 
-/** Una opción del grupo. `value` es lo que queda en el modelo; `label` lo que se lee. */
 export interface ChipOption {
   value: string;
   label: string;
 }
 
 /**
- * Grupo de chips de selección única del design system.
- *
- * Va donde las opciones son POCAS (dos a cinco) y conviene verlas todas de una: elegir entre
- * ellas es la tarea, no un detalle escondido. Con más opciones que eso está `app-select`, que las
- * guarda detrás de un clic; para encender algo puntual, `app-switch`; para marcar VARIOS de un
- * conjunto no sirve —es selección única—, ahí va `app-checkbox`.
- *
- * <p>Dos tamaños porque los dos usos que tiene hoy no pesan lo mismo. `md` (default) es una
- * elección principal de la pantalla: el "¿Qué te pasó?" del alta de denuncia, que en mobile tiene
- * que ser un target cómodo. `sm` es un control secundario que acompaña a otro campo, como el atajo
- * de franja horaria debajo de la hora — ahí competir en peso con el campo que acelera sería peor.
- *
- * <p>`allowDeselect` está apagado por default, que es la semántica de un grupo de radios: una vez
- * elegida una opción hay una elegida. Se prende donde vaciar es una respuesta válida (la franja
- * horaria, que es opcional).
- *
- * <p>Accesibilidad: es un `radiogroup` real, no una fila de botones sueltos. Cada chip lleva
- * `role="radio"` con su `aria-checked`, así el lector de pantalla anuncia "1 de 4" y las flechas
- * se comportan como en cualquier grupo de radios. El estado seleccionado se distingue por borde,
- * fondo y peso tipográfico además del color, para no depender de ver el teal.
+ * Single-select group for a few options (two to five) that should all be visible at once.
+ * `allowDeselect` is off by default (radio semantics); enable it where an empty answer is valid.
  */
 @Component({
   selector: 'app-chip-group',

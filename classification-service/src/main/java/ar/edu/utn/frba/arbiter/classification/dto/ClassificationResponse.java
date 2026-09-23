@@ -9,11 +9,8 @@ import lombok.Builder;
 import java.util.List;
 
 /**
- * Internal result of the analysis. {@code riskScore} is the parallel fraud/risk signal, and
- * {@code forensicReport} the structured image-fraud analysis — both attached downstream by the
- * orchestrator and never set by the classifier. All optional: when they didn't run (no config,
- * Fast Track, no images) they stay {@code null} and the classification is still valid — support
- * signals must never break the classification.
+ * Internal result of the analysis. Support signals (risk score, forensic report, rule findings) are
+ * attached by the orchestrator, never by the classifier, and stay null when they didn't run.
  */
 @Builder(toBuilder = true)
 public record ClassificationResponse(
@@ -22,22 +19,10 @@ public record ClassificationResponse(
         double confidence,
         boolean deterministicFastTrack,
         RiskScore riskScore,
-        /** Insured's real name (from InsuredPolicy), attached by the orchestrator like riskScore. */
         String insuredName,
-        /** Structured image-fraud analysis, attached by the orchestrator for persistence + UI. */
         ImageForensicReport forensicReport,
-        /**
-         * Hard-rule evaluations (coverage exclusions) that ran deterministically before the LLM.
-         * Attached by the orchestrator and persisted to {@code rule_result} for the audit trail;
-         * empty when no evaluable rule applied. Never set by the classifier.
-         */
         List<RuleFinding> ruleFindings,
-        /**
-         * Whether the insured's account matches the claim cause they declared. Unlike the fields
-         * above, the <b>classifier</b> sets these three — they come out of the same model call —
-         * and the orchestrator only reads them to decide where the claim goes. Null on every path
-         * that skips the LLM.
-         */
+        /** Set by the classifier, unlike the fields above; null on every path that skips the LLM. */
         CauseConsistency causeConsistency,
         /** Claim cause the account describes, from the branch's catalog. Null unless CONTRADICTS. */
         String suggestedClaimCause,
@@ -45,11 +30,6 @@ public record ClassificationResponse(
         String causeEvidence
 ) {
 
-    /**
-     * Classifier-facing constructor without a score/name/report: the classifier produces the
-     * classification and never sets these — the orchestrator attaches them afterwards. Keeps the
-     * classifier decoupled from scoring and policy lookup.
-     */
     public ClassificationResponse(Classification classification, List<String> factors, double confidence, boolean deterministicFastTrack) {
         this(classification, factors, confidence, deterministicFastTrack,
                 null, null, null, null, null, null, null);

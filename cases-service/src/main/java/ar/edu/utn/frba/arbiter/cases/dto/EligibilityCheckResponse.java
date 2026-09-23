@@ -1,10 +1,8 @@
 package ar.edu.utn.frba.arbiter.cases.dto;
 
 /**
- * Whether {@code POST /cases} would accept this denuncia right now — same rules as the intake
- * gate ({@code PolicyEligibilityValidator}), just without creating anything. Lets the wizard block
- * "Siguiente" (or warn) before the insured fills out the rest of the form and uploads documents,
- * instead of finding out only at the very end.
+ * Whether {@code POST /cases} would accept this claim right now, with the same rules as
+ * {@code PolicyEligibilityValidator}, so the wizard can stop the insured before they upload documents.
  */
 public record EligibilityCheckResponse(boolean eligible, String reason) {
 

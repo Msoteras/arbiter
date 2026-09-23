@@ -28,37 +28,31 @@ public interface CaseService {
     CaseResponse createCase(CaseRequest request, Map<String, MultipartFile> documents);
 
     /**
-     * Same gate {@link #createCase} runs before it builds the {@code Case} (ownership, vigencia,
-     * carencia, mora), without creating anything. Lets the wizard block or warn before the insured
-     * fills out the rest of the form and uploads documentation, instead of finding out only at the
-     * very end. Never throws {@code PolicyNotEligibleException}/{@code PolicyInsuredMismatchException} —
-     * those become {@code eligible=false} instead, since a "you can't file this" isn't an error here.
+     * Runs the same gate as {@link #createCase} without creating anything, so the wizard can block
+     * or warn before the insured uploads documentation. Ineligibility comes back as
+     * {@code eligible=false}, never as an exception.
      */
     EligibilityCheckResponse checkEligibility(EligibilityCheckRequest request);
 
     /**
-     * La primera tanda de documentos para una denuncia que todavía no existe: lo que el carril
-     * rápido exige para la cobertura que responde por ese hecho generador, o la agenda completa si
-     * la aseguradora no configuró ninguna. Lo consume el wizard para armar los slots de subida.
-     *
-     * <p>Falla con 503 si no se pudo leer el motor de reglas: una lista vacía significaría "no hace
-     * falta ningún documento", que es justo la respuesta equivocada.
+     * The first batch of documents for a claim not yet filed: what Fast Track requires for the
+     * coverage answering for that claim cause, or the full document schedule if none is configured.
+     * Fails with 503 if the rules engine can't be read — an empty list would mean "nothing needed".
      */
     IntakeDocumentsResponse intakeDocuments(String policyNumber, String branch, String claimCause);
 
     CaseResponse getCase(Long caseId);
 
     /**
-     * @param insurerSlug en cuál de las aseguradoras del asegurado buscar ({@code provincia}).
-     *                    Sólo hace falta cuando es cliente de más de una: los ids de expediente se
-     *                    repiten entre esquemas. Null resuelve contra el tenant del login, que es
-     *                    lo que necesita el analista.
+     * @param insurerSlug which of the insured's insurers to look in; only needed for someone insured
+     *                    at more than one, since case ids repeat across schemas. Null resolves
+     *                    against the login tenant.
      */
     CaseResponse getCase(Long caseId, String insurerSlug);
 
     List<CaseDocumentResponse> getDocuments(Long caseId);
 
-    /** @param insurerSlug misma razón que {@link #getCase(Long, String)}: los ids de expediente se repiten entre esquemas. */
+    /** @param insurerSlug see {@link #getCase(Long, String)} */
     List<CaseDocumentResponse> getDocuments(Long caseId, String insurerSlug);
 
     CaseDocument getDocument(Long caseId, Long documentId);
@@ -66,39 +60,12 @@ public interface CaseService {
     CaseDocument getDocument(Long caseId, Long documentId, String insurerSlug);
 
     /**
-     * Lista expedientes paginados, más recientes primero por defecto. Todos los filtros son
-     * opcionales y combinables: {@code status}, {@code claimCause} (tipo de siniestro /
-     * HechoGenerador), {@code policyNumber}, {@code insuredId} (hasta que Auth0/JWT lands, el
-     * caller lo pasa explícito; después saldrá del JWT), el rango {@code eventDateFrom}/
-     * {@code eventDateTo} (inclusive en ambos extremos) sobre la fecha del hecho, {@code q}
-     * (búsqueda de texto libre por número de expediente, póliza o asegurado — ver
-     * {@link ar.edu.utn.frba.arbiter.cases.models.repositories.CaseSpecifications#withFilters}) y
-     * {@code riskBand} (score de riesgo de fraude, match exacto) y {@code assignedToMe}
-     * (la lente "Míos" de la bandeja: solo los expedientes del analista que hace el request).
+     * Paginated, newest first by default; every filter is optional and combinable. The insurer
+     * scope is not a filter: the tenant schema already bounds the listing to one insurer.
      *
-     * <p>El recorte por aseguradora no es un filtro más: lo resuelve el esquema del tenant, así
-     * que todo lo que se lista acá ya pertenece a una sola compañía. {@code assignedToMe} es
-     * "de quién es el expediente", que es otra pregunta.
-     *
-     * <p>Es un booleano y no un id porque el id de analista es local al esquema: quién es "yo"
-     * se resuelve acá contra el token, no lo manda el frontend. Para un rol sin perfil de
-     * analista en el tenant (el referente) la lente devuelve vacío, no todo.
-     *
-     * <p>{@code analystId} es el filtro "Analista" del referente, y sí viaja del frontend: el id sale
-     * de la lista que le dio {@code /analysts/workload}, y el esquema del tenant ya acota a su
-     * aseguradora. Es distinto de {@code assignedToMe}, que resuelve "yo" contra el token.
-     *
-     * <p>{@code unassigned} (lente "Sin asignar": expedientes sin analista), {@code assigned}
-     * (lente "Asignados": con analista, la bandeja del referente) y {@code fraudAlert} (lente
-     * "Alerta de fraude": riesgo HIGH/CRITICAL) son las otras lentes de la bandeja. A diferencia de
-     * {@code assignedToMe}, no dependen del "yo": son filtros booleanos puros.
-     *
-     * <p>{@code staleDays} (lente "Frenados"): expedientes abiertos sin un solo cambio en los
-     * últimos N días. Alimenta el panel "Requiere atención" del tablero.
-     *
-     * <p>{@code dueSoon} (lente "Por vencer": {@code deadlinePriority != NONE}, ver
-     * {@link ar.edu.utn.frba.arbiter.common.enums.DeadlinePriority}) es otro filtro booleano puro,
-     * combinable con el resto igual que {@code unassigned}/{@code assigned}/{@code fraudAlert}.
+     * <p>{@code assignedToMe} is a boolean rather than an analyst id because that id is local to the
+     * schema: "me" is resolved from the token, and a caller with no analyst profile gets an empty
+     * page, not everything. {@code analystId}, by contrast, is the referent's explicit filter.
      */
     Page<CaseResponse> listCases(List<CaseStatus> status, String claimCause, String policyNumber, String insuredId,
                                   LocalDate eventDateFrom, LocalDate eventDateTo, String q, RiskBand riskBand,
@@ -106,7 +73,6 @@ public interface CaseService {
                                   boolean assigned, boolean dueSoon, Integer staleDays, CaseScope scope,
                                   Long insurerId, Pageable pageable);
 
-    /** Overload para las lentes "Míos"/"Todos" (sin las lentes de asignación, fraude ni vencimiento). */
     default Page<CaseResponse> listCases(List<CaseStatus> status, String claimCause, String policyNumber, String insuredId,
                                           LocalDate eventDateFrom, LocalDate eventDateTo, String q, RiskBand riskBand,
                                           boolean assignedToMe, Pageable pageable) {
@@ -114,97 +80,57 @@ public interface CaseService {
                 null, assignedToMe, false, false, false, false, null, CaseScope.ALL, null, pageable);
     }
 
-    /**
-     * Los cinco conteos de las lentes de una sola vez, sobre los mismos filtros que el listado.
-     * Cuenta con {@code count(spec)}: no trae filas ni joinea el análisis, a diferencia de pedir
-     * cada lente con {@code size=1} solo para leer el total.
-     */
+    /** All lens counts at once, over the same filters as the listing, using {@code count(spec)}. */
     LensSummaryResponse lensSummary(List<CaseStatus> status, String claimCause, String policyNumber,
                                      String insuredId, LocalDate eventDateFrom, LocalDate eventDateTo,
                                      String q, RiskBand riskBand, Long analystId, CaseScope scope);
 
     CaseResponse addDocumentsAndReclassify(Long caseId, Map<String, MultipartFile> documents);
 
-    /** @param insurerSlug misma razón que {@link #getCase(Long, String)}: los ids de expediente se repiten entre esquemas. */
+    /** @param insurerSlug see {@link #getCase(Long, String)} */
     CaseResponse addDocumentsAndReclassify(Long caseId, Map<String, MultipartFile> documents, String insurerSlug);
 
     /**
-     * Reintento manual de la clasificación para un expediente en {@code CLASSIFICATION_FAILED}. El
-     * scheduler solo barre {@code PENDING_CLASSIFICATION}, así que un caso que agotó los reintentos
-     * queda varado sin este empujón. Devuelve el caso a {@code PENDING_CLASSIFICATION} (reseteando
-     * el contador de intentos, si no el scheduler lo re-marcaría fallido enseguida) y vuelve a
-     * disparar el análisis con la documentación ya cargada. Lo dispara el analista, no el sistema:
-     * la máquina de estados rechaza (409) el reintento desde cualquier otro estado.
+     * Manual retry for a case in {@code CLASSIFICATION_FAILED}, which the scheduler no longer
+     * sweeps. Resets the attempt counter, otherwise the scheduler would mark it failed again at once.
      */
     CaseResponse retryClassification(Long caseId);
 
     /**
-     * Every policy the case's insured holds, not just the one being claimed. Scoped to the case on
-     * purpose: the analyst gets the context of whoever they're reviewing, not a lookup by DNI.
+     * Every policy the case's insured holds. Scoped to the case on purpose: the analyst gets context
+     * on whoever they're reviewing, not a lookup by DNI.
      */
     List<PolicyResponse> getInsuredPolicies(Long caseId);
 
     /**
-     * Registra la decisión del analista. Aprobar incluye determinar el monto: si ese monto supera
-     * la atribución del analista para el ramo, la decisión queda en suspenso —el expediente no se
-     * mueve— hasta que el referente la autorice con {@link #authorizeSettlement}.
+     * Approving includes the settlement amount: if it exceeds the analyst's authority for the
+     * branch, the decision is held — the case doesn't move — until {@link #authorizeSettlement}.
      */
     void recordAnalystDecision(Long caseId, AnalystDecisionRequest request);
 
-    /**
-     * El referente firma una liquidación que superaba la atribución del analista. Recién ahí la
-     * aprobación surte efecto y el expediente pasa a APROBADO.
-     */
     void authorizeSettlement(Long caseId);
 
-    /**
-     * El referente devuelve la liquidación al analista con un motivo. El expediente no se mueve:
-     * nunca salió de su revisión.
-     */
+    /** The case doesn't move: it never left the analyst's review. */
     void returnSettlement(Long caseId, String reason);
 
     /**
-     * Pone al analista como dueño del expediente, por su id de {@code claims_analyst}. Un solo
-     * analista por expediente: si ya tenía uno, esta asignación lo reemplaza. Asignar NO resuelve
-     * ni mueve de estado — el expediente sigue necesitando la decisión explícita del analista
-     * (decisión de arquitectura #5).
-     *
-     * <p>El analista se busca en el esquema del tenant activo, así que un id de otra aseguradora
-     * no resuelve y termina en 404.
+     * Replaces any previous owner. Assigning never resolves or moves the case. An analyst id from
+     * another insurer doesn't resolve in the tenant schema and ends in 404.
      */
     CaseResponse assignAnalyst(Long caseId, Long analystId);
 
-    /** Libera el expediente: vuelve a quedar sin dueño, visible en "Todos" y en ninguna lente "Míos". */
     CaseResponse unassignAnalyst(Long caseId);
 
     /**
-     * Reabre un expediente cerrado y lo devuelve al escritorio del analista
-     * ({@code PENDING_ANALYST_REVIEW}). Es la "rehabilitación" del doc de dominio BBVA: sin esto
-     * los tres estados terminales son callejones sin salida y el error de un analista —o la
-     * documentación que el asegurado trae después de que el expediente caducó— no tiene arreglo
-     * dentro del sistema.
-     *
-     * <p>Reabrir NO es un veredicto nuevo: no toca la decisión anterior (que quedó en el registro
-     * inmutable de clasificación, y sí ocurrió) ni el riesgo ni el antecedente de fraude. Solo
-     * vuelve a poner a una persona a decidir, coherente con la decisión de arquitectura #5. El
-     * {@code reason} es obligatorio porque es la única explicación que va a quedar en el historial.
-     *
-     * <p>Desde un estado no terminal la máquina de estados lo rechaza con 409 — no hay nada que
-     * reabrir en un expediente que sigue abierto.
+     * Sends a closed case back to {@code PENDING_ANALYST_REVIEW}. Not a new verdict: the previous
+     * decision, risk and fraud record stay untouched. The reason is mandatory because it is the
+     * only explanation left in the history.
      */
     CaseResponse reopenCase(Long caseId, String reason);
 
-    /**
-     * Carga de trabajo del equipo: cada analista del tenant con su cantidad de expedientes activos
-     * (no resueltos) asignados. Incluye a los analistas sin expedientes, con cero. Ordenado de más
-     * a menos cargado. Es la vista que usa el referente para repartir trabajo.
-     */
+    /** Every analyst of the tenant with their active case count, zero included, busiest first. */
     List<AnalystWorkloadResponse> analystWorkload();
 
-    /**
-     * Resumen de los expedientes asignados al analista logueado (conteo por estado + total + cuántos
-     * de riesgo alto/crítico), para las tarjetas de su inicio. El "yo" se resuelve contra el token;
-     * un rol sin perfil de analista recibe el resumen vacío.
-     */
+    /** A caller with no analyst profile gets an empty summary. */
     AssignedCaseSummaryResponse assignedCaseSummary();
 }

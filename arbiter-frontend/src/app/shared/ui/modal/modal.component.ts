@@ -1,11 +1,7 @@
 import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
 
 /**
- * Diálogo modal con backdrop. `open` controla la visibilidad; emite `close` al
- * clickear el fondo. Cuerpo como contenido proyectado; botonera en el slot
- * [modalActions]. `variant`: `center` (default, diálogo centrado) o `side`
- * (panel deslizante desde el borde derecho, alto completo — para formularios
- * tipo "alta de X" sobre un listado, patrón del wireframe):
+ * `variant="side"` is a full-height panel sliding in from the right, for create forms over a list.
  *
  *   <app-modal [open]="x()" heading="Título" variant="side" (close)="cancel()">
  *     <p>cuerpo…</p>
@@ -77,12 +73,8 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
       padding: var(--space-5);
       width: 100%;
       max-width: 440px;
-      /* Un contenido alto (ej. el wizard de denuncia) scrollea dentro del diálogo en vez de
-         empujar la página o desbordar el viewport. */
       max-height: 90vh;
       overflow-y: auto;
-      /* Entrada del diálogo centrado: aparece y sube apenas, con un pelín de escala. El panel
-         lateral (.side) sobreescribe esto con su propio slide-in. */
       animation: modal-in var(--dur-3) var(--ease-out);
     }
     @keyframes modal-in {
@@ -95,7 +87,6 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
         transform: none;
       }
     }
-    /* Diálogo ancho para formularios (ej. nueva denuncia). */
     .modal.lg {
       max-width: 680px;
     }
@@ -115,7 +106,6 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
         transform: translateX(0);
       }
     }
-    /* Respeta la preferencia del sistema: sin desplazamientos, solo el fade del contenido. */
     @media (prefers-reduced-motion: reduce) {
       .backdrop,
       .modal,
@@ -166,15 +156,12 @@ export class ModalComponent {
   readonly open = input(false);
   readonly heading = input('');
   readonly variant = input<'center' | 'side'>('center');
-  /** Ancho del diálogo centrado: `md` (440, default) o `lg` (680, para formularios). */
   readonly size = input<'md' | 'lg'>('md');
-  /** Oculta la barra de acciones del pie: para cuerpos que traen su propia botonera (ej. el wizard). */
+  /** For bodies that bring their own action buttons. */
   readonly hideActions = input(false);
   /**
-   * Si el click en el fondo cierra el diálogo. `true` por defecto (diálogos livianos, ej.
-   * notificaciones). Poner en `false` para formularios donde un click accidental afuera haría
-   * perder lo cargado (ej. el wizard de nueva denuncia). Solo tapa el backdrop: la cruz del
-   * header siempre cierra, porque ese click es deliberado y no uno accidental.
+   * Whether a backdrop click closes the dialog. Set `false` for forms where a stray click would lose
+   * the input; the header close button always closes.
    */
   readonly dismissable = input(true);
   readonly close = output<void>();

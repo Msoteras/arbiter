@@ -62,7 +62,6 @@ class ImageFraudAnalysisServiceTest {
         assertThat(finding.internalMatches().getFirst().matchedCaseId()).isEqualTo(42L);
         assertThat(finding.webFinding()).isNull();
         assertThat(report.webSearchesPerformed()).isZero();
-        // The finding is established internally — the image never goes to a third party.
         verifyNoInteractions(googleVisionClient);
     }
 
@@ -106,15 +105,11 @@ class ImageFraudAnalysisServiceTest {
         assertThat(report.findings().getFirst().webFinding()).isNull();
         assertThat(report.webSearchesPerformed()).isZero();
         verifyNoInteractions(googleVisionClient);
-        // Recorded, not just acted upon: zero searches alone can't tell a refusal apart from an
-        // image that needed no escalation. Ley 25.326 cares about the refusal specifically.
+        // Zero searches alone can't tell a refusal from an image that needed no escalation.
         assertThat(report.imageConsent()).isFalse();
     }
 
-    /**
-     * The analyst has to be able to tell "we looked and found nothing" from "we were not allowed to
-     * look". Without this line the absence of a web finding reads as absence of evidence.
-     */
+    /** "Found nothing" must be distinguishable from "not allowed to look". */
     @Test
     void noConsentIsSpelledOutInTheTraces() {
         internalReturns();
@@ -134,7 +129,7 @@ class ImageFraudAnalysisServiceTest {
 
         ImageForensicReport report = service.analyze(1L, List.of(image("damage_photo")), true);
 
-        // Searched, found nothing: webFinding is present but not found() — and it counts as a search.
+        // Searched and found nothing: still counts as a search.
         assertThat(report.findings().getFirst().webFinding()).isNotNull();
         assertThat(report.findings().getFirst().webFinding().found()).isFalse();
         assertThat(report.webSearchesPerformed()).isEqualTo(1);

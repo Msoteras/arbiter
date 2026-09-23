@@ -22,6 +22,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyIterable;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -29,7 +30,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * On-demand sync of a policy's local snapshot (decision #10). What's being tested is that a
+ * On-demand sync of a policy's local snapshot. What's being tested is that a
  * policy the company has and Arbiter doesn't gets copied instead of rejected — and that what does
  * fail is the coverage, which is referente configuration and can't be invented.
  */
@@ -59,18 +60,14 @@ class PolicySynchronizerTest {
         assertThat(saved.getInsuredId()).isEqualTo(1L);
         assertThat(saved.isInForce()).isTrue();
         assertThat(saved.getSyncedAt()).isNotNull();
-        // La suma asegurada NO está en la póliza: es de la cobertura contratada.
+        // The sum insured belongs to the contracted coverage, not to the policy.
         PolicyCoverage contracted = firstContracted();
         assertThat(contracted.getCoverage()).isSameAs(coverage);
         assertThat(contracted.getSumInsured()).isEqualByComparingTo("90000");
         assertThat(contracted.getDisplayOrder()).isEqualTo(1);
     }
 
-    /**
-     * El bug que motivó todo esto: la compañía devuelve varias coberturas y el sync se quedaba con
-     * {@code coverages.get(0)}. Una póliza de celulares cubre robo Y hurto, cada una con su suma
-     * asegurada, y quedarse con una sola dejaba al asegurado sin poder denunciar lo que sí cubre.
-     */
+    /** Every coverage is kept: a mobile-phone policy covers both robbery and theft, each with its own sum. */
     @Test
     void importsEveryCoverageTheCompanyReturns() {
         givenRemotePolicyWithCoverages(
@@ -88,15 +85,11 @@ class PolicySynchronizerTest {
                 .containsExactly("Robo de celular", "Hurto");
         assertThat(contracted).extracting(PolicyCoverage::getSumInsured)
                 .containsExactly(new BigDecimal("1300000"), new BigDecimal("650000"));
-        // El orden de la compañía se conserva: es el desempate cuando la cobertura no se puede
-        // resolver por el hecho generador.
+        // The company's order is kept: it breaks ties when the claim cause can't pick the coverage.
         assertThat(contracted).extracting(PolicyCoverage::getDisplayOrder).containsExactly(1, 2);
     }
 
-    /**
-     * Una cobertura que el referente no configuró se saltea con warning en vez de voltear la
-     * importación entera: que falte un riesgo no puede impedir denunciar contra los que sí están.
-     */
+    /** An unconfigured coverage is skipped, not fatal: one missing risk can't block claims on the rest. */
     @Test
     void skipsTheCoveragesTheTenantHasNotConfigured() {
         givenRemotePolicyWithCoverages(
@@ -148,10 +141,8 @@ class PolicySynchronizerTest {
     }
 
     /**
-     * El nombre solo no alcanza para resolver una cobertura. La BD Aseguradora tiene los nombres
-     * acotados a tres literales, así que una póliza de Tecnología Portátil trae su robo bajo el
-     * nombre "Robo de celular": matcheando solo por nombre le colgaba a una notebook la cobertura
-     * de Celulares, con sus plazos, su carencia y su tope de eventos.
+     * The name alone can't resolve a coverage: the insurer DB only has three coverage names, so a
+     * portable-tech policy reports its robbery as "Robo de celular" and must not get the phone one.
      */
     @Test
     void doesNotAttachACoverageFromAnotherBranch() {
@@ -177,11 +168,7 @@ class PolicySynchronizerTest {
                 .containsExactly("Daño accidental");
     }
 
-    /**
-     * El resync (decisión #10, la mitad "cron"): la compañía cambió la suma asegurada y la copia
-     * local tiene que seguirla. Esa suma es el denominador del ratio de Fast Track, así que una
-     * copia vieja hace que la pantalla del analista y el motor no coincidan.
-     */
+    /** The local copy follows a changed sum insured: it is the denominator of the Fast Track ratio. */
     @Test
     void resyncBringsTheLocalCopyBackInLineWithTheCompany() {
         givenRemotePolicyWithCoverages(coverageResponse("Hurto", "360000"));
@@ -203,7 +190,7 @@ class PolicySynchronizerTest {
         assertThat(desactualizada.getSumInsured()).isEqualByComparingTo("360000");
     }
 
-    /** Sin diferencias no escribe nada: el caso normal de casi todas las corridas. */
+    /** No differences, no writes. */
     @Test
     void resyncOfAnAlreadyAlignedPolicyChangesNothing() {
         givenRemotePolicyWithCoverages(coverageResponse("Hurto", "360000"));
@@ -221,10 +208,7 @@ class PolicySynchronizerTest {
         verify(policyCoverageRepository, never()).save(any(PolicyCoverage.class));
     }
 
-    /**
-     * Una cobertura que la compañía dejó de devolver NO se borra: hay expedientes abiertos
-     * colgados de ella, y sacarla los dejaría apuntando a una cobertura que ya no existe.
-     */
+    /** A coverage the company stopped returning is kept: open cases still point to it. */
     @Test
     void resyncNeverDeletesACoverageTheCompanyStoppedReturning() {
         givenRemotePolicyWithCoverages(coverageResponse("Robo de celular", "900000"));
@@ -243,10 +227,10 @@ class PolicySynchronizerTest {
         synchronizer.resync(local());
 
         verify(policyCoverageRepository, never()).delete(any(PolicyCoverage.class));
-        verify(policyCoverageRepository, never()).deleteByPolicyId(any());
+        verify(policyCoverageRepository, never()).deleteAll(anyIterable());
     }
 
-    /** La póliza que la compañía ya no tiene se deja como está, por la misma razón. */
+    /** A policy the company no longer has is left untouched, for the same reason. */
     @Test
     void resyncOfAPolicyTheCompanyNoLongerHasChangesNothing() {
         when(insurerAdapter.findPolicy(POLICY_NUMBER)).thenReturn(Optional.empty());

@@ -30,12 +30,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-/**
- * End to end through HTTP with the real service, repository and exporters over a seeded database —
- * no mocks. {@code ResolutionReportSecurityTests} covers who may call these endpoints; this one
- * covers that what comes back is the actual report: the bytes a referent downloads, built from rows
- * that are really in the database.
- */
+/** End to end through HTTP with the real service, repository and exporters over a seeded database. */
 @SpringBootTest
 @AutoConfigureMockMvc
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
@@ -69,10 +64,7 @@ class ResolutionReportExportTests extends AbstractPersistenceIT {
         tables.recommendation(1, "LLM_RECOMIENDA_APROBAR");
     }
 
-    /**
-     * The tenant schema travels in the token. Here it's {@code public}, which is where
-     * {@link AbstractPersistenceIT}'s flat test schema keeps everything.
-     */
+    /** The tenant schema travels in the token; here it's {@code public}, the flat test schema. */
     private String bearer(String rol, String tenantSchema) {
         Instant now = Instant.now();
         var token = Jwts.builder()

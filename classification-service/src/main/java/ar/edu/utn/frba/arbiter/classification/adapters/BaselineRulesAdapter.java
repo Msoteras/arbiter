@@ -10,34 +10,18 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * The platform's hardcoded rule set, in code and not in a table — the layer {@link RulesRestAdapter}
- * overlays what the referente configured on top of. Not a test double: it's wired in every profile,
- * runs on every classification, and is what a coverage falls back to section by section (Fast
- * Track, scoring, hard rules, document agenda...) for whatever the insurer hasn't configured yet.
- * It only becomes the WHOLE answer — nothing left to overlay — in the {@code test} profile, where
- * {@link RulesRestAdapter} is excluded and this is the only {@link RulesAdapter} bean.
+ * The platform's baseline rule set, onto which {@link RulesRestAdapter} overlays what the referente
+ * configured. Not a test double: every section the insurer hasn't configured falls back to it. It is
+ * the whole answer only in the {@code test} profile, where {@link RulesRestAdapter} is excluded.
  */
 @Component
 public class BaselineRulesAdapter implements RulesAdapter {
 
     /**
-     * Default fraud-scoring config for the baseline, meant as a faithful H0012 reference config.
-     * Active factors: amount ratio, claim frequency, policy standing (the three with real logic on
-     * every claim) plus the two image-fraud factors ({@code IMAGE_REUSE}, {@code IMAGE_WEB_MATCH}).
-     * The image factors are safe to keep active because the engine now drops non-evaluable factors
-     * from the weighted average: on Fast Track / image-less claims they simply don't participate,
-     * so they don't dilute the score — they only weigh in when there's an image analysis to grade.
-     *
-     * <p>{@code PURCHASE_TO_REPORT_TIME} stays out of the active set: it uses the policy's start date
-     * as a proxy for the purchase date, so it would produce a real (biased) score from stubbed data
-     * — a data-quality issue the non-evaluable exclusion doesn't fix. {@code DOCUMENT_INCONSISTENCY}
-     * stopped being a stub on 10/08 (it now really compares IMEI, marca/modelo, fechas e importe),
-     * but it's left out of THIS default on purpose: it's a per-insurer call, made from the Reglas
-     * screen (Configuración de scoring), not something to turn on for every dev/test run silently.
-     *
-     * <p>Weights don't need to sum to 1 (the engine normalizes by total active weight). Bands use the
-     * documented H0012 cuts (Bajo / Medio / Alto / Crítico). The image weights are provisional — an
-     * insurer overrides all of this via its own rules.
+     * Image factors can stay active: non-evaluable factors are dropped from the weighted average, so
+     * image-less claims aren't diluted. {@code PURCHASE_TO_REPORT_TIME} is left out because it uses the
+     * policy start date as a proxy for the purchase date (biased score); {@code DOCUMENT_INCONSISTENCY}
+     * is left out because enabling it is a per-insurer decision. Weights are normalized by the engine.
      */
     private static final BusinessRules.ScoringConfig DEFAULT_SCORING_CONFIG = BusinessRules.ScoringConfig.builder()
             .factors(List.of(
@@ -61,27 +45,18 @@ public class BaselineRulesAdapter implements RulesAdapter {
         return BusinessRules.ScoringConfig.Band.builder().band(band).minScoreInclusive(minScoreInclusive).build();
     }
 
-    /**
-     * An active hard temporal rule. The ids mirror the ones in {@code init-multitenant.sql}'s
-     * seed: the baseline has to be swappable with whatever rules-service serves without changing
-     * behavior, and in the case-bound flow that id ends up in {@code rule_result.rule_id}.
-     */
+    /** Ids mirror {@code init-multitenant.sql}'s seed: they end up in {@code rule_result.rule_id}. */
     private static BusinessRules.EvaluableRule temporalRule(long id, RuleType type) {
         return BusinessRules.EvaluableRule.builder()
                 .id(id)
                 .ruleType(type.name())
-                // A failed hard rule doesn't reject on its own (human-in-the-loop): it derives to
-                // the analyst.
+                // A failed hard rule never rejects on its own: it routes the claim to the analyst.
                 .effect("DERIVAR")
                 .blocksFastTrack(true)
                 .build();
     }
 
-    /**
-     * The police-report deadline is the only hard rule with its own threshold (the rest take it
-     * from the coverage). 72h was the value of the property that used to govern every insurer
-     * before the rule became configurable; it stays as the baseline's own default.
-     */
+    /** The only hard rule with its own threshold; the others take theirs from the coverage. */
     private static BusinessRules.EvaluableRule policeDeadlineRule(long id, long deadlineHours) {
         return BusinessRules.EvaluableRule.builder()
                 .id(id)
@@ -92,10 +67,8 @@ public class BaselineRulesAdapter implements RulesAdapter {
                 .build();
     }
 
-    // Keyed by coverage id: the DER scopes regla_aseguradora by rama + cobertura, NOT by hecho
-    // generador (getRules gets the claim cause separately, for the document-requirement axis).
-    // Seed coverage ids: 1 = "Robo de celular" (robo en vía pública), 2 = "Hurto". A claim cause
-    // with no coverage (e.g. rotura accidental) has no rule and falls back to defaultGenericRules.
+    // Keyed by coverage id (insurer rules are scoped by branch + coverage, not by claim cause).
+    // Seed ids: 1 = cellphone robbery, 2 = theft (hurto). Anything else falls back to defaultGenericRules.
     private static final Map<Long, BusinessRules> RULES_BY_COVERAGE = Map.of(
             1L, BusinessRules.builder()
                     .branchId("Celulares")
@@ -125,15 +98,11 @@ public class BaselineRulesAdapter implements RulesAdapter {
                             .build())
                     .requiredDocumentTypes(List.of("police_report"))
                     .scoringConfig(DEFAULT_SCORING_CONFIG)
-                    // Coverage limits (D10/D11), mirroring the seed: 72 h deadline, 2 events/year.
                     .reportDeadlineHours(72L)
                     .maxEventsPerYear(2)
                     .waitingPeriodDays(30)
-                    // Hard evaluable rules, mirroring init-multitenant.sql's seed. The exclusion is
-                    // handoff case 6 ("Hurto not covered"): the robbery coverage (id 1) excludes
-                    // the hecho generador Hurto (claim_cause id 3). Blacklist: a robbery (cause 2)
-                    // isn't affected. The temporal ones ship with the insurer at full strength:
-                    // without their row, the engine simply doesn't evaluate them.
+                    // Mirrors the seed: the robbery coverage excludes the theft (hurto) claim cause (id 3).
+                    // Temporal rules are only evaluated when their row exists.
                     .evaluableRules(List.of(
                             BusinessRules.EvaluableRule.builder()
                                     .id(3L)
@@ -173,7 +142,6 @@ public class BaselineRulesAdapter implements RulesAdapter {
                             .build())
                     .requiredDocumentTypes(List.of("police_report"))
                     .scoringConfig(DEFAULT_SCORING_CONFIG)
-                    // Coverage limits (D10/D11), mirroring the seed: 72 h deadline, 1 event/year.
                     .reportDeadlineHours(72L)
                     .maxEventsPerYear(1)
                     .waitingPeriodDays(30)
@@ -192,12 +160,7 @@ public class BaselineRulesAdapter implements RulesAdapter {
         return withFraudRecordPolicy(rules != null ? rules : defaultGenericRules(branchId, claimCauseId));
     }
 
-    /**
-     * No row in the baseline: a Fast Track veto weighs on a <b>person</b>, so only the insurer
-     * turns it on by configuring it (Ley 25.326). This class is what's left once
-     * {@link RulesRestAdapter} isn't in the picture ({@code test} profile) — it can't be the one
-     * that starts vetoing claims against someone.
-     */
+    /** Never configured in the baseline: a Fast Track veto weighs on a person, so only the insurer turns it on (Ley 25.326). */
     @Override
     public BusinessRules.FraudRecordPolicy getFraudRecordPolicy() {
         return BusinessRules.FraudRecordPolicy.unconfigured();

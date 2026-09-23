@@ -5,10 +5,6 @@ import ar.edu.utn.frba.arbiter.classification.services.risk.RiskFactorEvaluator;
 import ar.edu.utn.frba.arbiter.classification.services.risk.RiskFactorIds;
 import org.springframework.stereotype.Component;
 
-/**
- * Standing of the policy at claim time. A policy behind on payments is a risk signal; one up to
- * date is not. Binary by nature, so the contribution is 1.0 or 0.0.
- */
 @Component
 public class PolicyStandingEvaluator implements RiskFactorEvaluator {
 

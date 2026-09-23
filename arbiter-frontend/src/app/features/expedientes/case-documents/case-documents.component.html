@@ -8,13 +8,11 @@
     </p>
   </app-card>
 } @else if (!showMissing() && presentCount() === 0) {
-  <!-- Portal sin adjuntos: una lista y un visor vacíos no dicen nada, mejor una sola nota. -->
   <app-card [heading]="heading()">
     <p class="t-note">No enviaste documentación para este expediente.</p>
   </app-card>
 } @else {
   <div class="docs-layout">
-    <!-- Checklist: las 4 filas siempre, presentes y faltantes -->
     <app-card class="docs-list" [heading]="heading()">
       <p class="docs-count">
         @if (showMissing()) {
@@ -28,8 +26,7 @@
       <ul class="doc-items">
         @for (row of rows(); track row.type; let i = $index) {
           @if (i === firstExtraIndex()) {
-            <!-- El informe pericial no es un casillero de la agenda: se lista, pero aparte, para
-                 que "N de M documentos cargados" siga contando lo que el asegurado tiene que subir. -->
+            <!-- Not part of the document agenda: listed apart so "N de M" only counts what the insured must upload. -->
             <li class="doc-section t-section-label">Otros documentos del expediente</li>
           }
           <li class="doc-item" [class.missing]="!row.doc">
@@ -65,12 +62,8 @@
       </ul>
     </app-card>
 
-    <!-- Visor embebido + lo que el modelo leyó de ESE documento, uno debajo del otro: el papel y
-         su lectura son la misma unidad de trabajo. -->
     <div class="docs-viewer-col">
-      <!-- Colapsada por default: lo que importa es la lectura del modelo, de abajo. El visor
-           es para cuando hace falta chequear el papel contra lo que el modelo dijo, no lo
-           primero que se mira. -->
+      <!-- Collapsed by default: the model's reading below is what the analyst looks at first. -->
       <app-card class="docs-viewer" heading="Vista previa" [collapsible]="true" [collapsed]="true">
         @let p = preview();
 
@@ -115,8 +108,7 @@
         }
       </app-card>
 
-      <!-- Lo que el modelo leyó del adjunto abierto. Un campo vacío se muestra "No aplica" y NUNCA
-           como discrepancia: que un documento no diga algo no es que no coincida. -->
+      <!-- An empty field is "No aplica", never a mismatch: a document omitting something doesn't contradict it. -->
       @if (selectedExtraction(); as extraction) {
         <app-card class="docs-extraction" heading="Lo que el modelo leyó" [collapsible]="true">
           @if (!selectedIsImage()) {
@@ -134,8 +126,7 @@
             </dl>
           }
 
-          <!-- Observación sobre la IMAGEN, no contenido del documento: se separa a propósito
-               para que no se lea como si el papel lo dijera. Nunca es concluyente. -->
+          <!-- Observations about the image itself, kept apart so they don't read as document content. -->
           @if (extraction.visualFindings.length > 0) {
             <div class="visual-findings">
               <span class="t-field-label">Señales en la imagen</span>

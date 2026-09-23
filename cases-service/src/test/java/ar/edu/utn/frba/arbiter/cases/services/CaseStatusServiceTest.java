@@ -48,7 +48,7 @@ class CaseStatusServiceTest {
     @Mock
     private CaseNotificationService notificationService;
 
-    /** Only stubbed where a transition actually leaves a PAUSING_STATUSES status (resets the deadline). */
+    /** Only stubbed where a transition leaves a term-pausing status (which resets the deadline). */
     @Mock
     private Clock clock;
 
@@ -105,8 +105,8 @@ class CaseStatusServiceTest {
                 CaseStatus.PENDING_CLASSIFICATION, CaseStatus.PENDING_ANALYST_REVIEW,
                 StatusChangeActor.SYSTEM, "clasificación: LLM_RECOMIENDA_APROBAR");
 
-        // La entidad releída, no la copia que se le pasó: es sobre esa que el llamador cachea
-        // lo suyo antes de guardar.
+        // The re-read entity, not the copy passed in: the caller caches its own data on it before
+        // saving.
         assertThat(moved).containsSame(fresh);
         CaseStatusHistory row = captureHistory();
         assertThat(row.getFromStatus()).isEqualTo(CaseStatus.PENDING_CLASSIFICATION);
@@ -115,8 +115,8 @@ class CaseStatusServiceTest {
     }
 
     /**
-     * El barrido que llega segundo. Lo que importa no es el Optional vacío sino lo que NO pasa:
-     * ni fila de historial ni notificación — las dos cosas que se duplicaban.
+     * The sweep that arrives second. What matters isn't the empty Optional but what does NOT
+     * happen: no history row and no notification.
      */
     @Test
     void transitionIfStillIn_writesNothing_whenAnotherSweepGotThereFirst() {
@@ -137,9 +137,8 @@ class CaseStatusServiceTest {
     }
 
     /**
-     * El estado esperado se pasa explícito, así que la validación tiene que correr contra ese y no
-     * contra lo que traiga la copia vieja — si no, el CAS blindaría la escritura pero la máquina de
-     * estados quedaría mirando un dato sin autoridad.
+     * Validation must run against the explicit expected status, not the stale copy's; otherwise the
+     * CAS would guard the write while the state machine looked at data with no authority.
      */
     @Test
     void transitionIfStillIn_rejectsAnInvalidTransition_withoutTouchingTheDatabase() {
@@ -194,8 +193,8 @@ class CaseStatusServiceTest {
     }
 
     /**
-     * Decidir sin el informe sería resolver el expediente ignorando la evidencia que se salió a
-     * buscar. El único camino de vuelta es la revisión del analista.
+     * Deciding without the report would ignore the evidence that was requested. The only way back
+     * is the analyst's review.
      */
     @Test
     void transition_refusesToResolveACaseThatIsStillWithTheExpert() {
@@ -209,7 +208,7 @@ class CaseStatusServiceTest {
         verify(caseRepository, never()).save(any());
     }
 
-    /** Una derivación por expediente: desde PENDING_EXPERT_REPORT no se sale derivando de nuevo. */
+    /** One derivation per case: PENDING_EXPERT_REPORT can't be left by deriving again. */
     @Test
     void transition_refusesASecondDerivation() {
         Case entity = caseRecord(1L, CaseStatus.PENDING_EXPERT_REPORT);
@@ -220,9 +219,8 @@ class CaseStatusServiceTest {
     }
 
     /**
-     * Cierre por caducidad (LapseSweepScheduler): aunque se sale de AWAITING_DOCUMENTATION (una
-     * PAUSING_STATUSES), el requerimiento nunca se cumplió — no hay plazo que reanudar, y el
-     * caso no debería tocar el clock para eso.
+     * Lapse closure: although it leaves a term-pausing status, the request was never fulfilled, so
+     * there's no term to resume and the clock must not be touched.
      */
     @Test
     void transition_toLapsed_doesNotResumeTheDeadline() {
@@ -241,15 +239,14 @@ class CaseStatusServiceTest {
     }
 
     /**
-     * Reapertura ("rehabilitación"): los tres terminales vuelven al escritorio del analista. Sin
-     * esto un error del analista —o la documentación que el asegurado trae tarde— no tiene arreglo
-     * dentro del sistema.
+     * Reopening: all three terminal statuses go back to the analyst. Without it an analyst's mistake,
+     * or documents the insured brings late, can't be fixed within the system.
      */
     @ParameterizedTest
     @EnumSource(value = CaseStatus.class, names = {"APPROVED", "REJECTED", "LAPSED"})
     void transition_reopensAClosedCaseBackToTheAnalyst(CaseStatus terminal) {
         Case entity = caseRecord(1L, terminal);
-        entity.setResponseDeadline(LocalDate.of(2020, 1, 1)); // vencido hace años
+        entity.setResponseDeadline(LocalDate.of(2020, 1, 1));
         when(caseStateCatalog.resolve(CaseStatus.PENDING_ANALYST_REVIEW))
                 .thenReturn(CaseStates.of(CaseStatus.PENDING_ANALYST_REVIEW));
         when(caseRepository.save(any(Case.class))).thenAnswer(inv -> inv.getArgument(0));
@@ -260,19 +257,17 @@ class CaseStatusServiceTest {
                 StatusChangeActor.ANALYST, "expediente reabierto: error de carga");
 
         assertThat(entity.getStatus()).isEqualTo(CaseStatus.PENDING_ANALYST_REVIEW);
-        // El plazo del art. 56 arranca de cero: reabrir para corregir un error no puede entregar
-        // un expediente ya vencido.
+        // The art. 56 term starts over: reopening to fix a mistake can't hand over an already
+        // overdue case.
         assertThat(entity.getResponseDeadline())
                 .isEqualTo(LocalDate.of(2026, 8, 31).plusDays(CaseStatusService.RESPONSE_TERM_DAYS));
-        // Al asegurado se le avisa: su siniestro estaba cerrado y volvió a estar abierto.
         verify(notificationService).notifyReopened(entity);
         verify(notificationService, never()).notifyStatusChange(any(), any());
     }
 
     /**
-     * La contracara: una clasificación normal llega al mismo PENDING_ANALYST_REVIEW y NO es una
-     * reapertura. Sin el chequeo del estado de origen, el asegurado recibía "reabrimos tu
-     * siniestro" cada vez que el modelo terminaba de clasificar.
+     * The counterpart: an ordinary classification reaches the same PENDING_ANALYST_REVIEW and is NOT
+     * a reopening; only the source status tells them apart.
      */
     @Test
     void transition_doesNotAnnounceAReopeningOnAnOrdinaryClassification() {
@@ -287,7 +282,6 @@ class CaseStatusServiceTest {
         verify(notificationService, never()).notifyReopened(any());
     }
 
-    /** No hay nada que reabrir en un expediente que sigue abierto: la máquina de estados lo corta. */
     @Test
     void transition_refusesToReopenACaseThatIsStillOpen() {
         Case entity = caseRecord(1L, CaseStatus.AWAITING_DOCUMENTATION);
@@ -300,10 +294,6 @@ class CaseStatusServiceTest {
         verify(caseRepository, never()).save(any());
     }
 
-    /**
-     * Un expediente reabierto vuelve al circuito completo, no a un limbo: desde la revisión se
-     * puede resolver de nuevo, pedir documentación o derivar, igual que cualquier otro.
-     */
     @Test
     void transition_aReopenedCaseCanBeResolvedAgain() {
         Case entity = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
@@ -314,8 +304,8 @@ class CaseStatusServiceTest {
                 StatusChangeActor.ANALYST, "decisión del analista: APPROVE");
 
         assertThat(entity.getStatus()).isEqualTo(CaseStatus.APPROVED);
-        // Resolver no reinicia nada: el plazo se apaga porque el estado es terminal, no porque se
-        // haya reseteado (verifyNoInteractions(clock) es lo que lo distingue).
+        // Resolving resets nothing: the term stops because the status is terminal, which
+        // verifyNoInteractions(clock) tells apart from a reset.
         verifyNoInteractions(clock);
     }
 

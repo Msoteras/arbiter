@@ -1,6 +1,5 @@
 server:
-  # ${PORT} is what the platform injects (Railway); the literal stays as the local
-  # default so docker-compose and `mvn spring-boot:run` keep the ports the team knows.
+  # PORT is injected by the platform; the literal is the local default.
   port: ${PORT:8082}
 
 spring:
@@ -11,13 +10,8 @@ spring:
       enabled: true
   servlet:
     multipart:
-      # cases-service forwards the case's documents here on every (re)classification — not just
-      # the batch the insured just uploaded, ALL of them, since the model needs the full picture
-      # each time. Spring's default (1MB/file, 10MB/request) rejected that the moment a photo was
-      # in the mix: 413 Content Too Large, surfaced to the insured as the upload "breaking". The
-      # per-file cap matches what cases-service already enforces on the original upload (no single
-      # file gets here bigger than that); the request cap is higher because several of a case's
-      # documents travel together in one call.
+      # cases-service sends ALL of a case's documents on every (re)classification. The per-file
+      # cap matches cases-service's upload limit; the request cap covers several files per call.
       max-file-size: 10MB
       max-request-size: 50MB
   datasource:
@@ -25,24 +19,19 @@ spring:
     username: ${DB_USER:arbiter}
     password: ${DB_PASSWORD:arbiter}
     hikari:
-      # Five and not Hikari's default ten: with the services deployed plus every developer's
-      # local stack pointing at the same Postgres, the defaults alone exhaust a small plan's
-      # connection limit.
+      # Below Hikari's default of 10 so all services together fit a small plan's connection limit.
       maximum-pool-size: ${DB_POOL_SIZE:5}
   jpa:
-    # Off, not just best-practice: with multi-tenancy, an open-in-view session opens (and
-    # resolves its tenant) on the request's first query and stays pinned to it for the rest
-    # of the request — see auth-service's application.yml for the concrete bug this caused
-    # there.
+    # Required with multi-tenancy: an open-in-view session would stay pinned to the tenant
+    # resolved on the request's first query.
     open-in-view: false
     hibernate:
       ddl-auto: validate
     properties:
       hibernate:
         hbm2ddl:
-          # Ver el comentario de auth-service: con las entidades repartidas entre
-          # arbiter_common y el esquema del tenant, `grouped` sólo mira el esquema por
-          # defecto y da por faltantes las del común.
+          # Entities span arbiter_common and the tenant schema; `grouped` only inspects the
+          # default schema and reports the common tables as missing.
           jdbc_metadata_extraction_strategy: individually
 
 arbiter:
@@ -53,42 +42,33 @@ arbiter:
     url: ${RULES_SERVICE_URL:http://localhost:8081}
   classification:
     retry:
-      # Ventana del @Retryable de ClaimClassificationService para HttpServerErrorException /
-      # ResourceAccessException (caída de un dependiente, ej. rules-service). Antes eran 3
-      # intentos fijos con 2s/4s de espera (~14s en total): se agotaban mucho antes de que un
-      # contenedor terminara de reiniciar o un deploy volviera a responder. Con estos defaults
-      # (6 intentos, 15s doblando hasta 60s entre cada uno) la ventana total ronda los 4-5 min.
+      # Retry window when a dependency is down (~4-5 min total), long enough to outlast a
+      # container restart or a deploy.
       max-attempts: ${CLASSIFICATION_RETRY_MAX_ATTEMPTS:6}
       initial-delay-ms: ${CLASSIFICATION_RETRY_INITIAL_DELAY_MS:15000}
       multiplier: ${CLASSIFICATION_RETRY_MULTIPLIER:2.0}
       max-delay-ms: ${CLASSIFICATION_RETRY_MAX_DELAY_MS:60000}
   llm:
-    # Quién sirve el modelo: `ollama` (default) o `gemini`. El default NO es un detalle: es el
-    # despliegue que describe el documento de arquitectura, y nadie tiene que empezar a pegarle a
-    # una API paga por bajarse una rama.
+    # `ollama` (default) or `gemini`. Keep the default: nobody should start calling a paid API
+    # just by pulling a branch.
     provider: ${LLM_PROVIDER:ollama}
-    # Fuente única: PromptBuilder carga prompts/<esta versión>.md y esto es lo que se persiste en
-    # llm_analysis.prompt_version (auditoría SSN 2/2023). Bumpearla sin crear el archivo rompe al
-    # arrancar, a propósito.
+    # Loads prompts/<version>.md and is persisted in llm_analysis.prompt_version. Bumping it
+    # without creating the file fails at startup, on purpose.
     prompt-version: classification-v5
   ollama:
     base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
     model: ${OLLAMA_MODEL:qwen3-vl:8b-instruct}
     num-ctx: ${OLLAMA_NUM_CTX:32768}
   gemini:
-    # Sin API key: el SDK autentica por ADC (`gcloud auth application-default login` en la máquina,
-    # service account en Docker), así que no hay secreto que pueda terminar versionado acá.
+    # No API key: the SDK authenticates through ADC.
     project: ${GOOGLE_CLOUD_PROJECT:}
-    # `global` y no una región concreta: los Gemini 3 solo se sirven desde el endpoint global y
-    # desde las multirregión `us`/`eu`. La contra es que con `global` no se controla dónde ocurre
-    # el procesamiento, así que el día que haya datos reales esto pasa a `us` o `eu` (o a una
-    # región, con el modelo que esa región tenga) y ahí sí se puede afirmar residencia de datos.
+    # Gemini 3 is only served from `global` and the `us`/`eu` multi-regions. `global` gives no
+    # control over data residency: switch to `us` or `eu` before handling real data.
     location: ${GOOGLE_CLOUD_LOCATION:global}
     model: ${GEMINI_MODEL:gemini-3.5-flash}
-    # Equivalente a num-predict de Ollama: al modelo se le pide un JSON chico, y una generación
-    # desbocada acá se factura.
+    # Same role as Ollama's num-predict: a runaway generation is billed.
     max-output-tokens: ${GEMINI_MAX_OUTPUT_TOKENS:4096}
-    # Solo para avisar antes de desbordar; la ventana real la fija el modelo, no nosotros.
+    # Only used to warn before overflowing; the real window is the model's.
     context-window: ${GEMINI_CONTEXT_WINDOW:1000000}
   embedding:
     service-url: ${EMBEDDING_SERVICE_URL:http://localhost:8000}
@@ -109,8 +89,7 @@ management:
   endpoints:
     web:
       exposure:
-        # Health only: this is the platform probe, not an ops console. Anything else exposed
-        # here would be reachable from the internet on whichever service gets a public domain.
+        # Health only: anything else would be reachable from the internet on a public service.
         include: health
   endpoint:
     health:

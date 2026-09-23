@@ -1,7 +1,6 @@
 @if (showFullLoader()) {
   <app-loading message="Preparando el panorama de tu operación" sub="Aguardá un momento" />
 } @else if (pageLoading()) {
-  <!-- Revisita al home (la app ya arrancó): carga parcial, con el shell visible. -->
   <div class="partial-load">
     <app-inline-loading [size]="30" message="Actualizando el panorama…" />
   </div>
@@ -108,8 +107,6 @@
             }
           </ul>
         }
-        <!-- La carga del equipo se mira para redistribuir trabajo: el salto a Usuarios es el
-             siguiente paso natural, igual que "Ver todos los expedientes" en la card de al lado. -->
         <a routerLink="/insurer/users" class="see-all">Ir a Usuarios ›</a>
       </app-card>
     </div>

@@ -58,7 +58,7 @@ class InsuredFraudRecordServiceTest {
         assertThat(response.scores()).isTrue();
     }
 
-    /** Registered, visible, and still not counted: that's what "sin peritaje" buys. */
+    /** Without an expert assessment: registered and visible, but it doesn't count. */
     @Test
     void anAnalystDeclaredRecordIsInForceButDoesNotScore() {
         when(repository.findByCaseId(77L)).thenReturn(Optional.empty());
@@ -87,10 +87,7 @@ class InsuredFraudRecordServiceTest {
         verify(repository, never()).save(any());
     }
 
-    /**
-     * A lapsed record still comes back — "hubo un antecedente y ya no cuenta" and "no hubo ninguno"
-     * are different answers for the analyst.
-     */
+    /** A lapsed record still comes back: "one that expired" differs from "none" for the analyst. */
     @Test
     void lapsedRecordsAreReturnedFlaggedAsOutOfForce() {
         InsuredFraudRecord old = record(FraudRecordSource.EXPERT_BACKED, null);
@@ -104,10 +101,7 @@ class InsuredFraudRecordServiceTest {
                 });
     }
 
-    /**
-     * Sin regla configurada la ventana es la de por defecto: un antecedente reciente sigue
-     * vigente y calificando, y uno más viejo que esa ventana ya no.
-     */
+    /** With no rule configured, the default window applies. */
     @Test
     void withNoRuleConfiguredTheDefaultWindowApplies() {
         when(rulesAdapter.getFraudRecordPolicy())

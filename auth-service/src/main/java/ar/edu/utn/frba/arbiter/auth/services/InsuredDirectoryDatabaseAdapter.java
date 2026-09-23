@@ -9,14 +9,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.List;
 
-/**
- * Reads {@code aseguradora_<tenant>.asegurado} straight from the insurer's database — the
- * integration decision #10 calls "por base de datos compartida", the same way
- * cases-service and classification-service reach it.
- *
- * <p>Active only under the {@code insurer-db} profile and {@code @Primary} over
- * {@link MockInsuredDirectoryAdapter}, so dev and tests without an insurer database keep working.
- */
+/** Reads {@code aseguradora_<tenant>.asegurado} directly. Overrides the mock under the {@code insurer-db} profile. */
 @Component
 @Primary
 @Profile("insurer-db")
@@ -26,11 +19,8 @@ public class InsuredDirectoryDatabaseAdapter implements InsuredDirectoryAdapter 
     private final JdbcTemplate jdbc;
 
     /**
-     * {@code DISTINCT} on the person, not the policy: someone with three policies in force is one
-     * account, not three invitations. The schema name is concatenated rather than bound because a
-     * schema cannot be a JDBC parameter — it comes from
-     * {@link ar.edu.utn.frba.arbiter.common.tenant.InsurerDbSchema}, which validates the identifier
-     * before it ever reaches here, and never from the request.
+     * {@code DISTINCT} on the person: three policies in force is one invitation. The schema is
+     * concatenated because it can't be a JDBC parameter; {@code InsurerDbSchema} already validated it.
      */
     @Override
     public List<InsuredDirectoryEntry> findWithPoliciesInForce(String insurerDbSchema) {

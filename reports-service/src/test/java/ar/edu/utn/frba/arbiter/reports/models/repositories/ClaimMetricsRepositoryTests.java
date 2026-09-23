@@ -42,9 +42,8 @@ import static ar.edu.utn.frba.arbiter.reports.support.CaseTables.ROBO_CELULARES;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Against real Postgres, because the aggregation is the whole feature: the {@code DISTINCT ON} that
- * picks the last closing, the Fast Track precedence, and the day buckets, which are only right if
- * the truncation happens in the insurer's time zone.
+ * Against real Postgres: the {@code DISTINCT ON} that picks the last closing, the Fast Track
+ * precedence and the time-zone-aware day buckets are the feature.
  */
 @SpringBootTest
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
@@ -68,8 +67,7 @@ class ClaimMetricsRepositoryTests extends AbstractPersistenceIT {
     void createTables() {
         tables = new CaseTables(jdbcTemplate);
         tables.create();
-        // The dashboard is the only reader of the risk band, so the shared fixture doesn't carry
-        // the column. Adding it here keeps CaseTables as the resolution report left it.
+        // Only the dashboard reads the risk band, so the shared fixture doesn't carry the column.
         jdbcTemplate.execute("ALTER TABLE cases ADD COLUMN IF NOT EXISTS risk_band VARCHAR(20)");
     }
 
@@ -83,7 +81,7 @@ class ClaimMetricsRepositoryTests extends AbstractPersistenceIT {
         tables.insertCase(1, "2026-08-02T10:00:00Z", PENDING_REVIEW, ROBO_CELULARES, true, null, null);
         tables.insertCase(2, "2026-08-03T10:00:00Z", PENDING_REVIEW, ROBO_CELULARES, false, null, null);
         tables.insertCase(3, "2026-08-04T10:00:00Z", PENDING_REVIEW, HURTO_CELULARES, false, null, null);
-        // July: outside the window, and it should stay out of every figure.
+        // July: outside the window, must stay out of every figure.
         tables.insertCase(4, "2026-07-20T10:00:00Z", PENDING_REVIEW, ROBO_CELULARES, true, null, null);
 
         IntakeTotals totals = repository.intakeTotals(AUGUST_FROM, AUGUST_TO, NONE);
@@ -291,26 +289,22 @@ class ClaimMetricsRepositoryTests extends AbstractPersistenceIT {
 
     @Test
     void overTarget_countsOnlyTheDecisionsThatRanPastIt_andIsStrictAtTheEdge() {
-        // Denunciado 01/08, aprobado 05/08: 4 días exactos.
+        // Filed 01/08, approved 05/08: exactly 4 days.
         resolvedWithRecommendation(1, "LLM_RECOMIENDA_APROBAR", APPROVED);
-        // Denunciado 01/08, rechazado 20/08: 19 días.
+        // Filed 01/08, rejected 20/08: 19 days.
         tables.insertCase(2, "2026-08-01T10:00:00Z", REJECTED, ROBO_CELULARES, false, LAURA, null);
         tables.transition(2, PENDING_REVIEW, REJECTED, "2026-08-20T10:00:00Z");
-        // Caducado a los 25 días: nadie lo decidió, así que no está "fuera de objetivo".
+        // Lapsed after 25 days: nobody decided it, so it is not over target.
         tables.insertCase(3, "2026-08-01T10:00:00Z", LAPSED, ROBO_CELULARES, false, null, null);
         tables.transition(3, PENDING_REVIEW, LAPSED, "2026-08-26T10:00:00Z");
 
-        // Con 4 días de objetivo se pasa sólo el de 19; el de 4 lo cumplió justo, no lo excedió.
+        // With a 4-day target only the 19-day one exceeds it; the 4-day one meets it exactly.
         assertThat(repository.countDecidedOverTarget(AUGUST_FROM, AUGUST_TO, 4, NONE)).isEqualTo(1);
         assertThat(repository.countDecidedOverTarget(AUGUST_FROM, AUGUST_TO, 3, NONE)).isEqualTo(2);
         assertThat(repository.countDecidedOverTarget(AUGUST_FROM, AUGUST_TO, 30, NONE)).isZero();
     }
 
-    /**
-     * El objetivo se mide contra el tiempo de gestión: un expediente que tardó por haber pedido
-     * documentación no se pasó del objetivo, aunque el reloj de pared diga que sí. Es la diferencia
-     * entre medir la operación y medir la paciencia del asegurado.
-     */
+    /** The target is measured against handling time: waiting on documentation doesn't count against it. */
     @Test
     void overTarget_discountsWhatTheCaseSpentWaitingOnSomebodyOutside() {
         jdbcTemplate.update(
@@ -318,23 +312,20 @@ class ClaimMetricsRepositoryTests extends AbstractPersistenceIT {
                         + "ON CONFLICT (id) DO NOTHING");
         long awaitingDocs = 3;
 
-        // 10 días de reloj de pared, de los cuales 6 esperando documentación: 4 de gestión.
+        // 10 wall-clock days, 6 of them awaiting documentation: 4 days of handling.
         tables.insertCase(1, "2026-08-01T00:00:00Z", APPROVED, ROBO_CELULARES, false, LAURA, null);
         tables.transition(1, null, PENDING_REVIEW, "2026-08-01T00:00:00Z");
         tables.transition(1, PENDING_REVIEW, awaitingDocs, "2026-08-03T00:00:00Z");
         tables.transition(1, awaitingDocs, PENDING_REVIEW, "2026-08-09T00:00:00Z");
         tables.transition(1, PENDING_REVIEW, APPROVED, "2026-08-11T00:00:00Z");
 
-        // Contra el reloj de pared se habría pasado de 5; contra la gestión, no.
+        // Over a 5-day target by wall clock, but not by handling time.
         assertThat(repository.countDecidedOverTarget(AUGUST_FROM, AUGUST_TO, 5, NONE)).isZero();
-        // Y con el objetivo por debajo de los 4 días de gestión, sí.
+        // Below the 4 handling days, it does exceed.
         assertThat(repository.countDecidedOverTarget(AUGUST_FROM, AUGUST_TO, 3, NONE)).isEqualTo(1);
     }
 
-    /**
-     * La partición del tiempo. El fixture compartido sólo siembra cuatro estados, así que el de
-     * "falta documentación" —el que frena el reloj— se agrega acá, igual que la banda de riesgo.
-     */
+    /** The shared fixture only seeds four statuses, so AWAITING_DOCUMENTATION is added here. */
     @Test
     void theSplit_discountsTheTimeSpentWaitingOnSomebodyOutside() {
         jdbcTemplate.update(
@@ -342,8 +333,8 @@ class ClaimMetricsRepositoryTests extends AbstractPersistenceIT {
                         + "ON CONFLICT (id) DO NOTHING");
         long awaitingDocs = 3;
 
-        // Denunciado 01/08 00:00Z, aprobado 11/08 00:00Z: 10 días de reloj de pared. De esos, del
-        // 03/08 al 09/08 estuvo esperando documentación del asegurado — 6 días que no son suyos.
+        // Filed 01/08, approved 11/08: 10 wall-clock days, 6 of them (03/08 to 09/08) awaiting
+        // documentation from the insured.
         tables.insertCase(1, "2026-08-01T00:00:00Z", APPROVED, ROBO_CELULARES, false, LAURA, null);
         tables.transition(1, null, PENDING_REVIEW, "2026-08-01T00:00:00Z");
         tables.transition(1, PENDING_REVIEW, awaitingDocs, "2026-08-03T00:00:00Z");
@@ -364,7 +355,6 @@ class ClaimMetricsRepositoryTests extends AbstractPersistenceIT {
                 .isEqualTo(ResolutionSplit.NONE);
     }
 
-    /** Un expediente que nunca esperó a nadie no descuenta nada: todo el tiempo es de la compañía. */
     @Test
     void theSplit_reportsZeroWaitingWhenNobodyWasEverWaitedOn() {
         tables.insertCase(1, "2026-08-01T00:00:00Z", APPROVED, ROBO_CELULARES, false, LAURA, null);
@@ -376,20 +366,17 @@ class ClaimMetricsRepositoryTests extends AbstractPersistenceIT {
         assertThat(split.waitingSeconds()).isZero();
     }
 
-    /**
-     * El plazo legal se mide contra la fecha límite que el expediente trae, no contra una cuenta
-     * rehecha acá: cases-service ya la reinicia cuando el requerimiento se cumple.
-     */
+    /** Measured against the deadline stored on the case, not recomputed here. */
     @Test
     void theLegalTerm_comparesEachDecisionAgainstTheDeadlineTheCaseCarried() {
-        // Decidido el 05/08 con vencimiento el 10/08: en término.
+        // Decided 05/08, due 10/08: on time.
         resolvedWithRecommendation(1, "LLM_RECOMIENDA_APROBAR", APPROVED);
         tables.deadline(1, "2026-08-10");
-        // Decidido el 20/08 con vencimiento el 15/08: fuera de término.
+        // Decided 20/08, due 15/08: late.
         tables.insertCase(2, "2026-08-01T10:00:00Z", REJECTED, ROBO_CELULARES, false, LAURA, null);
         tables.transition(2, PENDING_REVIEW, REJECTED, "2026-08-20T10:00:00Z");
         tables.deadline(2, "2026-08-15");
-        // Caducado: no hubo pronunciamiento que fechar, así que no entra en el cumplimiento.
+        // Lapsed: no decision to date, so it is out of the compliance figure.
         tables.insertCase(3, "2026-08-01T10:00:00Z", LAPSED, ROBO_CELULARES, false, null, null);
         tables.transition(3, PENDING_REVIEW, LAPSED, "2026-08-26T10:00:00Z");
         tables.deadline(3, "2026-08-02");
@@ -398,11 +385,11 @@ class ClaimMetricsRepositoryTests extends AbstractPersistenceIT {
                 .isEqualTo(LegalDeadline.of(2, 1));
     }
 
-    /** El plazo vence al terminar su último día: decidir ese mismo día es haberse expedido en término. */
+    /** The term expires at the end of its last day: deciding that same day is on time. */
     @Test
     void theLegalTerm_countsTheDayOfTheDeadlineItselfAsInTime() {
         tables.insertCase(1, "2026-08-01T10:00:00Z", APPROVED, ROBO_CELULARES, false, LAURA, null);
-        // 22:00 en Buenos Aires del propio día del vencimiento — que en UTC ya es el día siguiente.
+        // 22:00 in Buenos Aires on the due date, already the next day in UTC.
         tables.transition(1, PENDING_REVIEW, APPROVED, "2026-08-11T01:00:00Z");
         tables.deadline(1, "2026-08-10");
 
@@ -418,25 +405,22 @@ class ClaimMetricsRepositoryTests extends AbstractPersistenceIT {
                 .isEqualTo(new LegalDeadline(0, 0, null));
     }
 
-    /**
-     * Una reapertura no tiene estado propio: es salir de un estado final hacia uno que no lo es. Y
-     * se cuenta por expediente, así que el que fue y vino dos veces sigue siendo uno.
-     */
+    /** A reopening is a final-to-non-final transition, counted per case rather than per reopening. */
     @Test
     void reopening_countsCasesThatCameBackFromAFinalStatus_onceEach() {
-        // Aprobado, reabierto, y aprobado de nuevo: una reapertura, un expediente.
+        // Approved, reopened, approved again: one reopened case.
         tables.insertCase(1, "2026-08-01T10:00:00Z", APPROVED, ROBO_CELULARES, false, LAURA, null);
         tables.transition(1, PENDING_REVIEW, APPROVED, "2026-08-05T10:00:00Z");
         tables.transition(1, APPROVED, PENDING_REVIEW, "2026-08-06T10:00:00Z");
         tables.transition(1, PENDING_REVIEW, APPROVED, "2026-08-10T10:00:00Z");
-        // Rechazado, reabierto dos veces y rechazado: sigue siendo un expediente reabierto.
+        // Rejected, reopened twice, rejected: still one reopened case.
         tables.insertCase(2, "2026-08-01T10:00:00Z", REJECTED, ROBO_CELULARES, false, LAURA, null);
         tables.transition(2, PENDING_REVIEW, REJECTED, "2026-08-04T10:00:00Z");
         tables.transition(2, REJECTED, PENDING_REVIEW, "2026-08-05T10:00:00Z");
         tables.transition(2, PENDING_REVIEW, REJECTED, "2026-08-06T10:00:00Z");
         tables.transition(2, REJECTED, PENDING_REVIEW, "2026-08-07T10:00:00Z");
         tables.transition(2, PENDING_REVIEW, REJECTED, "2026-08-12T10:00:00Z");
-        // Cerrado de una: no se reabrió nunca.
+        // Closed once, never reopened.
         tables.insertCase(3, "2026-08-01T10:00:00Z", APPROVED, ROBO_CELULARES, false, LAURA, null);
         tables.transition(3, PENDING_REVIEW, APPROVED, "2026-08-08T10:00:00Z");
 
@@ -444,7 +428,7 @@ class ClaimMetricsRepositoryTests extends AbstractPersistenceIT {
                 .isEqualTo(ReopeningRate.of(3, 2));
     }
 
-    /** Un caducado también cuenta: que se haya reabierto uno es igual de sintomático. */
+    /** Lapsed cases count too. */
     @Test
     void reopening_readsEveryClosedCase_lapsedOnesIncluded() {
         tables.insertCase(1, "2026-08-01T10:00:00Z", LAPSED, ROBO_CELULARES, false, null, null);
@@ -454,10 +438,7 @@ class ClaimMetricsRepositoryTests extends AbstractPersistenceIT {
                 .isEqualTo(ReopeningRate.of(1, 0));
     }
 
-    /**
-     * Lo liquidado se ancla en la fecha de la liquidación, no en la del expediente, y sólo entra la
-     * que ya está firmada.
-     */
+    /** Anchored to the settlement's confirmation date, authorized settlements only. */
     @Test
     void settled_addsUpOnlyTheAuthorisedSettlementsConfirmedInThePeriod() {
         tables.insertCase(1, "2026-07-20T10:00:00Z", APPROVED, ROBO_CELULARES, false, LAURA, null);
@@ -467,11 +448,11 @@ class ClaimMetricsRepositoryTests extends AbstractPersistenceIT {
         tables.insertCase(2, "2026-08-01T10:00:00Z", APPROVED, ROBO_CELULARES, false, LAURA, null);
         tables.claimed(2, "300000.00");
         tables.settlement(2, "280000.00", "AUTHORIZED", "2026-08-20T10:00:00Z", "20000.00", "0", "0");
-        // Espera la firma del referente: todavía no es un compromiso.
+        // Awaiting the referent's signature: not a commitment yet.
         tables.insertCase(3, "2026-08-02T10:00:00Z", APPROVED, ROBO_CELULARES, false, LAURA, null);
         tables.claimed(3, "900000.00");
         tables.settlement(3, "850000.00", "PENDING_AUTHORIZATION", "2026-08-21T10:00:00Z", "0", "0", "0");
-        // Firmada, pero en septiembre: es del período siguiente.
+        // Authorized, but in September: next period.
         tables.insertCase(4, "2026-08-03T10:00:00Z", APPROVED, ROBO_CELULARES, false, LAURA, null);
         tables.settlement(4, "100000.00", "AUTHORIZED", "2026-09-02T10:00:00Z", "0", "0", "0");
 
@@ -487,17 +468,13 @@ class ClaimMetricsRepositoryTests extends AbstractPersistenceIT {
         assertThat(settled.overdue()).isEqualByComparingTo("10000.00");
     }
 
-    /**
-     * El monto reclamado no es obligatorio en la denuncia. Cuando falta en alguno, la pantalla
-     * necesita saberlo: comparar lo liquidado de dos expedientes contra lo reclamado de uno da un
-     * porcentaje que no significa nada.
-     */
+    /** The claimed amount is optional, so the response says how many settlements it covers. */
     @Test
     void settled_saysOnHowManySettlementsTheClaimedAmountCouldBeAddedUp() {
         tables.insertCase(1, "2026-08-01T10:00:00Z", APPROVED, ROBO_CELULARES, false, LAURA, null);
         tables.claimed(1, "300000.00");
         tables.settlement(1, "280000.00", "AUTHORIZED", "2026-08-05T10:00:00Z", "0", "0", "0");
-        // Sin monto reclamado: suma a las liquidaciones pero no a lo reclamado.
+        // No claimed amount: counts as a settlement but not toward the claimed total.
         tables.insertCase(2, "2026-08-02T10:00:00Z", APPROVED, ROBO_CELULARES, false, LAURA, null);
         tables.settlement(2, "400000.00", "AUTHORIZED", "2026-08-06T10:00:00Z", "0", "0", "0");
 
@@ -507,7 +484,6 @@ class ClaimMetricsRepositoryTests extends AbstractPersistenceIT {
         assertThat(settled.claimedCases()).isEqualTo(1);
     }
 
-    /** Un período sin liquidar nada no tiene un promedio de cero: no tiene promedio. */
     @Test
     void settled_hasNoAverageWhenNothingWasSettled() {
         tables.insertCase(1, "2026-08-01T10:00:00Z", PENDING_REVIEW, ROBO_CELULARES, false, LAURA, null);
@@ -515,30 +491,27 @@ class ClaimMetricsRepositoryTests extends AbstractPersistenceIT {
         assertThat(repository.settledAmounts(AUGUST_FROM, AUGUST_TO, NONE).average()).isNull();
     }
 
-    /**
-     * Lo ahorrado se cuenta sólo sobre los rechazados: donde se determinó el fraude y aun así se
-     * aprobó no hay nada ahorrado.
-     */
+    /** The amount saved only counts rejected cases: approving despite fraud saved nothing. */
     @Test
     void fraud_countsWhatWasNotPaidOnlyOnTheRejectedOnes() {
-        // Fraude determinado y rechazado, con respaldo de un peritaje: ahorro y respaldo.
+        // Fraud determined, rejected, backed by an expert assessment.
         tables.insertCase(1, "2026-08-01T10:00:00Z", REJECTED, ROBO_CELULARES, false, LAURA, null);
         tables.transition(1, PENDING_REVIEW, REJECTED, "2026-08-10T10:00:00Z");
         tables.claimed(1, "400000.00");
         tables.fraudDetermined(1);
         tables.assessment(1, "ESTUDIO_LIQUIDADOR", "FRAUD_CONFIRMED", null,
                 "2026-08-03T10:00:00Z", "2026-08-08T10:00:00Z");
-        // Fraude determinado por el analista, sin peritaje detrás, y rechazado.
+        // Fraud determined by the analyst alone, rejected.
         tables.insertCase(2, "2026-08-01T10:00:00Z", REJECTED, ROBO_CELULARES, false, LAURA, null);
         tables.transition(2, PENDING_REVIEW, REJECTED, "2026-08-12T10:00:00Z");
         tables.claimed(2, "150000.00");
         tables.fraudDetermined(2);
-        // Fraude determinado pero aprobado igual: no hay nada ahorrado que contar.
+        // Fraud determined but approved anyway: nothing saved.
         tables.insertCase(3, "2026-08-01T10:00:00Z", APPROVED, ROBO_CELULARES, false, LAURA, null);
         tables.transition(3, PENDING_REVIEW, APPROVED, "2026-08-14T10:00:00Z");
         tables.claimed(3, "999999.00");
         tables.fraudDetermined(3);
-        // Sin fraude: sólo suma al universo de decididos.
+        // No fraud: only adds to the decided total.
         tables.insertCase(4, "2026-08-01T10:00:00Z", APPROVED, ROBO_CELULARES, false, LAURA, null);
         tables.transition(4, PENDING_REVIEW, APPROVED, "2026-08-15T10:00:00Z");
 
@@ -550,7 +523,7 @@ class ClaimMetricsRepositoryTests extends AbstractPersistenceIT {
         assertThat(fraud.amountNotPaid()).isEqualByComparingTo("550000.00");
     }
 
-    /** Dos derivaciones sobre el mismo expediente no lo cuentan dos veces como respaldado. */
+    /** Two derivations on the same case don't count it twice as backed. */
     @Test
     void fraud_countsTheExpertBackingOncePerCase_evenWithTwoDerivations() {
         tables.insertCase(1, "2026-08-01T10:00:00Z", REJECTED, ROBO_CELULARES, false, LAURA, null);
@@ -564,13 +537,12 @@ class ClaimMetricsRepositoryTests extends AbstractPersistenceIT {
         assertThat(repository.fraudDetection(AUGUST_FROM, AUGUST_TO, NONE).backedByExpert()).isEqualTo(1);
     }
 
-    /** Los dos promedios son mediciones separadas, no un ahorro estimado. */
     @Test
     void fastTrack_averagesEachSideSeparately() {
-        // Fast Track: 2 días.
+        // Fast Track: 2 days.
         tables.insertCase(1, "2026-08-01T00:00:00Z", APPROVED, ROBO_CELULARES, true, LAURA, null);
         tables.transition(1, PENDING_REVIEW, APPROVED, "2026-08-03T00:00:00Z");
-        // El resto: 10 y 20 días, o sea 15 de promedio.
+        // The rest: 10 and 20 days, 15 on average.
         tables.insertCase(2, "2026-08-01T00:00:00Z", APPROVED, ROBO_CELULARES, false, LAURA, null);
         tables.transition(2, PENDING_REVIEW, APPROVED, "2026-08-11T00:00:00Z");
         tables.insertCase(3, "2026-08-01T00:00:00Z", REJECTED, ROBO_CELULARES, false, LAURA, null);
@@ -580,7 +552,6 @@ class ClaimMetricsRepositoryTests extends AbstractPersistenceIT {
                 .isEqualTo(new FastTrackImpact(1, 48.0, 2, 360.0));
     }
 
-    /** Sin Fast Track decidido, su promedio es desconocido y no cero. */
     @Test
     void fastTrack_leavesTheAverageNullOnTheSideWithNothingDecided() {
         tables.insertCase(1, "2026-08-01T00:00:00Z", APPROVED, ROBO_CELULARES, false, LAURA, null);
@@ -590,19 +561,17 @@ class ClaimMetricsRepositoryTests extends AbstractPersistenceIT {
                 .isEqualTo(new FastTrackImpact(0, null, 1, 96.0));
     }
 
-    /**
-     * Las derivaciones se cuentan por cuándo salieron; el promedio, sólo sobre las que volvieron.
-     */
+    /** Derivations count by when they were sent; the average only covers answered ones. */
     @Test
     void derivations_averageOnlyTheOnesThatCameBack_andKeepThePendingOnesVisible() {
         tables.insertCase(1, "2026-08-01T00:00:00Z", PENDING_REVIEW, ROBO_CELULARES, false, LAURA, null);
-        // Peritaje que volvió a los 2 días, otro a los 4, y un tercero que sigue afuera.
+        // Expert reports answered after 2 and 4 days, and a third still pending.
         tables.assessment(1, "ESTUDIO_LIQUIDADOR", "FRAUD_DISCARDED", null,
                 "2026-08-02T00:00:00Z", "2026-08-04T00:00:00Z");
         tables.assessment(1, "ESTUDIO_LIQUIDADOR", "FRAUD_DISCARDED", null,
                 "2026-08-05T00:00:00Z", "2026-08-09T00:00:00Z");
         tables.assessment(1, "ESTUDIO_LIQUIDADOR", null, null, "2026-08-10T00:00:00Z", null);
-        // Un servicio técnico que volvió al día.
+        // A repair shop that answered in one day.
         tables.assessment(1, "SERVICIO_TECNICO", null, "REPAIRED",
                 "2026-08-12T00:00:00Z", "2026-08-13T00:00:00Z");
 
@@ -615,20 +584,17 @@ class ClaimMetricsRepositoryTests extends AbstractPersistenceIT {
         assertThat(derivations.getFirst().pending()).isEqualTo(1);
     }
 
-    /**
-     * Sólo los FAIL, un expediente por regla aunque se haya reclasificado, y el tipo como nombre
-     * cuando la regla no es una fila configurable.
-     */
+    /** Only FAILs, one case per rule despite reclassification, and the type as name without a rule row. */
     @Test
     void blockingRules_countCasesStoppedOnce_evenIfTheCaseWasReclassified() {
         tables.rule(14, "Vigencia de la póliza");
         tables.insertCase(1, "2026-08-01T10:00:00Z", PENDING_REVIEW, ROBO_CELULARES, false, LAURA, null);
-        // Reclasificado: la misma regla dejó dos filas, pero es un solo expediente frenado.
+        // Reclassified: the same rule left two rows, but it is one blocked case.
         tables.ruleResult(1, 14L, "POLICY_IN_FORCE", "FAIL");
         tables.ruleResult(1, 14L, "POLICY_IN_FORCE", "FAIL");
-        // Una regla sin fila configurable: se nombra por su tipo.
+        // No configurable rule row: named by its type.
         tables.ruleResult(1, null, "CLAIM_EXHAUSTS_COVERAGE", "FAIL");
-        // Un PASS no frena nada.
+        // A PASS blocks nothing.
         tables.ruleResult(1, 14L, "REPORT_DEADLINE", "PASS");
         // Un aviso tampoco: su FAIL marca algo para el analista, no frenó el expediente.
         tables.ruleResult(1, null, "CLAIM_CAUSE_MATCH", "FAIL");

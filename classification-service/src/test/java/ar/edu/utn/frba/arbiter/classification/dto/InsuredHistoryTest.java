@@ -8,13 +8,7 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * The rolling-year count, tested where it lives. Two very different things read it — the hard rule
- * that caps events per year, and the settlement that pays the second event of the year at a
- * reduced percentage — so the boundaries matter: one of them counting a claim the other doesn't
- * would have an analyst approving an event the rules called out of quota, or paying 100% of a
- * second event.
- */
+/** Boundaries matter: both the events-per-year rule and the settlement rely on this count. */
 class InsuredHistoryTest {
 
     private static final LocalDate EVENT = LocalDate.of(2026, 6, 13);
@@ -48,7 +42,7 @@ class InsuredHistoryTest {
         assertThat(history.eventOrdinalFor(EVENT, "Celulares")).isEqualTo(2);
     }
 
-    /** Quotas and reduced percentages are per branch: another branch's claim is another contract. */
+    /** Per branch: another branch's claim is another contract. */
     @Test
     void aPriorInAnotherBranchDoesNotCount() {
         InsuredHistory history = history(claim(EVENT.minusMonths(2), "Tecnología Portátil"));
@@ -56,10 +50,7 @@ class InsuredHistoryTest {
         assertThat(history.eventOrdinalFor(EVENT, "Celulares")).isEqualTo(1);
     }
 
-    /**
-     * A claim with no branch is bad data; narrowing on it would silently undercount, so a null
-     * branch on the claim under analysis doesn't filter at all.
-     */
+    /** A null branch doesn't filter: narrowing on bad data would silently undercount. */
     @Test
     void aNullBranchCountsEveryPrior() {
         InsuredHistory history = history(
@@ -76,7 +67,7 @@ class InsuredHistoryTest {
         assertThat(history.eventOrdinalFor(EVENT, "Celulares")).isEqualTo(1);
     }
 
-    /** No event date, no window: defaults to the first event rather than guessing. */
+    /** No event date: defaults to the first event rather than guessing. */
     @Test
     void defaultsToTheFirstEventWithNoDateOrNoHistory() {
         assertThat(history(claim(EVENT.minusMonths(2), "Celulares")).eventOrdinalFor(null, "Celulares"))

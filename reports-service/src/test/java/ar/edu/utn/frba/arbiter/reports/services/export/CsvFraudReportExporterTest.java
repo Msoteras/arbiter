@@ -34,10 +34,7 @@ class CsvFraudReportExporterTest {
                         + "3;2;Derivado a peritaje;No");
     }
 
-    /**
-     * "Sin evaluar" and not "Bajo": the scoring never ran on that case, which is a different thing
-     * from having run and come out low. The determination is the analyst's and says so.
-     */
+    /** "Sin evaluar" rather than "Bajo": the scoring never ran on that case. */
     @Test
     void anUnscoredCase_readsAsUnevaluated_andCarriesItsDetermination() {
         String csv = export(List.of(unscoredRow(1447)));
@@ -47,7 +44,7 @@ class CsvFraudReportExporterTest {
                         + "1 imagen con coincidencia;1;1;Rechazado;Sí · con respaldo pericial");
     }
 
-    /** "Bajo" never reaches the file: a low score is not an alert, and the signals say why it is here. */
+    /** "Bajo" never reaches the file: a low score is not an alert. */
     @Test
     void aLowScoringCase_readsAsNotAlerted_ratherThanAsItsBand() {
         String csv = export(List.of(lowScoreRow(1455)));
@@ -56,7 +53,6 @@ class CsvFraudReportExporterTest {
         assertThat(csv).doesNotContain("Bajo");
     }
 
-    /** No band, no image — the document signal is the whole story of this row. */
     @Test
     void theDocumentSignal_printsItsRationaleInTheSignalsColumn() {
         String csv = export(List.of(documentInconsistentRow(24)));

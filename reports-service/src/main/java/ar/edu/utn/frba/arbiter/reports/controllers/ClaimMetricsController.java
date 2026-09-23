@@ -17,15 +17,8 @@ import org.springframework.web.bind.annotation.RestController;
 import java.time.LocalDate;
 
 /**
- * The management dashboard: volume, efficiency and outcome of one insurer's claims over a period.
- *
- * <p>There is no insurer parameter, by design. The company is the tenant schema the caller's JWT
- * resolves to, so a referent cannot reach another company's figures even by editing the URL
- * (acceptance criterion 1).
- *
- * <p>Open to the analyst as well as the referent, the same call the frontend's
- * {@code insurer/dashboard} route already makes: these are metrics of the operation, not the
- * insurer's configuration.
+ * The management dashboard. There is no insurer parameter by design: the company is the tenant the
+ * caller's JWT resolves to, so another insurer's figures are unreachable even by editing the URL.
  */
 @RestController
 @RequestMapping("/api/v1/reports/metrics")

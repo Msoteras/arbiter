@@ -15,31 +15,13 @@ public record CaseRequest(
         @NotBlank String insuredId,
         @NotBlank String policyNumber,
         @NotBlank String description,
-        // Un siniestro no puede haber "ocurrido" en el futuro. El front ya pone un max=hoy
-        // en el datepicker; esto es la regla real.
         @NotNull @PastOrPresent LocalDateTime eventDate,
-        /**
-         * Dirección del hecho a nivel calle ("Av. Rivadavia 1234 (entre X e Y)"), SIN localidad ni
-         * provincia: esas dos viajan aparte y se persisten en sus propias columnas.
-         *
-         * <p>Antes el wizard concatenaba las cuatro partes acá y mandaba {@code locality}/
-         * {@code province} vacías, así que {@code cases.locality} y {@code cases.province} —que
-         * existen en el esquema— quedaban en null y la ubicación no era consultable ni agrupable
-         * (un reporte por provincia tendría que parsear prosa). El dato ya venía separado en el
-         * formulario; lo único que faltaba era no aplastarlo.
-         */
+        /** Street-level address only: locality and province travel in their own fields. */
         @NotBlank String eventLocation,
-        /** Provincia del hecho, tal como la eligió el asegurado en el wizard. */
         String province,
-        /** Localidad del hecho. */
         String locality,
-        /** Fecha/hora de la denuncia policial, si el hecho tuvo una. No todo siniestro la requiere. */
         LocalDateTime policeReportAt,
-        /**
-         * Optional. A claim for a negative amount does not exist: the wizard already blocks the
-         * minus sign in the field, and this is the actual rule for anyone posting straight to the
-         * API. Zero is allowed — the field is optional and some intakes send it instead of null.
-         */
+        /** Optional. Zero is allowed: some intakes send it instead of null. */
         @PositiveOrZero BigDecimal claimedAmount,
         // PEP comes from the insurer's data, not the claim form. Ignored if sent.
         Boolean pep,

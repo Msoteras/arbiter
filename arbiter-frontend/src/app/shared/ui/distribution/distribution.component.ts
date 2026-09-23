@@ -3,7 +3,6 @@ import { ChangeDetectionStrategy, Component, computed, input } from '@angular/co
 import { StatusTone } from '../../../core/models/status-tone';
 import { RatePipe } from '../../pipes/rate.pipe';
 
-/** Una categoría de la distribución, con su color del semáforo ya resuelto por el dominio. */
 export interface DistributionItem {
   label: string;
   count: number;
@@ -12,26 +11,11 @@ export interface DistributionItem {
   description?: string;
 }
 
-/** Cómo se dibuja la proporción. La lista va siempre; esto decide qué la acompaña. */
 export type DistributionShape = 'bar' | 'ring';
 
 /**
- * Una distribución como barra apilada —o como anillo— más su lista.
- *
- * La lista es la parte que no se negocia: con el nombre, el conteo y el porcentaje alineados en una
- * grilla, el número exacto queda al lado de la categoría. El dibujo de arriba da la proporción de
- * un vistazo; es el que cambia de forma.
- *
- * `shape="bar"` es el default y es lo que conviene con cuatro o cinco categorías en una tarjeta
- * angosta: comparar largos es más fácil que comparar arcos. `shape="ring"` está para cuando la
- * pantalla se lee como un tablero y la pregunta es "qué parte del total es esto" más que "cuál es
- * más grande que cuál" — la lista sigue al lado, así que nadie tiene que estimar un arco.
- *
- * Sin librería de gráficos en ninguna de las dos formas: divs con ancho porcentual y un SVG de dos
- * círculos. Un canvas acá sería más código, más peso y menos accesible.
- *
- * Vive en el kit y no en una feature porque lo usan dos: el tablero del referente y el reporte de
- * resolución.
+ * Stacked bar or ring plus a legend with exact counts and shares. Plain divs and SVG, no chart
+ * library: a canvas would be heavier and less accessible.
  */
 @Component({
   selector: 'app-distribution',
@@ -40,8 +24,8 @@ export type DistributionShape = 'bar' | 'ring';
     <div class="dist" [class.with-ring]="shape() === 'ring' && total() === null">
       @if (total() === null) {
         @if (shape() === 'ring') {
-          <!-- Radio 15.915 hace que la circunferencia mida 100: así cada porción se expresa
-               directamente en porcentaje, y el offset de 25 arranca el anillo a las 12 en punto. -->
+          <!-- r = 15.915 gives a circumference of 100, so dash values are percentages; the
+               offset of 25 starts the ring at 12 o'clock. -->
           <div class="ring-wrap">
             <svg class="ring" viewBox="0 0 42 42" role="img" [attr.aria-label]="summary()">
               <circle class="ring-track" cx="21" cy="21" r="15.915" />
@@ -57,8 +41,7 @@ export type DistributionShape = 'bar' | 'ring';
                 />
               }
             </svg>
-            <!-- El total va en HTML y no como <text> del SVG: así el tamaño sale de la escala
-                 tipográfica del sistema y no de una unidad de usuario del viewBox. -->
+            <!-- HTML rather than SVG <text>, so it uses the type scale instead of viewBox units. -->
             <span class="ring-center" aria-hidden="true">
               <span class="ring-total tabular">{{ sum() }}</span>
               @if (centerLabel()) {
@@ -100,8 +83,6 @@ export type DistributionShape = 'bar' | 'ring';
     :host {
       display: block;
     }
-    /* Con anillo, dibujo y lista conviven lado a lado mientras haya ancho; abajo de eso se apilan,
-       que es como entra en un teléfono. */
     .dist.with-ring {
       display: flex;
       flex-wrap: wrap;
@@ -123,17 +104,15 @@ export type DistributionShape = 'bar' | 'ring';
       display: block;
       height: 100%;
     }
-    /* Dos categorías pueden caer en el mismo tono del semáforo. En vez de inventar un color que el
-       design system no tiene, la repetición se atenúa: mismo color, misma familia, distinguible. */
     .stack + .legend {
       margin-top: var(--space-4);
     }
+    /* Repeated tones are faded rather than given a color the design system does not have. */
     .slice.faded,
     .dot.faded {
       opacity: 0.5;
     }
 
-    /* ── Anillo ─────────────────────────────────────────────────────────────── */
     .ring-wrap {
       position: relative;
       flex: 0 0 auto;
@@ -231,7 +210,6 @@ export type DistributionShape = 'bar' | 'ring';
     .tone-neutral {
       background: var(--text-tertiary);
     }
-    /* El SVG pinta con stroke, no con background: los mismos tonos, otra propiedad. */
     .ring-arc {
       background: none;
     }
@@ -259,13 +237,11 @@ export type DistributionShape = 'bar' | 'ring';
 export class DistributionComponent {
   readonly items = input.required<DistributionItem[]>();
   readonly shape = input<DistributionShape>('bar');
-  /** Debajo del número del centro del anillo ("expedientes"). Vacío deja sólo el número. */
+  /** Caption under the ring's center total. */
   readonly centerLabel = input('');
   /**
-   * For categories that overlap (one case in two buckets): the population each share is read
-   * against. With it neither the stacked bar nor the ring is drawn — overlapping slices can't add
-   * up to one whole — and the legend's percentages don't add up to 100%, which is the honest
-   * reading.
+   * Population for overlapping categories (one case in two buckets). When set, no bar or ring is
+   * drawn, since overlapping slices cannot add up to a whole.
    */
   readonly total = input<number | null>(null);
 
@@ -284,11 +260,8 @@ export class DistributionComponent {
         share,
         offset,
         faded: repeat > 0,
-        // Rampa de intensidad para las categorías que comparten tono — en el anillo son TODAS
-        // cuando la dimensión no comunica estado (un hecho generador no es bueno ni malo, así que
-        // el dominio las manda en neutro). Un solo color en distintas intensidades es lo que deja
-        // distinguir las porciones sin inventar una paleta que el sistema no tiene y sin pintar de
-        // rojo o verde algo que no es un semáforo.
+        // Intensity ramp for slices sharing a tone (all of them when the dimension carries no
+        // status, e.g. claim causes), instead of inventing a palette.
         weight: Math.max(1 - repeat * 0.22, 0.25),
       };
       offset += share;
@@ -296,7 +269,6 @@ export class DistributionComponent {
     });
   });
 
-  /** Lo que el dibujo dice, en palabras, para quien no lo ve. */
   protected readonly summary = computed(() =>
     this.items()
       .map((item) => `${item.label}: ${item.count}`)

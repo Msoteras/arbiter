@@ -1,9 +1,6 @@
 package ar.edu.utn.frba.arbiter.cases.exceptions;
 
-/**
- * The case's thread no longer takes messages: the reply window after closing has run out. The
- * detail is written for whoever typed the message — both roles see it as-is.
- */
+/** The reply window after closing has run out. The detail is shown as-is to both roles. */
 public class ClosedConversationException extends RuntimeException {
 
     public ClosedConversationException(int windowDays) {

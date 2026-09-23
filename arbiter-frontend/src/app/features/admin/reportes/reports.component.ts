@@ -9,14 +9,7 @@ import {
 
 import { ReportFiltersStore } from './report-filters.store';
 
-/**
- * Reports shell: the title, the tab that picks which report to look at, and the period/branch
- * filters both of them share ({@link ReportFiltersStore}).
- *
- * <p>The tabs are routes and not a signal, which is what lets a referent bookmark or paste "the
- * fraud report for August" — and what makes coming back from a case detail land on the tab they
- * left, rather than always on Resolución.
- */
+/** Tabs are routes, not a signal, so a report and its filters can be bookmarked or shared. */
 @Component({
   selector: 'app-reports',
   imports: [RouterLink, RouterLinkActive, RouterOutlet],
@@ -40,8 +33,8 @@ export class ReportsComponent {
   constructor() {
     this.filters.hydrate(this.route.snapshot.queryParamMap);
 
-    // The URL always describes what is on screen, so a link carries the filters and not just the
-    // tab. Skipping the first run keeps this from rewriting the URL with what it just read.
+    // Keep the URL in sync with the filters. The first run is skipped so it doesn't rewrite what it
+    // just read.
     let hydrating = true;
     effect(() => {
       const queryParams = this.filters.asQueryParams();

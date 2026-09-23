@@ -6,13 +6,10 @@ import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
 
-/**
- * Identidad en el esquema común. Este módulo no da de alta usuarios — eso es de auth-service —
- * pero necesita el repositorio para poder navegar {@code insured.user}.
- */
+/** Read-only: auth-service owns user creation; this module only navigates {@code insured.user}. */
 @Repository
 public interface UserRepository extends JpaRepository<User, Long> {
 
-    /** The token only carries the email, so that's how the caller's account is resolved. */
+    /** The token only carries the email. */
     Optional<User> findByEmail(String email);
 }

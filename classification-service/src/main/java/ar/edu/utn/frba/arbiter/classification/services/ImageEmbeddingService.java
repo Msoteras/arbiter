@@ -34,17 +34,8 @@ public class ImageEmbeddingService {
     private final EmbeddingProperties properties;
 
     /**
-     * Embeds the image, records the analysis against its document, and reports images from
-     * other cases that look the same.
-     *
-     * <p>The similarity search runs <em>before</em> the row is saved, so this image can never
-     * match itself.
-     *
-     * @param caseId         the case being classified — excluded from the search, so an image
-     *                       never matches its own siblings either
-     * @param caseDocumentId the {@code case_documents} row this image came from. Null for the
-     *                       isolated-classification endpoint, where there is nothing to anchor
-     *                       to: the image is still compared, but no analysis is persisted.
+     * The search runs before the row is saved, and excludes {@code caseId}, so an image never matches
+     * itself or its siblings. With a null {@code caseDocumentId} the image is compared but not persisted.
      */
     @Transactional
     public ImageAnalysisOutcome processAndFindDuplicates(
@@ -83,7 +74,6 @@ public class ImageEmbeddingService {
         return new ImageAnalysisOutcome(analysisId, matches);
     }
 
-    /** Stores what the external web search found, on the row {@link #processAndFindDuplicates} wrote. */
     @Transactional
     public void recordWebMatch(Long analysisId, WebFinding finding) {
         if (analysisId == null || finding == null || !finding.found()) {
@@ -94,17 +84,13 @@ public class ImageEmbeddingService {
         repository.recordWebMatch(analysisId, EXTERNAL_SOURCE_WEB, reference, matchType);
     }
 
-    /**
-     * Saves through JPA first to get the id back, then sets the vector natively — Hibernate has
-     * no type for a pgvector column, so it can't be part of the mapped insert.
-     */
+    /** The vector is set natively after the JPA save: Hibernate has no type for a pgvector column. */
     private Long persist(Long caseDocumentId, String vectorLiteral, List<DuplicateImageMatch> matches) {
         ImageAnalysis analysis = new ImageAnalysis();
         analysis.setCaseDocumentId(caseDocumentId);
         analysis.setModel(properties.model());
         analysis.setAnalyzedAt(Instant.now());
 
-        // The best match is the first: findSimilar orders by similarity descending.
         if (!matches.isEmpty()) {
             DuplicateImageMatch best = matches.getFirst();
             analysis.setSimilarDocumentId(best.matchedDocumentId());

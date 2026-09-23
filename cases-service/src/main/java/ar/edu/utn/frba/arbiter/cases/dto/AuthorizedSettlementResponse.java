@@ -4,9 +4,6 @@ import java.math.BigDecimal;
 import java.time.Instant;
 
 /**
- * One settlement the referente already authorized, for the "Autorizadas" tab of their queue.
- * Same case data as {@link PendingSettlementResponse}, plus who signed it and when.
- *
  * @param authorizedByName null if that referente has no profile in this insurer's schema
  */
 public record AuthorizedSettlementResponse(

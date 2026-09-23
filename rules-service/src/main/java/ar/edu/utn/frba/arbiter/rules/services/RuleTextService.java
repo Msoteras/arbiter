@@ -14,18 +14,16 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.List;
 
 /**
- * Branch-level free text with no table of its own in the DER: common exclusions and business
- * rules in prose. It reuses the same mechanism as Fast Track
- * ({@link InsurerRule} + append-only history), but with {@code coverage_id} null (a branch-level
- * rule, valid per the DER) and a different {@code rule_type} per list. One {@code ruleType}
- * per instance — two beans, one per list, see {@link ar.edu.utn.frba.arbiter.rules.config.RuleTextConfig}.
+ * Branch-level free text: common exclusions and business rules in prose. Stored as an
+ * {@link InsurerRule} (with append-only history) with {@code coverage_id} null and one
+ * {@code rule_type} per list; one bean per list, see
+ * {@link ar.edu.utn.frba.arbiter.rules.config.RuleTextConfig}.
  */
 @RequiredArgsConstructor
 public class RuleTextService {
@@ -38,6 +36,7 @@ public class RuleTextService {
     private final InsurerRuleRepository ruleRepository;
     private final InsurerRuleHistoryRepository historyRepository;
     private final BranchRepository branchRepository;
+    private final RuleAuthorResolver authorResolver;
 
     @Transactional(readOnly = true)
     public List<String> get(Long branchId) {
@@ -72,7 +71,7 @@ public class RuleTextService {
             return new RuleTextResponse(rule.getId(), branchId, ruleType, items);
         }
 
-        // Un guardado que no cambia nada no es un cambio y no deja rastro en la auditoría.
+        // A save that changes nothing leaves no audit entry.
         if (InsurerRuleSnapshot.unchanged(
                 rule.isActive(), rule.isBlocksFastTrack(), rule.getConfiguration(),
                 rule.isActive(), rule.isBlocksFastTrack(), json)) {
@@ -87,7 +86,7 @@ public class RuleTextService {
                 .validTo(now)
                 .reason(ruleNamePrefix + " actualizado por " + actorEmail)
                 .insurerRule(rule)
-                .changedBy(null)
+                .changedBy(authorResolver.referentIdOf(actorEmail))
                 .build());
 
         rule.setConfiguration(json);

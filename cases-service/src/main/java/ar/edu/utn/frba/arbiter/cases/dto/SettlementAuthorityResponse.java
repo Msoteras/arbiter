@@ -4,14 +4,8 @@ import java.math.BigDecimal;
 import java.time.Instant;
 
 /**
- * The ceiling an analyst can authorize on their own in one branch.
- *
- * @param maxAmount     null when the branch has no ceiling — the analyst authorizes everything,
- *                      which is the state of a branch the referente never configured. It's a real
- *                      answer, not missing data, so the screen says "sin tope" instead of an empty
- *                      field
- * @param updatedByUserId who last touched this ceiling. Null on a branch with no ceiling, and also
- *                        on rows written before this was tracked.
+ * @param maxAmount       null when the branch has no ceiling: the analyst authorizes everything
+ * @param updatedByUserId null on a branch with no ceiling
  */
 public record SettlementAuthorityResponse(
         Long branchId,

@@ -1,15 +1,11 @@
-// Espejo de ImageForensicReport (common-lib, ar.edu.utn.frba.arbiter.common.dto).
-// Solo lo ve el analista — el asegurado nunca recibe este dato. Null en
-// ExpedienteResponse cuando no corrió el análisis (Fast Track, o expediente sin
-// imágenes adjuntas).
+// Mirrors common-lib's ImageForensicReport. Analyst-only: the insured never receives it.
 
 export interface ImageForensicInternalMatch {
   matchedCaseId: number;
-  /** `CaseDocument.type` del adjunto que coincidió — con esto se lo busca para mostrarlo. */
+  /** `CaseDocument.type` of the matched attachment, used to look it up for display. */
   matchedDocumentType: string;
-  /** Nombre original del archivo, solo para mostrar. */
   matchedFilename: string;
-  /** Similitud coseno en [0,1]. */
+  /** Cosine similarity in [0,1]. */
   similarity: number;
 }
 
@@ -26,16 +22,12 @@ export interface ImageForensicWebFinding {
 }
 
 export interface ImageForensicFinding {
-  /** Ej. "item_photo-0". */
+  /** e.g. "item_photo-0". */
   label: string;
-  /**
-   * `CaseDocument.type` del adjunto analizado (ej. "item_photo"). Es único por
-   * expediente, así se cruza cada finding con su adjunto real (ver
-   * ForensicAnalysisComponent).
-   */
+  /** `CaseDocument.type` of the analyzed attachment; unique per case, so it links to the file. */
   documentType: string;
   internalMatches: ImageForensicInternalMatch[];
-  /** Null cuando no se buscó en la web (no hizo falta o falló/deshabilitado). */
+  /** Null when no web search ran (not needed, failed or disabled). */
   webFinding: ImageForensicWebFinding | null;
 }
 
@@ -48,16 +40,9 @@ export interface ImageForensicReport {
 export type ForensicAlertLevel = 'bajo' | 'medio' | 'alto';
 
 /**
- * Categorización visual (bajo/medio/alto) de un finding para `app-severity-label`.
- * Es una lectura de presentación, no la señal de riesgo autoritativa: esa vive en
- * riskScore/riskBand (ImageReuseEvaluator/ImageWebMatchEvaluator en classification-service
- * ya alimentan el score general, que es lo que efectivamente marca el expediente para
- * revisión — ver fraud-gauge en el tab Resumen). Devuelve null cuando el hallazgo no
- * tiene nada para alertar (sin matches internos ni web).
- *
- * Umbrales: cualquier coincidencia interna ya superó el piso de similitud del backend
- * (0.90 por defecto) — de ahí el corte en 0.95 para 'alto'. En web, una copia exacta es
- * 'alto'; solo parciales es 'medio'.
+ * Display-only severity for `app-severity-label`; the authoritative signal is riskScore/riskBand.
+ * Any internal match already passed the backend's similarity floor (0.90 by default), hence the
+ * 0.95 cut for 'alto'. Returns null when there is nothing to flag.
  */
 export function forensicAlertLevel(finding: ImageForensicFinding): ForensicAlertLevel | null {
   const maxInternalSimilarity = finding.internalMatches.reduce(
@@ -75,15 +60,11 @@ export function forensicAlertLevel(finding: ImageForensicFinding): ForensicAlert
   return null;
 }
 
-/**
- * Espejo de `ImageForensicReport.WebFinding.found()` (Java) — es un método derivado del
- * record, no un campo, así que Jackson no lo manda por JSON; hay que recalcularlo acá.
- */
+/** Mirrors the Java `WebFinding.found()`: a derived record method, so Jackson does not serialize it. */
 function webFindingFound(web: ImageForensicWebFinding | null): boolean {
   return !!web && (web.fullMatches > 0 || web.partialMatches > 0 || web.pages.length > 0);
 }
 
-/** true si el finding no tiene ninguna coincidencia (interna ni web) que mostrar. */
 export function forensicFindingIsClean(finding: ImageForensicFinding): boolean {
   return finding.internalMatches.length === 0 && !webFindingFound(finding.webFinding);
 }

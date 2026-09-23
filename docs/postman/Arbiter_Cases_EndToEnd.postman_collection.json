@@ -2,7 +2,7 @@
 	"info": {
 		"_postman_id": "b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e",
 		"name": "Arbiter — End-to-End: Case → Classification → Decision",
-		"description": "Exercises the real cross-module flow:\n\n1. **POST** a case to cases-service (multipart: `case` JSON part + optional `documents`), which persists it and calls classification-service.\n2. **GET** the case — poll until classification resolves.\n3. **POST** the analyst's decision (APROBAR / RECHAZAR) → transitions to APPROVED / REJECTED.\n\n**State machine**:\n- `PENDING_CLASSIFICATION` → classification runs (scheduler polls every 5s)\n- `PENDING_ANALYST_REVIEW` → analyst must act (FAST_TRACK / LLM result available)\n- `AWAITING_DOCUMENTATION` → insured must upload missing docs (FALTA_DOCUMENTACION)\n- `APPROVED` / `REJECTED` → final, set by analyst decision\n\n**Requirements**: both `cases-service` (port 8083) and `classification-service` (port 8082) up.\n\n**Mock policies** (from classification-service's MockInsurerAdapter):\n- POL-001 (insuredId 12345678) — Asegurado de prueba, sum insured 500.000\n- POL-CEL-2024-001 (insuredId 40.123.456) — Laura Fernández, sum insured 400.000, 0 prior claims\n- POL-CEL-2025-099 (insuredId 30.555.777) — Marcelo Gómez, sum insured 1.200.000, 3 prior claims\n- POL-CEL-2026-042 (insuredId 42.987.654) — Sofía Martínez, sum insured 1.300.000, 0 prior claims\n\n**Scenario 5 — FALTA_DOCUMENTACION**: crea un caso de robo SIN adjuntar denuncia policial. Las reglas mock para 'Robo' requieren `police_report` + `item_photo`, así que la clasificación devuelve FALTA_DOCUMENTACION → el caso queda en `AWAITING_DOCUMENTATION`. Luego se suben los documentos faltantes vía POST /{id}/documents, el caso vuelve a `PENDING_CLASSIFICATION`, y al re-clasificarse llega a `PENDING_ANALYST_REVIEW`.\n\n**Scenario 6 — Decisión del analista**: aprueba el caso 1 (Fast Track) y rechaza el caso 3 (reincidente).\n\n**Scenario 8 — Búsqueda y filtrado (`8️⃣`)**: a diferencia de los escenarios 1-7, no crea sus propios casos — corre contra los 5 cases fijos que siembra `db/init.sql` (ids 1-5). Sembrar antes de correr este bloque:\n```\nGet-Content db\\init.sql | docker exec -i arbiter-postgres-1 psql -U arbiter -d arbiter\n```\nSi corriste los escenarios 1-7 antes en la misma base, los ids ya no van a ser 1-5 — volvé a sembrar con el comando de arriba para que los ids documentados en cada request coincidan.",
+		"description": "Exercises the real cross-module flow:\n\n1. **POST** a case to cases-service (multipart: `case` JSON part + optional `documents`), which persists it and calls classification-service.\n2. **GET** the case — poll until classification resolves.\n3. **POST** the analyst's decision (APROBAR / RECHAZAR) → transitions to APPROVED / REJECTED.\n\n**State machine**:\n- `PENDING_CLASSIFICATION` → classification runs (scheduler polls every 5s)\n- `PENDING_ANALYST_REVIEW` → analyst must act (FAST_TRACK / LLM result available)\n- `AWAITING_DOCUMENTATION` → insured must upload missing docs (FALTA_DOCUMENTACION)\n- `APPROVED` / `REJECTED` → final, set by analyst decision\n\n**Requirements**: both `cases-service` (port 8083) and `classification-service` (port 8082) up.\n\n**Mock policies** (from classification-service's MockInsurerAdapter):\n- POL-001 (insuredId 12345678) — Asegurado de prueba, sum insured 500.000\n- POL-CEL-2024-001 (insuredId 40.123.456) — Laura Fernández, sum insured 400.000, 0 prior claims\n- POL-CEL-2025-099 (insuredId 30.555.777) — Marcelo Gómez, sum insured 1.200.000, 3 prior claims\n- POL-CEL-2026-042 (insuredId 42.987.654) — Sofía Martínez, sum insured 1.300.000, 0 prior claims\n\n**Scenario 5 — FALTA_DOCUMENTACION**: crea un caso de robo SIN adjuntar denuncia policial. Las reglas mock para 'Robo' requieren `police_report` + `item_photo`, así que la clasificación devuelve FALTA_DOCUMENTACION → el caso queda en `AWAITING_DOCUMENTATION`. Luego se suben los documentos faltantes vía POST /{id}/documents, el caso vuelve a `PENDING_CLASSIFICATION`, y al re-clasificarse llega a `PENDING_ANALYST_REVIEW`.\n\n**Scenario 6 — Decisión del analista**: aprueba el caso 1 (Fast Track) y rechaza el caso 3 (reincidente).\n\n**Scenario 8 — Búsqueda y filtrado (`8️⃣`)**: a diferencia de los escenarios 1-7, no crea sus propios casos — corre contra los expedientes que ya haya en la base (por ejemplo, los de `db/seed-demo.sql`). Los ids y filtros de cada request son de ejemplo: ajustalos a los datos de tu base.",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
 	},
 	"item": [
@@ -682,26 +682,6 @@
 			"response": []
 		},
 		{
-			"name": "📋 (debug) Get full results table directly from classification-service",
-			"request": {
-				"method": "GET",
-				"header": [],
-				"url": {
-					"raw": "{{classificationBaseUrl}}/api/v1/classifications/results",
-					"host": [
-						"{{classificationBaseUrl}}"
-					],
-					"path": [
-						"api",
-						"v1",
-						"classifications",
-						"results"
-					]
-				}
-			},
-			"response": []
-		},
-		{
 			"name": "8️⃣ Búsqueda: sin filtros, primera página (paginación por defecto: size=20)",
 			"request": {
 				"method": "GET",
@@ -718,7 +698,7 @@
 					],
 					"query": []
 				},
-				"description": "Usa los datos sembrados por db/init.sql (5 cases fijos, ids 1-5). Respuesta paginada: mirar content, totalElements, totalPages."
+				"description": "Respuesta paginada: mirar content, totalElements, totalPages."
 			},
 			"response": []
 		},
@@ -744,7 +724,7 @@
 						}
 					]
 				},
-				"description": "Con los datos de init.sql debería devolver los cases 3 y 4."
+				"description": "Devuelve solo los expedientes en ese estado."
 			},
 			"response": []
 		},
@@ -770,7 +750,7 @@
 						}
 					]
 				},
-				"description": "Con los datos de init.sql debería devolver los cases 2, 3, 4 y 5."
+				"description": "Devuelve solo los expedientes con ese hecho generador."
 			},
 			"response": []
 		},
@@ -796,7 +776,7 @@
 						}
 					]
 				},
-				"description": "Con los datos de init.sql debería devolver los cases 1, 4 y 5 (mismo asegurado/póliza)."
+				"description": "Devuelve solo los expedientes de esa póliza."
 			},
 			"response": []
 		},
@@ -822,7 +802,7 @@
 						}
 					]
 				},
-				"description": "Con los datos de init.sql debería devolver los cases 1, 4 y 5."
+				"description": "Devuelve solo los expedientes de ese asegurado."
 			},
 			"response": []
 		},
@@ -852,7 +832,7 @@
 						}
 					]
 				},
-				"description": "Con los datos de init.sql debería devolver los cases 1, 4 y 5 (excluye el 06-10 y el 06-30)."
+				"description": "Devuelve los expedientes cuyo hecho cae dentro del rango (extremos incluidos)."
 			},
 			"response": []
 		},
@@ -890,7 +870,7 @@
 						}
 					]
 				},
-				"description": "Combina varios filtros a la vez; con init.sql debería devolver los cases 3 y 4, case 3 primero (eventDate 30/6, más reciente que el 12/6 del case 4)."
+				"description": "Combina varios filtros a la vez; el orden lo fija sort."
 			},
 			"response": []
 		},
@@ -920,7 +900,7 @@
 						}
 					]
 				},
-				"description": "Con init.sql (5 cases) debería devolver primero los cases 5 y 4 (id desc), totalElements=5, totalPages=3."
+				"description": "Devuelve los dos expedientes más recientes (id desc); totalPages = ceil(totalElements / 2)."
 			},
 			"response": []
 		},
@@ -946,7 +926,7 @@
 						}
 					]
 				},
-				"description": "Con init.sql debería devolver los cases 1 y 4 (insuredName=\"Sofía Martínez\", case-insensitive substring). El case 5 comparte insuredId pero todavía no tiene insuredName resuelto (null hasta la primera clasificación) — no matchea. También matchea por policyNumber/insuredId (substring) o por id (exacto, si q es numérico)."
+				"description": "Busca por nombre del asegurado (substring, sin distinguir mayúsculas). También matchea por policyNumber/insuredId (substring) o por id (exacto, si q es numérico)."
 			},
 			"response": []
 		},

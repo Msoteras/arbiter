@@ -20,10 +20,7 @@ import java.util.Base64;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-/**
- * Seals the envelope with the same OAEP parameters {@code crypto.subtle} uses in the browser, so
- * these cover the agreement between both ends and not just the class understanding itself.
- */
+/** Seals with the same OAEP parameters as the browser's {@code crypto.subtle}, to cover both ends. */
 class PasswordCipherTest {
 
     private static final String PASSWORD = "asegurado.arbiter123";
@@ -57,7 +54,6 @@ class PasswordCipherTest {
                 .isInstanceOf(InvalidEncryptedPasswordException.class);
     }
 
-    /** A slightly fast client clock shouldn't knock the login over. */
     @Test
     void decrypt_slightlyAheadClock_returnsPassword() {
         String skewed = seal(Instant.now().plus(Duration.ofMinutes(1)), PASSWORD);
@@ -73,7 +69,6 @@ class PasswordCipherTest {
                 .isInstanceOf(InvalidEncryptedPasswordException.class);
     }
 
-    /** The one that matters: there is no way to send the password in the clear. */
     @Test
     void decrypt_plaintextPassword_throwsInvalidEncryptedPassword() {
         assertThatThrownBy(() -> cipher.decrypt(PASSWORD))
@@ -104,7 +99,6 @@ class PasswordCipherTest {
                 .isInstanceOf(InvalidEncryptedPasswordException.class);
     }
 
-    /** Blank config makes it generate its own key pair, which is all these tests need. */
     private static PasswordCipher newCipher() {
         PasswordCipher created = new PasswordCipher();
         ReflectionTestUtils.setField(created, "configuredPrivateKey", "");

@@ -27,18 +27,12 @@ export interface CaseCreateRequest {
   policyNumber: string;
   description: string;
   eventDate: string;
-  /** Solo la dirección a nivel calle. Localidad y provincia van en sus propios campos. */
+  /** Street address only; locality and province have their own fields. */
   eventLocation: string;
   province?: string;
   locality?: string;
-  // Fecha/hora en que el asegurado hizo la denuncia policial, tal como la declara. Opcional: no
-  // todo hecho generador lleva denuncia policial (el wizard solo pide el dato cuando la agenda
-  // documental del ramo incluye `police_report`).
-  //
-  // Es la DECLARACIÓN, no lo que diga la constancia. Cuando exista extracción estructurada del
-  // documento (H0007), esa fecha va en un dato aparte: si sobreescribiera a esta se pierde el
-  // cruce, y la discrepancia entre lo declarado y lo que dice el papel es justamente la señal
-  // que le daría contenido al DocumentInconsistencyEvaluator (D4b).
+  // As DECLARED by the insured, not as read from the police report: the mismatch between the two
+  // is itself a fraud signal, so the extracted date must never overwrite this one.
   policeReportAt?: string;
   claimedAmount?: number;
   contactEmail?: string;
@@ -48,9 +42,7 @@ export interface CaseCreateRequest {
 export interface EligibilityCheckRequest {
   insuredId: string;
   policyNumber: string;
-  // Opcional: el wizard llama esto dos veces — apenas se elige la póliza (paso 1, sin fecha
-  // todavía, para pescar mora temprano) y de nuevo con la fecha cargada (paso 2, para vigencia y
-  // carencia). El backend ya sabe saltear los chequeos que necesitan fecha cuando no viene.
+  // Optional: the wizard checks once without it (arrears only) and again with it (term, waiting period).
   eventDate?: string;
   policeReportAt?: string;
 }
@@ -60,40 +52,30 @@ export interface EligibilityCheckResponse {
   reason: string | null;
 }
 
-/** Espejo de `IntakeDocumentsResponse` de cases-service. */
 export interface IntakeDocumentsResponse {
   documentTypes: string[];
-  /** `true` si es la lista del carril rápido; `false` si es la agenda completa (no hay lista). */
+  /** `false` when no Fast Track list is configured and this is the full agenda. */
   fastTrackOnly: boolean;
 }
 
-// El backend solo acepta APPROVE/APROBAR o REJECT/RECHAZAR (human-in-the-loop:
-// el analista aprueba o rechaza; no hay otras salidas). Sin analystId: cases-service
-// lo resuelve del JWT del que llama, no confía en lo que mande el cliente.
+// No analystId: cases-service takes it from the caller's JWT.
 export interface AnalystDecisionRequest {
   decision: 'APPROVE' | 'REJECT';
   justification: string;
-  /** Obligatorio al aprobar, prohibido al rechazar: aprobar es también determinar cuánto se paga. */
+  /** Required when approving, forbidden when rejecting. */
   settlement?: SettlementDecisionRequest | null;
 }
 
-/** Lo que el analista autoriza pagar. Calca SettlementDecisionRequest del backend. */
 export interface SettlementDecisionRequest {
-  /** Valor de reposición acreditado por la documentación del expediente. Opcional. */
   replacementValue?: number | null;
-  /** El monto que efectivamente se paga: la propuesta, o el ajuste del analista. */
   settledAmount: number;
-  /** Obligatorio solo si `settledAmount` difiere de lo que calculó el backend. */
+  /** Required only when `settledAmount` differs from the backend's calculation. */
   adjustmentReason?: string | null;
 }
 
-/** Cómo se calcula el techo indemnizable de una cobertura. Calca el enum SettlementBasis. */
 export type SettlementBasis = 'SUM_INSURED' | 'LESSER_OF_SUM_AND_REPLACEMENT';
 
-/**
- * Una línea de la hoja de liquidación. El backend la arma entera —importe y explicación— para que
- * el texto y la cuenta no puedan separarse: acá solo se renderiza.
- */
+/** Built entirely by the backend (amount and wording) so text and math can't drift apart. */
 export interface SettlementLine {
   kind: 'BASE' | 'DEDUCTION' | 'TOTAL';
   concept: string;
@@ -101,7 +83,7 @@ export interface SettlementLine {
   amount: number;
 }
 
-/** El monto a pagar del expediente: la liquidación ya autorizada, o la propuesta a confirmar. */
+/** Either the authorized settlement or a proposal to confirm. */
 export interface Settlement {
   formula: SettlementFormula;
   sumInsured: number;
@@ -120,42 +102,28 @@ export interface Settlement {
   adjustmentReason: string | null;
   confirmed: boolean;
   confirmedAt: string | null;
-  /** Null mientras es solo una propuesta: no se firmó nada, así que no hay instancia en la que estar. */
+  /** Null while it is only a proposal. */
   status: SettlementStatus | null;
-  /**
-   * El tope del ramo. En una propuesta es el vigente, para que el analista vea ANTES de firmar que
-   * este monto va a necesitar al referente; en una liquidación guardada es el que quedó congelado.
-   * Null = el ramo no tiene tope.
-   */
+  /** Branch authority limit: current one on a proposal, frozen one once saved. Null = no limit. */
   authorityLimit: number | null;
-  /** Por qué el referente la devolvió, cuando la devolvió. */
   returnReason: string | null;
-  /**
-   * El importe que el modelo leyó de la documentación del expediente. **Sugerencia y nada más**:
-   * no está aplicado ni entra en el cálculo hasta que el analista lo toma.
-   */
+  /** A suggestion only: not part of the calculation until the analyst takes it. */
   suggestedAmount: number | null;
-  /** De qué tipo de documento salió, para poder verificarlo antes de tomarlo. */
   suggestedFrom: string | null;
   /**
-   * A qué campo responde. `ACCREDITED_AMOUNT` es la base del cálculo (presupuesto o valor de
-   * reposición); `SETTLED_AMOUNT` es el monto a pagar en sí, que es donde cae lo que determinó el
-   * perito cuando la cobertura liquida por suma asegurada y no hay monto acreditado que cargar.
+   * `ACCREDITED_AMOUNT` feeds the calculation base; `SETTLED_AMOUNT` is the payout itself (the
+   * expert's figure when the coverage settles by sum insured and has no accredited amount).
    */
   suggestedFor: 'ACCREDITED_AMOUNT' | 'SETTLED_AMOUNT' | null;
   breakdown: SettlementLine[];
   warnings: string[];
 }
 
-/** En qué instancia de la cadena de autorización está la liquidación. Calca SettlementStatus. */
 export type SettlementStatus = 'AUTHORIZED' | 'PENDING_AUTHORIZATION' | 'RETURNED';
 
-/** Cómo se liquidó: el bien no está (pérdida total) o quedó dañado (reparación). */
 export type SettlementFormula = 'TOTAL_LOSS' | 'REPAIR';
 
-// Forma de Page<T> de Spring Data — así responde GET /api/v1/cases desde que el backend
-// pagina (historia "Búsqueda y filtrado de expedientes"). Solo los campos que usamos hoy;
-// Spring manda más metadata (pageable, sort, empty, etc.) que ignoramos.
+/** Subset of Spring Data's Page<T>. */
 export interface PagedResponse<T> {
   content: T[];
   totalElements: number;
@@ -164,71 +132,44 @@ export interface PagedResponse<T> {
   size: number;
 }
 
-// Todos los filtros que GET /api/v1/cases acepta hoy (opcionales y combinables) + paginación/orden.
 export interface ExpedienteListParams {
-  /** Uno o varios: el portal del asegurado filtra por cajón, y "En trámite" son cuatro estados. */
   status?: string | string[];
   claimCause?: string;
   policyNumber?: string;
   insuredId?: string;
-  /** ISO yyyy-MM-dd. Filtra por fecha del hecho (eventDate), no por fecha de denuncia. */
+  /** ISO yyyy-MM-dd, on the event date (not the filing date). */
   eventDateFrom?: string;
   eventDateTo?: string;
   page?: number;
   size?: number;
-  /** Formato Spring Data, ej. "eventDate,desc". Default del backend: "id,desc". */
+  /** Spring Data format, e.g. "eventDate,desc". Backend default: "id,desc". */
   sort?: string;
-  /**
-   * Búsqueda de texto libre (case-insensitive, substring) por número de expediente, póliza o
-   * asegurado (insuredId/insuredName — este último nullable hasta la primera clasificación).
-   * Se combina por AND con el resto de los filtros.
-   */
+  /** Case-insensitive substring over case number, policy and insured; ANDed with the other filters. */
   q?: string;
-  /** Score de riesgo de fraude, match exacto. */
   riskBand?: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
-  /**
-   * Lente "Frenados": expedientes abiertos sin un solo cambio en los últimos N días. Lo usa el
-   * panel "Requiere atención" del tablero para encontrar lo que quedó quieto.
-   */
+  /** Open cases with no change in the last N days. */
   staleDays?: number;
-  /**
-   * Lente "Míos" de la bandeja: solo los expedientes asignados al analista logueado. Omitirlo
-   * (o `false`) es la lente "Todos".
-   *
-   * Es un flag y no un id porque el id de analista es local al esquema de cada aseguradora:
-   * quién es "yo" lo resuelve el backend contra el token. Es "de quién es el expediente", no
-   * "qué puede ver este usuario" — eso último ya lo acota el tenant.
-   */
+  /** A flag, not an id: analyst ids are per-tenant, so the backend resolves "me" from the token. */
   assignedToMe?: boolean;
-  /**
-   * Filtro "Analista" del referente: expedientes de un analista puntual. A diferencia de
-   * `assignedToMe`, acá el id sí viaja — sale de la lista de `analystWorkload()`, que ya es de su
-   * propia aseguradora.
-   */
+  /** Taken from `analystWorkload()`, which is already scoped to the supervisor's insurer. */
   analystId?: number;
-  /** Lente "Sin asignar": expedientes sin analista todavía. Excluyente con las otras lentes. */
+  /** Mutually exclusive with the other lenses (as are `assigned` and `fraudAlert`). */
   unassigned?: boolean;
-  /** Lente "Asignados" (referente): expedientes con analista, sin importar quién. Excluyente. */
   assigned?: boolean;
-  /** Pestaña "Riesgo de fraude": expedientes con riesgo alto o crítico. Excluyente con las otras. */
+  /** HIGH or CRITICAL risk. */
   fraudAlert?: boolean;
-  /** Recorte por ciclo de vida. Default del backend: `ALL`. */
+  /** Backend default: `ALL`. */
   scope?: 'OPEN' | 'CLOSED' | 'ALL';
-  /** Solo para el asegurado con pólizas en más de una compañía. Id de `arbiter_common.insurer`. */
+  /** Only for an insured with policies at more than one insurer. */
   insurerId?: number;
 }
 
-/**
- * Carga de trabajo de un analista del equipo — espejo de AnalystWorkloadResponse del cases-service.
- * `activeCases` cuenta solo expedientes activos (no resueltos). La usa el inicio del referente.
- */
 export interface AnalystWorkload {
   analystId: number;
   name: string;
   activeCases: number;
 }
 
-/** Conteos de las lentes de la bandeja — espejo de LensSummaryResponse del cases-service. */
 export interface LensSummary {
   all: number;
   mine: number;
@@ -239,15 +180,13 @@ export interface LensSummary {
   closed: number;
 }
 
-/**
- * Resumen de los expedientes asignados al analista logueado — espejo de AssignedCaseSummaryResponse.
- * `byStatus` mapea nombre de CaseStatus → cantidad (solo estados con al menos uno). La usa el inicio
- * del analista para las tarjetas (pendientes / en trámite / resueltos / riesgo alto).
- */
+/** `byStatus` maps CaseStatus name to count, only for statuses with at least one case. */
 export interface AssignedCaseSummary {
   total: number;
   byStatus: Record<string, number>;
   highRisk: number;
+  /** PENDING_ANALYST_REVIEW cases awaiting the supervisor's sign-off. */
+  awaitingReferent: number;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -255,28 +194,20 @@ export class ExpedienteService {
   private readonly http = inject(HttpClient);
   private readonly baseUrl = `${environment.apiBaseUrl}/cases`;
 
-  /** Nombres distintos de hechos generadores (todos los ramos), para el filtro de la bandeja. */
+  /** Distinct claim cause names across all branches. */
   claimCauseNames(): Observable<string[]> {
     return this.http.get<string[]>(`${environment.apiBaseUrl}/claim-causes/all`);
   }
 
   /**
-   * `insurer` sólo lo manda el portal del asegurado, y sólo hace falta si es cliente de más de
-   * una compañía: los números de expediente se repiten entre aseguradoras, así que sin esto el
-   * back siempre resolvía contra la del login y los de la otra quedaban inalcanzables. El back lo
-   * valida contra el token, no confía en el parámetro.
+   * `insurer` is sent only by the insured portal when the insured has several insurers: case ids
+   * repeat across tenants. The backend validates it against the token.
    */
   getById(id: string | number, insurer?: string | null): Observable<ExpedienteResponse> {
     const options = insurer ? { params: new HttpParams().set('insurer', insurer) } : {};
     return this.http.get<ExpedienteResponse>(`${this.baseUrl}/${id}`, options);
   }
 
-  /**
-   * Lista expedientes paginados, más recientes primero por defecto. Todos los filtros de
-   * `ExpedienteListParams` son opcionales y combinables — reflejan 1:1 lo que acepta
-   * `GET /api/v1/cases` (historia "Búsqueda y filtrado de expedientes", backend). `insuredId` es
-   * explícito hasta que se integre Auth0; después saldrá del JWT.
-   */
   list(params: ExpedienteListParams = {}): Observable<PagedResponse<ExpedienteResponse>> {
     const query: Record<string, string | string[]> = {};
     if (params.status?.length) query['status'] = params.status;
@@ -301,20 +232,15 @@ export class ExpedienteService {
     return this.http.get<PagedResponse<ExpedienteResponse>>(this.baseUrl, { params: query });
   }
 
-  /**
-   * Mismo gate que `create` corre antes de armar el expediente (vigencia, carencia, mora), sin
-   * crear nada. El wizard lo llama apenas tiene póliza + fecha del hecho, para bloquear o avisar
-   * antes de que el asegurado llene el resto del formulario y suba documentación.
-   */
+  /** Same gate `create` runs (term, waiting period, arrears) without creating anything. */
   checkEligibility(request: EligibilityCheckRequest): Observable<EligibilityCheckResponse> {
     return this.http.post<EligibilityCheckResponse>(`${this.baseUrl}/eligibility`, request);
   }
 
   /**
-   * La primera tanda de documentos del alta: lo que exige el carril rápido para la cobertura que
-   * responde por ese hecho generador, o la agenda completa si la aseguradora no configuró ninguna
-   * (`fastTrackOnly=false`). El resto se pide después, solo si el siniestro no entra al carril
-   * rápido. 503 si no se pudo leer el motor de reglas.
+   * Documents requested at filing: the Fast Track list for the matching coverage, or the full agenda
+   * when none is configured. The rest is requested only if the claim misses Fast Track. 503 if the
+   * rules engine can't be read.
    */
   intakeDocuments(
     policyNumber: string,
@@ -338,12 +264,7 @@ export class ExpedienteService {
     return this.http.post<ExpedienteResponse>(this.baseUrl, formData);
   }
 
-  /**
-   * `insurer`: mismo motivo que `getById` — un asegurado con pólizas en más de una compañía
-   * puede estar subiendo documentación a un expediente que no vive en el tenant por defecto de su
-   * sesión. `ExpedienteResponse.insurerSlug` (ya viene poblado desde el alta) es lo que hay que
-   * reenviar acá.
-   */
+  /** `insurer`: see `getById`; pass `ExpedienteResponse.insurerSlug`. */
   uploadDocuments(
     caseId: number,
     documents: Map<string, File>,
@@ -359,17 +280,12 @@ export class ExpedienteService {
     );
   }
 
-  /** Metadata de los adjuntos del expediente (sin el contenido). */
   listDocuments(caseId: number, insurer?: string | null): Observable<CaseDocument[]> {
     const options = insurer ? { params: new HttpParams().set('insurer', insurer) } : {};
     return this.http.get<CaseDocument[]>(`${this.baseUrl}/${caseId}/documents`, options);
   }
 
-  /**
-   * Contenido del adjunto. Va por HttpClient (y no por un <a href>) porque el endpoint
-   * exige el JWT: el authInterceptor solo alcanza a las requests del HttpClient, una
-   * navegación del browser saldría sin header y volvería 401.
-   */
+  /** Through HttpClient, not an <a href>: the endpoint needs the JWT the interceptor adds. */
   downloadDocument(caseId: number, documentId: number, insurer?: string | null): Observable<Blob> {
     const params = insurer ? new HttpParams().set('insurer', insurer) : undefined;
     return this.http.get(`${this.baseUrl}/${caseId}/documents/${documentId}`, {
@@ -385,62 +301,36 @@ export class ExpedienteService {
     return this.http.post<{ status: string }>(`${this.baseUrl}/${caseId}/decision`, request);
   }
 
-  /**
-   * El monto a pagar: la liquidación ya autorizada, o la propuesta para que el analista confirme.
-   * No persiste nada — `replacementValue` deja previsualizar qué pasaría si se acreditara ese
-   * valor, y lo que escribe es la aprobación (`recordAnalystDecision`).
-   */
+  /** Read-only preview; `replacementValue` simulates accrediting that value. Saving is `recordAnalystDecision`. */
   settlement(caseId: number, replacementValue?: number | null): Observable<Settlement> {
     const params =
       replacementValue == null ? undefined : { replacementValue: String(replacementValue) };
     return this.http.get<Settlement>(`${this.baseUrl}/${caseId}/settlement`, { params });
   }
 
-  /**
-   * Reintenta la clasificación de un expediente que quedó en CLASSIFICATION_FAILED. Lo devuelve a
-   * PENDING_CLASSIFICATION y re-dispara el análisis en el backend. Solo válido desde el estado
-   * fallido (otro estado → 409).
-   */
+  /** Only valid from CLASSIFICATION_FAILED (409 otherwise). */
   retryClassification(caseId: number): Observable<ExpedienteResponse> {
     return this.http.post<ExpedienteResponse>(`${this.baseUrl}/${caseId}/retry-classification`, {});
   }
 
-  /**
-   * Pone a `analystId` como dueño del expediente. Un solo analista por expediente: reasignar
-   * reemplaza al anterior. Asignar NO resuelve — el expediente sigue necesitando la decisión
-   * explícita del analista (`recordAnalystDecision`).
-   *
-   * `analystId` es el id que devuelve `GET /auth/users/analysts`, local a la aseguradora.
-   */
+  /** Replaces any previous assignee. `analystId` comes from `GET /auth/users/analysts` (per tenant). */
   assign(caseId: number, analystId: number): Observable<ExpedienteResponse> {
     return this.http.post<ExpedienteResponse>(`${this.baseUrl}/${caseId}/assign`, { analystId });
   }
 
   /**
-   * Reabre un expediente cerrado (APPROVED / REJECTED / LAPSED) y lo devuelve a la revisión del
-   * analista. Es la "rehabilitación" del procedimiento de siniestros: sin ella los estados
-   * terminales son callejones sin salida y un error —o la documentación que el asegurado trae
-   * después de que el expediente caducó— no tiene arreglo.
-   *
-   * No revierte la decisión anterior (su registro de auditoría es inmutable): solo vuelve a poner
-   * a una persona a decidir. `reason` es obligatorio, es lo único que queda en el historial.
-   * Desde un estado no terminal el backend responde 409.
+   * Sends a closed case (APPROVED / REJECTED / LAPSED) back to analyst review without reverting the
+   * previous decision. 409 from a non-terminal status.
    */
   reopen(caseId: number, reason: string): Observable<ExpedienteResponse> {
     return this.http.post<ExpedienteResponse>(`${this.baseUrl}/${caseId}/reopen`, { reason });
   }
 
-  /** Libera el expediente: queda sin dueño y disponible para que lo tome otro analista. */
   unassign(caseId: number): Observable<ExpedienteResponse> {
     return this.http.delete<ExpedienteResponse>(`${this.baseUrl}/${caseId}/assign`);
   }
 
-  /**
-   * Carga de trabajo del equipo: cada analista de la aseguradora con su cantidad de expedientes
-   * activos asignados (incluye a los que tienen cero). Solo para el referente. Alimenta el panel
-   * "Carga del equipo" del inicio.
-   */
-  /** Los 5 conteos de las lentes en un request, sobre los filtros vigentes (sin paginado ni orden). */
+  /** All lens counts in one request, over the current filters. */
   lensSummary(params: ExpedienteListParams = {}): Observable<LensSummary> {
     const query: Record<string, string | string[]> = {};
     if (params.status?.length) query['status'] = params.status;
@@ -456,17 +346,12 @@ export class ExpedienteService {
     return this.http.get<LensSummary>(`${this.baseUrl}/lens-summary`, { params: query });
   }
 
+  /** Includes analysts with zero active cases. */
   analystWorkload(): Observable<AnalystWorkload[]> {
     return this.http.get<AnalystWorkload[]>(`${this.baseUrl}/analysts/workload`);
   }
 
-  // ----- derivación a peritaje -----
-
-  /**
-   * Si este expediente se puede derivar y a quién. El umbral de monto sale del motor de reglas,
-   * así que la respuesta cambia por aseguradora y por ramo. También lo valida el backend al
-   * derivar: esto es para la pantalla, no es el control.
-   */
+  /** For display only; the backend enforces the same check when referring. */
   derivationOptions(
     caseId: number,
     providerType: ProviderType = 'ESTUDIO_LIQUIDADOR',
@@ -479,15 +364,11 @@ export class ExpedienteService {
     );
   }
 
-  /** Peritaje y servicio técnico, de la derivación más reciente a la más vieja. */
+  /** Newest first. */
   derivaciones(caseId: number): Observable<Peritaje[]> {
     return this.http.get<Peritaje[]>(`${this.baseUrl}/${caseId}/expert-assessment/all`);
   }
 
-  /**
-   * Deriva el expediente y le manda al perito los datos del siniestro por mail. No resuelve nada:
-   * el caso queda esperando el informe y vuelve al analista, que sigue siendo quien decide.
-   */
   derivarAPeritaje(
     caseId: number,
     expertFirmId: number,
@@ -512,7 +393,7 @@ export class ExpedienteService {
     formData.append('report', report);
     formData.append('outcome', outcome);
     formData.append('note', note);
-    // El backend lo exige con QUOTE_SENT y lo rechaza con IRREPARABLE: nada que cobrar ahí.
+    // Required with QUOTE_SENT, rejected with IRREPARABLE.
     if (repairCost != null) {
       formData.append('repairCost', String(repairCost));
     }
@@ -522,11 +403,7 @@ export class ExpedienteService {
     );
   }
 
-  /**
-   * Carga el informe que el analista recibió del perito y devuelve el expediente a revisión.
-   * NO re-clasifica: el informe es evidencia de una persona que inspeccionó el caso, y volver a
-   * pasarlo por el modelo solo lograría que lo repita o que lo contradiga.
-   */
+  /** Returns the case to review without reclassifying it. */
   cargarInformePericial(
     caseId: number,
     verdict: ExpertVerdict,
@@ -534,51 +411,30 @@ export class ExpedienteService {
     indemnifiableAmount: number | null,
     report: File,
   ): Observable<Peritaje> {
-    // Veredicto y nota van en el cuerpo, no en la query string: la nota es texto libre sobre un
-    // siniestro y puede traer datos del asegurado, que en la URL quedarían en los logs de nginx
-    // y de cualquier proxy en el medio. @RequestParam los toma igual de los campos del multipart.
+    // In the body, not the query string: the note may contain personal data that would end up in
+    // proxy logs. @RequestParam reads multipart fields too.
     const formData = new FormData();
     formData.append('report', report);
     formData.append('verdict', verdict);
     formData.append('note', note);
-    // Solo si el informe puso un número: vacío no es cero. Un cero diría que el perito concluyó
-    // que no se paga nada, que es otra conclusión.
+    // Empty is not zero: zero would mean the expert concluded nothing is owed.
     if (indemnifiableAmount != null) {
       formData.append('indemnifiableAmount', String(indemnifiableAmount));
     }
     return this.http.post<Peritaje>(`${this.baseUrl}/${caseId}/expert-assessment/report`, formData);
   }
 
-  /**
-   * Las pólizas vigentes del asegurado de este expediente, la de la denuncia incluida. Va por su
-   * propio endpoint y no dentro del detalle: son datos de HOY, se piden solo cuando el analista
-   * abre su solapa, y meterlas en el detalle costaba una consulta a la BD Aseguradora en cada
-   * apertura del expediente. El recorte lo hace el expediente, no un DNI: se llega a estas pólizas
-   * a través de un caso que el analista ya puede leer.
-   */
+  /** Current data, fetched lazily when the tab opens to spare an insurer-DB query on every detail load. */
   polizasDelAsegurado(caseId: number): Observable<Policy[]> {
     return this.http.get<Policy[]>(`${this.baseUrl}/${caseId}/insured-policies`);
   }
 
-  // ----- antecedente de fraude del asegurado -----
-
-  /**
-   * Los antecedentes del asegurado de este expediente, incluido el que este mismo expediente pueda
-   * haber originado. Vienen también los vencidos: que hubo un antecedente y ya no cuenta es una
-   * respuesta distinta de que no haya habido ninguno, y el analista necesita las dos.
-   */
+  /** Includes expired records: "had one that no longer counts" differs from "never had one". */
   antecedentesFraude(caseId: number): Observable<AntecedenteFraude[]> {
     return this.http.get<AntecedenteFraude[]>(`${this.baseUrl}/${caseId}/fraud-record/insured`);
   }
 
-  /**
-   * Marca que este expediente terminó en fraude y deja el antecedente sobre la persona, para que
-   * pese en sus denuncias siguientes. No lo decide el sistema ni el perito: lo registra el analista
-   * y queda con su nombre y su motivo.
-   *
-   * `EXPERT_BACKED` exige que el expediente tenga un peritaje con fraude confirmado — el backend lo
-   * valida contra el veredicto guardado, así que elegirlo sin peritaje devuelve 422.
-   */
+  /** `EXPERT_BACKED` requires a saved expert verdict confirming fraud (422 otherwise). */
   registrarAntecedente(
     caseId: number,
     request: RegistrarAntecedenteRequest,
@@ -586,10 +442,6 @@ export class ExpedienteService {
     return this.http.post<AntecedenteFraude>(`${this.baseUrl}/${caseId}/fraud-record`, request);
   }
 
-  /**
-   * Resumen de los expedientes asignados al analista logueado (conteo por estado + riesgo alto).
-   * El backend resuelve "yo" contra el token. Alimenta las tarjetas del inicio del analista.
-   */
   assignedSummary(): Observable<AssignedCaseSummary> {
     return this.http.get<AssignedCaseSummary>(`${this.baseUrl}/assigned/summary`);
   }

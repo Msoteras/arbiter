@@ -9,21 +9,12 @@ import java.util.Optional;
 
 public interface CoverageRepository extends JpaRepository<Coverage, Long> {
 
-    /** Coverages of a rama, for the referente's rule-config catalog. Tenant resolved from the JWT. */
     List<Coverage> findByBranchIdOrderByNameAsc(Long branchId);
 
-    /**
-     * By name — {@code coverage.name} is UNIQUE within the tenant's schema. It's the only thing
-     * that ties the coverage from the insurer DB (which carries name, amount and deductible, but
-     * none of our ids) to the one the referente configures, when pulling a policy's snapshot.
-     */
+    /** The name (unique per schema) is the only link between the insurer DB's coverage and ours. */
     Optional<Coverage> findByName(String name);
 
-    /**
-     * One row per branch with at least one coverage — a branch with none simply doesn't appear,
-     * same as {@code GROUP BY} always behaves. The referente's ramo list treats "not in this
-     * list" as zero, no special-casing needed on the reading side.
-     */
+    /** Branches with no coverage don't appear; callers treat them as zero. */
     @Query("SELECT c.branchId AS branchId, COUNT(c) AS coverageCount FROM Coverage c GROUP BY c.branchId")
     List<BranchCoverageCount> countGroupedByBranch();
 

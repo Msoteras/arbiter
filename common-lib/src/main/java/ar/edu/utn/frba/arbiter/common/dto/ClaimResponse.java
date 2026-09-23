@@ -9,18 +9,11 @@ import java.time.Instant;
 import java.util.List;
 
 /**
- * Shared contract: polling response for a case's classification. Fields other than
- * {@code caseId} are null until the analysis finishes; the case lifecycle/state is
- * cases-service's responsibility.
+ * Polling response for a case's classification. Fields other than {@code caseId} are null until
+ * the analysis finishes. {@code forensicReport} is analyst-only.
  *
- * <p>{@code forensicReport} carries the structured image-fraud analysis for the analyst UI
- * (analyst-only — never shown to the insured). Null when no analysis ran: Fast Track, or a
- * claim with no image attachments.
- *
- * <p>The risk fields carry the parallel fraud/risk score alongside the classification, and travel
- * the same poll channel. {@code riskScore} and {@code riskBand} are {@code null} when the claim
- * wasn't scored (no scoring config for the branch/claim cause): that "sin scorear" state is
- * distinct from a real {@code LOW} band, so the read model must not collapse it to LOW.
+ * <p>{@code riskScore}/{@code riskBand} are null when the claim wasn't scored (no scoring config):
+ * that state must not be collapsed to {@code LOW}.
  */
 @Builder
 public record ClaimResponse(
@@ -33,30 +26,13 @@ public record ClaimResponse(
         Double riskScore,
         RiskBand riskBand,
         List<RiskBreakdownItem> riskBreakdown,
-        /** Insured's real name, resolved from the policy (InsurerAdapter) at classification time. */
         String insuredName,
-        /**
-         * Whether the insured's account matches the claim cause they declared. {@code null} on every
-         * path that skips the model (Fast Track, a hard coverage exclusion, missing documentation),
-         * same as the risk fields — absent is not {@code MATCHES}.
-         */
+        // Null on every path that skips the model (Fast Track, exclusion, missing docs): absent is not MATCHES.
         CauseConsistency causeConsistency,
-        /**
-         * The claim cause the account actually describes, when {@code causeConsistency} is
-         * {@code CONTRADICTS}. Always a name from the branch's catalog: the output schema restricts
-         * the model to that closed list, so it can't invent one. Null otherwise.
-         */
+        // Set only on CONTRADICTS; always a name from the branch's closed catalog.
         String suggestedClaimCause,
-        /** Verbatim sentence from the account backing the verdict. Null when it matched. */
         String causeEvidence,
-        /**
-         * When the backing {@code llm_analysis} row was written — null for Fast Track (no row: the
-         * gate resolved it, see {@code CaseOutcomeRepository}) or while nothing has been analyzed
-         * yet. {@code llm_analysis} is append-only, so a case reclassified after a prior run (sent
-         * back for documentation, retried) still has that OLDER row on file while a new run is in
-         * flight; this is what lets the poller (cases-service's {@code ClassificationServiceClient})
-         * tell "the answer to what I just triggered" from "what was there before" instead of acting
-         * on a result that predates the reclassification it's polling for.
-         */
+        // llm_analysis is append-only, so a reclassified case still has the older row on file; the
+        // poller compares this timestamp to tell a fresh answer from a stale one. Null for Fast Track.
         Instant analyzedAt
 ) {}

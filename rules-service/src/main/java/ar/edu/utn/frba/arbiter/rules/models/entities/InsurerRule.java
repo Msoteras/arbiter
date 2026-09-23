@@ -21,9 +21,8 @@ import org.hibernate.type.SqlTypes;
 import java.time.Instant;
 
 /**
- * A business rule as configured by one insurer ("regla_aseguradora" in the DER) — there's
- * no rule common to every insurer, so this is the only rule entity: effect, priority, and
- * whether it blocks Fast Track. {@code coverageId} points at cases-service's coverage:
+ * A business rule as configured by one insurer. There's no rule common to every insurer, so this
+ * is the only rule entity. {@code coverageId} points at cases-service's coverage:
  * same tenant schema, but another module owns it, so it stays a plain id and not a real FK.
  *
  * <p>It carries no insurer: the row already lives in one's schema, which is what identifies it. A

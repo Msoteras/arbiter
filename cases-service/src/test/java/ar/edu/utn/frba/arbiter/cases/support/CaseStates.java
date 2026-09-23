@@ -4,11 +4,10 @@ import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 import ar.edu.utn.frba.arbiter.common.models.entities.CaseState;
 
 /**
- * Builds the {@code arbiter_common.case_status} row a test needs straight from the enum, so a
- * test can keep saying "this case is PENDING_ANALYST_REVIEW" now that the column is an FK.
+ * Builds the {@code arbiter_common.case_status} row a test needs straight from the enum.
  *
- * <p>No id: what resolves a state everywhere is {@code name}, and leaving it unset lets a
- * persistence test save the row and get a real one.
+ * <p>No id: states are resolved by {@code name}, and leaving it unset lets a persistence test
+ * save the row and get a real one.
  */
 public final class CaseStates {
 

@@ -15,19 +15,8 @@ import lombok.Setter;
 import java.time.Instant;
 
 /**
- * Local persisted copy of a policy ("Poliza" in CLAUDE.md's domain vocabulary) — the
- * snapshot-sync target described in CLAUDE.md decision #10 ("Arbiter persiste snapshots
- * locales... un cron trae los datos"). Today {@link ar.edu.utn.frba.arbiter.cases.controllers.PolicyController}
- * reads policies live from {@code InsurerAdapter}, never from a local table; this doesn't
- * replace that yet. {@code insuredId} is a logical reference to auth-service's Insured —
- * cross-module, no real FK.
- *
- * <p><b>No carries neither the coverage nor the sum insured.</b> A policy has SEVERAL coverages
- * and each one has its own sum insured and deductible — that's how the insurer DB models it
- * ({@code poliza 1──* cobertura}) and what the contract actually says. Those live in
- * {@link PolicyCoverage}, one row per contracted coverage. Holding a single {@code coverage_id}
- * here meant {@code PolicySynchronizer} imported the first coverage the company returned and
- * dropped the rest.
+ * Local snapshot of a policy synced from the insurer DB. Coverages, with their own sum insured and
+ * deductible, live in {@link PolicyCoverage}: a policy has several.
  */
 @Entity
 @Table(name = "policy")

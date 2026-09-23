@@ -11,11 +11,7 @@ import org.springframework.security.config.annotation.method.configuration.Enabl
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.web.SecurityFilterChain;
 
-/**
- * Validates the same JWT auth-service issues (H0001), same pattern as cases-service and
- * classification-service. No server session: the state lives in the JWT (architecture decision
- * #13).
- */
+/** Validates the JWT auth-service issues. No server session: the state lives in the JWT. */
 @Configuration
 @EnableMethodSecurity
 public class SecurityConfig {

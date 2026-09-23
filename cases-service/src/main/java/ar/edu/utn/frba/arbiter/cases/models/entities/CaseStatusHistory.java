@@ -22,14 +22,7 @@ import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.Instant;
 
-/**
- * Append-only record of every case status transition: one row per move, with where it came from,
- * where it went, who drove it and why. Written only through {@code CaseStatusService} so no
- * transition escapes the trail. No setters — immutable once created.
- *
- * <p>The two states are FKs to the platform catalog ({@code arbiter_common.case_status}); the
- * transitions themselves are tenant data, which is why this table lives in the tenant schema.
- */
+/** Append-only audit trail. Written only through {@code CaseStatusService} so no transition escapes it. */
 @Entity
 @Table(name = "case_status_history")
 @Getter
@@ -45,7 +38,7 @@ public class CaseStatusHistory {
     @Column(name = "case_id", nullable = false)
     private Long caseId;
 
-    /** Where the case came from; null when this row records the case's creation. */
+    /** Null on the creation row. */
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "initial_status_id")
     private CaseState initialStatus;
@@ -58,7 +51,6 @@ public class CaseStatusHistory {
     @Column(nullable = false, length = 20)
     private StatusChangeActor actor;
 
-    /** Short human-readable trigger, e.g. "clasificación: FALTA_DOCUMENTACION". */
     @Column(nullable = false)
     private String reason;
 
@@ -66,7 +58,6 @@ public class CaseStatusHistory {
     @Column(name = "changed_at", nullable = false, updatable = false)
     private Instant changedAt;
 
-    /** Null on the creation row — see {@link #initialStatus}. */
     @Transient
     public CaseStatus getFromStatus() {
         return initialStatus == null ? null : CaseStatus.valueOf(initialStatus.getName());

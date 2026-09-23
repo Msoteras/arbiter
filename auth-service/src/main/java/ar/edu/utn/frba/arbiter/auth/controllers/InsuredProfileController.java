@@ -4,10 +4,7 @@ import ar.edu.utn.frba.arbiter.auth.dto.LoginResponse;
 import ar.edu.utn.frba.arbiter.auth.dto.OnboardingRequest;
 import ar.edu.utn.frba.arbiter.auth.dto.ProfileResponse;
 import ar.edu.utn.frba.arbiter.auth.dto.UpdateProfileRequest;
-import ar.edu.utn.frba.arbiter.auth.exceptions.UserNotFoundException;
-import ar.edu.utn.frba.arbiter.auth.models.repositories.UserRepository;
 import ar.edu.utn.frba.arbiter.auth.services.InsuredProfileService;
-import ar.edu.utn.frba.arbiter.common.models.entities.User;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -30,7 +27,6 @@ import org.springframework.web.bind.annotation.RestController;
 public class InsuredProfileController {
 
     private final InsuredProfileService profileService;
-    private final UserRepository userRepository;
 
     @GetMapping
     @Operation(summary = "Ver perfil del asegurado",
@@ -40,8 +36,7 @@ public class InsuredProfileController {
                     (para precargar datos) como la página de perfil.
                     """)
     public ResponseEntity<ProfileResponse> getProfile(Authentication authentication) {
-        User user = resolveUser(authentication);
-        return ResponseEntity.ok(profileService.getProfile(user));
+        return ResponseEntity.ok(profileService.getProfile(authentication.getName()));
     }
 
     @PostMapping("/onboarding")
@@ -54,8 +49,7 @@ public class InsuredProfileController {
                     """)
     public ResponseEntity<LoginResponse> completeOnboarding(
             @RequestBody @Valid OnboardingRequest request, Authentication authentication) {
-        User user = resolveUser(authentication);
-        return ResponseEntity.ok(profileService.completeOnboarding(user, request));
+        return ResponseEntity.ok(profileService.completeOnboarding(authentication.getName(), request));
     }
 
     @PatchMapping
@@ -68,12 +62,6 @@ public class InsuredProfileController {
                     """)
     public ResponseEntity<LoginResponse> updateProfile(
             @RequestBody @Valid UpdateProfileRequest request, Authentication authentication) {
-        User user = resolveUser(authentication);
-        return ResponseEntity.ok(profileService.updateProfile(user, request));
-    }
-
-    private User resolveUser(Authentication authentication) {
-        return userRepository.findByEmail(authentication.getName())
-                .orElseThrow(() -> new UserNotFoundException(-1L));
+        return ResponseEntity.ok(profileService.updateProfile(authentication.getName(), request));
     }
 }

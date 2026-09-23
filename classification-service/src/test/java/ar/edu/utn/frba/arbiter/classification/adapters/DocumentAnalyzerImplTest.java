@@ -23,10 +23,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * The extraction pass is the only moment anyone looks at the image (D5): the classifier works on
- * text. What's tested here is that both halves — what the document says and what the image looks
- * like — come out separate, and that a document that couldn't be read doesn't bring down the whole
- * classification.
+ * The transcription and the visual findings must come out separate, and an unreadable document
+ * must not bring down the classification.
  */
 @ExtendWith(MockitoExtension.class)
 class DocumentAnalyzerImplTest {
@@ -50,9 +48,7 @@ class DocumentAnalyzerImplTest {
     }
 
     private void modelAnswers(String content) {
-        // false: transcribir no se resuelve razonando, así que la extracción pide el modelo sin
-        // thinking (ver DocumentAnalyzerImpl). Matchear el valor exacto y no anyBoolean() deja
-        // que este test falle si alguien lo prende sin querer.
+        // Exact `false`, not anyBoolean(), so enabling thinking by accident fails this test.
         when(client.chat(anyString(), anyList(), anyMap(), eq(false))).thenReturn(content);
     }
 
@@ -69,7 +65,7 @@ class DocumentAnalyzerImplTest {
         assertThat(extraction.visualFindings()).containsExactly("El sello está pixelado respecto del resto");
     }
 
-    /** El caso normal: un documento común no tiene señales, y la lista vacía es el resultado bueno. */
+    /** The normal case: an ordinary document has no visual findings. */
     @Test
     void aCleanDocumentYieldsNoFindings() {
         modelAnswers("""
@@ -79,10 +75,7 @@ class DocumentAnalyzerImplTest {
         assertThat(analyzer.extract(SOME_IMAGE, "image/jpeg", CATALOG).visualFindings()).isEmpty();
     }
 
-    /**
-     * If the model doesn't respect the schema, the raw text is kept as the transcription and no
-     * finding is invented: a malformed answer is no evidence of anything visual.
-     */
+    /** A malformed answer keeps the raw text and invents no finding. */
     @Test
     void unparseableAnswerDegradesToRawTextWithoutFindings() {
         modelAnswers("Constancia de denuncia, comisaría 15a.");
@@ -103,7 +96,6 @@ class DocumentAnalyzerImplTest {
         assertThat(extraction.visualFindings()).isEmpty();
     }
 
-    /** Schema respected but the transcription empty: same as not having been able to read it. */
     @Test
     void blankTranscriptionReadsAsAnUnreadableDocument() {
         modelAnswers("""
@@ -114,7 +106,7 @@ class DocumentAnalyzerImplTest {
                 .contains("No se pudo extraer contenido");
     }
 
-    // ─── details: lo que el documento dice y ninguna regla lee ────────────────────
+    // ─── details ─────────────────────────────────────────────────────────────────
 
     @Test
     void readsTheNameValueDetails() {
@@ -135,10 +127,7 @@ class DocumentAnalyzerImplTest {
                 .containsExactly("N° de factura", "Comercio");
     }
 
-    /**
-     * Both columns are NOT NULL, so a half-written detail would cost the whole document's
-     * extraction rather than that one row — and an empty label tells the analyst nothing anyway.
-     */
+    /** Both columns are NOT NULL: a half-written detail would fail the whole document's insert. */
     @Test
     void dropsDetailsMissingANameOrAValue() {
         modelAnswers("""
@@ -156,7 +145,6 @@ class DocumentAnalyzerImplTest {
                 .containsExactly("Comercio");
     }
 
-    /** No details at all is the ordinary case — a photo of the broken device states none. */
     @Test
     void aDocumentWithoutDetails_yieldsAnEmptyListNotNull() {
         modelAnswers("""

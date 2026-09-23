@@ -15,7 +15,6 @@ import {
   catchError,
   debounceTime,
   distinctUntilChanged,
-  forkJoin,
   map,
   Observable,
   of,
@@ -59,8 +58,7 @@ import {
 import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
 import { fadeStagger, staggerReveal } from '../../../shared/animations';
 
-// Campos por los que GET /api/v1/cases acepta ordenar (propiedades reales de la entidad Case
-// en cases-service — Spring Data ordena por propiedad JPA, no por nombre de columna SQL).
+// JPA property paths of Case (Spring Data sorts by property, not by SQL column).
 type SortField =
   | 'id'
   | 'status'
@@ -71,8 +69,6 @@ type SortField =
   | 'responseDeadline'
   | 'riskBand'
   | 'analysisClassification'
-  // Path anidado: el analista es una relación, no una columna. Ordenar por apellido es lo que
-  // espera quien mira la columna "Analista".
   | 'analyst.surname';
 type SortDir = 'asc' | 'desc';
 
@@ -86,20 +82,9 @@ type LoadState =
   | { status: 'ok'; data: ExpedienteResponse[]; totalElements: number; totalPages: number }
   | { status: 'error' };
 
-/**
- * Las pestañas de la bandeja. Las dos primeras recortan por ciclo de vida y el resto por
- * pertenencia — ejes distintos en una sola barra, por pedido de la devolución de UX:
- *  - `open`       → sin resolver todavía (la que trae el listado al entrar)
- *  - `closed`     → ya resueltos
- *  - `mine`       → asignados al usuario logueado (solo analista)
- *  - `all`        → todo el caseload de la aseguradora
- *  - `assigned`   → con analista, sin importar quién (bandeja del referente)
- *  - `unassigned` → sin analista todavía
- *  - `fraud`      → con alerta de fraude (riesgo alto/crítico)
- */
+/** `open`/`closed` scope by lifecycle; the rest filter by ownership (or fraud alert). */
 type Lens = 'open' | 'closed' | 'mine' | 'all' | 'assigned' | 'unassigned' | 'fraud';
 
-/** Recorte por ciclo de vida que viaja al backend; lo decide la pestaña activa. */
 type Scope = NonNullable<ExpedienteListParams['scope']>;
 
 @Component({
@@ -132,8 +117,7 @@ export class BandejaComponent {
   private readonly route = inject(ActivatedRoute);
 
   constructor() {
-    // El buscador de la topbar deriva acá con ?q= al pedir "ver todos los resultados". Se lee en
-    // vivo (no solo al montar) porque la bandeja puede ya estar en pantalla cuando se busca.
+    // Read live, not only on init: the inbox may already be on screen when the top bar searches.
     this.route.queryParamMap.pipe(takeUntilDestroyed()).subscribe((params) => {
       const q = params.get('q') ?? '';
       if (q !== this.qDraft()) {
@@ -142,38 +126,28 @@ export class BandejaComponent {
       }
     });
 
-    // Catálogo real de tipos de siniestro para el filtro (best-effort: si falla, queda vacío).
     this.service.claimCauseNames().subscribe({
       next: (names) => this.claimCauseOptions.set(names.map((n) => ({ value: n, label: n }))),
       error: () => {
-        /* backend caído: el filtro queda sin opciones, sin romper la bandeja */
+        /* best-effort: the filter just stays empty */
       },
     });
 
-    // El equipo de analistas, para el filtro del referente. El endpoint es solo de ese rol, así
-    // que ni se pide para un analista.
+    // Supervisor-only endpoint.
     if (this.isReferente()) {
       this.service.analystWorkload().subscribe({
         next: (team) =>
           this.analystOptions.set(team.map((a) => ({ value: String(a.analystId), label: a.name }))),
         error: () => {
-          /* mismo criterio que arriba: sin opciones, sin romper */
+          /* best-effort: the filter just stays empty */
         },
       });
     }
   }
 
-  // ───────────────── Pestañas de la bandeja ─────────────────
-  // Una sola barra: dos pestañas recortan por ciclo de vida ("En curso", "Cerrados") y el resto por
-  // pertenencia. Son ejes distintos y antes vivían en dos controles, pero dos filas de pestañas
-  // pegadas se leían como una sola cosa (devolución de Aylén). El precio de fusionarlas es que se
-  // pierden las combinaciones: "sin asignar Y cerrados" ahora se arma desde el filtro por estado.
-  //
-  // Quién es "yo" NO se manda: el id de analista es local al esquema de cada aseguradora, así que
-  // lo resuelve el backend contra el token (`assignedToMe`). Acá solo se dice qué pestaña está
-  // activa.
+  // ───────────────── Lens tabs ─────────────────
+  // One bar for both axes, so combinations like "unassigned AND closed" go through the status filter.
 
-  /** Todos entran por lo que hay para trabajar; lo propio está a un clic. */
   protected readonly lens = signal<Lens>('open');
 
   protected setLens(lens: Lens): void {
@@ -181,10 +155,7 @@ export class BandejaComponent {
     this.page.set(0);
   }
 
-  /**
-   * El recorte por ciclo sale de la pestaña. Las de pertenencia no recortan: al pasar de "En curso"
-   * a "Sin asignar" se ven todos los sin asignar, que es el número que muestra su contador.
-   */
+  /** Ownership tabs don't scope by lifecycle, so they match the count shown on the tab. */
   private scopeOf(lens: Lens): Scope {
     if (lens === 'open') {
       return 'OPEN';
@@ -192,9 +163,7 @@ export class BandejaComponent {
     return lens === 'closed' ? 'CLOSED' : 'ALL';
   }
 
-  // ───────────────── Filtros, búsqueda, orden y paginación ─────────────────
-  // Todos combinables por AND, reflejan 1:1 los params que acepta GET /api/v1/cases
-  // (historia "Búsqueda y filtrado de expedientes").
+  // ───────────────── Filters, search, sort and paging ─────────────────
   protected readonly statusFilter = signal('');
   protected readonly claimCauseFilter = signal('');
   protected readonly riskBandFilter = signal('');
@@ -207,16 +176,13 @@ export class BandejaComponent {
   protected readonly page = signal(0);
   protected readonly size = signal(10);
 
-  // La búsqueda libre se debounce para no pegarle al backend en cada tecla; el resto de los
-  // filtros dispara al toque (son selects/fechas, no texto libre).
+  // Only free text is debounced; selects and dates apply immediately.
   private readonly qDebounced = toSignal(
     toObservable(this.qDraft).pipe(debounceTime(350), distinctUntilChanged()),
     { initialValue: '' },
   );
 
-  // Solo la barra de filtros, SIN la pestaña. Los conteos se apoyan en esto porque los pide todos
-  // sobre la misma base —y sin recorte por ciclo, así el número de cada pestaña es el que se ve al
-  // entrar en ella—; para "lo que estoy viendo" está viewFilters, que usan la tabla y el export.
+  // Filters without the active tab: the lens counts use this so each tab shows what it will contain.
   private readonly activeFilters = computed<ExpedienteListParams>(() => ({
     status: this.statusFilter() || undefined,
     claimCause: this.claimCauseFilter() || undefined,
@@ -228,11 +194,7 @@ export class BandejaComponent {
     sort: `${this.sortField()},${this.sortDir()}`,
   }));
 
-  /**
-   * Elegir un estado en la barra saca de las pestañas de ciclo. Sin esto, "Aprobado" parado en "En
-   * curso" devuelve una lista vacía que el analista no puede explicarse — y la pestaña activa se
-   * mueve a "Todos", así que se ve por qué.
-   */
+  /** Picking a status leaves the lifecycle tabs; otherwise e.g. "Aprobado" under "En curso" is always empty. */
   private readonly statusFilterWidensScope = effect(() => {
     const status = this.statusFilter();
     untracked(() => {
@@ -242,14 +204,10 @@ export class BandejaComponent {
     });
   });
 
-  /** Se incrementa después de asignar/liberar para releer el listado desde el backend. */
+  /** Bumped after assign/unassign to refetch. */
   private readonly reloadTrigger = signal(0);
 
-  /**
-   * Filtros + lente: la definición completa de "lo que estoy viendo". Única fuente para la tabla
-   * y para la exportación — si se bifurcan, el archivo deja de coincidir con la pantalla (la
-   * lente quedaba afuera del export y "Míos" exportaba igual todos los expedientes).
-   */
+  /** Filters + lens: single source for both the table and the export, so the file matches the screen. */
   private readonly viewFilters = computed<ExpedienteListParams>(() => ({
     ...this.activeFilters(),
     scope: this.scopeOf(this.lens()),
@@ -287,11 +245,7 @@ export class BandejaComponent {
   protected readonly loading = computed(() => this.state().status === 'loading');
   protected readonly hasError = computed(() => this.state().status === 'error');
 
-  // La bandeja NO usa la pantalla de carga de marca a viewport completo: esa se reserva al
-  // arranque (login → home). Acá la carga se muestra con un spinner en el lugar, sin tapar la
-  // pantalla. Se distingue la PRIMERA carga (spinner solo, sin la caja de filtros —queda raro
-  // mostrarla vacía) de los refetch por filtro/lente/paginado (los filtros quedan y el spinner
-  // reemplaza solo a la tabla).
+  // Tells the first load (spinner only) apart from refetches (filters stay, only the table is replaced).
   protected readonly hasLoaded = signal(false);
   private readonly latchLoaded = effect(() => {
     if (!this.loading()) {
@@ -305,8 +259,7 @@ export class BandejaComponent {
     return s.status === 'ok' ? s.data : [];
   });
 
-  // Publica el orden visible de la tabla para que el detalle sepa cuál es el expediente
-  // anterior/siguiente según ESTE orden (filtros + sort + página), no por id correlativo.
+  // Lets the detail navigate previous/next in this visible order.
   private readonly publishSequence = effect(() => {
     this.caseNav.setSequence(this.cases().map((c) => c.id));
   });
@@ -325,12 +278,7 @@ export class BandejaComponent {
     () => this.state().status === 'ok' && this.cases().length === 0,
   );
 
-  /**
-   * Conteo de cada lente para mostrarlo al lado del toggle ("Míos 4 · Todos 57"). Respetan los
-   * filtros vigentes: el número tiene que decir cuántos hay *de lo que estás mirando*, no del total
-   * absoluto. Un solo request — antes era uno por lente, y cada uno traía una fila entera solo para
-   * leerle el total.
-   */
+  /** Lens counts honor the current filters: how many of what you're looking at, not absolute totals. */
   private readonly counts = toSignal(
     toObservable(
       computed(() => ({
@@ -371,15 +319,12 @@ export class BandejaComponent {
       ),
   );
 
-  /** "No tenés expedientes en curso" no es lo mismo que "no hay expedientes". */
   protected readonly emptyByScope = computed(
     () => this.isEmpty() && !this.hasActiveFilters() && this.scopeOf(this.lens()) !== 'ALL',
   );
 
-  // ───────────────── Catálogos de los selects ─────────────────
-  // Todos los valores de CaseStatus, en el orden del ciclo de vida. Van todos: la lista se quedó dos
-  // veces atrás del enum (PENDING_EXPERT_REPORT y LAPSED), y un estado que existe en la bandeja
-  // pero no en su filtro es un expediente que el analista no puede aislar.
+  // ───────────────── Select catalogs ─────────────────
+  // Every CaseStatus value, in lifecycle order: keep in sync with the enum.
   private static readonly STATUS_VALUES: CaseStatus[] = [
     'PENDING_CLASSIFICATION',
     'PENDING_ANALYST_REVIEW',
@@ -397,16 +342,12 @@ export class BandejaComponent {
     label: estadoLabel(s),
   }));
 
-  // Catálogo real de tipos de siniestro (hechos generadores), traído del backend en el constructor:
-  // GET /api/v1/claim-causes/all devuelve los nombres distintos de todos los ramos. Antes era una
-  // lista hardcodeada con valores que no existían ("Siniestro general") y filtraba vacío.
   protected readonly claimCauseOptions = signal<SelectOption[]>([]);
 
-  /** Equipo de analistas de la aseguradora. Vacío para el analista: el filtro no se le muestra. */
+  /** Empty for analysts, who don't get this filter. */
   protected readonly analystOptions = signal<SelectOption[]>([]);
 
-  // Mismas 4 etiquetas que usa app-fraud-gauge para band 1-4, para no inventar un vocabulario
-  // paralelo de "nivel de riesgo" entre el filtro y la columna que lo muestra.
+  // Same labels as app-fraud-gauge.
   protected readonly riskBandOptions: SelectOption[] = [
     { value: 'LOW', label: 'Bajo' },
     { value: 'MEDIUM', label: 'Medio' },
@@ -427,12 +368,10 @@ export class BandejaComponent {
     { field: 'analyst.surname', label: 'Analista' },
   ];
 
-  // La búsqueda queda fuera del panel (barra siempre visible) y es en vivo (debounced).
   protected onSearchInput(v: string): void {
     this.qDraft.set(v);
     this.page.set(0);
-    // Se refleja en la URL para que ?q= no quede desincronizado con lo que se está viendo: si no,
-    // buscar de nuevo lo mismo desde la topbar no cambiaría la URL y la bandeja ignoraría el pedido.
+    // Mirrored in ?q=, otherwise repeating the same top-bar search wouldn't change the URL and be ignored.
     this.router.navigate([], {
       relativeTo: this.route,
       queryParams: { q: v || null },
@@ -441,10 +380,8 @@ export class BandejaComponent {
     });
   }
 
-  // ───────────────── Panel de filtros (drawer lateral, aplicación diferida) ─────────────────
-  // Estado/tipo/riesgo/fechas se editan en un panel que se desliza desde la derecha y se aplican
-  // al confirmar ("Aplicar filtros"), no en vivo. Los aplicados (statusFilter/…) manejan la tabla;
-  // los "draft" son lo que se está editando en el panel (se descartan si se cierra sin aplicar).
+  // ───────────────── Filters popover ─────────────────
+  // Draft values are applied on "Aplicar filtros" and discarded if closed without applying.
   protected readonly filtersOpen = signal(false);
   protected readonly draftStatus = signal('');
   protected readonly draftClaimCause = signal('');
@@ -473,8 +410,7 @@ export class BandejaComponent {
     }
   }
 
-  // Cierre del popover: click fuera del ancla (el botón + el panel viven dentro de .filters-anchor)
-  // o Escape. Mismo enfoque que el kit (menu-button/select), sin backdrop.
+  // Closes on outside click or Escape, like the kit's menu-button/select.
   @HostListener('document:click', ['$event'])
   protected onDocumentClick(event: MouseEvent): void {
     if (!this.filtersOpen()) return;
@@ -499,7 +435,6 @@ export class BandejaComponent {
     this.page.set(0);
     this.filtersOpen.set(false);
   }
-  /** Vacía los campos del panel (draft), sin aplicar todavía. */
   protected clearDraft(): void {
     this.draftStatus.set('');
     this.draftClaimCause.set('');
@@ -509,7 +444,6 @@ export class BandejaComponent {
     this.draftDateTo.set('');
   }
 
-  // Cantidad de filtros aplicados (sin contar la búsqueda) → badge del botón "Filtros".
   protected readonly activeFilterCount = computed(() => {
     let n = 0;
     if (this.statusFilter()) n++;
@@ -521,7 +455,6 @@ export class BandejaComponent {
     return n;
   });
 
-  // Chips de los filtros aplicados: se ven y se quitan sin abrir el panel.
   protected readonly activeChips = computed<{ key: string; label: string }[]>(() => {
     const chips: { key: string; label: string }[] = [];
     if (this.statusFilter())
@@ -570,7 +503,7 @@ export class BandejaComponent {
     return this.analystOptions().find((o) => o.value === id)?.label ?? id;
   }
 
-  /** "Limpiar todo": quita todos los filtros aplicados (la búsqueda no se toca). */
+  /** Leaves the free-text search untouched. */
   protected clearAllChips(): void {
     this.statusFilter.set('');
     this.claimCauseFilter.set('');
@@ -603,15 +536,11 @@ export class BandejaComponent {
     this.router.navigate(['/cases', id]);
   }
 
-  // ───────────────── Asignación ─────────────────
-  // Asignar es poner dueño, no resolver: el expediente sigue esperando que el analista lo apruebe
-  // o lo rechace desde el detalle (human-in-the-loop).
+  // ───────────────── Assignment ─────────────────
 
-  /** Id del expediente cuya asignación está en vuelo, para deshabilitar el botón mientras tanto. */
   protected readonly assigning = signal<number | null>(null);
   protected readonly assignError = signal<string | null>(null);
 
-  /** Analistas asignables. Se piden una vez; el selector de "Asignar a…" se arma con esto. */
   private readonly analysts = toSignal(this.users.listAnalysts().pipe(catchError(() => of([]))), {
     initialValue: [],
   });
@@ -621,30 +550,23 @@ export class BandejaComponent {
   );
 
   /**
-   * Mi id de analista DENTRO de esta aseguradora. No sale de la sesión —ahí está el id de
-   * usuario, que es otra tabla— sino de buscarme por email en el listado de analistas, que ya
-   * viene acotado al tenant. Null para el referente, que no tiene perfil de analista.
+   * The per-tenant analyst id, found by email in the (tenant-scoped) analyst list; the session only
+   * has the user id. Null for the supervisor.
    */
   private readonly myAnalystId = computed<number | null>(() => {
     const email = this.session.session()?.email;
     return this.analysts().find((a) => a.email === email)?.id ?? null;
   });
 
-  /** Solo un analista puede tomar un expediente para sí; el referente asigna, no se autoasigna. */
   protected readonly canTake = computed(
     () => this.session.session()?.rol === 'ANALISTA_SINIESTROS' && this.myAnalystId() != null,
   );
 
-  /**
-   * Solo el analista asigna. El referente ve la bandeja de solo lectura: la columna de analista
-   * queda informativa (sin "Asignarme"/"Reasignar"/"Liberar") y sin la lente "Mis asignados",
-   * porque no tiene expedientes propios.
-   */
+  /** The supervisor's inbox is read-only for assignment. */
   protected readonly canAssign = computed(
     () => this.session.session()?.rol === 'ANALISTA_SINIESTROS',
   );
 
-  /** El referente ve la bandeja de supervisión: sin "Míos", pero con lentes de asignación/fraude. */
   protected readonly isReferente = computed(
     () => this.session.session()?.rol === 'REFERENTE_ASEGURADORA',
   );
@@ -653,7 +575,6 @@ export class BandejaComponent {
     return c.assignedAnalystId != null && c.assignedAnalystId === this.myAnalystId();
   }
 
-  /** Iniciales para el avatar del analista asignado (hasta 2). */
   protected analystInitials(c: ExpedienteResponse): string {
     return (c.assignedAnalystName ?? '')
       .split(/\s+/)
@@ -663,15 +584,11 @@ export class BandejaComponent {
       .join('');
   }
 
-  /** Marca del item "Liberar" dentro del menú de acciones — no es un id de analista. */
+  /** Sentinel menu value, not an analyst id. */
   private static readonly RELEASE = '__release__';
 
-  /**
-   * Items del menú "…": la lista de analistas para reasignar y, si el expediente ya tiene dueño,
-   * "Liberar" como acción destructiva separada al final.
-   */
   protected assignMenuItems(c: ExpedienteResponse): MenuItem[] {
-    // "Asignar a otro analista": el que ya lo tiene no va en la lista (reasignárselo no es una acción).
+    // The current assignee is left out.
     const others = this.analystMenuItems().filter(
       (item) => item.value !== String(c.assignedAnalystId),
     );
@@ -688,7 +605,6 @@ export class BandejaComponent {
     }
   }
 
-  /** Atajo del analista: se asigna el expediente a sí mismo sin pasar por el selector. */
   protected take(c: ExpedienteResponse): void {
     const me = this.myAnalystId();
     if (me != null) {
@@ -713,8 +629,7 @@ export class BandejaComponent {
     request.subscribe({
       next: () => {
         this.assigning.set(null);
-        // Releer del backend en vez de parchear la fila: si la lente es "Míos", el expediente
-        // recién liberado tiene que desaparecer del listado y los conteos moverse con él.
+        // Refetch instead of patching the row: under "Míos" the case must disappear and counts update.
         this.reloadTrigger.update((n) => n + 1);
       },
       error: () => {
@@ -724,22 +639,20 @@ export class BandejaComponent {
     });
   }
 
-  // ───────────────── Presentación de celdas ─────────────────
+  // ───────────────── Cell rendering ─────────────────
   protected estadoLabel(status: string): string {
     return estadoLabel(status);
   }
 
   /**
-   * El analista ya decidió y el monto superó su atribución: el expediente no espera nada de él
-   * hasta que el referente firme. Sin esta marca se ve igual que uno pendiente de decisión, porque
-   * el estado del expediente no se mueve — a propósito, para que el asegurado no vea un trámite
-   * interno.
+   * Decided, but the amount exceeds the analyst's authority: waiting on the supervisor. The status
+   * deliberately stays unchanged so the insured doesn't see this internal step.
    */
   protected esperaFirma(c: ExpedienteResponse): boolean {
     return c.settlementStatus === 'PENDING_AUTHORIZATION';
   }
 
-  /** Lo contrario: el referente lo devolvió y la pelota volvió al analista, con un motivo. */
+  /** Returned by the supervisor, with a reason. */
   protected devueltaPorReferente(c: ExpedienteResponse): boolean {
     return c.settlementStatus === 'RETURNED';
   }
@@ -783,8 +696,7 @@ export class BandejaComponent {
     return riskBandEmptyLabel(c.status, c.analysisClassification);
   }
 
-  // Delega en el util: `new Date('2026-08-20')` se parsea como UTC y en Argentina retrocede al
-  // día anterior, que es como una denuncia policial terminaba mostrándose antes del siniestro.
+  // `new Date('2026-08-20')` parses as UTC and shifts to the previous day in Argentina.
   protected formatDate(value: string): string {
     return formatDateUtil(value);
   }
@@ -793,11 +705,7 @@ export class BandejaComponent {
     return value != null ? `$${value.toLocaleString('es-AR')}` : '—';
   }
 
-  /**
-   * "Asegurado" always shows a name — never the DNI in its place. If classification-service
-   * hasn't resolved it yet, show an explicit placeholder instead of confusing the DNI for the
-   * name (see displayInsuredId for the identifier, which is always available).
-   */
+  /** Never falls back to the DNI: shows a placeholder until classification resolves the name. */
   protected displayInsured(c: ExpedienteResponse): string {
     return c.insuredName ?? 'Sin identificar';
   }
@@ -806,7 +714,7 @@ export class BandejaComponent {
     return c.insuredId;
   }
 
-  // ───────────────── Exportar (CSV / XLSX) ─────────────────
+  // ───────────────── Export (CSV / XLSX) ─────────────────
   protected readonly exporting = signal(false);
 
   protected readonly exportOptions: MenuItem[] = [
@@ -827,14 +735,7 @@ export class BandejaComponent {
     'Analista',
   ];
 
-  /**
-   * Exporta TODOS los expedientes que matchean lo que se está viendo (no solo la página visible):
-   * pagina en secuencia con un tamaño grande hasta agotar totalPages, ignorando la paginación de
-   * la tabla. Respeta filtros, lente ("Míos"/"Todos") y orden vigentes; ignora page/size.
-   *
-   * <p>Sale de {@code viewFilters}, la misma fuente que alimenta la tabla: el archivo tiene que
-   * contener exactamente las filas que el analista tiene delante, ni una más.
-   */
+  /** Exports every matching case (not just the visible page) by paging through `viewFilters`. */
   protected exportAs(format: string): void {
     if (this.exporting()) {
       return;
@@ -882,7 +783,7 @@ export class BandejaComponent {
           .join(','),
       ),
     ];
-    // BOM al inicio para que Excel abra el UTF-8 sin desarmar tildes/ñ.
+    // BOM so Excel reads the file as UTF-8.
     const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
     this.download(blob, 'csv');
   }
@@ -903,8 +804,7 @@ export class BandejaComponent {
     const url = URL.createObjectURL(blob);
     const link = this.document.createElement('a');
     link.href = url;
-    // La lente va en el nombre: abierto suelto, el archivo tiene que poder decir si son los
-    // expedientes del analista o todos.
+    // The lens goes in the filename so the file says whose cases it holds.
     const scope = this.lens() === 'mine' ? 'mios-' : '';
     link.download = `expedientes-${scope}${this.timestampForFilename()}.${extension}`;
     link.click();

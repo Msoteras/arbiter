@@ -5,9 +5,8 @@ import { UserRole } from '../models/user-role';
 import { AuthSessionService } from './auth-session.service';
 
 /**
- * H0003 - RBAC en el frontend. `route.data['roles']` lista los roles permitidos para esa ruta;
- * el referente de aseguradora siempre pasa (acceso total). Sin sesión → /login. Rol no permitido
- * → al home del rol que sí tiene (no un error, para no dejar al usuario varado).
+ * `route.data['roles']` lists the allowed roles; the referent always passes. A disallowed role is
+ * redirected to its own home instead of an error page.
  */
 export const roleGuard: CanActivateFn = (route) => {
   const session = inject(AuthSessionService);

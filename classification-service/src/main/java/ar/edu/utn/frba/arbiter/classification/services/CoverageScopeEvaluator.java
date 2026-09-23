@@ -18,49 +18,18 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * How far the coverage reaches: who it covers and whether it has anything left (D9). Two
- * {@code coverage} columns that were stored and nobody read.
- *
- * <ul>
- *   <li><b>{@code covers_family_group}</b> — if the coverage doesn't reach the family group and the
- *       injured party is a relative, the event isn't covered.</li>
- *   <li><b>{@code claim_exhausts_coverage}</b> — if a settled claim exhausts the coverage, the next
- *       one on the same policy has nothing left to answer with.</li>
- *   <li><b>suma asegurada</b> — a coverage that does <i>not</i> exhaust on a single settled claim
- *       can still run out through accumulation: prior settled amounts <b>on that same coverage</b>
- *       plus this claim can't exceed its sum insured (doc de dominio BBVA §6.4). Nothing for the
- *       referente to configure: the limit is a fact the insurer DB carries. Both sides are per
- *       coverage — {@code policy.insuredAmount()} arrives narrowed by
- *       {@code InsuredPolicy.forCoverage}, and the history is filtered by coverage too.</li>
- * </ul>
- *
- * <p><b>Why the LLM doesn't decide the first one.</b> Knowing whose device it was requires reading
- * the narrative, and reading is the one thing code can't do — but interpreting the rule it can. So
- * it's split in two, same as D4a: the extraction pass returns a <b>typed fact</b>
- * ({@link DocumentExtraction.AffectedParty}) and the rule is evaluated here. The model never
- * decides whether there's coverage; it only supplies the data.
- *
- * <p><b>Source of the data: the coverage, not the policy.</b> {@code coverage.covers_family_group}
- * (what the referente configures) and {@code poliza.cubre_grupo_familiar} (insurer DB) both exist
- * and already contradict each other in the seed. The referente's wins (Fede's call, 10/08).
- *
- * <p>Like the rest of the hard rules: they <b>block Fast Track and contribute reasons</b>, they
- * don't close the case. An exclusion doesn't reject the settlement on its own — the analyst signs
- * (CLAUDE.md #5).
+ * How far the coverage reaches: family group, exhaustion by a settled claim, and the sum insured
+ * consumed by accumulation (per coverage, not per policy). The model only extracts who was affected;
+ * the rule is decided here. Like every hard rule, it blocks Fast Track and adds reasons, never closes
+ * the case.
  */
 @Service
 public class CoverageScopeEvaluator {
 
     private static final Logger log = LoggerFactory.getLogger(CoverageScopeEvaluator.class);
 
-    /** Resolution status meaning the prior claim actually consumed the coverage. */
     private static final String SETTLED = "LIQUIDADO";
 
-    /**
-     * @param reasons  readable reasons for the rules that failed, for the analyst
-     * @param findings the auditable trace of both rules, passes included. They carry no
-     *                 {@code ruleId}: these live on the coverage, not in {@code insurer_rule}.
-     */
     public record Result(boolean blocksFastTrack, List<String> reasons, List<RuleFinding> findings) {
 
         public static Result none() {
@@ -89,16 +58,12 @@ public class CoverageScopeEvaluator {
         return new Result(block, reasons, findings);
     }
 
-    /**
-     * It only fires on an explicit {@code FAMILIAR}. {@code DESCONOCIDO} — or no document read —
-     * leaves the rule unevaluated: the paper not saying whose device it was can't cost anyone
-     * their coverage.
-     */
+    /** Only an explicit {@code FAMILIAR} fires it; unknown leaves it unevaluated. */
     private void evaluateFamilyGroup(
             BusinessRules rules, Map<String, DocumentExtraction> documents, List<String> reasons,
             List<RuleFinding> findings) {
         if (!Boolean.FALSE.equals(rules.coversFamilyGroup())) {
-            return; // the coverage reaches the family group, or isn't configured
+            return;
         }
         boolean affectedIsFamily = documents.values().stream()
                 .map(extraction -> extraction.fields().affectedParty())
@@ -109,9 +74,7 @@ public class CoverageScopeEvaluator {
                     + "grupo familiar conviviente");
             return;
         }
-        // A pass needs a document that actually said who it was. Nobody saying leaves the rule
-        // UNEVALUATED — a third state that writes no row, same reason the rule doesn't fire on
-        // DESCONOCIDO: silence about whose the item was can't count either way.
+        // A PASS needs a document that said who it was; otherwise no row is written.
         DocumentExtraction.AffectedParty declared = documents.values().stream()
                 .map(extraction -> extraction.fields().affectedParty())
                 .filter(party -> party != null && party != DocumentExtraction.AffectedParty.DESCONOCIDO)
@@ -122,11 +85,7 @@ public class CoverageScopeEvaluator {
         }
     }
 
-    /**
-     * Counts only settled claims <b>on the same policy</b>: coverage is exhausted per policy, and
-     * the same insured may have others. With no policy number in the history the rule doesn't take
-     * part, rather than counting claims foreign to this coverage.
-     */
+    /** Counts only settled claims on the same policy: the insured may have others. */
     private void evaluateExhaustedCoverage(
             ClaimReport claim, InsuredHistory history, BusinessRules rules, List<String> reasons,
             List<RuleFinding> findings) {
@@ -138,9 +97,7 @@ public class CoverageScopeEvaluator {
                 .filter(record -> claim.policyNumber().equals(record.policyNumber()))
                 .filter(record -> SETTLED.equalsIgnoreCase(record.status()))
                 .count();
-        // Unlike the family group, this one always has an answer once the rule is on: the history
-        // either has a settled claim on this policy or it doesn't. So the pass is written too —
-        // "nothing consumed the coverage" is a verified fact, not an absence of data.
+        // Always answerable once enabled, so a PASS is written too.
         findings.add(finding(RuleType.CLAIM_EXHAUSTS_COVERAGE, settled == 0,
                 "settledClaimsOnPolicy=" + settled + " max=0"));
         if (settled > 0) {
@@ -150,27 +107,9 @@ public class CoverageScopeEvaluator {
     }
 
     /**
-     * Complements {@link #evaluateExhaustedCoverage}: a coverage that doesn't exhaust on any single
-     * settled claim can still run out by accumulation.
-     *
-     * <p><b>Per coverage, not per policy.</b> The sum insured belongs to the coverage and there is
-     * no aggregate policy ceiling on top of it (confirmed with the analyst, 01/09/2026), so what
-     * consumes a coverage is what was settled <i>against that same coverage</i>. Summing everything
-     * settled on the policy and comparing it to one coverage's ceiling mixed two different things:
-     * on the seed's póliza 1 a settled robo of 700.000 would report the hurto coverage (650.000) as
-     * exhausted without a single hurto ever having been filed.
-     *
-     * <p>A prior claim whose coverage the company didn't record is left out rather than imputed by
-     * guessing — same criterion the rest of the hard rules use for missing data. That makes the rule
-     * permissive on incomplete history, which is the right side to err on: it only blocks Fast Track
-     * and hands the analyst a reason, and a wrong reason is worse than a missing one.
-     *
-     * <p>No period boundary modeled (same limitation as {@code POLICY_STANDING}'s arrears tiers:
-     * installment/policy-year boundaries aren't in any schema today), so this is a lifetime total
-     * against what the history returned, not a per-renewal reset.
-     *
-     * <p>Missing {@code insuredAmount} or {@code claimedAmount} means the rule doesn't participate —
-     * same criterion {@link FastTrackValidator} uses for its amount ratio.
+     * Accumulation per coverage: there is no policy-wide ceiling, so only claims settled against this
+     * same coverage count. Prior claims with no recorded coverage are left out rather than guessed
+     * (a wrong reason is worse than a missing one). Lifetime total: no per-renewal reset is modeled.
      */
     private void evaluateSumInsuredLimit(
             ClaimReport claim, InsuredPolicy policy, InsuredHistory history, List<String> reasons) {
@@ -195,7 +134,6 @@ public class CoverageScopeEvaluator {
         }
     }
 
-    /** No rule id: both rules are coverage columns, not rows of {@code insurer_rule}. */
     private static RuleFinding finding(RuleType type, boolean passed, String evaluatedValue) {
         return new RuleFinding(null, type.name(), passed, evaluatedValue);
     }

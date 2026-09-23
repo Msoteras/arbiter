@@ -22,23 +22,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * What the vision pass read out of one attachment ("analisis_documento" in the DER): the
- * transcription plus that same data already typed. Sibling of {@link ImageAnalysis} — that one is
- * about how the image <b>looks</b> (embedding, reuse across claims), this one about what the
- * document <b>says</b>.
- *
- * <p>It is the persisted form of {@link DocumentExtraction}, which until now lived only inside a
- * single classification run and was dropped when it ended. The data already fed the prompt and
- * {@code DocumentInconsistencyEvaluator}; what was missing was letting the analyst see it.
- *
- * <p><b>Every field is nullable and that is normal</b>: a photo of the broken phone carries no
- * amount, a police report no IMEI. Null means "the document doesn't say it", never "it doesn't
- * match" — a missing field must never be read as an inconsistency.
- *
- * <p>One row per document, replaced on each run (unlike {@link LlmAnalysis}, which is append-only).
- * What Disposición SSN 2/2023 audits is the recommendation and its reasons; this is the supporting
- * read the analyst looks at, and keeping every historical extraction of the same unchanged PDF
- * would pile up noise without adding a fact.
+ * The persisted {@link DocumentExtraction} of one attachment. Null fields mean "the document doesn't
+ * say", never "doesn't match". One row per document, replaced on each run (unlike the append-only
+ * {@link LlmAnalysis}): it supports the analyst's reading, it isn't the audited recommendation.
  */
 @Entity
 @Table(name = "document_analysis")
@@ -54,33 +40,27 @@ public class DocumentAnalysis {
     @Column(nullable = false, columnDefinition = "text")
     private String transcription;
 
-    /** The date on the document — the event's or the issue date, whichever it states. */
     @Column(name = "document_date")
     private LocalDate documentDate;
 
     @Column(precision = 14, scale = 2)
     private BigDecimal amount;
 
-    // Los tres son texto libre que devuelve el modelo de visión, así que van a TEXT y NO se
-    // truncan: DocumentInconsistencyEvaluator compara marca y modelo contra el bien asegurado, y un
-    // valor cortado no es un dato incompleto sino uno equivocado, que puede levantar un hallazgo
-    // falso. Con VARCHAR(100) el INSERT de la extracción entera falló y el expediente quedó
-    // clasificado sin los datos de sus documentos (caso 42 de BBVA, 11/09).
+    // TEXT and never truncated: brand and model are compared against the insured item, and a cut
+    // value would be wrong, not incomplete, raising false findings.
     @Column(name = "item_description", columnDefinition = "text")
     private String itemDescription;
 
-    /** Just the make, split out of {@link #itemDescription} so it can be crossed against the policy. */
     @Column(columnDefinition = "text")
     private String brand;
 
-    /** Just the model, same reason as {@link #brand}. */
     @Column(columnDefinition = "text")
     private String model;
 
     @Column(length = 20)
     private String imei;
 
-    /** Never null: {@code DESCONOCIDO} is a real answer, not a missing one. */
+    /** Never null: {@code DESCONOCIDO} is a real answer. */
     @Enumerated(EnumType.STRING)
     @Column(name = "affected_party", nullable = false, length = 20)
     private DocumentExtraction.AffectedParty affectedParty;
@@ -97,31 +77,18 @@ public class DocumentAnalysis {
     @Column(name = "extracted_at", nullable = false)
     private Instant extractedAt;
 
-    /**
-     * The attachment this was read from. A plain column, like {@code caseId} elsewhere in this
-     * module: {@code case_documents} belongs to cases-service and this is a historical reference,
-     * not a navigable relationship.
-     */
+    /** Plain column: {@code case_documents} belongs to cases-service. */
     @Column(name = "case_document_id", nullable = false)
     private Long caseDocumentId;
 
-    /**
-     * Signs of tampering noticed while looking at the image, one row each rather than a serialized
-     * list — same criterion as {@link LlmReason}. <b>Empty is the normal case</b>, and an empty
-     * list is not evidence that the document is authentic.
-     */
+    /** Empty is the normal case, and not evidence that the document is authentic. */
     @OneToMany(mappedBy = "analysis", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<DocumentVisualFinding> visualFindings = new ArrayList<>();
 
-    /**
-     * Everything else the document states, as name/value — the invoice number, the serial, the
-     * store. <b>Displayed, never compared</b>: see {@link DocumentDetail} for why a rule must not
-     * look a name up in here.
-     */
+    /** Displayed, never compared (see {@link DocumentDetail}). */
     @OneToMany(mappedBy = "analysis", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<DocumentDetail> details = new ArrayList<>();
 
-    /** Keeps both sides of the association consistent when building the aggregate. */
     public void addVisualFinding(String finding) {
         DocumentVisualFinding row = new DocumentVisualFinding();
         row.setFinding(finding);
@@ -129,7 +96,6 @@ public class DocumentAnalysis {
         visualFindings.add(row);
     }
 
-    /** Same as {@link #addVisualFinding}, for the name/value side. */
     public void addDetail(String name, String value) {
         DocumentDetail row = new DocumentDetail();
         row.setName(name);

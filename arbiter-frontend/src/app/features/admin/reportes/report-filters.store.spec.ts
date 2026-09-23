@@ -24,7 +24,7 @@ describe('ReportFiltersStore', () => {
     expect([store.from(), store.to()]).toEqual(['2026-08-01', '2026-08-31']);
   });
 
-  /** With no catalog, the select must still say the request is filtered, not "Todos". */
+  /** Without a catalog the select must still show the request is filtered, not "Todos". */
   it('names the linked branch when the catalog could not be read', () => {
     const store = setup(() => throwError(() => new Error('rules-service down')));
     store.hydrate(convertToParamMap({ branchId: '2' }));

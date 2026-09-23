@@ -12,24 +12,9 @@ import java.util.Comparator;
 import java.util.List;
 
 /**
- * Whether the insured already has a verified fraud behind them. This is the factor that closes the
- * loop {@code ClaimFrequencyEvaluator} leaves open: that one counts how many times someone claimed
- * and is blind to how those claims ended, so three settled claims and three frauds grade the same.
- *
- * <p>Only records that are <b>expert-backed and in force</b> count. An {@code ANALYST_DECLARED}
- * record is an alert for whoever reviews the claim, never a number: a suspicion that moves the
- * score raises the next claim's score, which raises the one after that, and the person has no way
- * out of a loop that feeds on itself. In-force is decided by the insurer's window — an old fraud
- * stops counting on its own, without anyone having to remember to clear it.
- *
- * <p>Whether it counts at all is decided by the insurer including this factor in its scoring
- * config, like every other factor — not by a second switch of its own. What the {@code FRAUD_RECORD}
- * rule contributes is the <b>window</b>; with no rule configured the default window applies, because
- * "sin configurar" can't mean "cuenta para siempre".
- *
- * <p>One in-force record is already the maximum. A second one says the same thing the first did —
- * that this insured has defrauded and it was verified — and grading "twice" above "once" would put
- * the engine in the business of ranking people, which is not what the score is for.
+ * Only expert-backed, in-force records count: an analyst-declared suspicion that moved the score
+ * would feed on itself claim after claim. One record already scores the maximum; the engine doesn't
+ * rank people by how many.
  */
 @Component
 public class FraudHistoryEvaluator implements RiskFactorEvaluator {
@@ -57,8 +42,7 @@ public class FraudHistoryEvaluator implements RiskFactorEvaluator {
                             + policy.windowMonths() + " meses)");
         }
 
-        // Explicitly the newest rather than the first row: the rationale names a case file the
-        // analyst may go read, and it shouldn't depend on how the caller happened to sort the list.
+        // The newest explicitly: the rationale names a case, so it mustn't depend on list order.
         InsuredFraudRecord mostRecent = counting.stream()
                 .max(Comparator.comparing(InsuredFraudRecord::getDeclaredAt))
                 .orElseThrow();

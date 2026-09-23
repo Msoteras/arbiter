@@ -8,12 +8,8 @@ import { LoginResponse } from './auth.service';
 import { AuthSessionService } from './auth-session.service';
 
 /**
- * Perfil del asegurado (H0009 — primer ingreso y "Mi perfil").
- *
- * Onboarding y PATCH devuelven un `LoginResponse` con un JWT nuevo, no un perfil: el token
- * lleva el claim `onboardingComplete`, así que después de completarlo hay que reemplazar la
- * sesión o el guard seguiría leyendo el claim viejo y rebotando al onboarding para siempre.
- * Ese reemplazo se hace acá y no en cada componente, para que no se pueda olvidar.
+ * Onboarding and PATCH return a new JWT (it carries `onboardingComplete`), so the session is
+ * replaced here; otherwise the guard would keep reading the stale claim.
  */
 @Injectable({ providedIn: 'root' })
 export class ProfileService {

@@ -36,7 +36,7 @@ class CoverageExclusionRuleServiceTest {
     private final ClaimCauseRepository claimCauseRepository = mock(ClaimCauseRepository.class);
 
     private final CoverageExclusionRuleService service = new CoverageExclusionRuleService(
-            ruleRepository, historyRepository, branchRepository, claimCauseRepository);
+            ruleRepository, historyRepository, branchRepository, claimCauseRepository, mock(RuleAuthorResolver.class));
 
     @Test
     void getReturnsConfiguredExclusions() {

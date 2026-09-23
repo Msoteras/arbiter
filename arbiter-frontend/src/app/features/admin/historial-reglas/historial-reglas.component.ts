@@ -12,7 +12,6 @@ import { InputComponent } from '../../../shared/ui/input/input.component';
 import { PaginationComponent } from '../../../shared/ui/pagination/pagination.component';
 import { SelectComponent, SelectOption } from '../../../shared/ui/select/select.component';
 import { BranchOption, BranchesService } from '../branches.service';
-import { ruleChangeAuthor } from '../rule-change-author';
 import {
   RULE_FIELD_LABELS,
   RULE_TYPE_LABELS,
@@ -21,11 +20,9 @@ import {
   RuleHistoryService,
 } from '../rule-history.service';
 
-/** Un cambio con lo que la vista necesita ya resuelto, para no calcular nada en el template. */
 interface HistoryRow {
   entry: RuleChangeEntry;
   title: string;
-  /** Quién hizo el cambio, sacado del motivo — hoy no viaja como campo propio (card H0034). */
   author: string | null;
   scope: string | null;
   changedAt: string;
@@ -34,20 +31,8 @@ interface HistoryRow {
 }
 
 /**
- * Historial de cambios de las reglas de la aseguradora, para el referente.
- *
- * <p>Es la contracara de lectura de la auditoría que los servicios de reglas ya venían escribiendo
- * en cada guardado: quién cambió qué, cuándo y de qué valor a cuál. La pide la Disposición SSN
- * 2/2023 y el documento de arquitectura la nombra como un registro "inmutable y consultable por el
- * referente de la aseguradora" (sección 8, Seguridad).
- *
- * <p><b>Solo lectura, a propósito.</b> No hay revertir, editar ni borrar: un historial que se puede
- * tocar no sirve como auditoría. Volver a un valor anterior se hace configurando la regla otra vez
- * en su pantalla, y ese acto queda registrado como un cambio más — que es exactamente lo que tiene
- * que pasar.
- *
- * <p>Vive dentro de la pantalla de reglas, como sección de "Reglas generales": no es de ningún ramo
- * en particular (cruza todos) y el referente la consulta en el mismo lugar donde configura.
+ * Read-only on purpose (SSN Disposition 2/2023 audit): no revert, edit or delete. Going back to a
+ * previous value means configuring the rule again, which is recorded as one more change.
  */
 @Component({
   selector: 'app-historial-reglas',
@@ -95,10 +80,7 @@ export class HistorialReglasComponent {
     this.load();
   }
 
-  /**
-   * Los tipos salen del propio historial y los ramos del catálogo: ofrecer un tipo que la
-   * aseguradora nunca editó sería ofrecer un filtro que devuelve vacío.
-   */
+  /** Rule types come from the history itself, so no filter option can only return empty. */
   private loadFilters(): void {
     this.historyService.ruleTypes().subscribe({
       next: (types) =>
@@ -142,7 +124,7 @@ export class HistorialReglasComponent {
       });
   }
 
-  /** Cualquier filtro vuelve a la primera página: la 4 de un resultado nuevo puede no existir. */
+  /** Back to the first page: page 4 of a new result may not exist. */
   protected applyFilters(): void {
     this.page.set(0);
     this.load();
@@ -171,62 +153,58 @@ export class HistorialReglasComponent {
     return {
       entry,
       title: RULE_TYPE_LABELS[entry.ruleType] ?? entry.ruleType,
-      // Del motivo solo se muestra el autor. Todos tienen la forma "<qué cambió> por <quién>" y el
-      // qué ya está en el título y el alcance; el quién no viaja de otra forma. De paso esto evita
-      // el problema de los motivos viejos en inglés: lo que se muestra no es prosa.
-      author: ruleChangeAuthor(entry.reason),
+      author: entry.author,
       scope: this.scopeOf(entry),
       changedAt: formatDateTime(entry.changedAt),
       heldSince: formatDateTime(entry.previousValidFrom),
       fields: entry.changes.map((change) => {
         const base = this.baseField(change.field);
         return {
-          // Sin etiqueta cae al último tramo de la ruta, no a la ruta entera: `weight` se lee,
-          // `factors[image_reuse].weight` es ruido — y el código del factor ya va como calificador.
+          // Unlabeled fields fall back to the last path segment; the factor code is the qualifier.
           label: RULE_FIELD_LABELS[base] ?? base,
           qualifier: this.qualifierOf(change),
-          previous: this.renderValue(change.previousValue),
-          next: this.renderValue(change.newValue),
+          previous: this.renderValue(change.previousValue, base),
+          next: this.renderValue(change.newValue, base),
         };
       }),
     };
   }
 
-  /**
-   * Dónde aplica la regla. La mayoría son de toda la aseguradora (Hard Stop, antecedente de fraude,
-   * puntaje), así que decirlo explícito evita que el referente lea un cambio sin alcance y suponga
-   * que le faltó un dato.
-   */
+  /** Insurer-wide scope is stated explicitly so an empty scope isn't read as missing data. */
   private scopeOf(entry: RuleChangeEntry): string | null {
     if (entry.coverageName) {
       return `${entry.branchName ?? 'Ramo'} · ${entry.coverageName}`;
     }
     if (entry.coverageId) {
-      // El nombre no se resolvió: la cobertura fue borrada después del cambio. El id igual ubica
-      // al referente, y callarlo sería peor — el cambio existió sobre algo.
+      // Unresolved name: the coverage was deleted after the change. The id still locates it.
       return `${entry.branchName ?? 'Ramo'} · cobertura #${entry.coverageId}`;
     }
     return entry.branchName;
   }
 
-  /**
-   * `factors[IMAGE_REUSED].weight` se etiqueta por su último tramo: la clave del elemento ya se
-   * muestra aparte y no hay una etiqueta por cada factor posible.
-   */
+  /** Labels `factors[IMAGE_REUSED].weight` by its last segment; the key is shown apart. */
   private baseField(field: string): string {
     const last = field.split('.').pop() ?? field;
     return last.replace(/\[.*\]$/, '');
   }
 
-  /** El sufijo entre corchetes de un campo de lista, si lo tiene (el código del factor, la banda). */
+  /** Bracketed suffix of a list field, if any (factor code, band). */
   private qualifierOf(change: RuleFieldChange): string | null {
     const match = /\[([^\]]+)\]/.exec(change.field);
     return match ? match[1] : null;
   }
 
-  private renderValue(value: string | null): string {
+  private renderValue(value: string | null, field: string): string {
     if (value === null || value === '') {
       return '—';
+    }
+    // Stored as fractions (0..1); the configuration screens show them on a 0..100 scale.
+    const n = Number(value);
+    if (field === 'maxClaimedAmountRatio' && Number.isFinite(n)) {
+      return `${Math.round(n * 1000) / 10}%`;
+    }
+    if (field === 'minScoreInclusive' && Number.isFinite(n)) {
+      return String(Math.round(n * 100));
     }
     if (value === 'true') {
       return 'Sí';

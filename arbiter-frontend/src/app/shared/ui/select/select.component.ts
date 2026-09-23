@@ -18,21 +18,16 @@ export interface SelectOption {
   label: string;
 }
 
-/** Cuántas opciones se dibujan como máximo con el buscador abierto (ver `visibleOptions`). */
 const SEARCH_RESULT_LIMIT = 100;
 
-/**
- * Si la tecla es un carácter que el usuario quiso escribir. Deja afuera las teclas de control
- * (`key` de más de un carácter: Enter, ArrowDown, F5…), los atajos del navegador y el espacio,
- * que sigue siendo el "abrir" del trigger y no arranca ningún nombre.
- */
+/** Excludes control keys, browser shortcuts and space, which still opens the trigger. */
 function isPrintable(event: KeyboardEvent): boolean {
   return (
     event.key.length === 1 && event.key !== ' ' && !event.ctrlKey && !event.metaKey && !event.altKey
   );
 }
 
-/** Sin acentos y en minúscula, para que "cordoba" encuentre "Córdoba". */
+/** Accent- and case-insensitive, so "cordoba" matches "Córdoba". */
 function normalize(text: string): string {
   return text
     .normalize('NFD')
@@ -41,35 +36,17 @@ function normalize(text: string): string {
 }
 
 /**
- * Select del design system. Listbox custom (no `<select>` nativo: el panel nativo lo
- * dibuja el SO y no respeta los tokens). Mismo tratamiento visual que app-input en el
- * trigger; el panel usa superficie/bordes/radios del sistema.
+ * Custom listbox rather than a native `<select>`, whose panel is drawn by the OS and ignores the
+ * tokens. `placeholder` is the empty option; omit it for required fields.
  *
- * Valor two-way vía model() → `[(value)]` (o `[value]` + `(valueChange)` cuando el
- * consumidor necesita interceptar el cambio, ej. para resetear paginación).
- * `placeholder` es la opción vacía (ej. "Todos los estados") — omitila si el campo es obligatorio.
- *
- * `searchable` convierte el trigger en un input: se escribe directamente sobre el campo y el
- * listado de abajo va mostrando las coincidencias (ignorando acentos y mayúsculas). Para catálogos
- * que no se recorren a ojo, ej. las ~900 localidades de Buenos Aires. El texto tipeado solo filtra:
- * al cerrar sin elegir, el campo vuelve a mostrar la opción elegida, así que nunca queda texto
- * libre en el valor.
- *
- * `required` deja el campo marcado en rojo si se cierra el panel sin haber elegido nada: el clic
- * afuera cierra igual (no atrapa al usuario adentro del campo), pero el formulario queda diciendo
- * que falta completarlo.
- *
- * Teclado: Enter/Espacio/↓ abre · ↑/↓ navega · Enter elige · Esc/Tab/click afuera cierra.
- * Con `searchable`, además, cualquier letra abre el panel ya filtrado por ella.
+ * `searchable` turns the trigger into a filter input. Typed text only filters: closing without
+ * picking restores the selected label, so free text never becomes the value.
  */
 @Component({
   selector: 'app-select',
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="select" [class.open]="open()">
-      <!-- Con searchable el campo ES el buscador: se tipea directo sobre él y el listado de abajo
-           va mostrando las coincidencias. Sin searchable sigue siendo un botón, porque no hay nada
-           que escribir. -->
       @if (searchable()) {
         <input
           type="text"
@@ -154,8 +131,7 @@ function normalize(text: string): string {
           } @empty {
             <li class="hint" role="presentation">Sin resultados</li>
           }
-          <!-- Con catálogos largos se dibujan solo los primeros resultados: 900 <li> por cada
-               tecla tipeada se sentía. Escribir un poco más los recorta de verdad. -->
+          <!-- Rendering is capped for long catalogs; hundreds of <li> per keystroke is noticeable. -->
           @if (hiddenCount() > 0) {
             <li class="hint" role="presentation">
               +{{ hiddenCount() }} más — seguí escribiendo para achicar la lista
@@ -165,8 +141,7 @@ function normalize(text: string): string {
       }
     </div>
 
-    <!-- Fuera de .select: el chevron se centra contra ese contenedor, así que un hijo más alto
-         lo corría de lugar. -->
+    <!-- Outside .select: the chevron is centered against it, so a taller child would shift it. -->
     @if (invalid()) {
       <p class="error-msg" [id]="resolvedId() + '-error'" role="alert">{{ requiredMessage() }}</p>
     }
@@ -188,7 +163,7 @@ function normalize(text: string): string {
       font: inherit;
       font-size: var(--font-size-lg);
       text-align: left;
-      /* Reserva a la derecha para el chevron, que ahora se superpone en vez de ser un hijo más. */
+      /* Room on the right for the overlaid chevron. */
       padding: var(--space-2) calc(var(--space-3) + 1.5em) var(--space-2) var(--space-3);
       border: 1px solid var(--border-control);
       border-radius: var(--radius-ctl);
@@ -206,8 +181,6 @@ function normalize(text: string): string {
       cursor: default;
       opacity: 0.55;
     }
-    /* Obligatorio y todavía sin elegir: el campo queda marcado. El foco sigue pisando el borde
-       rojo con su anillo, para no perder de vista dónde está parado el teclado. */
     .trigger.is-invalid {
       border-color: var(--status-danger);
     }
@@ -225,8 +198,6 @@ function normalize(text: string): string {
       color: var(--text-muted);
     }
 
-    /* Variante buscador: el campo es un input, así que el texto lo dibuja el navegador (no un
-       <span>) y el chevron no puede ir adentro — se superpone, dejándole lugar con el padding. */
     .trigger.is-input {
       display: block;
       cursor: text;
@@ -243,8 +214,7 @@ function normalize(text: string): string {
       flex-shrink: 0;
       color: var(--text-tertiary);
       transition: transform 0.12s;
-      /* Encima del campo (sirve a las dos variantes) y transparente al mouse: el clic tiene que
-         llegar al input de abajo para posicionar el cursor, no quedarse en el ícono. */
+      /* Overlaid and click-through, so clicks reach the input underneath and place the caret. */
       position: absolute;
       right: var(--space-3);
       top: 50%;
@@ -255,8 +225,7 @@ function normalize(text: string): string {
       transform: translateY(-50%) rotate(180deg);
     }
 
-    /* fixed, no absolute: absolute lo recortaba cualquier ancestro con overflow (ej. la tabla
-       de usuarios, cuyo scroll horizontal obliga a recortar también en vertical). */
+    /* fixed, not absolute, so overflow ancestors do not clip it (see anchorToTrigger). */
     .panel {
       position: fixed;
       z-index: 50;
@@ -290,7 +259,6 @@ function normalize(text: string): string {
       background: var(--surface-sunken);
       color: var(--text-primary);
     }
-    /* La elegida se marca con la superficie de cabecera + peso, como el link activo de la nav. */
     .option[aria-selected='true'] {
       background: var(--surface-head);
       color: var(--text-primary);
@@ -300,7 +268,7 @@ function normalize(text: string): string {
       color: var(--text-muted);
     }
 
-    /* 16px en mobile (evita el zoom de iOS); tamaño de cuerpo en desktop. */
+    /* 16px on mobile prevents iOS zoom on focus. */
     @media (min-width: 640px) {
       .trigger,
       .option {
@@ -319,20 +287,12 @@ export class SelectComponent {
   readonly value = model('');
   readonly options = input<SelectOption[]>([]);
   readonly placeholder = input('');
-  /** Bloquea la apertura (ej. mientras se guarda el cambio contra el backend). */
   readonly disabled = input(false);
-  /** Para asociar un `<label for>` — sin esto el trigger nunca tenía id propio, solo sus
-   * sub-elementos internos (listbox/opciones). */
   readonly id = input<string | null>(null);
-  /** Convierte el campo en buscador: se tipea sobre él y el listado filtra. Para catálogos que no
-   * se recorren a ojo (ej. las ~900 localidades de Buenos Aires). */
   readonly searchable = input(false);
   /**
-   * Marca el campo como obligatorio: si el usuario abre el panel y lo cierra sin elegir nada
-   * (clic afuera, Esc, Tab), el campo queda señalado en rojo con `requiredMessage` debajo.
-   *
-   * <p>Se marca al cerrar y no al abrir: mientras el panel está desplegado el usuario todavía
-   * está eligiendo, y pintarlo de rojo ahí sería retarlo antes de tiempo.
+   * Flags the field once the panel is closed without a choice (outside click, Esc, Tab). Closing
+   * still works, so the user is never trapped in the field.
    */
   readonly required = input(false);
   readonly requiredMessage = input('Elegí una opción para continuar.');
@@ -340,11 +300,9 @@ export class SelectComponent {
   protected readonly resolvedId = computed(() => this.id() ?? this.autoId);
 
   protected readonly open = signal(false);
-  /** Si el usuario ya pasó por el campo (abrió y cerró el panel). Habilita el aviso de obligatorio. */
   protected readonly touched = signal(false);
   protected readonly activeIndex = signal(0);
   protected readonly query = signal('');
-  /** Coordenadas de viewport del panel (es `fixed`). Null en el eje que no se fija. */
   protected readonly panelPos = signal<OverlayPosition>({
     top: null,
     bottom: null,
@@ -354,25 +312,19 @@ export class SelectComponent {
   });
 
   constructor() {
-    // El panel es `fixed`: no acompaña a lo que scrollea, así que se cierra cuando scrollea un
-    // contenedor externo (se despegaría del trigger). En captura, para enterarse del scroll de
-    // contenedores internos, que no burbujea a window.
-    // PERO el propio panel tiene scroll interno (max-height 40vh): si el usuario está recorriendo
-    // las opciones, ese scroll NO debe cerrarlo (si no, con muchas opciones no se puede bajar).
+    // The `fixed` panel does not follow outer scrolling, so close it (capture phase: inner scroll
+    // events do not bubble). Scrolling inside the panel's own list must not close it.
     const onScroll = (event: Event) => {
       if (!this.open()) return;
       const panel = this.host.nativeElement.querySelector('.panel');
       const target = event.target as Node | null;
-      if (panel && target && panel.contains(target)) return; // scroll dentro del listado: no cerrar
+      if (panel && target && panel.contains(target)) return;
       this.closePanel();
     };
     document.addEventListener('scroll', onScroll, true);
 
-    // Click afuera → cerrar. En CAPTURA y con addEventListener a mano (no @HostListener, que
-    // escucha el burbujeo): adentro de un app-modal el click nunca llega a document, porque el
-    // diálogo corta la propagación para que el backdrop no lo lea como "cerrar el modal". Con el
-    // listener en burbujeo, el panel del select quedaba abierto para siempre dentro del wizard de
-    // denuncia por más que se clickeara en otro campo.
+    // Outside click in the capture phase rather than @HostListener: app-modal stops propagation,
+    // so inside a modal a bubbling listener on document never fires.
     const onClick = (event: Event) => {
       if (this.open() && !this.host.nativeElement.contains(event.target as Node)) {
         this.closePanel();
@@ -386,20 +338,18 @@ export class SelectComponent {
     });
   }
 
-  /** Opciones renderizadas: el placeholder es la opción vacía (permite "limpiar"). */
   protected readonly allOptions = computed<SelectOption[]>(() =>
     this.placeholder()
       ? [{ value: '', label: this.placeholder() }, ...this.options()]
       : this.options(),
   );
 
-  /** Lo que sobrevive al buscador. Sin `searchable` (o sin texto tipeado) es `allOptions`. */
   protected readonly matchingOptions = computed<SelectOption[]>(() => {
     const q = normalize(this.query().trim());
     if (!this.searchable() || !q) {
       return this.allOptions();
     }
-    // El placeholder se cae solo al filtrar: es la opción "vacía", no un resultado de búsqueda.
+    // The placeholder is the empty option, not a search result.
     return this.options().filter((o) => normalize(o.label).includes(q));
   });
 
@@ -419,21 +369,14 @@ export class SelectComponent {
     () => this.options().find((o) => o.value === this.value())?.label ?? '',
   );
 
-  /**
-   * Texto del campo en la variante buscador: mientras está abierto muestra lo que se va tipeando
-   * (arranca vacío, así el listado se ve entero); cerrado vuelve a mostrar la opción elegida.
-   *
-   * <p>Esa vuelta atrás es lo que impide que quede texto libre: lo tipeado sin elegir nada no se
-   * guarda en ningún lado, solo filtra.
-   */
+  /** Reverting to the selected label on close is what keeps free text out of the value. */
   protected readonly displayValue = computed(() =>
     this.open() ? this.query() : this.selectedLabel(),
   );
 
   protected onQuery(event: Event): void {
     this.query.set((event.target as HTMLInputElement).value);
-    // Lo tipeado cambia el listado bajo el cursor: dejar el índice donde estaba apuntaba a otra
-    // opción, y Enter elegía cualquier cosa.
+    // The list changed under the cursor; a stale index would make Enter pick the wrong option.
     this.activeIndex.set(0);
   }
 
@@ -451,16 +394,13 @@ export class SelectComponent {
     this.closeAndRefocus();
   }
 
-  /**
-   * Cierra el panel. Único camino de cierre: además de bajar la bandera, deja el campo marcado
-   * como visitado, que es lo que destapa el aviso de obligatorio cuando se cerró sin elegir.
-   */
+  /** Single close path: also marks the field as touched, which enables the required warning. */
   private closePanel(): void {
     this.open.set(false);
     this.touched.set(true);
   }
 
-  /** Cierra dejando el foco en el campo, para que el Tab siguiente continúe por el formulario. */
+  /** Keeps focus on the field so the next Tab continues through the form. */
   private closeAndRefocus(): void {
     const hadFocusInside = this.host.nativeElement.contains(document.activeElement);
     this.closePanel();
@@ -470,16 +410,13 @@ export class SelectComponent {
   }
 
   protected onKeydown(event: KeyboardEvent): void {
-    // Empezar a escribir sobre el campo cerrado abre el panel ya filtrado por esa letra. Sin esto
-    // había que abrir primero y recién entonces tipear, que es un paso de más para el gesto natural
-    // ("clic en Provincia, escribo cor").
+    // Typing on the closed field opens the panel already filtered by that key.
     if (!this.open() && this.searchable() && isPrintable(event)) {
       event.preventDefault();
       this.openPanel(event.key);
       return;
     }
-    // Con el buscador abierto el espacio es un carácter más de lo que se está tipeando
-    // ("Villa Crespo"), no el atajo para elegir la opción activa.
+    // While searching, space is part of the query ("Villa Crespo"), not a selection shortcut.
     if (event.key === ' ' && this.open() && this.searchable()) {
       return;
     }
@@ -512,7 +449,7 @@ export class SelectComponent {
         break;
       case 'Home':
       case 'End':
-        // Con el buscador, Home/End mueven el cursor dentro del texto tipeado.
+        // While searching, Home/End move the caret within the query.
         if (this.open() && !this.searchable()) {
           event.preventDefault();
           this.activeIndex.set(event.key === 'Home' ? 0 : this.visibleOptions().length - 1);
@@ -526,8 +463,7 @@ export class SelectComponent {
         }
         break;
       case 'Tab':
-        // Refocus síncrono: el navegador retoma el Tab desde el trigger y sigue por el
-        // formulario, en vez de reempezar desde el body al desmontarse el buscador.
+        // Synchronous refocus so the browser continues Tab from the trigger, not from the body.
         this.closeAndRefocus();
         break;
     }
@@ -538,23 +474,15 @@ export class SelectComponent {
     if (this.open()) this.closePanel();
   }
 
-  /**
-   * @param initialQuery texto con el que arranca el buscador, cuando el panel se abre porque el
-   *   usuario empezó a escribir. Vacío en el resto de las aperturas: conservar lo tipeado la vez
-   *   anterior mostraba un panel ya filtrado sin que se viera por qué.
-   */
+  /** @param initialQuery the key that opened the panel; otherwise empty, so no stale filter shows. */
   protected openPanel(initialQuery = ''): void {
-    // Reabrir lo ya abierto borraría lo tipeado: el clic sobre el campo abierto es para reubicar el
-    // cursor dentro de la búsqueda, no para empezar de cero.
+    // Reopening would clear the query; a click on the open field just moves the caret.
     if (this.open() || this.disabled()) {
       return;
     }
     this.query.set(initialQuery);
-    // Con el listado ya filtrado, la primera fila es la candidata; no tiene sentido buscar la
-    // elegida, que probablemente ni aparezca.
-    // Si no, contra lo que se dibuja y no contra el catálogo entero: con `searchable` y muchas
-    // opciones la elegida puede caer fuera del tope de resultados, y el índice apuntaba a una fila
-    // inexistente.
+    // With a query, the first match is the candidate. Otherwise look up the selection among the
+    // rendered options: with a capped list it may not be rendered at all.
     const selected = initialQuery
       ? -1
       : this.visibleOptions().findIndex((o) => o.value === this.value());
@@ -567,7 +495,7 @@ export class SelectComponent {
 
   private positionPanel(): void {
     const trigger = this.host.nativeElement.querySelector('.trigger')!.getBoundingClientRect();
-    // El panel tiene max-height 40vh, así que nunca crece más que eso por muchas opciones.
+    // Matches the panel's max-height of 40vh.
     const estHeight = Math.min(
       this.allOptions().length * 40 + 8,
       document.documentElement.clientHeight * 0.4,
@@ -575,11 +503,7 @@ export class SelectComponent {
     this.panelPos.set(anchorToTrigger(trigger, estHeight, 'stretch'));
   }
 
-  /**
-   * Deja el foco en el campo. Importa sobre todo al abrir con un clic en la variante buscador: el
-   * clic ya enfoca el input, pero abrir desde afuera (o desde el chevron) no, y sin foco lo que se
-   * tipea después no llega a ningún lado.
-   */
+  /** Opening from elsewhere than the input does not focus it, and typed keys would go nowhere. */
   private focusTrigger(): void {
     const trigger = this.host.nativeElement.querySelector<HTMLElement>('.trigger');
     if (!trigger || trigger === document.activeElement) {
@@ -587,8 +511,7 @@ export class SelectComponent {
     }
     trigger.focus();
     if (trigger instanceof HTMLInputElement) {
-      // Caret al final de lo que ya haya: `focus()` lo deja en 0 y la letra siguiente se
-      // insertaba adelante ("oc" en vez de "co").
+      // `focus()` puts the caret at 0; move it to the end so the next key appends.
       const end = trigger.value.length;
       trigger.setSelectionRange(end, end);
     }
@@ -603,7 +526,7 @@ export class SelectComponent {
     this.scrollActiveIntoView();
   }
 
-  /** El DOM se actualiza recién después del CD → esperar un frame antes de scrollear. */
+  /** Waits a frame: the DOM only updates after change detection. */
   private scrollActiveIntoView(): void {
     requestAnimationFrame(() => {
       this.host.nativeElement.querySelector('.option.active')?.scrollIntoView({ block: 'nearest' });

@@ -17,18 +17,12 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 
 /**
- * Referente-facing backoffice: which hard temporal rules the insurer has active for a coverage
- * (waiting period, report deadline, police-report deadline, events-per-year cap). This is what
- * lets these rules be adjusted without a redeploy — until now the police-report deadline was a
- * fixed 72h property for every company, against decision #12.
+ * Which hard temporal rules the insurer has active for a coverage (waiting period, report deadline,
+ * police-report deadline, events-per-year cap). Coverage window and arrears are insurer-wide: see
+ * {@link ar.edu.utn.frba.arbiter.rules.services.InsurerHardRuleService}.
  *
- * <p>Coverage window and arrears aren't here: they're scoped to the whole insurer, not one
- * coverage — see {@link ar.edu.utn.frba.arbiter.rules.services.InsurerHardRuleService}.
- *
- * <p>The waiting period, report deadline and events cap thresholds <b>aren't edited here</b>:
- * they're terms of the contract and live on the coverage (Coverages tab). Here a rule gets turned
- * on and off, and the one threshold with no column of its own — the police-report deadline — gets
- * set.
+ * <p>Only the on/off switch and the police-report deadline are edited here; the other thresholds
+ * are contract terms stored on the coverage.
  */
 @RestController
 @RequestMapping("/api/v1/rules")

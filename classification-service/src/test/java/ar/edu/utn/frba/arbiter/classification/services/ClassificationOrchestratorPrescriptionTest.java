@@ -34,10 +34,8 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
- * Unit test (no Spring context) of the prescripción gate (art. 58 Ley 17.418): a claim reported
- * more than a year after the event is time-barred, and the orchestrator has to say so without
- * spending an LLM call or running any other hard rule — same scaffold as
- * {@link ClassificationOrchestratorScoringTest}.
+ * A claim reported more than a year after the event is time-barred (art. 58 Ley 17.418): no LLM call
+ * and no other hard rule.
  */
 @ExtendWith(MockitoExtension.class)
 class ClassificationOrchestratorPrescriptionTest {
@@ -82,7 +80,7 @@ class ClassificationOrchestratorPrescriptionTest {
     @Test
     void eventOlderThanOneYear_recommendsRejectionWithoutTouchingTheEngineOrTheLlm() {
         LocalDateTime eventDate = LocalDateTime.of(2024, 6, 13, 19, 45);
-        LocalDateTime reportedAt = LocalDateTime.of(2026, 6, 20, 10, 0); // 2 años después
+        LocalDateTime reportedAt = LocalDateTime.of(2026, 6, 20, 10, 0); // 2 years later
         stubMinimalContext();
 
         ClassificationResponse response = orchestrator.classify(claim(eventDate, reportedAt), List.of());
@@ -92,15 +90,13 @@ class ClassificationOrchestratorPrescriptionTest {
         assertThat(response.deterministicFastTrack()).isFalse();
         assertThat(response.factors()).anyMatch(f -> f.contains("prescripto"));
 
-        // Sin análisis: no hay nada interpretativo que revisar una vez leídas las dos fechas. La
-        // resolución del contexto (póliza/historial/reglas) sí corre siempre — pasa igual para una
-        // exclusión de cobertura — así que no se verifica acá.
+        // Context resolution (policy/history/rules) always runs, so it isn't verified here.
         verify(classifier, never()).classify(any());
         verifyNoInteractions(coverageRuleEvaluator, temporalRuleEvaluator, coverageScopeEvaluator,
                 fraudRecordRuleEvaluator, fastTrackValidator, documentAnalyzer);
     }
 
-    /** Justo en el límite: 1 año más un día sigue prescripto. */
+    /** At the edge: one year and one day is already time-barred. */
     @Test
     void eventReportedOneYearAndADayLater_isStillPrescribed() {
         LocalDateTime eventDate = LocalDateTime.of(2025, 6, 13, 19, 45);
@@ -123,10 +119,10 @@ class ClassificationOrchestratorPrescriptionTest {
         assertThat(response.classification()).isEqualTo(Classification.FAST_TRACK);
     }
 
-    /** Sin `reportedAt` no hay nada contra qué comparar: el gate no participa (no bloquea a ciegas). */
+    /** Without `reportedAt` the gate doesn't take part: it never blocks blindly. */
     @Test
     void withoutReportedAt_doesNotParticipate() {
-        LocalDateTime eventDate = LocalDateTime.of(2020, 1, 1, 0, 0); // muy viejo, pero sin fecha de denuncia
+        LocalDateTime eventDate = LocalDateTime.of(2020, 1, 1, 0, 0); // very old, but no report date
         stubFastTrackRoute();
 
         ClassificationResponse response = orchestrator.classify(claim(eventDate, null), List.of());
@@ -134,10 +130,7 @@ class ClassificationOrchestratorPrescriptionTest {
         assertThat(response.classification()).isEqualTo(Classification.FAST_TRACK);
     }
 
-    /**
-     * Lo mínimo para que {@code fetchContext} no explote y {@code withRiskScore} no ensucie el log
-     * con un scoring fallido — ninguno de los dos lo evita el gate de prescripción, que corre después.
-     */
+    /** The minimum for {@code fetchContext} and {@code withRiskScore}, which run regardless of the gate. */
     private void stubMinimalContext() {
         when(insurerAdapter.getPolicy(any())).thenReturn(RiskFixtures.policy(true, new BigDecimal("400000")));
         when(insurerAdapter.getHistory(any())).thenReturn(RiskFixtures.history(0));

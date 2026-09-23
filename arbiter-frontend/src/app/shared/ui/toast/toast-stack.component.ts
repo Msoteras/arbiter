@@ -2,11 +2,7 @@ import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 
 import { ToastService } from './toast.service';
 
-/**
- * Se monta una sola vez, en `app.html`, y dibuja lo que haya en `ToastService`. Fondo neutro +
- * borde de color por tono (semáforo `--status-*`), nunca un fondo saturado — mismo criterio que
- * `app-badge`/`app-fraud-gauge` para no gastar el acento de estado.
- */
+/** Mounted once in `app.html`. Tone shows only as a colored border, never a saturated fill. */
 @Component({
   selector: 'app-toast-stack',
   changeDetection: ChangeDetectionStrategy.OnPush,

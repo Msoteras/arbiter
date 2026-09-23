@@ -3,11 +3,8 @@ package ar.edu.utn.frba.arbiter.classification.config;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
- * Google Cloud Vision (Web Detection) settings. Disabled by default: this is the only
- * integration that sends claim images OUTSIDE our infrastructure, so it must be an explicit
- * opt-in per deployment and requires the insured's consent.
- *
- * <p>{@code apiKey} always comes from an environment variable — never commit it.
+ * Disabled by default: the only integration that sends claim images outside our infrastructure,
+ * so it is an explicit opt-in per deployment and requires the insured's consent.
  */
 @ConfigurationProperties(prefix = "arbiter.google-vision")
 public record GoogleVisionProperties(

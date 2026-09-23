@@ -27,10 +27,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * En qué esquema hay que dar de alta la denuncia. El {@code tenantSchema} del token se fija en el
- * login, antes de saber sobre qué póliza se va a denunciar; para alguien con pólizas en dos
- * aseguradoras eso alcanzaba sólo para una. Acá se prueba que el alta siga al dato (el número de
- * póliza) y no al sorteo del login — sin dejar de acotar la búsqueda a las aseguradoras firmadas.
+ * Which schema a claim is filed in. The token's {@code tenantSchema} is fixed at login, before the
+ * policy is known, so for someone insured by two insurers the claim must follow the policy number,
+ * while still limiting the search to the insurers in the signed claim.
  */
 @ExtendWith(MockitoExtension.class)
 class PolicyTenantLocatorTest {
@@ -68,7 +67,6 @@ class PolicyTenantLocatorTest {
         return CaseFixtures.policy(POLICY_NUMBER, "Celular Protegido Premium");
     }
 
-    /** El caso que motivó la clase: la póliza es de la segunda aseguradora, no la del login. */
     @Test
     void findsThePolicyInTheSecondInsurer() {
         TenantContext.set(CALLER_TENANT);
@@ -76,7 +74,7 @@ class PolicyTenantLocatorTest {
         when(insurerRepository.findAllById(List.of(1L, 2L))).thenReturn(List.of(
                 insurer(1L, "arbiter_bbva", true),
                 insurer(2L, "arbiter_provincia", true)));
-        // insurerAdapter no la tiene sincronizada / no responde: se cae al snapshot local.
+        // The insurer adapter doesn't have it or doesn't answer: falls back to the local snapshot.
         when(policyRepository.findByExternalPolicyNumber(POLICY_NUMBER))
                 .thenReturn(Optional.empty())
                 .thenReturn(Optional.of(policy()));
@@ -85,12 +83,8 @@ class PolicyTenantLocatorTest {
     }
 
     /**
-     * Bug real del 16/8: un snapshot local viejo/duplicado en el esquema equivocado
-     * (`arbiter_bbva.policy` con una fila de una póliza que en realidad es de Provincia) hacía
-     * que el alta terminara en la aseguradora que no era, porque el código de entonces confiaba
-     * en el primer esquema local que respondiera sin volver a preguntarle a la compañía. Ahora se
-     * pregunta primero a la aseguradora (fuente de verdad) y esa respuesta gana aunque el snapshot
-     * local tenga una fila — sin ese fallback ni siquiera hace falta.
+     * The insurer (source of truth) is asked first, and its answer wins over a stale local snapshot
+     * of the same policy in another insurer's schema.
      */
     @Test
     void trustsTheInsurerOverAStaleLocalSnapshotInTheWrongSchema() {
@@ -126,8 +120,8 @@ class PolicyTenantLocatorTest {
     }
 
     /**
-     * Sondear esquemas no puede dejar el tenant movido: quien llama decide si lo cambia. Si esto
-     * se rompe, el resto del request escribe en la aseguradora equivocada.
+     * Probing schemas must not leave the tenant moved: the caller decides whether to change it.
+     * Otherwise the rest of the request writes to the wrong insurer.
      */
     @Test
     void restoresCallerTenantAfterProbing() {
@@ -149,9 +143,8 @@ class PolicyTenantLocatorTest {
     void restoresCallerTenantWhenNothingResolves() {
         when(insurerAdapter.findPolicy(POLICY_NUMBER)).thenReturn(Optional.empty());
         TenantContext.set(CALLER_TENANT);
-        // Dos aseguradoras a propósito: con una sola no hay ambigüedad que sondear (ver
-        // singleInsurer_skipsResolutionEntirely) y este test no ejercitaría el fallback al
-        // snapshot local que quiere probar.
+        // Two insurers on purpose: with one there's nothing to probe (see
+        // singleInsurer_skipsResolutionEntirely) and the local snapshot fallback wouldn't run.
         CallerContext.set(new CallerContext.Caller("42.987.654", List.of(1L, 2L), CALLER_TENANT));
         when(insurerRepository.findAllById(List.of(1L, 2L))).thenReturn(List.of(
                 insurer(1L, "arbiter_bbva", true),
@@ -173,8 +166,8 @@ class PolicyTenantLocatorTest {
                 insurer(1L, "arbiter_bbva", false),
                 insurer(2L, "arbiter_provincia", true)));
 
-        // Una sola aseguradora activa queda tras filtrar: sin ambigüedad, se devuelve directo
-        // sin consultar ni a la compañía ni al snapshot local.
+        // Only one active insurer is left after filtering: no ambiguity, so it's returned without
+        // asking the insurer or the local snapshot.
         assertThat(locator.locate(POLICY_NUMBER)).isEqualTo("arbiter_provincia");
         verify(policyRepository, never()).findByExternalPolicyNumber(any());
     }
@@ -191,10 +184,7 @@ class PolicyTenantLocatorTest {
         verify(policyRepository, never()).findByExternalPolicyNumber(any());
     }
 
-    /**
-     * Sin el claim (token viejo, o llamada sin usuario detrás) se opera contra el tenant ya
-     * resuelto: el comportamiento de antes, no un error nuevo.
-     */
+    /** Without the claim (old token, or a call with no user behind it) the resolved tenant is used. */
     @Test
     void withoutInsurerIdsClaim_fallsBackToTheCurrentTenant() {
         TenantContext.set(CALLER_TENANT);

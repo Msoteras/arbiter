@@ -5,13 +5,8 @@ import { StatusTone } from '../../../core/models/status-tone';
 type Variant = 'solid' | 'strong' | 'dashed';
 
 /**
- * Etiqueta compacta (pill). `solid` para estados con dato; `strong` para el estado
- * destacado (ej. estado final de un expediente: más peso + borde marcado); `dashed`
- * para placeholders / secciones sin dato (coherente con el estilo "honesto" de Arbiter).
- *
- * `tone` agrega un punto de semáforo (verde/amarillo/rojo/azul) cuando el badge
- * comunica ESTADO. Sobrio a propósito: solo el dot lleva color, el texto y el
- * borde siguen en gris para no saturar. Por defecto `neutral` (sin color).
+ * `solid` for regular values, `strong` for a highlighted state (e.g. a final case status), `dashed`
+ * for placeholders without data. `tone` adds a status dot; only the dot is colored, by design.
  */
 @Component({
   selector: 'app-badge',
@@ -55,7 +50,6 @@ type Variant = 'solid' | 'strong' | 'dashed';
       color: var(--text-muted);
     }
 
-    /* Punto de semáforo: única pieza con color, alineado con el texto. */
     .dot {
       display: inline-block;
       width: 6px;

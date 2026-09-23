@@ -6,13 +6,8 @@ import java.sql.Timestamp;
 import java.time.Instant;
 
 /**
- * The tables of cases-service and classification-service that the resolution report reads. They
- * aren't entities of this module — that's the point of {@code ResolvedCaseRepository} — so
- * {@code ddl-auto=update} never creates them and the tests build them here, with the same shape as
- * {@code db/init-multitenant.sql} but only the columns the query touches.
- *
- * <p>Flat schema, like the rest of {@link AbstractPersistenceIT}: everything lands in
- * {@code public} instead of a tenant schema plus {@code arbiter_common}.
+ * The other modules' tables the reports read. They aren't entities here, so {@code ddl-auto} never
+ * creates them; built with the shape of {@code db/init-multitenant.sql}, only the columns queried.
  */
 public final class CaseTables {
 
@@ -172,11 +167,7 @@ public final class CaseTables {
                 """);
     }
 
-    /**
-     * El vencimiento del art. 56 se siembra como lo siembra cases-service al dar de alta la
-     * denuncia: 30 días desde ese día. Los tests que miden cumplimiento lo pisan con
-     * {@link #deadline}, que es lo que hace el sistema real cuando el plazo se reinicia.
-     */
+    /** Seeds the art. 56 deadline 30 days after filing, as cases-service does; override with {@link #deadline}. */
     public void insertCase(long id, String reportedAt, long statusId, long claimCauseId, boolean fastTrack,
                            Long analystId, Long classificationId) {
         jdbcTemplate.update("""
@@ -189,7 +180,6 @@ public final class CaseTables {
                 claimCauseId, classificationId);
     }
 
-    /** La fecha límite del expediente, cuando el test necesita una distinta de la del alta. */
     public void deadline(long caseId, String date) {
         jdbcTemplate.update("UPDATE cases SET response_deadline = ?::date WHERE id = ?", date, caseId);
     }
@@ -201,22 +191,22 @@ public final class CaseTables {
                 """, Timestamp.from(Instant.parse(changedAt)), fromStatusId, toStatusId, caseId);
     }
 
-    /** Lo que el asegurado reclamó, que no es obligatorio en la denuncia y por eso no va en el alta. */
+    /** The claimed amount, optional on the claim and therefore not part of {@link #insertCase}. */
     public void claimed(long caseId, String amount) {
         jdbcTemplate.update("UPDATE cases SET claimed_amount = ?::numeric WHERE id = ?", amount, caseId);
     }
 
-    /** La banda que escribió el motor de scoring. Sin llamarla, el expediente queda sin evaluar. */
+    /** Without calling this the case stays unscored. */
     public void riskBand(long caseId, String band) {
         jdbcTemplate.update("UPDATE cases SET risk_band = ? WHERE id = ?", band, caseId);
     }
 
-    /** insertCase siembra siempre a Ana; esto lo pasa a otro asegurado (ver {@link #DIEGO}). */
+    /** {@link #insertCase} always seeds Ana; this moves the case to another insured. */
     public void insuredOf(long caseId, long insuredId) {
         jdbcTemplate.update("UPDATE cases SET insured_id = ? WHERE id = ?", insuredId, caseId);
     }
 
-    /** Un adjunto del expediente con su análisis forense de imagen ya corrido. */
+    /** An attachment with its forensic image analysis already run. */
     public void image(long caseId, String documentType, boolean suspicious) {
         Long documentId = jdbcTemplate.queryForObject("""
                 INSERT INTO case_documents (type, case_id) VALUES (?, ?) RETURNING id
@@ -227,10 +217,8 @@ public final class CaseTables {
     }
 
     /**
-     * Un run del motor de scoring con el factor {@code document_inconsistency} en el desglose —
-     * con hallazgo si {@code rationale} no es null, limpio si lo es. Corridas más nuevas pisan a
-     * las más viejas para la señal, igual que hace el motor real con {@code cases.risk_band}: la
-     * última es la que cuenta.
+     * A scoring run with the {@code document_inconsistency} factor in its breakdown: a finding when
+     * {@code rationale} is non-null, clean otherwise. The newest run wins.
      */
     public void riskAnalysis(long caseId, String rationale, String analyzedAt) {
         double rawScore = rationale == null ? 0.0 : 1.0;
@@ -245,7 +233,6 @@ public final class CaseTables {
                 caseId, breakdown, Timestamp.from(Instant.parse(analyzedAt)));
     }
 
-    /** El analista determinó que el siniestro era fraudulento. */
     public void fraudDetermined(long caseId) {
         jdbcTemplate.update("UPDATE cases SET fraud_determined = TRUE WHERE id = ?", caseId);
     }
@@ -261,7 +248,7 @@ public final class CaseTables {
                 Timestamp.from(Instant.parse(confirmedAt)), caseId);
     }
 
-    /** Una derivación ya devuelta: salió en {@code derivedAt} y contestó en {@code receivedAt}. */
+    /** A derivation sent at {@code derivedAt} and answered at {@code receivedAt}. */
     public void assessment(long caseId, String providerType, String verdict, String repairOutcome,
                            String derivedAt, String receivedAt) {
         jdbcTemplate.update("""
@@ -272,12 +259,12 @@ public final class CaseTables {
                 receivedAt == null ? null : Timestamp.from(Instant.parse(receivedAt)), caseId);
     }
 
-    /** Una regla configurada de la aseguradora, para que el resultado tenga nombre. */
+    /** A configured insurer rule, so the result has a name. */
     public void rule(long id, String name) {
         jdbcTemplate.update("INSERT INTO insurer_rule (id, name) VALUES (?, ?)", id, name);
     }
 
-    /** Una regla evaluada sobre un expediente. {@code ruleId} nulo = no es fila de insurer_rule. */
+    /** A null {@code ruleId} means the rule is not an insurer_rule row. */
     public void ruleResult(long caseId, Long ruleId, String ruleType, String result) {
         jdbcTemplate.update(
                 "INSERT INTO rule_result (rule_type, result, rule_id, case_id) VALUES (?, ?, ?, ?)",

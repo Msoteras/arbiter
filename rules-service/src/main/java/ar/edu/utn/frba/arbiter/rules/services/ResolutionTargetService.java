@@ -20,17 +20,10 @@ import java.time.Instant;
 import java.util.Map;
 
 /**
- * El objetivo de resolución de la aseguradora, que el referente fija desde el panel de reglas.
- *
- * <p>Se guarda como una fila de {@code insurer_rule} de toda la compañía (sin rama ni cobertura),
- * igual que la mora y la vigencia, pero es de la familia de <b>configuración</b>: nadie la evalúa
- * contra un siniestro, no bloquea Fast Track y no deja {@code rule_result}. Vive acá y no en
- * reports-service porque es configuración de la aseguradora, y toda la configuración de la
- * aseguradora la administra este módulo desde una sola pantalla.
- *
- * <p>Cada cambio deja snapshot en {@code insurer_rule_history}, igual que el resto: subir el
- * objetivo de 21 a 35 días hace que la mitad de los expedientes deje de estar "fuera de objetivo"
- * de un día para el otro, y eso tiene que quedar registrado.
+ * The insurer's resolution target. Stored as an insurer-wide {@code insurer_rule} (no branch or
+ * coverage), but it's configuration: never evaluated against a claim, never blocks Fast Track and
+ * leaves no {@code rule_result}. Changes are still snapshotted in {@code insurer_rule_history},
+ * since moving the target shifts which cases count as off-target.
  */
 @Service
 @RequiredArgsConstructor
@@ -43,6 +36,7 @@ public class ResolutionTargetService {
 
     private final InsurerRuleRepository ruleRepository;
     private final InsurerRuleHistoryRepository historyRepository;
+    private final RuleAuthorResolver authorResolver;
 
     @Transactional(readOnly = true)
     public ResolutionTargetDto get() {
@@ -50,8 +44,7 @@ public class ResolutionTargetService {
                 .findFirstByBranch_IdIsNullAndCoverageIdIsNullAndRuleType(RuleType.RESOLUTION_TARGET.name())
                 .map(rule -> {
                     Integer days = targetDaysOf(rule.getConfiguration());
-                    // Una fila activa sin días es una fila a medio configurar: vale lo mismo que
-                    // no tener objetivo, y el tablero no tiene contra qué comparar.
+                    // A row without days is half-configured and counts as no target.
                     return days == null
                             ? ResolutionTargetDto.unset()
                             : new ResolutionTargetDto(rule.isActive(), days);
@@ -65,7 +58,7 @@ public class ResolutionTargetService {
             throw new InvalidRuleConfigurationException(
                     "A resolution target that is on needs targetDays");
         }
-        // Apagar el objetivo no borra el número: si lo vuelven a encender, vuelve el que había.
+        // Turning the target off keeps the number, so turning it back on restores it.
         Integer days = requested.targetDays();
         String json = serialize(days);
         Instant now = Instant.now();
@@ -80,9 +73,8 @@ public class ResolutionTargetService {
                     .validFrom(now)
                     .name(RULE_NAME)
                     .ruleType(RuleType.RESOLUTION_TARGET.name())
-                    // Sin efecto y sin prioridad: no se evalúa, así que no hay nada que efectuar.
-                    // blocksFastTrack=false por el mismo motivo — pasarse del objetivo de gestión
-                    // no puede sacarle a un siniestro la vía rápida.
+                    // Never evaluated, so no effect; missing a management goal can't cost a claim
+                    // its Fast Track.
                     .effect(null)
                     .blocksFastTrack(false)
                     .branch(null)
@@ -108,7 +100,7 @@ public class ResolutionTargetService {
                 .validTo(now)
                 .reason("Objetivo de resolución actualizado por " + actorEmail)
                 .insurerRule(rule)
-                .changedBy(null)
+                .changedBy(authorResolver.referentIdOf(actorEmail))
                 .build());
 
         rule.setActive(requested.enabled());
@@ -128,7 +120,7 @@ public class ResolutionTargetService {
             Object value = OBJECT_MAPPER.readValue(configuration, Map.class).get(TARGET_DAYS);
             return value instanceof Number number ? number.intValue() : null;
         } catch (JsonProcessingException malformed) {
-            // Una configuración ilegible no puede tumbar el panel entero: se lee como "sin objetivo".
+            // An unreadable configuration must not break the panel: read it as unset.
             log.warn("[ResolutionTarget] unreadable configuration, treated as unset: {}", configuration);
             return null;
         }

@@ -17,10 +17,8 @@ import java.math.BigDecimal;
 import java.util.List;
 
 /**
- * Coverages of an insurer's rama ("Cobertura" in CLAUDE.md's domain vocabulary), for the
- * referente's Coberturas tab. cases-service owns the Coverage table, so both the read-only
- * catalog (used by other modules' selectors) and the CRUD live here. The tenant schema is
- * resolved from the JWT, so every query is already scoped to the caller's insurer.
+ * Coverages of an insurer's branches: the read-only catalog other modules' selectors use and the
+ * referent's CRUD. cases-service owns the coverage table.
  */
 @Service
 @RequiredArgsConstructor
@@ -45,7 +43,7 @@ public class CoverageService {
                 .toList();
     }
 
-    /** One count per branch that has at least one coverage, for the referente's ramo list. */
+    /** One count per branch that has at least one coverage. */
     @Transactional(readOnly = true)
     public List<CoverageSummary> summary() {
         return coverageRepository.countGroupedByBranch().stream()
@@ -90,13 +88,10 @@ public class CoverageService {
         coverage.setReportDeadlineHours(request.reportingWindowDays() == null
                 ? null : request.reportingWindowDays() * HOURS_PER_DAY);
         coverage.setMaxEventsPerYear(request.maxAnnualClaims());
-        // Las tres condiciones que el motor ya evaluaba y el referente no podía tocar (D9):
-        // hasta ahora se configuraban por SQL.
         coverage.setWaitingPeriodDays(request.waitingPeriodDays());
         coverage.setCoversFamilyGroup(request.coversFamilyGroup());
         coverage.setClaimExhaustsCoverage(request.claimExhaustsCoverage());
-        // Determinación del monto a pagar. El basis nunca queda null: la columna es NOT NULL y
-        // "sin elegir" no es una opción de negocio — toda cobertura liquida de alguna forma.
+        // Never null: the columns are NOT NULL and every coverage settles in some way.
         coverage.setSettlementFormula(request.settlementFormula() == null
                 ? SettlementFormula.TOTAL_LOSS : request.settlementFormula());
         coverage.setSettlementBasis(request.settlementBasis() == null

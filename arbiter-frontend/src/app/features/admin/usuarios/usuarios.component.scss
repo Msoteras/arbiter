@@ -17,8 +17,7 @@
   flex-wrap: wrap;
 }
 
-/* El aviso de "está corriendo" queda hasta que se recarga: la corrida es asincrónica y no hay
-   forma de saber desde acá cuándo terminó, así que esconderlo solo con un timer mentiría. */
+/* Stays until reload: the run is async and its end can't be observed here, so no timer. */
 .provision-notice {
   display: block;
   margin-bottom: var(--space-4);
@@ -28,8 +27,7 @@
   }
 }
 
-/* El tratamiento visual y el estado deshabilitado los pone app-select; acá solo el ancho
-   para que la columna no se estire con el rol más largo. */
+/* Width only, so the column doesn't stretch to the longest role. */
 .role-select {
   display: block;
   min-width: 200px;

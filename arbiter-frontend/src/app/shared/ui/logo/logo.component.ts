@@ -1,20 +1,12 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 
-/** Instancias distintas no pueden compartir el id del mask: el segundo pisaría al primero. */
+/** Each instance needs its own mask id, or the second one would override the first. */
 let uid = 0;
 
 /**
- * Marca de Arbiter. El símbolo sale del SVG original (public/brand/), con dos cambios
- * deliberados respecto del export:
- *
- * 1. Los trazos van en `currentColor` en vez de #0a0a0a / #ffffff. Un solo componente
- *    cubre fondo claro y oscuro (el panel del login es oscuro) y queda resuelto para
- *    cuando entre dark mode.
- * 2. "Arbiter" va como texto HTML, no como el <text> del SVG. El export lo declara en
- *    Helvetica Neue/Arial y el proyecto usa Arimo (--font-sans): embebido tal cual, el
- *    logo quedaba en otra tipografía que el resto de la UI.
- *
- * Los archivos originales quedan en public/brand/ para usos fuera de la app (docs, slides).
+ * Deliberate differences from the SVG export in public/brand/: strokes use `currentColor` so one
+ * component works on light and dark backgrounds, and the wordmark is HTML text so it uses the app
+ * font (--font-sans) instead of the export's Helvetica/Arial.
  */
 @Component({
   selector: 'app-logo',
@@ -67,7 +59,7 @@ let uid = 0;
       align-items: center;
       gap: 0.42em;
       color: inherit;
-      /* Todo escala con font-size: quien lo use solo define el tamaño del texto. */
+      /* Everything scales with font-size. */
       font-size: var(--logo-size, var(--font-size-lg));
     }
 
@@ -75,8 +67,7 @@ let uid = 0;
       width: 1.15em;
       height: 1.15em;
       flex-shrink: 0;
-      /* El símbolo tiene el punto abajo a la izquierda: sin este ajuste la masa visual
-         queda por debajo de la línea base del texto y el conjunto se ve caído. */
+      /* Optical alignment: the symbol's weight sits bottom-left, below the text baseline. */
       margin-block-start: -0.06em;
     }
 
@@ -96,7 +87,7 @@ let uid = 0;
   `,
 })
 export class LogoComponent {
-  /** `lockup` = símbolo + "Arbiter"; `symbol` = solo el símbolo (espacios angostos). */
+  /** `lockup` = symbol + wordmark; `symbol` = symbol only (narrow spaces). */
   readonly variant = input<'lockup' | 'symbol'>('lockup');
 
   private readonly id = `arbiter-logo-gap-${uid++}`;

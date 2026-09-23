@@ -10,9 +10,8 @@ import jakarta.persistence.Converter;
 import java.util.List;
 
 /**
- * Serializes the cached risk breakdown to a JSON string in a {@code text} column (same convention
- * as classification-service, no JSONB). {@code null} is preserved so a case with no score reads
- * back as "sin scorear" rather than an empty breakdown.
+ * Stored as JSON in a {@code text} column, like classification-service. {@code null} is preserved so
+ * an unscored case doesn't read back as an empty breakdown.
  */
 @Converter
 public class RiskBreakdownJsonConverter implements AttributeConverter<List<RiskBreakdownItem>, String> {

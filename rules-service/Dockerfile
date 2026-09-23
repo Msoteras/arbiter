@@ -11,7 +11,7 @@ COPY pom.xml .
 COPY common-lib/pom.xml common-lib/
 COPY rules-service/pom.xml rules-service/
 
-# Update the parent pom to only build modules that exist (drop lines for modules that don't)
+# Drop the modules this image doesn't copy, so the reactor only builds what exists
 RUN sed -i '/<module>auth-service<\/module>/d; /<module>cases-service<\/module>/d; /<module>classification-service<\/module>/d; /<module>reports-service<\/module>/d' pom.xml
 
 RUN mvn dependency:go-offline -pl common-lib,rules-service -am -q
@@ -33,8 +33,6 @@ USER arbiter
 
 EXPOSE 8081
 
-# Explicit -Duser.timezone: containers default to UTC while the team's laptops run UTC-3, and this
-# domain evaluates legal deadlines off local dates — the temporal rules this module owns compare
-# against them. Java ships its own tzdb, so no tzdata package is needed. Set here and not in
+# Containers default to UTC, but legal deadlines are evaluated on local dates. Set here and not in
 # JAVA_TOOL_OPTIONS because the compose files already use that variable for heap sizing.
 ENTRYPOINT ["java", "-Duser.timezone=America/Argentina/Buenos_Aires", "-jar", "app.jar"]

@@ -26,12 +26,10 @@ import java.time.Instant;
 import java.util.List;
 
 /**
- * Referente backoffice: which claim causes a coverage does NOT cover (the "hard exclusion" the
- * engine evaluates in code and audits in {@code rule_result}, unlike the text exclusions that only
- * reach the prompt). Persisted as a {@code COVERAGE_EXCLUSION} row of {@link InsurerRule} with
- * {@code configuration} JSONB = {@link CoverageExclusionConfig} (a list of {@code claim_cause} ids).
- * Every change leaves a snapshot in {@code insurer_rule_history} (append-only audit), same as Fast
- * Track. The tenant schema comes from the JWT, so the referente only sees and edits their insurer.
+ * Which claim causes a coverage does NOT cover: the hard exclusion the engine evaluates in code and
+ * audits in {@code rule_result}, unlike the text exclusions that only reach the prompt. Persisted as
+ * a {@code COVERAGE_EXCLUSION} {@link InsurerRule} whose configuration is a
+ * {@link CoverageExclusionConfig}; every change leaves a snapshot in {@code insurer_rule_history}.
  */
 @Service
 @RequiredArgsConstructor
@@ -46,8 +44,8 @@ public class CoverageExclusionRuleService {
     private final InsurerRuleHistoryRepository historyRepository;
     private final BranchRepository branchRepository;
     private final ClaimCauseRepository claimCauseRepository;
+    private final RuleAuthorResolver authorResolver;
 
-    /** The branch's claim causes, to populate the exclusion picker (id + name). */
     @Transactional(readOnly = true)
     public List<CatalogOption> listClaimCauses(Long branchId) {
         return claimCauseRepository.findByBranch_IdOrderByNameAsc(branchId).stream()
@@ -91,7 +89,7 @@ public class CoverageExclusionRuleService {
             return new CoverageExclusionResponse(rule.getId(), branchId, coverageId, config.excludedClaimCauseIds());
         }
 
-        // Un guardado que no cambia nada no es un cambio y no deja rastro en la auditoría.
+        // A save that changes nothing leaves no audit entry.
         if (InsurerRuleSnapshot.unchanged(
                 rule.isActive(), rule.isBlocksFastTrack(), rule.getConfiguration(),
                 true, rule.isBlocksFastTrack(), json)) {
@@ -108,7 +106,7 @@ public class CoverageExclusionRuleService {
                 .validTo(now)
                 .reason("Exclusiones de cobertura actualizadas por " + actorEmail)
                 .insurerRule(rule)
-                .changedBy(null)
+                .changedBy(authorResolver.referentIdOf(actorEmail))
                 .build());
 
         rule.setConfiguration(json);

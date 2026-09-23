@@ -20,24 +20,9 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Image-fraud analysis, run as part of analyzing the claim's documentation (images are just
- * another attachment): the orchestrator invokes it exactly when the documentation is examined —
- * Fast Track with a required document included, structured-data-only Fast Track excluded. Runs as
- * an escalating cascade:
- *
- * <ol>
- *   <li><b>Internal first</b> — compare the image against attachments of previous claims using
- *       our own CLIP + pgvector index. Free, private, and it never leaves the host.</li>
- *   <li><b>Escalate only if needed</b> — an image with no internal match is the one worth
- *       looking up on the web. Reaching a third party costs money and takes the insured's
- *       image outside our infrastructure, so it's the fallback, never the first move.</li>
- * </ol>
- *
- * <p>An image that already matched a previous claim needs no web search: the finding is
- * established. That's what keeps external calls (and data exposure) down to the minimum.
- *
- * <p>Produces a structured {@link ImageForensicReport} (grouped per image, for the analyst UI).
- * Failures degrade to an empty finding and never break the classification.
+ * Escalating cascade: internal CLIP/pgvector comparison first; the web search (third party, costs
+ * money, image leaves our infrastructure) only for images with no internal match. Failures degrade
+ * to an empty finding and never break the classification.
  */
 @Service
 @RequiredArgsConstructor
@@ -76,8 +61,7 @@ public class ImageFraudAnalysisService {
                 webFinding = findOnWeb(label, imageBase64, imageConsent);
                 if (webFinding != null) {
                     webSearchesPerformed++;
-                    // Persist it on the row the internal pass wrote, so "suspicious because it's
-                    // published on the web" is queryable and not only inside the report JSON.
+                    // Persisted so it's queryable, not only inside the report JSON.
                     imageEmbeddingService.recordWebMatch(outcome.analysisId(), webFinding);
                 }
             }
@@ -91,10 +75,6 @@ public class ImageFraudAnalysisService {
                 imagesAnalyzed, webSearchesPerformed, imageConsent, List.copyOf(findings));
     }
 
-    /**
-     * Renders the report as human-readable Spanish traces for the classification factors and the
-     * audit log. Kept alongside the structured report so both come from the same source of truth.
-     */
     public List<String> renderTraces(ImageForensicReport report) {
         List<String> traces = new ArrayList<>();
         for (ImageFinding f : report.findings()) {
@@ -107,12 +87,8 @@ public class ImageFraudAnalysisService {
             traces.add(String.format("Imagen '%s': sin coincidencias con adjuntos de siniestros previos", f.documentType()));
 
             if (f.webFinding() == null) {
-                // Not searched. Say WHY when the reason is the person's refusal: for the analyst it
-                // is the difference between "no evidence" and "we were not allowed to look", and it
-                // is the trace that shows the consent was actually honoured. The other reasons
-                // (integration off, call failed) are operational and say nothing about the claim.
-                // Only on an explicit refusal: a null means the report predates the field, and
-                // saying "they didn't consent" about it would be inventing an answer.
+                // Only an explicit refusal is explained ("not allowed to look" vs "no evidence");
+                // null means the report predates the field.
                 if (Boolean.FALSE.equals(report.imageConsent())) {
                     traces.add(String.format(
                             "Imagen '%s': no se buscó en internet — el asegurado no dio su consentimiento",
@@ -146,7 +122,7 @@ public class ImageFraudAnalysisService {
         }
     }
 
-    /** @return the web finding, or null when the search wasn't performed (disabled, no consent, or failed). */
+    /** Null when the search wasn't performed (disabled, no consent, or failed). */
     private WebFinding findOnWeb(String label, String imageBase64, boolean imageConsent) {
         if (!imageConsent) {
             log.debug("[ImageFraud] Web search skipped for '{}' — insured did not consent", label);

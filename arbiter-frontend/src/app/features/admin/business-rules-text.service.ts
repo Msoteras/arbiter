@@ -4,7 +4,6 @@ import { Observable } from 'rxjs';
 
 import { environment } from '../../../environments/environment';
 
-/** Confirmación de guardado: la fila de insurer_rule + su contenido, tal como quedó en la DB. */
 export interface RuleTextResponse {
   id: number;
   branchId: number;
@@ -13,9 +12,8 @@ export interface RuleTextResponse {
 }
 
 /**
- * Exclusiones comunes (solapa Coberturas) y reglas de negocio en texto libre (solapa Reglas de
- * negocio) contra rules-service. Sin tabla propia en el DER — el backend las persiste como
- * InsurerRule con rule_type de texto.
+ * Free-text exclusions and business rules. They have no table of their own: the backend stores them
+ * as InsurerRule rows with a text rule_type.
  */
 @Injectable({ providedIn: 'root' })
 export class BusinessRulesTextService {

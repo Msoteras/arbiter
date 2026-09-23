@@ -1,11 +1,6 @@
 package ar.edu.utn.frba.arbiter.rules.config.tenant;
 
-/**
- * Per-request holder for the resolved tenant schema — same pattern as auth-service's
- * {@code TenantContext}. Set by {@link TenantResolvingFilter}, which is wired even though
- * this module still has no controllers (catalog-only scaffolding): it's cheap to have ready
- * for whenever the first real endpoint lands, and matches the other 4 modules.
- */
+/** Per-request holder for the resolved tenant schema, set by {@link TenantResolvingFilter}. */
 public final class TenantContext {
 
     /** Search path always falls back here — the schema shared by every insurer. */

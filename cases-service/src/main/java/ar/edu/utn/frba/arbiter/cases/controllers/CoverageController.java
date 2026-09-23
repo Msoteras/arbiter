@@ -25,9 +25,8 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 
 /**
- * Coberturas de la aseguradora por ramo: catálogo de solo-lectura para selectores de otros módulos,
- * más el CRUD que usa la solapa Coberturas del backoffice de reglas del referente. cases-service es
- * el dueño de la tabla Coverage, por eso se sirve desde acá.
+ * The insurer's coverages per branch: read-only catalog for other modules' selectors plus the
+ * referente's CRUD. Served here because cases-service owns the coverage table.
  */
 @RestController
 @RequestMapping("/api/v1/coverages")

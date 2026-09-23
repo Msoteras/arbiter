@@ -1,28 +1,23 @@
 ﻿<#
 .SYNOPSIS
-    Corre un módulo de Arbiter en local, con las variables de `.env` cargadas.
+    Runs one Arbiter module locally with the variables from `.env` loaded.
 
 .DESCRIPTION
-    Spring Boot no lee archivos .env por su cuenta: espera variables de entorno.
-    Este script hace ese puente, así las credenciales viven en un solo archivo
-    gitignoreado y no en un application.yml versionado ni en el historial de la
-    terminal.
-
-    Las variables se setean sólo para este proceso; no tocan el entorno del
-    sistema ni quedan en otras terminales abiertas.
+    Spring Boot does not read .env files, so this loads them as environment variables
+    for this process only, keeping credentials in one gitignored file.
 
 .PARAMETER Module
-    Módulo a levantar: auth-service, cases-service, classification-service,
-    rules-service o reports-service.
+    Module to start: auth-service, cases-service, classification-service,
+    rules-service or reports-service.
 
 .PARAMETER EnvFile
-    Archivo de variables. Por defecto `.env` en la raíz del repo.
+    Variables file. Defaults to `.env` at the repo root.
 
 .EXAMPLE
     .\scripts\run-local.ps1 auth-service
 
 .EXAMPLE
-    # Sólo cargar las variables y verificar la conexión, sin levantar nada:
+    # Only load and validate the variables, without starting anything:
     .\scripts\run-local.ps1 -CheckOnly
 #>
 param(
@@ -44,9 +39,7 @@ if (-not (Test-Path $EnvFile)) {
     Write-Error "No existe $EnvFile. Copiá .env.example a .env y completá los valores."
 }
 
-# Parseo deliberadamente simple: KEY=VALUE, ignorando comentarios y líneas vacías.
-# No soporta comillas ni multilínea — si una credencial las necesita, conviene
-# pasarla por el entorno directamente en vez de complicar esto.
+# Plain KEY=VALUE only: no quotes, no multiline values.
 $loaded = 0
 foreach ($line in Get-Content $EnvFile) {
     $trimmed = $line.Trim()
@@ -62,7 +55,6 @@ foreach ($line in Get-Content $EnvFile) {
 }
 Write-Host "Cargadas $loaded variables desde $EnvFile" -ForegroundColor DarkGray
 
-# Chequeos que evitan el 90% de los "no arranca y no dice por qué".
 if ([string]::IsNullOrWhiteSpace($env:DB_URL) -or $env:DB_URL -like '*HOST:PUERTO*') {
     Write-Error "DB_URL sin completar. Sacá host/puerto/base de DATABASE_PUBLIC_URL en Railway."
 }
@@ -73,8 +65,7 @@ if ($env:JWT_SECRET.Length -lt 32) {
     Write-Error "JWT_SECRET demasiado corto ($($env:JWT_SECRET.Length) chars). HS256 pide 32+ bytes."
 }
 
-# El host se muestra sin credenciales a propósito: este script se corre con la
-# terminal a la vista y compartiendo pantalla.
+# Host only, never credentials: this often runs while screen sharing.
 if ($env:DB_URL -match 'jdbc:postgresql://([^/?]+)') {
     Write-Host "Base de datos: $($Matches[1])" -ForegroundColor Cyan
 }
@@ -90,10 +81,7 @@ if (-not $Module) {
 
 Write-Host "Levantando $Module..." -ForegroundColor Cyan
 
-# El driver JDBC le manda al servidor la zona horaria de la JVM. En Windows, para la
-# hora de Argentina, Java resuelve el alias viejo `America/Buenos_Aires`, que el
-# Postgres de Railway no reconoce (sólo tiene `America/Argentina/Buenos_Aires`), y la
-# conexión muere con "FATAL: invalid value for parameter TimeZone" antes de que
-# Hibernate llegue a hablar. Se fija UTC para que no dependa de la máquina de cada uno:
-# las columnas son TIMESTAMPTZ, así que el instante que se guarda es el mismo igual.
+# The JDBC driver sends the JVM time zone to the server. On Windows, Argentina resolves to
+# the legacy `America/Buenos_Aires`, which Railway's Postgres rejects. UTC is safe because
+# the columns are TIMESTAMPTZ.
 mvn spring-boot:run -pl $Module "-Dspring-boot.run.jvmArguments=-Duser.timezone=UTC"

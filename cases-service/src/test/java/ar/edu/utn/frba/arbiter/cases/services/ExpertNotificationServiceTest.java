@@ -57,8 +57,8 @@ class ExpertNotificationServiceTest {
     }
 
     /**
-     * Regression: with no API key the adapter logs and returns without sending, and this used to
-     * stamp notifiedAt anyway — the analyst read "notificado" on an expert nobody had asked.
+     * With no API key the adapter logs and returns without sending: notifiedAt must stay unset, or
+     * the analyst would see as notified an expert nobody asked.
      */
     @Test
     void notifyDerivation_doesNotStampWhenNothingWentOut() {
@@ -68,8 +68,8 @@ class ExpertNotificationServiceTest {
     }
 
     /**
-     * El perito recibe la documentación con la solicitud. Pedirla por mail aparte le cuesta un día
-     * por expediente, y el cuerpo los nombra para que note si falta alguno.
+     * The expert gets the documents with the request, and the body names them so a missing one is
+     * noticed.
      */
     @Test
     void notifyDerivation_attachesTheCaseDocumentsAndNamesThem() {
@@ -111,8 +111,8 @@ class ExpertNotificationServiceTest {
     }
 
     /**
-     * Al servicio técnico no le va NADA del expediente: repara el equipo, no verifica el siniestro,
-     * y la denuncia policial o la factura del asegurado no tienen por qué salir de la aseguradora.
+     * A repair shop gets nothing from the case: it repairs the device, doesn't verify the claim, and
+     * the insured's documents have no reason to leave the insurer.
      */
     @Test
     void notifyDerivation_toARepairShop_sendsNoDocuments() {
@@ -125,9 +125,9 @@ class ExpertNotificationServiceTest {
         verify(sendGridAdapter).send(eq(EXPERT_EMAIL), anyString(), body.capture(), attachments.capture());
 
         assertThat(attachments.getValue()).isEmpty();
-        // Lo que sí necesita para cotizar: qué hay que hacerle.
+        // What it does need to quote the repair.
         assertThat(body.getValue()).contains("Monto alto").contains("Bien declarado");
-        // Y lo que no: el relato del siniestro, el domicilio y los datos de la persona.
+        // And what it doesn't: the claim narrative, the address and personal data.
         assertThat(body.getValue())
                 .doesNotContain("Documentación adjunta")
                 .doesNotContain("Me robaron el celular")
@@ -135,7 +135,7 @@ class ExpertNotificationServiceTest {
                 .doesNotContain("DNI")
                 .doesNotContain("Asegurado:")
                 .doesNotContain("Importe reclamado");
-        // Ni siquiera se leen: el expediente no se toca para un mail que no los lleva.
+        // Not even read: the case isn't touched for a mail that doesn't carry them.
         verifyNoInteractions(caseDocumentRepository);
     }
 

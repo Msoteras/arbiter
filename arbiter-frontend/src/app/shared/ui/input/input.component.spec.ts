@@ -2,11 +2,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 
 import { InputComponent } from './input.component';
 
-/**
- * Lo único del componente con lógica propia: el campo numérico que no admite negativos. El `min`
- * nativo cubre las flechas y el submit, pero no impide tipear "-500", y ahí el valor negativo
- * llegaba al modelo.
- */
+/** The native `min` covers the arrows and submit, but does not stop typing or pasting "-500". */
 describe('InputComponent · numérico sin negativos', () => {
   let fixture: ComponentFixture<InputComponent>;
 
@@ -14,7 +10,7 @@ describe('InputComponent · numérico sin negativos', () => {
     return fixture.nativeElement.querySelector('.field') as HTMLInputElement;
   }
 
-  /** Pegar/autocompletar: llega por `input`, nunca pasó por `keydown`. */
+  /** Paste/autofill arrives through `input` and never goes through `keydown`. */
   function paste(text: string): void {
     field().value = text;
     field().dispatchEvent(new Event('input'));

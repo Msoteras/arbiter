@@ -1,18 +1,9 @@
-/* Segunda mitad de los estilos de la pantalla de reglas: las secciones del panel derecho.
-   Hard Stop, la matriz de la agenda documental, Fast Track, las filas del motor de reglas y las
-   primitivas que comparten (chips, interruptor, factores, bandas).
-
-   Está separado de reglas.component.scss por el presupuesto de `anyComponentStyle` de Angular
-   (aviso a 8 kB, error a 12 kB): juntos daban 11,44 kB y el build quedaba a 560 bytes de fallar.
-
-   El corte es lineal: este archivo arranca exactamente donde terminaba el otro, y los dos se
-   concatenan en el orden en que están declarados en `styleUrls`. Por eso la cascada es idéntica
-   a la del archivo único — si movés un bloque de un archivo al otro, fijate que no pise a otra
-   regla de la misma especificidad. */
+/* Second half of the rules screen styles, split from reglas.component.scss to stay under Angular's
+   `anyComponentStyle` budget. Both are concatenated in `styleUrls` order, so the cascade is the same
+   as a single file: moving a block between them can change which rule wins. */
 
 /* ───────── Hard Stop ───────── */
-/* El aviso va en rojo, a diferencia del de Fast Track: son las únicas reglas de la pantalla que le
-   pueden impedir al asegurado crear su siniestro. El resto configura lo que pasa después. */
+/* Red, unlike Fast Track's: the only rules that can stop the insured from filing a claim. */
 .hs-banner {
   display: flex;
   gap: var(--space-3);
@@ -55,8 +46,6 @@
   border: 1px solid var(--border-default);
   border-radius: var(--radius-card);
 }
-/* Activa con el acento de marca, igual que el resto de los estados activos de la app: el rojo se
-   reserva para el aviso y para la consecuencia, que es donde dice algo. */
 .hs-rule.on {
   border-left: 3px solid var(--accent-fg);
   background: var(--surface-soft);
@@ -81,7 +70,7 @@
   max-width: 260px;
 }
 
-/* La consecuencia, dicha en una línea: en rojo solo cuando de verdad bloquea. */
+/* Red only when it actually blocks. */
 .hs-effect {
   display: inline-flex;
   align-items: center;
@@ -100,9 +89,7 @@
   border-radius: var(--radius-pill);
   background: var(--text-tertiary);
 }
-/* Con el acento y no en rojo: el aviso de arriba ya dice que estas reglas bloquean, y acá el chip
-   solo informa cómo quedó configurada la regla — que es un estado activo, justo para lo que el
-   sistema reserva el acento. Dos rojos en la misma card competían entre sí. */
+/* Accent, not red: it states the configured (active) state; the banner already warns. */
 .hs-effect.blocks {
   border-color: var(--selected-border);
   background: var(--selected-bg);
@@ -112,23 +99,17 @@
   background: var(--accent-fg);
 }
 
-/* ───────── Agenda documental: matriz documento × hecho generador ───────── */
-/* Las columnas de hechos generadores se centran; la primera (el documento) es la etiqueta y
-   manda a la izquierda. */
-/* Con la tabla en `fixed`, las columnas sin ancho declarado se reparten el resto en partes
-   iguales: alcanza con fijar la primera (la del documento) para que las de hechos generadores
-   queden equidistantes, sin importar cuánto mida cada título. */
+/* ───────── Document agenda: document × claim cause matrix ───────── */
+/* With `table-layout: fixed`, fixing the first column's width spreads the rest evenly. */
 .doc-col {
   text-align: center !important;
   vertical-align: bottom;
 }
-/* Los títulos largos ("Robo en vía pública") ahora envuelven en vez de desbordar su columna. */
 .doc-col,
 .doc-col-name {
   white-space: normal !important;
 }
-/* El ancho sale de la primera fila (así funciona table-layout: fixed), así que va en el th del
-   encabezado y no en el de cada fila del cuerpo, donde se ignora. */
+/* table-layout: fixed takes widths from the first row, so it goes on the header th. */
 .doc-head-name {
   width: 34%;
 }
@@ -144,8 +125,7 @@
   text-transform: none;
   letter-spacing: 0;
 }
-/* La columna del documento no va en mayúsculas ni atenuada como un th de encabezado: es contenido
-   de la fila, no rótulo de columna. */
+/* Row content, not a column header: no header th styling. */
 .doc-row-name {
   font-weight: var(--font-weight-regular);
   color: var(--text-primary);
@@ -154,20 +134,17 @@
 .doc-cell {
   text-align: center !important;
 }
-/* El checkbox del kit trae 40px de alto y etiqueta al lado; dentro de la celda solo se necesita el
-   cuadrito, centrado (el nombre va en .sr-only para el lector de pantalla). */
+/* Only the box, centered: the kit checkbox's height and label aren't needed (name is .sr-only). */
 .doc-cell app-checkbox {
   display: inline-block;
 }
-/* Sin ancho propio la casilla se apoya en el text-align de la celda; con width:100% se centraba
-   respecto de la celda pero no respecto del encabezado cuando el padding es asimétrico. */
+/* No width: with width:100% the box centered on the cell but not the header (asymmetric padding). */
 .doc-cell ::ng-deep .cb {
   min-height: 0;
   justify-content: center;
   gap: 0;
 }
 
-/* Leyenda de la matriz: cuadritos del mismo tamaño y color que las casillas reales. */
 .doc-legend {
   display: flex;
   gap: var(--space-4);
@@ -215,9 +192,6 @@
 .ft-head .card-title {
   margin: 0;
 }
-/* Aviso de contexto, no de alarma: fondo tenue y el ícono en el azul de "info" del semáforo. */
-/* Mismo aire entre secciones que el cuerpo del acordeón de Coberturas, para que las dos solapas
-   respiren igual. */
 .ft-sections {
   display: flex;
   flex-direction: column;
@@ -256,19 +230,17 @@
   font-weight: var(--font-weight-bold);
 }
 
-/* Lo que reemplaza al umbral cuando la condición está apagada: dice qué pasa sin ella, en vez de
-   dejar el renglón mudo o mostrar un campo vacío que se lee como "falta cargar esto". */
+/* Replaces the threshold when the condition is off, instead of an empty-looking field. */
 .rule-off-note {
   flex: 0 0 auto;
   font-style: italic;
 }
-/* La ventana de siniestros previos cuelga del umbral de arriba, y la sangría lo dice. */
 .rule-row.nested {
   padding-left: calc(36px + var(--space-3));
   background: var(--surface-soft);
 }
 
-/* ───────── Reglas del motor: interruptor, texto y umbral en un renglón ───────── */
+/* ───────── Rule rows: switch, text and threshold on one line ───────── */
 .rule-rows {
   list-style: none;
   margin: 0;
@@ -303,17 +275,13 @@
 .rule-value app-input {
   width: 88px;
 }
-/* Apagada, la fila se atenúa pero no se esconde: el umbral sigue siendo editable, así el referente
-   puede dejar cargado el número antes de prender la regla. */
+/* Dimmed, not hidden: the threshold stays editable before enabling the rule. */
 .rule-row.off .rule-text,
 .rule-row.off .rule-value {
   opacity: 0.55;
 }
 
-/* Interruptor: la forma dice el estado (la perilla se corre), no solo el color. */
-
 @media (max-width: 640px) {
-  /* En angosto el umbral baja debajo del texto en vez de comprimir las dos columnas. */
   .rule-row {
     flex-wrap: wrap;
   }
@@ -325,18 +293,6 @@
 
 .remove-cov {
   flex-shrink: 0;
-  font: inherit;
-  font-size: var(--font-size-sm);
-  padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--border-control);
-  border-radius: var(--radius-ctl);
-  background: none;
-  color: var(--text-tertiary);
-  cursor: pointer;
-}
-.remove-cov:hover {
-  border-color: var(--status-danger);
-  color: var(--status-danger);
 }
 
 .cov-fields {
@@ -345,18 +301,12 @@
   gap: var(--space-3);
 }
 
-/* Campos numéricos en grilla (fast track, parámetros) */
-
-/* Chips de selección (teal de marca vía roles --selected-*) */
 .chips {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
 }
 
-/* Aviso de cobertura sin exclusiones. Solo texto en el color de warning del semáforo, sin fondo:
-   es una advertencia para revisar, no un error que impida guardar. El ancho de lectura lo pone la
-   utilidad .measure del sistema de tipografía. */
 .cov-warning {
   margin-top: var(--space-3);
 }
@@ -377,75 +327,4 @@
   background: var(--selected-bg);
   border-color: var(--selected-border);
   color: var(--accent-fg);
-}
-
-.switch {
-  flex-shrink: 0;
-  font: inherit;
-  font-size: var(--font-size-sm);
-  padding: var(--space-1) var(--space-3);
-  border: 1px solid var(--border-control);
-  border-radius: var(--radius-pill);
-  background: var(--surface);
-  color: var(--text-tertiary);
-  cursor: pointer;
-}
-.switch.on {
-  background: var(--selected-bg);
-  border-color: var(--selected-border);
-  color: var(--accent-fg);
-}
-
-/* Factores + pesos */
-.factors {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-.factor {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-.factor-chip {
-  flex: 1 1 auto;
-  text-align: left;
-}
-.factor-weight {
-  display: flex;
-  align-items: center;
-  gap: var(--space-1);
-  flex-shrink: 0;
-}
-.factor-weight app-input {
-  width: 84px;
-}
-.pct {
-  color: var(--text-tertiary);
-  font-size: var(--font-size-sm);
-}
-
-/* Bandas */
-.bands {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-3);
-}
-.band {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-}
-.band-name {
-  font-size: var(--font-size-xs);
-  color: var(--text-tertiary);
-}
-.band app-input {
-  width: 110px;
 }

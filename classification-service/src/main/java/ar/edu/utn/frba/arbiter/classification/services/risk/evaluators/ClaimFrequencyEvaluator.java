@@ -5,14 +5,10 @@ import ar.edu.utn.frba.arbiter.classification.services.risk.RiskFactorEvaluator;
 import ar.edu.utn.frba.arbiter.classification.services.risk.RiskFactorIds;
 import org.springframework.stereotype.Component;
 
-/**
- * How often the insured has claimed before. A repeat claimant is riskier than a first-timer.
- * Risk ramps linearly with prior claims and saturates at {@link #MAX_EXPECTED_CLAIMS}.
- */
+/** Risk ramps linearly with prior claims and saturates at {@link #MAX_EXPECTED_CLAIMS}. */
 @Component
 public class ClaimFrequencyEvaluator implements RiskFactorEvaluator {
 
-    /** Prior-claim count at which this factor reaches maximum risk. */
     static final double MAX_EXPECTED_CLAIMS = 3.0;
 
     @Override

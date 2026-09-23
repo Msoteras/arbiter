@@ -117,7 +117,7 @@ class RiskScoringServiceTest {
 
     @Test
     void nonEvaluableFactorIsExcludedFromWeightedAverageNotCountedAsZero() {
-        // AMOUNT_RATIO is evaluable (ratio 0.5); DOCUMENT_INCONSISTENCY is a non-evaluable stub.
+        // AMOUNT_RATIO is evaluable (ratio 0.5); DOCUMENT_INCONSISTENCY is not (no documents).
         // The score must be the amount's raw contribution, NOT diluted by the doc factor's weight.
         ScoringConfig config = ScoringConfig.builder()
                 .factors(List.of(
@@ -155,7 +155,7 @@ class RiskScoringServiceTest {
 
         RiskScore result = service.score(ctx);
 
-        // Config existed but nothing could be evaluated → "sin scorear", not a fabricated LOW.
+        // Config existed but nothing could be evaluated: not scored, not a fabricated LOW.
         assertThat(result.scored()).isFalse();
         assertThat(result.breakdown()).isEmpty();
     }

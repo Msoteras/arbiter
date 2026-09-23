@@ -5,21 +5,17 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 /**
- * Builds the CSV every report exports: no preamble, one header line and one line per row, so the
- * file stays loadable by anything that reads CSV and not only by a person.
- *
- * <p>The dialect is Excel in es-AR, which is what the referent opens these with.
+ * No preamble, one header line and one line per row, so the file stays machine-readable. The dialect is
+ * Excel in es-AR, which is what the referent opens these with.
  */
 final class CsvWriter {
 
-    // ';' and not ',': Excel set to es-AR uses the comma as its decimal separator and expects ';'
-    // between fields — with ',' every row lands whole in column A.
+    // Excel in es-AR uses the comma as decimal separator and expects ';' between fields.
     private static final String SEPARATOR = ";";
     private static final String LINE_END = "\r\n";
     // Without the BOM Excel reads the file as ANSI and mangles every accent and ñ.
     private static final String BOM = String.valueOf((char) 0xFEFF);
-    // A cell starting with one of these is a formula to a spreadsheet (CSV injection). Names come
-    // from the insurer's database, not from us.
+    // A cell starting with one of these is a formula to a spreadsheet (CSV injection).
     private static final String FORMULA_TRIGGERS = "=+-@\t\r";
 
     private final StringBuilder csv = new StringBuilder(BOM);

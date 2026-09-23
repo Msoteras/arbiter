@@ -65,20 +65,13 @@ public class UserService {
     private String frontendBaseUrl;
 
     /**
-     * The referente no longer sets a password (Auth0 owns it end to end): the user is left
-     * "pending" with a one-time invite token (48h) and gets an email to choose their own
-     * password — see {@link #activateAccount}, which is where they actually get created in
-     * Auth0. {@code auth0Sub} is NOT NULL on {@code users}, so it gets a placeholder derived
-     * from the invite token (unique, same as the token itself) until activation overwrites it
-     * with the real Auth0 subject. The new user is linked to the SAME insurer as whoever is
-     * inviting them ({@code callerEmail}, the authenticated referente) — this endpoint only
-     * ever creates ANALISTA_SINIESTROS, so their tenant profile row is a {@code claims_analyst}
-     * in the caller's own schema, already the active one for this request
-     * (TenantResolvingFilter set it from the caller's own JWT).
+     * Leaves the analyst "pending" with a 48h invite token; they're created in Auth0 only on
+     * {@link #activateAccount}. {@code auth0Sub} is NOT NULL, so it holds a placeholder until then.
+     * The user joins the caller's insurer.
+     *
+     * <p>Transactional so a failure halfway doesn't leave a half-created account whose email can't
+     * be retried.
      */
-    // Without this, a failure halfway through (say the claims_analyst insert) leaves `users` and
-    // `user_insurer` already committed separately: the email gets "stuck" on a half-created account
-    // that neither activates nor can be retried (it hits EmailAlreadyExistsException).
     @Transactional
     public UserResponse createUser(CreateUserRequest request, String callerEmail) {
         if (request.rol() != UserRole.ANALISTA_SINIESTROS) {
@@ -122,13 +115,8 @@ public class UserService {
     }
 
     /**
-     * "Dar de alta usuarios": kicks off the bulk provisioning of the referente's own insured, from
-     * the company's directory. Returns as soon as the run is dispatched — the work happens off the
-     * request thread.
-     *
-     * <p>The tenant is read <b>here</b>, on the request thread, because {@link TenantContext} is a
-     * {@code ThreadLocal} that will not survive the hand-off. The insurer comes from the caller's
-     * own membership, never from the request, so a referente can only ever provision their own book.
+     * The tenant is read here, on the request thread, because {@link TenantContext} won't survive
+     * the async hand-off. The insurer comes from the caller's membership, never from the request.
      */
     public void provisionInsuredAccounts(String callerEmail) {
         User caller = userRepository.findByEmail(callerEmail)
@@ -140,22 +128,12 @@ public class UserService {
     }
 
     /**
-     * The invited user lands here from the email link. Only at this point do we create them
-     * in Auth0 (with the password they chose) — if Auth0 fails, we don't touch anything local,
-     * so the user can retry with the same link without the referente having to re-invite them.
+     * Creates the user in Auth0 first; if that fails nothing local changes, so the same link can
+     * be retried. Returns a started session.
      *
-     * <p>Returns an already-issued session so the frontend can start it straight away instead of
-     * bouncing the person to a login screen for the password they just chose — see
-     * {@link AuthService#issueSessionFor}.
-     *
-     * <p>Deliberately NOT {@code @Transactional}: {@code issueSessionFor} sets {@link TenantContext}
-     * mid-flow to read the tenant profile, and a single shared Hibernate session across that switch
-     * pins to whichever schema was live at the FIRST query — same failure mode open-in-view being
-     * off exists to avoid (see application.yml), just reproduced at the method level instead of the
-     * request level. Each repository call below gets its own short transaction instead, so it picks
-     * up whatever TenantContext is current when IT runs. The one local write
-     * ({@code userRepository.save}) needs no atomicity with anything else — Auth0 provisioning is
-     * external and was never going to roll back with it anyway.
+     * <p>Deliberately NOT {@code @Transactional}: {@code issueSessionFor} switches
+     * {@link TenantContext} mid-flow, and a shared Hibernate session would stay pinned to the schema
+     * of its first query.
      */
     public LoginResponse activateAccount(String token, String encryptedPassword) {
         String rawPassword = passwordCipher.decrypt(encryptedPassword);
@@ -175,11 +153,8 @@ public class UserService {
     }
 
     /**
-     * "Forgot my password": if the email exists, generates a new token (reusing the same invite
-     * columns) and sends the link. Responds the same way whether or not the email exists — no
-     * leaking which addresses are registered in the system, not even in what gets logged: the
-     * unknown-email case is silent here on purpose. See {@link #greetingFor} for how the mail
-     * greets the person.
+     * Behaves the same whether or not the email exists, logs included, so it doesn't leak which
+     * addresses are registered.
      */
     public void requestPasswordReset(String email) {
         Optional<User> found = userRepository.findByEmail(email);
@@ -197,17 +172,11 @@ public class UserService {
     }
 
     /**
-     * First name if it can be resolved, the email otherwise. There is no JWT yet at this point
-     * (this fires off an anonymous "forgot my password" request), so unlike every other place
-     * that reads a profile, the tenant has to be resolved here too — same steps
-     * {@link AuthService#issueSessionFor} takes right before issuing a token, just without the
-     * token at the end. A role with no membership anywhere, or a profile row that's missing,
-     * falls back to the email: the reset still has to go out either way.
+     * First name if it can be resolved, the email otherwise. The request is anonymous, so the
+     * tenant has to be resolved here.
      */
     private String greetingFor(User user) {
-        // Null-safe on purpose: Hibernate never hands back null for a mapped collection, but a
-        // User built with .builder() and no .roles(...) — every existing test fixture that isn't
-        // about roles — does, since @Builder ignores the field initializer without @Builder.Default.
+        // Null-safe: a User built without .roles(...) has a null set (no @Builder.Default).
         Optional<UserRole> rol = user.getRoles() == null
                 ? Optional.empty()
                 : user.getRoles().stream().findFirst().map(Role::getCode).map(UserRole::valueOf);
@@ -228,20 +197,7 @@ public class UserService {
         }
     }
 
-    /**
-     * The user already exists in Auth0 (unlike {@link #activateAccount}) — this only updates
-     * the password there, then clears the local token. Same reasoning as activation for
-     * returning a session instead of nothing: whoever just reset their password already proved
-     * they own the mailbox and chose the new one, so there's nothing left for a login screen to
-     * ask them.
-     *
-     * <p>Not {@code @Transactional} — same reason as {@link #activateAccount}: it ends in the same
-     * {@code issueSessionFor} tenant switch, and one shared session across it pins to the wrong
-     * schema. This is the flow the bug actually surfaced in: a hung "reset password" request that
-     * turned out to be {@code relation "insured" does not exist}, from exactly this method sharing
-     * a session between {@code requireValidToken}'s query (before any tenant is known) and
-     * {@code issueSessionFor}'s (in the tenant it resolves).
-     */
+    /** Not {@code @Transactional}, for the same tenant-switch reason as {@link #activateAccount}. */
     public LoginResponse resetPassword(String token, String encryptedPassword) {
         String rawPassword = passwordCipher.decrypt(encryptedPassword);
         User user = requireValidToken(token);
@@ -257,19 +213,11 @@ public class UserService {
         return authService.issueSessionFor(saved);
     }
 
-    /**
-     * Read-only validation — doesn't consume the token. The frontend calls this before showing
-     * the password form, so a made-up or expired token in the URL never gets to see that screen.
-     */
+    /** Doesn't consume the token. */
     public void checkToken(String token) {
         requireValidToken(token);
     }
 
-    /**
-     * The referente sends a fresh invite to a user who never activated their account (expired
-     * link, or they just never got to it). Generates a new token with the same 48h validity —
-     * there's no cron cleaning up expired invites, this is the only way to unstick them.
-     */
     public UserResponse resendInvite(Long userId) {
         User user = userRepository.findById(userId).orElseThrow(() -> new UserNotFoundException(userId));
 
@@ -323,11 +271,7 @@ public class UserService {
         return frontendBaseUrl + path + "?token=" + token;
     }
 
-    /**
-     * H0003 (Trello) - users with their current role, narrowed to the insurer of the referente
-     * asking for the list (before multi-tenancy this returned EVERY user in the system regardless
-     * of insurer — a real isolation hole, not an intentional simplification).
-     */
+    /** Narrowed to the caller's insurer: {@code users} is common to every tenant. */
     public List<UserResponse> listUsers(String callerEmail) {
         User caller = userRepository.findByEmail(callerEmail)
                 .orElseThrow(() -> new IllegalStateException("Usuario autenticado no encontrado: " + callerEmail));
@@ -344,27 +288,14 @@ public class UserService {
                 .toList();
     }
 
-    /**
-     * Analysts a case can be assigned to, for the bandeja's picker. An analyst can ask for it too,
-     * not just the referente: assigning is an action of both operational roles.
-     *
-     * <p>Comes from {@code claims_analyst} and not {@code users}: name and surname live there, and
-     * being a per-schema table it's already narrowed to the request's insurer with no extra filter
-     * (decision #10). The id it returns is the one {@code cases.analyst_id} expects.
-     */
+    /** {@code claims_analyst} is per-schema, so the resolved tenant already narrows it to one insurer. */
     public List<AnalystResponse> listAssignableAnalysts() {
         return claimsAnalystRepository.findAllByOrderBySurnameAscNameAsc().stream()
                 .map(a -> new AnalystResponse(a.getId(), a.getName(), a.getSurname(), a.getEmail()))
                 .toList();
     }
 
-    /**
-     * Changes a user's role. The referente can promote another referente (not a real escalation:
-     * they already have full access), but not change their own — it keeps them from demoting or
-     * locking themselves out by accident. The profile row of the old role
-     * (claims_analyst/insured/insurer_referent) is NOT migrated to the new one: changing roles is
-     * an edge case with no real flow behind it today.
-     */
+    /** The old role's profile row is NOT migrated to the new role. */
     public UserResponse updateRole(Long userId, UserRole newRole, String requestingEmail) {
         User user = userRepository.findById(userId).orElseThrow(() -> new UserNotFoundException(userId));
 
@@ -378,11 +309,6 @@ public class UserService {
         return toResponse(userRepository.save(user));
     }
 
-    /**
-     * Deletes a user for good (wireframe "Eliminar", irreversible — not a deactivation). The
-     * referente can't delete themselves, same reason as {@link #updateRole}: it keeps them from
-     * losing access.
-     */
     public void deleteUser(Long userId, String requestingEmail) {
         User user = userRepository.findById(userId).orElseThrow(() -> new UserNotFoundException(userId));
 
@@ -392,9 +318,7 @@ public class UserService {
 
         auth0UserProvisioner.ifPresent(provisioner -> provisioner.deleteUser(user.getEmail()));
 
-        // The profile row's FK to users isn't ON DELETE CASCADE, so it has to go first. Runs
-        // under the caller's own tenant (already active for this request) — safe because a
-        // referente only ever manages users in their own insurer, same one as the target.
+        // The profile FK isn't ON DELETE CASCADE. The caller's tenant is the target's too.
         user.getRoles().stream().findFirst().map(Role::getCode).map(UserRole::valueOf)
                 .ifPresent(rol -> tenantProfileService.deleteProfile(rol, user.getId()));
         userInsurerRepository.deleteAll(userInsurerRepository.findByUserId(user.getId()));
@@ -402,9 +326,7 @@ public class UserService {
         userRepository.delete(user);
     }
 
-    /** Assumes TenantContext is already pointed at the right schema for this user (true for
-     * every caller here — either the request's own tenant, authenticated via
-     * TenantResolvingFilter, or freshly created in the same tenant a moment earlier). */
+    /** Assumes TenantContext already points at this user's schema. */
     private UserResponse toResponse(User user) {
         UserRole rol = user.getRoles().stream()
                 .findFirst()

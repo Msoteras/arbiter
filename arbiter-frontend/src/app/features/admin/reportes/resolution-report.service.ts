@@ -6,7 +6,6 @@ import { environment } from '../../../../environments/environment';
 import { ReportFile } from './report-download';
 import { ReportFormat, ResolutionReport, ResolutionReportParams } from './resolution-report';
 
-/** reports-service — resolution report (GET /api/v1/reports/resolutions). */
 @Injectable({ providedIn: 'root' })
 export class ResolutionReportService {
   private readonly http = inject(HttpClient);
@@ -16,10 +15,7 @@ export class ResolutionReportService {
     return this.http.get<ResolutionReport>(this.baseUrl, { params: toHttpParams(params) });
   }
 
-  /**
-   * Through HttpClient and not an <a href>: the endpoint requires the JWT, and only requests made
-   * by HttpClient go through the authInterceptor — a plain browser navigation would come back 401.
-   */
+  /** Via HttpClient, not an <a href>: only HttpClient requests carry the JWT (authInterceptor). */
   export(params: ResolutionReportParams, format: ReportFormat): Observable<ReportFile> {
     return this.http
       .get(`${this.baseUrl}/export`, {

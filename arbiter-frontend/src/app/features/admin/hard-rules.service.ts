@@ -19,7 +19,6 @@ export interface HardRule {
   deadlineHours: number | null;
 }
 
-/** Spanish labels — the backend sends English literals, translating them is the frontend's job. */
 export const HARD_RULE_LABELS: Record<HardRuleType, string> = {
   WAITING_PERIOD: 'Carencia',
   REPORT_DEADLINE: 'Plazo de denuncia',
@@ -49,14 +48,8 @@ export const INSURER_HARD_RULE_LABELS: Record<InsurerHardRuleType, string> = {
 };
 
 /**
- * Hard temporal rules against rules-service: which rules the engine evaluates, and with what
- * deadline for the police report. Each is a row of `insurer_rule`, which is what lets them be
- * audited in `rule_result` and changed without a redeploy — the police deadline used to be a fixed
- * 72h constant, the same for every insurer.
- *
- * <p>Coverage-scoped (waiting period, deadlines, events cap) and insurer-scoped (coverage window,
- * arrears — the Hard Stop tab) are separate endpoints: the insurer-scoped ones apply the same way
- * no matter which coverage the claim lands under, so there's nothing to key them by.
+ * Coverage-scoped and insurer-scoped (Hard Stop tab) rules are separate endpoints: insurer-scoped
+ * ones apply the same way whatever coverage the claim lands under, so there's nothing to key them by.
  */
 @Injectable({ providedIn: 'root' })
 export class HardRulesService {

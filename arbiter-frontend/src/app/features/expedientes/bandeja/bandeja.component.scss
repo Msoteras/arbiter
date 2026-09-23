@@ -1,5 +1,4 @@
-// La pantalla ocupa al menos el alto disponible del área de contenido, para poder anclar la
-// paginación al pie cuando hay pocas filas (ver `app-pagination` más abajo).
+// Fills the content height so the pagination can sit at the bottom when there are few rows.
 :host {
   display: flex;
   flex-direction: column;
@@ -14,7 +13,6 @@
   gap: var(--space-4);
 }
 
-// ───────────────── Encabezado ─────────────────
 .bandeja-head {
   display: flex;
   align-items: flex-start;
@@ -30,7 +28,6 @@
   color: var(--text-muted);
 }
 
-// Primera carga: el spinner ocupa el alto disponible y queda centrado (sin la caja de filtros).
 .first-load {
   flex: 1 1 auto;
   display: flex;
@@ -44,9 +41,7 @@
   gap: var(--space-2);
 }
 
-// ───────────────── Lente "Míos" / "Todos" ─────────────────
-// Mismo tratamiento que las tabs del detalle del expediente (.tabs/.tab): subrayado en el
-// segmento activo, sin colores ni primitivas nuevas.
+// ───────────────── Lens tabs ─────────────────
 .lens {
   display: flex;
   flex-wrap: wrap;
@@ -76,7 +71,6 @@
   border-bottom-color: var(--accent-fg);
   font-weight: var(--font-weight-medium);
 }
-// El conteo acompaña sin competir con la etiqueta.
 .lens-count {
   font-size: var(--font-size-xs);
   font-variant-numeric: tabular-nums;
@@ -89,7 +83,6 @@
   color: var(--accent-fg);
   background: var(--selected-bg);
 }
-// Pestaña "Riesgo de fraude": el triángulo va en color de peligro (semáforo), el resto sobrio.
 .lens-tab--alert .lens-alert-mark {
   color: var(--status-danger);
   font-size: 0.85em;
@@ -102,8 +95,7 @@
   background: var(--surface-danger-soft);
 }
 
-// Separador entre las pestañas de ciclo de vida y las de pertenencia: son dos ejes en una sola
-// barra, y sin esta marca "Cerrados" y "Todos" se leen como la misma familia.
+// Separates the lifecycle tabs from the ownership tabs: two axes sharing one bar.
 .lens-divider {
   align-self: center;
   width: 1px;
@@ -111,7 +103,7 @@
   background: var(--border-default);
 }
 
-// ───────────────── Barra: búsqueda + botón Filtros ─────────────────
+// ───────────────── Toolbar ─────────────────
 .toolbar {
   display: flex;
   align-items: center;
@@ -128,7 +120,6 @@
   align-items: center;
   gap: var(--space-2);
 }
-// Badge con la cantidad de filtros aplicados.
 .filters-badge {
   display: inline-flex;
   align-items: center;
@@ -143,7 +134,7 @@
   font-weight: var(--font-weight-medium);
 }
 
-// ───────────────── Popover de filtros (anclado al botón) ─────────────────
+// ───────────────── Filters popover ─────────────────
 .filters-anchor {
   position: relative;
   flex: none;
@@ -159,7 +150,6 @@
   border: 1px solid var(--border-control);
   border-radius: var(--radius-modal);
   box-shadow: var(--shadow-pop);
-  // Entrada suave al abrir (baja unos px + fade). El cierre es inmediato (el @if desmonta).
   animation: filters-pop-in var(--dur-2) var(--ease-out);
 }
 @keyframes filters-pop-in {
@@ -216,7 +206,6 @@
   padding-top: var(--space-3);
   border-top: 1px solid var(--border-subtle);
 }
-// Campo de filtro (etiqueta + control), reusado en la grilla del popover.
 .filter-field {
   display: flex;
   flex-direction: column;
@@ -224,7 +213,7 @@
   min-width: 0;
 }
 
-// ───────────────── Chips de filtros aplicados ─────────────────
+// ───────────────── Active filter chips ─────────────────
 .active-chips {
   display: flex;
   flex-wrap: wrap;
@@ -273,21 +262,18 @@
   }
 }
 
-// ───────────────── Tabla ─────────────────
+// ───────────────── Table ─────────────────
 .table-card {
   padding: 0;
 }
 
-// Sin esto, en móvil la tabla (8 columnas, todas nowrap) empujaba el ancho de la
-// página entera en vez de scrollear en su propio contenedor.
+// Otherwise the nowrap table widens the whole page on mobile instead of scrolling itself.
 .table-scroll {
   overflow-x: auto;
 }
 
-// Fuente y padding compactos: la tabla tiene 9 columnas y en una laptop al zoom por defecto
-// (100%) no entraba. Con 12px + padding chico + las columnas de texto acotadas, entra sin scroll
-// horizontal en anchos de ~1130px de contenido; el scroll queda solo como red de seguridad para
-// pantallas realmente angostas o zoom fuerte.
+// Compact font and padding so the 9 columns fit a laptop at 100% zoom (~1130px of content)
+// without horizontal scroll; the scroll is only a fallback for narrow screens.
 table {
   width: 100%;
   border-collapse: collapse;
@@ -308,9 +294,7 @@ th:last-child,
 td:last-child {
   padding-right: var(--space-3);
 }
-// Las dos columnas de texto libre (Asegurado, Tipo de siniestro) envuelven a dos líneas y se
-// acotan: así la tabla achica su ancho mínimo en vez de forzar el scroll. El resto queda en una
-// línea.
+// The two free-text columns wrap so the table's minimum width shrinks instead of forcing a scroll.
 td:nth-child(3),
 td:nth-child(4) {
   white-space: normal;
@@ -361,7 +345,6 @@ tbody tr:not(:last-child) td {
   color: var(--accent-fg);
 }
 
-// Importe: alineado a la izquierda como el resto, con cifras tabulares.
 .num {
   font-variant-numeric: tabular-nums;
 }
@@ -382,13 +365,23 @@ tbody tr:not(:last-child) td {
   text-decoration: underline;
 }
 
-// ───────────────── Celda de asignación ─────────────────
-// La columna muestra la identidad del analista asignado (avatar + nombre) y las acciones a la
-// derecha: "+ Asignarme" (acento, solo para expedientes sin dueño) y el menú "…" para reasignar
-// a otro analista o liberar. Todo visible siempre — sin hover-reveal — como pide el diseño.
+// ───────────────── Assignment cell ─────────────────
+// The analyst column is where the row is acted on (Asignarme, reassign): pinned to the right so a
+// narrow screen doesn't hide it behind the horizontal scroll. Own background so the cells scrolling
+// underneath don't show through.
+th:last-child,
+td:last-child {
+  position: sticky;
+  right: 0;
+  background: var(--surface);
+  box-shadow: inset 1px 0 0 var(--border-subtle);
+}
+thead th:last-child {
+  background: var(--surface-head);
+}
 .assign-cell {
   cursor: default;
-  width: 172px; // fija para que el reparto de columnas no baile entre filas asignadas y no
+  width: 172px; // fixed so column widths don't shift between assigned and unassigned rows
 }
 th:last-child {
   width: 172px;
@@ -399,14 +392,14 @@ th:last-child {
   align-items: center;
   justify-content: space-between;
   gap: var(--space-2);
-  min-height: 2.1em; // alto estable entre filas con y sin identidad
+  min-height: 2.1em;
 }
 
 .assignee {
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  min-width: 0; // permite que el nombre trunque en vez de desbordar
+  min-width: 0; // lets the name truncate instead of overflowing
 }
 .avatar {
   flex-shrink: 0;
@@ -445,8 +438,7 @@ th:last-child {
   gap: var(--space-2);
   flex-shrink: 0;
 }
-// Sin asignar, "Asignarme" ocupa el lugar del nombre: la fila no cambia de forma entre un estado
-// y el otro, y el "⋯" queda en la misma columna.
+// Unassigned, the button takes the name's place so the row keeps its shape and "⋯" stays aligned.
 .assign-actions.fill {
   flex: 1;
 }
@@ -454,9 +446,7 @@ th:last-child {
   flex: 1;
 }
 
-// ───────────────── Paginación como pie de página ─────────────────
-// `margin-top: auto` la empuja al pie del área de contenido cuando hay pocas filas (la pantalla
-// ocupa todo el alto vía el flex de :host), en vez de quedar flotando justo debajo de la tabla.
+// Pushed to the bottom of the content area by `margin-top: auto` (see :host).
 app-pagination {
   margin-top: auto;
   border-top: 1px solid var(--border-default);

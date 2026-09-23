@@ -1,4 +1,4 @@
 package ar.edu.utn.frba.arbiter.rules.dto;
 
-/** Confirmación de guardado: la fila de {@code insurer_rule} (FAST_TRACK) tal como quedó en la DB. */
+/** Save confirmation: the {@code FAST_TRACK} {@code insurer_rule} row as persisted. */
 public record FastTrackRuleResponse(Long id, Long branchId, Long coverageId, FastTrackConfigDto config) {}

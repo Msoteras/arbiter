@@ -51,9 +51,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * La conversación del expediente. Lo que se prueba es de quién es cada mensaje, quién lo tiene sin
- * leer, y hasta cuándo se puede escribir — las tres cosas dependen de quién pregunta, así que un
- * error acá no se ve en pantalla: se ve como el hilo de otro.
+ * Case conversation: who owns each message, who has it unread, and until when one can write. All
+ * three depend on who is asking, so a bug here doesn't look like an error: it looks like someone
+ * else's thread.
  */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -108,8 +108,6 @@ class CaseMessageServiceTest {
         CallerContext.clear();
     }
 
-    // ----- lectura -----
-
     @Test
     void insuredReadingSomeoneElsesThread_getsA404() {
         asInsured("11.222.333");
@@ -140,7 +138,7 @@ class CaseMessageServiceTest {
         assertThat(forInsured.unread()).isEqualTo(1);
     }
 
-    /** El referente ve el hilo como ve la bandeja: mira, no escribe, y no cuenta no leídos. */
+    /** The referent sees the thread like the inbox: reads, doesn't write, and has no unread count. */
     @Test
     void referentReadsButCannotPost() {
         authenticate("ROLE_REFERENTE_ASEGURADORA", "referente.arbiter@gmail.com", null);
@@ -155,8 +153,6 @@ class CaseMessageServiceTest {
         assertThat(thread.messages()).singleElement()
                 .extracting(CaseMessageResponse::mine).isEqualTo(false);
     }
-
-    // ----- la ventana de respuesta -----
 
     @Test
     void resolvedCaseStillTakesMessagesInsideTheWindow() {
@@ -183,8 +179,8 @@ class CaseMessageServiceTest {
     }
 
     /**
-     * Fechado por la transición al estado final y no por {@code updatedAt}: cualquier escritura
-     * posterior (una sync, una reclasificación) correría la fecha y reabriría el hilo sola.
+     * Any later write (a sync, a reclassification) bumps {@code updatedAt} and would silently
+     * reopen the thread.
      */
     @Test
     void windowIsCountedFromTheTransition_notFromUpdatedAt() {
@@ -194,8 +190,6 @@ class CaseMessageServiceTest {
 
         assertThat(service.thread(CASE_ID, null).canPost()).isFalse();
     }
-
-    // ----- escritura y avisos -----
 
     @Test
     void postingAttributesTheMessageToTheCallersSide() {
@@ -211,7 +205,7 @@ class CaseMessageServiceTest {
         verify(notificationService).notifyNewMessage(any(), eq(StatusChangeActor.ANALYST));
     }
 
-    /** Diez mensajes seguidos no son diez mails: se avisa una vez por racha sin leer. */
+    /** Ten messages in a row are not ten mails: one notice per unread streak. */
     @Test
     void aSecondMessageWhileTheFirstIsUnreadDoesNotNotifyAgain() {
         givenCase(CaseStatus.PENDING_ANALYST_REVIEW);
@@ -242,8 +236,6 @@ class CaseMessageServiceTest {
                 .isInstanceOf(AccessDeniedException.class);
     }
 
-    // ----- leídos -----
-
     @Test
     void markReadOnlyTouchesTheOtherSidesMessages() {
         givenCase(CaseStatus.PENDING_ANALYST_REVIEW);
@@ -258,8 +250,6 @@ class CaseMessageServiceTest {
         verify(messageRepository, never()).findByCaseIdAndSenderRoleAndReadAtIsNull(
                 CASE_ID, StatusChangeActor.ANALYST);
     }
-
-    // ----- helpers -----
 
     private Case givenCase(CaseStatus status) {
         CaseState state = CaseStates.of(status);

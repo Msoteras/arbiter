@@ -32,14 +32,9 @@ function policy(overrides: Partial<Policy> = {}): Policy {
 }
 
 describe('policy', () => {
-  /**
-   * La vigencia llega calculada del backend y no se deriva de las fechas: vienen sin zona horaria,
-   * y comparándolas acá el navegador (hora argentina) contradecía al backend (UTC) durante las
-   * tres horas previas a la medianoche del día del vencimiento.
-   */
   describe('vigencia', () => {
     it('sale del campo que manda el backend, no de las fechas', () => {
-      // Fechas que "parecen" vigentes, pero el backend ya la dio por vencida: manda el campo.
+      // Dates look current, but the backend field wins.
       const vencida = policy({
         effectiveFrom: '2026-01-01T00:00:00',
         effectiveTo: '2027-01-01T23:59:59',
@@ -65,7 +60,6 @@ describe('policy', () => {
       }
     });
 
-    /** Solo la vencida se pliega en "Mis pólizas": la que todavía no arrancó sigue arriba. */
     it('una póliza que aún no arrancó no cuenta como vencida', () => {
       expect(isExpired(policy({ validity: 'NOT_YET_ACTIVE' }))).toBeFalse();
     });
@@ -73,7 +67,6 @@ describe('policy', () => {
 
   describe('estado de pago', () => {
     it('es un eje independiente de la vigencia', () => {
-      // Vigente y con deuda: el cruce que se pierde si se colapsan en un solo semáforo.
       const vigenteConDeuda = policy({ validity: 'CURRENT', upToDate: false });
       expect(isExpired(vigenteConDeuda)).toBeFalse();
       expect(policyPaymentLabel(vigenteConDeuda)).toBe('Con deuda');

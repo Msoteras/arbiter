@@ -1,7 +1,6 @@
 @if (showFullLoader()) {
   <app-loading message="Preparando tu inicio" sub="Aguardá un momento" />
 } @else if (pageLoading()) {
-  <!-- Revisita al home (la app ya arrancó): carga parcial, con el shell visible. -->
   <div class="partial-load">
     <app-inline-loading [size]="30" message="Actualizando tu inicio…" />
   </div>
@@ -88,8 +87,6 @@
       </app-card>
 
       <div class="side-col">
-        <!-- Distribución del caseload propio por estado. Datos reales del resumen; las barras
-             crecen al aparecer (@growBar). -->
         <app-card heading="Distribución de tu bandeja">
           @if (!hasCaseload()) {
             <app-empty-state
@@ -124,8 +121,6 @@
           }
         </app-card>
 
-        <!-- El resumen del modelo todavía no existe en el backend: teaser compacto y honesto en
-             vez de una tarjeta grande vacía. -->
         <app-card variant="ai" heading="Resumen de Arbiter" icon="✦" class="ai-teaser">
           <p class="ai-teaser-text">
             Pronto vas a ver acá un resumen de tu jornada y las señales que levanta el modelo.

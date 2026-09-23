@@ -68,8 +68,6 @@ class CaseDocumentRecheckRepositoryTests extends AbstractPersistenceIT {
         assertThat(caseRepository.claimUnverifiedDocuments(verified.getId())).isZero();
     }
 
-    // ─────────── seed (same pattern as CaseDeadlineRepositoryTests) ───────────
-
     private Case save(Instant unverifiedSince, String policyNumber, String dni) {
         Insured owner = insured(dni);
         return caseRepository.save(Case.builder()

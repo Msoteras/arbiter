@@ -15,10 +15,8 @@ import java.time.Duration;
 import java.time.Instant;
 
 /**
- * Validates credentials against Auth0 (Resource Owner Password Grant, "password-realm" against
- * the Username-Password-Authentication connection) — Auth0 is the only place a password lives
- * now, the multi-tenant {@code users} table doesn't have a hash column at all. The account
- * lockout counters stay local (Auth0 never sees them).
+ * Validates credentials against Auth0 (password-realm grant); Auth0 is the only place a password
+ * lives. Lockout counters stay local.
  */
 @Component
 @ConditionalOnProperty(prefix = "arbiter.auth", name = "provider", havingValue = "auth0")

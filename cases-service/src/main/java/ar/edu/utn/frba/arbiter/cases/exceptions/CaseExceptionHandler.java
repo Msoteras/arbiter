@@ -12,16 +12,9 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExcep
 import java.util.UUID;
 
 /**
- * Extends {@link ResponseEntityExceptionHandler} only because of the {@code Exception} catch-all at
- * the bottom. {@code @ControllerAdvice} is consulted <b>before</b> Spring's own
- * {@code DefaultHandlerExceptionResolver}, so a catch-all here would intercept the framework's own
- * exceptions too and answer 500 to things that are plainly the client's fault: a body that fails
- * bean validation, malformed JSON, a missing query param, an upload over the limit. The whole
- * negative-test battery for the denuncia form (@PastOrPresent on the event date, @NotBlank on seven
- * fields, files over 10 MB) would have gone from 400 to 500 without this.
- *
- * <p>The parent handles those and, since Spring 6, already answers them as RFC 7807
- * {@code ProblemDetail} — the same shape the domain handlers below use.
+ * Extends {@link ResponseEntityExceptionHandler} because of the {@code Exception} catch-all: advice is
+ * consulted before Spring's own resolver, so without the parent, framework exceptions (bean validation,
+ * malformed JSON, oversized uploads) would answer 500 instead of 400.
  */
 @RestControllerAdvice
 public class CaseExceptionHandler extends ResponseEntityExceptionHandler {
@@ -78,114 +71,87 @@ public class CaseExceptionHandler extends ResponseEntityExceptionHandler {
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(400), ex.getMessage());
     }
 
-    /** El monto que el analista quiso autorizar no cierra: falta, sobra, o no está justificado. */
     @ExceptionHandler(InvalidSettlementException.class)
     public ProblemDetail handleInvalidSettlement(InvalidSettlementException ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(400), ex.getMessage());
     }
 
-    /** La respuesta del servicio técnico no cierra: presupuesto sin importe, o importe sin presupuesto. */
     @ExceptionHandler(InvalidRepairReportException.class)
     public ProblemDetail handleInvalidRepairReport(InvalidRepairReportException ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(400), ex.getMessage());
     }
 
-    /** El expediente todavía no tiene analista asignado — no hay quién decida ni derive. */
     @ExceptionHandler(CaseNotAssignedException.class)
     public ProblemDetail handleCaseNotAssigned(CaseNotAssignedException ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(409), ex.getMessage());
     }
 
-    /** Solo el analista asignado puede aprobar/rechazar/derivar — cualquier otro, aunque sea analista, no. */
     @ExceptionHandler(CaseAssignedToAnotherAnalystException.class)
     public ProblemDetail handleCaseAssignedToAnotherAnalyst(CaseAssignedToAnotherAnalystException ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(403), ex.getMessage());
     }
 
-    /** El analista al que se quiere asignar el expediente no existe en esta aseguradora. */
     @ExceptionHandler(AnalystNotFoundException.class)
     public ProblemDetail handleAnalystNotFound(AnalystNotFoundException ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(404), ex.getMessage());
     }
 
-    /** Distinto del anterior: acá el que no tiene perfil de analista es quien hace el request. */
     @ExceptionHandler(AnalystProfileNotFoundException.class)
     public ProblemDetail handleAnalystProfileNotFound(AnalystProfileNotFoundException ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(403), ex.getMessage());
     }
 
-    /** Denunciar a nombre de otro asegurado. */
     @ExceptionHandler(InsuredIdentityMismatchException.class)
     public ProblemDetail handleInsuredIdentityMismatch(InsuredIdentityMismatchException ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(403), ex.getMessage());
     }
 
-    /** El expediente nunca se derivó a peritaje. */
     @ExceptionHandler(ExpertAssessmentNotFoundException.class)
     public ProblemDetail handleExpertAssessmentNotFound(ExpertAssessmentNotFoundException ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(404), ex.getMessage());
     }
 
-    /** El perito elegido no existe, está inactivo, o no cubre el ramo del siniestro. */
     @ExceptionHandler(ExpertFirmNotFoundException.class)
     public ProblemDetail handleExpertFirmNotFound(ExpertFirmNotFoundException ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(404), ex.getMessage());
     }
 
-    /** Se venció la ventana para escribir en el expediente ya resuelto. */
     @ExceptionHandler(ClosedConversationException.class)
     public ProblemDetail handleClosedConversation(ClosedConversationException ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(409), ex.getMessage());
     }
 
-    /** El expediente no está en condiciones de originar un antecedente de fraude. */
     @ExceptionHandler(FraudRecordNotAllowedException.class)
     public ProblemDetail handleFraudRecordNotAllowed(FraudRecordNotAllowedException ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(422), ex.getMessage());
     }
 
-    /** La regla de la aseguradora no habilita derivar este expediente. */
     @ExceptionHandler(DerivationNotAllowedException.class)
     public ProblemDetail handleDerivationNotAllowed(DerivationNotAllowedException ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(422), ex.getMessage());
     }
 
-    /**
-     * No se pudo consultar el motor de reglas. 503 y no 422: no es que la aseguradora no derive,
-     * es que nadie pudo saberlo — y presentarlo como política sería mentirle al analista.
-     */
+    /** 503, not 422: an outage must not be presented to the analyst as the insurer's policy. */
     @ExceptionHandler(RulesUnavailableException.class)
     public ProblemDetail handleRulesUnavailable(RulesUnavailableException ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(503), ex.getMessage());
     }
 
-    /** El perito ya recibió derivaciones: se desactiva, no se borra. */
     @ExceptionHandler(ExpertFirmInUseException.class)
     public ProblemDetail handleExpertFirmInUse(ExpertFirmInUseException ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(409), ex.getMessage());
     }
 
-    /** El informe del peritaje ya había llegado: no se pisa. */
     @ExceptionHandler(ExpertReportAlreadyReceivedException.class)
     public ProblemDetail handleExpertReportAlreadyReceived(ExpertReportAlreadyReceivedException ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(409), ex.getMessage());
     }
 
-    /** La póliza denunciada existe, pero es de otro asegurado. */
     @ExceptionHandler(PolicyInsuredMismatchException.class)
     public ProblemDetail handlePolicyInsuredMismatch(PolicyInsuredMismatchException ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(422), ex.getMessage());
     }
 
-    /**
-     * The event doesn't fall under a contract with coverage (outside the coverage window, within
-     * the waiting period, or impossible dates). The wizard shows the detail as-is: it's written
-     * for the insured.
-     */
-    /**
-     * The denuncia doesn't carry the documents the schedule requires. Same 422 as the eligibility
-     * gate and for the same reason: the request is fine, what fails is what it's filed against.
-     */
     @ExceptionHandler(MissingRequiredDocumentsException.class)
     public ProblemDetail handleMissingRequiredDocuments(MissingRequiredDocumentsException ex) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(422), ex.getMessage());
@@ -198,12 +164,7 @@ public class CaseExceptionHandler extends ResponseEntityExceptionHandler {
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(422), ex.getMessage());
     }
 
-    /**
-     * Denied by {@code @PreAuthorize}. It needs a handler of its own <b>only</b> because of the
-     * catch-all below: without this, {@code Exception.class} would swallow it and every 403 in the
-     * module would answer 500 instead — the security tests (denunciar con token de referente, subir
-     * documentación a un expediente ajeno) would go from "correctly rejected" to "server broke".
-     */
+    /** Needed only because the catch-all below would otherwise turn every 403 into a 500. */
     @ExceptionHandler(AccessDeniedException.class)
     public ProblemDetail handleAccessDenied(AccessDeniedException ex) {
         return ProblemDetail.forStatusAndDetail(
@@ -211,19 +172,8 @@ public class CaseExceptionHandler extends ResponseEntityExceptionHandler {
     }
 
     /**
-     * Anything not foreseen above. Without this, an unexpected failure reached the client as a bare
-     * "Internal Server Error" with no body — nothing to tell the user, and nothing to grep for in
-     * the logs either.
-     *
-     * <p>Two halves, and both matter. The response carries a <b>reference code</b> and no internals:
-     * a stack trace or a raw message can leak table names, ids and query fragments to whoever
-     * triggered the error. The log carries the <b>whole</b> exception under that same code, at ERROR
-     * — a catch-all that answers politely and stays quiet is worse than the 500 it replaces, because
-     * the bug stops being visible.
-     *
-     * <p>Deliberately last and deliberately broad: every exception that <i>is</i> foreseen has its
-     * own handler above with its own status, and Spring picks the most specific one. If something
-     * shows up here often, that's the signal it deserves a handler of its own.
+     * The response carries only a reference code, never internals that could leak table names or
+     * queries; the log carries the whole exception under that same code.
      */
     @ExceptionHandler(Exception.class)
     public ProblemDetail handleUnexpected(Exception ex) {

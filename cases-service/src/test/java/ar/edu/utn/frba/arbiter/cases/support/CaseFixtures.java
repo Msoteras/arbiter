@@ -11,12 +11,8 @@ import ar.edu.utn.frba.arbiter.common.models.entities.User;
 import java.math.BigDecimal;
 
 /**
- * The rows a {@code Case} now points at, built in one place. Since the case stopped storing free
- * text, every test that needs one needs the whole little graph behind it — branch → claim cause,
- * insured, coverage → policy.
- *
- * <p>For unit tests with mocked repositories the ids are irrelevant; the persistence IT seeds
- * these through the real repositories instead, so nothing here assumes an id was assigned.
+ * The rows a {@code Case} points at (branch → claim cause, insured, coverage → policy), built in
+ * one place. Nothing here assumes an id: persistence ITs save these through the real repositories.
  */
 public final class CaseFixtures {
 
@@ -32,9 +28,8 @@ public final class CaseFixtures {
     }
 
     /**
-     * Sin {@code user}: la asociación es NOT NULL, así que un test de persistencia tiene que
-     * asignarle uno con {@link #user(String)} ya guardado. Los tests con repositorios mockeados no
-     * lo necesitan.
+     * No {@code user}: the association is NOT NULL, so a persistence test must set one already saved
+     * with {@link #user(String)}.
      */
     public static Insured insured(String dni, String name, String surname) {
         return Insured.builder()
@@ -66,10 +61,7 @@ public final class CaseFixtures {
                 .build();
     }
 
-    /**
-     * Una cobertura contratada sobre {@code policyId}. La suma asegurada y la franquicia son de la
-     * cobertura, no de la póliza: una póliza tiene varias y cada una lleva las suyas.
-     */
+    /** Sum insured and deductible belong to the coverage, not the policy: a policy has several. */
     public static PolicyCoverage policyCoverage(Long policyId, Coverage coverage, int order) {
         return PolicyCoverage.builder()
                 .policyId(policyId)

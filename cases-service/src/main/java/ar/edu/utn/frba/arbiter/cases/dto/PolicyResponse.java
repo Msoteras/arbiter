@@ -7,15 +7,8 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * Póliza vista por el asegurado para autocompletar el alta de denuncia. Incluye la
- * aseguradora ({@code insurerId}/{@code insurerName}): un mismo asegurado puede tener
- * pólizas de distintas aseguradoras en la plataforma, y las ve centralizadas acá.
- * Los datos salen de la BD Aseguradora vía {@code InsurerAdapter}.
- *
- * <p>{@code effectiveFrom}/{@code effectiveTo} llevan hora, no solo fecha: la póliza modelo (BBVA)
- * fija la vigencia con hora exacta ("desde las 12:00 hs del..."), y comparar solo por fecha da
- * falsos aceptados en el borde — un siniestro dos horas antes de que arranque la vigencia, mismo
- * día, pasaba el chequeo. {@code aseguradora_*.poliza.vigencia_desde/hasta} es {@code timestamptz}.
+ * {@code effectiveFrom}/{@code effectiveTo} carry the time, not just the date: coverage starts at an
+ * exact hour, and comparing by date alone accepts claims from earlier that same day.
  */
 @Builder
 public record PolicyResponse(
@@ -39,14 +32,8 @@ public record PolicyResponse(
 ) {
 
     /**
-     * Si la póliza cubre hoy, todavía no arrancó, o ya venció.
-     *
-     * <p>Viaja calculado y no se deriva de las fechas del otro lado, por la misma razón que
-     * {@code upToDate}: {@code vigencia_desde/hasta} son {@code TIMESTAMP} sin zona, así que cada
-     * consumidor los interpretaba en SU huso. El backend corre en UTC y el navegador del asegurado
-     * en hora argentina — tres horas de diferencia —, y el día que una póliza vencía había una
-     * ventana en la que el portal la mostraba "Vigente" mientras el alta de denuncia ya la había
-     * sacado de la lista. Un solo reloj decide; los dos lados leen la misma respuesta.
+     * Computed server-side rather than derived by the client: the source timestamps have no zone,
+     * and a UTC backend and an Argentine browser would disagree near expiry.
      */
     public enum Validity {
         CURRENT,
@@ -62,15 +49,9 @@ public record PolicyResponse(
     }
 
     /**
-     * Una cobertura contratada en la póliza. Son VARIAS: una póliza de celulares cubre robo y
-     * hurto, cada una con su suma asegurada y su franquicia propias.
-     *
-     * @param deductible    franquicia en valor absoluto, ya calculada sobre {@code insuredAmount} —
-     *                      es lo que consumen las reglas
-     * @param deductiblePct la misma franquicia como la da la compañía, en puntos porcentuales
-     *                      (10.00 = 10%). Viaja además del absoluto porque es el dato crudo que se
-     *                      persiste en {@code policy_coverage}: guardar solo el derivado lo deja
-     *                      desfasado apenas cambia la suma asegurada que lo produjo.
+     * @param deductible    absolute amount, already computed over {@code insuredAmount}; what the rules read
+     * @param deductiblePct percentage points (10.00 = 10%). The raw value persisted in
+     *                      {@code policy_coverage}, so it doesn't go stale when the sum insured changes
      */
     @Builder
     public record Coverage(

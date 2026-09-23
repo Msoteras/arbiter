@@ -35,16 +35,13 @@
   </header>
 
   @if (firstLoad()) {
-    <!-- Primera carga: solo el spinner, centrado y SIN la caja de filtros (mostrarla vacía queda
-         raro). Los filtros aparecen recién con los datos. -->
+    <!-- First load hides the filters too; they only appear once there is data. -->
     <div class="first-load">
       <app-inline-loading [size]="30" message="Cargando expedientes…" />
     </div>
   } @else {
-    <!-- Una sola barra: primero el recorte por ciclo de vida, después la pertenencia. Son dos ejes
-       distintos y vivían en dos controles, pero dos filas de pestañas pegadas se leían como una
-       sola cosa. "Todos" cierra los dos: ni recorte por ciclo ni por analista. La variante de
-       abajo es la del referente, que no tiene "Míos" porque no le asignan expedientes. -->
+    <!-- One bar for two axes (lifecycle, then ownership); "Todos" clears both. The supervisor
+         variant below has no "Míos" because cases are never assigned to them. -->
     @if (canAssign()) {
       <div class="lens" role="tablist" aria-label="Expedientes a mostrar">
         <button
@@ -183,7 +180,6 @@
       >
     }
 
-    <!-- Barra: búsqueda en vivo + botón "Filtros" que abre un popover anclado con los filtros. -->
     <div class="toolbar">
       <app-input
         class="search"
@@ -297,7 +293,6 @@
       </div>
     </div>
 
-    <!-- Chips de filtros aplicados: se ven y se quitan sin abrir el popover. -->
     @if (activeChips().length > 0) {
       <div class="active-chips">
         @for (chip of activeChips(); track chip.key) {
@@ -310,8 +305,7 @@
     }
 
     @if (loading()) {
-      <!-- Refetch (filtro / lente / paginado): los filtros de arriba quedan; el spinner reemplaza
-           solo a la tabla. -->
+      <!-- On refetch the filters stay; only the table is replaced by the spinner. -->
       <app-inline-loading message="Cargando expedientes…" />
     } @else if (hasError()) {
       <app-card>
@@ -376,10 +370,9 @@
                   </td>
                   <td>
                     <app-badge [tone]="estadoTone(c.status)">{{ estadoLabel(c.status) }}</app-badge>
-                    <!-- El expediente sigue en "pendiente de revisión" a propósito: el asegurado no
-                       tiene por qué ver un trámite interno. Pero para el analista no es lo mismo
-                       uno que espera su decisión que uno que él ya despachó, y sin esto los dos se
-                       veían igual — volvía a abrir expedientes que ya había firmado. -->
+                    <!-- The status stays PENDING_ANALYST_REVIEW on purpose (the insured shouldn't
+                         see internal steps), so the analyst needs this to tell apart cases already
+                         sent for sign-off. -->
                     @if (esperaFirma(c)) {
                       <br />
                       <span class="t-note">Esperando al referente</span>

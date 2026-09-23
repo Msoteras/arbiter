@@ -33,8 +33,6 @@ USER arbiter
 
 EXPOSE 8084
 
-# Explicit -Duser.timezone: containers default to UTC while the team's laptops run UTC-3, and this
-# domain evaluates legal deadlines off local dates. Java ships its own tzdb, so no tzdata package
-# is needed. Set here and not in JAVA_TOOL_OPTIONS because the compose files already use that
-# variable for heap sizing and would overwrite it.
+# Containers default to UTC, but legal deadlines are evaluated on Argentine local dates. Not set via
+# JAVA_TOOL_OPTIONS because the compose files use that variable for heap sizing and would overwrite it.
 ENTRYPOINT ["java", "-Duser.timezone=America/Argentina/Buenos_Aires", "-jar", "app.jar"]

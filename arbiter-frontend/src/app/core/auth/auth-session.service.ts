@@ -5,30 +5,20 @@ import { UserRole } from '../models/user-role';
 export interface AuthSession {
   token: string;
   expiresAt: string;
-  /** Id del usuario logueado. Es contra este id que se resuelve "míos" en la bandeja del
-      analista y el atajo "Tomar" (auto-asignarse un expediente). */
   id: number;
   email: string;
   rol: UserRole;
   nombre: string;
   apellido: string;
-  /** DNI del asegurado (null para analista/referente). Sale del login; el portal lo usa
-      sin volver a pedirlo. */
+  /** The insured's DNI; null for other roles. */
   insuredId: string | null;
-  /** Si el asegurado ya pasó el primer ingreso (H0009). Null para analista/referente, que no
-      tienen onboarding. Lo lee `onboardingGuard` en cada navegación al portal. */
+  /** Null for roles without onboarding. */
   onboardingComplete: boolean | null;
 }
 
 /**
- * Sesión de autenticación — token JWT en `sessionStorage`: sobrevive a un reload dentro de
- * la misma pestaña (así un F5 accidental no desloguea al asegurado a mitad de una denuncia),
- * pero se borra al cerrar la pestaña o el navegador — no es "recordarme" persistente.
- *
- * Ojo con el trade-off: `sessionStorage` es tan legible por un script inyectado como
- * `localStorage` (mismo riesgo de XSS); lo único que cambiaba con memoria-only era que el
- * token no sobrevivía a nada. Decisión explícita del equipo (14/8), no un descuido de
- * seguridad — si se revisita, es acá.
+ * JWT kept in `sessionStorage`: survives a reload in the same tab but not closing it. Deliberate
+ * trade-off: it is as exposed to XSS as `localStorage`.
  */
 @Injectable({ providedIn: 'root' })
 export class AuthSessionService {
@@ -49,7 +39,7 @@ export class AuthSessionService {
     sessionStorage.removeItem(AuthSessionService.STORAGE_KEY);
   }
 
-  /** Descarta lo guardado si ya venció — un token expirado no sirve de nada en memoria. */
+  /** Drops the stored session if it already expired. */
   private static restore(): AuthSession | null {
     const raw = sessionStorage.getItem(AuthSessionService.STORAGE_KEY);
     if (!raw) {

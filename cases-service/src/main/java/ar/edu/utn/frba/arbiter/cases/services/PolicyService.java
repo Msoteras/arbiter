@@ -11,14 +11,8 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 
 /**
- * Lookup de pólizas para el alta de denuncia del asegurado. Delega en el
- * {@link InsurerAdapter} (BD Aseguradora). Es la puerta del asegurado a sus pólizas, incluidas
- * las de distintas aseguradoras.
- *
- * <p><b>Un asegurado solo ve las suyas.</b> El endpoint recibe el DNI como parámetro y eso no
- * alcanza para nada: se compara contra el del token, igual que el alta de denuncia (D2). Sin
- * esta comparación, cambiar un número en la URL devolvía nombre, mail, teléfono y pólizas de
- * cualquier persona de la plataforma.
+ * The insured's view of their policies across all their insurers. The DNI arrives as a request
+ * parameter, so it is always checked against the token's: an insured only sees their own policies.
  */
 @Service
 @RequiredArgsConstructor
@@ -27,13 +21,9 @@ public class PolicyService {
     private final InsurerAdapter insurerAdapter;
 
     /**
-     * Pólizas del asegurado en todas sus aseguradoras (vista centralizada).
-     *
-     * @param includeExpired si vuelven también las vencidas. Falso para el alta de denuncia, que
-     *                       solo puede ofrecer pólizas que vayan a pasar la elegibilidad; cierto
-     *                       para "Mis pólizas" del perfil, que es una consulta y no una elección —
-     *                       ahí esconder la vencida no previene nada y deja al asegurado sin
-     *                       entender por qué le falta una.
+     * @param includeExpired false for claim filing, which may only offer policies that will pass
+     *                       eligibility; true for the profile listing, where hiding an expired
+     *                       policy would only confuse the insured.
      */
     public List<PolicyResponse> listByInsured(String insuredId, boolean includeExpired) {
         assertOwnPolicies(insuredId);
@@ -43,7 +33,7 @@ public class PolicyService {
     public PolicyResponse getByNumber(String policyNumber) {
         PolicyResponse policy = insurerAdapter.findPolicy(policyNumber)
                 .orElseThrow(() -> new PolicyNotFoundException(policyNumber));
-        // 404 y no 403 sobre una póliza ajena: un 403 confirmaría que ese número existe.
+        // 404 rather than 403 on someone else's policy: a 403 would confirm the number exists.
         if (!isOwn(policy.insuredId())) {
             throw new PolicyNotFoundException(policyNumber);
         }
@@ -51,9 +41,8 @@ public class PolicyService {
     }
 
     /**
-     * El referente no tiene DNI en el token (no hay fila {@code insured} para él) y consulta las
-     * pólizas de su propia compañía: el recorte ahí lo hace el conjunto de esquemas que puede
-     * leer, no el DNI. Para el ASEGURADO, en cambio, el DNI del token es el único recorte.
+     * The insurer contact has no DNI in the token: their scope is the set of schemas they can read.
+     * For an insured, the token's DNI is the only scope.
      */
     private void assertOwnPolicies(String requestedInsuredId) {
         if (!isOwn(requestedInsuredId)) {

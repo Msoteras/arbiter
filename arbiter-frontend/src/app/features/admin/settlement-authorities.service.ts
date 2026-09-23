@@ -5,9 +5,8 @@ import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
 
 /**
- * Hasta cuánto autoriza un analista por su cuenta en un ramo. `maxAmount` en null significa que
- * el ramo no tiene tope y el analista autoriza cualquier monto — es una respuesta, no un dato que
- * falta, y la pantalla lo dice con todas las letras en vez de dejar el campo vacío.
+ * How much an analyst may authorize alone in a branch. A null `maxAmount` means no cap (any amount),
+ * which is an answer, not missing data.
  */
 export interface SettlementAuthority {
   branchId: number;
@@ -16,7 +15,7 @@ export interface SettlementAuthority {
   updatedAt: string | null;
 }
 
-/** Una liquidación esperando la firma del referente. Calca PendingSettlementResponse. */
+/** Mirrors PendingSettlementResponse. */
 export interface PendingSettlement {
   caseId: number;
   insuredName: string | null;
@@ -27,14 +26,14 @@ export interface PendingSettlement {
   settledAmount: number;
   adjustmentReason: string | null;
   authorityLimit: number | null;
-  /** Cuánto se pasa del tope, ya restado por el backend. */
+  /** Amount over the cap, already computed by the backend. */
   excess: number | null;
   confirmedAt: string;
-  /** Días que lleva esperando. El siniestro consume su plazo legal mientras tanto. */
+  /** Days waiting. The claim's legal deadline keeps running meanwhile. */
   waitingFor: number;
 }
 
-/** Una liquidación que el referente ya autorizó. Calca AuthorizedSettlementResponse. */
+/** Mirrors AuthorizedSettlementResponse. */
 export interface AuthorizedSettlement {
   caseId: number;
   insuredName: string | null;
@@ -48,30 +47,27 @@ export interface AuthorizedSettlement {
   excess: number | null;
   confirmedAt: string;
   authorizedAt: string;
-  /** Null si ese referente no tiene perfil en el esquema de la aseguradora. */
+  /** null if that referente has no profile in the insurer's schema. */
   authorizedByName: string | null;
 }
 
-/**
- * Atribuciones de liquidación (Anexo II del procedimiento de la compañía): el tope por ramo que
- * configura el referente, y la cola de lo que lo superó.
- */
+/** Per-branch settlement authority caps, and the queue of settlements that exceeded them. */
 @Injectable({ providedIn: 'root' })
 export class SettlementAuthoritiesService {
   private readonly http = inject(HttpClient);
   private readonly base = environment.apiBaseUrl;
 
-  /** Todos los ramos, incluidos los que no tienen tope (llegan con `maxAmount: null`). */
+  /** Every branch, including uncapped ones (`maxAmount: null`). */
   list(): Observable<SettlementAuthority[]> {
     return this.http.get<SettlementAuthority[]>(`${this.base}/settlement-authorities`);
   }
 
-  /** `maxAmount` en null saca el tope: el ramo vuelve a que el analista autorice todo. */
+  /** A null `maxAmount` removes the cap. */
   set(branchId: number, maxAmount: number | null): Observable<void> {
     return this.http.put<void>(`${this.base}/settlement-authorities/${branchId}`, { maxAmount });
   }
 
-  /** Las últimas 50 que el referente autorizó, la más reciente primero. */
+  /** Latest 50, most recent first. */
   authorized(): Observable<AuthorizedSettlement[]> {
     return this.http.get<AuthorizedSettlement[]>(`${this.base}/cases/settlements/authorized`);
   }

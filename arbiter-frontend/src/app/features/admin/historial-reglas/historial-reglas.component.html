@@ -4,9 +4,6 @@
     <app-badge variant="solid">Toda la aseguradora</app-badge>
   </div>
 
-  <!-- ───────── Filtros ─────────
-       Van arriba y no en un panel aparte: el historial se consulta buscando algo puntual
-       ("qué le pasó al Fast Track de Celulares"), no leyéndolo entero de arriba abajo. -->
   <div class="hr-filters">
     <label class="filter">
       <span class="t-field-label">Tipo de regla</span>
@@ -58,8 +55,6 @@
       [sub]="hasFilters() ? 'Sin resultados' : 'Sin cambios'"
     />
   } @else {
-    <!-- Lista y no tabla: cada cambio trae adentro su propio detalle de campos, que en una celda
-         no entra. La línea del margen izquierdo es la que ordena la lectura cronológica. -->
     <ol class="hr-timeline">
       @for (row of rows(); track row.entry.id) {
         <li class="hr-item" [class.is-current]="row.entry.current">
@@ -67,8 +62,7 @@
             <span class="hr-when mono tabular">{{ row.changedAt }}</span>
             <span class="hr-rule">{{ row.title }}</span>
             @if (row.author) {
-              <!-- Solo el autor, no el motivo entero: todos los motivos son "<qué cambió> por
-                   <quién>" y el qué ya lo dicen el título y el alcance de acá al lado. -->
+              <!-- Author only: the reason's "what changed" part is already the title and scope. -->
               <span class="hr-author t-note">por {{ row.author }}</span>
             }
             @if (row.scope) {
@@ -80,8 +74,6 @@
               <app-badge variant="strong" tone="ok">Versión vigente</app-badge>
             }
             @if (row.entry.partial) {
-              <!-- `dashed` es la variante del kit para "sin dato": es exactamente eso, falta el
-                   estado de la regla porque esa versión se guardó antes de que se registrara. -->
               <app-badge variant="dashed">Registro parcial</app-badge>
             }
           </div>
@@ -106,10 +98,8 @@
               }
             </ul>
           } @else {
-            <!-- Sin campos, la entrada solo puede ser un registro parcial: el backend ya no
-                 devuelve los guardados que no cambiaron nada. Esta versión se guardó antes de que
-                 el historial registrara el estado de la regla, así que el dato no existe — decir
-                 "sin cambios" acá sería afirmar algo que la auditoría nunca registró. -->
+            <!-- No fields means a partial record (the backend omits no-op saves): saying "no
+                 changes" would claim something the audit never recorded. -->
             <p class="hr-nochange t-note">
               Registro anterior al detalle campo por campo: de esta versión quedó la fecha y el
               autor, no el valor de cada parámetro.

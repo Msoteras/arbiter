@@ -4,17 +4,12 @@ import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 
 /**
- * Alta o edición de un perito del catálogo, por el referente.
- *
- * @param branchId el ramo en el que se especializa, o null para un perito que cubre todos. Null no
- *                 es "no sé": es "generalista", y el analista necesita ver la diferencia al elegir.
- * @param active   desactivar es cómo se saca un perito de circulación sin borrar las derivaciones
- *                 que ya se le hicieron.
+ * @param branchId null means a generalist firm, not "unknown"
+ * @param active   deactivating retires a firm without erasing the derivations already made to it
  */
 public record ExpertFirmRequest(
         @NotBlank(message = "name is required") String name,
-        // El mail es el único canal con el perito: uno inválido deja el expediente esperando a
-        // alguien que nunca se enteró.
+        // Email is the only channel to the firm: an invalid one leaves the case waiting on nobody.
         @NotBlank(message = "email is required")
         @Email(message = "email must be a valid address") String email,
         String zone,

@@ -3,17 +3,8 @@ import { ChangeDetectionStrategy, Component, ElementRef, inject, signal } from '
 import { OverlayPosition, anchorToTrigger } from '../overlay-position';
 
 /**
- * Ícono "i" al lado de un label, para una aclaración puntual que no amerita un
- * `.section-hint` fijo ocupando espacio todo el tiempo (ej. una sola palabra del
- * formulario, no todo un bloque). El texto va por content projection.
- *
- * Toggle por click en vez de solo hover: en mobile no hay hover, y así funciona
- * igual con teclado (foco + Enter/Space, nativo de `<button>`) que con mouse o touch.
- *
- * La burbuja es `fixed` y se ancla con {@link anchorToTrigger}, igual que los menús y los selects
- * del kit: siendo `absolute` la recortaba cualquier ancestro con overflow, y además abría siempre
- * hacia arriba — con un texto que no entraba arriba del ícono, se veía cortada. Ahora cae hacia el
- * lado donde hay lugar.
+ * Toggles on click rather than hover so it works on touch and keyboard. The bubble is `fixed` and
+ * anchored with {@link anchorToTrigger} so overflow ancestors do not clip it.
  */
 @Component({
   selector: 'app-info-tip',
@@ -86,13 +77,11 @@ import { OverlayPosition, anchorToTrigger } from '../overlay-position';
       position: fixed;
       z-index: 50;
       width: max-content;
-      /* La burbuja es prosa y se lee sola: no hereda el tratamiento del texto al que acompaña.
-         Sin esto, adentro de una etiqueta de app-stat-tile salía entera en mayúsculas y con el
-         tracking de la etiqueta. */
+      /* Do not inherit the host label's text treatment (e.g. uppercase in app-stat-tile). */
       text-transform: none;
       letter-spacing: normal;
       text-align: left;
-      /* min() y no un ancho fijo: en mobile 260px se sale de pantalla anclado a la izquierda. */
+      /* min() so it stays on screen on mobile. */
       max-width: min(280px, calc(100vw - var(--space-4) * 2));
       padding: var(--space-2) var(--space-3);
       border-radius: var(--radius-ctl);
@@ -107,13 +96,12 @@ import { OverlayPosition, anchorToTrigger } from '../overlay-position';
   `,
 })
 export class InfoTipComponent {
-  /** Alto estimado de la burbuja para decidir el lado; no hace falta medirla antes de dibujarla. */
+  /** Used to pick the opening side without measuring the bubble first. */
   private static readonly ESTIMATED_HEIGHT = 140;
 
   private readonly host = inject(ElementRef<HTMLElement>);
 
   protected readonly open = signal(false);
-  /** Coordenadas de viewport (la burbuja es `fixed`). Null en el eje que no se fija. */
   protected readonly pos = signal<OverlayPosition>({
     top: null,
     bottom: null,
@@ -126,16 +114,13 @@ export class InfoTipComponent {
     event.stopPropagation();
     if (!this.open()) {
       const trigger = this.host.nativeElement.getBoundingClientRect();
-      // Se ancla al borde más lejano del costado de pantalla donde está el ícono: anclando
-      // siempre a la izquierda, un tip del lado derecho se iba de pantalla — el mismo problema
-      // que arriba, espejado.
+      // Anchor to the edge away from the nearest screen side, so right-side tips stay on screen.
       const align = trigger.left > document.documentElement.clientWidth / 2 ? 'end' : 'start';
       this.pos.set(anchorToTrigger(trigger, InfoTipComponent.ESTIMATED_HEIGHT, align));
     }
     this.open.update((v) => !v);
   }
 
-  /** Cierra al clickear afuera — mismo criterio que un menú/dropdown del kit. */
   protected onDocumentClick(): void {
     if (this.open()) {
       this.open.set(false);

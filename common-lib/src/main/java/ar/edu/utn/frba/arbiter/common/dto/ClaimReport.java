@@ -9,28 +9,20 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * Shared contract: the facts of a claim, sent by cases-service to classification-service
- * for analysis. {@code attachmentsOcr} carries already-extracted document text when the
- * caller has it (classification fills it in internally otherwise).
+ * The facts of a claim, sent by cases-service to classification-service for analysis.
+ * {@code attachmentsOcr} is optional: classification extracts the text itself otherwise.
  */
 @Builder
 public record ClaimReport(
         @NotBlank String branch,
         @NotBlank String product,
         @NotBlank String claimCause,
-        // Coverage id — the DER scopes a business rule (Fast Track, scoring) by rama + cobertura,
-        // not by hecho generador. Nullable: the isolated test flow builds a claim without a case;
-        // the real cases->classification flow always sets it from Case.coverage.
+        // Business rules (Fast Track, scoring) are scoped by branch + coverage, not by claim cause.
         Long coverageId,
-        // Name of that same coverage. Redundant with the id on purpose: the id is Arbiter's, and
-        // the insurer DB — which is where the sum insured and the deductible come from — only
-        // knows coverages by name. It's what lets InsuredPolicy.forCoverage pick the contracted
-        // terms that answer for THIS claim instead of whichever coverage the company listed first.
-        // Nullable for the same reason as coverageId.
+        // Redundant with the id on purpose: the insurer DB, where the sum insured and deductible
+        // come from, only knows coverages by name.
         String coverageName,
-        // Claim cause (hecho generador) id — the coverage-exclusion evaluator matches against it
-        // by id, not by name (names repeat across branches; the id is unambiguous). Nullable for
-        // the same reason as coverageId: the isolated test flow has no case behind it.
+        // Exclusions match by id because claim cause names repeat across branches.
         Long claimCauseId,
         @NotBlank String insuredItem,
         @NotBlank String insuredId,
@@ -39,35 +31,19 @@ public record ClaimReport(
         @NotNull LocalDateTime eventDate,
         @NotBlank String eventLocation,
         BigDecimal claimedAmount,
-        // When the claim was reported to the insurer (case creation). Used by the reporting deadline
-        // rule (D11): reportedAt - eventDate vs coverage.report_deadline_hours. Nullable: the
-        // isolated flow (no case) doesn't have it, and there the rule isn't evaluable.
         LocalDateTime reportedAt,
-        // When the insured SAYS they filed the police report. It's their STATEMENT, not what the
-        // certificate says: when extraction reads the date off the paper it travels separately, and
-        // crossing the two is precisely the signal (D12). Nullable — not every claim cause involves
-        // a police report, and there the deadline rule isn't evaluable.
+        // The insured's statement, not the certificate's date: extraction reads that one separately
+        // and crossing the two is the signal. Null when the claim cause involves no police report.
         LocalDateTime policeReportAt,
-        // Whether the insured gave consent to send their images to external services (Google Vision
-        // web search). Captured during onboarding, not per claim. When it isn't granted the internal
-        // CLIP analysis still runs (it never leaves the host), only the web escalation is skipped.
-        //
-        // Boxed, and absence means NO: a primitive would make this record undeserializable from any
-        // JSON that omits the field, because Jackson 3 keeps FAIL_ON_NULL_FOR_PRIMITIVES on and a
-        // record's missing property reaches the canonical constructor as null. Fail-closed is also
-        // the only safe reading of a consent flag — "nobody said" cannot mean "go ahead and send
-        // their photos to a third party".
+        // Consent to send images to the external web search; internal CLIP analysis runs regardless.
+        // Boxed and null means NO: Jackson 3 rejects a missing primitive, and consent must fail closed.
         Boolean imageConsent,
         List<String> attachmentsOcr,
-        // The insured's OTHER claims already filed through Arbiter. Sent by cases-service, which is
-        // the module that owns them; classification merges them with the company's history so the
-        // annual event cap and the Fast Track's previous-claims criterion count both sources. Empty
-        // (never null) when there are none, and empty as well in the isolated test flow that builds
-        // a claim with no case behind it.
+        // The insured's other claims filed through Arbiter, merged with the company's history so
+        // the annual cap and Fast Track count both sources.
         List<PriorClaim> priorClaims
 ) {
 
-    /** Never null for the callers that don't fill it in — no rule has to null-check the list. */
     public ClaimReport {
         priorClaims = priorClaims == null ? List.of() : List.copyOf(priorClaims);
     }

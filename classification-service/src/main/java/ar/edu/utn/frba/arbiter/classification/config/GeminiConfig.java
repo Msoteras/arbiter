@@ -18,14 +18,10 @@ public class GeminiConfig {
     private static final Logger log = LoggerFactory.getLogger(GeminiConfig.class);
 
     /**
-     * Credentials come from ADC — {@code gcloud auth application-default login} on a developer
-     * machine, a service account file in Docker. Deliberately not an API key: a key would be a
-     * secret this service has to hold, and it would reach the Gemini Developer API instead of
-     * Vertex, which is a different data-handling policy (its free tier may use prompts to improve
-     * Google's products; Vertex does not).
+     * Credentials come from ADC, deliberately not an API key: a key would target the Gemini
+     * Developer API, whose data-handling policy differs from Vertex's.
+     * Named {@code genAiClient} because {@code geminiClient} is already the adapter bean.
      */
-    // `genAiClient` y no `geminiClient`: ese nombre ya lo ocupa el @Component GeminiClient, que es
-    // nuestro adapter. Dos beans con el mismo nombre no arrancan.
     @Bean
     public Client genAiClient(GeminiProperties properties) {
         log.info("[Gemini] Vertex backend — project={} location={} model={}",

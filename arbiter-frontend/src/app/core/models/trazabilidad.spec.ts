@@ -19,22 +19,18 @@ describe('trazabilidad', () => {
       expect(ruleResultLabel('FAIL')).toBe('No cumple');
     });
 
-    // Los CUMPLE/NO_CUMPLE del seed viejo ya no existen: se migraron en los datos. Si alguna base
-    // quedó sin migrar, caen acá — se ven crudos y sin tono, que es degradar prolijo y no mentir.
     it('trata el vocabulario viejo como cualquier literal desconocido', () => {
       expect(ruleResultTone('CUMPLE')).toBe('neutral');
       expect(ruleResultLabel('CUMPLE')).toBe('CUMPLE');
     });
 
-    // El bug: todo lo que no era PASS se pintaba como fallo, y un Fast Track que había cumplido
-    // salía en rojo diciendo "No cumple".
     it('no da por fallada una regla con un literal que no reconoce', () => {
       expect(ruleResultTone('LO_QUE_SEA')).toBe('neutral');
       expect(ruleResultLabel('LO_QUE_SEA')).toBe('LO_QUE_SEA');
     });
   });
 
-  // El aviso de hecho generador: no decide nada, así que no puede leerse como una regla que falló.
+  // Advisory check: it decides nothing, so it must not read as a failed rule.
   describe('avisos', () => {
     it('se reconocen aparte de las reglas y de los criterios de Fast Track', () => {
       expect(isAdvisoryCheck('CLAIM_CAUSE_MATCH')).toBe(true);
@@ -66,8 +62,6 @@ describe('trazabilidad', () => {
     });
   });
 
-  // Las dos reglas de alcance de cobertura (D9). Se configuran en la cobertura y no en la solapa
-  // de reglas duras, así que no heredan label de ahí: el suyo vive en este archivo.
   describe('reglas de alcance de cobertura', () => {
     it('les pone nombre en castellano', () => {
       expect(ruleTypeLabel('COVERS_FAMILY_GROUP')).toBe('Alcance al grupo familiar');
@@ -142,7 +136,7 @@ describe('trazabilidad', () => {
 
     it('deja pasar lo que ya viene en prosa, y el literal crudo si no lo reconoce', () => {
       expect(ruleEvaluationText('FRAUD_RECORD', 'sin antecedentes vigentes (ventana 36m)')).toBe(
-        'Sin antecedentes vigentes (ventana 36m)',
+        'Sin antecedentes vigentes en los últimos 36 meses',
       );
       expect(ruleEvaluationText('REPORT_DEADLINE', 'formato=inesperado')).toBe(
         'formato=inesperado',
@@ -194,7 +188,7 @@ describe('trazabilidad', () => {
     it('separa los criterios del gate de las reglas duras', () => {
       expect(isFastTrackCriterion('FT_AMOUNT_RATIO')).toBe(true);
       expect(isFastTrackCriterion('POLICY_IN_FORCE')).toBe(false);
-      // El tipo de la fila de configuración tampoco es un criterio evaluado.
+      // The configuration row type is not an evaluated criterion either.
       expect(isFastTrackCriterion('FAST_TRACK')).toBe(false);
     });
   });

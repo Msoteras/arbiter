@@ -3,13 +3,10 @@ package ar.edu.utn.frba.arbiter.reports.dto;
 import java.time.LocalDate;
 
 /**
- * One point of the timeline chart: how the period moved, in two series.
+ * One point of the dashboard timeline.
  *
- * @param bucket   first calendar day the point covers (the Monday of the week, the 1st of the
- *                 month), in the insurer's time zone
- * @param reported claims filed in that bucket
- * @param resolved claims that reached a final status in that bucket — not the same claims, and
- *                 that's the point: the gap between the two lines is the backlog building up
- *                 or draining.
+ * @param bucket   first day the point covers (Monday, or the 1st), in the insurer's time zone
+ * @param resolved claims closed in the bucket, not the same claims as {@code reported}: the gap is the
+ *                 backlog growing or draining
  */
 public record TimelinePoint(LocalDate bucket, long reported, long resolved) {}

@@ -7,10 +7,7 @@ import { environment } from '../../../environments/environment';
 export interface Notification {
   id: number;
   caseId: number | null;
-  /**
-   * De qué aseguradora es `caseId`. Los ids son autoincrementales por esquema, así que el mismo
-   * número existe en las dos compañías y sin esto el link abre el caso equivocado.
-   */
+  /** Case ids are per-schema sequences, so the same id exists in every insurer. */
   insurerSlug: string | null;
   /** The CaseStatus that fired it — the panel titles by this. */
   type: string;

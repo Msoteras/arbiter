@@ -7,23 +7,15 @@ import java.time.LocalDate;
 import java.util.List;
 
 /**
- * The cases filed in a period that carry at least one fraud signal: the aggregate figures first,
- * then one row per case, worst alert level first.
+ * The cases filed in a period that carry at least one fraud signal, worst alert level first.
  *
- * <p>Anchored to when the claim was <b>filed</b> and not to when it closed, unlike
- * {@link ResolutionReport}: the point of this one is the cases somebody still has to look at, and
- * anchoring it to the resolution would hide exactly those.
+ * <p>Anchored to the filing date, unlike {@link ResolutionReport}: the point is the cases someone still
+ * has to look at, and anchoring on the resolution would hide exactly those.
  *
- * <p>The filters are echoed back resolved to what they mean — the branch as its name — so the
- * preview and an auditor reading it state the same thing about where the numbers came from.
- *
- * @param branch          the branch ("ramo") filter, by name; null means every branch
- * @param riskBand        the alert-level filter; null means every band
- * @param summary         the aggregates over {@link #rows()}, never over a different population
- * @param previousSummary the same aggregates over the stretch of equal length immediately before
- *                        this period, under the same filters — what turns a figure into a
- *                        direction. Never null; {@link FraudSummary#EMPTY} when that stretch had
- *                        no claims at all
+ * @param branch          the branch filter by name; null means every branch
+ * @param riskBand        null means every band
+ * @param previousSummary the same aggregates over the preceding period of equal length, same filters;
+ *                        {@link FraudSummary#EMPTY} when it had no claims
  */
 public record FraudReport(
         LocalDate from,

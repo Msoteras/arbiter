@@ -20,7 +20,7 @@ describe('reports tab memory', () => {
     expect(rememberedReportsTab()).toBe(DEFAULT_REPORTS_TAB);
   });
 
-  /** localStorage is edited by anybody; anything else in there would be a route that isn't. */
+  /** localStorage can hold anything; a non-tab value would be a route that doesn't exist. */
   it('ignores a stored value that is not a tab', () => {
     localStorage.setItem(KEY, '../../etc');
 

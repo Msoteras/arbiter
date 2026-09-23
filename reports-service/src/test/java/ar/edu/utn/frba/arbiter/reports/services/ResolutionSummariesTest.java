@@ -19,7 +19,7 @@ import static ar.edu.utn.frba.arbiter.reports.support.ReportFixtures.fastTrackRo
 import static ar.edu.utn.frba.arbiter.reports.support.ReportFixtures.lapsedRow;
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** The four figures H0019 asks the report to show, over the rows the report lists. */
+/** The report's aggregate figures, over the rows it lists. */
 class ResolutionSummariesTest {
 
     @Test
@@ -34,10 +34,7 @@ class ResolutionSummariesTest {
         assertThat(summary.averageWaitingMinutes()).isEqualTo(APPROVED_ROW_WAITING_MINUTES / 2.0);
     }
 
-    /**
-     * Same population the dashboard averages over: a lapsed case wasn't resolved by anybody, it
-     * measured the insured's silence, and one of them (790 days here) swamps the average of a month.
-     */
+    /** Lapsed cases are left out of the average, as in the dashboard: one of 790 days would swamp it. */
     @Test
     void theAverages_leaveTheLapsedCasesOut_likeTheDashboardDoes() {
         ResolutionSummary summary = ResolutionSummaries.of(List.of(approvedRow(1), lapsedRow(2)));
@@ -68,10 +65,7 @@ class ResolutionSummariesTest {
         assertThat(summary.fastTrackRate()).isEqualTo(0.25);
     }
 
-    /**
-     * Status buckets carry the enum literal: translating them is the frontend's job for the preview
-     * and {@code ReportLabels}' job for the exports, never the service's.
-     */
+    /** Status buckets carry the enum literal; translation belongs to the frontend and {@code ReportLabels}. */
     @Test
     void distributions_useEnumLiterals_andPutTheBusiestBucketFirst() {
         ResolutionSummary summary =
@@ -94,7 +88,7 @@ class ResolutionSummariesTest {
                 .containsExactly("Hurto", "Robo en vía pública");
     }
 
-    /** An average of nothing is unknown, not zero — and a zero would read as "instant resolution". */
+    /** An average of nothing is null, not zero: a zero would read as instant resolution. */
     @Test
     void withNoResolvedCases_theFiguresAreAbsentRatherThanZero() {
         ResolutionSummary summary = ResolutionSummaries.of(List.of());
@@ -108,12 +102,7 @@ class ResolutionSummariesTest {
     private static final LocalDate AUGUST_FROM = LocalDate.of(2026, 8, 1);
     private static final LocalDate AUGUST_TO = LocalDate.of(2026, 8, 31);
 
-    /**
-     * Which point a case falls in is decided by when it closed, read in the insurer's zone. Every
-     * bucket of the period is emitted, the empty ones included: that gap is the fortnight the
-     * company resolved nothing, and dropping it would draw a line straight over it, moving the
-     * neighbouring points together and inventing a smoothness the data doesn't have.
-     */
+    /** Bucketed by closing date in the insurer's zone, empty buckets included. */
     @Test
     void timeline_spreadsTheRowsOverEveryBucketOfThePeriod() {
         List<ResolutionReportRow> rows = List.of(approvedRow(1), fastTrackRow(2), lapsedRow(3));
@@ -131,11 +120,7 @@ class ResolutionSummariesTest {
                 .containsExactly(1L, 2L, 0L, 0L, 0L, 0L);
     }
 
-    /**
-     * The bar and the line don't measure the same cases, on purpose: the week of the lapsed one
-     * closed a case and averaged nothing, because nobody decided it. Reading the line as if it
-     * covered every bar is exactly what keeping the two figures together prevents.
-     */
+    /** The count includes the lapsed case, the average doesn't: nobody decided it. */
     @Test
     void timeline_averagesTheDecidedOnes_andLeavesTheRestUnknown() {
         List<ResolutionReportRow> rows = List.of(approvedRow(1), fastTrackRow(2), lapsedRow(3));

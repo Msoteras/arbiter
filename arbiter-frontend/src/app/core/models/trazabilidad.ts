@@ -22,17 +22,13 @@ const RULE_TYPE_LABELS: Record<string, string> = {
   ...INSURER_HARD_RULE_LABELS,
   COVERAGE_EXCLUSION: 'Exclusión de cobertura',
   COVERAGE_INCLUSION: 'Alcance de la cobertura',
-  // Las dos de alcance (D9) se configuran en la cobertura, no en la solapa de reglas duras, así
-  // que no tienen label del que colgarse arriba.
+  // Configured on the coverage itself, not in the hard rules tab, so there is no label to reuse.
   COVERS_FAMILY_GROUP: 'Alcance al grupo familiar',
   CLAIM_EXHAUSTS_COVERAGE: 'Cobertura consumida por un siniestro previo',
   FRAUD_RECORD: 'Antecedente de fraude',
-  // El tipo de la fila de configuración (los umbrales). El motor no lo escribe: lo que escribe
-  // son los cinco criterios FT_* de abajo, uno por umbral comparado. El seed de demo sí lo usa.
+  // The engine writes the FT_* criteria below instead; only demo seed data uses this one.
   FAST_TRACK: 'Criterio de Fast Track',
-  // Criterios del carril rápido (H0038). No son reglas duras: que uno no se cumpla no dice que el
-  // siniestro no esté cubierto, dice que el expediente no va por el carril rápido y lo mira el
-  // modelo. Por eso van en su propio bloque, separados de las reglas de arriba.
+  // Fast Track criteria, not hard rules: failing one only means the case goes to the model.
   FT_AMOUNT_RATIO: 'Monto reclamado sobre la suma asegurada',
   FT_PRIOR_CLAIMS: 'Siniestros previos del asegurado',
   FT_POLICY_AGE: 'Antigüedad de la póliza',
@@ -46,18 +42,14 @@ export function ruleTypeLabel(ruleType: string): string {
   return RULE_TYPE_LABELS[ruleType] ?? ruleType;
 }
 
-/**
- * Si la fila es un criterio del gate de Fast Track y no una regla dura. El prefijo es el contrato:
- * lo fija `RuleType` (common-lib), donde los cinco `FT_*` son su propia familia.
- */
+/** The `FT_` prefix is the contract set by common-lib's `RuleType`. */
 export function isFastTrackCriterion(ruleType: string): boolean {
   return ruleType.startsWith('FT_');
 }
 
 /**
- * Los avisos: su FAIL no dice que el siniestro no esté cubierto ni lo saca del carril rápido, dice
- * que hay algo que el analista tiene que mirar antes de resolver. Es la lista de
- * `RuleType.advisoryRules()` (common-lib) — si se suma uno allá, se suma acá.
+ * Advisory checks: a FAIL doesn't mean the claim isn't covered nor takes it off the fast lane, it
+ * flags something to review before deciding. Mirrors `RuleType.advisoryRules()` (common-lib).
  */
 const ADVISORY_CHECKS = new Set(['CLAIM_CAUSE_MATCH']);
 
@@ -65,7 +57,7 @@ export function isAdvisoryCheck(ruleType: string): boolean {
   return ADVISORY_CHECKS.has(ruleType);
 }
 
-/** "No cumple" en rojo acusaría al expediente de algo que el motor no decidió: acá es "Revisar". */
+/** A red "No cumple" would accuse the case of something the engine didn't decide: "Revisar". */
 export function advisoryResultLabel(result: string): string {
   if (result === 'PASS') return 'Coincide';
   return result === 'FAIL' ? 'Revisar' : result;
@@ -76,10 +68,7 @@ export function advisoryResultTone(result: string): StatusTone {
   return result === 'FAIL' ? 'warning' : 'neutral';
 }
 
-// El motor escribe PASS/FAIL y es el único vocabulario: los CUMPLE/NO_CUMPLE de un seed viejo se
-// migraron en los datos (db/migrations/2026-08-30-rule-result-literales-en-ingles.sql).
-// Cualquier otro literal se muestra tal cual y sin tono: dar por fallada una regla que no
-// reconocemos sería acusarla de algo que quizás cumplió.
+// Any literal other than PASS/FAIL is shown as-is and toneless: never assume an unknown one failed.
 export function ruleResultLabel(result: string): string {
   if (result === 'PASS') return 'Cumple';
   return result === 'FAIL' ? 'No cumple' : result;
@@ -90,17 +79,17 @@ export function ruleResultTone(result: string): StatusTone {
   return result === 'FAIL' ? 'danger' : 'neutral';
 }
 
-/**
- * evaluated_value arrives as the engine writes it, in key=value pairs. That literal is the audit
- * record and stays untouched in the DB; the analyst gets the sentence. Same numbers, nothing is
- * recomputed here.
- */
 const DAMNIFICADO: Record<string, string> = {
   TITULAR: 'el titular',
   FAMILIAR: 'un familiar',
   TERCERO: 'un tercero',
 };
 
+/**
+ * evaluated_value arrives as the engine writes it, in key=value pairs. That literal is the audit
+ * record and stays untouched in the DB; the analyst gets the sentence. Same numbers, nothing is
+ * recomputed here.
+ */
 export function ruleEvaluationText(ruleType: string, evaluatedValue: string | null): string {
   if (!evaluatedValue) {
     return '—';
@@ -136,8 +125,7 @@ export function ruleEvaluationText(ruleType: string, evaluatedValue: string | nu
     case 'POLICY_STANDING':
     case 'FT_POLICY_UP_TO_DATE':
       return t['upToDate'] === 'true' ? 'La póliza está al día' : 'La póliza tiene saldo impago';
-    // Los cinco criterios del carril rápido. El porcentaje llega ya formateado por el motor y se
-    // muestra tal cual: reformatearlo acá sería recalcular la cuenta que se auditó.
+    // The engine sends the percentage already formatted; reformatting it would recompute the audit.
     case 'FT_AMOUNT_RATIO':
       return t['ratio'] === 'sin datos'
         ? `Sin monto reclamado o sin suma asegurada · tope ${t['max']}`
@@ -164,8 +152,6 @@ export function ruleEvaluationText(ruleType: string, evaluatedValue: string | nu
         ? `Hecho generador: ${t['claimCause'].replace(/\s*\(id=\d+\)$/, '')}`
         : evaluatedValue;
     case 'COVERS_FAMILY_GROUP':
-      // Solo se escribe fila cuando algún documento dijo quién fue el damnificado: si nadie lo
-      // dijo la regla queda sin evaluar y no llega hasta acá.
       return t['affectedParty']
         ? `Damnificado: ${DAMNIFICADO[t['affectedParty']] ?? t['affectedParty']} · la cobertura no alcanza al grupo familiar`
         : evaluatedValue;
@@ -185,16 +171,18 @@ export function ruleEvaluationText(ruleType: string, evaluatedValue: string | nu
         ? 'Sin siniestros liquidados previos sobre esta póliza'
         : `${previos} ${previos === 1 ? 'siniestro liquidado previo' : 'siniestros liquidados previos'} sobre esta póliza · un siniestro agota la cobertura`;
     }
+    case 'FRAUD_RECORD': {
+      // Prose from the engine, but with the window abbreviated as "(ventana 36m)".
+      const text = evaluatedValue.replace(/\(ventana (\d+)m\)/, 'en los últimos $1 meses');
+      return text.charAt(0).toUpperCase() + text.slice(1);
+    }
     default:
-      // FRAUD_RECORD already comes as prose; an unknown type shows raw rather than hiding.
+      // An unknown type shows raw rather than hiding.
       return evaluatedValue.charAt(0).toUpperCase() + evaluatedValue.slice(1);
   }
 }
 
-/**
- * `police_report,invoice` → `police_report, invoice`. Solo separa: los códigos los traduce
- * `conLabelesDeDocumento`, que ya es el único lugar donde vive ese diccionario.
- */
+/** `police_report,invoice` → `police_report, invoice`. */
 function listado(raw: string | undefined): string {
   return (raw ?? '').split(',').join(', ');
 }
@@ -221,10 +209,8 @@ export interface PolicySnapshot {
   paymentsUpToDate: boolean;
   previousClaims: number;
   /**
-   * Lo que la compañía pagó por los siniestros previos del asegurado, en todas sus pólizas y
-   * ramos — no lo que él reclamó, ni el saldo de esta cobertura. Por eso en pantalla va aparte de
-   * la suma asegurada: restarlos no significa nada. Null en snapshots anteriores a la columna:
-   * "Sin datos", nunca un cero.
+   * What the insurer paid for the insured's prior claims across all policies — not a balance of
+   * this coverage, so never subtract it from the sum insured. Null means "no data", never zero.
    */
   totalAmountClaimed: number | null;
   queriedAt: string;

@@ -24,13 +24,8 @@ public class AuthService {
     private final PasswordCipher passwordCipher;
 
     /**
-     * There's no JWT yet at this point — nothing to resolve a tenant from — so this
-     * resolves and sets {@link TenantContext} itself for the one profile lookup it needs,
-     * then clears it. Every other authenticated endpoint gets its tenant from
-     * TenantResolvingFilter instead.
-     *
-     * <p>The envelope is opened here and not in {@link CredentialsAuthenticator}: it belongs to how
-     * the frontend ships the password, not to whoever validates credentials.
+     * The envelope is opened here and not in {@link CredentialsAuthenticator}: it's about how the
+     * frontend ships the password, not about validating credentials.
      */
     public LoginResponse login(LoginRequest request) {
         String password = passwordCipher.decrypt(request.password());
@@ -39,17 +34,11 @@ public class AuthService {
     }
 
     /**
-     * Issues a session for a user whose identity is already established — activation and
-     * password reset land here too, right after they finish (see {@link UserService}), so the
-     * person who just proved they own the mailbox and chose a password walks straight into the
-     * app instead of being sent to a login screen to type the password they just set. For an
-     * ASEGURADO activating for the first time that also means landing directly in onboarding: the
-     * frontend routes by role off the token this returns, and {@code onboardingGuard} takes it
-     * from there.
+     * Issues a session for a user whose identity is already verified (credentials, or an
+     * invite/reset token in {@link UserService}). Never expose it as its own endpoint.
      *
-     * <p>Not exposed as its own endpoint — only ever called from inside another flow that has
-     * already verified who the user is (credentials here, an invite/reset token in
-     * {@link UserService}).
+     * <p>There's no JWT yet to resolve a tenant from, so this sets {@link TenantContext} itself
+     * for the profile lookup and clears it afterwards.
      */
     public LoginResponse issueSessionFor(User user) {
         UserRole rol = user.getRoles().stream()

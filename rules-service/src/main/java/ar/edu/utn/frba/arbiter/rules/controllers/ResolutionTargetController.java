@@ -15,11 +15,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * El objetivo de resolución que fija el referente: en cuántos días se propone la compañía cerrar
- * un siniestro.
- *
- * <p>No es el plazo legal del art. 56 — ese es por expediente y no lo fija nadie — sino una meta de
- * gestión. Lo único que lo lee es el tablero de métricas.
+ * The insurer's resolution target: in how many days it aims to close a claim. Not the art. 56 legal
+ * deadline (that one is per case); a management goal read only by the metrics dashboard.
  */
 @RestController
 @RequestMapping("/api/v1/rules")
@@ -51,9 +48,8 @@ public class ResolutionTargetController {
     }
 
     /**
-     * Lectura system-to-system para reports-service, que lo necesita para cada tablero y no tiene
-     * rol de referente: el token es el del usuario que está mirando el tablero, que puede ser un
-     * analista. Mismo patrón que {@code /internal/policy-standing} para cases-service.
+     * System-to-system read for reports-service: the token is the dashboard viewer's, who may be an
+     * analyst rather than a referente.
      */
     @GetMapping("/internal/resolution-target")
     @PreAuthorize("isAuthenticated()")

@@ -1,23 +1,19 @@
 ﻿<#
 .SYNOPSIS
-    Corre los scripts de esquema contra la base de Railway, leyendo la conexión de `.env`.
+    Runs the schema scripts against the Railway database, reading the connection from `.env`.
 
 .DESCRIPTION
-    Reusa las mismas DB_URL / DB_USER / DB_PASSWORD que ya necesita Spring, así la
-    credencial vive en un solo lugar gitignoreado y no se pega en la terminal (donde
-    queda en el historial) ni en la línea de comandos (donde la ve cualquiera que
-    liste procesos). La password viaja por PGPASSWORD, no dentro de la URL.
-
-    DB_URL está en formato JDBC porque es lo que consume Spring; acá se le saca el
-    prefijo `jdbc:` para que psql la entienda.
+    Reuses Spring's DB_URL / DB_USER / DB_PASSWORD, so the credential stays in one
+    gitignored file, out of the shell history and the process list. The password is
+    passed through PGPASSWORD, never in the URL.
 
 .PARAMETER Step
-    check   Sólo verifica conexión y pgvector. No modifica nada.
-    reset   DESTRUCTIVO: dropea todos los esquemas arbiter_* y aseguradora_*.
-    init    Crea esquemas, tablas y catálogos.
-    seed    Carga los datos de demo.
-    verify  Confirma que quedó el esquema nuevo (chequea las columnas agregadas).
-    all     check → reset → init → seed → verify, en orden.
+    check   Checks the connection and pgvector only. Changes nothing.
+    reset   DESTRUCTIVE: drops every arbiter_* and aseguradora_* schema.
+    init    Creates schemas, tables and catalogs.
+    seed    Loads the demo data.
+    verify  Checks the resulting schema and seed.
+    all     check → reset → init → seed → verify, in order.
 
 .EXAMPLE
     .\scripts\db-railway.ps1 check
@@ -32,7 +28,7 @@ param(
 
     [string]$EnvFile = '.env',
 
-    # Salta la confirmación del paso destructivo.
+    # Skips the confirmation of the destructive step.
     [switch]$Force
 )
 
@@ -40,7 +36,7 @@ $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $PSScriptRoot
 Set-Location $repoRoot
 
-# psql no suele quedar en el PATH cuando se instala PostgreSQL en Windows.
+# The Windows PostgreSQL installer usually leaves psql off the PATH.
 $psql = (Get-Command psql -ErrorAction SilentlyContinue).Source
 if (-not $psql) {
     $psql = Get-ChildItem 'C:\Program Files\PostgreSQL' -Directory -ErrorAction SilentlyContinue |
@@ -69,18 +65,16 @@ if ([string]::IsNullOrWhiteSpace($env:DB_URL) -or $env:DB_URL -like '*HOST:PUERT
     Write-Error "DB_URL sin completar en $EnvFile."
 }
 
-# jdbc:postgresql://host:port/base?params  →  postgresql://host:port/base?params
+# jdbc:postgresql://host:port/db?params  →  postgresql://host:port/db?params
 $connectionUrl = $env:DB_URL -replace '^jdbc:', ''
 
-# Sin connect_timeout, psql espera para siempre: un host mal escrito, un puerto
-# cerrado o un firewall se ven igual que "esta tardando". Con esto falla en 10s.
+# Without connect_timeout psql waits forever on a wrong host or a blocked port.
 if ($connectionUrl -notmatch 'connect_timeout=') {
     $connectionUrl += $(if ($connectionUrl -like '*?*') { '&' } else { '?' }) + 'connect_timeout=10'
 }
 
 if ([string]::IsNullOrWhiteSpace($env:DB_PASSWORD)) {
-    # psql pediria la password por stdin y quedaria esperando una tecla que nadie
-    # va a apretar, que es indistinguible de un cuelgue de red.
+    # psql would otherwise prompt for it and hang, indistinguishable from a network stall.
     Write-Error "DB_PASSWORD vacio en $EnvFile. psql se quedaria esperando el prompt."
 }
 $env:PGPASSWORD = $env:DB_PASSWORD
@@ -89,23 +83,18 @@ if ($connectionUrl -match '://([^/?]+)') {
     Write-Host "Base: $($Matches[1])  usuario: $env:DB_USER" -ForegroundColor Cyan
 }
 
-# La conexión SIEMPRE va con -d, nunca como argumento posicional: el psql de Windows
-# deja de parsear opciones apenas encuentra un posicional, así que
-# `psql <url> -U user -tAc <sql>` termina ignorando el -U, el -tAc y hasta la query
-# ("se ignoró argumento extra"). Con -d todo son opciones y el orden deja de importar.
+# Always pass the connection with -d: Windows psql stops parsing options at the first
+# positional argument, silently ignoring everything after the URL.
 function Invoke-Psql {
     param([string[]]$PsqlArgs, [string]$Label)
 
     Write-Host "→ $Label" -ForegroundColor Cyan
-    # psql manda los NOTICE por stderr, y PowerShell 5.1 convierte cada linea de stderr
-    # de un nativo en un ErrorRecord: con ErrorActionPreference=Stop, un simple
-    # "NOTICE: ivfflat index created with little data" aborta todo aunque psql haya
-    # salido con 0. El exito se decide por $LASTEXITCODE, que es lo unico confiable.
+    # PowerShell 5.1 turns each stderr line of a native command into an ErrorRecord, so
+    # under Stop a psql NOTICE would abort the script. Success is judged by $LASTEXITCODE.
     $previous = $ErrorActionPreference
     $ErrorActionPreference = 'Continue'
     try {
-        # ON_ERROR_STOP: sin esto psql sigue tras un error y termina con exit 0, que es
-        # cómo se llega a un esquema a medio crear creyendo que salió bien.
+        # Without ON_ERROR_STOP psql continues past errors and exits 0.
         & $psql -d $connectionUrl -U $env:DB_USER -v ON_ERROR_STOP=1 @PsqlArgs
     } finally {
         $ErrorActionPreference = $previous
@@ -138,7 +127,6 @@ function Step-Reset {
     Invoke-Psql @('-f', 'db/reset-multitenant.sql') 'Reset (destructivo)'
 }
 
-# Un solo query: devuelve "etiqueta|valor" por línea y acá se compara contra lo esperado.
 function Get-Scalar {
     param([string]$Sql)
     $previous = $ErrorActionPreference
@@ -169,8 +157,7 @@ function Step-Verify {
     $script:verifyFailed = $false
     Write-Host '→ Verificación' -ForegroundColor Cyan
 
-    # 1. Estructura. init es un solo BEGIN/COMMIT: si abortó a mitad no queda nada,
-    #    pero si se corrió una versión vieja del script el conteo va a diferir.
+    # 1. Structure.
     Assert-Count 'esquemas creados' @"
 SELECT count(*) FROM information_schema.schemata
  WHERE schema_name = 'arbiter_common'
@@ -184,11 +171,10 @@ SELECT count(*) FROM information_schema.tables WHERE table_schema='arbiter_commo
     foreach ($tenant in @('arbiter_bbva', 'arbiter_provincia')) {
         Assert-Count "tablas en $tenant" @"
 SELECT count(*) FROM information_schema.tables WHERE table_schema='$tenant';
-"@ 24
+"@ 33
     }
 
-    # 2. Que sea el esquema NUEVO y no el del commit anterior. Estas columnas se
-    #    agregaron después de la última vez que se corrió contra Railway.
+    # 2. Columns that only a current init script creates.
     Assert-Count 'columnas nuevas en arbiter_bbva.cases' @"
 SELECT count(*) FROM information_schema.columns
  WHERE table_schema='arbiter_bbva' AND table_name='cases'
@@ -212,10 +198,14 @@ SELECT count(*) FROM information_schema.columns
  WHERE table_schema='arbiter_bbva' AND table_name='image_analysis' AND column_name='model';
 "@ 1
 
-    # 3. Que los catálogos y el seed hayan entrado. Sin esto el esquema está bien
-    #    pero la app no arranca ni tiene con qué probar.
+    Assert-Count 'email único en arbiter_common.users' @"
+SELECT count(*) FROM pg_indexes
+ WHERE schemaname='arbiter_common' AND indexname='users_email_lower_uq';
+"@ 1
+
+    # 3. Catalogs and seed data.
     Assert-Count 'estados en arbiter_common.case_status' `
-        'SELECT count(*) FROM arbiter_common.case_status;' 6
+        'SELECT count(*) FROM arbiter_common.case_status;' 9
     Assert-Count 'aseguradoras registradas' `
         'SELECT count(*) FROM arbiter_common.insurer;' 2
     Assert-Count 'usuarios sembrados' `
@@ -225,8 +215,7 @@ SELECT count(*) FROM information_schema.columns
     Assert-Count 'casos en arbiter_provincia' `
         'SELECT count(*) FROM arbiter_provincia.cases;' 1 -AtLeast
 
-    # 4. El caso multi-aseguradora que hace falta para probar la agregación: una
-    #    identidad en el esquema común con perfil de asegurado en las dos compañías.
+    # 4. One insured with a profile at both insurers, needed to test cross-tenant aggregation.
     Assert-Count 'asegurados en las DOS aseguradoras (caso Martina)' @"
 SELECT count(*) FROM (
     SELECT dni FROM arbiter_bbva.insured

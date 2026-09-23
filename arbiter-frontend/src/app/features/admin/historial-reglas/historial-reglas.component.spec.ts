@@ -6,10 +6,8 @@ import { BranchesService } from '../branches.service';
 import { RuleChangeEntry, RuleHistoryService } from '../rule-history.service';
 
 /**
- * Lo que el componente le agrega a la respuesta del backend: traducir el campo a una etiqueta que
- * el referente entienda, y distinguir "no cambió nada" de "no quedó registrado". Es la parte que el
- * backend no puede resolver —manda literales y rutas JSON, por convención del proyecto— así que si
- * se rompe acá, la auditoría se lee mal aunque el dato esté bien guardado.
+ * Covers what the component adds to the backend response: field labels, and telling "nothing
+ * changed" apart from "not recorded".
  */
 describe('HistorialReglasComponent', () => {
   let fixture: ComponentFixture<HistorialReglasComponent>;
@@ -29,6 +27,7 @@ describe('HistorialReglasComponent', () => {
     changes: [{ field: 'deadlineHours', previousValue: '72', newValue: '120' }],
     current: true,
     partial: false,
+    author: 'Ana Pérez',
     ...over,
   });
 
@@ -71,11 +70,7 @@ describe('HistorialReglasComponent', () => {
     expect(text()).toContain('120');
   });
 
-  /**
-   * El fallback importa tanto como el mapa: un campo nuevo tiene que verse igual, y mostrar la ruta
-   * JSON entera (`factors[image_reuse].weight`) en vez del último tramo es ruido para el referente
-   * — el código del factor ya viaja aparte como calificador de la fila.
-   */
+  /** Unlabeled fields fall back to the path's last segment; the factor code travels as qualifier. */
   it('sin etiqueta cae al último tramo de la ruta y separa el calificador', async () => {
     await mount([
       entry({
@@ -101,31 +96,23 @@ describe('HistorialReglasComponent', () => {
     expect(text()).toContain('image_reuse');
   });
 
-  /**
-   * Del motivo se muestra el autor y nada más: la prosa era "<qué cambió> por <quién>" y el qué ya
-   * está en el título y el alcance. De paso, así no llega a pantalla el inglés de los motivos
-   * viejos, que están persistidos y no se pueden reescribir.
-   */
-  it('muestra solo el autor del cambio, no el motivo entero', async () => {
+  /** The reason's prose isn't shown: what changed is already in the title and the scope. */
+  it('muestra el autor que resuelve el back, no el motivo entero', async () => {
     await mount([entry({ reason: 'Hard rule POLICE_DEADLINE updated by ana@bbva.com' })]);
 
-    expect(text()).toContain('ana@bbva.com');
+    expect(text()).toContain('por Ana Pérez');
     expect(text()).not.toContain('Hard rule');
     expect(text()).not.toContain('updated by');
   });
 
   it('no deja un "por" colgado cuando el motivo no nombra a nadie', async () => {
-    await mount([entry({ reason: 'Actualización automática' })]);
+    await mount([entry({ reason: 'Actualización automática', author: null })]);
 
     expect(text()).not.toContain('Actualización automática');
     expect(text()).not.toMatch(/por\s*$/);
   });
 
-  /**
-   * La distinción que la auditoría no puede perder: con una fila vieja, `changes` vacío significa
-   * "no quedó registrado", no "no cambió nada". Decir lo segundo sería afirmar algo que nadie
-   * registró.
-   */
+  /** On a partial row, empty `changes` means "not recorded", never "nothing changed". */
   it('explica el registro parcial en vez de dar a entender que no cambió nada', async () => {
     await mount([entry({ changes: [], partial: true })]);
 

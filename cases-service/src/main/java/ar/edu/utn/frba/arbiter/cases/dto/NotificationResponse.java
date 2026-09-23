@@ -5,14 +5,9 @@ import ar.edu.utn.frba.arbiter.cases.models.entities.Notification;
 import java.time.Instant;
 
 /**
- * A notification as the insured's panel shows it.
- *
- * @param caseId       what the panel links to, so the notification is actionable and not just a note
- * @param insurerSlug  which insurer {@code caseId} belongs to. Case ids are autoincremental
- *                     <b>per schema</b>, so the same number exists at both companies and without
- *                     this the link opens the wrong one. Null when the caller has a single insurer.
- * @param createdAt    what the panel dates it by — always set, unlike {@code sentAt}
- * @param sentAt       when the email went out; null if it never did
+ * @param insurerSlug  disambiguates {@code caseId}, since case ids are per schema. Null when the
+ *                     caller has a single insurer.
+ * @param sentAt       null if the email never went out
  */
 public record NotificationResponse(
         Long id,

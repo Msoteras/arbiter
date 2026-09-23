@@ -5,7 +5,6 @@ import {
   isDeadlinePrioritized,
 } from './deadline-priority';
 
-/** ISO (yyyy-MM-dd) a N días de hoy — para los labels que dependen de la fecha actual. */
 function isoDaysFromToday(days: number): string {
   const d = new Date();
   d.setHours(0, 0, 0, 0);

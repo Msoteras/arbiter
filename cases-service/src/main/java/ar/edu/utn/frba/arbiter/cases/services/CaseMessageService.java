@@ -32,7 +32,7 @@ import java.util.List;
 /**
  * The conversation between an analyst and an insured about one case.
  *
- * <p>Deliberately outside the case's lifecycle: a message never moves the expediente. Asking for a
+ * <p>Deliberately outside the case's lifecycle: a message never moves the case. Asking for a
  * clarification is not the same as {@code AWAITING_DOCUMENTATION}, which the classification owns
  * and an upload closes — giving that state a second door would make "waiting on the insured" mean
  * two different things.

@@ -24,22 +24,12 @@ import java.util.Comparator;
 import java.util.List;
 
 /**
- * "Mis expedientes" para un asegurado que es cliente de más de una aseguradora: junta sus casos
- * de todos los esquemas a los que pertenece en una sola lista.
+ * An insured's own cases across every insurer they belong to, merged into one list. Only for the
+ * ASEGURADO role: analysts and referents stay bounded to their own schema.
  *
- * <p><b>Solo aplica al rol ASEGURADO.</b> Un analista o un referente pertenecen a una aseguradora
- * y ver los expedientes de otra sería una fuga entre tenants — su bandeja sigue el camino normal,
- * acotada por el {@code search_path} de su esquema.
- *
- * <p>Los esquemas sobre los que itera salen de {@code insurerIds}, un claim <b>firmado</b> del
- * JWT, nunca de un parámetro del request: es lo único que garantiza que alguien no pueda nombrar
- * un tenant al que no pertenece. Además cada caso pasa por el filtro de DNI, así que un id de
- * aseguradora de más tampoco alcanzaría para ver expedientes ajenos.
- *
- * <p>Pagina en memoria, lo que sería inaceptable en la bandeja del analista (miles de casos) y
- * acá no lo es: el universo son <b>los siniestros propios de una persona</b>, un puñado. Ordenar
- * bien entre esquemas exige traer de cada uno y recién después cortar; con este volumen es
- * barato y es la única forma de que el orden global sea correcto.
+ * <p>The schemas come from the JWT's signed {@code insurerIds} claim, never from the request, and
+ * every case is also filtered by the caller's DNI. Paginates in memory, which is only acceptable
+ * because one person's own claims are a handful and a correct global order needs all of them.
  */
 @Service
 @RequiredArgsConstructor
@@ -48,18 +38,13 @@ public class InsuredCaseAggregator {
     private final CaseRepository caseRepository;
     private final InsurerRepository insurerRepository;
 
-    /**
-     * Un expediente junto con la aseguradora de la que salió. Sin esto el origen se pierde al
-     * fusionar: los ids son autoincrementales <b>por esquema</b>, así que el mismo número puede
-     * existir en las dos aseguradoras y después no hay forma de saber a cuál abrir.
-     */
+    /** Case ids are sequential per schema, so the insurer is needed to know which one to open. */
     public record InsuredCase(Case caseRecord, String insurerSlug, String insurerName) {
     }
 
     /**
-     * Devuelve entidades y no {@code CaseResponse} a propósito: aplanar es de
-     * {@code CaseServiceImpl}, que es el único lugar donde vive esa forma. Si este servicio
-     * mapeara, los dos beans se necesitarían mutuamente.
+     * Returns entities rather than {@code CaseResponse}: mapping belongs to {@code CaseServiceImpl},
+     * and doing it here would make the two beans depend on each other.
      */
     public Page<InsuredCase> findOwnCases(List<CaseStatus> status, String claimCause, String policyNumber,
                                     LocalDate eventDateFrom, LocalDate eventDateTo,
@@ -67,19 +52,13 @@ public class InsuredCaseAggregator {
                                     Pageable pageable) {
         CallerContext.Caller caller = CallerContext.get();
         if (caller.insuredId() == null || caller.insurerIds().isEmpty()) {
-            // Un asegurado sin DNI o sin aseguradoras en el token no tiene expedientes que ver.
-            // Devolver vacío y no "todos" es la diferencia entre un bug y una fuga.
+            // Empty, never "all": without these the caller has no cases to see.
             return Page.empty(pageable);
         }
-        // Nota: los expedientes de otra aseguradora vienen sin el análisis joineado, porque
-        // llm_analysis/risk_analysis son por esquema y se consultan con el tenant del request ya
-        // restaurado. No se nota: el asegurado nunca ve clasificación ni riesgo (ver la memoria
-        // de visibilidad asegurado vs analista).
+        // Cases from other insurers come back without their analysis joined (it is per schema);
+        // harmless, since the insured never sees classification or risk.
 
-        // El DNI se fuerza como filtro en vez de tomarse del request: es lo que ata el resultado
-        // al que pregunta.
-        // Sin filtro de analista: a quién le tocó trabajar el expediente es interno de la
-        // aseguradora, no un recorte de la vista del asegurado.
+        // The DNI filter is forced from the token, not taken from the request.
         Specification<Case> spec = CaseSpecifications.withFilters(
                 status, claimCause, policyNumber, caller.insuredId(),
                 eventDateFrom, eventDateTo, q, riskBand, null);
@@ -88,7 +67,7 @@ public class InsuredCaseAggregator {
             spec = spec == null ? scoped : spec.and(scoped);
         }
 
-        // Se intersecta con las del token: el filtro no puede ampliar lo que el asegurado ve.
+        // Intersected with the token's insurers: the filter can't widen what the insured sees.
         List<Long> insurerIds = insurerId == null
                 ? caller.insurerIds()
                 : caller.insurerIds().stream().filter(insurerId::equals).toList();
@@ -108,8 +87,7 @@ public class InsuredCaseAggregator {
                         merged.add(new InsuredCase(found, InsurerSlug.of(insurer), insurer.getName())));
             }
         } finally {
-            // Restaura el tenant del request: el resto de la request (y la conexión que se
-            // devuelve al pool) tiene que seguir viendo el esquema que le corresponde.
+            // The rest of the request, and the pooled connection, must keep seeing the caller's schema.
             TenantContext.set(callerTenant);
         }
 
@@ -117,12 +95,8 @@ public class InsuredCaseAggregator {
     }
 
     /**
-     * El orden lo impone esta vista y se ignora el {@code Sort} del pageable: ordenar por un campo
-     * arbitrario exigiría reimplementar en memoria lo que hace la BD, y el portal del asegurado no
-     * ofrece ordenar. Se usa fecha de denuncia descendente, que es lo que espera ver primero.
-     *
-     * <p>El id va sólo como desempate estable: es autoincremental <b>por esquema</b>, así que se
-     * repite entre aseguradoras y por sí solo no ordena nada.
+     * Ignores the pageable's {@code Sort}: the insured portal offers no sorting, so it is always
+     * newest report first. The id is only a tiebreaker, since ids repeat across schemas.
      */
     private Page<InsuredCase> page(List<InsuredCase> merged, Pageable pageable) {
         merged.sort(Comparator.comparing((InsuredCase it) -> it.caseRecord().getReportedAt(),

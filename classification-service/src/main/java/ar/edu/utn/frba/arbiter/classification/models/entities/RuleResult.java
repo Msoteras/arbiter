@@ -13,16 +13,7 @@ import lombok.Setter;
 import java.math.BigDecimal;
 import java.time.Instant;
 
-/**
- * Audit record of a single business-rule evaluation against a claim
- * ("resultado_regla" in the DER). Written by {@code ClassificationResultsService.saveRuleResults}
- * for every hard rule evaluated (coverage exclusions and the temporal ones) — both PASS and FAIL,
- * per SSN Disposition 2/2023 ("which rule was evaluated and with what result", not just the
- * rejections). Nothing reads it back yet: it's a write-only audit trail today.
- * ruleId is a logical reference to rules-service's InsurerRule (there's no rule common to
- * every insurer to point at instead) and caseId to cases-service's Case — neither is a
- * real FK, same criterion as LlmAnalysis.caseId.
- */
+/** Audit of one hard-rule evaluation, PASS or FAIL (SSN Disposition 2/2023). */
 @Entity
 @Table(name = "rule_result")
 @Getter
@@ -49,7 +40,7 @@ public class RuleResult {
     @Column(name = "evaluated_at", nullable = false)
     private Instant evaluatedAt;
 
-    /** Null for the coverage-scope rules: they live on the coverage, not in {@code insurer_rule}. */
+    /** Null for coverage-scope rules: they live on the coverage, not in {@code insurer_rule}. */
     @Column(name = "rule_id")
     private Long ruleId;
 

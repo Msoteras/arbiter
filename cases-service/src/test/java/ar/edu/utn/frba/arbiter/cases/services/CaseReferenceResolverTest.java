@@ -28,12 +28,8 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
- * Resolver of strings to FKs. What's being tested here is the decision that a value that doesn't
- * match **fails** (422) instead of being saved as free text.
- *
- * <p>The policy is the exception, on purpose: the portal lists policies reading the insurer DB
- * live, so one that isn't in the local snapshot isn't invalid data — it's one Arbiter hasn't
- * copied yet. That one syncs on demand (decision #10) instead of failing.
+ * Resolves strings to FKs. A value that doesn't match <b>fails</b> (422) instead of being saved as
+ * free text, except for the policy, which is synced on demand (see resolvePolicy tests).
  */
 @ExtendWith(MockitoExtension.class)
 class CaseReferenceResolverTest {
@@ -79,8 +75,8 @@ class CaseReferenceResolverTest {
 
     @Test
     void resolveClaimCause_causeNotInThatBranch_throws() {
-        // La misma causa existe en otro ramo: el par (branch, name) es lo que la identifica, así
-        // que pedirla en el ramo equivocado tiene que fallar y no traer la del otro.
+        // The same cause exists in another branch: (branch, name) identifies it, so asking in the
+        // wrong branch must fail instead of returning the other one.
         Branch branch = CaseFixtures.branch("Celulares");
         branch.setId(7L);
         when(branchRepository.findByName("Celulares")).thenReturn(Optional.of(branch));

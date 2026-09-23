@@ -16,18 +16,14 @@ import { SelectComponent, SelectOption } from '../../../shared/ui/select/select.
 import { EmptyStateComponent } from '../../../shared/ui/empty-state/empty-state.component';
 import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
 
-/** Fila en edición. `id` null = alta. */
+/** `id` null = new firm. */
 interface PeritoDraft extends PeritoRequest {
   id: number | null;
 }
 
 /**
- * Catálogo de peritos de la aseguradora. Igual que el scoring, es config de TODA la aseguradora y
- * no de un ramo, así que vive como sección propia de la pantalla de reglas y no dentro del
- * master-detail de ramos — aunque cada perito pueda especializarse en uno.
- *
- * Lo que se configura acá es a QUIÉN se deriva. Desde qué monto se puede derivar es una regla de
- * negocio y vive en el motor (rules-service), no acá.
+ * Insurer-wide expert firms catalog (who a case can be referred to), even though each firm may
+ * specialize in a branch. The amount that enables a referral is a rule in rules-service.
  */
 @Component({
   selector: 'app-peritos-config',
@@ -53,11 +49,11 @@ export class PeritosConfigComponent {
   protected readonly loading = signal(true);
   protected readonly error = signal<string | null>(null);
 
-  /** Null = ninguna fila en edición. */
+  /** null = no row being edited. */
   protected readonly draft = signal<PeritoDraft | null>(null);
   protected readonly saving = signal(false);
 
-  /** La opción vacía es "Todos los ramos", que es un valor real (generalista), no un "sin elegir". */
+  /** The empty option is a real value (generalist firm), not "unselected". */
   protected readonly branchOptions = computed<SelectOption[]>(() => [
     { value: '', label: 'Todos los ramos' },
     ...this.branches().map((b) => ({ value: String(b.id), label: b.name })),
@@ -130,14 +126,14 @@ export class PeritosConfigComponent {
     this.setField('branchId', value ? Number(value) : null);
   }
 
-  /** '' es el generalista (todos los ramos), que es un valor real y no un "sin elegir". */
+  /** '' is the generalist firm (every branch). */
   protected branchValue(draft: PeritoDraft): string {
     return draft.branchId == null ? '' : String(draft.branchId);
   }
 
   protected readonly canSave = computed(() => {
     const d = this.draft();
-    // El mail es el único canal con el perito: sin él la derivación no llega a ningún lado.
+    // Email is the only channel to the firm: without it a referral goes nowhere.
     return !!d && d.name.trim().length > 0 && d.email.trim().length > 0;
   });
 
@@ -173,10 +169,7 @@ export class PeritosConfigComponent {
     });
   }
 
-  /**
-   * El backend rechaza con 409 el borrado de un perito que ya recibió derivaciones. El mensaje que
-   * llega explica que hay que desactivarlo, así que se muestra tal cual en vez de un genérico.
-   */
+  /** A 409 (firm has referrals) explains it must be deactivated instead; shown as is. */
   protected remove(perito: PeritoAdmin): void {
     this.error.set(null);
     this.peritosService.remove(perito.id).subscribe({

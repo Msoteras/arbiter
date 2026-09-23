@@ -25,19 +25,12 @@ interface DocUploadSlot {
 }
 
 /**
- * Ninguna de las dos fuentes que arman los slots (agenda del ramo, documentos ya subidos) tiene un
- * resultado válido para mostrar mientras está en vuelo — a diferencia de otros combos de este
- * wizard, acá no hay un catálogo "razonable" para adivinar: mostrar el catálogo completo de entrada
- * es exactamente el bug que se arregla acá (pedía de nuevo lo ya cargado hasta que la respuesta
- * real llegaba y lo corregía solo). Mientras carga, el uploader no arma ninguna fila.
+ * Neither source has a sensible placeholder while in flight: showing the full catalog would ask
+ * again for documents already uploaded, so no rows are rendered until both resolve.
  */
 type FetchState<T> = { status: 'loading' } | { status: 'ok'; value: T };
 
-/**
- * Carga de documentación faltante para un expediente en AWAITING_DOCUMENTATION.
- * Sube los archivos vía POST /cases/{id}/documents (lo que re-dispara la
- * clasificación en el backend) y emite `uploaded` para que el padre refresque.
- */
+/** Uploading documents via POST /cases/{id}/documents re-triggers classification on the backend. */
 @Component({
   selector: 'app-doc-upload',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -119,8 +112,7 @@ type FetchState<T> = { status: 'loading' } | { status: 'ok'; value: T };
       font-size: var(--font-size-body);
       color: var(--text-secondary);
     }
-    /* La miniatura crece hasta ocupar el ancho libre: al expandirla, la vista previa
-       necesita todo el espacio de la fila. */
+    /* Takes the free width: the expanded preview needs the whole row. */
     .doc-row-file {
       display: flex;
       align-items: flex-start;
@@ -172,24 +164,17 @@ export class DocUploadComponent {
 
   readonly caseId = input.required<number>();
   /**
-   * De qué aseguradora es el expediente — un asegurado con pólizas en más de una compañía puede
-   * estar subiendo documentación a un expediente que no vive en el tenant por defecto de su
-   * sesión (ver `ExpedienteService.getById`). Null para el analista/referente.
+   * An insured with policies in several insurers may be uploading to a case outside their session's
+   * default tenant (see `ExpedienteService.getById`). Null for analysts and referents.
    */
   readonly insurerSlug = input<string | null>(null);
-  /**
-   * Ramo y hecho generador del expediente: arman el uploader con los documentos que esa
-   * combinación realmente requiere (la agenda del referente), no con el catálogo completo. Sin
-   * ambos, cae al catálogo.
-   */
+  /** With branch and claim cause, slots come from the document agenda; otherwise, the full catalog. */
   readonly branch = input<string | null>(null);
   readonly claimCause = input<string | null>(null);
-  /** Se emite cuando el backend aceptó los documentos (el caso vuelve a clasificación). */
   readonly uploaded = output<void>();
 
   protected readonly slots = signal<DocUploadSlot[]>([]);
 
-  /** Tipos requeridos del ramo + hecho generador (o el catálogo completo como fallback). */
   private readonly requiredTypes = toSignal(
     toObservable(computed(() => ({ branch: this.branch(), claimCause: this.claimCause() }))).pipe(
       switchMap(({ branch, claimCause }) =>
@@ -205,11 +190,7 @@ export class DocUploadComponent {
     { initialValue: { status: 'loading' } },
   );
 
-  /**
-   * Tipos que el expediente ya tiene adjuntos. Sin esto, un tipo ya cargado (por ejemplo, en la
-   * primera tanda del alta) seguía apareciendo en el uploader como si faltara — la agenda dice qué
-   * hace falta EN TOTAL, no qué falta todavía.
-   */
+  /** The agenda lists everything required, not what is still missing, so uploaded types are subtracted. */
   private readonly uploadedTypes = toSignal(
     toObservable(computed(() => ({ caseId: this.caseId(), insurerSlug: this.insurerSlug() }))).pipe(
       switchMap(({ caseId, insurerSlug }) =>
@@ -226,12 +207,10 @@ export class DocUploadComponent {
     { initialValue: { status: 'loading' } },
   );
 
-  /** Mientras cualquiera de las dos fuentes sigue en vuelo, no hay nada confiable que mostrar. */
   protected readonly loadingSlots = computed(
     () => this.requiredTypes().status === 'loading' || this.uploadedTypes().status === 'loading',
   );
 
-  /** Lo que realmente falta: la agenda completa, menos lo que ya se subió. */
   private readonly pendingTypes = computed<readonly CaseDocumentType[]>(() => {
     const required = this.requiredTypes();
     const uploaded = this.uploadedTypes();
@@ -240,8 +219,7 @@ export class DocUploadComponent {
   });
 
   constructor() {
-    // Al resolverse la agenda (o la lista de ya subidos), rearma los slots con lo que falta de
-    // verdad (limpia archivos elegidos y no enviados).
+    // Rebuilding the slots discards files picked but not yet sent.
     effect(() => {
       const types = this.pendingTypes();
       this.slots.set(types.map(({ type, label }) => ({ type, label, file: null })));

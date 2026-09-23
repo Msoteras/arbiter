@@ -15,11 +15,8 @@ const ACTOR_LABELS: Record<StatusTransition['actor'], string> = {
 };
 
 /**
- * Este componente solo lo usa la vista del analista (expediente-detail) — el portal del asegurado
- * arma su propio timeline aparte (seguimiento.component). Por eso el "próximo paso" tiene su
- * propio texto acá en vez de reusar `proximoPaso()` de core/models/estado: ese está escrito en
- * segunda persona para el asegurado ("Subí los documentos faltantes", "Vas a recibir un correo…")
- * y sonaba raro —o directamente incorrecto— leído por el analista, que no es a quien le habla.
+ * Analyst-facing wording. `proximoPaso()` in core/models/estado addresses the insured, whose portal
+ * has its own timeline.
  */
 const PROXIMO_PASO_ANALISTA: Partial<Record<CaseStatus, string>> = {
   PENDING_CLASSIFICATION: 'El motor de reglas y el modelo todavía están evaluando el caso.',
@@ -27,16 +24,10 @@ const PROXIMO_PASO_ANALISTA: Partial<Record<CaseStatus, string>> = {
   CLASSIFICATION_FAILED: 'Podés reintentar la clasificación desde la card de arriba.',
   PENDING_EXPERT_REPORT: 'Esperando el informe del perito para volver a revisión.',
   PENDING_REPAIR: 'Esperando la respuesta del servicio técnico para volver a revisión.',
-  // PENDING_ANALYST_REVIEW no tiene entrada: la card de decisión ya le muestra los botones,
-  // repetir "está esperando tu decisión" acá abajo sería ruido.
+  // No PENDING_ANALYST_REVIEW entry: the decision card already prompts the analyst.
 };
 
-/**
- * Timeline vertical del historial de estados de un expediente (trazabilidad del
- * Módulo de Expedientes). Cada hito viene del backend con timestamp, actor y motivo;
- * si el expediente no está resuelto, cierra con un hito "fantasma" que anticipa el
- * próximo paso esperado.
- */
+/** Case status history; an unresolved case ends with a placeholder step for the expected next one. */
 @Component({
   selector: 'app-status-timeline',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -56,8 +47,6 @@ const PROXIMO_PASO_ANALISTA: Partial<Record<CaseStatus, string>> = {
             <div class="when mono">{{ when(h.changedAt) }}</div>
             <div class="transition">
               @if (isSameStatus(h)) {
-                <!-- Hito que no movió el expediente de estado (ej. una asignación): mostrar
-                     "X → X" sería ruido, alcanza con el motivo que va abajo. -->
                 <span class="from">Sin cambio de estado</span>
               } @else {
                 @if (h.fromStatus) {
@@ -107,7 +96,6 @@ const PROXIMO_PASO_ANALISTA: Partial<Record<CaseStatus, string>> = {
       position: relative;
       padding: 0 0 var(--space-4) var(--space-5);
     }
-    /* Línea que conecta los hitos */
     .step:not(:last-child)::before {
       content: '';
       position: absolute;
@@ -131,7 +119,6 @@ const PROXIMO_PASO_ANALISTA: Partial<Record<CaseStatus, string>> = {
       background: var(--accent);
       border-color: var(--accent);
     }
-    /* El hito actual toma el color de semáforo del estado (resolución/curso). */
     .step.current[data-tone='ok'] .marker {
       background: var(--status-ok);
       border-color: var(--status-ok);
@@ -211,9 +198,8 @@ const PROXIMO_PASO_ANALISTA: Partial<Record<CaseStatus, string>> = {
   `,
 })
 export class StatusTimelineComponent {
-  /** Transiciones tal como las devuelve GET /api/v1/cases/{id} (orden cronológico). */
+  /** As returned by GET /api/v1/cases/{id}, in chronological order. */
   readonly history = input.required<StatusTransition[]>();
-  /** Estado actual del expediente; define el hito "próximo paso" cuando no es final. */
   readonly currentStatus = input.required<string>();
 
   protected readonly nextStep = computed(() =>
@@ -224,10 +210,7 @@ export class StatusTimelineComponent {
   protected readonly hasNextStep = computed(() => this.nextStep() !== '');
   protected readonly currentTone = computed<StatusTone>(() => estadoTone(this.currentStatus()));
 
-  /**
-   * Hito registrado sin cambio de estado. El backend usa `from === to` para eventos que dejan
-   * traza pero no mueven el expediente — hoy, las asignaciones de analista.
-   */
+  /** The backend records `from === to` for events that leave a trace without a status change (e.g. assignments). */
   protected isSameStatus(h: StatusTransition): boolean {
     return h.fromStatus !== null && h.fromStatus === h.toStatus;
   }
@@ -236,7 +219,7 @@ export class StatusTimelineComponent {
     return estadoLabel(status);
   }
 
-  /** El motivo del backend trae el literal del enum incrustado; acá se lee en español. */
+  /** The backend reason embeds enum literals; this renders them as labels. */
   protected nota(reason: string): string {
     return historialNota(reason);
   }

@@ -20,17 +20,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * {@link RulesRestAdapter}'s availability contract: the configuration the referente entered
- * (Fast Track, hard rules, agenda, texts) can't be silently substituted by the baseline when
- * rules-service doesn't respond — the exception has to propagate so
- * {@code ClaimClassificationService}'s @Retryable and cases-service's poller do what they already
- * do with any classification that doesn't close (retry, and if not, CLASSIFICATION_FAILED).
- * Scoring is the one documented exception (parallel signal, gates nothing).
- *
- * <p>A real server (JDK's {@code com.sun.net.httpserver.HttpServer}) instead of RestClient mocks,
- * to exercise the exceptions exactly as the real HTTP layer throws them
- * ({@code ResourceAccessException} on connection refused, {@code RestClientResponseException} on
- * 5xx) — which is exactly what {@code @Retryable} matches on.
+ * When rules-service doesn't respond the exception must propagate (for {@code @Retryable}) instead of
+ * silently falling back to the baseline; scoring is the one exception. Uses a real JDK HTTP server so
+ * the exceptions are the ones the real HTTP layer throws, which is what {@code @Retryable} matches on.
  */
 class RulesRestAdapterTest {
 
@@ -45,7 +37,6 @@ class RulesRestAdapterTest {
         }
     }
 
-    /** No coverage, rules-service isn't even contacted: the baseline alone. */
     @Test
     void noCoverageId_returnsBaselineWithoutCallingRulesService() {
         RulesRestAdapter adapter = adapterPointingAt("http://localhost:1");
@@ -55,7 +46,6 @@ class RulesRestAdapterTest {
         assertThat(rules.branchId()).isEqualTo("Celulares");
     }
 
-    /** rules-service up but "nothing configured" (200 with empty bodies): baseline untouched. */
     @Test
     void rulesServiceUp_withNothingConfigured_fallsBackToBaselinePerField() throws IOException {
         server = startServer(exchange -> respondEmpty(exchange));
@@ -68,17 +58,14 @@ class RulesRestAdapterTest {
         assertThat(rules.reportDeadlineHours()).isEqualTo(baseline.reportDeadlineHours());
     }
 
-    /** With rules-service down (connection refused), reading the rules blows up — no fallback. */
     @Test
     void rulesServiceUnreachable_propagatesInsteadOfFallingBackToMock() {
-        // Closed port on purpose: nobody's listening, connection refused guaranteed.
         RulesRestAdapter adapter = adapterPointingAt("http://localhost:" + closedPort());
 
         assertThatThrownBy(() -> adapter.getRules("Celulares", 1L, "Robo en vía pública"))
                 .isInstanceOf(ResourceAccessException.class);
     }
 
-    /** A 500 from rules-service doesn't get swallowed either: the other type @Retryable retries on. */
     @Test
     void rulesServiceReturns500_propagatesInsteadOfFallingBackToMock() throws IOException {
         server = startServer(exchange -> respondError(exchange, 500));
@@ -88,11 +75,7 @@ class RulesRestAdapterTest {
                 .isInstanceOf(RestClientResponseException.class);
     }
 
-    /**
-     * Scoring is the documented exception: if ITS endpoint specifically fails but the rest of
-     * rules-service answers, classification proceeds — the score is a parallel signal that never
-     * gates the decision.
-     */
+    /** Scoring is the exception: it never gates the decision, so its failure is tolerated. */
     @Test
     void scoringAlone_stillFallsBackToBaseline_whenEverythingElseSucceeds() throws IOException {
         server = startServer(exchange -> {
@@ -110,10 +93,7 @@ class RulesRestAdapterTest {
         assertThat(rules.scoringConfig()).isEqualTo(baseline.scoringConfig());
     }
 
-    /**
-     * The adapter once called document-requirements without claimCause and rules-service answered
-     * 400 on every classification. Nothing here asserted the query string, so it went unnoticed.
-     */
+    /** rules-service answers 400 without claimCause, failing every classification. */
     @Test
     void everyCallCarriesTheQueryParamsRulesServiceRequires() throws IOException {
         List<String> requested = Collections.synchronizedList(new ArrayList<>());
@@ -129,14 +109,10 @@ class RulesRestAdapterTest {
                 .isNotEmpty()
                 .allSatisfy(uri -> {
                     assertThat(uri).contains("coverageId=1");
-                    // By decoded value, not by prefix: asserting contains("claimCause=Robo") would
-                    // pass on a truncated or half-encoded value, which is the failure mode a claim
-                    // cause with spaces and an accent actually has.
+                    // By decoded value, not prefix: a prefix match would pass a truncated value.
                     assertThat(queryParam(uri, "claimCause")).isEqualTo("Robo en vía pública");
                 });
-        // Los endpoints de toda la aseguradora quedan afuera: no llevan cobertura porque no
-        // dependen de ninguna (el scoring es uno solo por compañía, y el antecedente de fraude es
-        // de la persona, no de la cobertura que afectó).
+        // Insurer-wide endpoints (scoring, fraud record) take no coverage.
         List<String> insurerWide = List.of("/internal/scoring", "/internal/fraud-record-rule");
         assertThat(requested).filteredOn(uri -> uri.contains("/internal/")
                         && insurerWide.stream().noneMatch(uri::contains))
@@ -145,16 +121,8 @@ class RulesRestAdapterTest {
     }
 
     /**
-     * The claim cause travels as a <b>name</b> and not an id (see
-     * {@code overlayDocumentRequirements}), so every accent and space in the catalog has to survive
-     * the round trip. It reaches rules-service as a query param, gets matched against
-     * {@code claim_cause.name} there, and a mangled "Rotura accidental" or "Caída" simply finds no
-     * agenda — which the adapter then reads as "nothing configured" and papers over with the
-     * baseline. Silent, and wrong in the direction that hurts: the case gets asked for the
-     * documents of a different claim cause.
-     *
-     * <p>Asserted on the server side, decoded, because that is the only place the actual value
-     * received is visible — the encoding on the wire is the transport's business, not the contract.
+     * The claim cause travels as a name, so accents and spaces must survive: a mangled name finds no
+     * agenda and silently falls back to the baseline's documents. Asserted decoded on the server side.
      */
     @Test
     void claimCauseWithAccentsAndSpaces_arrivesIntactAtRulesService() throws IOException {
@@ -173,11 +141,7 @@ class RulesRestAdapterTest {
         assertThat(received).containsExactly("Caída");
     }
 
-    /**
-     * A referente who clears every document from the panel means it: the engine must not put the
-     * baseline's back. Folding "configured as none" into "not configured" left cases stuck in
-     * AWAITING_DOCUMENTATION demanding a police report the panel no longer listed.
-     */
+    /** An empty agenda is "no documents required", not "not configured". */
     @Test
     void emptyAgenda_isHonoured_notReadAsUnconfigured() throws IOException {
         server = startServer(this::respondEmpty);
@@ -188,7 +152,6 @@ class RulesRestAdapterTest {
         assertThat(rules.requiredDocumentTypes()).isEmpty();
     }
 
-    /** No answer at all (unknown coverage or claim cause) is the case that does fall back. */
     @Test
     void noAgendaAnswer_fallsBackToBaseline() throws IOException {
         server = startServer(exchange -> {
@@ -212,7 +175,6 @@ class RulesRestAdapterTest {
         return new RulesRestAdapter(url, JWT_SECRET, new BaselineRulesAdapter());
     }
 
-    /** One query param's decoded value, or null if the URI doesn't carry it. */
     private String queryParam(String uri, String name) {
         int start = uri.indexOf('?');
         if (start < 0) {
@@ -237,8 +199,7 @@ class RulesRestAdapterTest {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-        // The socket closes when the try-with-resources exits: the port is free but nobody's
-        // listening, so connecting gives connection refused — exactly "the service is down".
+        // Closed on exit: nobody listens on the port, so connecting is refused.
     }
 
     private interface Handler {
@@ -258,7 +219,7 @@ class RulesRestAdapterTest {
         return httpServer;
     }
 
-    /** 200 with an empty body: the real response for "this insurer configured nothing here". */
+    /** 200 with an empty body: what rules-service returns when nothing is configured. */
     private void respondEmpty(com.sun.net.httpserver.HttpExchange exchange) throws IOException {
         byte[] body = exchange.getRequestURI().getPath().contains("document-requirements")
                 ? "[]".getBytes(StandardCharsets.UTF_8)

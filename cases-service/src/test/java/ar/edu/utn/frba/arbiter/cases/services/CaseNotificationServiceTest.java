@@ -91,8 +91,8 @@ class CaseNotificationServiceTest {
     }
 
     /**
-     * Regression: with no API key the adapter logs and returns without sending, and the row used to
-     * be stamped sent=true anyway — the panel showed a mail the insured never got.
+     * With no API key the adapter logs and returns without sending: the row must not be marked
+     * sent=true, or the panel would show a mail the insured never got.
      */
     @Test
     void notifyStatusChange_doesNotMarkSentWhenNothingWentOut() {
@@ -132,8 +132,8 @@ class CaseNotificationServiceTest {
     }
 
     /**
-     * Regression: a missing mail SDK surfaces as NoClassDefFoundError, which is an Error and not an
-     * Exception. It escaped as a 500 on an approval that had already been applied.
+     * A missing mail SDK surfaces as NoClassDefFoundError, an Error rather than an Exception; it
+     * must not turn an approval that was already applied into a 500.
      */
     @Test
     void notifyStatusChange_survivesAnErrorAndNotJustAnException() {
@@ -208,7 +208,7 @@ class CaseNotificationServiceTest {
         verify(notificationRepository).saveAll(List.of(one, two));
     }
 
-    /** Reading only the active tenant left a multi-insurer insured with a bell counting one. */
+    /** An insured of several insurers must see every insurer's notices, not only the active tenant's. */
     @Test
     void forCurrentUser_mergesEveryInsurerOfTheInsured() {
         insuredOfBothInsurers();
@@ -252,7 +252,6 @@ class CaseNotificationServiceTest {
         assertThat(service.unreadCountForCurrentUser()).isEqualTo(3L);
     }
 
-    /** The badge never goes above what the panel can list. */
     @Test
     void unreadCount_neverExceedsThePanelCap() {
         insuredOfBothInsurers();
@@ -298,10 +297,9 @@ class CaseNotificationServiceTest {
     }
 
     /**
-     * La reapertura no se puede distinguir por el estado destino (una clasificación normal llega
-     * al mismo PENDING_ANALYST_REVIEW), así que tiene su propia entrada y su propio `type` — si
-     * reusara el del estado, el panel del asegurado diría "en revisión" sobre un expediente que
-     * en realidad se reabrió.
+     * A reopening can't be told apart by target status (a normal classification also lands on
+     * PENDING_ANALYST_REVIEW), so it has its own `type`; otherwise the insured's panel would say
+     * "under review" on a case that was reopened.
      */
     @Test
     void notifyReopened_writesItsOwnTypeAndSendsTheEmail() {
@@ -317,9 +315,8 @@ class CaseNotificationServiceTest {
     }
 
     /**
-     * El motivo que escribe el analista es interno (puede nombrar una sospecha, un error, una pista
-     * de fraude). Al asegurado se le cuenta el hecho, nunca el porqué —
-     * [[project-asegurado-vs-analista-visibility]].
+     * The analyst's reason is internal (it may name a suspicion, a mistake, a fraud lead). The
+     * insured is told what happened, never why.
      */
     @Test
     void notifyReopened_saysNothingAboutWhy() {

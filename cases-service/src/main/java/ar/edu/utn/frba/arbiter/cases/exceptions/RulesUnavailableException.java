@@ -1,9 +1,8 @@
 package ar.edu.utn.frba.arbiter.cases.exceptions;
 
 /**
- * rules-service didn't answer. Distinct from "this insurer doesn't derive": collapsing the two
- * would present an outage as a business policy, and the analyst would read "no corresponde
- * derivar" when the truth is that nobody could tell.
+ * rules-service didn't answer. Kept distinct from "this insurer doesn't derive" so an outage is
+ * never presented to the analyst as a business policy.
  */
 public class RulesUnavailableException extends RuntimeException {
 

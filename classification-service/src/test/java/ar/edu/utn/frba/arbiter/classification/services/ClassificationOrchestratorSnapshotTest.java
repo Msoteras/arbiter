@@ -36,11 +36,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/**
- * D27 · the snapshot of the policy the classification ran on. Without it the classification isn't
- * reproducible: the two factors coming from the insurer's DB ({@code policy_standing},
- * {@code claim_frequency}) are read live from a system that keeps changing.
- */
+/** The policy snapshot makes a classification reproducible after the insurer's data changes. */
 @ExtendWith(MockitoExtension.class)
 class ClassificationOrchestratorSnapshotTest {
 
@@ -67,7 +63,7 @@ class ClassificationOrchestratorSnapshotTest {
 
     @InjectMocks private ClassificationOrchestrator orchestrator;
 
-    /** Fast Track with no documents: the shortest path, which still goes through the snapshot. */
+    /** Even the shortest path (Fast Track, no documents) records the snapshot. */
     @BeforeEach
     void stubContext() {
         when(insurerAdapter.getPolicy(any())).thenReturn(RiskFixtures.policy(true, new BigDecimal("400000")));
@@ -101,34 +97,25 @@ class ClassificationOrchestratorSnapshotTest {
         assertThat(snapshot.sumInsured()).isEqualByComparingTo("400000");
         assertThat(snapshot.paymentsUpToDate()).isTrue();   // → factor policy_standing
         assertThat(snapshot.previousClaims()).isEqualTo(2); // → factor claim_frequency
-        // The amount is frozen next to the count: alone, neither says how big that history was.
         assertThat(snapshot.totalAmountClaimed()).isEqualByComparingTo("2440000");
-        assertThat(snapshot.inForce()).isTrue();            // el hecho cae dentro de la vigencia
+        assertThat(snapshot.inForce()).isTrue();            // the event falls within the validity window
     }
 
-    /**
-     * Lo que la determinación del monto a pagar necesita congelado. Sin esto, el monto que el
-     * analista autorice hoy no se puede volver a explicar dentro de tres meses: la BD Aseguradora
-     * ya se movió, y la cuenta se rehace con datos que la decisión nunca vio.
-     */
+    /** What the settlement needs frozen, so an amount authorized later can still be explained. */
     @Test
     void freezesWhatTheSettlementWillNeedToRecomputeTheAmount() {
         orchestrator.classify(CASE_ID, RiskFixtures.claim(new BigDecimal("100000")), List.of());
 
         Snapshot snapshot = capturedSnapshot();
-        // Fin de vigencia: es contra esta fecha que se cuentan las cuotas a vencer.
+        // Installments still to fall due are counted up to this date.
         assertThat(snapshot.effectiveTo()).isEqualTo(RiskFixtures.POLICY_START.atStartOfDay().plusYears(1));
         assertThat(snapshot.installmentAmount()).isEqualByComparingTo("8000");
         assertThat(snapshot.overdueBalance()).isEqualByComparingTo("0");
-        // Sin siniestros previos en el año, éste es el primer evento → se paga al 100%.
+        // No prior claims in the year: first event, paid at 100%.
         assertThat(snapshot.eventsInYear()).isEqualTo(1);
     }
 
-    /**
-     * El número de evento sale del historial, con la misma ventana de 12 meses que usa la regla
-     * dura MAX_EVENTS_YEAR: el tope de eventos y el porcentaje que se paga no pueden contar
-     * distinto sobre el mismo siniestro.
-     */
+    /** Same 12-month window as MAX_EVENTS_YEAR: the cap and the payable percentage must agree. */
     @Test
     void countsThisClaimAsTheSecondEventWhenOneFallsInsideTheYear() {
         when(insurerAdapter.getHistory(any())).thenReturn(InsuredHistory.builder()
@@ -149,7 +136,6 @@ class ClassificationOrchestratorSnapshotTest {
         assertThat(capturedSnapshot().eventsInYear()).isEqualTo(2);
     }
 
-    /** The raw payload is the faithful record: the columns are its already-interpreted reading. */
     @Test
     void keepsTheRawInsurerAnswer() {
         orchestrator.classify(CASE_ID, RiskFixtures.claim(new BigDecimal("100000")), List.of());
@@ -159,7 +145,7 @@ class ClassificationOrchestratorSnapshotTest {
                 .contains("previousClaimsCount");
     }
 
-    /** Un hecho fuera de la vigencia se fotografía como tal, no como "vigente". */
+    /** An event outside the validity window is recorded as such. */
     @Test
     void recordsThePolicyAsNotInForceWhenTheEventFallsOutside() {
         orchestrator.classify(
@@ -170,7 +156,7 @@ class ClassificationOrchestratorSnapshotTest {
         assertThat(capturedSnapshot().inForce()).isFalse();
     }
 
-    /** The isolated classification (test endpoint) has no case to hang the snapshot on. */
+    /** Without a case there's nothing to hang the snapshot on. */
     @Test
     void isolatedClassificationRecordsNothing() {
         orchestrator.classify(RiskFixtures.claim(new BigDecimal("100000")), List.of());
@@ -178,10 +164,7 @@ class ClassificationOrchestratorSnapshotTest {
         verify(policySnapshotRepository, never()).save(any(), any());
     }
 
-    /**
-     * Best-effort, like the scoring and the fraud cascade: an audit row that can't be written must
-     * not sink a classification an analyst is waiting on.
-     */
+    /** Best-effort: a snapshot that can't be written must not sink the classification. */
     @Test
     void aFailedSnapshotDoesNotBreakTheClassification() {
         doThrow(new RuntimeException("boom")).when(policySnapshotRepository).save(any(), any());
