@@ -8,9 +8,6 @@
   min-height: 100vh;
 }
 
-/* Mismo token que login/forgot-password (--brand-panel-bg): esta pantalla tenía su propio
-   gradiente armado con --action-primary-bg (el ink oscuro del botón primario) en vez del teal
-   de marca, así que no matcheaba con el resto del flujo de auth. */
 .brand-pane {
   flex: 1 1 auto;
   display: flex;
@@ -26,8 +23,6 @@
   width: 100%;
 }
 
-/* Era un <span> de texto ("Arbiter" en una píldora con borde) en vez del ícono real —
-   ahora es <app-logo>, que escala con --logo-size (ver logo.component.ts). */
 .brand-mark {
   --logo-size: 2.5rem;
   margin-bottom: var(--space-6);

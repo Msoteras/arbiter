@@ -42,15 +42,14 @@
     @if (loading()) {
       <app-inline-loading message="Buscando denuncias con señales…" />
     } @else if (report(); as current) {
-      <!-- The filters as the backend applied them, not as the controls read: the two can only
-           disagree when something went wrong, and that is when it has to be visible. -->
+      <!-- Filters as the backend applied them, so any mismatch with the controls is visible. -->
       <p class="applied t-note">
         {{ formatDate(current.from) }} al {{ formatDate(current.to) }} · Ramo:
         {{ current.branch ?? 'Todos' }} · Score de riesgo:
         {{ current.riskBand ? riskBandLabel(current.riskBand) : 'Todos' }}
       </p>
       @if (current.rows.length === 0) {
-        <!-- With claims in the period, the denominator is the finding: "0 of 84" is not "nothing". -->
+        <!-- With claims in the period, "0 of 84" is a finding, not "nothing". -->
         @if (current.summary.totalClaims > 0) {
           <app-empty-state
             message="Ninguna denuncia con señales en el período"
@@ -70,7 +69,6 @@
         @if (summary(); as totals) {
           <section class="summary" aria-label="Totales del período">
             <div class="figures">
-              <!-- The denominator, stated: without it the two rates next to it can't be read. -->
               <app-stat-tile
                 label="Denuncias del período"
                 [value]="totals.totalClaims"
@@ -97,8 +95,6 @@
                   indicio para revisar, no una conclusión.
                 </app-info-tip>
               </app-stat-tile>
-              <!-- The cross, which is what the report adds over the case's gauge: one signal is a
-                   hint, two coinciding is a shortlist. -->
               <app-stat-tile
                 label="Con dos o más señales"
                 [value]="totals.multiSignal"
@@ -155,8 +151,6 @@
           </section>
         }
 
-        <!-- The order is part of the reading: without saying it, a table that isn't by date looks
-             shuffled. -->
         <p class="order-note t-note">
           Ordenadas por cantidad de señales y, entre las que empatan, por score de riesgo.
         </p>
@@ -186,8 +180,7 @@
                 <td>
                   {{ row.insuredName }}
                   <span class="sub">DNI {{ row.insuredDni }}</span>
-                  <!-- Contexto, no señal: no es lo que trajo la denuncia a este listado, pero es lo
-                       primero que se pregunta quien la abre. -->
+                  <!-- Context, not a signal: it isn't why the claim is listed. -->
                   @if (row.claimsInWindow > 1) {
                     <span class="sub">{{ row.claimsInWindow }} denuncias en 12 meses</span>
                   }
@@ -204,9 +197,8 @@
                   />
                 </td>
                 <td class="signals-cell">
-                  <!-- No "N señales" badge: with only two possible signals it would always read
-                       "2", telling the analyst nothing the two badges below don't already show by
-                       being there. The row's left edge (tr.multi-signal) carries the cross instead. -->
+                  <!-- No "N señales" badge: the row's left edge (tr.multi-signal) marks coinciding
+                       signals. -->
                   <div class="signals">
                     @for (indicator of indicators(row); track indicator) {
                       <app-badge>{{ indicator }}</app-badge>

@@ -1,23 +1,17 @@
 import { RiskBand } from '../../../core/models/risk-band';
 
 /**
- * One bar of this report's distributions. It doesn't reuse `MetricCount` from
- * `resolution-report.ts` because here the label really can be null: a case the scoring never ran
- * on has no band, and the backend sends it that way on purpose (see `MetricCount`'s javadoc in
- * reports-service). The resolution report never sees a null — its buckets are statuses and claim
- * causes, which are always there.
+ * Not `MetricCount` from `resolution-report.ts`: here the label can be null (a case the scoring
+ * never ran on has no band).
  */
 export interface FraudBucket {
   label: string | null;
   count: number;
 }
 
-/**
- * Mirror of reports-service's DTOs (FraudReport / FraudReportRow / FraudSummary).
- * Enums arrive as literals; turning them into Spanish is the frontend's job.
- */
+// Mirrors reports-service DTOs (FraudReport / FraudReportRow / FraudSummary).
 
-/** Mirror of FraudSignal: why a case shows up in the report. */
+/** Why a case shows up in the report. */
 export type FraudSignal = 'HIGH_RISK_SCORE' | 'FORENSIC_INCONSISTENCY' | 'DOCUMENT_INCONSISTENCY';
 
 export interface FraudReportRow {
@@ -28,52 +22,40 @@ export interface FraudReportRow {
   claimCause: string;
   reportedAt: string;
   /**
-   * The alert level. Null when the scoring never ran on the case (Fast Track, or still being
-   * classified): it is still listed if another signal fired, and the gauge shows it as "Sin
-   * evaluar" rather than as low risk, which would be the opposite of what happened.
+   * null when scoring never ran (Fast Track, or still classifying). Shown as "Sin evaluar", never as
+   * low risk.
    */
   riskBand: RiskBand | null;
   signals: FraudSignal[];
   /**
-   * The insured's claims in the 12 months up to this one, this one included: 1 = no others.
-   *
-   * Context of the row, NOT a signal: claiming twice in a year is not an indication of fraud, and
-   * the fact already weighs inside the score (`claim_frequency` is one of its factors). Counting it
-   * apart made one fact fire two signals and inflated the coinciding-signals figure.
+   * The insured's claims in the 12 months up to this one, included (1 = no others). Context, NOT a
+   * signal: it already weighs in the score via `claim_frequency`.
    */
   claimsInWindow: number;
   suspiciousImages: number;
-  /**
-   * What the `document_inconsistency` factor found — a document dated before the event, an amount
-   * or IMEI that doesn't match, a police certificate dated differently from what was declared.
-   * Null when it found nothing, or never ran (the insurer doesn't have the factor active).
-   */
+  /** Finding of the `document_inconsistency` factor; null if none or the factor is inactive. */
   documentInconsistencyNote: string | null;
-  /** CaseStatus literal. */
   status: string;
-  /** A human decision, not the model's band: the score suggests, the analyst determines. */
+  /** Determined by the analyst, not the risk band. */
   fraudDetermined: boolean;
   expertBacked: boolean;
 }
 
 export interface FraudSummary {
   /**
-   * Every claim of the period and branch, flagged or not: the denominator of both rates. It is a
-   * figure of its own because "8 flagged cases" says nothing until you know whether it is 8 out of
-   * 20 or out of 2000. The alert-level filter doesn't move it — with "Crítico" selected, the rate
-   * still answers what share of the period is critical.
+   * Every claim of the period and branch, flagged or not: the denominator of both rates. The
+   * alert-level filter doesn't change it.
    */
   totalClaims: number;
   flagged: number;
-  /** `flagged / totalClaims`, a 0..1 fraction; null when there is nothing to divide by. */
+  /** 0..1 fraction; null when there is nothing to divide by. */
   flaggedRate: number | null;
-  /** With two or more coinciding signals — the reason the report exists. */
+  /** Cases with two or more coinciding signals. */
   multiSignal: number;
   fraudDetermined: number;
   /**
-   * `fraudDetermined / totalClaims`. **It lags on purpose**: the population is the period's claims,
-   * and the most recent ones are still open, so the current month reads low and rises as those
-   * cases close.
+   * `fraudDetermined / totalClaims`. Lags on purpose: recent claims are still open, so the current
+   * month reads low and rises as they close.
    */
   fraudRate: number | null;
   backedByExpert: number;
@@ -90,7 +72,7 @@ export interface FraudReport {
   riskBand: RiskBand | null;
   generatedAt: string;
   summary: FraudSummary;
-  /** The same aggregates over the equal-length stretch right before this period. */
+  /** Same aggregates over the preceding period of equal length. */
   previousSummary: FraudSummary;
   rows: FraudReportRow[];
 }
@@ -112,25 +94,19 @@ const GAUGE_BANDS: Record<RiskBand, 1 | 2 | 3 | 4> = {
 };
 
 /**
- * The gauge is drawn only when the score actually alerted, which is why it takes the whole row and
- * not the band: a low score is NOT an indicator of fraud, so painting it under "Score de riesgo"
- * would read as "nothing here" on precisely a case listed because another signal did find
- * something. For those it returns null and the gauge shows {@link alertEmptyLabel}.
+ * Takes the row, not the band: the gauge is drawn only when the score alerted. A low score on a case
+ * listed for another signal would read as "nothing here"; those get {@link alertEmptyLabel}.
  */
 export function riskGaugeBand(row: FraudReportRow): 1 | 2 | 3 | 4 | null {
   return scoreAlerted(row) && row.riskBand !== null ? GAUGE_BANDS[row.riskBand] : null;
 }
 
-/** The score is an alert only in the two top bands, which is when the signal fires. */
+/** Only the two top bands fire the signal. */
 export function scoreAlerted(row: FraudReportRow): boolean {
   return row.signals.includes('HIGH_RISK_SCORE');
 }
 
-/**
- * What the cell says when the score didn't alert. "Sin evaluar" and "No alertó" are not the same:
- * in the first the engine never ran (Fast Track, or a failed classification), in the second it ran
- * and flagged nothing — and that is a different operational fact.
- */
+/** "Sin evaluar": scoring never ran. "No alertó": it ran and flagged nothing. */
 export function alertEmptyLabel(row: FraudReportRow): string {
   return row.riskBand === null ? 'Sin evaluar' : 'No alertó';
 }
@@ -147,11 +123,8 @@ export function alertLevelLabel(bucket: string | null): string {
 }
 
 /**
- * What goes in the "Señales" column: each signal with its magnitude, which is what is actionable.
- * "2 imágenes con coincidencia" says what to look at; "Incoherencias forenses" only says it was
- * flagged. The document signal is the exception — its own rationale already names what didn't
- * match, so it travels verbatim instead of being flattened to a generic label. Mirror of
- * ReportLabels.signals() in reports-service; keep the two in step.
+ * Each signal with its magnitude; the document signal carries its own rationale verbatim.
+ * Keep in sync with ReportLabels.signals() in reports-service.
  */
 export function indicators(row: FraudReportRow): string[] {
   return row.signals.map((signal) => {

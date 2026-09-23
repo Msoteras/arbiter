@@ -24,7 +24,6 @@
         <p class="t-note">Probá recargar la página; si el problema sigue, escribinos.</p>
       </app-card>
     } @else {
-      <!-- Expediente activo (el más reciente): el foco de la pantalla. -->
       @if (destacado(); as d) {
         <section class="case-card">
           <div class="case-head">
@@ -136,7 +135,6 @@
         </section>
       }
 
-      <!-- Accesos secundarios -->
       <div class="tiles">
         <button type="button" class="tile" (click)="newClaim.open()">
           <span class="tile-icon dark" aria-hidden="true">
@@ -180,8 +178,7 @@
           </div>
         </a>
 
-        <!-- Ayuda todavía no tiene destino (no hay página de FAQ ni contacto configurado): tarjeta
-           informativa por ahora, a la espera de a dónde debe apuntar. -->
+        <!-- Not clickable: there is no help/FAQ page to link to yet. -->
         <div class="tile tile-static">
           <span class="tile-icon" aria-hidden="true">
             <svg width="18" height="18" viewBox="0 0 20 20" fill="none">

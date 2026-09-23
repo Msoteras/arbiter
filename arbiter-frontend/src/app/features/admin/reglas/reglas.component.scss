@@ -1,10 +1,4 @@
-/* Primera mitad de los estilos de la pantalla de reglas: el armazón.
-   Layout de dos columnas, lista de ramos y reglas generales, bloque de auditoría, encabezado del
-   editor, solapas y el acordeón de coberturas.
-
-   Las secciones del panel derecho (Hard Stop, agenda documental, Fast Track, filas del motor)
-   siguen en reglas-secciones.scss, que continúa donde termina este archivo. Ver ahí el porqué de
-   la división y qué tener en cuenta antes de mover un bloque de un archivo al otro. */
+/* First half of the rules screen styles; continues in reglas-secciones.scss (see why there). */
 
 :host {
   display: block;
@@ -27,7 +21,7 @@
   gap: var(--space-5);
   align-items: start;
 }
-/* ───────── Columna izquierda: ramos + scoring ───────── */
+/* ───────── Left column ───────── */
 .master-col {
   display: flex;
   flex-direction: column;
@@ -47,12 +41,10 @@
   }
 }
 
-/* ───────── Master: ramos y reglas generales ───────── */
-/* El alcance se dice una vez, en el encabezado de la lista, y no abajo de cada nombre. */
+/* ───────── Master: branches and general rules ───────── */
 .list-sub {
   margin: calc(var(--space-2) * -1) 0 var(--space-3);
 }
-/* Las generales no tienen segunda línea, así que el ítem no necesita la altura de dos renglones. */
 .ramo-item.general {
   flex-direction: row;
   align-items: center;
@@ -81,9 +73,6 @@
 .ramo-item:hover {
   background: var(--surface-sunken);
 }
-/* Activo: barra de acento a la izquierda sobre fondo tenue, en vez del recuadro teal lleno. El
-   énfasis queda en el borde y el nombre, y la card blanca del panel derecho sigue siendo lo que
-   pesa en la pantalla. */
 .ramo-item.active {
   background: var(--surface-soft);
   border-color: transparent;
@@ -104,15 +93,9 @@
 .ramo-empty {
   padding: var(--space-2) var(--space-3);
 }
-.add-ramo {
-  margin-top: var(--space-3);
-}
 
-/* ───────── Auditoría ─────────
-   Otra impronta que las listas de arriba, a propósito: no es configuración sino registro. Va
-   suelta (sin card), tintada con el acento de marca y con borde punteado, para que se lea como
-   una sección aparte y no como un ramo más. Sobre el fondo papel de la columna, el recuadro gris
-   pasaba desapercibido. */
+/* ───────── Audit ─────────
+   Styled apart on purpose: it's a record, not configuration. */
 .audit-block {
   display: flex;
   flex-direction: column;
@@ -139,16 +122,12 @@
 .audit-entry:hover {
   border-color: var(--accent-fg);
 }
-/* Activo: la misma barra de acento que un ramo elegido, que acá es lo único que hace falta
-   para distinguirlo — el recuadro ya viene tintado. */
 .audit-entry.active {
   border-style: solid;
   border-left: 3px solid var(--accent-fg);
   padding-left: calc(var(--space-3) - 2px);
   color: var(--text-primary);
 }
-/* El nombre y la bajada reusan las clases de la lista de ramos: cambia el recuadro, no la
-   tipografía. */
 .audit-entry .ramo-name {
   color: var(--accent-fg);
 }
@@ -165,7 +144,7 @@
   min-width: 0;
 }
 
-/* ───────── Detalle ───────── */
+/* ───────── Detail ───────── */
 .editor {
   display: flex;
   flex-direction: column;
@@ -173,10 +152,7 @@
   min-width: 0;
 }
 
-/* align-items: flex-end y no flex-start: el campo arrastra su etiqueta arriba, así que alineados
-   por arriba el botón quedaba flotando por encima del input. Apoyados los dos abajo quedan a la
-   misma altura, y la línea a rayas teal corre por debajo de ambos: es lo que dice que el botón
-   actúa sobre el campo que tiene al lado. */
+/* flex-end: the field carries its label on top, so top-aligned the button floated above the input. */
 .editor-head {
   display: flex;
   align-items: flex-end;
@@ -201,26 +177,12 @@
   width: min(360px, 100%);
 }
 
-.delete-ramo {
-  align-self: flex-start;
-  padding: 0;
-  border: none;
-  background: none;
-  font: inherit;
-  font-size: var(--font-size-xs);
-  color: var(--status-danger);
-  text-decoration: underline;
-  cursor: pointer;
-}
-.delete-ramo:hover {
-  opacity: 0.8;
-}
 .saved-note {
   color: var(--status-ok);
   font-size: var(--font-size-sm);
 }
 
-/* Solapas */
+/* Tabs */
 .tabs {
   display: flex;
   flex-wrap: wrap;
@@ -259,36 +221,13 @@
   font-size: var(--font-size-sm);
 }
 
-.section-toggle {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--space-3);
-}
-.section-toggle .section-hint {
-  margin: 0;
-  flex: 1 1 auto;
-}
-
-.subsection {
-  margin-top: var(--space-4);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
-/* Footer de guardado del Fast Track (persistencia real contra el backend). */
-/* Un chip suelto (ej. "Exige póliza al día") no debe estirarse a todo el ancho. */
-.subsection > .chip {
-  align-self: flex-start;
-}
 .warn-note {
   margin: 0;
   color: var(--status-warning);
   font-size: var(--font-size-xs);
 }
 
-/* ───────── Coberturas ───────── */
+/* ───────── Coverages ───────── */
 .fieldset {
   display: flex;
   flex-direction: column;
@@ -297,7 +236,7 @@
 .fieldset.grow {
   flex: 1 1 auto;
 }
-/* ───────── Coberturas: acordeón ───────── */
+/* ───────── Coverages: accordion ───────── */
 .cov-head {
   display: flex;
   align-items: center;
@@ -312,7 +251,7 @@
 .cov-card {
   margin-bottom: var(--space-3);
 }
-/* La cabecera es todo el ancho y clickeable: cerrada, la card entera es el control de abrir. */
+/* Full-width clickable header: when closed, the whole card is the toggle. */
 .cov-summary {
   display: flex;
   align-items: center;
@@ -354,7 +293,7 @@
   font-weight: var(--font-weight-medium);
   color: var(--text-primary);
 }
-/* Los chips del resumen se van a una segunda línea antes que empujar el título fuera de la card. */
+/* Chips wrap rather than push the title out of the card. */
 .cov-chips {
   display: flex;
   flex-wrap: wrap;

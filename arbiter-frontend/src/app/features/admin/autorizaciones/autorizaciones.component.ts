@@ -22,15 +22,8 @@ import { StatusTone } from '../../../core/models/status-tone';
 import { formatDateTime } from '../../../core/util/datetime';
 
 /**
- * Las liquidaciones que superaron la atribución del analista y esperan la firma del referente
- * (Anexo II del procedimiento de la compañía).
- *
- * Pantalla propia y no una solapa de Reglas: esto no se configura, se resuelve. Es trabajo diario
- * con expedientes concretos, del mismo lado que la bandeja, mientras que Reglas es el lugar donde
- * se decide cómo tiene que comportarse el sistema.
- *
- * Los expedientes de acá NO están en un estado especial: siguen en revisión del analista. Lo que
- * espera es la liquidación, no el siniestro — para el asegurado esto es interno y no lo ve.
+ * Settlements over the analyst's authority, awaiting the referente's signature. These cases have no
+ * special status (they stay in analyst review): only the settlement waits, invisibly to the insured.
  */
 type Tab = 'pending' | 'authorized';
 
@@ -59,7 +52,7 @@ export class AutorizacionesComponent {
 
   protected readonly tab = signal<Tab>('pending');
   protected readonly pending = signal<PendingSettlement[]>([]);
-  /** Las autorizadas se piden recién al abrir su solapa, y se vuelven a pedir cada vez. */
+  /** Fetched only when its tab opens, and refetched every time. */
   protected readonly authorized = signal<AuthorizedSettlement[]>([]);
   protected readonly authorizedLoading = signal(false);
   protected readonly loading = signal(true);
@@ -69,7 +62,7 @@ export class AutorizacionesComponent {
   /** Row about to be authorized; null = the confirmation modal is closed. */
   protected readonly authorizing = signal<PendingSettlement | null>(null);
 
-  /** Expediente cuya liquidación se está devolviendo. Null = el modal está cerrado. */
+  /** Row being returned; null = the modal is closed. */
   protected readonly returning = signal<PendingSettlement | null>(null);
   protected readonly returnReason = signal('');
 
@@ -81,7 +74,6 @@ export class AutorizacionesComponent {
     { value: 'authorized', label: 'Autorizadas' },
   ]);
 
-  /** Lo que el referente tiene por delante: cuántas y cuánta plata espera su firma. */
   protected readonly resumenPendientes = computed(() => {
     const list = this.pending();
     const total = list.reduce((sum, row) => sum + row.settledAmount, 0);
@@ -202,10 +194,6 @@ export class AutorizacionesComponent {
     }).format(amount);
   }
 
-  /**
-   * Cuánto lleva esperando, en palabras. El siniestro consume su plazo legal de 30 días mientras
-   * está acá (art. 56 LS), así que la espera no es un dato de color.
-   */
   protected espera(days: number): string {
     if (days <= 0) {
       return 'Hoy';
@@ -213,10 +201,9 @@ export class AutorizacionesComponent {
     return days === 1 ? 'Hace 1 día' : `Hace ${days} días`;
   }
 
-  /** A partir de una semana esperando, la fila se marca: ya es demora, no cola normal. */
   /**
-   * La espera contra el plazo legal de 30 días: a la semana deja de ser cola normal, y pasadas
-   * tres queda poco margen para pagar a tiempo.
+   * The legal 30-day deadline (art. 56) keeps running while waiting here: after a week it's a delay,
+   * after three there's little margin left to pay on time.
    */
   protected esperaTone(days: number): StatusTone {
     if (days >= 21) return 'danger';
@@ -224,7 +211,7 @@ export class AutorizacionesComponent {
     return 'neutral';
   }
 
-  /** Qué parte de la barra es el tope: el resto es el excedente. */
+  /** Share of the bar covered by the cap; the rest is the excess. */
   protected topePct(row: { settledAmount: number; authorityLimit: number | null }): number {
     if (row.authorityLimit == null || row.settledAmount <= 0) {
       return 100;

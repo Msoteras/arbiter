@@ -25,8 +25,8 @@ describe('providerLabel', () => {
   });
 
   it('un tipo que no conoce se muestra crudo, no vacío', () => {
-    // El día que cases-service sume un tercero nuevo, la fila tiene que seguir siendo legible
-    // aunque acá falte el mapeo: una etiqueta fea se ve y se arregla, una vacía pasa desapercibida.
+    // A new provider type from cases-service must stay readable without a mapping: an ugly label
+    // gets noticed and fixed, an empty one goes unnoticed.
     expect(providerLabel('CRISTALERIA')).toBe('CRISTALERIA');
   });
 });

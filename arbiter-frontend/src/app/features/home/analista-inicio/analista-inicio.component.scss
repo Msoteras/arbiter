@@ -2,8 +2,6 @@
   display: block;
 }
 
-// Carga parcial (revisita al home): el spinner se centra en el área de contenido, sin tapar el
-// shell. Alto generoso para que quede a la vista sin necesitar el overlay completo.
 .partial-load {
   min-height: 60vh;
   display: flex;
@@ -18,9 +16,6 @@
   gap: var(--space-5);
 }
 
-// La entrada escalonada del contenido la maneja @staggerReveal (@angular/animations), no CSS.
-
-// ───────────────── Encabezado / saludo (banner de marca) ─────────────────
 .hero {
   position: relative;
   overflow: hidden;
@@ -34,8 +29,6 @@
   color: var(--brand-panel-fg);
   box-shadow: var(--shadow-card);
 }
-// Halo suave arriba a la derecha: da profundidad al degradé sin sumar color nuevo (usa el
-// blanco del panel de marca a baja opacidad). Decorativo, no interactivo.
 .hero::after {
   content: '';
   position: absolute;
@@ -55,7 +48,6 @@
   position: relative;
   min-width: 0;
 }
-// El saludo y su subtítulo van en blanco sobre el degradé teal.
 .hero .t-hero-title {
   color: var(--brand-panel-fg);
 }
@@ -70,21 +62,18 @@
   text-decoration: none;
 }
 
-// ───────────────── Tarjetas de métrica ─────────────────
 .stats {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: var(--space-4);
 }
 
-// ───────────────── Columnas inferiores ─────────────────
 .cols {
   display: grid;
   grid-template-columns: 1.6fr 1fr;
   gap: var(--space-4);
   align-items: start;
 }
-// Columna derecha: dos tarjetas apiladas (distribución + teaser IA).
 .side-col {
   display: flex;
   flex-direction: column;
@@ -102,7 +91,6 @@
 .action-list li {
   min-width: 0;
 }
-// Fila como "chip" clickeable: se resalta y se desplaza apenas al hover, en vez de separadores.
 .action-item {
   display: flex;
   align-items: center;
@@ -142,7 +130,6 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-// Chevron tenue que aparece al hover, para reforzar que la fila lleva al expediente.
 .action-chevron {
   flex: none;
   color: var(--text-muted);
@@ -168,7 +155,6 @@
   text-decoration: underline;
 }
 
-// ───────────────── Distribución de la bandeja ─────────────────
 .dist {
   list-style: none;
   margin: 0;
@@ -196,7 +182,7 @@
 .dist-fill {
   display: block;
   height: 100%;
-  min-width: 3px; // un hilo visible aunque el valor sea muy chico
+  min-width: 3px; // keeps tiny values visible
   border-radius: var(--radius-pill);
 }
 .dist-fill.tone-info {
@@ -222,14 +208,12 @@
   border-top: 1px solid var(--border-subtle);
 }
 
-// ───────────────── Teaser del resumen del modelo ─────────────────
 .ai-teaser-text {
   margin: 0 0 var(--space-3);
   font-size: var(--font-size-body);
   color: var(--text-secondary);
 }
 
-// ───────────────── Responsive ─────────────────
 @media (max-width: 960px) {
   .stats {
     grid-template-columns: repeat(2, 1fr);

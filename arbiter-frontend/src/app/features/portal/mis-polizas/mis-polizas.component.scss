@@ -2,8 +2,6 @@
   display: block;
 }
 
-// Mismo ancho y ritmo que "Mi perfil": son las dos pantallas de "mi cuenta" y se llega a las dos
-// desde el mismo menú, así que tienen que sentirse la misma pantalla con distinto contenido.
 .polizas {
   padding: var(--space-5) var(--space-4) var(--space-7);
   max-width: 660px;
@@ -68,7 +66,6 @@
   gap: var(--space-3);
 }
 
-// ───────────────── Vencidas ─────────────────
 .expired {
   display: flex;
   flex-direction: column;

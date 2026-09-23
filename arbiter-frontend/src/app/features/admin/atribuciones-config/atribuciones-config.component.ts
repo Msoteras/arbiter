@@ -12,17 +12,8 @@ import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline
 import { SaveBarComponent } from '../../../shared/ui/save-bar/save-bar.component';
 
 /**
- * Hasta cuánto autoriza un analista por su cuenta en cada ramo — las atribuciones del Anexo II del
- * procedimiento de la compañía. Por encima de ese monto la liquidación espera la firma del
- * referente.
- *
- * Va acá y no en el detalle de cada ramo porque es una tabla que se lee de una: el referente
- * compara los topes entre sí ("celulares hasta tanto, tecnología hasta tanto"), y repartirlos en
- * cinco solapas obliga a entrar y salir para tener el panorama.
- *
- * Un ramo sin tope no está a medio configurar: significa que el analista autoriza cualquier monto,
- * que es como funcionaba antes de que esto existiera. Por eso la fila vacía dice "Sin tope" y no
- * un cero ni un guion.
+ * How much an analyst may authorize alone per branch; above it the settlement waits for the
+ * referente. A branch without a cap means any amount is allowed, hence "Sin tope" rather than 0.
  */
 @Component({
   selector: 'app-atribuciones-config',
@@ -40,10 +31,10 @@ export class AtribucionesConfigComponent {
   protected readonly saving = signal(false);
   protected readonly error = signal<string | null>(null);
 
-  /** Lo tipeado por ramo, solo dígitos: vacío es "sin tope", que no es lo mismo que 0. */
+  /** Digits typed per branch: empty means "no cap", which is not the same as 0. */
   protected readonly drafts = signal<Record<number, string>>({});
 
-  /** Los ramos cuyo tope cambió respecto de lo guardado. Un solo "Guardar cambios" los manda todos. */
+  /** Branches whose cap differs from the saved one; a single save sends them all. */
   private readonly changed = computed(() =>
     this.authorities().filter((a) => (this.drafts()[a.branchId] ?? '') !== stored(a)),
   );
@@ -72,13 +63,12 @@ export class AtribucionesConfigComponent {
     this.drafts.set(Object.fromEntries(list.map((a) => [a.branchId, stored(a)])));
   }
 
-  /** El monto con puntos de miles, como se lee una cifra en pesos. */
   protected draftLabel(branchId: number): string {
     const digits = this.drafts()[branchId] ?? '';
     return digits === '' ? '' : AtribucionesConfigComponent.miles.format(Number(digits));
   }
 
-  /** Se guarda solo el número: los puntos que agrega el formato no son parte del valor. */
+  /** Only digits are kept: the thousands separators added by formatting aren't part of the value. */
   protected setDraft(branchId: number, value: string): void {
     const digits = value.replace(/\D/g, '').replace(/^0+(?=\d)/, '');
     this.drafts.update((d) => ({ ...d, [branchId]: digits }));
@@ -108,7 +98,7 @@ export class AtribucionesConfigComponent {
       },
       error: (e: HttpErrorResponse) => {
         this.saving.set(false);
-        // Sin releer: lo tipeado queda en pantalla para reintentar, en vez de perderse.
+        // No reload: the typed values stay on screen so the user can retry.
         this.error.set(e.error?.detail ?? 'No se pudieron guardar los topes.');
       },
     });

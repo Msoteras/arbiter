@@ -12,17 +12,7 @@ import { PolicyService } from '../../expedientes/policy.service';
 type PoliciesState =
   { status: 'loading' } | { status: 'ok'; policies: Policy[] } | { status: 'error' };
 
-/**
- * "Mis pólizas" del asegurado, en solo lectura.
- *
- * Hasta acá las pólizas se le mostraban una sola vez, en el onboarding, y después el único lugar
- * donde volvían a aparecer era el selector del alta de denuncia: para ver qué tenía cubierto había
- * que arrancar una denuncia. Esta pantalla responde la pregunta que motiva casi todas las
- * consultas —cuánto me cubre y cuánta franquicia tengo— sin empezar un trámite.
- *
- * Nada se edita: la póliza es dato de la compañía (decisión #10). Si algo no coincide, el reclamo
- * va a la aseguradora, no a Arbiter.
- */
+/** Read-only: policies are the insurer's data, so corrections go to the insurer, not Arbiter. */
 @Component({
   selector: 'app-mis-polizas',
   imports: [EmptyStateComponent, InlineLoadingComponent, PolicyCardComponent],
@@ -34,8 +24,7 @@ export class MisPolizasComponent {
   private readonly policyService = inject(PolicyService);
   private readonly session = inject(AuthSessionService);
 
-  // Con las vencidas incluidas: el asegurado viene a consultar, no a elegir. El alta de denuncia
-  // sigue pidiendo solo las vigentes, que ahí ofrecer una vencida termina en un rechazo.
+  // Expired policies included: here the insured is browsing, not choosing one for a claim.
   private readonly state = toSignal(
     this.policyService.listByInsured(this.session.session()?.insuredId ?? '', true).pipe(
       map((policies): PoliciesState => ({ status: 'ok', policies })),
@@ -57,11 +46,7 @@ export class MisPolizasComponent {
     () => this.state().status === 'ok' && this.policies().length === 0,
   );
 
-  /**
-   * Las vencidas van aparte y plegadas. Siguen estando —esconderlas deja al asegurado sin saber
-   * por qué desapareció la del año pasado— pero no pueden empujar hacia abajo lo que sí lo cubre
-   * hoy: con una póliza por celular, la lista de un asegurado viejo es mayormente historia.
-   */
+  // Expired policies stay visible but collapsed, so they don't push current coverage down.
   protected readonly current = computed(() => this.policies().filter((p) => !isExpired(p)));
   protected readonly expired = computed(() => this.policies().filter(isExpired));
 

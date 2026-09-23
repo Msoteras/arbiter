@@ -18,12 +18,7 @@ import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline
 import { ToastService } from '../../../shared/ui/toast/toast.service';
 import { fadeStagger, staggerReveal } from '../../../shared/animations';
 
-/**
- * Trello "Gestión de roles y permisos" - listado (GET) + selector de rol editable (PUT).
- * El referente no puede cambiar su propio rol (lo valida el backend; acá lo deshabilitamos
- * directamente para no dejarlo intentar). "+ Nuevo usuario" abre el alta en un panel (wireframe),
- * en vez de navegar a una página aparte.
- */
+/** The referente can't change their own role: the backend enforces it, the UI just disables it. */
 @Component({
   selector: 'app-usuarios',
   imports: [
@@ -54,7 +49,6 @@ export class UsuariosComponent {
     'REFERENTE_ASEGURADORA',
   ];
 
-  /** Misma lista, en el formato que espera app-select. */
   protected readonly roleOptions: SelectOption[] = this.roles.map((r) => ({
     value: r,
     label: this.roleLabel(r),
@@ -70,9 +64,7 @@ export class UsuariosComponent {
   protected readonly userToDelete = signal<UserResponse | null>(null);
   protected readonly deleting = signal(false);
   protected readonly deleteError = signal<string | null>(null);
-  // Confirmación destructiva real ("doble verbo" del wireframe): el referente tiene que
-  // tipear el nombre completo del usuario a eliminar. Un solo botón "Sí, eliminar" invitaba
-  // a borrar de un click por accidente.
+  // Deleting requires typing the user's full name, to prevent one-click accidental deletes.
   protected readonly deleteConfirmText = signal('');
   protected readonly deleteConfirmTarget = computed(() => {
     const u = this.userToDelete();
@@ -89,8 +81,7 @@ export class UsuariosComponent {
   protected readonly resendError = signal<string | null>(null);
   protected readonly resendOkId = signal<number | null>(null);
 
-  // Alta masiva de asegurados. Detrás de una confirmación porque manda mails reales a gente de
-  // verdad y no hay forma de deshacerlo: una vez que salieron, salieron.
+  // Bulk insured provisioning asks for confirmation: it sends real emails and can't be undone.
   protected readonly showProvisionConfirm = signal(false);
   protected readonly provisioning = signal(false);
   protected readonly provisionStarted = signal(false);
@@ -103,11 +94,7 @@ export class UsuariosComponent {
     this.load();
   }
 
-  /**
-   * Arranca el alta masiva. El backend responde 202 y sigue trabajando: no hay resumen que mostrar
-   * acá, así que la pantalla dice que arrancó y deja recargar el listado para ver cómo van
-   * apareciendo las cuentas.
-   */
+  /** The backend answers 202 and keeps working, so there's no summary: only "started". */
   protected confirmProvision(): void {
     this.provisioning.set(true);
     this.service.provisionInsured().subscribe({
@@ -207,7 +194,6 @@ export class UsuariosComponent {
     });
   }
 
-  /** Abre la confirmación destructiva (wireframe: "Eliminar pide confirmación destructiva, doble verbo"). */
   protected requestDelete(user: UserResponse): void {
     this.deleteError.set(null);
     this.deleteConfirmText.set('');

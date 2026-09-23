@@ -56,11 +56,7 @@ interface Swatch {
   v: string;
 }
 
-/**
- * Vitrina viva del design system. Renderiza tokens y componentes reales (los que
- * corren en producción), así que es la fuente de verdad visual y detecta drift al
- * instante. Sin lógica de negocio: solo compone el kit.
- */
+/** Living design-system showcase: renders the real production tokens and components. */
 @Component({
   selector: 'app-styleguide',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -271,7 +267,7 @@ interface Swatch {
         </div>
       </section>
 
-      <!-- ================= COMPONENTES ================= -->
+      <!-- ================= COMPONENTS ================= -->
       <h2 class="sg-h2">Componentes</h2>
 
       <section class="sg-block">
@@ -1038,7 +1034,6 @@ interface Swatch {
       gap: var(--space-6);
     }
 
-    /* Para verificar que el logo se banca fondo oscuro sin cargar la variante -white. */
     .logo-on-dark {
       display: inline-flex;
       padding: var(--space-3) var(--space-4);
@@ -1047,7 +1042,6 @@ interface Swatch {
       color: var(--text-on-emphasis);
     }
 
-    /* Mismo lenguaje que el label de archivo de app-doc-upload. */
     .sg-file-btn {
       align-self: flex-start;
       font-size: var(--font-size-sm);
@@ -1071,7 +1065,7 @@ interface Swatch {
       max-width: 340px;
     }
 
-    /* Tokens de color */
+    /* Color tokens */
     .swatches {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
@@ -1096,7 +1090,7 @@ interface Swatch {
       color: var(--text-muted);
     }
 
-    /* Paleta editable */
+    /* Editable palette */
     .edit-note {
       max-width: 620px;
       margin: 0 0 var(--space-3);
@@ -1137,7 +1131,7 @@ interface Swatch {
       gap: 1px;
     }
 
-    /* Tipografía */
+    /* Typography */
     .type-row {
       display: flex;
       align-items: baseline;
@@ -1159,7 +1153,7 @@ interface Swatch {
       border-bottom: 1px solid var(--border-subtle);
     }
 
-    /* Sombra / overlay */
+    /* Shadow / overlay */
     .shadow-demo {
       width: 160px;
       height: 72px;
@@ -1181,7 +1175,7 @@ interface Swatch {
       color: var(--text-on-emphasis);
     }
 
-    /* Íconos */
+    /* Icons */
     .icon-conv {
       display: inline-flex;
       align-items: center;
@@ -1209,7 +1203,7 @@ interface Swatch {
       color: var(--text-on-emphasis);
     }
 
-    /* Espaciado */
+    /* Spacing */
     .space-row {
       display: flex;
       align-items: center;
@@ -1223,7 +1217,7 @@ interface Swatch {
       border-radius: 2px;
     }
 
-    /* Radios */
+    /* Radii */
     .radii {
       display: flex;
       gap: var(--space-4);
@@ -1249,14 +1243,14 @@ interface Swatch {
   `,
 })
 export class StyleguideComponent {
-  /** Con semáforo: el estado del expediente sí comunica cómo salió. */
+  /** Status palette: a case status does communicate an outcome. */
   protected readonly statusDistribution: DistributionItem[] = [
     { label: 'Aprobado', count: 24, tone: 'ok' },
     { label: 'Rechazado', count: 6, tone: 'danger' },
     { label: 'Caducado', count: 2, tone: 'neutral' },
   ];
 
-  /** Sin semáforo: un hecho generador no es bueno ni malo. Mismo tono, repetición atenuada. */
+  /** No status palette: a claim cause is neither good nor bad. */
   protected readonly causeDistribution: DistributionItem[] = [
     { label: 'Robo en vía pública', count: 18, tone: 'neutral' },
     { label: 'Hurto', count: 9, tone: 'neutral' },
@@ -1299,10 +1293,7 @@ export class StyleguideComponent {
     { label: 'Incoherencias forenses', count: 4, tone: 'neutral' },
   ];
 
-  /**
-   * Demo del app-chart. Arma las opciones igual que una pantalla real: tokens leídos del design
-   * system, nunca colores escritos acá.
-   */
+  // Built like a real screen: colors come from design-system tokens, never hardcoded.
   private readonly chartTheme = readChartTheme();
   protected readonly demoChartDescription =
     'Ejemplo de gráfico de barras. Aprobados: 24. Pendientes: 12. Rechazados: 6.';
@@ -1344,7 +1335,6 @@ export class StyleguideComponent {
     ],
   };
 
-  /** Demo del chip group: las mismas franjas que usa el alta de denuncia. */
   protected readonly timeSlotDemo: readonly ChipOption[] = [
     { value: 'madrugada', label: 'Madrugada' },
     { value: 'manana', label: 'Mañana' },
@@ -1353,7 +1343,6 @@ export class StyleguideComponent {
   ];
   protected readonly timeSlotDemoValue = signal('tarde');
 
-  /** Demo del tamaño `md`: los hechos generadores del ramo Celulares. */
   protected readonly claimTypeDemo: readonly ChipOption[] = [
     { value: 'robo', label: 'Robo en vía pública' },
     { value: 'hurto', label: 'Hurto' },
@@ -1398,17 +1387,15 @@ export class StyleguideComponent {
   ];
   protected readonly sampleMenuChoice = signal('');
 
-  /** La vitrina no guarda nada: los botones existen para mostrar los estados, no para hacer algo. */
   protected noop(): void {}
 
   protected onSampleMenuSelect(value: string): void {
     this.sampleMenuChoice.set(value);
   }
 
-  /** El archivo lo elige quien mira la página: no hay forma honesta de fabricar un File de ejemplo. */
   protected readonly sampleFile = signal<File | null>(null);
 
-  /** Los cuatro cruces de vigencia × estado de pago, que es lo que la tarjeta tiene que separar. */
+  /** Covers all four combinations of validity × payment status. */
   protected readonly samplePolicies: Policy[] = [
     {
       policyNumber: 'POL-CEL-2026-042',
@@ -1521,7 +1508,7 @@ export class StyleguideComponent {
     this.sampleFile.set((event.target as HTMLInputElement).files?.[0] ?? null);
   }
 
-  /** Perillas de tema editables en vivo. Escriben sobre :root → re-tematizan todo. */
+  /** Live theme knobs: they write to :root, re-theming the whole app. */
   protected readonly brandKnobs: Knob[] = [
     { name: 'Acento (estados activos)', v: '--accent', default: '#00a99d' },
     { name: 'Texto (ink)', v: '--c-ink', default: '#191c1f' },

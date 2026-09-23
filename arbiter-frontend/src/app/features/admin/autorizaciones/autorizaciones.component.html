@@ -15,8 +15,6 @@
     />
   </header>
 
-  <!-- Las dos primeras columnas son iguales en las dos solapas: qué expediente y cuánto contra el
-       tope. Lo que cambia es la última, que dice qué pasa (o pasó) con esa liquidación. -->
   <ng-template #expediente let-row>
     <a class="case-link" [routerLink]="['/cases', row.caseId]"
       >#{{ row.caseId }} · {{ row.insuredName }}</a
@@ -24,8 +22,7 @@
     <span class="cell-sub">{{ row.claimCause }} · {{ row.branch }} · {{ row.analystName }}</span>
   </ng-template>
 
-  <!-- Monto contra tope: la barra entera es el monto, la parte gris es lo que el analista podía
-       firmar solo y la de color es lo que excede y por eso le toca al referente. -->
+  <!-- The whole bar is the amount: grey up to the analyst's cap, status color for the excess. -->
   <ng-template #montoCell let-row>
     <div class="monto-head">
       <strong class="tabular">{{ monto(row.settledAmount) }}</strong>
@@ -80,7 +77,6 @@
                   <ng-container *ngTemplateOutlet="montoCell; context: { $implicit: row }" />
                 </td>
                 <td>
-                  <!-- El siniestro consume su plazo legal de 30 días mientras espera acá. -->
                   <app-badge variant="solid" [tone]="esperaTone(row.waitingFor)">{{
                     espera(row.waitingFor)
                   }}</app-badge>
@@ -175,8 +171,8 @@
   </ng-container>
 </app-modal>
 
-<!-- Devolver no rechaza el siniestro: el expediente sigue siendo del analista, y el motivo es lo
-     único que él va a tener para saber qué corregir. -->
+<!-- Returning doesn't reject the claim: the case stays with the analyst, and the reason is all
+     they get to know what to fix. -->
 <app-modal
   [open]="returning() !== null"
   heading="Devolver la liquidación al analista"

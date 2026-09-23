@@ -33,12 +33,6 @@ type AlertState =
 type WorkloadState =
   { status: 'loading' } | { status: 'ok'; data: AnalystWorkload[] } | { status: 'error' };
 
-/**
- * Pantalla de inicio del referente de aseguradora — panorama de la operación. Los conteos y la
- * carga del equipo salen de endpoints reales del cases-service (acotados al tenant por el backend).
- * Las métricas agregadas que todavía no tienen backend (tiempo promedio de resolución, mix de
- * estados) viven en el dashboard, que es su maqueta viva; desde acá se enlaza, no se duplican.
- */
 @Component({
   selector: 'app-referente-inicio',
   imports: [
@@ -64,15 +58,13 @@ export class ReferenteInicioComponent {
   protected readonly fecha = fechaLarga();
   protected readonly nombre = computed(() => this.session.session()?.nombre ?? '');
 
-  // ───────────────── Conteos ─────────────────
-  // Sin `assignedToMe`: el referente ve toda la operación de la aseguradora, no una bandeja propia.
+  // No `assignedToMe`: the referente sees the whole insurer's operation.
   private readonly countsState = toSignal(
     forkJoin({
       total: this.count({}),
       aprobados: this.count({ status: 'APPROVED' }),
       rechazados: this.count({ status: 'REJECTED' }),
-      // Caducados: un expediente cerrado por inacción está resuelto, no activo. Sin esta cuenta
-      // quedaba sumado a "activos" para siempre, porque nada lo saca de LAPSED.
+      // LAPSED is terminal: count it as resolved, not active.
       caducados: this.count({ status: 'LAPSED' }),
       alto: this.count({ riskBand: 'HIGH' }),
       critico: this.count({ riskBand: 'CRITICAL' }),
@@ -101,8 +93,6 @@ export class ReferenteInicioComponent {
     return s.status === 'ok' ? s.counts : null;
   });
 
-  // ───────────────── Expedientes con alerta de fraude ─────────────────
-  // Críticos primero, luego altos, hasta 5. Es la lista donde el referente enfoca su atención.
   private readonly alertState = toSignal(
     forkJoin({
       critico: this.service.list({ riskBand: 'CRITICAL', sort: 'id,desc', size: 5 }),
@@ -132,8 +122,6 @@ export class ReferenteInicioComponent {
     return this.service.list({ ...params, page: 0, size: 1 }).pipe(map((p) => p.totalElements));
   }
 
-  // ───────────────── Carga del equipo ─────────────────
-  // Cada analista con su cantidad de expedientes activos, del endpoint dedicado del cases-service.
   private readonly workloadState = toSignal(
     this.service.analystWorkload().pipe(
       map((data): WorkloadState => ({ status: 'ok', data })),
@@ -153,13 +141,11 @@ export class ReferenteInicioComponent {
     () => this.workloadState().status === 'ok' && this.workload().length === 0,
   );
 
-  // La pantalla espera TODOS sus datos (conteos, alertas y carga del equipo) antes de pintar.
   protected readonly pageLoading = computed(
     () => this.countsLoading() || this.alertLoading() || this.workloadLoading(),
   );
 
-  // Carga de marca a viewport completo SOLO en el arranque (login → primer home). Al volver, carga
-  // parcial con el shell visible. Ver AppReadyService.
+  // The full-viewport loader shows only on app startup; later visits use an inline spinner.
   protected readonly showFullLoader = computed(() => this.pageLoading() && !this.appReady.ready());
   private readonly markReady = effect(() => {
     if (!this.pageLoading()) {
@@ -167,17 +153,15 @@ export class ReferenteInicioComponent {
     }
   });
 
-  // Tope para escalar las barras. Piso en 1 para no dividir por cero cuando nadie tiene carga.
+  // Floor of 1 avoids dividing by zero when nobody has cases.
   private readonly maxLoad = computed(() =>
     Math.max(1, ...this.workload().map((a) => a.activeCases)),
   );
 
-  /** Ancho de la barra de un analista, en % del más cargado. */
   protected barPct(activeCases: number): number {
     return Math.round((activeCases / this.maxLoad()) * 100);
   }
 
-  // ───────────────── Presentación ─────────────────
   protected estadoLabel(status: string): string {
     return estadoLabel(status);
   }

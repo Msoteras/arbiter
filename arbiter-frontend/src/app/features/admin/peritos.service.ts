@@ -5,13 +5,13 @@ import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import { ProviderType } from '../../core/models/peritaje';
 
-/** Un perito del catálogo — espejo de ExpertFirmResponse de cases-service. */
+/** Mirrors cases-service ExpertFirmResponse. */
 export interface PeritoAdmin {
   id: number;
   name: string;
   email: string;
   zone: string | null;
-  /** null = generalista: cubre todos los ramos. */
+  /** null = generalist: covers every branch. */
   branchId: number | null;
   branchName: string | null;
   active: boolean;
@@ -28,11 +28,8 @@ export interface PeritoRequest {
 }
 
 /**
- * Catálogo de peritos de la aseguradora, contra cases-service (dueño de la tabla). Es lo que el
- * analista ve en el selector al derivar: sin peritos cargados para el ramo no hay a quién derivar,
- * por más que la regla de monto lo habilite.
- *
- * El umbral que habilita la derivación NO está acá: es una regla de negocio y vive en rules-service.
+ * Expert firms catalog, owned by cases-service. The amount threshold that enables a referral is a
+ * business rule in rules-service, not here.
  */
 @Injectable({ providedIn: 'root' })
 export class PeritosService {
@@ -51,7 +48,7 @@ export class PeritosService {
     return this.http.put<PeritoAdmin>(`${this.base}/${id}`, request);
   }
 
-  /** 409 si el perito ya recibió derivaciones: en ese caso se desactiva, no se borra. */
+  /** 409 if the firm already received referrals: those are deactivated, not deleted. */
   remove(id: number): Observable<void> {
     return this.http.delete<void>(`${this.base}/${id}`);
   }

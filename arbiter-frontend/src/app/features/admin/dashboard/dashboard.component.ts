@@ -50,10 +50,8 @@ import {
   DistributionItem,
 } from '../../../shared/ui/distribution/distribution.component';
 
-/** Lo que el selector de período ofrece: los tres atajos del backend, más el rango a medida. */
 type PeriodChoice = MetricsRange | 'CUSTOM';
 
-/** Un paso del embudo: cuántos llegaron hasta acá y qué parte del ingreso son. */
 interface FunnelStep {
   label: string;
   value: number;
@@ -61,19 +59,18 @@ interface FunnelStep {
   tone: StatusTone;
 }
 
-/** Un indicador de la fila de tarjetas, con su variación ya resuelta. */
 interface Kpi {
   label: string;
   value: string;
   sub: string;
-  /** Texto de la variación, ya con su flecha. Vacío cuando no hay con qué comparar. */
+  /** Empty when there's nothing to compare against. */
   trend: string;
-  /** Proporción de 0 a 1 para la barra de la tarjeta; null donde el valor no es una proporción. */
+  /** 0..1 for the card's bar; null where the value isn't a proportion. */
   progress: number | null;
   tone: StatusTone;
 }
 
-/** Tono del semáforo por banda de riesgo, igual que el app-fraud-gauge del expediente. */
+/** Same tones as app-fraud-gauge. */
 const RISK_TONES: Record<RiskBand, StatusTone> = {
   LOW: 'ok',
   MEDIUM: 'warning',
@@ -84,9 +81,8 @@ const RISK_TONES: Record<RiskBand, StatusTone> = {
 const ALL = '__todos__';
 
 /**
- * El semáforo del plazo legal, más exigente que el del objetivo interno: incumplirlo es un problema
- * regulatorio, no una demora. Cualquier incumplimiento sale de verde, y por debajo del 90% se pinta
- * en rojo — no hay una franja cómoda donde perder plazos de ley esté bien.
+ * Stricter than the internal goal's tone: missing the legal deadline is a regulatory problem, so any
+ * miss leaves green and below 90% is red.
  */
 function legalTone(rate: number | null): StatusTone {
   if (rate === null) {
@@ -98,17 +94,6 @@ function legalTone(rate: number | null): StatusTone {
   return rate >= 0.9 ? 'warning' : 'danger';
 }
 
-/**
- * Tablero de gestión del referente: cómo viene operando su propia cartera de siniestros.
- *
- * Los datos son de la aseguradora del usuario autenticado y de ninguna otra — la compañía no viaja
- * como parámetro, la resuelve reports-service a partir del token.
- *
- * La pantalla se lee de arriba hacia abajo como una pregunta que se va achicando: qué entró y hasta
- * dónde llegó (el embudo), qué tan bien se procesó (los indicadores), cómo se movió en el tiempo, y
- * finalmente qué hay que hacer hoy (el panel de atención). Ese último es el que convierte el
- * tablero en herramienta de trabajo en vez de un resumen que se mira una vez por mes.
- */
 @Component({
   selector: 'app-dashboard',
   imports: [
@@ -137,7 +122,7 @@ export class DashboardComponent {
   private readonly locale = inject(LOCALE_ID);
   private readonly theme: ChartTheme = readChartTheme();
 
-  // ─── Controles ─────────────────────────────────────────────────────────────────────
+  // ─── Controls ──────────────────────────────────────────────────────────────────────
 
   protected readonly period = signal<PeriodChoice>('MONTH');
   protected readonly customFrom = signal(isoDaysAgo(29));
@@ -165,27 +150,20 @@ export class DashboardComponent {
     labelOf(this.analystOptions(), this.analystId()),
   );
 
-  /**
-   * El recorte por analista es una vista de gestión del equipo, así que sólo la ve el referente —
-   * el mismo criterio con el que cases-service reserva `analysts/workload` para ese rol. Un
-   * analista mirando este tablero no tiene a quién filtrar más que a sí mismo.
-   */
+  /** Team-management view: referente only, same as cases-service's `analysts/workload`. */
   protected readonly canFilterByAnalyst = computed(
     () => this.session.session()?.rol === 'REFERENTE_ASEGURADORA',
   );
 
-  // ─── Datos ─────────────────────────────────────────────────────────────────────────
+  // ─── Data ──────────────────────────────────────────────────────────────────────────
 
-  /** El período se mantiene mientras carga el siguiente, para que la pantalla no parpadee. */
+  /** Kept while the next period loads, so the screen doesn't flicker. */
   protected readonly data = signal<ClaimMetrics | null>(null);
   protected readonly loading = signal(true);
   protected readonly failed = signal(false);
   protected readonly attentionItems = signal<AttentionItem[]>([]);
 
-  /**
-   * Un período a medida al revés (desde después de hasta) lo rechaza el backend con un 400. Se
-   * corta acá antes de pedirlo: es un error de tipeo, no vale una ida y vuelta ni un cartel rojo.
-   */
+  /** A reversed custom range would get a 400 from the backend; it's a typo, so skip the request. */
   private readonly request = computed<{ period: MetricsPeriod; filter: MetricsFilter } | null>(
     () => {
       const filter: MetricsFilter = { branchId: this.branchId(), analystId: this.analystId() };
@@ -222,8 +200,8 @@ export class DashboardComponent {
         },
       });
 
-    // "Requiere atención" no depende del período: lo que está frenado hoy, está frenado hoy,
-    // aunque se mire el trimestre pasado. Por eso se pide una sola vez y no con cada filtro.
+    // "Requiere atención" doesn't depend on the period (what's stuck today is stuck today), so it's
+    // loaded once, not on every filter change.
     this.attention
       .load()
       .pipe(takeUntilDestroyed())
@@ -271,15 +249,13 @@ export class DashboardComponent {
     this.analystId.set(value === ALL ? null : Number(value));
   }
 
-  // ─── Lecturas derivadas ────────────────────────────────────────────────────────────
+  // ─── Derived state ─────────────────────────────────────────────────────────────────
 
-  /** Nada denunciado y nada resuelto: los gráficos vacíos no dicen más que una línea de texto. */
   protected readonly isEmpty = computed(() => {
     const summary = this.data()?.summary;
     return !!summary && summary.reportedCases === 0 && summary.resolvedCases === 0;
   });
 
-  /** El período con el que se compara, para que el encabezado no lo deje implícito. */
   protected readonly comparisonLabel = computed(() => {
     const metrics = this.data();
     if (!metrics) {
@@ -308,22 +284,16 @@ export class DashboardComponent {
           'count',
           'neither',
         ),
-        // La entrada del embudo es volumen, no estado: tinta.
         tone: 'neutral',
       },
       {
         label: 'Analizados por el modelo',
         value: funnel.analyzed,
-        // Este paso es menor que el ingreso por diseño y no por una falla de cobertura: el Fast
-        // Track lo decide el motor de reglas y el modelo nunca corre (la base lo prohíbe con un
-        // CHECK explícito). No se aclara en pantalla — el paso de Fast Track está justo al lado y
-        // la resta se explica sola.
+        // Smaller than intake by design: the LLM never runs on Fast Track (enforced by a DB CHECK).
         note: share(funnel.analyzed),
-        // Mismo azul con el que la app pinta todo lo que viene del modelo.
         tone: 'info',
       },
       { label: 'Decididos', value: funnel.decided, note: share(funnel.decided), tone: 'ok' },
-      // Fast Track es una clasificación, y en toda la app se pinta con el azul de clasificacionTone.
       {
         label: 'Vía Fast Track',
         value: funnel.fastTrack,
@@ -356,13 +326,10 @@ export class DashboardComponent {
         label: 'Tiempo prom. de resolución',
         value: resolutionTimeLabel(summary.averageResolutionHours),
         sub: this.targetNote(metrics, decided),
-        // Con objetivo, la barra es qué parte de lo decidido lo cumplió. Sin objetivo no hay barra:
-        // una duración suelta no es una proporción y no tendría contra qué medirse.
+        // Share of decided cases within the goal; no bar without a goal.
         progress: targetShare(metrics, decided),
-        // El color lo decide el cumplimiento, no el número: quedarse dentro del objetivo es la
-        // lectura buena, pasarse es la que hay que mirar.
         tone: targetTone(metrics, decided),
-        // Tardar más es peor: la flecha para arriba acá es mala noticia.
+        // Taking longer is worse: an upward arrow is bad news here.
         trend: this.trendOf(
           summary.averageResolutionHours,
           previousSummary.averageResolutionHours,
@@ -372,8 +339,6 @@ export class DashboardComponent {
         ),
       },
       {
-        // La regulatoria. Va segunda, pegada al tiempo: las dos miden plazos, pero una es la meta
-        // que se puso la compañía y ésta es la ley.
         label: 'Plazo legal (art. 56)',
         value: this.percent(metrics.legalDeadline.rate),
         sub:
@@ -396,8 +361,6 @@ export class DashboardComponent {
         tone: 'info' as StatusTone,
       },
       {
-        // Calidad de la decisión, al lado de la coincidencia: las dos hablan de si se está
-        // decidiendo bien, no de cuánto se decidió.
         label: 'Reapertura',
         value: this.percent(metrics.reopening.rate),
         sub:
@@ -406,7 +369,7 @@ export class DashboardComponent {
             : `${metrics.reopening.reopened} de ${metrics.reopening.resolved} cerrados`,
         trend: '',
         progress: metrics.reopening.rate,
-        // Al revés que el resto: acá lo bueno es que la barra esté vacía.
+        // Unlike the rest, an empty bar is the good outcome here.
         tone: (metrics.reopening.rate ?? 0) > 0 ? ('warning' as StatusTone) : ('ok' as StatusTone),
       },
       {
@@ -444,13 +407,8 @@ export class DashboardComponent {
   });
 
   /**
-   * La línea bajo el tiempo promedio: cuántos de los decididos se pasaron del objetivo. Sin
-   * objetivo fijado dice qué mide el número, que es lo que decía antes de que el objetivo existiera.
-   *
-   * Dice "de gestión" porque el objetivo se mide descontando lo que el expediente esperó a un
-   * tercero, y el número grande de arriba es el tiempo total. Sin esa palabra los dos se leen como
-   * lo mismo y la cuenta no cierra: un promedio de 35 días con un objetivo de 21 que casi todos
-   * cumplieron parece un error, y es la diferencia entre las dos medidas.
+   * Says "de gestión" because the goal excludes third-party waits while the headline is total time;
+   * without it, a 35-day average against a mostly-met 21-day goal reads as a bug.
    */
   private targetNote(metrics: ClaimMetrics, decided: number): string {
     const target = metrics.resolutionTarget;
@@ -464,11 +422,8 @@ export class DashboardComponent {
   }
 
   /**
-   * El desglose bajo el tiempo promedio: cuánto de la demora fue esperando a un tercero.
-   *
-   * Se muestra sólo cuando la espera llega a una hora. Por debajo de eso no es espera: es un
-   * expediente que pasó unos segundos por "falta documentación" mientras alguien lo movía, y el
-   * renglón terminaría diciendo "0 h esperando a terceros", que ocupa lugar para no decir nada.
+   * Shown only from one hour of waiting: below that it's a case passing briefly through a waiting
+   * status, and the line would just say "0 h".
    */
   protected readonly waitingBreakdown = computed(() => {
     const summary = this.data()?.summary;
@@ -481,12 +436,7 @@ export class DashboardComponent {
     return `${resolutionTimeLabel(own)} de gestión · ${resolutionTimeLabel(waiting)} esperando a terceros`;
   });
 
-  /**
-   * La comparación cruda del Fast Track: dos promedios medidos, uno al lado del otro.
-   *
-   * Vacío mientras falte alguno de los dos lados. Un "Fast Track: 2 d" solo no compara con nada, y
-   * el renglón entero existe para comparar.
-   */
+  /** Empty unless both sides exist: one average alone compares with nothing. */
   protected readonly fastTrackComparison = computed(() => {
     const impact = this.data()?.fastTrack;
     if (!impact || impact.fastTrackHours == null || impact.standardHours == null) {
@@ -498,7 +448,6 @@ export class DashboardComponent {
     );
   });
 
-  /** Cuántos expedientes hay detrás de cada mitad de la comparación, para saber cuánto pesa. */
   protected readonly fastTrackBase = computed(() => {
     const impact = this.data()?.fastTrack;
     if (!impact) {
@@ -507,11 +456,7 @@ export class DashboardComponent {
     return `${impact.fastTrackDecided} y ${impact.standardDecided} expedientes decididos`;
   });
 
-  /**
-   * Los montos del período, ya formateados. Null cuando no se liquidó nada: la sección no se dibuja,
-   * en vez de mostrar una fila de ceros que se lee como si la compañía no hubiera pagado nada
-   * cuando en realidad todavía no liquidó.
-   */
+  /** null when nothing was settled: the section is hidden instead of showing a row of zeros. */
   protected readonly money = computed(() => {
     const metrics = this.data();
     if (!metrics || metrics.settled.settlements === 0) {
@@ -529,14 +474,12 @@ export class DashboardComponent {
       deductible: formatMoney(+settled.deductible),
       installments: formatMoney(+settled.installments),
       overdue: formatMoney(+settled.overdue),
-      // La comparación sólo vale si TODAS las liquidaciones traen monto reclamado. Con algunas sin
-      // él, el porcentaje divide lo liquidado de N expedientes por lo reclamado de menos de N: da
-      // un número alto que parece un error de cálculo y no lo es, pero tampoco significa nada.
+      // Only meaningful if EVERY settlement has a claimed amount; otherwise the ratio divides N cases
+      // by fewer than N.
       comparable: settled.claimedCases === settled.settlements && Number(settled.claimed) > 0,
       missing: settled.settlements - settled.claimedCases,
-      // "117% de lo reclamado" es un dato real —se liquida por suma asegurada, no por lo que pidió
-      // el asegurado— y hay que poder leerlo sin que parezca una cuenta mal hecha. Por eso se
-      // enuncia como proporción y no como "se liquidó el …", que sugiere un tope del 100%.
+      // Over 100% is legitimate (settled by sum insured, not by the claim), so it's phrased as a
+      // ratio rather than something implying a 100% cap.
       share:
         Number(settled.claimed) > 0
           ? this.percent(Number(settled.settled) / Number(settled.claimed))
@@ -544,7 +487,7 @@ export class DashboardComponent {
     };
   });
 
-  /** El fraude del período, con lo que evitó pagar. Null sin ninguno: no hay nada que contar. */
+  /** null when there was no fraud in the period. */
   protected readonly fraud = computed(() => {
     const fraud = this.data()?.fraud;
     if (!fraud || fraud.fraudDetermined === 0) {
@@ -555,12 +498,10 @@ export class DashboardComponent {
       decided: fraud.decided,
       backedByExpert: fraud.backedByExpert,
       notPaid: formatMoney(+fraud.amountNotPaid),
-      // Sin monto reclamado cargado no hay ahorro que mostrar, sólo la cantidad de casos.
       hasAmount: Number(fraud.amountNotPaid) > 0,
     };
   });
 
-  /** Una fila por tipo de tercero: cuántas derivaciones salieron, cuántas volvieron y en cuánto. */
   protected readonly derivations = computed(() =>
     (this.data()?.derivations ?? []).map((row) => ({
       label: providerLabel(row.providerType),
@@ -574,7 +515,7 @@ export class DashboardComponent {
     (this.data()?.byBlockingRule ?? []).map((count) => ({
       label: count.label ?? 'Sin identificar',
       count: count.count,
-      // Que una regla frene no es una alerta: es la regla haciendo su trabajo. Sin semáforo.
+      // A rule blocking is the rule doing its job, not an alert.
       tone: 'neutral' as StatusTone,
     })),
   );
@@ -607,16 +548,11 @@ export class DashboardComponent {
     (this.data()?.byBranch ?? []).map((count) => ({
       label: count.label ?? 'Sin ramo',
       count: count.count,
-      // El ramo no comunica estado: sin semáforo.
       tone: 'neutral' as StatusTone,
     })),
   );
 
-  /**
-   * Altas contra resoluciones, en barras. Lo que entra va en tinta (es volumen) y lo que se resuelve
-   * en el teal de "resuelto", que es el mismo con el que la app pinta un expediente aprobado. Las
-   * dos series en gris se leían apagadas y costaba separarlas de un vistazo.
-   */
+  /** Intake in ink (volume), resolutions in the same teal the app uses for an approved case. */
   protected readonly timelineChart = computed<EChartsCoreOption>(() => {
     const points = this.data()?.timeline ?? [];
     const base = baseChartOptions(this.theme);
@@ -671,7 +607,6 @@ export class DashboardComponent {
     return `Altas y resoluciones a lo largo del período. ${parts.join('. ')}.`;
   });
 
-  /** Por qué la línea de tiempo está agrupada así. Con poco volumen, el día a día es casi todo ceros. */
   protected readonly granularityNote = computed(() => {
     switch (this.data()?.granularity) {
       case 'WEEK':
@@ -683,20 +618,15 @@ export class DashboardComponent {
     }
   });
 
-  // ─── Formato ───────────────────────────────────────────────────────────────────────
+  // ─── Formatting ────────────────────────────────────────────────────────────────────
 
   private percent(rate: number | null | undefined): string {
     return formatRate(rate);
   }
 
   /**
-   * La variación contra el período anterior, con su flecha. Envoltorio fino sobre {@link trendText}
-   * (compartida con los dos reportes) que sólo resuelve cómo formatear la magnitud según la unidad
-   * del indicador — el resto (la regla de base mínima, el signo, el "mejor/peor") es una sola
-   * implementación para las tres pantallas.
-   *
-   * Una tasa se formatea en puntos porcentuales, no en porcentaje: pasar de 33% a 50% es "+17 pp",
-   * no "+17%" — eso último se lee como un aumento relativo (que sería del 52%) y es otra afirmación.
+   * Only picks the magnitude format; the trend rules live in {@link trendText}. Rates change in
+   * percentage points: 33% to 50% is "+17 pp", not "+17%" (that would be relative).
    */
   private trendOf(
     current: number | null,
@@ -714,7 +644,7 @@ export class DashboardComponent {
     return trendText({ current, previous, format, good, base });
   }
 
-  /** El punto de la línea de tiempo, como lo escribiría alguien: "14/06" o "jun 2026". */
+  /** "14/06" or "jun 2026". */
   private bucketLabel(point: TimelinePoint): string {
     const date = new Date(`${point.bucket}T00:00:00`);
     if (this.data()?.granularity === 'MONTH') {
@@ -724,7 +654,7 @@ export class DashboardComponent {
   }
 }
 
-/** Qué parte de lo decidido quedó dentro del objetivo. Null sin objetivo: no hay barra que pintar. */
+/** null without a goal: there's no bar to draw. */
 function targetShare(metrics: ClaimMetrics, decided: number): number | null {
   const target = metrics.resolutionTarget;
   if (!target.enabled || target.targetDays === null || decided === 0) {
@@ -733,10 +663,7 @@ function targetShare(metrics: ClaimMetrics, decided: number): number | null {
   return (decided - target.exceeded) / decided;
 }
 
-/**
- * Verde si la mayoría quedó dentro del objetivo, ámbar si se pasó más de un cuarto, rojo si se pasó
- * más de la mitad. Los cortes son de lectura, no de negocio: el número exacto está al lado.
- */
+/** Display thresholds, not business ones: the exact number is shown alongside. */
 function targetTone(metrics: ClaimMetrics, decided: number): StatusTone {
   const share = targetShare(metrics, decided);
   if (share === null) {
@@ -756,7 +683,7 @@ function labelOrEmpty(count: MetricCount, label: (raw: string) => string, empty:
   return count.label === null ? empty : label(count.label);
 }
 
-/** Fecha ISO de hace N días, que es lo que espera un input de tipo date. */
+/** ISO date N days ago, as a date input expects. */
 function isoDaysAgo(days: number): string {
   const date = new Date();
   date.setDate(date.getDate() - days);

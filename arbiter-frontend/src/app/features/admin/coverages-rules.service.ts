@@ -4,13 +4,12 @@ import { Observable } from 'rxjs';
 
 import { environment } from '../../../environments/environment';
 
-/** Cómo se calcula el techo indemnizable de la cobertura. Calca el enum SettlementBasis. */
+/** How the coverage's payable ceiling is computed. */
 export type SettlementBasis = 'SUM_INSURED' | 'LESSER_OF_SUM_AND_REPLACEMENT';
 
-/** Cómo se liquida un siniestro de esta cobertura. Calca el enum SettlementFormula. */
 export type SettlementFormula = 'TOTAL_LOSS' | 'REPAIR';
 
-/** Cobertura tal como la persiste cases-service — calca CoverageDetailResponse campo por campo. */
+/** Mirrors cases-service CoverageDetailResponse. */
 export interface CoverageDetail {
   id: number;
   name: string;
@@ -23,14 +22,14 @@ export interface CoverageDetail {
   claimExhaustsCoverage: boolean;
   settlementFormula: SettlementFormula;
   settlementBasis: SettlementBasis;
-  /** Fracción 0..1 como `deductibleRatio` (0.5 = 50%). `null` = el 2.º evento no reduce nada. */
+  /** 0..1 fraction like `deductibleRatio` (0.5 = 50%). `null` = the 2nd event isn't reduced. */
   secondEventRatio: number | null;
   deductPendingInstallments: boolean;
   deductOverdueBalance: boolean;
   exclusions: string[] | null;
 }
 
-/** One count per branch that has at least one coverage — mirrors CoverageSummary field for field. */
+/** One count per branch that has at least one coverage. */
 export interface CoverageSummary {
   branchId: number;
   coverageCount: number;
@@ -54,9 +53,8 @@ export interface CoverageUpsertRequest {
 }
 
 /**
- * CRUD real de coberturas (solapa Coberturas del referente) contra cases-service, dueño de la
- * tabla Coverage. `insuredAmount` no tiene equivalente acá a propósito: no existe tope de suma
- * asegurada por cobertura en el DER — vive en la póliza.
+ * Coverages CRUD against cases-service, which owns the table. There is deliberately no sum insured
+ * here: it lives on the policy, not on the coverage.
  */
 @Injectable({ providedIn: 'root' })
 export class CoveragesRulesService {
@@ -69,7 +67,7 @@ export class CoveragesRulesService {
     });
   }
 
-  /** Coverage counts for every branch in one call — populates the ramo list without visiting each one. */
+  /** Coverage counts for every branch in one call, so the branch list doesn't fetch each one. */
   summary(): Observable<CoverageSummary[]> {
     return this.http.get<CoverageSummary[]>(`${this.base}/summary`);
   }

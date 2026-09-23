@@ -4,7 +4,6 @@ import { Observable } from 'rxjs';
 
 import { environment } from '../../../environments/environment';
 
-/** Una fila persistida de la agenda documental — confirmación de lo que quedó en la DB. */
 export interface DocumentRequirementDto {
   id: number;
   documentType: string;
@@ -12,11 +11,7 @@ export interface DocumentRequirementDto {
   mandatory: boolean;
 }
 
-/**
- * Agenda documental de un hecho generador de un ramo (solapa Documentación) contra rules-service.
- * La pantalla edita por hecho generador — ya no hay
- * fan-out a los demás hechos generadores del ramo.
- */
+/** Required documents (agenda documental) for a branch + claim cause pair. */
 @Injectable({ providedIn: 'root' })
 export class DocumentRulesService {
   private readonly http = inject(HttpClient);

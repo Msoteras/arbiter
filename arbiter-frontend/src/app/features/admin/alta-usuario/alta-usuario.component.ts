@@ -17,13 +17,9 @@ import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { InputComponent } from '../../../shared/ui/input/input.component';
 
 /**
- * H0002 - Alta de Usuarios. Crea cuentas ANALISTA_SINIESTROS: no hay selector de rol porque es
- * el único valor que este formulario admite, y el backend rechaza cualquier otro.
- * Los asegurados NO salen de acá — se dan de alta en bloque desde la base de la aseguradora
- * ("Dar de alta asegurados" en UsuariosComponent), que es de donde viene su identidad.
- * Auth0 Phase 3: the referente no longer sets a password — the user is left "pending" and
- * gets an email to choose their own (see ActivateAccountComponent).
- * Vive dentro de un app-modal abierto desde UsuariosComponent (patrón del wireframe).
+ * Creates ANALISTA_SINIESTROS accounts only; there's no role selector because the backend rejects any
+ * other role. Insured users are bulk-provisioned from the insurer's database instead. No password is
+ * set here: the user gets an email to choose their own.
  */
 @Component({
   selector: 'app-alta-usuario',
@@ -44,10 +40,6 @@ export class AltaUsuarioComponent {
 
   protected readonly submitting = signal(false);
   protected readonly errorMessage = signal<string | null>(null);
-
-  // sector / fechaIngreso se sacaron: el backend multi-tenant no los modela (el DER de usuarios ya
-  // no tiene esas columnas) y se descartaban en silencio. Si algún día se quieren, va con una
-  // historia de schema (columna en el perfil por rol), no como campo de UI suelto.
 
   protected readonly canSubmit = computed(
     () =>

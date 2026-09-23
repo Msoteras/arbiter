@@ -25,9 +25,8 @@
           {{ group.title }} <span class="sc-group-hint">· {{ group.hint }}</span>
         </p>
         @if (group.heavy) {
-          <!-- Adentro del grupo al que afecta y no en la solapa Fast Track del ramo: el flag es de
-             toda la aseguradora y se guarda con el puntaje, y lo único que decide es si corren
-             estos factores. Suelto al pie de la pantalla no se entendía qué prendía. -->
+          <!-- Inside the group it affects, not in the branch's Fast Track tab: the flag is
+             insurer-wide, saved with scoring, and only decides whether these factors run. -->
           <div class="sc-ft" [class.off]="!fullAnalysisOnFastTrack()">
             <app-switch
               [checked]="fullAnalysisOnFastTrack()"
@@ -58,8 +57,7 @@
                 <span class="t-field-label">{{ f.label }}</span>
               </div>
               @if (isFactorActive(f.id)) {
-                <!-- La barra muestra el reparto real (peso sobre el total de los activos), que es lo
-                   que aplica el motor. El número crudo solo no dice nada: los pesos son relativos. -->
+                <!-- Effective share (weight over active total), which is what the engine applies. -->
                 <div class="sc-share">
                   <span class="sc-bar" aria-hidden="true">
                     <span class="sc-bar-fill" [style.width.%]="effectiveWeightRatio(f.id)"></span>
@@ -86,8 +84,6 @@
 
     <div class="sc-section">
       <span class="t-section-label">Bandas de riesgo</span>
-      <!-- La barra usa los cortes configurados, así que el ancho de cada tramo cambia al editarlos:
-         se ve de una qué tan angosta quedó una banda antes de guardar. -->
       <span class="sc-bands-bar" aria-hidden="true">
         @for (band of riskBands; track band) {
           <span
@@ -107,7 +103,7 @@
             <label class="sc-band-cut">
               <span class="t-note">desde</span>
               @if (band === 'LOW') {
-                <!-- La más baja arranca en 0 por definición: si no, habría puntajes sin banda. -->
+                <!-- The lowest band always starts at 0, or some scores would have no band. -->
                 <app-input type="number" [value]="'0'" [readonly]="true" />
               } @else {
                 <app-input

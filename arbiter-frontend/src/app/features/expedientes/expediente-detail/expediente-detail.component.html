@@ -32,16 +32,11 @@
   </header>
 
   <main class="det-content">
-    <!-- Tres cards del mismo peso: un título, un dato principal y como mucho una línea de detalle.
-         Lo que no entra en ese molde (el cruce del relato, la liquidación devuelta, la sugerencia
-         de peritaje) va a la franja de avisos de abajo, a lo ancho, en vez de estirar una sola
-         card y desequilibrar la fila. -->
+    <!-- Three equal cards (title, main value, one detail line). Anything longer goes to the
+         full-width notices strip below so no card stretches the row. -->
     <div class="reasoning" @staggerReveal>
-      <!-- El encabezado y la letra chica cambian según quién produjo el resultado: el LLM (una
-           recomendación no vinculante que el analista aprueba o rechaza) o el motor de reglas
-           (un chequeo objetivo, sin confianza que mostrar). "Falta documentación" además no es
-           una decisión del analista en absoluto: la acción es del asegurado, que tiene que
-           completar la carga. -->
+      <!-- Wording depends on the source: a non-binding LLM recommendation or an objective rules
+           check (no confidence to show). Missing documentation is the insured's action, not the analyst's. -->
       <app-card
         class="rcard reco"
         variant="ai"
@@ -62,7 +57,6 @@
           } @else if (needsDocs()) {
             <p class="note">Falta documentación obligatoria de la agenda del ramo.</p>
           } @else {
-            <!-- Fast Track no es "aprobar rápido": es que nadie opinó antes que el analista. -->
             <p class="note">
               Cumplió los criterios objetivos del carril rápido.
               <app-info-tip>
@@ -108,7 +102,6 @@
             <p class="registered">✓ Registrado: Rechazado</p>
           }
           @case ('lapsed') {
-            <!-- Nadie decidió: el expediente se cerró solo por inacción del asegurado. -->
             <p class="registered">Cerrado por caducidad</p>
             <p class="rcard-note">
               Pasaron 18 meses desde la denuncia sin que el asegurado trajera la documentación
@@ -117,8 +110,7 @@
           }
           @case ('pending') {
             @if (esperandoAutorizacion()) {
-              <!-- El analista ya decidió: lo que falta es la firma del referente sobre el monto.
-                   Mostrar los botones acá lo invitaría a decidir de nuevo algo que ya resolvió. -->
+              <!-- The analyst already decided; showing the buttons would invite deciding again. -->
               <p class="registered">⏳ Esperando autorización del referente</p>
               @if (settlement(); as s) {
                 <p class="rcard-note">
@@ -127,10 +119,7 @@
                 </p>
               }
             } @else if (canAct()) {
-              <!-- Lo que hay que tener a la vista para decidir, sin recorrer las solapas. Solo
-                   acerca evidencia que ya existe: no sugiere qué decidir. Si el expediente no
-                   tiene dueño, "Asignarme" va al costado: es la única acción, y abajo estiraba la
-                   card y con ella toda la fila. -->
+              <!-- Surfaces existing evidence only; it never suggests what to decide. -->
               <div class="decision-row">
                 <div class="decision-info">
                   <p class="brief">
@@ -164,8 +153,7 @@
                   }
                 </div>
                 @if (canDecide()) {
-                  <!-- Solo las dos decisiones, apiladas al costado. Derivar no es una tercera: es
-                       suspender para conseguir evidencia, y vive en la card "Analista asignado". -->
+                  <!-- Referral is not a third decision (it suspends to gather evidence): it lives in the assignment card. -->
                   <div class="decision-side">
                     <app-button
                       variant="secondary"
@@ -235,8 +223,6 @@
                 }
               }
             } @else if (needsDocs()) {
-              <!-- Hay clasificación, pero no le toca decidir al analista: el expediente espera que
-                   el asegurado complete la documentación. -->
               <p class="registered">Esperando al asegurado</p>
               <p class="rcard-note">
                 Cuando cargue la documentación faltante, el expediente se reclasifica y pasa a tu
@@ -248,8 +234,7 @@
           }
         }
         @if (puedeReabrir()) {
-          <!-- Reabrir no revierte la decisión anterior (su registro es inmutable), solo devuelve
-               el expediente a una persona. -->
+          <!-- Reopening doesn't revert the previous decision (its record is immutable). -->
           <div class="decision-btns">
             <app-button variant="secondary" [disabled]="reopening()" (click)="askReopen()">
               {{ reopening() ? 'Reabriendo…' : 'Reabrir expediente' }}
@@ -269,11 +254,9 @@
       </app-card>
     </div>
 
-    <!-- Avisos: lo que explica o condiciona la fila de arriba pero no entra en una línea. -->
     @if (hayAvisos()) {
       <div class="avisos">
-        <!-- El cruce relato ↔ hecho generador declarado: el asegurado eligió un hecho del selector
-             y después contó otra cosa. Quién tiene razón lo decide el analista. -->
+        <!-- Declared claim cause vs. what the narrative suggests; the analyst decides which is right. -->
         @if (showCauseConsistency()) {
           <p class="aviso" [attr.data-tone]="causeConsistencyTone()">
             <strong class="aviso-titulo">{{ causeConsistencyLabel() }}</strong>
@@ -289,8 +272,7 @@
           </p>
         }
         @if (canAct() && liquidacionDevuelta() && settlement(); as s) {
-          <!-- Devuelta no es rechazada: el expediente sigue siendo suyo y puede volver a
-               determinar el monto. El motivo es lo único que tiene para saber qué corregir. -->
+          <!-- Returned, not rejected: the analyst can determine the amount again. -->
           <p class="aviso" data-tone="info">
             <strong class="aviso-titulo">El referente devolvió la liquidación</strong>
             <span>{{ s.returnReason }}</span>
@@ -311,7 +293,6 @@
       </div>
     }
 
-    <!-- Tabs -->
     <nav class="tabs" role="tablist">
       @for (t of tabs(); track t.id) {
         <button
@@ -334,12 +315,9 @@
 
     <div class="tab-panel" [@tabSwitch]="activeTab()">
       @switch (activeTab()) {
-        <!-- ============ RESUMEN ============ -->
         @case ('resumen') {
           <div class="resumen-grid">
             <div class="col-main">
-              <!-- Una card, tres bloques en el orden en que se lee un siniestro: qué pasó, qué se
-                   reclama y de quién es la póliza. -->
               <app-card class="resumen-card">
                 @for (g of resumenGroups(); track g.heading; let first = $first) {
                   <section class="resumen-bloque">
@@ -380,8 +358,7 @@
             </div>
 
             <div class="col-side">
-              <!-- Asignación: quién tiene el expediente. Separada de la decisión a propósito — tener
-                 dueño no es haber resuelto (human-in-the-loop). -->
+              <!-- Kept apart from the decision on purpose: being assigned is not having resolved. -->
               <app-card heading="Analista asignado">
                 @if (isAssigned()) {
                   <div class="assignee">
@@ -395,7 +372,6 @@
                   </div>
                   @if (canGestionar()) {
                     <div class="assign-actions">
-                      <!-- Liberar va dentro de Reasignar: es la otra forma de soltar el expediente. -->
                       <app-menu-button
                         class="grow"
                         [block]="true"
@@ -407,8 +383,7 @@
                         <span aria-hidden="true">⟳</span>
                         {{ analystsLoading() ? 'Cargando…' : 'Reasignar' }}
                       </app-menu-button>
-                      <!-- Derivar es del dueño del expediente, así que va con la asignación. Con un
-                           solo destino es un botón; con dos, un menú, para no apretar la fila. -->
+                      <!-- Referral belongs to the case owner. One target is a button; two, a menu. -->
                       @if (opcionesDerivacion().length === 1) {
                         <app-button
                           class="grow"
@@ -470,9 +445,7 @@
                 }
               </app-card>
 
-              <!-- Antecedente de fraude del asegurado. Es lo único de la pantalla que no habla de
-                 ESTE siniestro sino de la persona que lo denuncia, y por eso va en la columna
-                 lateral, con lo que rodea al caso, y no entre los datos del siniestro. -->
+              <!-- About the person, not this claim, hence the side column. -->
               @if (mostrarAntecedente()) {
                 <app-card class="fraude-card" heading="Antecedente de fraude del asegurado">
                   @for (a of antecedentesPrevios(); track a.id) {
@@ -486,8 +459,7 @@
                         </span>
                       </div>
                       <p class="t-body">{{ a.reason }}</p>
-                      <!-- Que exista y que cuente son dos cosas distintas, y decirlo evita que un antecedente
-                         declarado sin peritaje se lea como si hubiera movido el medidor de riesgo. -->
+                      <!-- Existing is not counting: a record declared without an assessment may not affect the risk score. -->
                       <p class="t-note">
                         {{ efectoAntecedente(a) }} Lo registró {{ a.declaredByAnalystName }}.
                       </p>
@@ -536,8 +508,7 @@
             </div>
           </div>
 
-          <!-- Documentación faltante: SOLO LECTURA para el analista. La carga es del asegurado
-             desde su portal; acá se listan los documentos que todavía faltan. -->
+          <!-- Read-only for the analyst: only the insured uploads, from their portal. -->
           @if (needsDocs()) {
             <app-card class="missing-docs-card" heading="⚠ Falta documentación">
               <p class="t-note missing-docs-note">
@@ -559,8 +530,6 @@
           }
         }
 
-        <!-- Análisis: lo que leyó el sistema. Las razones del modelo a la izquierda (es lo que el
-           analista lee primero) y el score con su desglose al costado. -->
         @case ('analisis') {
           <div class="analisis-grid">
             <app-card heading="Razones del modelo">
@@ -635,9 +604,7 @@
           </div>
         }
 
-        <!-- Evaluación de reglas: lo determinístico. Las reglas duras primero (dicen si está
-           cubierto), después el carril rápido y la foto de la póliza con la que se evaluó todo.
-           Nada se pide en vivo: todo se persistió al clasificar. -->
+        <!-- Nothing is fetched live here: everything was persisted at classification time. -->
         @case ('reglas') {
           <div class="traza">
             <app-card heading="Reglas evaluadas">
@@ -680,9 +647,7 @@
             </app-card>
 
             <div class="reglas-grid">
-              <!-- Card aparte y no filas más en la tabla de arriba: un "No cumple" acá no dice que
-                 el siniestro no esté cubierto, dice que no fue por el carril rápido. Mezclarlos
-                 hacía leer una exclusión donde solo hubo un umbral de agilidad. -->
+              <!-- Separate card: failing a Fast Track criterion is not a coverage exclusion. -->
               @if (fastTrackCriteria().length > 0) {
                 <app-card heading="Criterios de Fast Track">
                   <p class="t-note traza-intro">
@@ -756,8 +721,6 @@
                   <div class="traza-scroll">
                     <table class="traza-table traza-polizas">
                       <thead>
-                        <!-- "Ramo / Producto" y no "Cobertura": eso es lo que muestra la columna. Las
-                           coberturas de verdad son varias por póliza y viven en el desplegable. -->
                         <tr>
                           <th>Póliza</th>
                           <th>Ramo / Producto</th>
@@ -784,8 +747,6 @@
                                 >
                                 <span class="cov-toggle-texto">
                                   <span class="mono">{{ p.policyNumber }}</span>
-                                  <!-- El conteo es lo que delata que hay algo para abrir: la flecha
-                                     sola pasaba desapercibida. -->
                                   <span class="cov-hint">
                                     {{ p.coverages.length }}
                                     {{ p.coverages.length === 1 ? 'cobertura' : 'coberturas' }}
@@ -884,8 +845,7 @@
         @case ('imagenes') {
           <app-forensic-analysis [caseId]="d.id" [report]="d.forensicReport" />
         }
-        <!-- Peritaje: la evidencia del perito NO reemplaza a la recomendación del modelo — el informe
-           no re-clasifica, el analista lee las dos y decide. La solapa solo existe si hubo derivación. -->
+        <!-- The expert report does not reclassify the case; the analyst weighs both. -->
         @case ('peritaje') {
           @for (p of derivaciones(); track p.id) {
             @let reparacion = p.providerType === 'SERVICIO_TECNICO';
@@ -991,12 +951,8 @@
   </div>
 }
 
-<!-- Modal de decisión (gobierno: toda decisión queda justificada/auditada). Al aprobar suma la
-     determinación del monto: el procedimiento de la compañía las trata como un solo acto del
-     analista, y aprobar sin monto deja al siniestro debiendo una suma que nadie fijó. -->
-<!-- Ancho solo al aprobar: ahí entra la hoja de liquidación entera y con 440px todo se partía en
-     tres renglones. Rechazar sigue siendo una justificación y nada más, y un diálogo ancho para un
-     solo campo se lee peor. -->
+<!-- Approval includes determining the amount: the company treats both as a single act.
+     Wide only when approving, to fit the settlement sheet. -->
 <app-modal
   [open]="showJustify()"
   [heading]="decisionModalHeading()"
@@ -1038,14 +994,10 @@
           </ul>
         }
 
-        <!-- El valor de reposición sale de la factura o el presupuesto que ya están en el
-             expediente. Solo baja el techo en las coberturas que liquidan por el menor de los
-             dos; en las demás queda registrado igual, como respaldo del monto. -->
+        <!-- The replacement value only lowers the ceiling on coverages that settle by the lesser
+             of the two; elsewhere it is recorded as backing for the amount. -->
         <div class="settlement-money">
-          <!-- Solo donde efectivamente cambia algo. En una cobertura que liquida la pérdida total
-               por suma asegurada este valor no toca el monto, y ofrecer un campo que no hace nada
-               es peor que no ofrecerlo: se carga, se aprieta Recalcular y el total queda igual.
-               En reparación es al revés: es la BASE, sin él no hay nada que pagar. -->
+          <!-- Only where it changes the result; for REPAIR it is the base amount itself. -->
           @if (pideMontoAcreditado()) {
             <label class="fieldset">
               <span class="t-field-label">
@@ -1080,11 +1032,8 @@
                 }
               </span>
 
-              <!-- El número que ya está en el expediente, para no hacerlo buscar de nuevo. No está
-                   aplicado: se toma con un clic. Las tres procedencias no se anuncian igual porque
-                   no llegaron igual: el del documento lo leyó el modelo y hay que verificarlo
-                   contra el papel; los otros dos los transcribió un analista al recibir el informe,
-                   y decir que "figuran" en un documento haría creer que el sistema los leyó solo. -->
+              <!-- Not applied until clicked. Wording differs by source: a document value was read by
+                   the model and must be checked; the others were typed in by an analyst. -->
               @if (sugerenciaDisponible()) {
                 <p class="settlement-suggestion">
                   <span>
@@ -1121,9 +1070,7 @@
               [placeholder]="montoExacto(s.calculatedAmount)"
             />
 
-            <!-- Lo que determinó el perito, cuando la cobertura no tiene monto acreditado donde
-                 ofrecerlo. No es un valor de reposición: es cuánto dice que hay que pagar, así que
-                 apunta acá. Tomarlo lo deja como ajuste, con su justificación. -->
+            <!-- The expert's amount is what to pay, not a replacement value; taking it records an adjustment. -->
             @if (sugerenciaDeMontoDisponible()) {
               <p class="settlement-suggestion">
                 <span>
@@ -1186,8 +1133,7 @@
   </ng-container>
 </app-modal>
 
-<!-- Reapertura. El motivo es obligatorio por la misma razón que la justificación de una decisión:
-     es lo único que le explica al que audite por qué un expediente cerrado volvió a abrirse. -->
+<!-- The reason is mandatory: it is the audit trail for why a closed case was reopened. -->
 <app-modal [open]="showReopen()" heading="Reabrir expediente" (close)="cancelReopen()">
   <p class="t-note">
     El expediente vuelve a revisión del analista con el plazo de respuesta corriendo de nuevo. No se
@@ -1206,8 +1152,6 @@
   </ng-container>
 </app-modal>
 
-<!-- Derivación a peritaje. El perito sale del catálogo de la aseguradora y no de un mail escrito
-     a mano: así queda registro de con quién trabaja la compañía. -->
 <app-modal
   [open]="showDerivar()"
   [heading]="esReparacion() ? 'Derivar a servicio técnico' : 'Derivar a peritaje'"
@@ -1246,8 +1190,7 @@
   </ng-container>
 </app-modal>
 
-<!-- Confirmación de la derivación. El expediente ya cambió de estado abajo, y sin este acuse el
-     analista no sabe si salió: es la única señal de que al perito se le mandó el mail. -->
+<!-- The only confirmation that the expert was emailed. -->
 @if (derivacionHecha(); as p) {
   <app-modal [open]="true" heading="Derivación enviada" (close)="cerrarDerivacionHecha()">
     <p class="t-body">
@@ -1273,8 +1216,6 @@
   </app-modal>
 }
 
-<!-- Registro del antecedente. Es un acto sobre la PERSONA, no sobre el expediente, así que el
-     modal dice antes de confirmar qué va a pasar en sus denuncias siguientes. -->
 <app-modal
   [open]="showAntecedente()"
   heading="Registrar antecedente de fraude"
@@ -1302,8 +1243,6 @@
     placeholder="Qué se determinó y con qué evidencia…"
     [(value)]="motivoAntecedente"
   />
-  <!-- El mínimo no es un capricho del formulario: es el texto que otro analista va a leer dentro
-       de años al lado de una marca sobre una persona. -->
   @if (motivoAntecedenteCorto()) {
     <p class="rcard-note">Contá qué se determinó (mínimo {{ motivoAntecedenteMin }} caracteres).</p>
   }
@@ -1322,8 +1261,7 @@
   </ng-container>
 </app-modal>
 
-<!-- Carga del informe pericial. El expediente vuelve a revisión con el veredicto al lado de la
-     clasificación; NO se re-clasifica. -->
+<!-- The case returns to review with the verdict next to the classification; it is NOT reclassified. -->
 <app-modal
   [open]="showInforme()"
   [heading]="
@@ -1343,11 +1281,8 @@
     "
     [(value)]="veredicto"
   />
-  <!-- El input se abre desde el botón por referencia, y NO envolviendo todo en un <label>: un
-       <button> adentro de un label es "contenido interactivo", y el navegador saltea la activación
-       del label cuando el click cae ahí. Así estaba antes y el botón no hacía nada — el picker solo
-       abría si le pegabas al texto de al lado. Los otros upload de la app (doc-upload, nueva
-       denuncia) usan label con texto suelto, que sí funciona. -->
+  <!-- Opened by reference from the button, not by wrapping it in a <label>: the browser skips
+       label activation when the click lands on a nested <button>. -->
   <div class="informe-file">
     <input
       #informeInput
@@ -1361,10 +1296,8 @@
   </div>
   <app-textarea [rows]="3" placeholder="Nota (opcional)…" [(value)]="notaVeredicto" />
 
-  <!-- El número que trae cada vuelta. El perito verifica la causa Y el monto indemnizable
-       (NSIN001 §2.6); el taller informa cuánto sale el arreglo. Llegan adentro de un PDF, así que
-       los transcribe el analista acá mismo, que ya está completando este formulario. Son preguntas
-       distintas y por eso cambian el label, la obligatoriedad y la columna donde terminan. -->
+  <!-- The expert reports the indemnifiable amount; the repair shop, the repair cost. Different
+       questions, so label, requiredness and target column differ. -->
   @if (pideMontoDelInforme()) {
     <label class="peritaje-monto">
       <span class="t-field-label">
@@ -1399,8 +1332,7 @@
     </label>
   }
 
-  <!-- Lo que se firma al guardar: el veredicto del perito no queda solo en el expediente, deja la
-       marca sobre la persona. Y esa marca no se da de baja desde la aplicación. -->
+  <!-- Saving records a fraud mark on the person, which cannot be removed from the app. -->
   @if (veredictoConfirmaFraude()) {
     <p class="rcard-note">
       Al guardar queda registrado el antecedente de fraude sobre el asegurado, con tu nombre y la

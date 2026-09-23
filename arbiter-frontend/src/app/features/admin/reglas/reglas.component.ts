@@ -54,22 +54,14 @@ import { accordion, fadeInUp, listStagger, staggerReveal } from '../../../shared
 
 type TabId = 'coberturas' | 'exclusiones' | 'fastTrack' | 'documentacion' | 'reglas';
 
-/** Las vistas del panel derecho que no dependen del ramo elegido. */
+/** Right-panel views that don't depend on the selected branch. */
 type GeneralView = 'hardStop' | 'scoring' | 'fraude' | 'atribuciones' | 'objetivo' | 'historial';
 
 /**
- * Configuración de reglas del referente, Ramo-céntrica. Master (lista de ramos) + detalle con
- * solapas: Coberturas, Fast Track, Documentación y Reglas. Trabaja sobre un draft en memoria por
- * solapa; cada una tiene su propio botón "Guardar X" que persiste contra el backend real
- * (cases-service para Coberturas, rules-service para las otras). La lista y el ABM de ramos salen del
- * catálogo REAL (BranchesService → rules-service /branches): alta, renombre y baja pegan al backend.
- * Ojo: branch es un catálogo GLOBAL (compartido por todas las aseguradoras), no una config por
- * aseguradora — por eso el ABM administra el catálogo maestro.
- * Ni el scoring de fraude ni Hard Stop (vigencia/mora) son por ramo: son config única por
- * aseguradora y viven en sus propios recuadros del sidebar (ScoringConfigComponent /
- * `loadInsurerHardRules`), fuera de este master-detail — vivían como solapa dentro del ramo hasta
- * que esa presentación daba a entender, incorrectamente, que Hard Stop era por ramo.
- * Porcentajes en la UI (0..100) ↔ fracción (0..1) en el modelo, que es el contrato del back.
+ * Branch master-detail with per-tab drafts, each saved by its own button (cases-service for
+ * coverages, rules-service for the rest). Branches are a GLOBAL catalog shared by every insurer.
+ * Insurer-wide config (Hard Stop, scoring, etc.) lives outside the master-detail on purpose.
+ * The UI shows percentages (0..100); the backend contract uses fractions (0..1).
  */
 @Component({
   selector: 'app-reglas',
@@ -97,8 +89,7 @@ type GeneralView = 'hardStop' | 'scoring' | 'fraude' | 'atribuciones' | 'objetiv
   changeDetection: ChangeDetectionStrategy.OnPush,
   animations: [staggerReveal, listStagger, fadeInUp, accordion],
   templateUrl: './reglas.component.html',
-  // El orden importa: los dos archivos se concatenan tal como están acá, y el segundo continúa
-  // exactamente donde termina el primero. Invertirlos cambia la cascada.
+  // Order matters: the files are concatenated as listed; swapping them changes the cascade.
   styleUrls: ['./reglas.component.scss', './reglas-secciones.scss'],
 })
 export class ReglasComponent {
@@ -111,9 +102,6 @@ export class ReglasComponent {
   private readonly rulesTextService = inject(BusinessRulesTextService);
   private readonly toastService = inject(ToastService);
 
-  // Estado de guardado real por solapa (Fast Track, Coberturas, Documentación y Reglas de negocio
-  // persisten contra el backend, cada una con su propio botón — el "Guardar cambios" global sigue
-  // existiendo solo para el nombre del ramo, que todavía es mock (alta/baja de ramo también).
   protected readonly ftSaving = signal(false);
   protected readonly ftError = signal<string | null>(null);
 
@@ -131,21 +119,14 @@ export class ReglasComponent {
   protected readonly rulesError = signal<string | null>(null);
 
   protected readonly docTypes = DOCUMENT_TYPES;
-  // Hechos generadores del ramo seleccionado (id + nombre). Se usan tanto para el selector de
-  // exclusiones duras por cobertura como para la solapa Documentación (agenda por hecho generador,
-  // D5). Se cargan del backend al elegir el ramo.
+  // Claim causes of the selected branch: used by the coverage exclusions and the Documents matrix.
   protected readonly claimCauses = signal<ClaimCauseOption[]>([]);
 
-  // Renombre del ramo (lo único editable del ramo desde acá: el alta y la baja no se exponen en la
-  // UI — el catálogo de ramos es fijo, lo administra el seed).
+  // Renaming is the only branch edit exposed here; creating/deleting branches isn't in the UI.
   protected readonly renaming = signal(false);
   protected readonly renameSaved = signal(false);
   protected readonly renameError = signal<string | null>(null);
-  /**
-   * Confirmación del renombre. El ramo es catálogo GLOBAL (lo comparten todas las aseguradoras) y
-   * su nombre aparece en pólizas, expedientes y reportes: el cambio se pide dos veces antes de
-   * impactar, como la baja de usuario.
-   */
+  /** Renames ask for confirmation: the branch catalog is global, shared by every insurer. */
   protected readonly showRenameConfirm = signal(false);
 
   protected readonly tabs: { id: TabId; label: string }[] = [
@@ -155,35 +136,23 @@ export class ReglasComponent {
     { id: 'documentacion', label: 'Documentación' },
     { id: 'reglas', label: 'Reglas de negocio' },
   ];
-  // Preferencia de UI, no de sesión: sobrevive a cerrar el navegador (localStorage, no
-  // sessionStorage) porque no hay nada sensible en "qué solapa mirabas la última vez".
   private static readonly LAST_TAB_KEY = 'arbiter.reglas.lastTab';
   protected readonly activeTab = signal<TabId>(this.loadLastTab());
 
   protected readonly ramos = signal<RamoRules[]>([]);
   protected readonly ramosLoading = signal(true);
-  // Carga del detalle del ramo elegido. Sin esto el panel derecho se dibuja con el shell vacío
-  // apenas se clickea y va llenándose de a pedazos: se ve un ramo sin coberturas y, dentro de cada
-  // una, los mensajes de "no se pudieron cargar" de los bloques que todavía están en vuelo — como
-  // si hubiera fallado algo. Con el loader, el panel aparece ya armado.
+  // Keeps the detail panel from filling in piecemeal while its requests are in flight.
   protected readonly detailLoading = signal(false);
-  /** Ramo cuyo detalle se está cargando: descarta el conteo de uno que el referente ya dejó atrás. */
+  /** Branch whose detail is loading, so responses for a branch left behind are ignored. */
   private detailToken: string | null = null;
   private pendingDetail = 0;
   protected readonly selectedId = signal<string | null>(null);
-  // Qué muestra el panel derecho: el detalle del ramo seleccionado ('ramo') o el scoring de la
-  // aseguradora ('scoring'), que no pertenece a ningún ramo y se elige desde su propio recuadro.
   protected readonly view = signal<'ramo' | GeneralView>('ramo');
   protected readonly draft = signal<RamoRules | null>(null);
 
   /**
-   * Lo último que confirmó el backend, por solapa. Contra esto se decide si hay cambios sin
-   * guardar: un flag "tocado" dejaba el botón habilitado después de deshacer un cambio a mano,
-   * ofreciendo guardar algo que ya no existía.
-   *
-   * Se sincroniza por porción y no entero, porque las cargas del backend caen en momentos
-   * distintos (la agenda documental se recarga al cambiar de hecho generador, con el referente ya
-   * editando otra solapa): un sync completo ahí le borraría los cambios pendientes de las demás.
+   * Last state confirmed by the backend; unsaved changes are measured against it. Synced per slice,
+   * not whole: loads land at different times and a full sync would wipe other tabs' pending edits.
    */
   private readonly persisted = signal<RamoRules | null>(null);
 
@@ -210,7 +179,6 @@ export class ReglasComponent {
     return fields.some((field) => JSON.stringify(current[field]) !== JSON.stringify(base[field]));
   }
 
-  /** Vuelve la porción de la solapa a lo último guardado, sin tocar las otras. */
   private restoreSlice(...fields: (keyof RamoRules)[]): void {
     const base = this.persisted();
     if (!base) {
@@ -259,17 +227,11 @@ export class ReglasComponent {
     this.rulesError.set(null);
   }
 
-  // Último conteo de coberturas conocido (branchId → coverageCount). Cacheado acá porque
-  // refreshCoverageSummary() y la carga de ramos son dos HTTP calls independientes disparadas
-  // juntas en el constructor, sin orden garantizado: si el conteo llega antes que la lista de
-  // ramos, escribir directo sobre `ramos` (todavía vacío) lo perdía en silencio — el `.set()`
-  // posterior de la lista lo pisaba con el shell en 0. Guardarlo acá y reaplicarlo desde los dos
-  // puntos de resolución (cualquiera que llegue después) lo hace determinístico.
+  // Cached because the counts and the branch list are independent requests with no guaranteed
+  // order; both callbacks reapply it, so whichever arrives last wins.
   private coverageCounts = new Map<string, number>();
 
   constructor() {
-    // La lista sale del catálogo real de ramos (tabla branch). Cada ramo arranca como un shell
-    // (solo id + nombre); el detalle de cada solapa se carga del backend al seleccionarlo.
     this.branchesService.list().subscribe({
       next: (branches) => {
         const ramos = branches.map((b) => this.shellFromBranch(b));
@@ -286,12 +248,7 @@ export class ReglasComponent {
     this.loadInsurerHardRules();
   }
 
-  /**
-   * El conteo de "N coberturas" de la lista sale de un endpoint aparte, liviano, que trae todos
-   * los ramos de una — así el número es correcto de entrada, sin esperar a que el referente
-   * clickee cada ramo (que es lo único que dispara la carga del detalle completo). Se vuelve a
-   * llamar después de guardar coberturas, porque un alta/baja cambia el conteo.
-   */
+  /** Also called after saving coverages, since adding or removing one changes the count. */
   private refreshCoverageSummary(): void {
     this.coveragesService.summary().subscribe({
       next: (counts) => {
@@ -299,12 +256,11 @@ export class ReglasComponent {
         this.applyCoverageCounts();
       },
       error: () => {
-        /* best-effort: la lista se queda con el último conteo conocido */
+        /* best-effort: keep the last known counts */
       },
     });
   }
 
-  /** Aplica el último conteo cacheado sobre la lista de ramos actual. */
   private applyCoverageCounts(): void {
     if (this.coverageCounts.size === 0) {
       return;
@@ -314,7 +270,6 @@ export class ReglasComponent {
     );
   }
 
-  /** Arranca la carga del detalle de un ramo: el panel derecho muestra el loader hasta que llegue todo. */
   private beginDetailLoad(ramoId: string): void {
     this.detailToken = ramoId;
     this.pendingDetail = 0;
@@ -322,10 +277,8 @@ export class ReglasComponent {
   }
 
   /**
-   * Suma una request al detalle del ramo en curso. El loader se apaga recién cuando todas
-   * terminaron —bien o mal—, incluidas las que dispara la respuesta de coberturas (reglas duras y
-   * exclusiones de cada una), que son las que hacían aparecer los chips a destiempo. Las respuestas
-   * de un ramo que el referente ya dejó no cuentan: su loader no es el que está en pantalla.
+   * The loader turns off only when every tracked request finished, including the ones chained off
+   * the coverages response. Requests for a branch the user already left don't count.
    */
   private trackDetail<T>(ramoId: string, source: Observable<T>): Observable<T> {
     if (this.detailToken !== ramoId) {
@@ -345,14 +298,14 @@ export class ReglasComponent {
     );
   }
 
-  /** Apaga el loader si no quedó nada en vuelo (ramo sin branchId real: no se pidió nada). */
+  /** Turns the loader off when nothing was requested. */
   private settleDetailLoad(): void {
     if (this.pendingDetail === 0) {
       this.detailLoading.set(false);
     }
   }
 
-  /** Shell de RamoRules a partir del ramo real: id + nombre; el resto lo llena el backend al select. */
+  /** Only id + name; the rest is loaded from the backend on select. */
   private shellFromBranch(branch: BranchOption): RamoRules {
     return {
       id: String(branch.id),
@@ -379,26 +332,15 @@ export class ReglasComponent {
     return this.view() === 'ramo' && this.selectedId() === r.id;
   }
 
-  /**
-   * Las secciones que NO son de un ramo: valen para toda la aseguradora y elegir una cambia el
-   * panel derecho. Están juntas en una lista y no como cards sueltas porque son un grupo — el
-   * alcance lo dice el encabezado una vez, en vez de repetirse abajo de cada nombre.
-   */
+  /** Insurer-wide sections, not tied to a branch. */
   protected readonly generalSections: { id: GeneralView; label: string }[] = [
     { id: 'hardStop', label: 'Hard Stop' },
     { id: 'scoring', label: 'Puntaje de riesgo' },
-    // Antecedente y peritos eran dos entradas: apuntan a lo mismo (qué hace la compañía frente a
-    // un fraude) y se usan en el mismo momento, así que ahora son una sección sola.
     { id: 'fraude', label: 'Gestión de fraude' },
-    // Los topes son por ramo, pero se leen de una: el referente los compara entre sí, y
-    // repartirlos en el detalle de cada ramo lo obliga a entrar y salir para ver el panorama.
+    // Caps are per branch but listed together so they can be compared at a glance.
     { id: 'atribuciones', label: 'Atribuciones de liquidación' },
-    // Meta de gestión, no regla: no la evalúa el motor ni bloquea nada. Está acá porque es
-    // configuración de toda la compañía y el referente la administra en la misma pantalla que
-    // el resto; el único que la lee es el tablero de métricas.
     { id: 'objetivo', label: 'Objetivo de resolución' },
-    // 'historial' NO va acá: es la única entrada que no configura nada y cruza a todas las demás,
-    // así que tiene su propio bloque de Auditoría abajo de la lista (ver el template).
+    // 'historial' is deliberately not here: it configures nothing and has its own Audit block.
   ];
 
   protected selectGeneral(section: GeneralView): void {
@@ -427,7 +369,6 @@ export class ReglasComponent {
     this.settleDetailLoad();
   }
 
-  /** Catálogo de hechos generadores del ramo, para el selector de exclusiones duras por cobertura. */
   private loadClaimCauses(r: RamoRules): void {
     this.claimCauses.set([]);
     const branchId = this.branchIdOf(r);
@@ -437,21 +378,15 @@ export class ReglasComponent {
     this.trackDetail(r.id, this.exclusionsService.listClaimCauses(branchId)).subscribe({
       next: (options) => {
         this.claimCauses.set(options);
-        // La agenda documental es por hecho generador (D5) y se edita como matriz documento ×
-        // hecho generador, así que se cargan las N agendas y no solo la del primero.
+        // The document agenda is edited as a matrix, so every claim cause's agenda is loaded.
         options.forEach((option) => this.loadDocumentsFromBackend(r, option.id));
       },
       error: () => {
-        /* backend caído: el selector queda vacío, sin romper la pantalla */
+        /* best-effort: the selector stays empty */
       },
     });
   }
 
-  /**
-   * Trae del backend el Fast Track persistido y lo superpone sobre el draft, para que el referente
-   * vea lo que está guardado (no el semilla del mock). Best-effort: si falla o no hay config, deja
-   * los valores del mock. Solo aplica a ramos con branchId real (id numérico).
-   */
   private loadFastTrackFromBackend(r: RamoRules): void {
     const branchId = this.branchIdOf(r);
     if (branchId == null) {
@@ -460,14 +395,13 @@ export class ReglasComponent {
     this.trackDetail(r.id, this.ftService.loadForBranch(branchId)).subscribe({
       next: (dto) => this.overlayFastTrack(dto),
       error: () => {
-        /* backend caído: nos quedamos con el mock, sin romper la pantalla */
+        /* best-effort: keep the draft as is */
       },
     });
   }
 
   private overlayFastTrack(dto: FastTrackConfigDto | null): void {
-    // Fast Track siempre activo (requisito del sistema): se cargan los umbrales que haya en la DB;
-    // si no hay, quedan vacíos (sin criterios activos), pero el gate es siempre parte del análisis.
+    // Fast Track is always on; with no stored config the thresholds are simply empty.
     this.draft.update((d) =>
       d
         ? {
@@ -482,9 +416,7 @@ export class ReglasComponent {
               requiresUpToDatePolicy:
                 dto?.requiresUpToDatePolicy ?? d.fastTrack.requiresUpToDatePolicy,
               requiredDocumentTypes: dto?.requiredDocumentTypes ?? [],
-              // Con config guardada mandan los criterios guardados, incluso si son una lista vacía:
-              // vacío es una decisión del referente, no "todavía no cargué nada". Sin config, queda
-              // lo que haya en el draft (D14).
+              // With a stored config its criteria win even when empty: empty is a decision.
               criteria: dto ? (dto.criteria ?? []) : d.fastTrack.criteria,
             },
           }
@@ -493,11 +425,7 @@ export class ReglasComponent {
     this.markPersisted('fastTrack');
   }
 
-  /**
-   * Trae del backend las coberturas reales del ramo (cases-service) y las exclusiones comunes
-   * (rules-service), reemplazando lo que trajera el mock. Guarda una copia (`loadedCoverages`)
-   * para poder diffear altas/bajas/ediciones al guardar.
-   */
+  /** Keeps a copy in `loadedCoverages` to diff creates/updates/deletes on save. */
   private loadCoveragesFromBackend(r: RamoRules): void {
     const branchId = this.branchIdOf(r);
     if (branchId == null) {
@@ -511,7 +439,7 @@ export class ReglasComponent {
         this.loadCoverageHardRules(ramoId, list);
       },
       error: () => {
-        /* backend caído: nos quedamos con el mock, sin romper la pantalla */
+        /* best-effort */
       },
     });
     this.trackDetail(ramoId, this.rulesTextService.getExclusions(branchId)).subscribe({
@@ -543,29 +471,18 @@ export class ReglasComponent {
       deductPendingInstallments: c.deductPendingInstallments,
       deductOverdueBalance: c.deductOverdueBalance,
       exclusions: c.exclusions ?? [],
-      // Las exclusiones duras (por hecho generador) viven en rules-service, no en este detalle:
-      // arrancan vacías y las completa loadCoverageExclusions.
+      // Filled in by loadCoverageExclusions / loadCoverageHardRules (they live in rules-service).
       excludedClaimCauseIds: [],
-      // Same for the hard temporal rules: loadCoverageHardRules fills them in.
       hardRules: [],
     }));
     this.loadedCoverages = coverages;
-    // Only touch the draft if it's still showing the ramo this response is for — the referente
-    // may have switched to a different ramo while the request was in flight, and a slow reply
-    // for the one they left shouldn't clobber what's on screen now. The sidebar's "N coberturas"
-    // badge doesn't depend on this: it reads coverageCount, populated separately from
-    // /coverages/summary (see refreshCoverageSummary) so it's accurate before any ramo is ever
-    // selected, not just after.
+    // Only if the draft still shows this branch: a slow reply for a branch the user left mustn't
+    // clobber the screen.
     this.draft.update((d) => (d && d.id === ramoId ? { ...d, coverages } : d));
     this.markPersisted('coverages');
   }
 
-  /**
-   * Trae, por cada cobertura persistida, los hechos generadores que excluye (rules-service) y los
-   * mergea en el draft. Best-effort e independiente por cobertura: si una falla, las otras igual
-   * cargan. Solo para coberturas con id real; las altas locales (`cov-…`) todavía no existen en el
-   * backend.
-   */
+  /** Best-effort and independent per coverage: if one fails, the others still load. */
   private loadCoverageExclusions(ramoId: string, list: CoverageDetail[]): void {
     list.forEach((c) => {
       this.trackDetail(ramoId, this.exclusionsService.get(c.id)).subscribe({
@@ -588,17 +505,14 @@ export class ReglasComponent {
           }
         : d,
     );
-    // Reflejarlo también en el baseline cargado, para que el diff de guardado no lo marque sucio.
+    // Also update the loaded baseline so the save diff doesn't see it as a change.
     this.loadedCoverages = this.loadedCoverages.map((c) =>
       c.id === coverageId ? { ...c, excludedClaimCauseIds: ids } : c,
     );
     this.markPersisted('coverages');
   }
 
-  /**
-   * Fetches each persisted coverage's hard temporal rules (rules-service). Best-effort and
-   * independent per coverage, same as the exclusions: if one fails, the others still load.
-   */
+  /** Best-effort and independent per coverage, like the exclusions. */
   private loadCoverageHardRules(ramoId: string, list: CoverageDetail[]): void {
     const draft = this.draft();
     const branchId = draft ? this.branchIdOf(draft) : null;
@@ -632,7 +546,6 @@ export class ReglasComponent {
     this.markPersisted('coverages');
   }
 
-  /** Trae del backend la agenda documental real de un hecho generador puntual del ramo. */
   private loadDocumentsFromBackend(r: RamoRules, claimCauseId: number): void {
     const branchId = this.branchIdOf(r);
     if (branchId == null) {
@@ -654,12 +567,11 @@ export class ReglasComponent {
         this.markPersisted('requiredDocumentsByClaimCause');
       },
       error: () => {
-        /* backend caído: nos quedamos con el mock, sin romper la pantalla */
+        /* best-effort */
       },
     });
   }
 
-  /** Trae las reglas de negocio en texto libre del ramo (rules-service). */
   private loadBusinessRulesFromBackend(r: RamoRules): void {
     const branchId = this.branchIdOf(r);
     if (branchId == null) {
@@ -671,7 +583,7 @@ export class ReglasComponent {
         this.markPersisted('businessRules');
       },
       error: () => {
-        /* backend caído: nos quedamos con el mock, sin romper la pantalla */
+        /* best-effort */
       },
     });
   }
@@ -686,33 +598,25 @@ export class ReglasComponent {
     localStorage.setItem(ReglasComponent.LAST_TAB_KEY, t);
   }
 
-  /** Arranca en la última solapa que el referente miró; si no hay nada guardado o quedó
-   * inválida (ej. venía de una versión vieja con otras solapas), cae a Coberturas. */
+  /** Falls back to Coberturas when nothing valid is stored. */
   private loadLastTab(): TabId {
     const saved = localStorage.getItem(ReglasComponent.LAST_TAB_KEY);
     return this.tabs.some((t) => t.id === saved) ? (saved as TabId) : 'coberturas';
   }
 
-  // ───────────────── Ramos: renombre ─────────────────
-  // El alta y la baja de ramos no se exponen en la UI (el catálogo es fijo, lo administra el seed).
-  // El backend igual tiene el ABM completo (BranchesService.create/remove) por si se reactiva.
+  // ───────────────── Branch rename ─────────────────
 
-  /** Edita el nombre del ramo en el draft (local); se persiste con saveName(). */
   protected setName(name: string): void {
     this.draft.update((d) => (d ? { ...d, name } : d));
     this.renameSaved.set(false);
   }
 
-  /** Nombre con el que el ramo está guardado hoy: el draft ya tiene el tipeado, no el vigente. */
+  /** The saved name: the draft already holds what was typed. */
   protected readonly renameFrom = computed(
     () => this.ramos().find((r) => r.id === this.selectedId())?.name ?? '',
   );
 
-  /**
-   * Primer paso del renombre: valida lo que se pueda contestar sin ir al backend y abre la
-   * confirmación. Lo que no pasa la validación ni siquiera llega al diálogo — un modal que se
-   * abre para decir "el nombre está vacío" es un click de más.
-   */
+  /** Validates locally first, so the modal never opens just to say the name is empty. */
   protected requestRename(): void {
     const d = this.draft();
     if (!d || this.renaming()) {
@@ -734,11 +638,7 @@ export class ReglasComponent {
     this.showRenameConfirm.set(false);
   }
 
-  /**
-   * Cierra el diálogo y deja que el guardado se vea donde ya se veía (el "Guardando…" del botón y
-   * el ✓ / el error al lado). Duplicar ese estado adentro del modal sería una segunda superficie
-   * que decir lo mismo.
-   */
+  /** Closes the dialog; saving progress and errors show next to the button, not in the modal. */
   protected confirmRename(): void {
     this.showRenameConfirm.set(false);
     this.saveName();
@@ -762,7 +662,6 @@ export class ReglasComponent {
       next: (branch) => {
         this.renaming.set(false);
         this.renameSaved.set(true);
-        // Refleja el nombre nuevo en la lista de la izquierda.
         this.ramos.update((list) =>
           list.map((r) => (r.id === String(branch.id) ? { ...r, name: branch.name } : r)),
         );
@@ -774,7 +673,7 @@ export class ReglasComponent {
     });
   }
 
-  // ───────────────── Coberturas ─────────────────
+  // ───────────────── Coverages ─────────────────
   protected addCoverage(): void {
     const coverage: Coverage = {
       id: `cov-${Date.now()}`,
@@ -787,9 +686,8 @@ export class ReglasComponent {
       waitingPeriodDays: null,
       coversFamilyGroup: false,
       claimExhaustsCoverage: false,
-      // Por defecto, lo que dice el manual de Celulares: techo = suma asegurada y sin deducciones
-      // más allá de la franquicia. Prenderlas cambia cuánto cobra el asegurado, así que es una
-      // decisión explícita del referente y no un default.
+      // Default: ceiling = sum insured, no deductions beyond the deductible. Enabling deductions
+      // changes what the insured gets paid, so it must be an explicit choice.
       settlementFormula: 'TOTAL_LOSS',
       settlementBasis: 'SUM_INSURED',
       secondEventRatio: null,
@@ -800,14 +698,12 @@ export class ReglasComponent {
       hardRules: [],
     };
     this.draft.update((d) => (d ? { ...d, coverages: [...d.coverages, coverage] } : d));
-    // Se abre sola: con el acordeón cerrado, agregar una cobertura sumaba un renglón vacío al pie
-    // y parecía que el botón no había hecho nada.
+    // Opened right away, or adding a collapsed row at the bottom looks like nothing happened.
     this.expandedCoverageId.set(coverage.id);
-    this.markDirty();
   }
 
   // ───────────────── Hard temporal rules per coverage ─────────────────
-  /** The coverage's hard rules; empty while they haven't loaded or if the coverage is local. */
+  /** Empty while loading, or for a coverage not yet saved. */
   protected hardRulesOf(c: Coverage): HardRule[] {
     return c.hardRules ?? [];
   }
@@ -816,7 +712,7 @@ export class ReglasComponent {
     return HARD_RULE_LABELS[type];
   }
 
-  /** The police-report deadline is the only one with its own threshold: the rest take theirs from above. */
+  /** Only the police-report deadline has its own threshold; the rest use coverage columns. */
   protected hasOwnThreshold(rule: HardRule): boolean {
     return rule.ruleType === 'POLICE_DEADLINE';
   }
@@ -857,22 +753,16 @@ export class ReglasComponent {
           }
         : d,
     );
-    this.markDirty();
   }
 
-  // ───────────────── Hard Stop: reglas de toda la aseguradora ─────────────────
-  // Vigencia y mora no dependen de la cobertura elegida (D13, la póliza está o no vigente sin
-  // importar bajo qué cobertura se reclame), así que salen de un endpoint aparte que no lleva
-  // branchId/coverageId. Se cargan una sola vez al construir el componente, no por ramo — el
-  // contenido de esta pestaña es el mismo elijas el ramo que elijas.
+  // ───────────────── Hard Stop: insurer-wide rules ─────────────────
+  // Policy in force and arrears don't depend on the coverage: loaded once, not per branch.
   protected readonly insurerHardRules = signal<InsurerHardRule[]>([]);
-  // Se carga una sola vez (no depende del ramo, así que `detailLoading` no la cubre) — sin esto,
-  // si el referente entra a la solapa Hard Stop mientras la request todavía está en vuelo, ve los
-  // chips en "Inactiva" por default como si ya hubiera cargado, en lugar de un loader.
+  // `detailLoading` doesn't cover this load; without it the rules would briefly show as inactive.
   protected readonly hardStopLoading = signal(true);
   protected readonly hardStopSaving = signal(false);
   protected readonly hardStopError = signal<string | null>(null);
-  /** Lo último que confirmó el backend, para decidir si quedan cambios sin guardar. */
+  /** Last state confirmed by the backend; unsaved changes are measured against it. */
   private readonly persistedHardRules = signal<InsurerHardRule[]>([]);
 
   protected readonly hardStopDirty = computed(
@@ -886,8 +776,6 @@ export class ReglasComponent {
 
   protected readonly onArrearsOptions: SelectOption[] = [
     { value: 'REJECT', label: 'Rechazar en el alta' },
-    // "Standby" no decía qué pasa: la denuncia se crea igual y la mora se evalúa después, en la
-    // clasificación. La etiqueta ahora cuenta eso en vez de nombrar un estado interno.
     { value: 'STANDBY', label: 'Permitir el alta y evaluar después' },
   ];
 
@@ -902,7 +790,7 @@ export class ReglasComponent {
           this.persistedHardRules.set(structuredClone(rules));
         },
         error: () => {
-          /* backend caído: la pestaña queda vacía, sin romper la pantalla */
+          /* best-effort: the tab stays empty */
         },
       });
   }
@@ -933,11 +821,7 @@ export class ReglasComponent {
     return this.insurerHardRules().find((r) => r.ruleType === 'POLICY_IN_FORCE');
   }
 
-  /**
-   * Si la mora, tal como está configurada, efectivamente bloquea el alta. Es la única regla de Hard
-   * Stop donde estar activa no alcanza: con `STANDBY` la denuncia se crea igual y la mora se evalúa
-   * después, en la clasificación. Decirlo en la pantalla evita prometer un bloqueo que no ocurre.
-   */
+  /** Enabled isn't enough: with `STANDBY` the claim is created and arrears evaluated later. */
   protected arrearsBlocks(): boolean {
     const rule = this.policyStandingRule();
     return rule?.enabled === true && rule.onArrears === 'REJECT';
@@ -963,8 +847,8 @@ export class ReglasComponent {
     });
   }
 
-  // ───────────────── Exclusiones duras por cobertura (hecho generador) ─────────────────
-  /** Una cobertura ya persistida (id numérico) puede configurar exclusiones; una local todavía no. */
+  // ───────────────── Hard exclusions per coverage ─────────────────
+  /** Only saved coverages (numeric id) can have exclusions. */
   protected canEditExclusions(c: Coverage): boolean {
     return this.isPersistedId(c.id);
   }
@@ -974,15 +858,13 @@ export class ReglasComponent {
   }
 
   /**
-   * Una cobertura sin ningún hecho generador excluido cubre todo su ramo. No es inválido —puede ser
-   * exactamente lo contratado—, pero sí es lo que decide con qué suma asegurada se liquida, así que
-   * se avisa. Ver [[project-reglas-duras-interruptor-vs-umbral]].
+   * Without exclusions the coverage covers its whole branch. Valid, but it decides which sum insured
+   * is used to settle, so the UI warns about it.
    */
   protected hasExcludedCauses(c: Coverage): boolean {
     return (c.excludedClaimCauseIds ?? []).length > 0;
   }
 
-  /** "los 4 hechos generadores" / "el único hecho generador", para que el aviso sea concreto. */
   protected coveredCausesLabel(): string {
     const total = this.claimCauses().length;
     return total === 1 ? 'el único hecho generador' : `los ${total} hechos generadores`;
@@ -1009,7 +891,6 @@ export class ReglasComponent {
           }
         : d,
     );
-    this.markDirty();
   }
 
   protected removeCoverage(id: string): void {
@@ -1017,14 +898,12 @@ export class ReglasComponent {
     if (this.expandedCoverageId() === id) {
       this.expandedCoverageId.set(null);
     }
-    this.markDirty();
   }
 
   protected setCoverageField(id: string, patch: Partial<Coverage>): void {
     this.draft.update((d) =>
       d ? { ...d, coverages: d.coverages.map((c) => (c.id === id ? { ...c, ...patch } : c)) } : d,
     );
-    this.markDirty();
   }
 
   protected setCoverageDeductible(id: string, value: string): void {
@@ -1059,12 +938,8 @@ export class ReglasComponent {
     return this.intStr(c.waitingPeriodDays);
   }
 
-  // ───────────────── Coberturas: acordeón + filas de reglas ─────────────────
-  /**
-   * Qué cobertura está abierta. Una por vez: con todas desplegadas la solapa era una tira de
-   * formularios idénticos donde no se distinguía dónde terminaba una y empezaba la otra, y el
-   * referente edita de a una.
-   */
+  // ───────────────── Coverages: accordion and rule rows ─────────────────
+  /** One coverage open at a time. */
   protected readonly expandedCoverageId = signal<string | null>(null);
 
   protected isCoverageOpen(c: Coverage): boolean {
@@ -1075,11 +950,7 @@ export class ReglasComponent {
     this.expandedCoverageId.update((open) => (open === c.id ? null : c.id));
   }
 
-  /**
-   * El resumen que se ve con la cobertura cerrada: lo que la distingue de las otras, en el orden en
-   * que se configura adentro. Se omite lo que no está configurado en vez de mostrarlo en "—": una
-   * fila de guiones no dice nada y esconde lo que sí tiene valor.
-   */
+  /** Summary shown while collapsed; unset values are omitted rather than shown as "—". */
   protected coverageSummary(c: Coverage): string[] {
     const chips: string[] = [];
     if (c.deductibleRatio != null) {
@@ -1105,10 +976,7 @@ export class ReglasComponent {
     return chips;
   }
 
-  /**
-   * Las reglas duras en un orden fijo y no en el que las devuelva el backend: la lista se lee de
-   * corrido y cambiar de cobertura no tiene que reordenar lo que el referente venía mirando.
-   */
+  /** Fixed order, independent of the backend's, so switching coverage doesn't reshuffle rows. */
   private static readonly HARD_RULE_ORDER: HardRuleType[] = [
     'WAITING_PERIOD',
     'REPORT_DEADLINE',
@@ -1123,7 +991,6 @@ export class ReglasComponent {
     ).filter((r): r is HardRule => r != null);
   }
 
-  /** Qué evalúa cada regla, en una línea, al lado de su interruptor. */
   protected hardRuleHint(type: HardRuleType): string {
     switch (type) {
       case 'WAITING_PERIOD':
@@ -1142,10 +1009,8 @@ export class ReglasComponent {
   }
 
   /**
-   * El umbral de cada regla. Tres viven en columnas de la cobertura (son términos del contrato) y
-   * el de la denuncia policial en la regla misma, que es la única sin columna propia. La pantalla
-   * no tiene por qué mostrar esa diferencia: acá se unifica el acceso, y el interruptor queda al
-   * lado del número que gobierna en vez de dos secciones más arriba.
+   * Unifies access: three thresholds are coverage columns (contract terms) and the police deadline
+   * lives on the rule itself.
    */
   protected hardRuleValue(c: Coverage, type: HardRuleType): string {
     switch (type) {
@@ -1185,15 +1050,7 @@ export class ReglasComponent {
     this.setCoverageField(c.id, { claimExhaustsCoverage: !c.claimExhaustsCoverage });
   }
 
-  // ───────────────── Coberturas: determinación del monto a pagar ─────────────────
-  /**
-   * Las dos formas de fijar el techo indemnizable que traen los productos relevados. No hay una
-   * tercera: son las dos que están escritas en las condiciones generales.
-   */
-  /**
-   * Qué le pasó al bien, que es lo que decide cómo se liquida. Son las dos que traen los productos
-   * relevados; no hay una tercera que inventar.
-   */
+  // ───────────────── Coverages: settlement amount ─────────────────
   protected readonly settlementFormulaOptions: SelectOption[] = [
     { value: 'TOTAL_LOSS', label: 'Pérdida total — el bien no está' },
     { value: 'REPAIR', label: 'Reparación — el bien quedó dañado' },
@@ -1203,7 +1060,7 @@ export class ReglasComponent {
     this.setCoverageField(id, { settlementFormula: value as SettlementFormula });
   }
 
-  /** El techo solo se elige en pérdida total: en una reparación es el presupuesto y no hay opción. */
+  /** Only for total loss: in a repair the ceiling is the quote. */
   protected showsSettlementBasis(c: Coverage): boolean {
     return c.settlementFormula !== 'REPAIR';
   }
@@ -1240,23 +1097,14 @@ export class ReglasComponent {
     this.patch({ commonExclusions: items });
   }
 
-  // ───────────────── Documentación (por hecho generador) ─────────────────
-
-  // ───────────────── Fast Track (siempre activo; no hay toggle) ─────────────────
-  // ───────────────── Fast Track: umbrales como interruptor + valor ─────────────────
+  // ───────────────── Fast Track thresholds (switch + value) ─────────────────
   /**
-   * Un umbral está activo cuando tiene valor: `null` significa "no se evalúa". Antes eso se
-   * expresaba dejando el campo vacío, y un campo vacío se lee como "me falta cargarlo", no como
-   * una decisión. Con el interruptor la decisión queda dicha, y apagar no pierde el número: se
-   * guarda el último para poder volver a prenderlo sin recordarlo.
+   * A threshold is active when it has a value (`null` = not evaluated). Turning it off remembers the
+   * last value so turning it back on restores it.
    */
   private readonly ftLastValues = new Map<string, number>();
 
-  /**
-   * Valor con el que arranca un umbral recién prendido. Son los del seed, que es lo que la
-   * aseguradora tiene hoy configurado: prender un umbral no debería estrenar una política que
-   * nadie eligió, solo la que ya venía por defecto.
-   */
+  /** Initial value when a threshold is first enabled: the seed defaults. */
   private static readonly FT_DEFAULTS: Record<string, number> = {
     minPolicyAgeMonths: 3,
     maxPriorClaims: 0,
@@ -1280,13 +1128,12 @@ export class ReglasComponent {
       return;
     }
     if (ft[field] != null) {
-      // Se recuerda antes de apagar: volver a prenderlo devuelve lo que había, no el default.
       const current = field === 'maxClaimedAmountRatio' ? (ft[field] ?? 0) * 100 : ft[field];
       if (current != null) {
         this.ftLastValues.set(field, current);
       }
       this.patchFastTrack((c) => ({ ...c, [field]: null }));
-      // La ventana solo acota los siniestros previos: sin ese umbral no tiene qué acotar.
+      // The window only bounds prior claims: without that threshold it has nothing to bound.
       if (field === 'maxPriorClaims') {
         this.patchFastTrack((c) => ({ ...c, priorClaimsWindowMonths: null }));
       }
@@ -1353,18 +1200,12 @@ export class ReglasComponent {
     return this.pctFromRatio(this.draft()?.fastTrack.maxClaimedAmountRatio ?? null);
   }
 
-  // ───────────────── Reglas de negocio ─────────────────
+  // ───────────────── Business rules ─────────────────
   protected setBusinessRules(items: string[]): void {
     this.patch({ businessRules: items });
   }
 
-  // ───────────────── Fast Track: persistencia real (rules-service) ─────────────────
-  /**
-   * Guarda el Fast Track del ramo en el backend (fan-out a las coberturas del ramo). Solo persiste
-   * los 4 umbrales que el motor evalúa hoy: monto máx., siniestros previos máx., póliza al día y
-   * documentos exigidos. Antigüedad mínima, ventana de siniestros y criterios descriptivos aún no
-   * llegan al gate (quedan en el draft/mock). Deshabilitado ⇒ config vacía = sin Fast Track.
-   */
+  // ───────────────── Saving ─────────────────
   protected saveFastTrack(): void {
     const d = this.draft();
     if (!d || this.ftSaving()) {
@@ -1377,7 +1218,6 @@ export class ReglasComponent {
       return;
     }
     const ft = d.fastTrack;
-    // Fast Track siempre activo: se persisten los umbrales tal como están (vacíos = sin criterios).
     const dto: FastTrackConfigDto = {
       maxClaimedAmountRatio: ft.maxClaimedAmountRatio,
       maxPriorClaims: ft.maxPriorClaims,
@@ -1393,7 +1233,6 @@ export class ReglasComponent {
       next: () => {
         this.ftSaving.set(false);
         this.markPersisted('fastTrack');
-        // Recarga desde el backend para reflejar exactamente lo que quedó persistido.
         this.loadFastTrackFromBackend(d);
       },
       error: (e: unknown) => {
@@ -1403,17 +1242,6 @@ export class ReglasComponent {
     });
   }
 
-  // ───────────────── Coberturas: persistencia real (cases-service) ─────────────────
-  /**
-   * Guarda las coberturas del ramo (alta/edición/baja según cómo cambió el draft frente a
-   * `loadedCoverages`) y las exclusiones comunes (rules-service), en un solo botón porque
-   * comparten la solapa Coberturas.
-   */
-  /**
-   * Las exclusiones comunes del ramo, contra su propio endpoint de rules-service. Aparte de
-   * `saveCoverages` desde que son solapa propia: arrastrarlas ahí obligaba a guardar todas las
-   * coberturas para cambiar una línea de texto, y persistía una pantalla desde otra.
-   */
   protected saveCommonExclusions(): void {
     const d = this.draft();
     if (!d || this.exclSaving()) {
@@ -1439,6 +1267,7 @@ export class ReglasComponent {
     });
   }
 
+  /** Diffs the draft against `loadedCoverages` into creates, updates and deletes. */
   protected saveCoverages(): void {
     const d = this.draft();
     if (!d || this.covSaving()) {
@@ -1460,13 +1289,10 @@ export class ReglasComponent {
       ...toDelete.map((c) => this.coveragesService.remove(Number(c.id))),
       ...toCreate.map((c) => this.coveragesService.create(branchId, this.toCoverageRequest(c))),
       ...toUpdate.map((c) => this.coveragesService.update(Number(c.id), this.toCoverageRequest(c))),
-      // Exclusiones duras (por hecho generador) solo de las coberturas ya persistidas: una recién
-      // creada no tiene id real todavía y sus exclusiones se configuran tras el reload.
+      // Exclusions and hard rules only for saved coverages: a new one has no real id until reload.
       ...toUpdate.map((c) =>
         this.exclusionsService.save(branchId, Number(c.id), c.excludedClaimCauseIds ?? []),
       ),
-      // Hard temporal rules, same criterion: only the already-persisted coverages. A newly
-      // created coverage configures them after the reload, once it has a real id.
       ...toUpdate
         .filter((c) => this.hardRulesOf(c).length > 0)
         .map((c) => this.hardRulesService.save(branchId, Number(c.id), this.hardRulesOf(c))),
@@ -1477,9 +1303,8 @@ export class ReglasComponent {
       next: () => {
         this.covSaving.set(false);
         this.markPersisted('coverages');
-        // Recarga: los que eran altas ahora tienen id real del backend.
+        // Reload so newly created coverages get their real ids.
         this.loadCoveragesFromBackend(d);
-        // Un alta o baja de cobertura cambió el conteo que ve la lista de ramos.
         this.refreshCoverageSummary();
       },
       error: (e: unknown) => {
@@ -1508,12 +1333,11 @@ export class ReglasComponent {
     };
   }
 
-  /** Un id numérico es una cobertura que ya existe en el backend; uno con prefijo `cov-` es un alta local. */
+  /** Numeric ids exist in the backend; `cov-` ids are local, unsaved coverages. */
   private isPersistedId(id: string): boolean {
     return /^\d+$/.test(id);
   }
 
-  // ───────────────── Documentación: persistencia real (rules-service) ─────────────────
   protected saveDocuments(): void {
     const d = this.draft();
     if (!d || this.docSaving()) {
@@ -1543,7 +1367,6 @@ export class ReglasComponent {
       next: () => {
         this.docSaving.set(false);
         this.markPersisted('requiredDocumentsByClaimCause');
-        // Recarga desde el backend para reflejar exactamente lo que quedó persistido.
         changed.forEach((claimCauseId) => this.loadDocumentsFromBackend(d, claimCauseId));
       },
       error: (e: unknown) => {
@@ -1552,11 +1375,8 @@ export class ReglasComponent {
       },
     });
   }
-  // ───────────────── Agenda documental: matriz documento × hecho generador ─────────────────
-  /**
-   * La agenda se edita como matriz, así que se necesitan TODAS las agendas del ramo a la vez y no
-   * la del hecho generador elegido. Antes se cargaba de a una, al ir tocando cada chip.
-   */
+
+  // ───────────────── Document agenda matrix ─────────────────
   protected isDocRequiredFor(claimCauseId: number, code: string): boolean {
     return this.draft()?.requiredDocumentsByClaimCause[claimCauseId]?.includes(code) ?? false;
   }
@@ -1573,10 +1393,8 @@ export class ReglasComponent {
         requiredDocumentsByClaimCause: { ...d.requiredDocumentsByClaimCause, [claimCauseId]: next },
       };
     });
-    this.markDirty();
   }
 
-  /** El contador de cada columna: cuántos documentos exige ese hecho generador. */
   protected requiredCountLabel(claimCauseId: number): string {
     const count = this.draft()?.requiredDocumentsByClaimCause[claimCauseId]?.length ?? 0;
     if (count === 0) {
@@ -1585,11 +1403,7 @@ export class ReglasComponent {
     return count === 1 ? '1 obligatorio' : `${count} obligatorios`;
   }
 
-  /**
-   * Los hechos generadores cuya agenda quedó distinta de lo guardado. Se guarda solo eso y no todo
-   * el ramo: cada agenda es un PUT propio, y mandar los cuatro por cambiar una casilla escribe
-   * encima de lo que otro haya tocado mientras tanto.
-   */
+  /** Only changed agendas are saved: resending all would overwrite others' concurrent edits. */
   private changedClaimCauses(): number[] {
     const current = this.draft()?.requiredDocumentsByClaimCause ?? {};
     const base = this.persisted()?.requiredDocumentsByClaimCause ?? {};
@@ -1598,7 +1412,6 @@ export class ReglasComponent {
       .filter((id) => JSON.stringify(current[id] ?? []) !== JSON.stringify(base[id] ?? []));
   }
 
-  // ───────────────── Reglas de negocio: persistencia real (rules-service) ─────────────────
   protected saveBusinessRules(): void {
     const d = this.draft();
     if (!d || this.rulesSaving()) {
@@ -1615,7 +1428,6 @@ export class ReglasComponent {
       next: () => {
         this.rulesSaving.set(false);
         this.markPersisted('businessRules');
-        // Recarga desde el backend para reflejar exactamente lo que quedó persistido.
         this.loadBusinessRulesFromBackend(d);
       },
       error: (e: unknown) => {
@@ -1642,19 +1454,10 @@ export class ReglasComponent {
   // ───────────────── Helpers ─────────────────
   private patch(partial: Partial<RamoRules>): void {
     this.draft.update((d) => (d ? { ...d, ...partial } : d));
-    this.markDirty();
   }
 
   private patchFastTrack(fn: (ft: FastTrackConfig) => FastTrackConfig): void {
     this.draft.update((d) => (d ? { ...d, fastTrack: fn(d.fastTrack) } : d));
-    this.markDirty();
-  }
-
-  // Cada solapa persiste con su propio botón "Guardar X"; ya no hay un guardado global de ramo que
-  // dependa de un flag "sucio", así que marcar cambios quedó sin efecto (se conserva el gancho por
-  // si alguna solapa quiere resaltar cambios sin guardar en el futuro).
-  private markDirty(): void {
-    /* no-op */
   }
 
   private pctFromRatio(ratio: number | null): string {

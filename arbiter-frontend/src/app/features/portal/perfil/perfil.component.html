@@ -1,7 +1,4 @@
 <div class="perfil">
-  <!-- El encabezado se dibuja siempre, también mientras carga: lo que cambia es el contenido, no
-       la pantalla. El overlay a viewport completo (app-loading) se reserva al arranque
-       login → home, igual que en "Mis siniestros". -->
   <header class="head">
     <span class="eyebrow">Mi cuenta</span>
     <h1 class="t-page-title">Mi perfil</h1>
@@ -15,7 +12,6 @@
       <p class="t-note">Probá recargar la página.</p>
     </div>
   } @else if (profile(); as p) {
-    <!-- Identidad: sale de la aseguradora, no se edita desde el portal. -->
     <section class="section">
       <h2 class="section-title">
         <span class="section-icon" aria-hidden="true">
@@ -48,7 +44,6 @@
       <p class="t-note">Los informa tu aseguradora. Si algo no es correcto, contactate con ella.</p>
     </section>
 
-    <!-- Contacto: editable. -->
     <section class="section">
       <h2 class="section-title">
         <span class="section-icon" aria-hidden="true">
@@ -105,7 +100,6 @@
       </div>
     </section>
 
-    <!-- Consentimiento: revocable en cualquier momento. -->
     <section class="section">
       <h2 class="section-title">
         <span class="section-icon" aria-hidden="true">
@@ -126,9 +120,7 @@
         <p class="consent-detail">{{ consentDetail }}</p>
 
         @if (consentAt()) {
-          <!-- La versión del texto legal aceptado (imageConsentVersion) queda persistida para la
-               trazabilidad de Ley 25.326, pero no tiene ningún significado para el asegurado —
-               mostrarle "versión 1.0" es jerga interna sin contexto. La fecha sí le dice algo. -->
+          <!-- imageConsentVersion is persisted for traceability but deliberately not shown. -->
           <p class="consent-meta t-note">Guardado el {{ consentAt() }}</p>
         }
       </div>

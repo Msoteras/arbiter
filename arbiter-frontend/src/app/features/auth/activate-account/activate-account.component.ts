@@ -22,19 +22,9 @@ import { LogoComponent } from '../../../shared/ui/logo/logo.component';
 type Mode = 'activate' | 'reset';
 
 /**
- * "Choose your password" screen, shared by two flows that arrive here from a one-time-token
- * mail link: account activation (Auth0 Phase 3 — UserService.createUser) and "forgot password"
- * (UserService.requestPasswordReset). The route (`data.mode`, see app.routes.ts) picks the mode,
- * which drives the copy and which endpoint the submit hits. Before showing the form it validates
- * the token against the backend (GET /invite-tokens/{token}) without consuming it, so a made-up
- * or expired token in the URL never gets to see the password form.
- *
- * <p>Both endpoints now return an already-issued session (backend: AuthService.issueSessionFor),
- * so a successful submit starts it and routes straight into the app — same as LoginComponent —
- * instead of showing a "you're done, go log in" screen. For an ASEGURADO activating for the first
- * time, `homeRouteFor` sends them to `/portal/home` and `onboardingGuard` takes it from there
- * into onboarding, since the token this session started with still carries
- * `onboardingComplete: false`.
+ * "Choose your password" screen shared by account activation and password reset; the route's
+ * `data.mode` picks which. The one-time token is validated (without consuming it) before the form
+ * shows, and a successful submit returns a session, so the user lands straight in the app.
  */
 @Component({
   selector: 'app-activate-account',
@@ -83,10 +73,8 @@ export class ActivateAccountComponent implements OnInit {
         };
 
   /**
-   * Mirrors Auth0's default ("Good") password policy: if it's not met, Auth0 rejects the
-   * Management API call and the user gets a 502 with no idea why (see activateAccount/
-   * resetPassword in UserService — the link is still valid to retry, but without this
-   * upfront check the user would never know the password was the actual problem).
+   * Mirrors Auth0's default ("Good") password policy: a password that fails it surfaces only as an
+   * opaque 502 from the backend, so it's checked upfront.
    */
   protected readonly passwordRequirements = computed(() => {
     const pwd = this.password();
@@ -123,8 +111,7 @@ export class ActivateAccountComponent implements OnInit {
     if (!this.token) {
       return;
     }
-    // Already captured from the query param — strip it from the address bar so it doesn't
-    // linger in browser history or end up in an accidental screenshot.
+    // Strip the token from the address bar so it doesn't linger in history or screenshots.
     this.location.replaceState(this.location.path().split('?')[0]);
 
     this.authService.checkToken(this.token).subscribe({
@@ -146,9 +133,7 @@ export class ActivateAccountComponent implements OnInit {
         : this.authService.activate(this.token, this.password());
 
     request$.subscribe({
-      // No submitting.set(false) here on purpose: the button stays in its loading state right up
-      // until the route change swaps this component out — resetting it first would flash the
-      // form back to normal for an instant before navigating away.
+      // submitting stays true on purpose: resetting it would flash the form before navigating away.
       next: (response) => {
         this.session.start(response);
         this.router.navigateByUrl(homeRouteFor(response.rol));

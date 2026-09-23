@@ -4,17 +4,12 @@ import { Observable } from 'rxjs';
 
 import { environment } from '../../../environments/environment';
 
-/** Un ramo del catálogo real (tabla branch), tal como lo sirve rules-service. */
 export interface BranchOption {
   id: number;
   name: string;
 }
 
-/**
- * Catálogo real de ramos (branch) contra rules-service — reemplaza al mock RulesConfigService. La
- * lista y los nombres salen de la base, y el ABM administra el catálogo global (branch es compartido
- * por todas las aseguradoras: crear/borrar un ramo lo agrega/saca del catálogo maestro).
- */
+/** Global catalog shared by every insurer: creating or deleting a branch affects all of them. */
 @Injectable({ providedIn: 'root' })
 export class BranchesService {
   private readonly http = inject(HttpClient);

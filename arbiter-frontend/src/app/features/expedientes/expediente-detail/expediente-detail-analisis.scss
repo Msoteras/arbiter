@@ -1,10 +1,5 @@
-/* Solapas "Análisis" (razones del modelo + score de fraude) y "Evaluación de reglas" (reglas
-   duras, criterios de Fast Track y foto de la póliza). Archivo aparte por el presupuesto de
-   `anyComponentStyle` (ver la cabecera de expediente-detail-paneles.scss). */
+/* "Análisis" and "Evaluación de reglas" tabs. Split out to stay under the `anyComponentStyle` budget. */
 
-/* ===== Avisos bajo las cards del encabezado =====
-   Una línea por aviso, a lo ancho. El tono entra solo por el borde, como el resto del semáforo:
-   son hallazgos para mirar, no veredictos. */
 .avisos {
   display: flex;
   flex-direction: column;
@@ -25,7 +20,7 @@
   font-size: var(--font-size-sm);
   color: var(--text-secondary);
 }
-/* Calificado con .aviso: el borde de arriba pisa los [data-tone] genéricos del otro archivo. */
+/* Qualified with .aviso so it overrides the generic [data-tone] rules from the other stylesheet. */
 .aviso[data-tone='info'] {
   border-left-color: var(--status-info);
 }
@@ -48,7 +43,6 @@
   font-style: italic;
 }
 
-/* Contador en la barra de solapas: cuántas razones dejó el modelo. */
 .tab-count {
   margin-left: var(--space-1);
   font-size: var(--font-size-2xs);
@@ -56,7 +50,6 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* ===== Análisis ===== */
 .analisis-grid {
   display: grid;
   grid-template-columns: 1.6fr 1fr;
@@ -98,8 +91,7 @@
   font-size: var(--font-size-sm);
 }
 
-/* La barra entera es 100; cada segmento es lo que empujó un factor. El color es la banda de
-   riesgo — el mismo semáforo que el medidor del encabezado. */
+/* The full bar is 100; each segment is one factor's contribution, colored by risk band. */
 .score-barra {
   --score-tone: var(--text-tertiary);
   display: flex;
@@ -127,7 +119,7 @@
   flex-shrink: 1;
   background: var(--score-tone);
 }
-/* Alterna la intensidad para que se lea dónde termina un factor y empieza el siguiente. */
+/* Alternating opacity marks where one factor ends and the next begins. */
 .score-seg:nth-child(even) {
   opacity: 0.6;
 }
@@ -154,19 +146,16 @@
   font-weight: var(--font-weight-bold);
   white-space: nowrap;
 }
-/* Los factores que no sumaron quedan listados (dicen "esto se miró y estaba bien") pero atenuados. */
 .score-factor.nulo .score-factor-nombre,
 .score-factor.nulo .score-factor-aporte {
   color: var(--text-tertiary);
   font-weight: var(--font-weight-regular);
 }
 
-/* ===== Evaluación de reglas ===== */
 .reglas-meta {
   display: block;
   margin: 0 0 var(--space-3);
 }
-/* La fila que no cumple se marca con el borde de estado, sin teñir el fondo. */
 .traza-table tr.fila-falla td {
   font-weight: var(--font-weight-medium);
 }

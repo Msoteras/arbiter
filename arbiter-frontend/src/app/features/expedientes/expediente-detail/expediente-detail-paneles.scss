@@ -1,20 +1,8 @@
-/* Segunda mitad de los estilos del detalle del expediente: el contenido de las solapas.
-   Resumen (grilla, campos, documentación faltante), Riesgo (score y factores), Trazabilidad
-   (tabla de reglas, coberturas y pólizas), la hoja de liquidación del modal de aprobación y el
-   cruce relato ↔ hecho generador declarado.
+/* Tab contents of the case detail. Split from expediente-detail.component.scss to stay under the
+   `anyComponentStyle` budget; both are concatenated in `styleUrls` order, so moving a block between
+   files can change which rule wins at equal specificity. */
 
-   Está separado de expediente-detail.component.scss por el presupuesto de `anyComponentStyle`
-   de Angular (aviso a 8 kB, error a 12 kB): juntos daban 11,95 kB, a 50 bytes de romper el
-   build de producción.
-
-   El corte es lineal: este archivo arranca exactamente donde terminaba el otro, y los dos se
-   concatenan en el orden en que están declarados en `styleUrls`. Por eso la cascada es idéntica
-   a la del archivo único — si movés un bloque de un archivo al otro, fijate que no pise a otra
-   regla de la misma especificidad. */
-
-/* ===== Datos extraídos (una card por adjunto leído) ===== */
-
-/* ===== Resumen ===== */
+/* ===== Summary ===== */
 .resumen-grid {
   display: grid;
   grid-template-columns: 1.6fr 1fr;
@@ -33,7 +21,6 @@
   grid-template-columns: 1fr 1fr;
   gap: var(--space-3) var(--space-4);
 }
-/* Resumen: bloques separados por una línea, con la grilla de tres columnas de datos. */
 .resumen-bloque + .resumen-bloque {
   margin-top: var(--space-4);
   padding-top: var(--space-4);
@@ -92,13 +79,11 @@
   font-size: var(--font-size-body);
 }
 
-/* textarea del modal de justificación */
 app-textarea {
   display: block;
   margin: var(--space-3) 0;
 }
 
-/* ===== Responsive ===== */
 @media (max-width: 980px) {
   .reasoning {
     grid-template-columns: 1fr;
@@ -114,7 +99,7 @@ app-textarea {
   }
 }
 
-/* ===== Trazabilidad ===== */
+/* ===== Traceability ===== */
 /* minmax(0, 1fr): a grid track defaults to min-width auto and would grow to the widest table,
    scrolling the whole page instead of the table's own .traza-scroll. */
 .traza {
@@ -160,11 +145,10 @@ app-textarea {
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
-/* Solo el fallo de lectura se tiñe: las otras dos causas de tabla vacía son información, no error. */
+/* Only the load failure is tinted; the other empty-table causes are information, not errors. */
 .traza-sin-reglas.error {
   color: var(--status-danger);
 }
-/* Bajada de la tabla de criterios de Fast Track: qué significa lo que se está por leer. */
 .traza-intro {
   display: block;
   margin-bottom: var(--space-3);
@@ -173,7 +157,6 @@ app-textarea {
   margin: var(--space-4) 0 var(--space-2);
   color: var(--text-secondary);
 }
-/* Despliegue de coberturas: mismo patrón que la pantalla de reglas (.cov-toggle / .cov-caret). */
 .cov-toggle {
   display: inline-flex;
   align-items: center;
@@ -201,7 +184,6 @@ app-textarea {
   flex-direction: column;
   align-items: flex-start;
 }
-/* Acento de marca porque es un toggle: es de los estados que el design system le reserva. */
 .cov-hint {
   color: var(--accent-fg);
   font-size: var(--font-size-xs);
@@ -250,17 +232,14 @@ app-textarea {
   width: 14%;
 }
 
-/* ── Hoja de liquidación (modal de aprobación) ─────────────────────────────── */
-/* La cuenta se lee de arriba abajo como en el manual del producto: el techo, lo que se le
-   descuenta, y el total separado por una línea. Sin color de fondo: es un cálculo, no un
-   estado — el semáforo se reserva para los avisos. */
+/* ===== Settlement sheet (approval modal) ===== */
 .settlement {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
 }
 
-/* Local: `.fieldset` vive en la solapa de reglas, y los estilos de componente no se comparten. */
+/* Redeclared here: `.fieldset` belongs to the rules screen and component styles aren't shared. */
 .settlement .fieldset {
   display: flex;
   flex-direction: column;
@@ -307,7 +286,6 @@ app-textarea {
   color: var(--text-secondary);
 }
 
-/* El total es lo que el analista firma: peso, borde más fuerte y nada de color. */
 .settlement-line.total {
   border-top: 1px solid var(--border-strong);
   font-weight: var(--font-weight-bold);
@@ -317,10 +295,7 @@ app-textarea {
   font-weight: var(--font-weight-bold);
 }
 
-/* Notas del cálculo: lo que la hoja no puede decir sola (que corrió sobre datos que este
-   siniestro no vio, que el techo cayó al respaldo). Son notas, no estados del expediente, así que
-   van en gris con una barra al costado — el semáforo se reserva para el estado del siniestro, y en
-   amarillo sobre papel esto además no se leía. */
+/* Calculation notes, not case status: neutral on purpose, status colors are reserved for status. */
 .settlement-notes {
   list-style: none;
   margin: 0;
@@ -333,9 +308,7 @@ app-textarea {
   color: var(--text-secondary);
 }
 
-/* Esto SÍ cambia el circuito del expediente —pasa a esperar una firma—, así que se destaca; pero
-   con el acento de marca, que es lo que el sistema usa para lo que requiere atención, y no con un
-   amarillo de bajo contraste. */
+/* This does change the case flow (it will await a sign-off), so it stands out with the brand accent. */
 .settlement-callout,
 .settlement-suggestion {
   padding: var(--space-2) var(--space-3);
@@ -350,9 +323,7 @@ app-textarea {
   margin: 0 0 var(--space-3);
 }
 
-/* Lo que el modelo leyó del expediente. Con el acento de marca —lo que el sistema usa para lo que
-   pide atención— y no con un color de estado: no es un hallazgo sobre el siniestro, es una ayuda
-   para cargar un campo, y todavía no se aplicó nada. */
+/* Brand accent, not a status color: it is a fill-in suggestion, not a finding about the claim. */
 .settlement-suggestion {
   display: flex;
   align-items: center;
@@ -361,7 +332,6 @@ app-textarea {
   margin: var(--space-2) 0 0;
 }
 
-/* El monto del peritaje, en el formulario del informe: mismo criterio de campo que el resto. */
 .peritaje-monto {
   display: flex;
   flex-direction: column;
@@ -369,9 +339,7 @@ app-textarea {
   margin-top: var(--space-3);
 }
 
-/* El campo de justificación: etiqueta, campo y "Obligatorio", pegados. El margen por defecto del
-   <p> abría un hueco que dejaba la aclaración flotando lejos del campo, así que acá no hay <p>:
-   son spans y el espaciado lo pone el flex. */
+/* Spans instead of <p>: the default paragraph margin left the hint floating away from the field. */
 .justification {
   display: flex;
   flex-direction: column;
@@ -382,14 +350,13 @@ app-textarea {
   color: var(--status-danger);
 }
 
-/* Color explícito: es la única forma de que no herede nada del bloque de arriba. */
+/* Explicit color so it doesn't inherit from the block above. */
 .justification-hint {
   font-size: var(--font-size-2xs);
   color: var(--text-muted);
 }
 
-/* Los dos campos de plata, uno al lado del otro: son la misma pregunta —cuánto se paga— y
-   apilados empujaban la firma abajo del pliegue. Colapsan en angosto. */
+/* Side by side so the sign-off stays above the fold; they stack on narrow screens. */
 .settlement-money {
   display: flex;
   gap: var(--space-3);
@@ -407,8 +374,7 @@ app-textarea {
   }
 }
 
-/* El importe y el botón de recalcular en la misma fila: separar el valor de reposición de la
-   acción que lo aplica dejaba al analista tipeando sin que pasara nada. */
+/* Amount and recalculate button share a row so it's clear typing alone applies nothing. */
 .settlement-replacement {
   display: flex;
   align-items: center;

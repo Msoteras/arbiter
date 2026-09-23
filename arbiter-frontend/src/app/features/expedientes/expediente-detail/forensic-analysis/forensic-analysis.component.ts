@@ -23,7 +23,6 @@ import { EmptyStateComponent } from '../../../../shared/ui/empty-state/empty-sta
 import { SeverityLabelComponent } from '../../../../shared/ui/severity-label/severity-label.component';
 import { SpinnerComponent } from '../../../../shared/ui/spinner/spinner.component';
 
-/** Mismo diccionario tipo→label que doc-upload / nueva-denuncia (H0009 no agrega tipos nuevos). */
 const DOC_TYPE_LABELS: Record<string, string> = {
   police_report: 'Denuncia policial',
   item_photo: 'Foto del bien',
@@ -32,17 +31,8 @@ const DOC_TYPE_LABELS: Record<string, string> = {
 };
 
 /**
- * Tab "Análisis forense" del panel del analista (H0009). Cruza cada hallazgo de
- * `ImageForensicReport` con el adjunto real del expediente para mostrar la imagen
- * analizada junto a sus coincidencias:
- *
- * - Coincidencia interna (otro siniestro): se muestra la imagen del siniestro previo
- *   lado a lado con la propia, más el % de similitud (comparación directa).
- * - Coincidencia web: se listan las páginas encontradas como links externos, a modo de
- *   verificación (no se aloja ninguna imagen de terceros).
- *
- * Todo hallazgo es una sugerencia — el analista decide siempre (ninguna imagen se
- * rechaza automáticamente).
+ * Shows each analyzed image next to its matches: internal matches side by side with the earlier
+ * claim's image; web matches only as external links (no third-party image is hosted).
  */
 @Component({
   selector: 'app-forensic-analysis',
@@ -63,13 +53,13 @@ export class ForensicAnalysisComponent implements OnDestroy {
   readonly caseId = input.required<number>();
   readonly report = input.required<ImageForensicReport | null>();
 
-  /** label del finding -> object URL del blob ya descargado. */
+  /** Finding label -> object URL. */
   protected readonly imageUrls = signal<Record<string, string>>({});
   protected readonly imageLoadFailed = signal<Record<string, boolean>>({});
-  /** label del finding -> filename original del adjunto, para nombrar la descarga. */
+  /** Finding label -> original filename, used to name the download. */
   protected readonly imageFilenames = signal<Record<string, string>>({});
 
-  /** clave de match interno (ver `matchKey`) -> object URL de la imagen del siniestro previo. */
+  /** `matchKey` -> object URL of the earlier claim's image. */
   protected readonly matchedImageUrls = signal<Record<string, string>>({});
   protected readonly matchedImageLoadFailed = signal<Record<string, boolean>>({});
 
@@ -96,11 +86,7 @@ export class ForensicAnalysisComponent implements OnDestroy {
     return !!web && (web.fullMatches > 0 || web.partialMatches > 0 || web.pages.length > 0);
   }
 
-  /**
-   * Clave estable para identificar la imagen de un match interno en los signals de arriba.
-   * Por tipo y no por filename: `case_documents` es UNIQUE (case_id, type), así que el par
-   * no puede repetirse; dos archivos con el mismo nombre en distintos tipos sí.
-   */
+  /** Keyed by type, not filename: `case_documents` is UNIQUE (case_id, type), filenames may repeat. */
   protected matchKey(match: ImageForensicInternalMatch): string {
     return `${match.matchedCaseId}:${match.matchedDocumentType}`;
   }
@@ -119,7 +105,7 @@ export class ForensicAnalysisComponent implements OnDestroy {
     this.service.listDocuments(caseId).subscribe({
       next: (docs) => {
         for (const finding of findings) {
-          // El tipo es único por expediente (UNIQUE (case_id, type)) — cruza 1:1 con el adjunto real.
+          // UNIQUE (case_id, type): the type maps 1:1 to the uploaded document.
           const doc = docs.find((d) => d.type === finding.documentType);
           if (!doc) {
             this.imageLoadFailed.update((m) => ({ ...m, [finding.label]: true }));
@@ -145,11 +131,8 @@ export class ForensicAnalysisComponent implements OnDestroy {
   }
 
   /**
-   * Descarga, para cada match interno, la imagen del siniestro previo (`matchedCaseId`) —
-   * comparación lado a lado. Traer un documento de OTRO
-   * expediente es legítimo acá: `CaseAccessPolicy.assertCanRead` acota al ASEGURADO a los
-   * propios, pero el analista ve todos los de su aseguradora — que es justo lo que esta
-   * comparación necesita.
+   * Fetches documents from ANOTHER case: allowed because `CaseAccessPolicy.assertCanRead` only
+   * restricts the insured to their own cases; the analyst can read every case of the insurer.
    */
   private loadMatchedImages(findings: ImageForensicFinding[]): void {
     for (const finding of findings) {

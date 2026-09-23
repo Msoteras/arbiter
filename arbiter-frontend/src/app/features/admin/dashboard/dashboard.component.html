@@ -48,14 +48,10 @@
       sub="Error de conexión"
     />
   } @else if (data(); as m) {
-    <!--
-      El @staggerReveal va acá y no en .dash: .dash se monta con el spinner adentro, así que la
-      animación se gastaba en el spinner y las tarjetas —que aparecen recién cuando vuelve la
-      consulta— entraban de golpe, todas juntas. .body es lo que se monta con los datos ya
-      cargados, que es cuando hay algo que revelar. Mismo criterio que el inicio del referente.
-    -->
+    <!-- @staggerReveal goes here, not on .dash: .dash mounts with the spinner inside, which would
+         consume the animation before the cards arrive. -->
     <div class="body" [class.stale]="loading()" @staggerReveal>
-      <!-- ─── Embudo del período ───────────────────────────────────────────────── -->
+      <!-- ─── Funnel ───────────────────────────────────────────────────────────── -->
       <app-card heading="Embudo del período">
         <p class="funnel-note">{{ stillOpenNote() }}</p>
         <ol class="funnel">
@@ -75,7 +71,7 @@
         </ol>
       </app-card>
 
-      <!-- ─── Indicadores ──────────────────────────────────────────────────────── -->
+      <!-- ─── KPIs ─────────────────────────────────────────────────────────────── -->
       <section class="stats" aria-label="Indicadores del período">
         @for (kpi of kpis(); track kpi.label) {
           <app-stat-tile
@@ -104,7 +100,7 @@
         </p>
       }
 
-      <!-- ─── Montos del período ───────────────────────────────────────────────── -->
+      <!-- ─── Amounts ──────────────────────────────────────────────────────────── -->
       @if (money(); as cash) {
         <app-card heading="Montos del período">
           <p class="card-note">
@@ -166,7 +162,7 @@
           sub="Probá con un rango más amplio"
         />
       } @else {
-        <!-- ─── Movimiento y atención ──────────────────────────────────────────── -->
+        <!-- ─── Timeline and attention ─────────────────────────────────────────── -->
         <section class="middle">
           <app-card heading="Altas y resoluciones">
             <p class="card-note">{{ granularityNote() }}</p>
@@ -202,7 +198,7 @@
           </app-card>
         </section>
 
-        <!-- ─── Distribuciones ─────────────────────────────────────────────────── -->
+        <!-- ─── Distributions ──────────────────────────────────────────────────── -->
         <section class="panels">
           <app-card [heading]="'Estado de los ' + m.funnel.reported + ' expedientes'">
             <app-distribution [items]="statusItems()" />

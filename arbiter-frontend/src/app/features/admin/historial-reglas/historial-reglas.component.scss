@@ -13,9 +13,8 @@
   margin: 0;
 }
 
-/* ── Filtros ──────────────────────────────────────────────────────────────────
-   Grilla y no flex: los cuatro campos tienen que quedar del mismo ancho aunque sus etiquetas
-   midan distinto, y en mobile bajan a una columna sin que ninguno quede a medio renglón. */
+/* ── Filters ──────────────────────────────────────────────────────────────────
+   Grid, not flex: all fields keep the same width regardless of label length. */
 .hr-filters {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -35,9 +34,8 @@
   margin: 0 0 var(--space-3);
 }
 
-/* ── Línea de tiempo ──────────────────────────────────────────────────────────
-   El borde izquierdo hace de eje: encadena los cambios visualmente sin dibujar una línea aparte,
-   y deja el hueco donde el ítem vigente marca su acento. */
+/* ── Timeline ─────────────────────────────────────────────────────────────────
+   The left border acts as the axis. */
 .hr-timeline {
   list-style: none;
   margin: 0;
@@ -52,7 +50,6 @@
   position: relative;
 }
 
-/* El punto sobre el eje. Queda alineado con la primera línea del encabezado del ítem. */
 .hr-item::before {
   content: '';
   position: absolute;
@@ -63,7 +60,6 @@
   border-radius: var(--radius-pill);
   background: var(--border-strong);
 }
-/* La versión que rige hoy es el único punto con acento: es el estado actual, no un cambio más. */
 .hr-item.is-current::before {
   background: var(--accent-fg);
 }
@@ -83,15 +79,11 @@
   color: var(--text-primary);
 }
 
-/* Atribución, no titular: va en el encabezado junto a la fecha y en tono secundario, para que el
-   ojo baje directo al "de X a Y" que es el contenido de la fila. */
 .hr-author {
   color: var(--text-muted);
 }
 
-/* ── Detalle campo por campo ──────────────────────────────────────────────────
-   Es el contenido real del historial: sin el "de X a Y" el registro solo dice que alguien tocó
-   algo. Superficie hundida para separarlo del encabezado sin meter otro borde. */
+/* ── Field-by-field detail ──────────────────────────────────────────────────── */
 .hr-fields {
   list-style: none;
   margin: var(--space-3) 0 0;
@@ -126,8 +118,7 @@
   font-size: var(--font-size-sm);
   min-width: 0;
 }
-/* El valor viejo en tono apagado y el nuevo en primario: la jerarquía sola dice cuál es cuál, sin
-   pintar de rojo y verde algo que no es un acierto ni un error (el semáforo es para estado). */
+/* Old value muted, new one primary: no red/green, since a change is neither success nor error. */
 .hr-before {
   color: var(--text-muted);
   text-decoration: line-through;

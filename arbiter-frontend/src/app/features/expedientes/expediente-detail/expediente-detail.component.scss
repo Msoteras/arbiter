@@ -1,19 +1,12 @@
-/* Primera mitad de los estilos del detalle del expediente: el armazón.
-   Cabecera e identidad del caso, tarjetas de la columna lateral (fraude, recomendación, brief,
-   decisión, peritaje, asignación), solapas y los estados de la vista (carga, notas, motivos).
-
-   El contenido de cada solapa sigue en expediente-detail-paneles.scss, que continúa donde
-   termina este archivo. Ver ahí el porqué de la división y qué tener en cuenta antes de mover un
-   bloque de un archivo al otro. */
+/* Case detail shell. Tab contents continue in expediente-detail-paneles.scss (see its header). */
 
 :host {
   display: block;
 }
 
-/* ===== Cabecera sticky (slim: solo identidad) ===== */
+/* ===== Sticky header ===== */
 .det-header {
   position: sticky;
-  /* Debajo de la topbar fija de la app, no atrás. */
   top: var(--appbar-h);
   background: var(--surface);
   border-bottom: 1px solid var(--border-default);
@@ -42,7 +35,6 @@
   color: var(--text-muted);
 }
 
-/* Navegación entre expedientes */
 .case-nav {
   display: flex;
   gap: var(--space-2);
@@ -71,15 +63,14 @@
   font-size: var(--font-size-body);
 }
 
-/* ===== Reasoning cards (el borde/padding los da app-card) ===== */
+/* ===== Reasoning cards ===== */
 .reasoning {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: var(--space-3);
   margin: 0 0 var(--space-4);
 }
-/* Antecedente de fraude. El color entra solo por el borde izquierdo y el punto del badge, como
-   en .reco-value: es información sobre una persona y saturarla de rojo la vuelve un veredicto. */
+/* Fraud record: color only on the border and badge dot; saturating it would read as a verdict on a person. */
 
 .fraude-item + .fraude-item {
   margin-top: var(--space-3);
@@ -93,13 +84,11 @@
 .fraude-item p {
   margin: var(--space-2) 0 0;
 }
-/* El que originó ESTE expediente va separado de los previos: no es contexto, es lo que se hizo acá. */
 .fraude-item.propio {
   margin-top: var(--space-4);
   padding-top: var(--space-3);
   border-top: 1px solid var(--border-subtle);
 }
-/* Sin antecedentes: una línea con el punto de estado y el alta como link, no un botón. */
 .fraude-vacio {
   margin: 0;
   display: flex;
@@ -137,7 +126,6 @@
   color: var(--text-primary);
   line-height: 1.25;
 }
-/* Acento sobrio de semáforo: borde izquierdo por tono, sin pintar el texto. */
 .reco-value[data-tone],
 .fraude-item {
   padding-left: var(--space-3);
@@ -164,8 +152,6 @@
   font-weight: var(--font-weight-medium);
   color: var(--accent-fg);
 }
-/* "Antes de decidir": el plazo y el monto en una línea, para que se lea de un vistazo antes de los
-   botones y no compita con ellos. */
 .brief,
 .brief-alerts {
   margin: 0;
@@ -182,7 +168,6 @@
 .brief-alerts {
   margin-top: var(--space-1);
 }
-/* Enlace a la solapa con la evidencia: el triángulo va sin color (la severidad se lee por forma). */
 .brief-link {
   padding: 0;
   border: 0;
@@ -204,7 +189,6 @@
   border-radius: var(--radius-ctl);
 }
 
-/* Arriba y no centrado: centrado, el plazo flotaba lejos del título de la card. */
 .decision-row {
   display: flex;
   align-items: flex-start;
@@ -214,15 +198,14 @@
   flex: 1;
   min-width: 0;
 }
-/* Ancho fijo y no el del texto: "Rechazar" y "Aprobar" miden distinto y sueltos quedaban chicos. */
+/* Fixed width: the two button labels differ in length and looked uneven at content width. */
 .decision-side {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
   flex-shrink: 0;
   width: 10rem;
-  /* Sube hasta la línea del título de la card (su alto + el margen de la cabecera): así los dos
-     botones no estiran la card por debajo de las otras dos. */
+  /* Pulls up to the card title line so the buttons don't make this card taller than its siblings. */
   margin-top: calc(-1 * (var(--font-size-xs) * 1.5 + var(--space-3)));
 }
 /* Measured against the card, not the viewport: between the 3-column breakpoint and a wide screen
@@ -245,7 +228,6 @@
   }
 }
 
-/* Una sola fila de acciones en cualquier estado: derivar vive en la card "Analista asignado". */
 .decision-btns {
   display: flex;
   gap: var(--space-2);
@@ -255,10 +237,8 @@
   flex: 1;
 }
 
-/* ===== Peritaje ===== */
-/* El ancho de lectura se acota en la CARD, no en el texto: con `.measure` sobre los párrafos
-   la línea cortaba antes del borde y quedaba un hueco a la derecha que se lee como un bug.
-   Acotando la caja, el texto llena la card y las dos cosas terminan en el mismo lugar. */
+/* ===== Expert assessment ===== */
+/* Measure is capped on the card, not the text: `.measure` on paragraphs left a gap that looked like a bug. */
 .peritaje-card {
   max-width: 72ch;
 }
@@ -290,8 +270,7 @@
   margin-bottom: var(--space-2);
 }
 
-/* El input nativo va oculto: el kit no tiene selector de archivo propio, y así el control
-   visible sigue siendo un app-button (mismo patrón que app-doc-upload). */
+/* Native input hidden so the visible control is an app-button (the kit has no file picker). */
 .informe-file {
   display: flex;
   align-items: center;
@@ -305,7 +284,7 @@
   white-space: nowrap;
 }
 
-/* ===== Asignación ===== */
+/* ===== Assignment ===== */
 .assignee {
   display: flex;
   align-items: center;
@@ -339,8 +318,6 @@
   font-size: var(--font-size-xs);
   color: var(--text-muted);
 }
-/* Los triggers principales ("+ Asignarme" / "Asignar a…" / "⟳ Reasignar") reparten el ancho por
-   igual; el "…" queda chico al lado. */
 .assign-actions {
   display: flex;
   gap: var(--space-2);
@@ -357,7 +334,7 @@
   display: flex;
   gap: var(--space-5);
   overflow-x: auto;
-  overflow-y: hidden; /* evita el scrollbar vertical fantasma que fuerza overflow-x:auto */
+  overflow-y: hidden; /* overflow-x:auto otherwise forces a phantom vertical scrollbar */
   /* Still scrollable by touch, trackpad or wheel; the bar itself was a thick strip under the tabs. */
   scrollbar-width: none;
   border-bottom: 1px solid var(--border-default);
@@ -397,7 +374,7 @@
   vertical-align: middle;
 }
 
-/* ===== Contenido ===== */
+/* ===== Content ===== */
 .det-content {
   padding: var(--space-5) var(--space-6) var(--space-7);
 }
@@ -406,7 +383,6 @@
   max-width: 760px;
 }
 
-// Carga del expediente: spinner centrado en la página (no arriba a un costado).
 .detail-loading {
   min-height: 70vh;
   display: flex;

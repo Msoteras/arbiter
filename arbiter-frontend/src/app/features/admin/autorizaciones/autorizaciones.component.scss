@@ -1,5 +1,4 @@
-/* El padding de página lo pone cada pantalla en su :host, igual que Reglas y Usuarios. Sin esto
-   el contenido arrancaba pegado al borde. */
+/* The shell adds no padding: each screen sets its own on :host. */
 :host {
   display: block;
   padding: var(--space-5);
@@ -26,8 +25,6 @@
   margin: var(--space-1) 0 0;
 }
 
-/* Todo alineado a la izquierda salvo las acciones: con una sola alineación por columna la tabla
-   se lee de corrido. */
 .case-link {
   display: block;
   font-weight: var(--font-weight-medium);
@@ -58,7 +55,6 @@
   font-weight: var(--font-weight-medium);
   color: var(--status-danger);
 }
-/* La barra entera es el monto: gris hasta el tope, color de estado en lo que lo excede. */
 .monto-barra {
   display: flex;
   gap: var(--space-1);
@@ -83,8 +79,7 @@
   display: block;
 }
 
-/* Calificado con app-table: su `text-align: left` para th/td entra por ::ng-deep y le ganaba a
-   una clase sola. */
+/* Qualified with app-table: its ::ng-deep `text-align: left` on th/td beats a lone class. */
 app-table th.actions-col,
 app-table td.actions-col {
   width: 1%;
@@ -97,7 +92,6 @@ app-table td.actions-col {
   justify-content: flex-end;
 }
 
-/* Mismo criterio que la justificación del analista: etiqueta, campo y "Obligatorio", pegados. */
 .return-field {
   display: flex;
   flex-direction: column;

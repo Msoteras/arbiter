@@ -1,7 +1,4 @@
-/* Parameter grid shared by both reports and by app-report-filters.
-   It lives in its own file and not in each component because `app-report-filters` is
-   `display: contents`: its three fields are items of THIS grid, which the tab draws.
-   With the rule duplicated in two places, the day one changes the columns drift apart. */
+/* Shared with app-report-filters, which is `display: contents`: its fields are items of this grid. */
 
 .params {
   display: grid;

@@ -11,7 +11,6 @@
   gap: var(--space-4);
 }
 
-/* ===== Encabezado ===== */
 .portal-head {
   display: flex;
   align-items: flex-start;
@@ -34,12 +33,7 @@
 .muted {
   color: var(--text-muted);
 }
-.muted a,
-.t-note a {
-  color: var(--accent-fg);
-}
 
-/* ===== Identificación / vacío ===== */
 .identify-form {
   display: flex;
   gap: var(--space-2);
@@ -57,7 +51,6 @@
   margin-top: var(--space-3);
 }
 
-/* ===== Lista de expedientes ===== */
 .case-list {
   list-style: none;
   margin: 0;
@@ -95,7 +88,6 @@
   font-weight: var(--font-weight-medium);
 }
 
-/* Acompaña al número sin competir con él: identifica la compañía, no es el dato principal. */
 .case-insurer {
   color: var(--text-secondary);
   font-weight: var(--font-weight-regular);
@@ -111,7 +103,6 @@
   color: var(--text-secondary);
 }
 
-/* Próximo paso: franja tenue con acento teal, separada del cuerpo. */
 .case-next {
   display: flex;
   align-items: center;

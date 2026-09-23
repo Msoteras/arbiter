@@ -26,7 +26,6 @@ interface Counts {
   riesgo: number;
 }
 
-/** Un segmento de la barra de distribución de la bandeja: etiqueta, cantidad y tono de estado. */
 interface DistSegment {
   label: string;
   value: number;
@@ -38,12 +37,6 @@ type CountsState = { status: 'loading' } | { status: 'ok'; counts: Counts } | { 
 type ActionState =
   { status: 'loading' } | { status: 'ok'; data: ExpedienteResponse[] } | { status: 'error' };
 
-/**
- * Pantalla de inicio del analista de siniestros. Los conteos de las tarjetas salen de un endpoint
- * de resumen dedicado (GET /api/v1/cases/assigned/summary, acotado al analista por el token) y la
- * lista "Requieren tu acción" de GET /api/v1/cases. Lo que todavía no tiene backend (SLA/
- * vencimientos, resumen del modelo) se muestra como placeholder honesto, no como número inventado.
- */
 @Component({
   selector: 'app-analista-inicio',
   imports: [
@@ -66,25 +59,18 @@ export class AnalistaInicioComponent {
   private readonly session = inject(AuthSessionService);
   private readonly appReady = inject(AppReadyService);
 
-  // El saludo y la fecha se fijan al entrar a la pantalla (no hace falta que "tickeen" en vivo).
   protected readonly saludo = saludoSegunHora();
   protected readonly fecha = fechaLarga();
   protected readonly nombre = computed(() => this.session.session()?.nombre ?? '');
 
-  // ───────────────── Conteos del encabezado ─────────────────
-  // Una sola llamada al resumen de mis expedientes asignados (el backend resuelve "yo" contra el
-  // token y agrupa por estado). "En trámite" = total menos resueltos (los estados terminales).
   private readonly countsState = toSignal(
     this.service.assignedSummary().pipe(
       map((s): CountsState => {
-        // Los que esperan la firma del referente siguen en revisión, pero el analista ya decidió.
+        // Awaiting the referente's sign-off: still under review, but the analyst already decided.
         const pendientes = Math.max(
           0,
           (s.byStatus['PENDING_ANALYST_REVIEW'] ?? 0) - s.awaitingReferent,
         );
-        // LAPSED cuenta como resuelto: caducado por inacción es una resolución cerrada
-        // (isEstadoFinal), y sin él los expedientes caducados quedaban en "En trámite" para
-        // siempre, porque nada los saca de ese estado.
         const resueltos = ESTADOS_FINALES.reduce((acc, e) => acc + (s.byStatus[e] ?? 0), 0);
         return {
           status: 'ok',
@@ -92,7 +78,6 @@ export class AnalistaInicioComponent {
             pendientes,
             resueltos,
             riesgo: s.highRisk,
-            // Nunca negativo, por las dudas de un total desalineado con el desglose.
             enTramite: Math.max(0, s.total - resueltos),
           },
         };
@@ -109,17 +94,14 @@ export class AnalistaInicioComponent {
     return s.status === 'ok' ? s.counts : null;
   });
 
-  // ───────────────── "Requieren tu acción" ─────────────────
-  // Los expedientes propios que esperan la decisión del analista, los que llevan más esperando
-  // primero. Se ordena por `reportedAt` (fecha de la denuncia) — la propiedad real de la entidad
-  // Case; `eventDate` es el nombre del DTO, no de la entidad, y Spring Data lo rechaza al ordenar.
+  // Sort by the entity property `reportedAt`: the DTO's `eventDate` is rejected by Spring Data.
   private readonly actionState = toSignal(
     this.service
       .list({
         assignedToMe: true,
         status: 'PENDING_ANALYST_REVIEW',
         sort: 'reportedAt,asc',
-        // Some of them may be waiting on the referente and get dropped below, hence more than 5.
+        // Some may be awaiting the referente and get dropped below, hence more than 5.
         size: 15,
       })
       .pipe(
@@ -145,13 +127,9 @@ export class AnalistaInicioComponent {
     () => this.actionState().status === 'ok' && this.actionItems().length === 0,
   );
 
-  // La pantalla espera TODOS sus datos antes de pintar el contenido, en vez de recuadros con
-  // "Cargando…" sueltos.
   protected readonly pageLoading = computed(() => this.countsLoading() || this.actionLoading());
 
-  // La pantalla de carga de marca a viewport completo se muestra SOLO en el arranque (login →
-  // primer home). Al volver al home desde otra pantalla, la app ya "arrancó": la carga es parcial
-  // (un spinner en el lugar, con el shell visible), no tapa todo de nuevo.
+  // The full-viewport loader shows only on app startup; later visits use an inline spinner.
   protected readonly showFullLoader = computed(() => this.pageLoading() && !this.appReady.ready());
   private readonly markReady = effect(() => {
     if (!this.pageLoading()) {
@@ -159,16 +137,11 @@ export class AnalistaInicioComponent {
     }
   });
 
-  // ───────────────── Distribución de la bandeja ─────────────────
-  // Reparto del caseload activo del analista por estado, con los MISMOS conteos que ya trae el
-  // resumen (no hay endpoint nuevo ni dato inventado). "Riesgo alto" no entra en las barras: es
-  // un subconjunto que se solapa con las otras categorías, así que se muestra aparte como señal.
   protected readonly distSegments = computed<DistSegment[]>(() => {
     const c = this.counts();
     if (!c) return [];
-    // `enTramite` es TODO lo abierto, así que incluye a `pendientes`: sumarlos acá contaba dos
-    // veces los mismos expedientes y las barras daban más que la bandeja. Mismo motivo por el que
-    // "Riesgo alto" quedó afuera.
+    // Segments must be disjoint: `enTramite` already includes `pendientes`, and high-risk
+    // overlaps every category, so it's shown apart.
     return [
       { label: 'Pendientes', value: c.pendientes, tone: 'info' },
       {
@@ -180,8 +153,6 @@ export class AnalistaInicioComponent {
     ];
   });
 
-  // Denominador de las barras: la suma de los segmentos, que ahora sí son disjuntos y dan el
-  // caseload real. Nunca 0 para no dividir por cero; `hasCaseload` decide si mostrar el vacío.
   protected readonly distTotal = computed(() =>
     this.distSegments().reduce((sum, segment) => sum + segment.value, 0),
   );
@@ -193,7 +164,6 @@ export class AnalistaInicioComponent {
     return total > 0 ? Math.round((value / total) * 100) : 0;
   }
 
-  // ───────────────── Presentación ─────────────────
   protected estadoLabel(status: string): string {
     return estadoLabel(status);
   }

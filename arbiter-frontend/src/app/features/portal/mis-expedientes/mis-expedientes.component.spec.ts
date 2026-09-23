@@ -11,11 +11,7 @@ import { ExpedienteListParams, ExpedienteService } from '../../expedientes/exped
 import { NewClaimModalService } from '../../expedientes/new-claim-modal.service';
 import { PolicyService } from '../../expedientes/policy.service';
 
-/**
- * El filtro por estado del portal: el asegurado elige entre tres cajones y el backend filtra por
- * `CaseStatus`. Lo que se verifica es la traducción — "En trámite" son cuatro estados, y si se
- * manda uno solo la lista miente por omisión.
- */
+/** Each simplified status bucket must expand to every `CaseStatus` it covers. */
 describe('MisExpedientesComponent · filtros', () => {
   let fixture: ComponentFixture<MisExpedientesComponent>;
   let listCalls: ExpedienteListParams[];
@@ -101,7 +97,6 @@ describe('MisExpedientesComponent · filtros', () => {
     expect(lastList().status).toEqual(['APPROVED', 'REJECTED', 'LAPSED']);
   });
 
-  /** Con una sola compañía el filtro sobra: todos los siniestros son de ella. */
   it('con una sola aseguradora no ofrece el filtro', async () => {
     await mount([bbva]);
 
@@ -114,14 +109,12 @@ describe('MisExpedientesComponent · filtros', () => {
     expect(fixture.nativeElement.textContent).toContain('Aseguradora');
   });
 
-  /** Dos pólizas de la misma compañía son una sola opción. */
   it('no repite la aseguradora cuando hay varias pólizas de la misma', async () => {
     await mount([bbva, policy('1', 'BBVA Seguros')]);
 
     expect(fixture.nativeElement.textContent).not.toContain('Aseguradora');
   });
 
-  /** La página 3 de un filtro puede no existir en el siguiente. */
   it('cambiar un filtro vuelve a la primera página', async () => {
     await mount([bbva]);
     signalOf('page').set(2);
@@ -136,7 +129,6 @@ describe('MisExpedientesComponent · filtros', () => {
     expect(lastList().page).toBe(0);
   });
 
-  /** El rango filtra por fecha del hecho, no por la de denuncia. */
   it('las fechas viajan como rango del hecho', async () => {
     await mount([bbva]);
 

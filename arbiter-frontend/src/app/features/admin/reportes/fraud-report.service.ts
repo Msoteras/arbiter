@@ -7,7 +7,6 @@ import { FraudReport, FraudReportParams } from './fraud-report';
 import { ReportFile } from './report-download';
 import { ReportFormat } from './resolution-report';
 
-/** reports-service — fraud detection report (GET /api/v1/reports/fraud). */
 @Injectable({ providedIn: 'root' })
 export class FraudReportService {
   private readonly http = inject(HttpClient);
@@ -17,10 +16,7 @@ export class FraudReportService {
     return this.http.get<FraudReport>(this.baseUrl, { params: toHttpParams(params) });
   }
 
-  /**
-   * Through HttpClient and not an <a href>: the endpoint requires the JWT, and only requests made
-   * by HttpClient go through the authInterceptor — a plain browser navigation would come back 401.
-   */
+  /** Via HttpClient, not an <a href>: only HttpClient requests carry the JWT (authInterceptor). */
   export(params: FraudReportParams, format: ReportFormat): Observable<ReportFile> {
     return this.http
       .get(`${this.baseUrl}/export`, {

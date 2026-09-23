@@ -33,8 +33,6 @@
   flex-wrap: wrap;
 }
 
-/* Encabezado de cada grupo de factores: el nombre en tono de etiqueta y, al lado, qué implica el
-   grupo (los de documentos e imágenes cuestan un análisis pesado). */
 .sc-group {
   margin: var(--space-3) 0 0;
   font-size: var(--font-size-xs);
@@ -44,8 +42,7 @@
   color: var(--text-muted);
 }
 
-/* El interruptor de Fast Track va encabezando su grupo, sobre fondo hundido: gobierna a los tres
-   factores de abajo, así que no puede verse como un factor más de la lista. */
+/* Sunken header: the Fast Track switch governs the factors below, it isn't one of them. */
 .sc-ft {
   display: flex;
   align-items: center;
@@ -59,11 +56,8 @@
   opacity: 0.8;
 }
 
-/* ── Filas de factor ──────────────────────────────────────────────────────────
-   Mismas clases que las reglas de Coberturas, Fast Track y Hard Stop (.rule-rows, .rule-row,
-   .rule-value): son la misma clase de decisión — prender algo y ponerle un número — y conviene
-   que se vean igual en toda la pantalla de reglas. Como el componente tiene su propia
-   encapsulación, las reglas se repiten acá; el interruptor en sí es app-switch, del kit. */
+/* ── Factor rows ──────────────────────────────────────────────────────────────
+   Same row classes as the other rule tabs; view encapsulation forces repeating them here. */
 .rule-rows {
   list-style: none;
   margin: 0;
@@ -107,10 +101,8 @@
   opacity: 0.55;
 }
 
-/* ── Reparto del peso ─────────────────────────────────────────────────────────
-   La barra dice cuánto pesa el factor sobre el total de los activos, que es la cuenta que hace el
-   motor. Sin ella, "45" y "35" no dicen nada: los pesos son relativos y su efecto depende de qué
-   otros factores estén prendidos. */
+/* ── Weight share ─────────────────────────────────────────────────────────────
+   Weights are relative, so the bar shows each factor's share of the active total. */
 .sc-share {
   flex: 0 0 auto;
   width: 120px;
@@ -136,9 +128,7 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* ── Bandas ───────────────────────────────────────────────────────────────────
-   Los tramos de la barra salen de los cortes configurados, así que editarlos la mueve: se ve
-   antes de guardar si una banda quedó demasiado angosta. */
+/* ── Bands ──────────────────────────────────────────────────────────────────── */
 .sc-bands-bar {
   display: flex;
   height: 8px;
@@ -172,7 +162,6 @@
   flex-direction: column;
   gap: var(--space-1);
 }
-/* Punto de color y nombre, igual que el semáforo del gauge que después ve el analista. */
 .sc-band-name {
   display: inline-flex;
   align-items: center;
@@ -213,7 +202,6 @@
 }
 
 @media (max-width: 640px) {
-  /* En angosto, el reparto y el peso bajan debajo del nombre en vez de comprimirse. */
   .rule-row {
     flex-wrap: wrap;
   }

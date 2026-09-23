@@ -3,13 +3,7 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { ReportFormat } from './resolution-report';
 
-/**
- * «Ver vista previa» plus the two export buttons, shared by both report tabs.
- *
- * <p>One component and not the same markup twice: the rule that a format in flight disables the
- * other one, and that a broken period disables all three, is the kind of thing that gets fixed in
- * one copy and not the other.
- */
+/** Shared by both report tabs, so the button-disabling rules live in one place. */
 @Component({
   selector: 'app-report-actions',
   imports: [ButtonComponent],
@@ -62,10 +56,10 @@ import { ReportFormat } from './resolution-report';
   `,
 })
 export class ReportActionsComponent {
-  /** A period the backend would refuse: nothing can be asked for, preview or file. */
+  /** Set when the period would be refused by the backend. */
   readonly disabled = input(false);
   readonly loading = input(false);
-  /** The format being generated, if any: the other button waits its turn. */
+  /** The format being generated, if any; the other button waits. */
   readonly exporting = input<ReportFormat | null>(null);
 
   readonly preview = output<void>();

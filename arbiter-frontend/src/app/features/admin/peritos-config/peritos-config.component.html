@@ -1,6 +1,3 @@
-<!-- Card propia y separada de la del antecedente: los peritos se guardan solos y el antecedente
-     no, así que la barra "Guardar cambios" queda pegada a lo único que gobierna en vez de flotar
-     abajo de las dos cosas. -->
 <app-card>
   <div class="sc-section-head">
     <span class="t-section-label">Peritos y servicios técnicos</span>
@@ -23,8 +20,6 @@
           <div class="perito-data">
             <span class="perito-name">
               {{ p.name }}
-              <!-- El estado como badge y no como "· inactivo" al final del nombre: un perito
-                   inactivo no aparece en el selector al derivar, así que conviene que salte. -->
               <app-badge variant="solid" [tone]="p.active ? 'ok' : 'neutral'">
                 {{ p.active ? 'Activo' : 'Inactivo' }}
               </app-badge>
