@@ -1832,9 +1832,7 @@ export class ExpedienteDetailComponent {
       return 'Asignate el expediente para decidir o derivarlo.';
     }
     const analista = this.assignedName();
-    return analista
-      ? `Asignado a ${analista}. Solo esa persona puede aprobar, rechazar o derivar.`
-      : 'Expediente asignado a otro analista.';
+    return analista ? `Asignado a ${analista}` : 'Asignado a otro analista';
   });
 
   /** Iniciales del analista asignado para el avatar (hasta 2). */
