@@ -194,11 +194,16 @@
                     </a>
                     <p class="att-detail">
                       @for (id of item.namedIds; track id; let last = $last) {
-                        <a class="att-case-link" [routerLink]="['/cases', id]">EXP-{{ id }}</a
-                        >@if (!last) { <span aria-hidden="true"> · </span> }
+                        <a class="att-case-link" [routerLink]="['/cases', id]">EXP-{{ id }}</a>
+                        @if (!last) {
+                          <span aria-hidden="true"> · </span>
+                        }
                       }
                       @if (item.remaining > 0) {
-                        <a class="att-more" [routerLink]="['/inbox']" [queryParams]="item.queryParams"
+                        <a
+                          class="att-more"
+                          [routerLink]="['/inbox']"
+                          [queryParams]="item.queryParams"
                           >y {{ item.remaining }} más</a
                         >
                       }

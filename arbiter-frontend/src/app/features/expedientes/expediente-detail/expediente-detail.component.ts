@@ -446,7 +446,9 @@ export class ExpedienteDetailComponent {
    * el analista lee una exclusión de cobertura donde solo hubo un umbral de agilidad.
    */
   protected readonly hardRuleResults = computed<RuleResult[]>(() =>
-    this.ruleResults().filter((r) => !isFastTrackCriterion(r.ruleType) && !isAdvisoryCheck(r.ruleType)),
+    this.ruleResults().filter(
+      (r) => !isFastTrackCriterion(r.ruleType) && !isAdvisoryCheck(r.ruleType),
+    ),
   );
 
   /**
