@@ -115,8 +115,11 @@ app-textarea {
 }
 
 /* ===== Trazabilidad ===== */
+/* minmax(0, 1fr): a grid track defaults to min-width auto and would grow to the widest table,
+   scrolling the whole page instead of the table's own .traza-scroll. */
 .traza {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-4);
 }
 .traza-scroll {
