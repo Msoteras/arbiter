@@ -319,6 +319,17 @@ public interface CaseRepository extends JpaRepository<Case, Long>, JpaSpecificat
             """)
     List<StatusCount> countByStatusForAnalyst(@Param("analystId") Long analystId);
 
+    /** The analyst's cases whose settlement is waiting for the referente's signature. */
+    @Query("""
+            select count(c)
+            from Case c
+            where c.analyst.id = :analystId
+              and exists (select 1 from CaseSettlement s
+                          where s.caseId = c.id
+                            and s.status = ar.edu.utn.frba.arbiter.common.enums.SettlementStatus.PENDING_AUTHORIZATION)
+            """)
+    long countAwaitingReferentForAnalyst(@Param("analystId") Long analystId);
+
     /** Cuántos expedientes del analista tienen una de las bandas de riesgo dadas (ej. HIGH, CRITICAL). */
     @Query("""
             select count(c)

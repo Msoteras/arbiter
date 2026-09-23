@@ -77,7 +77,11 @@ export class AnalistaInicioComponent {
   private readonly countsState = toSignal(
     this.service.assignedSummary().pipe(
       map((s): CountsState => {
-        const pendientes = s.byStatus['PENDING_ANALYST_REVIEW'] ?? 0;
+        // Los que esperan la firma del referente siguen en revisión, pero el analista ya decidió.
+        const pendientes = Math.max(
+          0,
+          (s.byStatus['PENDING_ANALYST_REVIEW'] ?? 0) - s.awaitingReferent,
+        );
         // LAPSED cuenta como resuelto: caducado por inacción es una resolución cerrada
         // (isEstadoFinal), y sin él los expedientes caducados quedaban en "En trámite" para
         // siempre, porque nada los saca de ese estado.
@@ -115,10 +119,16 @@ export class AnalistaInicioComponent {
         assignedToMe: true,
         status: 'PENDING_ANALYST_REVIEW',
         sort: 'reportedAt,asc',
-        size: 5,
+        // Some of them may be waiting on the referente and get dropped below, hence more than 5.
+        size: 15,
       })
       .pipe(
-        map((page): ActionState => ({ status: 'ok', data: page.content })),
+        map((page): ActionState => ({
+          status: 'ok',
+          data: page.content
+            .filter((c) => c.settlementStatus !== 'PENDING_AUTHORIZATION')
+            .slice(0, 5),
+        })),
         startWith<ActionState>({ status: 'loading' }),
         catchError(() => of<ActionState>({ status: 'error' })),
       ),

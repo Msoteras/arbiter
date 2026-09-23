@@ -16,6 +16,10 @@ import java.util.Map;
  *                 "en trámite" (no finales) y "resueltos" (APPROVED + REJECTED) a partir de acá.
  * @param highRisk cantidad de esos expedientes con alerta de fraude alta o crítica (riskBand
  *                 HIGH o CRITICAL) — la tarjeta de "riesgo alto" del inicio.
+ * @param awaitingReferent of the PENDING_ANALYST_REVIEW ones, how many have their settlement waiting
+ *                 for the referente: the analyst already decided those, so they are not pending
+ *                 on them.
  */
-public record AssignedCaseSummaryResponse(long total, Map<String, Long> byStatus, long highRisk) {
+public record AssignedCaseSummaryResponse(long total, Map<String, Long> byStatus, long highRisk,
+                                          long awaitingReferent) {
 }

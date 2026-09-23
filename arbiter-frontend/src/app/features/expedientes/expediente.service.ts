@@ -248,6 +248,8 @@ export interface AssignedCaseSummary {
   total: number;
   byStatus: Record<string, number>;
   highRisk: number;
+  /** De los PENDING_ANALYST_REVIEW, los que esperan la firma del referente: ya no son del analista. */
+  awaitingReferent: number;
 }
 
 @Injectable({ providedIn: 'root' })

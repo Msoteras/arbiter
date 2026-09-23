@@ -698,7 +698,7 @@ public class CaseServiceImpl implements CaseService {
         // resumen vacío en vez de error, igual que la lente "Míos" de la bandeja.
         Long analystId = currentAnalystId().orElse(null);
         if (analystId == null) {
-            return new AssignedCaseSummaryResponse(0, Map.of(), 0);
+            return new AssignedCaseSummaryResponse(0, Map.of(), 0, 0);
         }
 
         Map<String, Long> byStatus = new HashMap<>();
@@ -709,7 +709,8 @@ public class CaseServiceImpl implements CaseService {
         }
 
         long highRisk = caseRepository.countByAnalystAndRiskBandIn(analystId, HIGH_RISK_BANDS);
-        return new AssignedCaseSummaryResponse(total, byStatus, highRisk);
+        long awaitingReferent = caseRepository.countAwaitingReferentForAnalyst(analystId);
+        return new AssignedCaseSummaryResponse(total, byStatus, highRisk, awaitingReferent);
     }
 
     @Override
