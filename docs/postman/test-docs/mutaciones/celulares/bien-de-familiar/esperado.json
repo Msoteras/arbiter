@@ -1,0 +1,16 @@
+{
+  "mutacion": "bien-de-familiar",
+  "base": "celulares/robo",
+  "cambia": "el acta dice que el equipo lo usaba y lo tenía encima la cónyuge; el relato de Valentín Aguirre sigue diciendo que lo tenía encima",
+  "documento": "police_report",
+  "seDetectaEn": [
+    "document_analysis.affected_party del police_report = FAMILIAR",
+    "rule_result: COVERS_FAMILY_GROUP en FAIL (la cobertura 1 tiene covers_family_group = false)",
+    "factores: motivo de CoverageScopeEvaluator sobre el grupo familiar"
+  ],
+  "resultadoEsperado": "Fast Track bloqueado por alcance de cobertura; el LLM debería dar LLM_NO_RECOMIENDA_APROBAR (el relato y el acta se contradicen)",
+  "notas": [
+    "Es la única mutación que tiene que salir del carril rápido: el acta la extrae el gate, y el damnificado es lo único de un documento que CoverageScopeEvaluator mira antes de decidir el Fast Track.",
+    "Si affected_party sale DESCONOCIDO, el problema es la extracción, no la regla: el acta lo dice explícitamente."
+  ]
+}

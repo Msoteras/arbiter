@@ -1,0 +1,17 @@
+{
+  "mutacion": "fecha-acta-distinta",
+  "base": "celulares/robo",
+  "cambia": "el acta está fechada al día siguiente; el asegurado declara haber denunciado esa misma noche",
+  "documento": "police_report",
+  "seDetectaEn": [
+    "document_analysis.document_date del police_report ≠ cases.police_report_at",
+    "DocumentInconsistencyEvaluator.checkDeclaredPoliceReportDate (D12)"
+  ],
+  "resultadoEsperado": "FAST_TRACK — la mutación no bloquea el gate. Si sale FAST_TRACK, el pipeline se comportó como está diseñado; que ese diseño deje pasar esto es el hallazgo. La regla POLICE_DEADLINE evalúa la fecha declarada, así que pasa.",
+  "notas": [
+    "El caso base entra en Fast Track. En ese camino solo se extraen police_report y purchase_proof (los que exige el gate) y el LLM no corre: salvo el damnificado, nada de lo que diga un documento saca al caso del carril rápido.",
+    "document_inconsistency no tiene peso en factor_weight (BBVA ni Provincia), y el scoring solo ejecuta los factores con peso: hoy DocumentInconsistencyEvaluator no corre. Ver temas-a-discutir.md.",
+    "Aun fuera de Fast Track el LLM no la vería: el prompt de clasificación no incluye policeReportAt.",
+    "Es la señal más ciega del set: la detecta un solo evaluador, y ese evaluador no pesa."
+  ]
+}

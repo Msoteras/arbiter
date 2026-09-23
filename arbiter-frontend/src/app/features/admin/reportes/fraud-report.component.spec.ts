@@ -385,7 +385,7 @@ describe('FraudReportComponent', () => {
     expect(signals.querySelector('.stack')).toBeNull();
   });
 
-  it('with claims but none flagged, says how many claims it looked at', () => {
+  it('with claims but none flagged, says so without restating the period total', () => {
     reportService.report.and.returnValue(
       of({ ...report, summary: { ...report.summary, flagged: 0, flaggedRate: 0 }, rows: [] }),
     );
@@ -393,8 +393,8 @@ describe('FraudReportComponent', () => {
     preview();
 
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
-    expect(text).toContain('Ninguna denuncia con señales en el período');
-    expect(text).toContain('Ninguna de las 20 denuncias del período disparó una señal');
+    expect(text).toContain('Ninguna denuncia con señales de fraude en el período');
+    expect(text).toContain('Ninguna de las denuncias del período disparó una señal de fraude');
   });
 
   it('with no claims at all, says the period is empty', () => {

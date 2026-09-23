@@ -182,15 +182,29 @@
             } @else {
               <ul class="attention">
                 @for (item of attentionItems(); track item.key) {
-                  <li>
-                    <a class="att-row" [routerLink]="['/inbox']" [queryParams]="item.queryParams">
+                  <li class="att-item">
+                    <a class="att-head" [routerLink]="['/inbox']" [queryParams]="item.queryParams">
                       <span class="att-dot tone-{{ item.severity }}" aria-hidden="true"></span>
-                      <span class="att-text">
-                        <span class="att-title">{{ item.title }}</span>
-                        <span class="att-detail">{{ item.detail }}</span>
-                      </span>
+                      <span class="att-title">{{ item.title }}</span>
                       <span class="att-chevron" aria-hidden="true">›</span>
                     </a>
+                    <p class="att-detail">
+                      @for (id of item.namedIds; track id; let last = $last) {
+                        <a class="att-case-link" [routerLink]="['/cases', id]">EXP-{{ id }}</a>
+                        @if (!last) {
+                          <span aria-hidden="true"> · </span>
+                        }
+                      }
+                      @if (item.remaining > 0) {
+                        <a
+                          class="att-more"
+                          [routerLink]="['/inbox']"
+                          [queryParams]="item.queryParams"
+                          >y {{ item.remaining }} más</a
+                        >
+                      }
+                      — {{ item.detail }}
+                    </p>
                   </li>
                 }
               </ul>

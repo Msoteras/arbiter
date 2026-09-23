@@ -27,6 +27,7 @@ import { CaseNavigationService } from '../case-navigation.service';
 import { CaseMessagesService } from '../case-messages.service';
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
 import { UserAdminService } from '../../../core/auth/user-admin.service';
+import { SettlementAuthoritiesService } from '../../admin/settlement-authorities.service';
 import {
   DocumentAnalysis,
   ExpedienteResponse,
@@ -38,6 +39,9 @@ import { Policy } from '../../../core/models/policy';
 import {
   PolicySnapshot,
   RuleResult,
+  advisoryResultLabel,
+  advisoryResultTone,
+  isAdvisoryCheck,
   isFastTrackCriterion,
   ruleEvaluationText,
   ruleResultLabel,
@@ -196,6 +200,7 @@ export class ExpedienteDetailComponent {
   private readonly caseNav = inject(CaseNavigationService);
   private readonly session = inject(AuthSessionService);
   private readonly users = inject(UserAdminService);
+  private readonly settlementAuthorities = inject(SettlementAuthoritiesService);
   private readonly messages = inject(CaseMessagesService);
 
   constructor() {
@@ -454,7 +459,22 @@ export class ExpedienteDetailComponent {
 
   /** Kept apart from the Fast Track criteria: failing one means something different in each table. */
   protected readonly hardRuleResults = computed<RuleResult[]>(() =>
-    this.ruleResults().filter((r) => !isFastTrackCriterion(r.ruleType)),
+    this.ruleResults().filter(
+      (r) => !isFastTrackCriterion(r.ruleType) && !isAdvisoryCheck(r.ruleType),
+    ),
+  );
+
+  /**
+   * Los avisos: no deciden cobertura ni carril rápido, marcan algo para mirar antes de resolver
+   * (hoy, que la documentación narre otro hecho que el declarado). Van aparte y arriba de las
+   * reglas porque un "No cumple" entre ellas se leería como una exclusión que el motor no dictó.
+   */
+  protected readonly advisoryChecks = computed<RuleResult[]>(() =>
+    this.ruleResults().filter((r) => isAdvisoryCheck(r.ruleType)),
+  );
+
+  protected readonly hasAdvisoryWarning = computed(() =>
+    this.advisoryChecks().some((r) => r.result === 'FAIL'),
   );
 
   /** Present both when the case took Fast Track (why) and when it didn't (which criterion failed). */
@@ -961,6 +981,70 @@ export class ExpedienteDetailComponent {
     // The justification isn't listed: the field is already marked required and the button disabled.
     return null;
   });
+
+  // ----- supervisor sign-off on a settlement above the analyst's authority -----
+  // Same actions as the authorizations screen, so the supervisor can sign from the case itself.
+  protected readonly canAuthorize = computed(
+    () => this.session.session()?.rol === 'REFERENTE_ASEGURADORA' && this.esperandoAutorizacion(),
+  );
+  protected readonly showAuthorize = signal(false);
+  protected readonly showReturn = signal(false);
+  protected readonly returnReason = signal('');
+  protected readonly signing = signal(false);
+  protected readonly signError = signal<string | null>(null);
+
+  askAuthorize(): void {
+    this.signError.set(null);
+    this.showAuthorize.set(true);
+  }
+
+  askReturn(): void {
+    this.returnReason.set('');
+    this.signError.set(null);
+    this.showReturn.set(true);
+  }
+
+  cancelSign(): void {
+    this.showAuthorize.set(false);
+    this.showReturn.set(false);
+  }
+
+  confirmAuthorize(): void {
+    const d = this.data();
+    if (!d) {
+      return;
+    }
+    this.sign(this.settlementAuthorities.authorize(d.id), 'No se pudo autorizar la liquidación.');
+  }
+
+  confirmReturn(): void {
+    const d = this.data();
+    const reason = this.returnReason().trim();
+    if (!d || !reason) {
+      return;
+    }
+    this.sign(
+      this.settlementAuthorities.returnToAnalyst(d.id, reason),
+      'No se pudo devolver la liquidación.',
+    );
+  }
+
+  private sign(action: Observable<unknown>, fallbackError: string): void {
+    this.signing.set(true);
+    this.signError.set(null);
+    action.subscribe({
+      next: () => {
+        this.signing.set(false);
+        this.cancelSign();
+        this.reloadTrigger.update((v) => v + 1);
+      },
+      error: (err: HttpErrorResponse) => {
+        this.signing.set(false);
+        this.cancelSign();
+        this.signError.set(err.error?.detail || fallbackError);
+      },
+    });
+  }
 
   // ----- reopening a closed case -----
   // Shared with the supervisor, like assigning: reopening resolves nothing.
@@ -1524,6 +1608,8 @@ export class ExpedienteDetailComponent {
   ruleTypeLabel = ruleTypeLabel;
   ruleResultLabel = ruleResultLabel;
   ruleResultTone = ruleResultTone;
+  advisoryResultLabel = advisoryResultLabel;
+  advisoryResultTone = advisoryResultTone;
   ruleEvaluationText = ruleEvaluationText;
 
   private formatMonto(amount: number): string {

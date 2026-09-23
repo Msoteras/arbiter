@@ -1,0 +1,16 @@
+{
+  "paso": "3-hurto",
+  "perfil": "camila",
+  "cambia": "hurto en el subte, ayer al mediodía — tercer evento del ramo en el mismo día",
+  "antes": "NO limpiar: los pasos 1 y 2 tienen que estar cargados",
+  "seDetectaEn": [
+    "rule_result: MAX_EVENTS_YEAR en FAIL — \"Supera el tope de 1 siniestro(s) por año: 2 siniestro(s) previo(s)\"",
+    "rule_result: maxPriorClaims en FAIL (2 previos)",
+    "risk_breakdown: claim_frequency saturado"
+  ],
+  "resultadoEsperado": "Fast Track bloqueado por el tope anual (D10) → LLM_NO_RECOMIENDA_APROBAR",
+  "notas": [
+    "El robo del paso 2 cuenta aunque su hecho sea más tarde ese mismo día: la ventana compara fechas, no horas. El orden que importa es el de carga, no el de los hechos.",
+    "También falla el ratio del gate (620.000 sobre 650.000 de la cobertura de hurto, 0,95): el paso no está pensado para eso, el tope anual es la señal que interesa."
+  ]
+}

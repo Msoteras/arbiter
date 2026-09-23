@@ -18,6 +18,8 @@ import java.util.List;
  *       failing one means the event isn't covered.</li>
  *   <li><b>Fast Track criteria</b> ({@code FT_*}) — audited the same way, but failing one only sends
  *       the claim to the LLM instead of the fast lane. Never {@code insurer_rule} rows.</li>
+ *   <li><b>Advisory checks</b> ({@link #advisoryRules()}) — audited too, but failing one changes
+ *       neither the coverage nor the fast lane: it flags something for the analyst to review.</li>
  * </ul>
  */
 public enum RuleType {
@@ -100,7 +102,15 @@ public enum RuleType {
     FT_POLICY_UP_TO_DATE,
 
     /** Fast Track gate · whether the documents the gate requires are attached and readable. */
-    FT_REQUIRED_DOCS;
+    FT_REQUIRED_DOCS,
+
+    /**
+     * Advisory · whether the claim cause a document narrates is the one the insured declared. The
+     * extraction reads it, {@code ClaimCauseConsistencyEvaluator} compares it. On the Fast Track
+     * path the LLM never runs, so this is the only check of the account against the declared cause.
+     * It warns and never blocks.
+     */
+    CLAIM_CAUSE_MATCH;
 
     /**
      * The hard rules {@code TemporalRuleEvaluator} evaluates. {@link #COVERAGE_EXCLUSION} is left
@@ -122,5 +132,14 @@ public enum RuleType {
      */
     public static List<RuleType> insurerScoped() {
         return List.of(POLICY_IN_FORCE, POLICY_STANDING);
+    }
+
+
+    /**
+     * Checks whose FAIL is a warning for the analyst, not a rule that stopped the case: reports leave
+     * them out of "which rules blocked the most cases", and the case detail shows them apart.
+     */
+    public static List<RuleType> advisoryRules() {
+        return List.of(CLAIM_CAUSE_MATCH);
     }
 }

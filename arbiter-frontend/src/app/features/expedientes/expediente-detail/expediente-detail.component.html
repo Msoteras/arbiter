@@ -118,6 +118,19 @@
                   {{ montoExacto(s.authorityLimit) }}
                 </p>
               }
+              @if (canAuthorize()) {
+                <div class="decision-btns">
+                  <app-button variant="secondary" [disabled]="signing()" (click)="askReturn()">
+                    Devolver
+                  </app-button>
+                  <app-button variant="accent" [disabled]="signing()" (click)="askAuthorize()">
+                    ✓ Autorizar
+                  </app-button>
+                </div>
+              }
+              @if (signError()) {
+                <p class="rcard-note error">{{ signError() }}</p>
+              }
             } @else if (canAct()) {
               <!-- Surfaces existing evidence only; it never suggests what to decide. -->
               <div class="decision-row">
@@ -607,6 +620,47 @@
         <!-- Nothing is fetched live here: everything was persisted at classification time. -->
         @case ('reglas') {
           <div class="traza">
+            <!-- Avisos arriba de las reglas: un "No cumple" entre ellas se leería como una exclusión,
+               y esto no decide nada — marca algo que el analista tiene que mirar antes de resolver. -->
+            @if (advisoryChecks().length > 0) {
+              <app-card heading="Para revisar antes de resolver">
+                <p class="t-note traza-intro">
+                  @if (hasAdvisoryWarning()) {
+                    La documentación narra un hecho distinto del que declaró el asegurado. No cambia
+                    la clasificación ni la cobertura: leé el relato y el acta antes de decidir.
+                  } @else {
+                    La documentación narra el mismo hecho que declaró el asegurado.
+                  }
+                </p>
+                <div class="traza-scroll">
+                  <table class="traza-table">
+                    <thead>
+                      <tr>
+                        <th>Control</th>
+                        <th>Resultado</th>
+                        <th>Qué se comparó</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      @for (a of advisoryChecks(); track a.id) {
+                        <tr>
+                          <td>{{ ruleTypeLabel(a.ruleType) }}</td>
+                          <td>
+                            <app-badge variant="solid" [tone]="advisoryResultTone(a.result)">
+                              {{ advisoryResultLabel(a.result) }}
+                            </app-badge>
+                          </td>
+                          <td class="traza-valor">
+                            {{ ruleEvaluationText(a.ruleType, a.evaluatedValue) }}
+                          </td>
+                        </tr>
+                      }
+                    </tbody>
+                  </table>
+                </div>
+              </app-card>
+            }
+
             <app-card heading="Reglas evaluadas">
               @if (hardRuleResults().length > 0) {
                 <p class="t-note reglas-meta">
@@ -1134,6 +1188,46 @@
 </app-modal>
 
 <!-- The reason is mandatory: it is the audit trail for why a closed case was reopened. -->
+<app-modal [open]="showAuthorize()" heading="Autorizar la liquidación" (close)="cancelSign()">
+  @if (settlement(); as s) {
+    <p class="t-body">
+      Vas a autorizar el pago de <strong class="tabular">{{ montoExacto(s.settledAmount) }}</strong
+      >, por encima del tope del ramo de {{ montoExacto(s.authorityLimit) }}.
+    </p>
+  }
+  <p class="t-note">El expediente queda aprobado y se le avisa al asegurado.</p>
+  <ng-container modalActions>
+    <app-button variant="secondary" (click)="cancelSign()">Cancelar</app-button>
+    <app-button variant="accent" [disabled]="signing()" (click)="confirmAuthorize()">
+      {{ signing() ? 'Autorizando…' : 'Autorizar' }}
+    </app-button>
+  </ng-container>
+</app-modal>
+
+<!-- Returning doesn't reject the claim: the case stays with the analyst, and the reason is all
+     they get to know what to fix. -->
+<app-modal
+  [open]="showReturn()"
+  heading="Devolver la liquidación al analista"
+  (close)="cancelSign()"
+>
+  <p class="t-note">
+    El expediente no se mueve —nunca salió de la revisión del analista— y no queda ninguna decisión
+    registrada. Va a poder determinar el monto otra vez.
+  </p>
+  <app-textarea
+    [rows]="3"
+    placeholder="Qué tiene que corregir (obligatorio)…"
+    [(value)]="returnReason"
+  />
+  <ng-container modalActions>
+    <app-button variant="secondary" (click)="cancelSign()">Cancelar</app-button>
+    <app-button [disabled]="!returnReason().trim() || signing()" (click)="confirmReturn()">
+      {{ signing() ? 'Devolviendo…' : 'Devolver' }}
+    </app-button>
+  </ng-container>
+</app-modal>
+
 <app-modal [open]="showReopen()" heading="Reabrir expediente" (close)="cancelReopen()">
   <p class="t-note">
     El expediente vuelve a revisión del analista con el plazo de respuesta corriendo de nuevo. No se

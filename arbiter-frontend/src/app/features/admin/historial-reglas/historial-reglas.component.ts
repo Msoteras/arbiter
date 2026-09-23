@@ -19,6 +19,7 @@ import {
   RuleFieldChange,
   RuleHistoryService,
 } from '../rule-history.service';
+import { fadeInUp } from '../../../shared/animations';
 
 interface HistoryRow {
   entry: RuleChangeEntry;
@@ -46,6 +47,7 @@ interface HistoryRow {
     PaginationComponent,
     SelectComponent,
   ],
+  animations: [fadeInUp],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './historial-reglas.component.html',
   styleUrl: './historial-reglas.component.scss',

@@ -1,4 +1,4 @@
-<app-card>
+<app-card @fadeInUp>
   <div class="hr-head">
     <h2 class="card-title">Historial de cambios</h2>
     <app-badge variant="solid">Toda la aseguradora</app-badge>
@@ -55,7 +55,7 @@
       [sub]="hasFilters() ? 'Sin resultados' : 'Sin cambios'"
     />
   } @else {
-    <ol class="hr-timeline">
+    <ol class="hr-timeline" @fadeInUp>
       @for (row of rows(); track row.entry.id) {
         <li class="hr-item" [class.is-current]="row.entry.current">
           <div class="hr-item-head">

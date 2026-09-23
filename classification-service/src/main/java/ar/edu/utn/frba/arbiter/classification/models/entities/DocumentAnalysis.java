@@ -65,6 +65,15 @@ public class DocumentAnalysis {
     @Column(name = "affected_party", nullable = false, length = 20)
     private DocumentExtraction.AffectedParty affectedParty;
 
+    /**
+     * The claim cause the document narrates, by name from the branch's catalog; null when it narrates
+     * none. A name and not an FK to {@code claim_cause}, same as {@code llm_analysis.suggested_claim_cause}:
+     * this row records what the extraction read, and has to keep saying so if the referente later
+     * renames or removes the cause.
+     */
+    @Column(name = "described_claim_cause", length = 120)
+    private String describedClaimCause;
+
     @Column(name = "extracted_at", nullable = false)
     private Instant extractedAt;
 

@@ -12,14 +12,20 @@ docs/postman/test-docs/
 ├── perfiles.js                     quién firma cada variante (ver §2)
 ├── generar-fixtures.js             ramo Celulares — 4 hechos generadores
 ├── generar-fixtures-tecnologia.js  ramo Tecnología Portátil — 3 hechos generadores
+├── mutaciones-celulares.js         el robo de Celulares con UNA cosa cambiada (ver §9)
+├── historial-celulares.js          tres casos de Camila en orden, para ver pesar el historial (ver §10)
+├── generar-todo.js                 regenera todos los sets de una
 ├── foto_equipo_para_fraude.jpg     foto de un A56 → item_photo de Celulares
 ├── foto_notebook_para_fraude.jpg   foto de un MacBook Air → item_photo de Tecnología Portátil
 ├── denuncia_policial_ambigua.pdf   fixture viejo, suelto
 ├── conMarcaDePrueba/
 │   ├── celulares/{robo, hurto, caida, rotura accidental}/
 │   └── tec-portatil/{robo, hurto, danio_acc}/
-└── sinMarca/
-    └── (la misma estructura, otra variante)
+├── sinMarca/
+│   └── (la misma estructura, otra variante)
+├── camila/celulares/{robo, hurto}/   set limpio de Camila Ferreyra (ver §10)
+│   └── historial/{1-primer-robo, 2-segundo-robo, 3-hurto}/
+└── mutaciones/celulares/<mutación>/  PDFs + payload + esperado.json (ver §9)
 ```
 
 Los `.js` son **la fuente**; lo que cuelga de `conMarcaDePrueba/` y `sinMarca/` es **la salida**, y se
@@ -51,6 +57,14 @@ delata un documento armado a las apuradas.
 > nada que le avise a una persona que son de prueba. Que no salgan de acá.
 
 ## 3 · Generar (o renovar) los sets
+
+**Todo de una**, que es lo que conviene para renovarlos:
+
+```bash
+node docs/postman/test-docs/generar-todo.js     # imprime cuándo vence cada set
+```
+
+O de a uno:
 
 Desde la raíz del repo. Cada script escribe **todos los hechos generadores de su ramo**:
 
@@ -232,6 +246,8 @@ Las dos variantes te salen gratis: si tomás el firmante de `INSURED`, envolvés
 | `letterhead(p, org, dir, cuit)` | membrete centrado |
 | `footer(p)` | el pie de "documento simulado" — siempre detrás de `if (PROFILE.disclaimer)` |
 | `build(page, meta)` | arma el PDF final (`title`, `author`, `subject`, `created`) |
+| `afipBlock(p, afipQrUrl({...}))` | el QR de AFIP + "Comprobante Autorizado" que lleva toda factura electrónica (RG 4892); el QR lo arma `qr.js`, sin dependencias |
+| `.moneyRow(..., { tamper })` | reescribe solo el importe en otra fuente (`F3`/`F4`, Times) y corrido: un PDF editado |
 | `d` · `hm` · `hms` · `iso` · `pdfDate` · `plus` | formateo de fechas |
 | `cuit(prefijo, cuerpo)` | CUIT con dígito verificador válido |
 
@@ -239,7 +255,8 @@ Las dos variantes te salen gratis: si tomás el firmante de `INSURED`, envolvés
 
 - **Una sola página por PDF.** `OllamaDocumentAnalyzer` rasteriza a 150 DPI y manda **cada página**
   al modelo de visión: un PDF de 5 páginas son 5 inferencias.
-- **Texto seleccionable, no imagen.** El gate de Fast Track exige que el documento requerido tenga
+- **Texto seleccionable, no imagen** — salvo que el escenario sea justamente un escaneo o una foto
+  (`render` en las mutaciones, §9). El gate de Fast Track exige que el documento requerido tenga
   texto extraído **no vacío**; si el OCR devuelve nada, el Fast Track se cae aunque el archivo esté.
 - **Empresas y personas ficticias**, siempre. No queremos comprobantes que aparenten ser de una
   empresa real. El pie de página lo deja escrito en la variante con marca.
@@ -268,3 +285,146 @@ garantiza el que lo escribió.
 `require('./lib-pdf')` y `require('./perfiles')`, así que sueltos no arrancan. Y sin los generadores,
 cuando el set se vence (3 o 4 días) nadie lo puede renovar: quedan PDFs que ya no prueban lo que
 dicen probar.
+
+## 9 · Mutaciones — casos que el pipeline tiene que rechazar
+
+Los escenarios de §4 son todos coherentes: sirven para probar que un caso bueno pasa, no que uno malo
+se detecta. `mutaciones-celulares.js` toma el **robo de Celulares** y le cambia **una sola cosa** por
+caso, así que si el pipeline reacciona (o no) hay una única variable a la que atribuírselo.
+
+Las firma un asegurado propio, **Valentín Aguirre** (DNI 38.614.270, póliza `POL-CEL-2026-777`,
+perfil `mutaciones` en `perfiles.js`, sin leyenda de simulado), y se generan aparte:
+
+```bash
+node docs/postman/test-docs/generar-fixtures.js --mutaciones   # → mutaciones/celulares/*
+```
+
+| Carpeta | Qué cambia | Documento | Quién lo tendría que detectar | Resultado hoy |
+|---|---|---|---|---|
+| `control` | nada | — | — | `FAST_TRACK` |
+| `imei-distinto` | IMEI que no es el de la póliza | factura | `checkImei` + LLM | `FAST_TRACK` |
+| `marca-distinta` | factura de un Motorola, póliza de un Samsung | factura | `checkBrandAndModel` + LLM | `FAST_TRACK` |
+| `importe-distinto` | factura de $ 389.999 contra $ 620.000 reclamados | factura | `checkAmount` + LLM | `FAST_TRACK` |
+| `fecha-acta-distinta` | acta del día siguiente; el asegurado declara esa misma noche | acta | `checkDeclaredPoliceReportDate` (D12) | `FAST_TRACK` |
+| `constancia-anterior-al-hecho` | bloqueo de IMEI 12 días antes del robo | baja de IMEI | `checkDocumentDate` + LLM | `FAST_TRACK` |
+| `bien-de-familiar` | el equipo lo tenía y lo usaba el cónyuge | acta | `affected_party = FAMILIAR` → `CoverageScopeEvaluator` | sale de Fast Track → LLM |
+| `relato-hurto` | declara robo; relato y acta cuentan un descuido en un café | acta + relato | `CLAIM_CAUSE_MATCH` (el acta narra Hurto) | `FAST_TRACK` **con aviso** |
+| `instrucciones-en-factura` | la factura le ordena al modelo que apruebe | factura | extracción (`visualFindings`) + LLM | `FAST_TRACK` |
+| `escaneado` | los cuatro documentos escaneados: imagen sin texto, papel crema, torcidos | todos | nadie: `visualFindings` tiene que quedar **vacío** | `FAST_TRACK` |
+| `factura-fotografiada` | la factura es una foto JPEG sobre un escritorio | factura | nadie: `visualFindings` **vacío** | `FAST_TRACK` |
+| `importe-pegado` | factura escaneada de $ 389.999 con el total tapado por un recuadro que dice $ 619.999 | factura | extracción (`visualFindings`) | `FAST_TRACK` |
+| `fecha-pegada` | acta escaneada de hace 19 días con la fecha del hecho tapada para que diga ayer | acta | extracción (`visualFindings`) | `FAST_TRACK` |
+| `tipografia-mezclada` | PDF digital con el total reescrito en Times y corrido de la línea | factura | extracción (`visualFindings`) | `FAST_TRACK` |
+
+**Que siete de nueve den `FAST_TRACK` es el resultado, no un error del set.** El robo base cumple el
+gate, y en ese camino el pipeline solo extrae los documentos que el gate exige (acta y factura), el LLM
+no corre, y lo único de un documento que puede bloquear el carril rápido es quién fue el damnificado.
+Las inconsistencias de datos, las fechas imposibles: nada de eso se mira antes de decidir el Fast
+Track. La excepción parcial es `relato-hurto`: desde el 22/09 la extracción del acta dice qué hecho
+narra y el control `CLAIM_CAUSE_MATCH` lo compara con el declarado. **Avisa, no bloquea** (decisión
+del equipo): el caso sigue en `FAST_TRACK`, pero con el motivo en los factores y una tarjeta
+"Para revisar antes de resolver" en el detalle del expediente.
+
+Las cinco últimas son **visuales**: lo que cambia no es lo que dice el documento sino cómo se ve.
+`escaneado` y `factura-fotografiada` son controles de falsos positivos — así llegan los documentos
+reales, y el prompt de extracción dice que un papel torcido o con poca luz no es señal de nada. Las
+otras tres son adulteraciones que dejan los datos **coherentes con el reclamo**, así que solo la
+imagen las delata: la señal está en `document_visual_finding`, que hoy no bloquea el Fast Track.
+
+Las cinco las produce `escaner/` (Java + PDFBox 3.0.3 del repositorio local de Maven, la misma
+librería con la que rasteriza el pipeline). `--mutaciones` tarda unos 20 segundos por eso, y sin
+Java falla con un mensaje que dice qué falta. `factura-fotografiada` es un **.jpg**: va con
+`purchase_proof=@…/factura_compra_celulares.jpg;type=image/jpeg`.
+
+Aun así las mutaciones dejan rastro: la factura y el acta se extraen igual, así que
+`document_analysis` muestra el IMEI, la marca, el importe, la fecha y la transcripción que la mutación
+cambió. Es lo que hay que mirar para confirmar que la extracción leyó bien lo que el gate no usa.
+
+Cada carpeta trae un **`esperado.json`** con qué cambia, dónde mirar (tabla y columna, o evaluador) y
+qué clasificación se espera. Se manda igual que cualquier caso de §5, con el payload de la carpeta y
+el token de Valentín.
+
+### Una a la vez, con el historial en cero
+
+Cada caso cargado en Arbiter cuenta como siniestro previo de quien lo cargó
+(`withArbiterAntecedents`): mandar las nueve seguidas haría que la novena se evalúe con ocho
+siniestros previos, y lo que se vería es el historial y no la mutación. Por eso, **antes de cada
+una**:
+
+```bash
+psql -f scripts/reset-asegurados-de-prueba.sql   # borra los expedientes de Valentín y de Camila, y de nadie más
+```
+
+El script tiene los dos DNI fijos y no acepta otro. Como también limpia a Camila, **no lo corras en
+medio de su secuencia de historial** (§10). Borra los expedientes con todo lo que cuelga de ellos
+(documentos, análisis, liquidación, clasificación, snapshot de póliza) en una sola transacción.
+
+**Puesta en marcha, una sola vez:** correr `db/migrations/2026-09-22-asegurado-mutaciones.sql` (solo
+escribe en la BD de la aseguradora), después el alta masiva desde el panel del referente, y aceptar
+la invitación que llega por mail. La cuenta, el asegurado en Arbiter y la póliza local salen de ese
+flujo, no de la migración.
+
+Para sumar una: un objeto más en la lista de `buildMutations`. Lo que cambia en **un** documento va
+en `overrides[tipo]` (`device`, `purchase`, `block`, `appendLines`); lo que cambia el caso entero
+(el relato, el acta) se pisa sobre el escenario.
+
+### Antes de leer un resultado: el estado de la base (22/09/2026)
+
+Los esperados asumen la configuración de la base viva a esa fecha. Tres cosas que la condicionan y que
+**no** son del fixture:
+
+- **Quién está limpio (22/09).** Martina lleva 15 casos en BBVA y 12 en Provincia: el criterio de
+  Fast Track `maxPriorClaims = 0` y el tope anual (D10) no le pasan nunca. Roman tiene 1 por
+  aseguradora, así que ya no pasa el gate de BBVA. **Camila Ferreyra** (DNI 38.412.905, póliza
+  `POL-CEL-2026-401`) tiene 0 y login activo, pero su póliza cubre un **Google Pixel 8**, así que los
+  PDFs de Celulares, que describen un Samsung A56, no se le pueden adjudicar tal cual. Para las
+  mutaciones está Valentín; para detectar que algo más cambió está `control`: correlo en la misma
+  sesión y compará contra él.
+- **El Fast Track se configura por cobertura.** Robo y hurto piden `police_report` + `purchase_proof`;
+  daño accidental, `purchase_proof` + `repair_quote`. Hasta el 22/09 el panel guardaba una sola
+  configuración por ramo y la copiaba a todas las coberturas, y el 12/09 eso dejó a robo y hurto de
+  BBVA pidiendo presupuesto de reparación: ningún robo podía entrar al carril rápido. Si `control` no
+  da `FAST_TRACK`, revisar primero la regla FAST_TRACK de la cobertura 1.
+- **`document_inconsistency` no tiene peso** en `factor_weight` de ninguna aseguradora: el
+  scoring solo ejecuta los factores con peso, así que el evaluador ni corre (ver
+  `docs/temas-a-discutir.md`). Aunque lo tuviera, el score es una señal paralela:
+  no bloquea el Fast Track.
+
+## 10 · Camila: set limpio y secuencia de historial
+
+**Camila Ferreyra** (DNI 38.412.905, póliza `POL-CEL-2026-401`, un **Google Pixel 8**) es una
+asegurada de BBVA que entró por el alta masiva y tiene login propio. Su póliza cubre robo y hurto,
+sin daño, así que su set trae solo esos dos. Sus documentos describen el Pixel, no el Samsung de
+los demás perfiles: el equipo sale de la póliza de cada perfil (`perfiles.js`), porque
+`DocumentInconsistencyEvaluator` compara la marca y el modelo de cada documento contra el bien
+asegurado.
+
+```bash
+node docs/postman/test-docs/generar-fixtures.js --camila   # → camila/celulares/*
+```
+
+Hay dos maneras de usarla, y la diferencia es cuándo se limpia:
+
+| Qué | Carpeta | Limpieza | Para qué |
+|---|---|---|---|
+| Set limpio | `robo/`, `hurto/` | antes de cada caso | un caso "como el primero": el robo da `FAST_TRACK`; el hurto no, porque reclama 620.000 sobre los 650.000 de la cobertura de hurto |
+| Historial | `historial/1…3` | **una sola vez, antes del paso 1** | ver cómo pesan los siniestros previos |
+
+### La secuencia de historial
+
+Tres casos que se mandan **en orden y sin limpiar entre medio**, así cada uno se evalúa con los
+anteriores como siniestros previos. Es la contracara de las mutaciones: allá el historial se deja en
+cero para que no tape la señal; acá el historial es la señal.
+
+| Paso | Qué es | Previos | Qué se espera |
+|---|---|---|---|
+| `1-primer-robo` | robo, ayer 10:05 | 0 | `FAST_TRACK` |
+| `2-segundo-robo` | robo, ayer 19:25 | 1 | sale de Fast Track por `maxPriorClaims = 0`; el tope anual de robo (2) todavía pasa; va al LLM |
+| `3-hurto` | hurto, ayer 13:40 | 2 | `MAX_EVENTS_YEAR` en FAIL: la cobertura de hurto tiene tope 1 |
+
+El orden que importa es el de **carga**, no el de los hechos: el paso 3 ocurrió antes que el 2, y el
+2 cuenta igual porque la ventana del tope anual compara fechas, no horas. Cada paso trae su
+`esperado.json` con qué mirar en `rule_result` y `risk_breakdown`.
+
+Los tres hechos son del mismo día a propósito: lo que vence la secuencia es el plazo de denuncia del
+primer paso (72 hs), y el generador imprime cuándo.

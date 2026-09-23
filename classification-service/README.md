@@ -61,8 +61,9 @@ classification-service/
     ├── application.yml
     └── prompts/
         ├── classification-v5.md          # current prompt (`arbiter.llm.prompt-version`)
-        ├── extraccion-documento-v5.md    # current document-OCR prompt
-        └── *-v3.md, *-v4.md              # superseded, kept so older analyses stay auditable
+        ├── extraccion-documento-v6.md    # current document-OCR prompt
+        └── *-v3.md, *-v4.md, extraccion-documento-v5.md
+                                          # superseded, kept so older analyses stay auditable
 ```
 
 `ClaimReport` (the shared input DTO) lives in `common-lib`.

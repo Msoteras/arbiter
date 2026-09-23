@@ -52,12 +52,8 @@
         <!-- With claims in the period, "0 of 84" is a finding, not "nothing". -->
         @if (current.summary.totalClaims > 0) {
           <app-empty-state
-            message="Ninguna denuncia con señales en el período"
-            [sub]="
-              'Ninguna de las ' +
-              current.summary.totalClaims +
-              ' denuncias del período disparó una señal. Probá con otro rango de fechas, otro ramo o sin filtrar por score de riesgo.'
-            "
+            message="Ninguna denuncia con señales de fraude en el período"
+            sub="Ninguna de las denuncias del período disparó una señal de fraude. Probá con otro rango de fechas, otro ramo o sin filtrar por score de riesgo."
           />
         } @else {
           <app-empty-state

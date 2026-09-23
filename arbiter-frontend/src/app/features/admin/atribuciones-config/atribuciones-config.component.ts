@@ -10,6 +10,7 @@ import { CardComponent } from '../../../shared/ui/card/card.component';
 import { InputComponent } from '../../../shared/ui/input/input.component';
 import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
 import { SaveBarComponent } from '../../../shared/ui/save-bar/save-bar.component';
+import { fadeInUp } from '../../../shared/animations';
 
 /**
  * How much an analyst may authorize alone per branch; above it the settlement waits for the
@@ -18,6 +19,7 @@ import { SaveBarComponent } from '../../../shared/ui/save-bar/save-bar.component
 @Component({
   selector: 'app-atribuciones-config',
   imports: [CardComponent, InputComponent, InlineLoadingComponent, SaveBarComponent],
+  animations: [fadeInUp],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './atribuciones-config.component.html',
   styleUrl: './atribuciones-config.component.scss',

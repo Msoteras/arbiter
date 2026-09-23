@@ -1,0 +1,16 @@
+{
+  "mutacion": "fecha-pegada",
+  "base": "celulares/robo",
+  "cambia": "acta escaneada de un robo de hace 19 días, con la fecha del hecho tapada para que diga ayer",
+  "documento": "police_report",
+  "seDetectaEn": [
+    "document_visual_finding del police_report: recuadro/halo sobre la fecha del hecho",
+    "document_analysis.transcription: la fecha de recepción del acta es 19 días ANTERIOR al hecho",
+    "El acta también dice que el bloqueo se pidió \"ayer\", 19 días después de recibida la denuncia"
+  ],
+  "resultadoEsperado": "FAST_TRACK — la regla POLICE_DEADLINE evalúa la fecha declarada, y el gate no mira hallazgos visuales.",
+  "notas": [
+    "El caso base entra en Fast Track. En ese camino solo se extraen police_report y purchase_proof (los que exige el gate) y el LLM no corre: salvo el damnificado, nada de lo que diga un documento saca al caso del carril rápido.",
+    "El motivo real de un fraude así: el hecho de hace 19 días está fuera del plazo de denuncia (D11, 72 hs)."
+  ]
+}

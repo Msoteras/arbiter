@@ -1,6 +1,6 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import { Observable, forkJoin, of, switchMap, throwError } from 'rxjs';
+import { Observable } from 'rxjs';
 
 import { environment } from '../../../environments/environment';
 
@@ -37,8 +37,12 @@ export interface FastTrackRuleResponse {
 }
 
 /**
- * Rules are keyed by coverage, but this screen configures Fast Track per branch, so saving fans out
- * the same config to every coverage of the branch (the classification engine reads it per coverage).
+ * The referente's Fast Track, persisted for real (rules-service :8081 + cases-service :8083, routed
+ * by the proxy). The FAST_TRACK rule lives PER COVERAGE in insurer_rule — each coverage demands
+ * different documents (a theft doesn't come with a repair quote) — and the classification engine
+ * reads it that way ({@code getByCoverage(coverageId)}). So it's always read and saved one coverage
+ * at a time, and there's deliberately no per-branch operation: fanning one config out to every
+ * coverage of the branch is what overwrote Robo and Hurto with Daño accidental's documents.
  */
 @Injectable({ providedIn: 'root' })
 export class FastTrackRulesService {
@@ -66,25 +70,5 @@ export class FastTrackRulesService {
     return this.http.put<FastTrackRuleResponse>(`${this.rulesBase}/fast-track`, config, {
       params: { branchId: String(branchId), coverageId: String(coverageId) },
     });
-  }
-
-  /** Reads the first coverage: the fan-out on save keeps them all in sync. */
-  loadForBranch(branchId: number): Observable<FastTrackConfigDto | null> {
-    return this.listCoverages(branchId).pipe(
-      switchMap((covs) => (covs.length ? this.getFastTrack(branchId, covs[0].id) : of(null))),
-    );
-  }
-
-  saveForBranch(branchId: number, config: FastTrackConfigDto): Observable<FastTrackRuleResponse[]> {
-    return this.listCoverages(branchId).pipe(
-      switchMap((covs) => {
-        if (!covs.length) {
-          return throwError(
-            () => new Error('El ramo no tiene coberturas cargadas en el catálogo.'),
-          );
-        }
-        return forkJoin(covs.map((c) => this.saveFastTrack(branchId, c.id, config)));
-      }),
-    );
   }
 }

@@ -100,7 +100,7 @@ class CoverageScopeEvaluatorTest {
         return Map.of("police_report", new DocumentExtraction(
                 "constancia", List.of(),
                 new DocumentExtraction.Fields(
-                        null, null, null, null, null, null, affectedParty, List.of())));
+                        null, null, null, null, null, null, affectedParty, null, List.of())));
     }
 
     // ─── covers_family_group ──────────────────────────────────────────────────────

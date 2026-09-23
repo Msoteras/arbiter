@@ -1,0 +1,18 @@
+{
+  "mutacion": "relato-hurto",
+  "base": "celulares/robo",
+  "cambia": "declara \"Robo en vía pública\" pero el relato y el acta cuentan un descuido en un café (hurto)",
+  "documento": "police_report + description del payload",
+  "seDetectaEn": [
+    "document_analysis.described_claim_cause del police_report = Hurto",
+    "rule_result: CLAIM_CAUSE_MATCH en FAIL — \"declared=Robo en vía pública described=Hurto documents=police_report\"",
+    "factores: \"La documentación adjunta describe «Hurto», no el hecho generador declarado («Robo en vía pública»), que esta cobertura no cubre. Revisar el relato y el acta antes de resolver.\"",
+    "detalle del expediente: tarjeta \"Para revisar antes de resolver\" con el control en \"Revisar\""
+  ],
+  "resultadoEsperado": "FAST_TRACK con el aviso: el control CLAIM_CAUSE_MATCH avisa y no bloquea (decisión del 22/09/2026). Fuera de Fast Track, además, el LLM daría LLM_NO_RECOMIENDA_APROBAR: la regla 21 excluye Hurto de la cobertura 1.",
+  "notas": [
+    "Hasta el 22/09 la consistencia del relato solo la evaluaba el LLM, que en Fast Track no corre: un hurto declarado como robo entraba al carril rápido sin que nadie lo marcara. Ahora la extracción del acta dice qué hecho narra y el motor lo compara (ClaimCauseConsistencyEvaluator).",
+    "Si sale FAST_TRACK SIN el aviso, mirar document_analysis.described_claim_cause: si está en NULL, la extracción no reconoció el hecho en el acta (el prompt le pide null ante la duda).",
+    "Es la única mutación que toca dos cosas (relato y acta), pero son el mismo hecho: un acta que dijera robo sobre un descuido sería un documento incoherente, no un hurto mal declarado."
+  ]
+}
