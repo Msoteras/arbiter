@@ -2,6 +2,7 @@ package ar.edu.utn.frba.arbiter.cases.services;
 
 import ar.edu.utn.frba.arbiter.cases.dto.RepairOutcome;
 import ar.edu.utn.frba.arbiter.cases.dto.PendingSettlementResponse;
+import ar.edu.utn.frba.arbiter.cases.dto.AuthorizedSettlementResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.ProviderType;
 import ar.edu.utn.frba.arbiter.cases.dto.SettlementDecisionRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.SettlementResponse;
@@ -18,6 +19,7 @@ import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseDocumentAnalysisRep
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseSettlementRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.ExpertAssessmentRepository;
+import ar.edu.utn.frba.arbiter.cases.models.repositories.InsurerReferentRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.PolicyCoverageRepository;
 import ar.edu.utn.frba.arbiter.common.enums.SettlementBasis;
 import ar.edu.utn.frba.arbiter.common.enums.SettlementFormula;
@@ -33,6 +35,7 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Collection;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -77,6 +80,7 @@ public class SettlementService {
     private final PolicyCoverageRepository policyCoverageRepository;
     private final CaseDocumentAnalysisRepository documentAnalysisRepository;
     private final ExpertAssessmentRepository expertAssessmentRepository;
+    private final InsurerReferentRepository insurerReferentRepository;
 
     /**
      * What this case pays. The settlement already authorized if there is one, otherwise the
@@ -401,6 +405,51 @@ public class SettlementService {
                 settlement.getConfirmedAt() == null
                         ? 0
                         : ChronoUnit.DAYS.between(settlement.getConfirmedAt(), Instant.now()));
+    }
+
+    /** What the referente already signed, most recent first, with their name. */
+    @Transactional(readOnly = true)
+    public List<AuthorizedSettlementResponse> authorizedByReferente() {
+        List<CaseSettlement> settlements = settlementRepository
+                .findTop50ByStatusAndAuthorizedAtIsNotNullOrderByAuthorizedAtDesc(
+                        SettlementStatus.AUTHORIZED);
+        Map<Long, Case> cases = caseRepository
+                .findAllById(settlements.stream().map(CaseSettlement::getCaseId).toList())
+                .stream()
+                .collect(Collectors.toMap(Case::getId, c -> c));
+        Map<Long, String> referentNames = insurerReferentRepository
+                .findByUser_IdIn(settlements.stream()
+                        .map(CaseSettlement::getAuthorizedByUserId)
+                        .filter(Objects::nonNull)
+                        .distinct()
+                        .toList())
+                .stream()
+                .collect(Collectors.toMap(r -> r.getUser().getId(),
+                        r -> (r.getName() + " " + r.getSurname()).trim()));
+        return settlements.stream()
+                .filter(settlement -> cases.containsKey(settlement.getCaseId()))
+                .map(settlement -> toAuthorized(settlement, cases.get(settlement.getCaseId()),
+                        referentNames.get(settlement.getAuthorizedByUserId())))
+                .toList();
+    }
+
+    private AuthorizedSettlementResponse toAuthorized(CaseSettlement settlement, Case caseRecord,
+                                                      String authorizedByName) {
+        BigDecimal limit = settlement.getAuthorityLimit();
+        return new AuthorizedSettlementResponse(
+                caseRecord.getId(),
+                fullName(caseRecord),
+                branchNameOf(caseRecord),
+                caseRecord.getClaimCause() == null ? null : caseRecord.getClaimCause().getName(),
+                analystNameOf(caseRecord),
+                settlement.getCalculatedAmount(),
+                settlement.getSettledAmount(),
+                settlement.getAdjustmentReason(),
+                limit,
+                limit == null ? null : settlement.getSettledAmount().subtract(limit),
+                settlement.getConfirmedAt(),
+                settlement.getAuthorizedAt(),
+                authorizedByName);
     }
 
     private String fullName(Case caseRecord) {

@@ -15,7 +15,19 @@
   margin: 0;
 }
 
-/* El número de expediente es el ancla de la fila: se lee primero y lleva al detalle. */
+.page-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+.page-head p {
+  margin: var(--space-1) 0 0;
+}
+
+/* Todo alineado a la izquierda salvo las acciones: con una sola alineación por columna la tabla
+   se lee de corrido. */
 .case-link {
   display: block;
   font-weight: var(--font-weight-medium);
@@ -25,19 +37,60 @@
 .case-link:hover {
   text-decoration: underline;
 }
-
-/* El dato de apoyo debajo del principal, no en una columna aparte: son siete columnas y sumar
-   asegurado y hecho generador como propias dejaba la tabla ilegible. */
 .cell-sub {
   display: block;
+  margin-top: var(--space-1);
   font-size: var(--font-size-2xs);
   color: var(--text-muted);
 }
 
-.num {
-  text-align: right;
+.monto-col {
+  min-width: 18rem;
+}
+.monto-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-3);
+}
+.excedente {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--status-danger);
+}
+/* La barra entera es el monto: gris hasta el tope, color de estado en lo que lo excede. */
+.monto-barra {
+  display: flex;
+  gap: var(--space-1);
+  height: var(--space-1);
+  margin-top: var(--space-1);
+}
+.monto-tope,
+.monto-exceso {
+  border-radius: var(--radius-pill);
+}
+.monto-tope {
+  flex-shrink: 0;
+  background: var(--border-strong);
+}
+.monto-exceso {
+  flex: 1;
+  background: var(--status-danger);
+  opacity: 0.6;
 }
 
+.resuelta-col span {
+  display: block;
+}
+
+/* Calificado con app-table: su `text-align: left` para th/td entra por ::ng-deep y le ganaba a
+   una clase sola. */
+app-table th.actions-col,
+app-table td.actions-col {
+  width: 1%;
+  white-space: nowrap;
+  text-align: right;
+}
 .row-actions {
   display: flex;
   gap: var(--space-2);

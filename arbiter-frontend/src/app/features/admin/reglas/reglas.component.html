@@ -79,7 +79,6 @@
           </svg>
           <span class="audit-text">
             <span class="ramo-name">Historial de cambios</span>
-            <span class="ramo-meta">Registro inmutable · solo lectura</span>
           </span>
         </button>
       </section>
@@ -261,13 +260,6 @@
                     >+ Agregar cobertura</app-button
                   >
                 </div>
-
-                <!-- Una vez arriba y no repetida adentro de cada cobertura: es lo mismo para todas. -->
-                <p class="section-hint">
-                  Los umbrales de cada cobertura los evalúa el motor en cada clasificación: si no se
-                  cumplen, el siniestro pierde el Fast Track y pasa a revisión del analista. No
-                  rechazan nada por sí solos, y quedan auditados se cumplan o no.
-                </p>
 
                 @for (c of d.coverages; track c.id) {
                   <app-card class="cov-card" [class.open]="isCoverageOpen(c)">

@@ -34,6 +34,24 @@ export interface PendingSettlement {
   waitingFor: number;
 }
 
+/** Una liquidación que el referente ya autorizó. Calca AuthorizedSettlementResponse. */
+export interface AuthorizedSettlement {
+  caseId: number;
+  insuredName: string | null;
+  branch: string | null;
+  claimCause: string | null;
+  analystName: string | null;
+  calculatedAmount: number;
+  settledAmount: number;
+  adjustmentReason: string | null;
+  authorityLimit: number | null;
+  excess: number | null;
+  confirmedAt: string;
+  authorizedAt: string;
+  /** Null si ese referente no tiene perfil en el esquema de la aseguradora. */
+  authorizedByName: string | null;
+}
+
 /**
  * Atribuciones de liquidación (Anexo II del procedimiento de la compañía): el tope por ramo que
  * configura el referente, y la cola de lo que lo superó.
@@ -51,6 +69,11 @@ export class SettlementAuthoritiesService {
   /** `maxAmount` en null saca el tope: el ramo vuelve a que el analista autorice todo. */
   set(branchId: number, maxAmount: number | null): Observable<void> {
     return this.http.put<void>(`${this.base}/settlement-authorities/${branchId}`, { maxAmount });
+  }
+
+  /** Las últimas 50 que el referente autorizó, la más reciente primero. */
+  authorized(): Observable<AuthorizedSettlement[]> {
+    return this.http.get<AuthorizedSettlement[]>(`${this.base}/cases/settlements/authorized`);
   }
 
   pending(): Observable<PendingSettlement[]> {

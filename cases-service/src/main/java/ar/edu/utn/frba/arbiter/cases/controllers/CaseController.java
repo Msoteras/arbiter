@@ -9,6 +9,7 @@ import ar.edu.utn.frba.arbiter.cases.dto.CaseScope;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.PendingSettlementResponse;
+import ar.edu.utn.frba.arbiter.cases.dto.AuthorizedSettlementResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.PolicyResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.SettlementReturnRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.SettlementResponse;
@@ -441,6 +442,16 @@ public class CaseController {
                     + "never sees this step.")
     public ResponseEntity<List<PendingSettlementResponse>> pendingAuthorization() {
         return ResponseEntity.ok(settlementService.pendingAuthorization());
+    }
+
+    @GetMapping("/settlements/authorized")
+    @PreAuthorize("hasRole('REFERENTE_ASEGURADORA')")
+    @Operation(summary = "Settlements the referente authorized",
+            description = "The last 50 amounts over the attribution that the referente signed off, "
+                    + "most recent first. Amounts within the analyst's own attribution aren't here: "
+                    + "nobody else signed them.")
+    public ResponseEntity<List<AuthorizedSettlementResponse>> authorizedSettlements() {
+        return ResponseEntity.ok(settlementService.authorizedByReferente());
     }
 
     @PostMapping("/{caseId}/settlement/authorize")

@@ -17,12 +17,15 @@ import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseDocumentAnalysisRep
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseSettlementRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.ExpertAssessmentRepository;
+import ar.edu.utn.frba.arbiter.cases.models.repositories.InsurerReferentRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.PolicyCoverageRepository;
 import ar.edu.utn.frba.arbiter.common.enums.SettlementBasis;
 import ar.edu.utn.frba.arbiter.common.enums.SettlementFormula;
 import ar.edu.utn.frba.arbiter.common.enums.SettlementStatus;
 import ar.edu.utn.frba.arbiter.common.models.entities.Branch;
 import ar.edu.utn.frba.arbiter.common.models.entities.ClaimCause;
+import ar.edu.utn.frba.arbiter.common.models.entities.User;
+import ar.edu.utn.frba.arbiter.common.models.entities.tenant.InsurerReferent;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Coverage;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -68,6 +71,9 @@ class SettlementServiceTest {
 
     @Mock
     private ExpertAssessmentRepository expertAssessmentRepository;
+
+    @Mock
+    private InsurerReferentRepository insurerReferentRepository;
 
     /** Real, not mocked: the arithmetic under test is exactly the point of these cases. */
     @Spy
@@ -697,6 +703,50 @@ class SettlementServiceTest {
         assertThatThrownBy(() -> settlementService.markAuthorized(1L, 3L))
                 .isInstanceOf(InvalidSettlementException.class)
                 .hasMessageContaining("no está esperando autorización");
+    }
+
+    /** La autorizada llega con quién y cuándo, y el excedente ya restado como en la bandeja. */
+    @Test
+    void authorizedListCarriesWhoAndWhenWithTheCaseData() {
+        Instant authorizedAt = Instant.parse("2026-09-20T15:00:00Z");
+        when(settlementRepository.findTop50ByStatusAndAuthorizedAtIsNotNullOrderByAuthorizedAtDesc(
+                SettlementStatus.AUTHORIZED)).thenReturn(List.of(CaseSettlement.builder()
+                .id(55L).caseId(1L)
+                .calculatedAmount(new BigDecimal("990000.00"))
+                .settledAmount(new BigDecimal("990000.00"))
+                .authorityLimit(new BigDecimal("500000.00"))
+                .status(SettlementStatus.AUTHORIZED)
+                .authorizedByUserId(3L)
+                .authorizedAt(authorizedAt)
+                .build()));
+        when(caseRepository.findAllById(List.of(1L))).thenReturn(List.of(claim));
+        when(insurerReferentRepository.findByUser_IdIn(List.of(3L))).thenReturn(List.of(
+                InsurerReferent.builder().name("Sofía").surname("Martínez")
+                        .user(User.builder().id(3L).build()).build()));
+
+        var rows = settlementService.authorizedByReferente();
+
+        assertThat(rows).singleElement().satisfies(row -> {
+            assertThat(row.caseId()).isEqualTo(1L);
+            assertThat(row.authorizedAt()).isEqualTo(authorizedAt);
+            assertThat(row.authorizedByName()).isEqualTo("Sofía Martínez");
+            assertThat(row.excess()).isEqualByComparingTo("490000.00");
+        });
+    }
+
+    /** Un expediente que ya no se puede leer no rompe la lista: se saltea, como en pendientes. */
+    @Test
+    void authorizedListSkipsSettlementsWhoseCaseIsGone() {
+        when(settlementRepository.findTop50ByStatusAndAuthorizedAtIsNotNullOrderByAuthorizedAtDesc(
+                SettlementStatus.AUTHORIZED)).thenReturn(List.of(CaseSettlement.builder()
+                .id(56L).caseId(99L)
+                .settledAmount(new BigDecimal("700000.00"))
+                .status(SettlementStatus.AUTHORIZED)
+                .authorizedAt(Instant.now())
+                .build()));
+        when(caseRepository.findAllById(List.of(99L))).thenReturn(List.of());
+
+        assertThat(settlementService.authorizedByReferente()).isEmpty();
     }
 
     @Test

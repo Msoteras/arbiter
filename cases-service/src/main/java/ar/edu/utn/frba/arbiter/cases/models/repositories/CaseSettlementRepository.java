@@ -19,6 +19,14 @@ public interface CaseSettlementRepository extends JpaRepository<CaseSettlement, 
     List<CaseSettlement> findByStatusOrderByConfirmedAtAsc(SettlementStatus status);
 
     /**
+     * What the referente already signed, most recent first. {@code authorizedAt} is set only by
+     * the referente, so it leaves out the amounts that never needed them. The last 50: it's a
+     * recent-activity view, not an archive.
+     */
+    List<CaseSettlement> findTop50ByStatusAndAuthorizedAtIsNotNullOrderByAuthorizedAtDesc(
+            SettlementStatus status);
+
+    /**
      * The settlements of a whole page of cases, in one query. Asking case by case is the N+1 that
      * the inbox can't afford — same reason {@code caseAnalysisRepository.findByCaseIds} exists.
      */

@@ -6,7 +6,8 @@ type Band = 1 | 2 | 3 | 4 | null;
 
 /**
  * Gauge de fraude reutilizable (design system). 4 segmentos (30/30/20/20).
- * Categórico, sin número. band=null → estado "sin datos" (todos los segmentos apagados).
+ * Categórico; con `score` suma el número al lado de la banda ("Medio · 43/100").
+ * band=null → estado "sin datos" (todos los segmentos apagados).
  */
 @Component({
   selector: 'app-fraud-gauge',
@@ -28,6 +29,9 @@ type Band = 1 | 2 | 3 | 4 | null;
         <span class="tri" aria-hidden="true">▲</span>
       }
       <span [class.muted]="band() === null">{{ label() }}</span>
+      @if (band() !== null && score() !== null) {
+        <span class="score">· {{ score() }}/100</span>
+      }
     </div>
   `,
   styles: `
@@ -66,6 +70,11 @@ type Band = 1 | 2 | 3 | 4 | null;
     .tri {
       font-size: var(--font-size-xs);
     }
+    .score {
+      font-weight: var(--font-weight-regular);
+      color: var(--text-tertiary);
+      font-variant-numeric: tabular-nums;
+    }
 
     /* Semáforo de riesgo: bajo→ok, medio→warning, alto→risk, crítico→danger. */
     :host([data-tone='ok']) .seg.filled {
@@ -100,6 +109,8 @@ export class FraudGaugeComponent {
    *  motivo real ("En proceso", "No aplica · Fast Track", "Sin evaluar"). Sale del relevamiento
    *  de UI de Aylén (#20), que vive fuera del repo. */
   readonly emptyLabel = input('Sin datos');
+  /** Score 0–100. Opcional: sin él el gauge queda categórico, como en la bandeja. */
+  readonly score = input<number | null>(null);
   protected readonly segments = [1, 2, 3, 4] as const;
   protected readonly widths = [30, 30, 20, 20];
   protected readonly label = computed(() => {

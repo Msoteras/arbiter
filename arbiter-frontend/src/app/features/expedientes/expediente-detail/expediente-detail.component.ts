@@ -93,6 +93,7 @@ import { RiskBand, riskBandLabel } from '../../../core/models/risk-band';
 import { StatusTone } from '../../../core/models/status-tone';
 import { formatDate, formatDateTime } from '../../../core/util/datetime';
 import { FraudGaugeComponent } from '../../../shared/ui/fraud-gauge/fraud-gauge.component';
+import { InfoTipComponent } from '../../../shared/ui/info-tip/info-tip.component';
 import { EmptyStateComponent } from '../../../shared/ui/empty-state/empty-state.component';
 import { StatusTimelineComponent } from '../../../shared/ui/status-timeline/status-timeline.component';
 import { ForensicAnalysisComponent } from './forensic-analysis/forensic-analysis.component';
@@ -122,6 +123,7 @@ type DocsState = { status: 'loading' } | { status: 'ok'; list: CaseDocument[] };
 type TabId =
   | 'resumen'
   | 'analisis'
+  | 'reglas'
   | 'documentacion'
   | 'imagenes'
   | 'asegurado'
@@ -136,6 +138,20 @@ interface FieldItem {
   value: string | null;
   mono?: boolean;
   full?: boolean;
+  /** Nota chica debajo del valor, con lo que lo pone en contexto. */
+  sub?: string;
+}
+
+/** Cuánto tardó en denunciarse: en horas el primer par de días, en días después. */
+function demoraDenuncia(eventDate: string, createdAt: string): string | undefined {
+  const horas = Math.round((Date.parse(createdAt) - Date.parse(eventDate)) / 3_600_000);
+  if (Number.isNaN(horas) || horas < 0) {
+    return undefined;
+  }
+  if (horas < 48) {
+    return horas === 1 ? '1 h después del hecho' : `${horas} h después del hecho`;
+  }
+  return `${Math.round(horas / 24)} días después del hecho`;
 }
 
 /** A signal worth reading before deciding, and the tab where its evidence lives. */
@@ -149,6 +165,7 @@ interface BriefAlert {
   imports: [
     RouterLink,
     FraudGaugeComponent,
+    InfoTipComponent,
     EmptyStateComponent,
     StatusTimelineComponent,
     ForensicAnalysisComponent,
@@ -169,7 +186,11 @@ interface BriefAlert {
   templateUrl: './expediente-detail.component.html',
   // El orden importa: los dos archivos se concatenan tal como están acá, y el segundo continúa
   // exactamente donde termina el primero. Invertirlos cambia la cascada.
-  styleUrls: ['./expediente-detail.component.scss', './expediente-detail-paneles.scss'],
+  styleUrls: [
+    './expediente-detail.component.scss',
+    './expediente-detail-paneles.scss',
+    './expediente-detail-analisis.scss',
+  ],
 })
 export class ExpedienteDetailComponent {
   private readonly route = inject(ActivatedRoute);
@@ -404,33 +425,54 @@ export class ExpedienteDetailComponent {
   });
 
   /** Grilla del expediente: real donde el backend lo da, null ("Sin datos") en el resto. */
-  protected readonly fields = computed<FieldItem[]>(() => {
+  protected readonly resumenGroups = computed<{ heading: string; fields: FieldItem[] }[]>(() => {
     const d = this.data();
+    const sumInsured = this.policySnapshot()?.sumInsured;
     return [
-      { label: 'N° de siniestro / denuncia', value: d ? `#${d.id}` : null, mono: true },
-      { label: 'N° de póliza', value: d?.policyNumber ?? null, mono: true },
-      { label: 'Rama', value: d?.branch ?? null },
-      { label: 'Producto', value: d?.product ?? null },
-      { label: 'Asegurado', value: d?.insuredName ?? null },
-      { label: 'DNI', value: d?.insuredId ?? null, mono: true },
-      // Declaración UIF/PLA del propio asegurado, junto al resto de sus datos: es donde el analista
-      // la busca. "No" es un valor, no la ausencia de dato, así que no cae en el `?? null` que el
-      // resto de las filas usa para mostrar "Sin datos" (D16).
-      { label: 'PEP (declarativo)', value: d ? (d.pep ? 'Sí' : 'No') : null },
-      { label: 'Bien asegurado', value: d?.insuredItem ?? null },
       {
-        label: 'Importe reclamado',
-        value: d?.claimedAmount ? `$${d.claimedAmount.toLocaleString()}` : null,
+        heading: 'Siniestro',
+        fields: [
+          { label: 'Causa', value: d?.claimCause ?? null },
+          {
+            label: 'Fecha y hora de ocurrencia',
+            value: d?.eventDate ? formatDateTime(d.eventDate) : null,
+          },
+          { label: 'Ubicación', value: d?.eventLocation ?? null },
+        ],
       },
-      { label: 'Fecha de denuncia', value: d?.createdAt ? formatDateTime(d.createdAt) : null },
       {
-        label: 'Fecha y hora de ocurrencia',
-        value: d?.eventDate ? formatDateTime(d.eventDate) : null,
+        heading: 'Bien asegurado',
+        fields: [
+          { label: 'Bien asegurado', value: d?.insuredItem ?? null },
+          {
+            label: 'Importe reclamado',
+            value: d?.claimedAmount ? this.formatMonto(d.claimedAmount) : null,
+            sub:
+              d?.claimedAmount && sumInsured
+                ? `${Math.round((d.claimedAmount / sumInsured) * 100)}% de la suma asegurada`
+                : undefined,
+          },
+          {
+            label: 'Fecha de denuncia',
+            value: d?.createdAt ? formatDateTime(d.createdAt) : null,
+            sub: d?.createdAt && d.eventDate ? demoraDenuncia(d.eventDate, d.createdAt) : undefined,
+          },
+        ],
       },
-      { label: 'Causa', value: d?.claimCause ?? null },
-      { label: 'Ubicación', value: d?.eventLocation ?? null, full: true },
-      { label: 'Descripción', value: d?.description ?? null, full: true },
-      { label: 'Analista asignado', value: d?.assignedAnalystName ?? null },
+      {
+        heading: 'Asegurado y póliza',
+        fields: [
+          { label: 'Asegurado', value: d?.insuredName ?? null },
+          { label: 'DNI', value: d?.insuredId ?? null, mono: true },
+          // Declaración UIF/PLA del propio asegurado, junto al resto de sus datos: es donde el
+          // analista la busca. "No" es un valor, no la ausencia de dato, así que no cae en el
+          // `?? null` que el resto de las filas usa para mostrar "Sin datos" (D16).
+          { label: 'PEP (declarativo)', value: d ? (d.pep ? 'Sí' : 'No') : null },
+          { label: 'N° de póliza', value: d?.policyNumber ?? null, mono: true },
+          { label: 'Producto', value: d?.product ?? null },
+          { label: 'Rama', value: d?.branch ?? null },
+        ],
+      },
     ];
   });
 
@@ -485,18 +527,47 @@ export class ExpedienteDetailComponent {
   });
 
   /**
-   * La solapa existe si hay algo que contar del análisis: el score, las reglas, las razones del
-   * modelo, o una clasificación que explique por qué no hay reglas. Sin clasificar no aparece —
-   * ahí "no hay reglas activas" sería falso, todavía no corrieron.
+   * "Análisis" es la lectura del sistema: el score de fraude y las razones del modelo. Si no hay
+   * ninguna de las dos (un Fast Track sin score, por ejemplo) la solapa no aparece.
    */
   protected readonly hayAnalisis = computed(
+    () => this.data()?.riskScore != null || this.analysisReasons().length > 0,
+  );
+
+  /**
+   * "Evaluación de reglas" existe si hay algo que contar de las reglas: resultados, la foto con la
+   * que se evaluó, o una clasificación que explique por qué no hay reglas. Sin clasificar no
+   * aparece — ahí "no hay reglas activas" sería falso, todavía no corrieron.
+   */
+  protected readonly hayReglas = computed(
     () =>
       this.ruleResults().length > 0 ||
       this.ruleResultsUnavailable() ||
       this.policySnapshot() != null ||
-      this.data()?.riskScore != null ||
       !!this.data()?.analysisClassification,
   );
+
+  protected readonly reglasFallidas = computed(
+    () => this.hardRuleResults().filter((r) => r.result === 'FAIL').length,
+  );
+
+  protected readonly reglasCumplidas = computed(
+    () => this.hardRuleResults().filter((r) => r.result === 'PASS').length,
+  );
+
+  /** Cada segmento de la barra del score es el aporte de un factor, en la escala 0–100. */
+  protected readonly scoreSegments = computed(() =>
+    this.riskBreakdown()
+      .map((item) => ({ factorId: item.factorId, aporte: this.aporteAlScore(item) }))
+      .filter((s) => s.aporte > 0),
+  );
+
+  /** Tono del score según la banda: el mismo semáforo que el medidor del encabezado. */
+  protected readonly scoreTone = computed<StatusTone>(() => {
+    const tones: Record<number, StatusTone> = { 1: 'ok', 2: 'warning', 3: 'risk', 4: 'danger' };
+    const band = this.riskGaugeBand();
+    return band ? tones[band] : 'neutral';
+  });
 
   protected readonly policySnapshot = computed<PolicySnapshot | null>(
     () => this.data()?.policySnapshot ?? null,
@@ -641,20 +712,35 @@ export class ExpedienteDetailComponent {
   );
 
   // ----- tabs -----
-  // Orden por lo que hace el analista: qué pasó (Resumen) → por qué el sistema dice eso (Análisis)
-  // → con qué evidencia (Documentación, Imágenes) → quién es (Asegurado) → gestión (Peritaje,
+  // Orden por lo que hace el analista: qué pasó (Resumen) → por qué el sistema dice eso (Análisis,
+  // Evaluación de reglas) → con qué evidencia (Documentación, Imágenes) → quién es (Asegurado) → gestión (Peritaje,
   // Conversación) → auditoría (Historial).
   //
   // Las condicionales son las que dependen de que algo haya corrido: "Peritaje" solo si se derivó,
-  // "Análisis" solo si ya se clasificó, "Imágenes" solo si el forense analizó alguna. Una solapa
+  // "Análisis" y "Evaluación de reglas" solo si ya se clasificó, "Imágenes" solo si el forense analizó alguna. Una solapa
   // que se abre para decir "acá no hay nada" es una promesa incumplida.
   // 'conversacion' is always shown, unlike those: an empty thread isn't noise, it's where talking
   // to the insured starts. It carries a dot when something is unread.
   protected readonly tabs = computed<
-    { id: TabId; label: string; dot?: boolean; dotLabel?: string }[]
+    {
+      id: TabId;
+      label: string;
+      dot?: boolean;
+      dotLabel?: string;
+      count?: string;
+    }[]
   >(() => [
     { id: 'resumen' as TabId, label: 'Resumen' },
-    ...(this.hayAnalisis() ? [{ id: 'analisis' as TabId, label: 'Análisis' }] : []),
+    ...(this.hayAnalisis()
+      ? [
+          {
+            id: 'analisis' as TabId,
+            label: 'Análisis',
+            count: this.analysisReasons().length > 0 ? `${this.analysisReasons().length}` : undefined,
+          },
+        ]
+      : []),
+    ...(this.hayReglas() ? [{ id: 'reglas' as TabId, label: 'Evaluación de reglas' }] : []),
     { id: 'documentacion' as TabId, label: 'Documentación' },
     ...(this.hayAnalisisImagenes()
       ? [
@@ -1137,6 +1223,35 @@ export class ExpedienteDetailComponent {
     return `Riesgo ${riskBandLabel(band).toLowerCase()}: se sugiere derivar a peritaje antes de decidir.`;
   });
 
+  /** Las derivaciones posibles, como acciones de la fila de asignación. */
+  protected readonly opcionesDerivacion = computed<{ tipo: ProviderType; label: string }[]>(() => [
+    ...(this.puedeDerivar() && this.derivacionHabilitada()
+      ? [{ tipo: 'ESTUDIO_LIQUIDADOR' as ProviderType, label: 'Derivar a peritaje' }]
+      : []),
+    ...(this.puedeDerivarAReparacion()
+      ? [{ tipo: 'SERVICIO_TECNICO' as ProviderType, label: 'Derivar a servicio técnico' }]
+      : []),
+  ]);
+
+  /** El monto calculado pasa el tope del ramo: si aprueba, firma el referente. */
+  protected readonly superaAtribucion = computed(() => {
+    const s = this.settlement();
+    return (
+      this.canAct() &&
+      !this.esperandoAutorizacion() &&
+      s?.authorityLimit != null &&
+      s.calculatedAmount > s.authorityLimit
+    );
+  });
+
+  protected readonly hayAvisos = computed(
+    () =>
+      this.showCauseConsistency() ||
+      (this.canAct() && this.liquidacionDevuelta() && this.settlement() != null) ||
+      this.superaAtribucion() ||
+      (this.puedeDerivar() && (!!this.sugerenciaDerivacion() || !!this.motivoNoDerivable())),
+  );
+
   // ----- "Antes de decidir": lo que el analista necesita a la vista junto a los botones -----
   // Todo esto ya estaba en la pantalla, pero repartido en solapas: el plazo solo en la bandeja, el
   // veredicto del perito en su solapa, el monto recién adentro del modal de aprobar y las alertas
@@ -1185,11 +1300,11 @@ export class ExpedienteDetailComponent {
   /** Signals that pull toward a closer look, each one pointing at the tab with its evidence. */
   protected readonly alertasDecision = computed<BriefAlert[]>(() => {
     const alertas: BriefAlert[] = [];
-    const fallidas = this.hardRuleResults().filter((r) => r.result === 'FAIL').length;
+    const fallidas = this.reglasFallidas();
     if (fallidas > 0) {
       alertas.push({
         label: fallidas === 1 ? '1 regla no cumplida' : `${fallidas} reglas no cumplidas`,
-        tab: 'analisis',
+        tab: 'reglas',
       });
     }
     if (this.hayCoincidenciasImagen()) {
@@ -1753,13 +1868,26 @@ export class ExpedienteDetailComponent {
     return parts.join(' · ');
   });
 
-  /** Menú "…" del recuadro de asignación: por ahora solo la acción destructiva de liberar. */
-  protected readonly overflowMenuItems: MenuItem[] = [
+  /** Reasignar lista a los otros analistas y, al final y separado, liberar el expediente. */
+  protected readonly reasignarMenuItems = computed<MenuItem[]>(() => [
+    ...this.analystMenuItems(),
     { value: 'release', label: 'Liberar', danger: true },
-  ];
+  ]);
 
-  protected onOverflowMenu(value: string): void {
-    if (value === 'release') this.release();
+  protected onReasignarMenu(value: string): void {
+    if (value === 'release') {
+      this.release();
+    } else {
+      this.assignTo(value);
+    }
+  }
+
+  protected readonly derivarMenuItems = computed<MenuItem[]>(() =>
+    this.opcionesDerivacion().map((o) => ({ value: o.tipo, label: o.label })),
+  );
+
+  protected onDerivarMenu(value: string): void {
+    this.askDerivar(value as ProviderType);
   }
 
   protected take(): void {
@@ -1808,14 +1936,14 @@ export class ExpedienteDetailComponent {
   );
 
   /**
-   * "Decisión del analista" solo tiene sentido cuando hay (o hubo) algo que decidir. Mientras el
+   * "Resolución" solo tiene sentido cuando hay (o hubo) algo que decidir. Mientras el
    * expediente espera que el asegurado suba lo que falta, no hay ninguna decisión pendiente ni
    * tomada — el título mentía sobre qué mostraba la card.
    */
   protected readonly decisionCardHeading = computed(() =>
     this.decisionState() === 'not-ready' && this.needsDocs() && !this.derivado() && !this.isFailed()
       ? 'Estado del expediente'
-      : 'Decisión del analista',
+      : 'Resolución',
   );
 
   /** La agenda documental es otra llamada al backend: se refresca con el mismo trigger. */
