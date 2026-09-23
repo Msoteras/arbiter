@@ -345,8 +345,9 @@ app-textarea {
   font-size: var(--font-size-xs);
   color: var(--text-primary);
 }
+/* Space below: the justification label follows it directly and read as part of the callout. */
 .settlement-callout {
-  margin: 0;
+  margin: 0 0 var(--space-3);
 }
 
 /* Lo que el modelo leyó del expediente. Con el acento de marca —lo que el sistema usa para lo que
