@@ -159,7 +159,7 @@ class ClassificationResultsServiceTest {
 
     @Test
     void getStatus_noRisk_exposedAsSinScorearNotLow() {
-        when(llmAnalysisRepository.findFirstByCaseIdOrderByIdDesc(7L))
+        when(llmAnalysisRepository.findLatestByCaseId(7L))
                 .thenReturn(Optional.of(analysis(Classification.LLM_RECOMIENDA_APROBAR)));
         when(riskAnalysisRepository.findFirstByCaseIdOrderByIdDesc(7L)).thenReturn(Optional.empty());
         when(caseOutcomeRepository.findOutcome(7L)).thenReturn(outcome(false));
@@ -173,7 +173,7 @@ class ClassificationResultsServiceTest {
 
     @Test
     void getStatus_scored_exposesBandAndScore() {
-        when(llmAnalysisRepository.findFirstByCaseIdOrderByIdDesc(7L))
+        when(llmAnalysisRepository.findLatestByCaseId(7L))
                 .thenReturn(Optional.of(analysis(Classification.LLM_NO_RECOMIENDA_APROBAR)));
         when(caseOutcomeRepository.findOutcome(7L)).thenReturn(outcome(false));
 
@@ -193,7 +193,7 @@ class ClassificationResultsServiceTest {
 
     @Test
     void getStatus_exposesTheReasonsAsFactors() {
-        when(llmAnalysisRepository.findFirstByCaseIdOrderByIdDesc(7L))
+        when(llmAnalysisRepository.findLatestByCaseId(7L))
                 .thenReturn(Optional.of(analysis(Classification.LLM_NO_RECOMIENDA_APROBAR)));
         when(riskAnalysisRepository.findFirstByCaseIdOrderByIdDesc(7L)).thenReturn(Optional.empty());
         when(caseOutcomeRepository.findOutcome(7L)).thenReturn(outcome(false));
@@ -207,7 +207,7 @@ class ClassificationResultsServiceTest {
 
     @Test
     void getStatus_fastTracked_reportsItWithoutAnAnalysisRow() {
-        when(llmAnalysisRepository.findFirstByCaseIdOrderByIdDesc(7L)).thenReturn(Optional.empty());
+        when(llmAnalysisRepository.findLatestByCaseId(7L)).thenReturn(Optional.empty());
         when(riskAnalysisRepository.findFirstByCaseIdOrderByIdDesc(7L)).thenReturn(Optional.empty());
         when(caseOutcomeRepository.findOutcome(7L)).thenReturn(outcome(true));
 
@@ -220,7 +220,7 @@ class ClassificationResultsServiceTest {
 
     @Test
     void getStatus_notClassifiedYet_reportsNothing() {
-        when(llmAnalysisRepository.findFirstByCaseIdOrderByIdDesc(7L)).thenReturn(Optional.empty());
+        when(llmAnalysisRepository.findLatestByCaseId(7L)).thenReturn(Optional.empty());
         when(riskAnalysisRepository.findFirstByCaseIdOrderByIdDesc(7L)).thenReturn(Optional.empty());
         when(caseOutcomeRepository.findOutcome(7L)).thenReturn(outcome(false));
 
