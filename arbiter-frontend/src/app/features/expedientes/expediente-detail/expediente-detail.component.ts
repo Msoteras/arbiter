@@ -728,6 +728,12 @@ export class ExpedienteDetailComponent {
     this.selectedTab.set(t);
   }
 
+  /** The tabs sit below the fold on mobile: without the scroll the click would look like a no-op. */
+  protected verMotivos(tabs: HTMLElement): void {
+    this.setTab('analisis');
+    tabs.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
   // ----- analyst decision -----
   private readonly verbLabels: Record<Verb, string> = {
     aprobar: 'Aprobar',

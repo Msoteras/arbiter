@@ -178,6 +178,7 @@
   color: var(--accent-fg);
   text-decoration: underline;
   text-underline-offset: 0.2em;
+  white-space: nowrap;
 }
 .brief-link span {
   color: var(--text-secondary);
