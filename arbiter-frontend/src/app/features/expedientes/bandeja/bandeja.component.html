@@ -382,6 +382,10 @@
                         >Devuelto por el referente</app-badge
                       >
                     }
+                    @if (vueltaDeDerivacion(c); as vuelta) {
+                      <br />
+                      <app-badge [tone]="vuelta.tone">{{ vuelta.label }}</app-badge>
+                    }
                   </td>
                   <td>
                     @if (deadlinePrioritized(c)) {

@@ -1,6 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, Router, UrlTree } from '@angular/router';
 import { of } from 'rxjs';
 
 import { BandejaComponent } from './bandeja.component';
@@ -20,7 +20,7 @@ describe('BandejaComponent · recorte en curso', () => {
 
   const emptyPage = { content: [], totalElements: 0, totalPages: 0, number: 0, size: 10 };
 
-  async function mount(rol = 'ANALISTA_SINIESTROS'): Promise<void> {
+  async function mount(rol = 'ANALISTA_SINIESTROS', content: unknown[] = []): Promise<void> {
     listCalls = [];
     lensCalls = [];
 
@@ -33,7 +33,12 @@ describe('BandejaComponent · recorte en curso', () => {
           useValue: {
             list: (params: ExpedienteListParams) => {
               listCalls.push(params);
-              return of(emptyPage);
+              return of({
+                ...emptyPage,
+                content,
+                totalElements: content.length,
+                totalPages: content.length ? 1 : 0,
+              });
             },
             lensSummary: (params: ExpedienteListParams) => {
               lensCalls.push(params);
@@ -57,7 +62,15 @@ describe('BandejaComponent · recorte en curso', () => {
           provide: AuthSessionService,
           useValue: { session: () => ({ rol, email: 'lucas@bbva.com' }) },
         },
-        { provide: Router, useValue: { navigate: () => Promise.resolve(true) } },
+        {
+          provide: Router,
+          useValue: {
+            navigate: () => Promise.resolve(true),
+            createUrlTree: () => new UrlTree(),
+            serializeUrl: () => '',
+            events: of(),
+          },
+        },
         { provide: ActivatedRoute, useValue: { queryParamMap: of(new Map()) } },
       ],
     }).compileComponents();
@@ -148,5 +161,92 @@ describe('BandejaComponent · recorte en curso', () => {
     expect(lastList().status).toBe('APPROVED');
     const active = fixture.nativeElement.querySelector('.lens-tab.active') as HTMLElement;
     expect(active.textContent?.trim()).toContain('Todos');
+  });
+
+  describe('vuelta de una derivación', () => {
+    function expediente(overrides: Record<string, unknown>): unknown {
+      return {
+        id: 43,
+        status: 'PENDING_ANALYST_REVIEW',
+        insuredName: 'Julián Pérez',
+        claimCause: 'Robo en vía pública',
+        eventDate: '2026-09-20T19:25:00',
+        claimedAmount: 900000,
+        analysisClassification: 'LLM_NO_RECOMIENDA_APROBAR',
+        assignedAnalystId: null,
+        assignedAnalystName: null,
+        responseDeadline: '2026-10-24',
+        deadlinePriority: 'NONE',
+        riskBand: 'MEDIUM',
+        riskScore: 0.43,
+        settlementStatus: null,
+        lastDerivationResult: null,
+        ...overrides,
+      };
+    }
+
+    function badgeWith(text: string): HTMLElement | undefined {
+      return (Array.from(fixture.nativeElement.querySelectorAll('.badge')) as HTMLElement[]).find(
+        (badge) => badge.textContent?.includes(text),
+      );
+    }
+
+    it('muestra el veredicto del perito con su tono', async () => {
+      await mount('ANALISTA_SINIESTROS', [
+        expediente({
+          lastDerivationResult: {
+            providerType: 'ESTUDIO_LIQUIDADOR',
+            verdict: 'FRAUD_CONFIRMED',
+            repairOutcome: null,
+            respondedAt: '2026-09-20T15:00:00Z',
+          },
+        }),
+      ]);
+
+      const badge = badgeWith('Volvió del perito · Fraude confirmado');
+      expect(badge).toBeDefined();
+      expect(badge?.getAttribute('data-tone')).toBe('danger');
+    });
+
+    it('muestra la respuesta del servicio técnico en neutro', async () => {
+      await mount('ANALISTA_SINIESTROS', [
+        expediente({
+          lastDerivationResult: {
+            providerType: 'SERVICIO_TECNICO',
+            verdict: null,
+            repairOutcome: 'REPAIRED',
+            respondedAt: '2026-09-20T15:00:00Z',
+          },
+        }),
+      ]);
+
+      const badge = badgeWith('Volvió del servicio técnico · Reparado');
+      expect(badge).toBeDefined();
+      expect(badge?.getAttribute('data-tone')).toBeNull();
+    });
+
+    it('no muestra nada mientras espera al proveedor', async () => {
+      await mount('ANALISTA_SINIESTROS', [
+        expediente({
+          status: 'PENDING_REPAIR',
+          lastDerivationResult: {
+            providerType: 'ESTUDIO_LIQUIDADOR',
+            verdict: 'FRAUD_DISCARDED',
+            repairOutcome: null,
+            respondedAt: '2026-09-18T12:00:00Z',
+          },
+        }),
+      ]);
+
+      expect(badgeWith('Derivado a reparación')).toBeDefined();
+      expect(badgeWith('Volvió del')).toBeUndefined();
+    });
+
+    it('no muestra nada si nunca se derivó', async () => {
+      await mount('ANALISTA_SINIESTROS', [expediente({})]);
+
+      expect(badgeWith('Pendiente de revisión')).toBeDefined();
+      expect(badgeWith('Volvió del')).toBeUndefined();
+    });
   });
 });
