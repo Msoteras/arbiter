@@ -104,6 +104,21 @@ DER por eso: la columna es texto libre sin CHECK, y el vocabulario vive en `Rule
 
 ---
 
+## 6 · `analisis_documento.estado_extraccion` — columna nueva, falta en el DER
+
+**Encontrado:** 23/09/2026. Columna que suma el código: dice si la lectura del documento funcionó.
+Sin ella, una respuesta rota del modelo (cortada por el tope de tokens) guardaba los campos vacíos y
+se veía igual que un documento que no dice nada. Implementada en `db/init-multitenant.sql` y
+`db/migrations/2026-09-23-estado-extraccion-documento.sql`. **Todavía no aplicada en Railway.**
+
+| Columna | Tipo de dato | Nulo | Restricciones |
+|---|---|---|---|
+| `estado_extraccion` (`extraction_status`) | VARCHAR(20) | no | default `'COMPLETE'`; CHECK `IN ('COMPLETE', 'PARTIAL', 'FAILED')` |
+
+**Acción:** agregar la columna a `analisis_documento` en el `.mdj`.
+
+---
+
 ## Plantilla para la próxima entrada
 
 ```

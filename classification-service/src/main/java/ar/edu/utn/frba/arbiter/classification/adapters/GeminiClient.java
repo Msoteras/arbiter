@@ -3,9 +3,12 @@ package ar.edu.utn.frba.arbiter.classification.adapters;
 import ar.edu.utn.frba.arbiter.classification.config.GeminiProperties;
 import com.google.genai.Client;
 import com.google.genai.types.Content;
+import com.google.genai.types.FinishReason;
 import com.google.genai.types.GenerateContentConfig;
 import com.google.genai.types.GenerateContentResponse;
 import com.google.genai.types.Part;
+import com.google.genai.types.ThinkingConfig;
+import com.google.genai.types.ThinkingLevel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -18,7 +21,8 @@ import java.util.Map;
 
 /**
  * Gemini through Vertex. Opt-in ({@code arbiter.llm.provider=gemini}) because the prompt leaves our
- * infrastructure. {@code think} is ignored: Gemini manages its own reasoning budget.
+ * infrastructure. {@code think=true} leaves Gemini's own reasoning budget; {@code false} drops it to
+ * the minimum, since Gemini 3 can't disable it outright.
  */
 @Component
 @ConditionalOnProperty(name = "arbiter.llm.provider", havingValue = "gemini")
@@ -49,6 +53,12 @@ public class GeminiClient implements LlmClient {
 
         GenerateContentConfig.Builder config = GenerateContentConfig.builder()
                 .maxOutputTokens(properties.maxOutputTokens());
+        if (!think) {
+            // Thought tokens count against maxOutputTokens: on a long document the reasoning left
+            // too little budget and the JSON came back cut in half. Gemini 3 can't turn it off,
+            // MINIMAL is the floor.
+            config.thinkingConfig(ThinkingConfig.builder().thinkingLevel(ThinkingLevel.Known.MINIMAL).build());
+        }
         if (format != null) {
             // responseJsonSchema takes plain JSON Schema; responseSchema's OpenAPI subset can't
             // express `["string","null"]`.
@@ -69,6 +79,10 @@ public class GeminiClient implements LlmClient {
                 usage.totalTokenCount().orElse(0)));
         log.info("[Gemini] Response received in {} ms ({} chars)",
                 System.currentTimeMillis() - start, content == null ? 0 : content.length());
+        if (response.finishReason().knownEnum() == FinishReason.Known.MAX_TOKENS) {
+            log.warn("[Gemini] Output hit maxOutputTokens ({}): the response is truncated",
+                    properties.maxOutputTokens());
+        }
 
         return content == null ? "" : content.trim();
     }

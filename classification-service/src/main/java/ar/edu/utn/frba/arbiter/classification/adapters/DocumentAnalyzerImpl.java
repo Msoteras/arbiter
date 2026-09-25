@@ -25,6 +25,8 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Reads an attachment with the vision model: its text (OCR) and signs of manipulation. This is the
@@ -41,9 +43,14 @@ public class DocumentAnalyzerImpl implements DocumentAnalyzer {
 
     private static final String UNREADABLE = "No se pudo extraer contenido del documento adjunto.";
 
+    /** One retry: a cut answer usually comes back whole, and each call is billed on Gemini. */
+    private static final int MAX_EXTRACTION_ATTEMPTS = 2;
+
     /** Mirror {@code DocumentDetail}'s columns: a longer value is trimmed, never dropped. */
     private static final int DETAIL_NAME_MAX = 100;
     private static final int DETAIL_VALUE_MAX = 500;
+
+    private static final Pattern TRANSCRIPTION_START = Pattern.compile("\"transcription\"\\s*:\\s*\"");
 
     /** Where the branch's claim causes go in the prompt. */
     private static final String CATALOG_PLACEHOLDER = "{{claimCauseCatalog}}";
@@ -171,6 +178,7 @@ public class DocumentAnalyzerImpl implements DocumentAnalyzer {
             StringBuilder transcription = new StringBuilder();
             List<String> findings = new ArrayList<>();
             DocumentExtraction.Fields fields = DocumentExtraction.Fields.none();
+            DocumentExtraction.Status status = DocumentExtraction.Status.COMPLETE;
             for (int page = 0; page < pageCount; page++) {
                 log.info("[LLM] Rendering and reading page {}/{}...", page + 1, pageCount);
                 BufferedImage image = renderer.renderImageWithDPI(page, 150);
@@ -186,9 +194,11 @@ public class DocumentAnalyzerImpl implements DocumentAnalyzer {
                         pageCount > 1 ? "Página " + pageNumber + ": " + finding : finding));
 
                 fields = mergeFields(fields, pageExtraction.fields());
+                // One broken page is enough: its fields could be the ones a rule needed.
+                status = status.worst(pageExtraction.status());
             }
-            log.info("[LLM] PDF fully read — {} page(s)", pageCount);
-            return new DocumentExtraction(transcription.toString().trim(), findings, fields);
+            log.info("[LLM] PDF fully read — {} page(s), status {}", pageCount, status);
+            return new DocumentExtraction(transcription.toString().trim(), findings, fields, status);
         } catch (IOException e) {
             throw new InvalidClassificationException("Could not render PDF document for analysis", e);
         }
@@ -230,26 +240,36 @@ public class DocumentAnalyzerImpl implements DocumentAnalyzer {
         }
     }
 
+    /**
+     * A broken answer (cut by the output token cap, or a generation stuck repeating digits) is
+     * retried before settling for less: the fields it loses are what the consistency rules compare.
+     */
     private DocumentExtraction extractFromImage(byte[] imageContent, List<String> claimCauses) {
         String base64 = Base64.getEncoder().encodeToString(imageContent);
 
-        // No thinking: transcription is mechanical, and reasoning would eat the num_predict budget.
-        String content = client.chat(promptFor(claimCauses), List.of(base64), outputSchema(claimCauses), false);
-
-        if (content.isEmpty()) {
-            log.warn("[LLM] Document analysis returned empty content");
-            return DocumentExtraction.of(UNREADABLE);
+        String content = "";
+        for (int attempt = 1; attempt <= MAX_EXTRACTION_ATTEMPTS; attempt++) {
+            // No thinking: transcription is mechanical, and reasoning would eat the output budget.
+            content = client.chat(promptFor(claimCauses), List.of(base64), outputSchema(claimCauses), false);
+            DocumentExtraction extraction = parse(content, claimCauses);
+            if (extraction != null) {
+                log.info("[LLM] Document analysis done — {} chars transcribed, {} visual finding(s)",
+                        extraction.transcription().length(), extraction.visualFindings().size());
+                log.debug("[LLM] Extraction:\n{}", extraction);
+                return extraction;
+            }
+            log.warn("[LLM] Document analysis attempt {}/{} returned {} ({} chars)", attempt,
+                    MAX_EXTRACTION_ATTEMPTS, content.isEmpty() ? "nothing" : "an unparseable answer",
+                    content.length());
         }
-
-        DocumentExtraction extraction = parse(content, claimCauses);
-        log.info("[LLM] Document analysis done — {} chars transcribed, {} visual finding(s)",
-                extraction.transcription().length(), extraction.visualFindings().size());
-        log.debug("[LLM] Extraction:\n{}", extraction);
-        return extraction;
+        return degrade(content);
     }
 
-    /** An unparseable answer degrades to its raw text with no findings: silence beats a made-up finding. */
+    /** Null when the answer isn't the requested JSON, so the caller can retry. */
     private DocumentExtraction parse(String contentJson, List<String> claimCauses) {
+        if (contentJson.isEmpty()) {
+            return null;
+        }
         try {
             ModelOutput output = objectMapper.readValue(contentJson, ModelOutput.class);
             String transcription = output.transcription() == null || output.transcription().isBlank()
@@ -257,8 +277,63 @@ public class DocumentAnalyzerImpl implements DocumentAnalyzer {
                     : output.transcription();
             return new DocumentExtraction(transcription, output.visualFindings(), toFields(output.fields(), claimCauses));
         } catch (Exception e) {
-            log.warn("[LLM] Could not parse document extraction, keeping the raw text: {}", e.getMessage());
-            return DocumentExtraction.of(contentJson);
+            log.debug("[LLM] Could not parse document extraction: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * What's left of a broken answer, with no findings or fields: silence beats a made-up finding.
+     * The transcription is salvaged from truncated JSON; an answer that isn't JSON at all is prose
+     * the model wrote instead, still the document's text. A JSON that yields nothing is never
+     * shown — the analyst would be reading the model's syntax.
+     */
+    private DocumentExtraction degrade(String content) {
+        String salvaged = salvageTranscription(content);
+        if (salvaged != null) {
+            log.warn("[LLM] Document analysis kept only the salvaged transcription ({} chars)", salvaged.length());
+            return DocumentExtraction.partial(salvaged);
+        }
+        String text = content.trim();
+        if (!text.isEmpty() && !text.startsWith("{")) {
+            log.warn("[LLM] Document analysis answered prose instead of JSON — kept as the transcription");
+            return DocumentExtraction.partial(text);
+        }
+        log.warn("[LLM] Document analysis failed: nothing could be read");
+        return DocumentExtraction.failed(UNREADABLE);
+    }
+
+    /**
+     * Reads the {@code transcription} string out of a JSON cut off mid-way (output token cap), up
+     * to its closing quote or, if the cut fell inside it, up to where it stops. Null if absent.
+     */
+    private String salvageTranscription(String json) {
+        Matcher start = TRANSCRIPTION_START.matcher(json);
+        if (!start.find()) {
+            return null;
+        }
+        int i = start.end();
+        StringBuilder escaped = new StringBuilder();
+        while (i < json.length() && json.charAt(i) != '"') {
+            char c = json.charAt(i);
+            if (c == '\\') {
+                // An escape split by the cut is dropped rather than decoded half-way.
+                int length = i + 1 < json.length() && json.charAt(i + 1) == 'u' ? 6 : 2;
+                if (i + length > json.length()) {
+                    break;
+                }
+                escaped.append(json, i, i + length);
+                i += length;
+            } else {
+                escaped.append(c);
+                i++;
+            }
+        }
+        try {
+            String transcription = objectMapper.readValue('"' + escaped.toString() + '"', String.class);
+            return transcription.isBlank() ? null : transcription.trim();
+        } catch (Exception e) {
+            return null;
         }
     }
 

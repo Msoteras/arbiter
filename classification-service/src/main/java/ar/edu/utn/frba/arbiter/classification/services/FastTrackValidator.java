@@ -1,6 +1,7 @@
 package ar.edu.utn.frba.arbiter.classification.services;
 
 import ar.edu.utn.frba.arbiter.common.dto.ClaimReport;
+import ar.edu.utn.frba.arbiter.classification.dto.DocumentExtraction;
 import ar.edu.utn.frba.arbiter.classification.dto.InsuredHistory;
 import ar.edu.utn.frba.arbiter.classification.dto.InsuredPolicy;
 import ar.edu.utn.frba.arbiter.classification.dto.BusinessRules;
@@ -34,15 +35,18 @@ public class FastTrackValidator {
     public record Result(boolean fastTrack, List<String> reasons, List<RuleFinding> findings) {}
 
     /**
-     * @param documentTexts OCR text by document type; only the presence of required documents is
-     *                      checked, their content is the LLM's job
+     * @param documents extractions by document type; null when they were already verified. Their
+     *                  content is the LLM's job: the gate checks each required one is present and
+     *                  was actually read. An unreadable one ({@code FAILED}) counts as missing — a
+     *                  Fast Track can't rest on paperwork nobody read. A {@code PARTIAL} one still
+     *                  passes, but says so: its data never reached the consistency rules.
      */
     public Result evaluate(
             ClaimReport claim,
             InsuredPolicy policy,
             InsuredHistory history,
             BusinessRules rules,
-            Map<String, String> documentTexts
+            Map<String, DocumentExtraction> documents
     ) {
         BusinessRules.FastTrackThresholds thresholds = rules.fastTrackThresholds();
         if (thresholds == null) {
@@ -135,25 +139,51 @@ public class FastTrackValidator {
 
         if (thresholds.requiredDocumentTypes() != null && !thresholds.requiredDocumentTypes().isEmpty()) {
             String required = String.join(",", thresholds.requiredDocumentTypes());
-            if (documentTexts == null) {
+            if (documents == null) {
                 // No documents to look at: no row, since a PASS would claim unseen paperwork was verified.
                 reasons.add("Documentación ya verificada previamente — no se re-evalúa en Fast Track");
             } else {
                 List<String> missing = thresholds.requiredDocumentTypes().stream()
-                        .filter(type -> documentTexts.get(type) == null || documentTexts.get(type).isBlank())
+                        .filter(type -> documents.get(type) == null || documents.get(type).transcription().isBlank())
                         .toList();
-                eligible &= missing.isEmpty();
-                reasons.add(missing.isEmpty()
-                        ? "Documentación requerida para Fast Track presente: " + thresholds.requiredDocumentTypes()
-                        : "Falta documentación requerida para Fast Track: " + missing);
-                findings.add(finding(RuleType.FT_REQUIRED_DOCS, missing.isEmpty(),
+                List<String> unreadable = withStatus(thresholds.requiredDocumentTypes(), documents,
+                        DocumentExtraction.Status.FAILED);
+                List<String> partial = withStatus(thresholds.requiredDocumentTypes(), documents,
+                        DocumentExtraction.Status.PARTIAL);
+                boolean passed = missing.isEmpty() && unreadable.isEmpty();
+                eligible &= passed;
+                if (!missing.isEmpty()) {
+                    reasons.add("Falta documentación requerida para Fast Track: " + missing);
+                }
+                if (!unreadable.isEmpty()) {
+                    reasons.add("No se pudo leer documentación requerida para Fast Track: " + unreadable
+                            + " — no aplica Fast Track");
+                }
+                if (passed) {
+                    reasons.add("Documentación requerida para Fast Track presente: " + thresholds.requiredDocumentTypes());
+                }
+                // Not a block: the fast lane stays, the analyst is told what went unchecked.
+                if (!partial.isEmpty()) {
+                    reasons.add("Lectura incompleta de " + partial + ": sus datos no se pudieron comparar con"
+                            + " lo declarado — se sugiere revisión manual del analista");
+                }
+                findings.add(finding(RuleType.FT_REQUIRED_DOCS, passed,
                         "required=" + required
-                                + " missing=" + (missing.isEmpty() ? "ninguno" : String.join(",", missing))));
+                                + " missing=" + (missing.isEmpty() ? "ninguno" : String.join(",", missing))
+                                + (unreadable.isEmpty() ? "" : " unreadable=" + String.join(",", unreadable))
+                                + (partial.isEmpty() ? "" : " partial=" + String.join(",", partial))));
             }
         }
 
         log.info("[FastTrackValidator] policy='{}' eligible={} reasons={}", policy.policyNumber(), eligible, reasons);
         return new Result(eligible, reasons, findings);
+    }
+
+    private static List<String> withStatus(List<String> types, Map<String, DocumentExtraction> documents,
+                                           DocumentExtraction.Status status) {
+        return types.stream()
+                .filter(type -> documents.get(type) != null && documents.get(type).status() == status)
+                .toList();
     }
 
     /** Truncated to the column width: an audit row that fails to insert audits nothing. */

@@ -614,13 +614,19 @@ BEGIN
             -- norm. A name and not an FK, like llm_analysis.suggested_claim_cause: an audit row
             -- must keep saying what was read even if the cause is later renamed or removed.
             described_claim_cause VARCHAR(120),
+            -- Whether the read itself worked. Without it a broken model answer stored empty
+            -- fields that looked exactly like "the document doesn't say it". PARTIAL: only the
+            -- transcription survived; FAILED: nothing usable was read.
+            extraction_status   VARCHAR(20)  NOT NULL DEFAULT 'COMPLETE',
             extracted_at        TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
             case_document_id    BIGINT       NOT NULL REFERENCES %I.case_documents(id) ON DELETE CASCADE,
 
             CONSTRAINT document_analysis_document_unique UNIQUE (case_document_id),
             -- DESCONOCIDO is valid: the covers_family_group rule then stays out of it.
             CONSTRAINT document_analysis_affected_party_valid CHECK (
-                affected_party IN ('TITULAR', 'FAMILIAR', 'TERCERO', 'DESCONOCIDO'))
+                affected_party IN ('TITULAR', 'FAMILIAR', 'TERCERO', 'DESCONOCIDO')),
+            CONSTRAINT document_analysis_extraction_status_valid CHECK (
+                extraction_status IN ('COMPLETE', 'PARTIAL', 'FAILED'))
         )$ddl$, p_schema, p_schema);
 
     -- ─── document_visual_finding ─────────────────────────────────────────────────
