@@ -60,6 +60,7 @@ public class RuleTextService {
             rule = InsurerRule.builder()
                     .active(true)
                     .validFrom(now)
+                    .createdBy(authorResolver.userIdOf(actorEmail))
                     .name(ruleNamePrefix + " — ramo " + branchId)
                     .ruleType(ruleType)
                     .blocksFastTrack(false)

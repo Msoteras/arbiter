@@ -29,6 +29,7 @@ import org.springframework.data.domain.PageRequest;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Set;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -240,6 +241,34 @@ class RuleChangeHistoryServiceTest {
                     assertThat(entry.changes()).isEmpty();
                     assertThat(entry.current()).isTrue();
                 });
+    }
+
+    /** A creator with no referente profile is still a user: shown by email, never left blank. */
+    @Test
+    void showsTheCreatorsEmailWhenTheyHaveNoReferenteProfile() {
+        InsurerRule rule = policeDeadlineRule("{\"deadlineHours\":72}", true);
+        rule.setCreatedBy(9L);
+        when(ruleRepository.findAllForHistory()).thenReturn(List.of(rule));
+        when(userRepository.findAllById(Set.of(9L)))
+                .thenReturn(List.of(User.builder().id(9L).email("admin@arbiter.com").build()));
+        noScoringHistory();
+
+        assertThat(page().getContent()).singleElement()
+                .extracting(RuleChangeEntry::author).isEqualTo("admin@arbiter.com");
+    }
+
+    /** The creator is a user; with a referente profile, they're shown by name. */
+    @Test
+    void namesTheUserWhoCreatedTheRule() {
+        InsurerRule rule = policeDeadlineRule("{\"deadlineHours\":72}", true);
+        rule.setCreatedBy(30L);
+        when(ruleRepository.findAllForHistory()).thenReturn(List.of(rule));
+        when(insurerReferentRepository.findByUser_IdIn(Set.of(30L)))
+                .thenReturn(List.of(referent(3L, "Ana", "Pérez", 30L)));
+        noScoringHistory();
+
+        assertThat(page().getContent()).singleElement()
+                .extracting(RuleChangeEntry::author).isEqualTo("Ana Pérez");
     }
 
     /** The live rule's validFrom moves with each edit; the creation is when the first version started. */

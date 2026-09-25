@@ -119,6 +119,28 @@ se veía igual que un documento que no dice nada. Implementada en `db/init-multi
 
 ---
 
+## 7 · `regla_aseguradora.creado_por` y `configuracion_scoring.creado_por` — columnas nuevas, faltan en el DER
+
+**Encontrado:** 25/09/2026. El historial de cambios de reglas arranca cada regla con su creación, y
+no había dónde saber quién la creó: `historial_regla_aseguradora.modificado_por` solo se completa en
+los cambios. Implementadas en `db/init-multitenant.sql` y
+`db/migrations/2026-09-25-regla-quien-la-creo.sql`. **Todavía no aplicadas en Railway.**
+
+| Tabla | Columna | Tipo de dato | Nulo | Restricciones |
+|---|---|---|---|---|
+| `regla_aseguradora` | `creado_por` (`created_by`) | BIGINT | no | FK → `usuario.id` |
+| `configuracion_scoring` | `creado_por` (`created_by`) | BIGINT | no | FK → `usuario.id` |
+
+Apuntan a `usuario` y no a `referente_aseguradora` a propósito: el autor es siempre un usuario, sin
+atarlo a qué rol puede configurar reglas hoy. Las reglas por defecto de una aseguradora quedan a
+nombre del usuario que la da de alta (`create_tenant_schema` lo recibe como parámetro). La
+migración completa las filas que ya existían con el usuario del referente del primer cambio de la
+regla, o el del primer referente de la aseguradora.
+
+**Acción:** agregar las dos columnas en el `.mdj` como FK obligatoria a `usuario`.
+
+---
+
 ## Plantilla para la próxima entrada
 
 ```

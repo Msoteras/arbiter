@@ -26,7 +26,8 @@ import java.util.List;
  *                        of its rule
  * @param author          who made the change: the referente's name, or the email recorded in
  *                        {@code reason} when there is no profile to name them by; null if the
- *                        reason names nobody, and on {@code CREATED}, whose author isn't stored
+ *                        reason names nobody; on {@code CREATED}, the user who created the rule,
+ *                        by name if they have a referente profile, by email otherwise
  */
 public record RuleChangeEntry(
         String id,

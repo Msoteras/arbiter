@@ -71,6 +71,7 @@ public class ResolutionTargetService {
             ruleRepository.save(InsurerRule.builder()
                     .active(requested.enabled())
                     .validFrom(now)
+                    .createdBy(authorResolver.userIdOf(actorEmail))
                     .name(RULE_NAME)
                     .ruleType(RuleType.RESOLUTION_TARGET.name())
                     // Never evaluated, so no effect; missing a management goal can't cost a claim

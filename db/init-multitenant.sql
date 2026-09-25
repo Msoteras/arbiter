@@ -233,9 +233,11 @@ SELECT setval(pg_get_serial_sequence('arbiter_common.case_status', 'id'),
 -- TENANT SCHEMA TEMPLATE — 33 tables, created once per insurer
 -- =============================================================================
 
--- Takes only the schema name: the schema itself identifies the insurer.
+-- The schema itself identifies the insurer. p_created_by is the arbiter_common.users id of
+-- whoever onboards it: the default rules and scoring below are recorded as created by them.
 CREATE OR REPLACE FUNCTION arbiter_common.create_tenant_schema(
-    p_schema TEXT
+    p_schema     TEXT,
+    p_created_by BIGINT
 ) RETURNS VOID AS $fn$
 BEGIN
     EXECUTE format('CREATE SCHEMA %I', p_schema);
@@ -396,7 +398,9 @@ BEGIN
             priority            INTEGER,
             blocks_fast_track   BOOLEAN      NOT NULL DEFAULT FALSE,
             branch_id           BIGINT       REFERENCES arbiter_common.branch(id),
-            coverage_id         BIGINT       REFERENCES %I.coverage(id)
+            coverage_id         BIGINT       REFERENCES %I.coverage(id),
+            -- Whoever created the rule; for the defaults below, the user onboarding the insurer.
+            created_by          BIGINT       NOT NULL REFERENCES arbiter_common.users(id)
         )$ddl$, p_schema, p_schema);
 
     -- ─── insurer_rule_history ────────────────────────────────────────────────────
@@ -424,7 +428,9 @@ BEGIN
             -- Whether Fast Track cases still run the heavy analysis, OCR and image fraud, for a
             -- complete score. It only decides how much runs; it never vetoes Fast Track.
             full_analysis_on_fast_track BOOLEAN NOT NULL DEFAULT FALSE,
-            valid_from  TIMESTAMPTZ  NOT NULL
+            valid_from  TIMESTAMPTZ  NOT NULL,
+            -- Whoever created it; for the default below, the user onboarding the insurer.
+            created_by  BIGINT       NOT NULL REFERENCES arbiter_common.users(id)
         )$ddl$, p_schema);
 
     -- factor_code matches RiskFactorIds by string: factors are an enum, not a table.
@@ -965,6 +971,13 @@ BEGIN
                    p_schema);
 
     -- ─── Per-tenant seed ─────────────────────────────────────────────────────────
+    -- A temporary default stamps the onboarding user on every default rule and on the scoring
+    -- config without repeating it on each row; dropped at the end, so the app always sets it.
+    EXECUTE format('ALTER TABLE %I.insurer_rule ALTER COLUMN created_by SET DEFAULT %s',
+                   p_schema, p_created_by);
+    EXECUTE format('ALTER TABLE %I.scoring_configuration ALTER COLUMN created_by SET DEFAULT %s',
+                   p_schema, p_created_by);
+
     EXECUTE format($ddl$
         INSERT INTO %I.coverage (id, name, description, report_deadline_hours,
                                  max_events_per_year, covers_family_group, deductible,
@@ -1191,6 +1204,9 @@ BEGIN
         (SELECT MAX(id) FROM %I.factor_weight))$ddl$, p_schema, p_schema);
     EXECUTE format($ddl$SELECT setval(pg_get_serial_sequence('%I.score_band','id'),
         (SELECT MAX(id) FROM %I.score_band))$ddl$, p_schema, p_schema);
+
+    EXECUTE format('ALTER TABLE %I.insurer_rule ALTER COLUMN created_by DROP DEFAULT', p_schema);
+    EXECUTE format('ALTER TABLE %I.scoring_configuration ALTER COLUMN created_by DROP DEFAULT', p_schema);
 END;
 $fn$ LANGUAGE plpgsql;
 
@@ -1314,8 +1330,9 @@ $fn$ LANGUAGE plpgsql;
 -- TENANT PROVISIONING
 -- =============================================================================
 
-SELECT arbiter_common.create_tenant_schema('arbiter_bbva');
-SELECT arbiter_common.create_tenant_schema('arbiter_provincia');
+-- Each insurer onboarded by its referente's user (3 and 6 above), so its default rules are theirs.
+SELECT arbiter_common.create_tenant_schema('arbiter_bbva', 3);
+SELECT arbiter_common.create_tenant_schema('arbiter_provincia', 6);
 
 SELECT arbiter_common.create_insurer_db_schema(
     'aseguradora_bbva', 'BBVA Seguros Argentina S.A.', '30-50006423-0', '0396');
@@ -1361,7 +1378,7 @@ COMMIT;
 -- Onboarding a third insurer needs no hand-written DDL:
 --   INSERT INTO arbiter_common.insurer (legal_name, name, tax_id, active, schema_name)
 --        VALUES ('La Segunda Seguros S.A.', 'La Segunda', '30-50001328-8', TRUE, 'arbiter_lasegunda');
---   SELECT arbiter_common.create_tenant_schema('arbiter_lasegunda');
+--   SELECT arbiter_common.create_tenant_schema('arbiter_lasegunda', <users.id de quien la da de alta>);
 --   SELECT arbiter_common.create_insurer_db_schema(
 --       'aseguradora_lasegunda', 'La Segunda Seguros S.A.', '30-50001328-8', '0331');
 --

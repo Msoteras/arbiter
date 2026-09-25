@@ -38,6 +38,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -105,8 +106,9 @@ public class RuleChangeHistoryService {
     @Transactional(readOnly = true)
     public Page<RuleChangeEntry> find(String ruleType, Long branchId, Instant from, Instant to, Pageable pageable) {
         Map<String, Long> referentIdByEntry = new HashMap<>();
-        List<RuleChangeEntry> all = new ArrayList<>(insurerRuleChanges(referentIdByEntry));
-        all.addAll(scoringChanges(referentIdByEntry));
+        Map<String, Long> creatorUserIdByEntry = new HashMap<>();
+        List<RuleChangeEntry> all = new ArrayList<>(insurerRuleChanges(referentIdByEntry, creatorUserIdByEntry));
+        all.addAll(scoringChanges(referentIdByEntry, creatorUserIdByEntry));
 
         List<RuleChangeEntry> matching = all.stream()
                 .filter(entry -> ruleType == null || ruleType.equals(entry.ruleType()))
@@ -119,14 +121,18 @@ public class RuleChangeHistoryService {
 
         int start = (int) Math.min(pageable.getOffset(), matching.size());
         int end = Math.min(start + pageable.getPageSize(), matching.size());
-        return new PageImpl<>(withAuthors(matching.subList(start, end), referentIdByEntry), pageable, matching.size());
+        List<RuleChangeEntry> page = withAuthors(
+                matching.subList(start, end), referentIdByEntry, creatorUserIdByEntry);
+        return new PageImpl<>(page, pageable, matching.size());
     }
 
     /**
-     * The author is the referente in {@code changed_by}, by name. Without a profile, the email the
-     * reason ends with is shown.
+     * A change's author is the referente in {@code changed_by}, by name; without a profile, the
+     * email the reason ends with. A creation's is the user in {@code created_by}: by name when they
+     * have a referente profile, by email otherwise.
      */
-    private List<RuleChangeEntry> withAuthors(List<RuleChangeEntry> entries, Map<String, Long> referentIdByEntry) {
+    private List<RuleChangeEntry> withAuthors(List<RuleChangeEntry> entries, Map<String, Long> referentIdByEntry,
+                                              Map<String, Long> creatorUserIdByEntry) {
         Set<Long> referentIds = entries.stream()
                 .map(entry -> referentIdByEntry.get(entry.id()))
                 .filter(Objects::nonNull)
@@ -138,7 +144,8 @@ public class RuleChangeHistoryService {
         // Rows saved before changed_by was filled only name the actor in the reason.
         Map<String, String> actorByEntry = new HashMap<>();
         entries.forEach(entry -> {
-            if (referentName(entry, referentIdByEntry, nameByReferentId) == null) {
+            if (entry.kind() == RuleChangeKind.UPDATED
+                    && referentName(entry, referentIdByEntry, nameByReferentId) == null) {
                 String actor = actorOf(entry.reason());
                 if (actor != null) {
                     actorByEntry.put(entry.id(), actor);
@@ -148,14 +155,30 @@ public class RuleChangeHistoryService {
         Map<String, Long> userIdByEmail = actorByEntry.isEmpty() ? Map.of()
                 : userRepository.findByEmailIn(Set.copyOf(actorByEntry.values())).stream()
                         .collect(Collectors.toMap(User::getEmail, User::getId, (a, b) -> a));
-        Map<Long, String> nameByUserId = userIdByEmail.isEmpty() ? Map.of()
-                : insurerReferentRepository.findByUser_IdIn(userIdByEmail.values()).stream()
+        Set<Long> creatorIds = entries.stream()
+                .map(entry -> creatorUserIdByEntry.get(entry.id()))
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        Set<Long> userIds = new HashSet<>(userIdByEmail.values());
+        userIds.addAll(creatorIds);
+        Map<Long, String> nameByUserId = userIds.isEmpty() ? Map.of()
+                : insurerReferentRepository.findByUser_IdIn(userIds).stream()
                         .collect(Collectors.toMap(r -> r.getUser().getId(),
                                 RuleChangeHistoryService::fullName, (a, b) -> a));
+        Map<Long, String> emailByCreatorId = creatorIds.isEmpty() ? Map.of()
+                : userRepository.findAllById(creatorIds).stream()
+                        .collect(Collectors.toMap(User::getId, User::getEmail));
 
         return entries.stream().map(entry -> {
-            String author = referentName(entry, referentIdByEntry, nameByReferentId);
-            if (author == null) {
+            String author;
+            if (entry.kind() == RuleChangeKind.CREATED) {
+                Long creatorId = creatorUserIdByEntry.get(entry.id());
+                author = creatorId == null ? null
+                        : nameByUserId.getOrDefault(creatorId, emailByCreatorId.get(creatorId));
+            } else {
+                author = referentName(entry, referentIdByEntry, nameByReferentId);
+            }
+            if (author == null && entry.kind() == RuleChangeKind.UPDATED) {
                 String actor = actorByEntry.get(entry.id());
                 if (actor == null) {
                     return entry;
@@ -220,7 +243,8 @@ public class RuleChangeHistoryService {
      * that can't say what changed only adds noise. {@code current} goes to the last entry actually
      * emitted, so a rule whose last save was one of those still has its version in force marked.
      */
-    private List<RuleChangeEntry> insurerRuleChanges(Map<String, Long> referentIdByEntry) {
+    private List<RuleChangeEntry> insurerRuleChanges(
+            Map<String, Long> referentIdByEntry, Map<String, Long> creatorUserIdByEntry) {
         Map<Long, List<InsurerRuleHistory>> byRule = insurerRuleHistoryRepository.findAllForHistory().stream()
                 .collect(Collectors.groupingBy(history -> history.getInsurerRule().getId(),
                         LinkedHashMap::new, Collectors.toList()));
@@ -251,6 +275,7 @@ public class RuleChangeHistoryService {
             List<RuleChangeEntry> ruleEntries = new ArrayList<>();
             // The first stored version started when the rule was created; with none, the live one did.
             Instant createdAt = versions.isEmpty() ? rule.getValidFrom() : versions.get(0).getValidFrom();
+            creatorUserIdByEntry.put("rule-created-" + rule.getId(), rule.getCreatedBy());
             ruleEntries.add(new RuleChangeEntry(
                     "rule-created-" + rule.getId(), RuleChangeSource.INSURER_RULE, rule.getRuleType(),
                     rule.getName(), branchId, branchName, rule.getCoverageId(), coverageName,
@@ -292,7 +317,8 @@ public class RuleChangeHistoryService {
 
     // ──────────────────────────────── scoring ───────────────────────────────────
 
-    private List<RuleChangeEntry> scoringChanges(Map<String, Long> referentIdByEntry) {
+    private List<RuleChangeEntry> scoringChanges(
+            Map<String, Long> referentIdByEntry, Map<String, Long> creatorUserIdByEntry) {
         List<ScoringConfigurationHistory> rows = scoringHistoryRepository.findAllByOrderByValidFromAscIdAsc();
         ScoringConfiguration config = rows.isEmpty()
                 ? scoringConfigurationRepository.findFirstByOrderByIdAsc().orElse(null)
@@ -303,6 +329,7 @@ public class RuleChangeHistoryService {
 
         List<RuleChangeEntry> entries = new ArrayList<>();
         Instant createdAt = rows.isEmpty() ? config.getValidFrom() : rows.get(0).getValidFrom();
+        creatorUserIdByEntry.put("scoring-created-" + config.getId(), config.getCreatedBy());
         entries.add(new RuleChangeEntry(
                 "scoring-created-" + config.getId(), RuleChangeSource.SCORING, SCORING_RULE_TYPE,
                 config.getName(), null, null, null, null, createdAt, null, null, List.of(), false,

@@ -75,6 +75,7 @@ public class FastTrackRuleService {
             rule = InsurerRule.builder()
                     .active(true)
                     .validFrom(now)
+                    .createdBy(authorResolver.userIdOf(actorEmail))
                     .name("Fast Track — cobertura " + coverageId)
                     .ruleType(RuleType.FAST_TRACK.name())
                     .blocksFastTrack(false)

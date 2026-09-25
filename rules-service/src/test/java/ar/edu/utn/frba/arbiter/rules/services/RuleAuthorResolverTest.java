@@ -1,5 +1,9 @@
 package ar.edu.utn.frba.arbiter.rules.services;
 
+import ar.edu.utn.frba.arbiter.common.models.entities.User;
+import ar.edu.utn.frba.arbiter.rules.exceptions.RuleAuthorNotFoundException;
+import ar.edu.utn.frba.arbiter.rules.models.repositories.UserRepository;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.InsurerReferent;
 import ar.edu.utn.frba.arbiter.rules.models.repositories.InsurerReferentRepository;
 import org.junit.jupiter.api.Test;
@@ -15,7 +19,8 @@ import static org.mockito.Mockito.when;
 class RuleAuthorResolverTest {
 
     private final InsurerReferentRepository insurerReferentRepository = mock(InsurerReferentRepository.class);
-    private final RuleAuthorResolver resolver = new RuleAuthorResolver(insurerReferentRepository);
+    private final UserRepository userRepository = mock(UserRepository.class);
+    private final RuleAuthorResolver resolver = new RuleAuthorResolver(insurerReferentRepository, userRepository);
 
     @Test
     void resolvesTheReferenteOfTheActor() {
@@ -38,5 +43,24 @@ class RuleAuthorResolverTest {
         assertThat(resolver.referentIdOf(null)).isNull();
         assertThat(resolver.referentIdOf(" ")).isNull();
         verifyNoInteractions(insurerReferentRepository);
+    }
+
+    @Test
+    void resolvesTheCreatorAsAUser() {
+        when(userRepository.findByEmail("referente@bbva.com"))
+                .thenReturn(Optional.of(User.builder().id(3L).build()));
+
+        assertThat(resolver.userIdOf("referente@bbva.com")).isEqualTo(3L);
+    }
+
+    /** Unlike a change's author, a creation's is mandatory: without it the rule isn't saved. */
+    @Test
+    void refusesToCreateARuleWithoutAKnownUser() {
+        when(userRepository.findByEmail("nadie@bbva.com")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> resolver.userIdOf("nadie@bbva.com"))
+                .isInstanceOf(RuleAuthorNotFoundException.class);
+        assertThatThrownBy(() -> resolver.userIdOf(null))
+                .isInstanceOf(RuleAuthorNotFoundException.class);
     }
 }

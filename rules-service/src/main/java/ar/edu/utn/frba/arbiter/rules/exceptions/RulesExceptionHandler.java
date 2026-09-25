@@ -24,6 +24,11 @@ public class RulesExceptionHandler {
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(409), ex.getMessage());
     }
 
+    @ExceptionHandler(RuleAuthorNotFoundException.class)
+    public ProblemDetail handleRuleAuthorNotFound(RuleAuthorNotFoundException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(403), ex.getMessage());
+    }
+
     @ExceptionHandler(BranchInUseException.class)
     public ProblemDetail handleBranchInUse(BranchInUseException ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(409), ex.getMessage());
