@@ -270,8 +270,9 @@ entra por el carril rápido.
   robo o hurto). El otro no: la fecha marcaba la factura de compra, que siempre es anterior al
   hecho, así que con peso subía el score de **todos** los robos. La factura quedó afuera de ese
   chequeo.
-- Peso **0,40** en las dos aseguradoras, cargado desde el panel del referente. Queda solo en
-  Railway: el seed no lo tiene.
+- Peso **0,40** en las dos aseguradoras: en Railway, cargado desde el panel del referente; en
+  `init-multitenant.sql`, para las bases nuevas. `BaselineRulesAdapter` lo sigue dejando afuera a
+  propósito: fuera de nuestras dos aseguradoras, activarlo es decisión de cada compañía.
 - `purchase_to_report_time` sigue sin peso.
 
 Lo que sigue queda como registro.

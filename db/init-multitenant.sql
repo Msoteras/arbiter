@@ -1165,7 +1165,8 @@ BEGIN
             (23, 'item_photo',          TRUE, NULL, 2, 8)
         $ddl$, p_schema);
 
-    -- Same values as MockRulesAdapter.DEFAULT_SCORING_CONFIG; each tenant diverges from here.
+    -- Starts from BaselineRulesAdapter.DEFAULT_SCORING_CONFIG and adds what both fixture insurers
+    -- decided on top of it (fraud_history, document_inconsistency); each tenant diverges from here.
     EXECUTE format($ddl$
         INSERT INTO %I.scoring_configuration (id, name, active, full_analysis_on_fast_track, valid_from) VALUES
             (1, 'Default (H0012 reference config)', TRUE, FALSE, '2026-01-01 00:00:00+00')
@@ -1180,7 +1181,10 @@ BEGIN
             (5, 'image_web_match', 0.40, 1),
             -- Heaviest factor, being the only one backed by a human-verified fact, but not
             -- enough alone to reach CRITICAL. Skipped without an active FRAUD_RECORD rule.
-            (6, 'fraud_history', 0.60, 1)
+            (6, 'fraud_history', 0.60, 1),
+            -- Loaded from the referente panel on 25/09/2026 in both insurers, once its two false
+            -- positives were fixed (amount vs. the wrong document, the purchase proof's date).
+            (7, 'document_inconsistency', 0.40, 1)
         $ddl$, p_schema);
 
     EXECUTE format($ddl$
