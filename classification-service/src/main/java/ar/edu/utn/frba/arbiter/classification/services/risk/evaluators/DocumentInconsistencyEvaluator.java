@@ -29,6 +29,12 @@ public class DocumentInconsistencyEvaluator implements RiskFactorEvaluator {
 
     private static final String POLICE_REPORT_TYPE = "police_report";
 
+    /** Predates the event by nature: the item was bought before it was stolen or broken. */
+    private static final String PURCHASE_PROOF_TYPE = "purchase_proof";
+
+    /** On a damage claim, the document that sets what is being claimed. */
+    private static final String REPAIR_QUOTE_TYPE = "repair_quote";
+
     @Override
     public String factorId() {
         return RiskFactorIds.DOCUMENT_INCONSISTENCY;
@@ -47,8 +53,8 @@ public class DocumentInconsistencyEvaluator implements RiskFactorEvaluator {
             checkImei(context, type, extraction.fields(), findings);
             checkBrandAndModel(context, type, extraction.fields(), findings);
             checkDocumentDate(context, type, extraction.fields(), findings);
-            checkAmount(context, type, extraction.fields(), findings);
         });
+        checkAmount(context, documents, findings);
         checkDeclaredPoliceReportDate(context, documents, findings);
 
         if (findings.isEmpty()) {
@@ -97,10 +103,14 @@ public class DocumentInconsistencyEvaluator implements RiskFactorEvaluator {
         }
     }
 
-    /** Documents are issued after the event; a week of slack covers a genuinely earlier purchase invoice. */
+    /**
+     * Documents about the event are issued after it, with a week of slack. The purchase proof is left
+     * out: it always predates the event, so checking it flagged every claim that carried one.
+     */
     private void checkDocumentDate(
             RiskContext context, String type, DocumentExtraction.Fields fields, List<String> findings) {
-        if (fields.documentDate() == null || context.claim() == null || context.claim().eventDate() == null) {
+        if (PURCHASE_PROOF_TYPE.equals(type)
+                || fields.documentDate() == null || context.claim() == null || context.claim().eventDate() == null) {
             return;
         }
         LocalDate eventDate = context.claim().eventDate().toLocalDate();
@@ -131,10 +141,21 @@ public class DocumentInconsistencyEvaluator implements RiskFactorEvaluator {
         }
     }
 
+    /**
+     * Only against the document that sets what is claimed: the repair quote on a damage claim, the
+     * purchase proof otherwise. Comparing every document flagged every damage claim, whose invoice
+     * (what the item is worth) never matches the quote (what the repair costs).
+     */
     private void checkAmount(
-            RiskContext context, String type, DocumentExtraction.Fields fields, List<String> findings) {
+            RiskContext context, Map<String, DocumentExtraction> documents, List<String> findings) {
+        String type = documents.containsKey(REPAIR_QUOTE_TYPE) ? REPAIR_QUOTE_TYPE : PURCHASE_PROOF_TYPE;
+        DocumentExtraction document = documents.get(type);
         BigDecimal claimed = context.claim() == null ? null : context.claim().claimedAmount();
-        if (fields.amount() == null || claimed == null || claimed.signum() == 0) {
+        if (document == null || claimed == null || claimed.signum() == 0) {
+            return;
+        }
+        DocumentExtraction.Fields fields = document.fields();
+        if (fields.amount() == null) {
             return;
         }
         BigDecimal tolerance = claimed.multiply(AMOUNT_TOLERANCE_RATIO).abs();

@@ -50,6 +50,8 @@ interface DocRow {
   extra: boolean;
   /** Set when the model's read of this document broke; flagged in the list so it isn't missed. */
   readIssue: Exclude<ExtractionStatus, 'COMPLETE'> | null;
+  /** The vision model noticed signs of tampering; flagged in the list for the same reason. */
+  tamperingSigns: boolean;
 }
 
 type PreviewState =
@@ -157,9 +159,18 @@ export class CaseDocumentsComponent {
       const status = extractions.find((e) => e.documentType === type)?.extractionStatus;
       return status === 'PARTIAL' || status === 'FAILED' ? status : null;
     };
+    const tamperingSigns = (type: string): boolean =>
+      (extractions.find((e) => e.documentType === type)?.visualFindings.length ?? 0) > 0;
     const all = this.requiredTypes().map(({ type, label }) => {
       const doc = docs.find((d) => d.type === type) ?? null;
-      return { type, label, doc, extra: false, readIssue: doc ? readIssue(type) : null };
+      return {
+        type,
+        label,
+        doc,
+        extra: false,
+        readIssue: doc ? readIssue(type) : null,
+        tamperingSigns: doc ? tamperingSigns(type) : false,
+      };
     });
     const agenda = this.showMissing() ? all : all.filter((r) => r.doc);
     return [
@@ -170,6 +181,7 @@ export class CaseDocumentsComponent {
         doc,
         extra: true,
         readIssue: readIssue(doc.type),
+        tamperingSigns: tamperingSigns(doc.type),
       })),
     ];
   });

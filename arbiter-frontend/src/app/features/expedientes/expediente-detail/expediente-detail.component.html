@@ -634,8 +634,12 @@
               <app-card heading="Para revisar antes de resolver">
                 <p class="t-note traza-intro">
                   @if (hasAdvisoryWarning()) {
-                    La documentación narra un hecho distinto del que declaró el asegurado. No cambia
-                    la clasificación ni la cobertura: leé el relato y el acta antes de decidir.
+                    @if (advisoryWarningTypes().has('CLAIM_CAUSE_MATCH')) {
+                      La documentación narra otro hecho que el declarado.
+                    }
+                    @if (advisoryWarningTypes().has('VISUAL_TAMPERING')) {
+                      Hay señales de adulteración en la documentación.
+                    }
                   } @else {
                     La documentación narra el mismo hecho que declaró el asegurado.
                   }

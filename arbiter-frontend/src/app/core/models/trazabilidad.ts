@@ -36,6 +36,7 @@ const RULE_TYPE_LABELS: Record<string, string> = {
   FT_REQUIRED_DOCS: 'Documentación que exige Fast Track',
   // Aviso: no decide cobertura ni carril rápido, marca algo para revisar (ver isAdvisoryCheck).
   CLAIM_CAUSE_MATCH: 'Hecho que narra la documentación',
+  VISUAL_TAMPERING: 'Señales de adulteración en la documentación',
 };
 
 export function ruleTypeLabel(ruleType: string): string {
@@ -51,7 +52,7 @@ export function isFastTrackCriterion(ruleType: string): boolean {
  * Advisory checks: a FAIL doesn't mean the claim isn't covered nor takes it off the fast lane, it
  * flags something to review before deciding. Mirrors `RuleType.advisoryRules()` (common-lib).
  */
-const ADVISORY_CHECKS = new Set(['CLAIM_CAUSE_MATCH']);
+const ADVISORY_CHECKS = new Set(['CLAIM_CAUSE_MATCH', 'VISUAL_TAMPERING']);
 
 export function isAdvisoryCheck(ruleType: string): boolean {
   return ADVISORY_CHECKS.has(ruleType);
@@ -161,6 +162,13 @@ export function ruleEvaluationText(ruleType: string, evaluatedValue: string | nu
       return t['declared'] === t['described']
         ? `${documentos}: narra el hecho declarado (${t['declared']})`
         : `${documentos}: narra ${t['described']} · se declaró ${t['declared']}`;
+    }
+    case 'VISUAL_TAMPERING': {
+      // Only written with signs present; the signs themselves are in each document's reading.
+      const n = Number(t['signs']);
+      return t['documents'] && !Number.isNaN(n)
+        ? `${conLabelesDeDocumento(listado(t['documents']))}: ${n} ${n === 1 ? 'señal' : 'señales'} · ver Documentación`
+        : evaluatedValue;
     }
     case 'CLAIM_EXHAUSTS_COVERAGE': {
       const previos = Number(t['settledClaimsOnPolicy']);

@@ -217,6 +217,7 @@ Antes de escribir markup de UI, usá los componentes que ya existen en vez de re
 5. **Componente nuevo → sumalo a la styleguide.** Si agregás algo al kit, mostralo en la página `/styleguide` (`src/app/features/styleguide/styleguide.component.ts`). Es la vitrina viva del sistema.
 6. **Antes de crear UI nueva, revisá `/styleguide` y `shared/ui/`.** Si ya existe, reusá; no dupliques.
 7. **Accesibilidad y tipografía.** Los títulos de card son headings reales (jerarquía correcta, no `<div>` con estilo). Inputs a **16px en mobile** (evita el zoom de iOS). Contraste **AA** (la paleta ya está calibrada a 4.5:1). Mantené `.sr-only` para texto solo-lector y foco visible.
+8. **Textos de UI cortos.** Avisos, tooltips, aclaraciones y factores que lee el analista: **una frase**, lo que pasó y, solo si no es obvio, qué hacer. No repitas lo que ya dice el título o el badge, no aclares lo que el usuario no preguntó ("esto no cambia la clasificación", "por sí solo no prueba nada") y no enumeres entre paréntesis. Ej.: bajo el título "Para revisar antes de resolver", ~~"El modelo notó señales de posible adulteración. Nada de esto cambia la clasificación: revisalo antes de decidir."~~ → "Hay señales de adulteración en la documentación."
 
 ---
 
@@ -341,7 +342,7 @@ Analista revisa y decide (frontend)
 ### Dónde está cada cosa
 
 - **Prompts versionados** en `classification-service/src/main/resources/prompts/`. La versión vigente la fija
-  `arbiter.llm.prompt-version` (hoy `classification-v5`; el de OCR es `extraccion-documento-v5`) y se
+  `arbiter.llm.prompt-version` (hoy `classification-v6`; el de OCR es `extraccion-documento-v7`) y se
   persiste en `llm_analysis.prompt_version`. Las versiones anteriores se conservan para poder auditar
   análisis viejos. Plantilla (markdown) separada de la inyección de datos: nada de concatenar strings.
 - **Variables de entorno**: la lista completa y comentada está en `.env.example`. Nunca en un yml versionado.

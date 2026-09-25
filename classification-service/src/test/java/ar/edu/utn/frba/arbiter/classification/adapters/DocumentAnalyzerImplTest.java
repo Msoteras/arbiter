@@ -45,7 +45,7 @@ class DocumentAnalyzerImplTest {
         analyzer = new DocumentAnalyzerImpl(
                 client,
                 new ObjectMapper(),
-                new ClassPathResource("prompts/extraccion-documento-v6.md"));
+                new ClassPathResource("prompts/extraccion-documento-v7.md"));
     }
 
     private void modelAnswers(String content) {

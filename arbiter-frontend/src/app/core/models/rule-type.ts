@@ -81,6 +81,11 @@ const RULE_TYPE_INFO: Record<string, { label: string; description: string }> = {
     description:
       'La documentación narra un hecho generador distinto del declarado. Es un aviso para el analista: no bloquea el trámite.',
   },
+  VISUAL_TAMPERING: {
+    label: 'Señales de adulteración en la documentación',
+    description:
+      'Un documento muestra señales de haber sido alterado. Es un aviso, no bloquea.',
+  },
 };
 
 /**

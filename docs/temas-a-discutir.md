@@ -75,10 +75,13 @@ Coberturas). Son dos operaciones distintas:
   Provincia ya las tiene contratadas en sus pólizas del ramo, así que apenas existan del lado de
   Arbiter `PolicyResyncScheduler` deja de saltearlas y arma solo las filas de `policy_coverage`. Eso
   apaga además el warning nocturno de abajo.
-- **Celulares → editar** las exclusiones de la cobertura *Daño accidental*, que ya existe, para que
-  deje de excluir *Rotura accidental* y *Caída*. Acá no hay cobertura que crear: la BD Aseguradora
-  no modela esos dos como coberturas separadas, son hechos generadores que responde *Daño
-  accidental*.
+- **Celulares → crear** la cobertura *Daño accidental*, sin excluir *Rotura accidental* ni *Caída*.
+  ~~Editar sus exclusiones, que ya existe~~: verificado en Railway el 25/09/2026, Provincia tiene en
+  Celulares solo *Robo de celular* y *Hurto*. La BD Aseguradora no modela esos dos hechos como
+  coberturas separadas: los responde *Daño accidental*.
+
+**Estado al 25/09/2026: sin hacer.** En Railway, Tecnología Portátil sigue solo con *Daño
+accidental* y Celulares sin él.
 
 **El fixture sigue con el agujero.** Lo hecho por UI vive en la base desplegada; `seed-demo.sql`
 nace igual que antes. Si alguien levanta de cero con `reset → init → seed` para una demo, vuelve.
@@ -244,9 +247,34 @@ El analista igual decide (decisión #5), pero llega con la etiqueta de "todo en 
 **Qué bloquea:** nada del desarrollo. Mientras no se decida, un hecho mal declarado a propósito
 entra por el carril rápido.
 
+**Actualización 25/09/2026.**
+
+- **Criterio robo/hurto** (prompts `extraccion-documento-v7` y `classification-v6`): un tirón o
+  arrebato ya es robo, aunque no haya lesiones ni forcejeo narrado; hurto es sin contacto con la
+  persona, que se da cuenta después. El modelo solo elige un hecho cuando el relato es clarísimo;
+  ante la duda devuelve `null` y lo mira el analista. Con el v6, Gemini leía "Hurto" en un acta
+  caratulada ROBO (caso #46).
+- **Una lectura rota no sostiene un Fast Track.** Cada lectura guarda
+  `document_analysis.extraction_status`. Si un documento exigido por el gate queda `FAILED`, no
+  hay Fast Track; si queda `PARTIAL` (solo se rescató el texto), pasa con un factor que sugiere
+  revisión manual.
+
 ---
 
-## `document_inconsistency` no tiene peso, así que no corre
+## ~~`document_inconsistency` no tiene peso, así que no corre~~ — ✅ resuelto (25/09/2026)
+
+**Qué se hizo:**
+
+- Se arreglaron **dos** falsos positivos antes de darle peso. El del importe estaba anotado: ahora
+  se compara solo contra el documento que fija el monto (el presupuesto en daño, la factura en
+  robo o hurto). El otro no: la fecha marcaba la factura de compra, que siempre es anterior al
+  hecho, así que con peso subía el score de **todos** los robos. La factura quedó afuera de ese
+  chequeo.
+- Peso **0,40** en las dos aseguradoras, cargado desde el panel del referente. Queda solo en
+  Railway: el seed no lo tiene.
+- `purchase_to_report_time` sigue sin peso.
+
+Lo que sigue queda como registro.
 
 **Encontrado:** 22/09/2026, armando las mutaciones de `docs/postman/test-docs/mutaciones/`.
 
@@ -329,11 +357,12 @@ recomendación que tomó el motor.
 
 **Relacionado — avisos en cualquier salida por reglas.** Los avisos para el analista no cambian la
 dirección del resultado: se suman en cualquiera de estas salidas. El de hecho generador ya existe
-(`CLAIM_CAUSE_MATCH`, ver la entrada de arriba). Queda por decidir si las **señales visuales de
-adulteración** (`document_visual_finding`) también avisan. Hoy se guardan, pero solo se ven abriendo
-documento por documento en la solapa Documentación: no suman un factor, no marcan la solapa y no
-aparecen en la tarjeta "Para revisar antes de resolver". Lo prueban las mutaciones
-`importe-pegado`, `fecha-pegada` y `tipografia-mezclada`, que hoy salen `FAST_TRACK` sin aviso.
+(`CLAIM_CAUSE_MATCH`, ver la entrada de arriba). ~~Queda por decidir si las **señales visuales de
+adulteración** también avisan~~ — **✅ hecho el 25/09/2026:** aviso `VISUAL_TAMPERING` en cualquier
+salida, Fast Track incluido. No bloquea: suma un factor y una fila FAIL en `rule_result`, aparece
+en la tarjeta "Para revisar antes de resolver" y el documento lleva el badge "Señales en la imagen".
+Sin señales no deja fila, porque un PASS se leería como "el documento es auténtico". Probado por
+la UI con la mutación `importe-pegado` (caso #48).
 
 **Qué bloquea:** nada del desarrollo. Mientras no se decida, el analista ve una exclusión o una
 prescripción como si las hubiera recomendado el modelo, y la auditoría dice lo mismo.

@@ -466,7 +466,7 @@ export class ExpedienteDetailComponent {
 
   /**
    * Los avisos: no deciden cobertura ni carril rápido, marcan algo para mirar antes de resolver
-   * (hoy, que la documentación narre otro hecho que el declarado). Van aparte y arriba de las
+   * (que la documentación narre otro hecho que el declarado, o señales de adulteración). Van aparte y arriba de las
    * reglas porque un "No cumple" entre ellas se leería como una exclusión que el motor no dictó.
    */
   protected readonly advisoryChecks = computed<RuleResult[]>(() =>
@@ -475,6 +475,11 @@ export class ExpedienteDetailComponent {
 
   protected readonly hasAdvisoryWarning = computed(() =>
     this.advisoryChecks().some((r) => r.result === 'FAIL'),
+  );
+
+  /** Which advisories warn, so the card's intro only mentions those. */
+  protected readonly advisoryWarningTypes = computed(
+    () => new Set(this.advisoryChecks().filter((r) => r.result === 'FAIL').map((r) => r.ruleType)),
   );
 
   /** Present both when the case took Fast Track (why) and when it didn't (which criterion failed). */

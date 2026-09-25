@@ -110,7 +110,14 @@ public enum RuleType {
      * path the LLM never runs, so this is the only check of the account against the declared cause.
      * It warns and never blocks.
      */
-    CLAIM_CAUSE_MATCH;
+    CLAIM_CAUSE_MATCH,
+
+    /**
+     * Advisory · the vision model noticed signs that a document may have been altered (a pasted
+     * amount, mixed typefaces). Only written when there are some: no signs is not evidence of
+     * authenticity, so there is never a PASS row. It warns and never blocks.
+     */
+    VISUAL_TAMPERING;
 
     /**
      * The hard rules {@code TemporalRuleEvaluator} evaluates. {@link #COVERAGE_EXCLUSION} is left
@@ -140,6 +147,6 @@ public enum RuleType {
      * them out of "which rules blocked the most cases", and the case detail shows them apart.
      */
     public static List<RuleType> advisoryRules() {
-        return List.of(CLAIM_CAUSE_MATCH);
+        return List.of(CLAIM_CAUSE_MATCH, VISUAL_TAMPERING);
     }
 }

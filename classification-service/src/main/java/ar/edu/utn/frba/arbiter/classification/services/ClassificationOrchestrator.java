@@ -55,6 +55,7 @@ public class ClassificationOrchestrator {
     private final CoverageRuleEvaluator coverageRuleEvaluator;
     private final CoverageScopeEvaluator coverageScopeEvaluator;
     private final ClaimCauseConsistencyEvaluator claimCauseConsistencyEvaluator;
+    private final VisualFindingsEvaluator visualFindingsEvaluator;
     private final TemporalRuleEvaluator temporalRuleEvaluator;
     private final FraudRecordRuleEvaluator fraudRecordRuleEvaluator;
     private final FastTrackValidator fastTrackValidator;
@@ -137,7 +138,7 @@ public class ClassificationOrchestrator {
                 claim.policyNumber(), claim.insuredId(), claim.branch(), claim.claimCause(), documents.size());
 
         Context ctx = fetchContext(claim);
-        Resolution resolution = resolveClassification(claim, documents, ctx);
+        Resolution resolution = withVisualWarnings(resolveClassification(claim, documents, ctx));
         return withRiskScore(resolution.response(), claim, ctx, null, resolution.extractions());
     }
 
@@ -148,7 +149,7 @@ public class ClassificationOrchestrator {
     public ClassificationResponse classify(Long caseId, ClaimReport claim, List<AttachmentDocument> documents) {
         Context ctx = fetchContext(claim);
         recordPolicySnapshot(caseId, claim, ctx);
-        Resolution resolution = resolveClassification(claim, documents, ctx);
+        Resolution resolution = withVisualWarnings(resolveClassification(claim, documents, ctx));
         recordDocumentExtractions(documents, resolution.extractions());
         ImageForensicReport forensic = resolution.documentationAnalyzed()
                 ? runImageFraudAnalysis(caseId, documents, Boolean.TRUE.equals(claim.imageConsent()))
@@ -628,6 +629,24 @@ public class ClassificationOrchestrator {
                 .confidence(1.0)
                 .deterministicFastTrack(false)
                 .build();
+    }
+
+    /**
+     * Applied once to whatever path resolved the case — Fast Track included, which is where signs of
+     * tampering used to go by unnoticed. Warns only: the classification is left as it was.
+     */
+    private Resolution withVisualWarnings(Resolution resolution) {
+        VisualFindingsEvaluator.Result visual = visualFindingsEvaluator.evaluate(resolution.extractions());
+        if (visual.findings().isEmpty()) {
+            return resolution;
+        }
+        ClassificationResponse response = resolution.response();
+        List<RuleFinding> findings = new ArrayList<>(
+                response.ruleFindings() == null ? List.of() : response.ruleFindings());
+        findings.addAll(visual.findings());
+        return new Resolution(
+                appendReasons(attachRuleFindings(response, findings), visual.reasons()),
+                resolution.documentationAnalyzed(), resolution.extractions());
     }
 
     private ClassificationResponse attachRuleFindings(ClassificationResponse response, List<RuleFinding> findings) {

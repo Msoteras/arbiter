@@ -164,8 +164,7 @@ public class FastTrackValidator {
                 }
                 // Not a block: the fast lane stays, the analyst is told what went unchecked.
                 if (!partial.isEmpty()) {
-                    reasons.add("Lectura incompleta de " + partial + ": sus datos no se pudieron comparar con"
-                            + " lo declarado — se sugiere revisión manual del analista");
+                    reasons.add("Lectura incompleta de " + partial + ": se sugiere revisión manual");
                 }
                 findings.add(finding(RuleType.FT_REQUIRED_DOCS, passed,
                         "required=" + required
