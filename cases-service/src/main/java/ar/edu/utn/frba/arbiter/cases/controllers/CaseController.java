@@ -6,6 +6,7 @@ import ar.edu.utn.frba.arbiter.cases.dto.AssignAnalystRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.AssignedCaseSummaryResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseActionResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseDocumentResponse;
+import ar.edu.utn.frba.arbiter.cases.dto.CaseFollowUp;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseScope;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseResponse;
@@ -188,6 +189,7 @@ public class CaseController {
             @RequestParam(defaultValue = "false") boolean fraudAlert,
             @RequestParam(defaultValue = "false") boolean assigned,
             @RequestParam(defaultValue = "false") boolean dueSoon,
+            @RequestParam(required = false) CaseFollowUp followUp,
             @RequestParam(required = false) Integer staleDays,
             @RequestParam(defaultValue = "ALL") CaseScope scope,
             @RequestParam(required = false) Long insurerId,
@@ -195,7 +197,7 @@ public class CaseController {
     ) {
         Page<CaseResponse> response = caseService.listCases(
                 status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
-                analystId, assignedToMe, unassigned, fraudAlert, assigned, dueSoon, staleDays, scope,
+                analystId, assignedToMe, unassigned, fraudAlert, assigned, dueSoon, followUp, staleDays, scope,
                 insurerId,
                 pageable);
         return ResponseEntity.ok(response);
@@ -292,11 +294,12 @@ public class CaseController {
             @RequestParam(required = false) String q,
             @RequestParam(required = false) RiskBand riskBand,
             @RequestParam(required = false) Long analystId,
+            @RequestParam(required = false) CaseFollowUp followUp,
             @RequestParam(defaultValue = "ALL") CaseScope scope
     ) {
         return ResponseEntity.ok(caseService.lensSummary(
                 status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
-                analystId, scope));
+                analystId, followUp, scope));
     }
 
     @GetMapping("/analysts/workload")

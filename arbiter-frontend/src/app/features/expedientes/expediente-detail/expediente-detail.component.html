@@ -53,15 +53,13 @@
             {{ classificationLabel() }}
           </p>
           @if (!isDeterministicOutcome()) {
-            <p class="note">
-              Confianza del modelo: {{ confidencePercent() }}%
-              @if (analysisReasons().length > 0) {
-                ·
+            @if (analysisReasons().length > 0) {
+              <p class="note">
                 <button type="button" class="brief-link" (click)="verMotivos(tabsNav)">
                   Ver motivos ({{ analysisReasons().length }})
                 </button>
-              }
-            </p>
+              </p>
+            }
           } @else if (needsDocs()) {
             <p class="note">Falta documentación obligatoria de la agenda del ramo.</p>
           } @else {
@@ -124,6 +122,15 @@
                 <p class="rcard-note">
                   Monto <strong>{{ montoExacto(s.settledAmount) }}</strong> · tope del ramo
                   {{ montoExacto(s.authorityLimit) }}
+                </p>
+              }
+              @if (derivacionesRespondidas().length > 0) {
+                <p class="rcard-note">
+                  @for (p of derivacionesRespondidas(); track p.id) {
+                    <app-badge variant="solid" [tone]="resultadoDerivacionTone(p)">
+                      {{ resultadoDerivacion(p) }}
+                    </app-badge>
+                  }
                 </p>
               }
               @if (canAuthorize()) {
@@ -570,6 +577,12 @@
                   message="El modelo no dejó razones"
                   sub="En Fast Track no se consulta al modelo; el score sale de los datos."
                 />
+              }
+              @if (classificationLabel() && !isDeterministicOutcome()) {
+                <p class="t-note">
+                  Confianza del modelo: {{ confidencePercent() }}% · Estimación del propio modelo,
+                  no una probabilidad de acierto.
+                </p>
               }
             </app-card>
 
@@ -1296,8 +1309,8 @@
 @if (derivacionHecha(); as p) {
   <app-modal [open]="true" heading="Derivación enviada" (close)="cerrarDerivacionHecha()">
     <p class="t-body">
-      El expediente <strong>#{{ derivacionHechaCaseId() }}</strong> fue derivado con éxito a
-      <strong>{{ p.expertName }}</strong
+      <strong>{{ p.expertName }}</strong> ya tiene el expediente
+      <strong>#{{ derivacionHechaCaseId() }}</strong
       >.
     </p>
     <p class="t-note">

@@ -4,6 +4,7 @@ import ar.edu.utn.frba.arbiter.cases.dto.AnalystDecisionRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.AnalystWorkloadResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.AssignedCaseSummaryResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseDocumentResponse;
+import ar.edu.utn.frba.arbiter.cases.dto.CaseFollowUp;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseScope;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseResponse;
@@ -428,8 +429,8 @@ public class CaseServiceImpl implements CaseService {
                                          String insuredId, LocalDate eventDateFrom, LocalDate eventDateTo,
                                          String q, RiskBand riskBand, Long analystId, boolean assignedToMe,
                                          boolean unassigned, boolean fraudAlert, boolean assigned,
-                                         boolean dueSoon, Integer staleDays, CaseScope scope, Long insurerId,
-                                         Pageable pageable) {
+                                         boolean dueSoon, CaseFollowUp followUp, Integer staleDays,
+                                         CaseScope scope, Long insurerId, Pageable pageable) {
         if (accessPolicy.currentUserIsInsured()) {
             // Across all of the insured's insurers; the inbox lenses don't apply to them.
             return toInsuredResponses(insuredCaseAggregator.findOwnCases(
@@ -451,6 +452,7 @@ public class CaseServiceImpl implements CaseService {
                 status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
                 ownerId, unassigned, fraudAlert, assigned), dueSoon), CaseSpecifications.scope(scope));
         spec = and(spec, withStale(staleDays));
+        spec = and(spec, CaseSpecifications.followUp(followUp));
         return toResponses(caseRepository.findAll(spec, pageable));
     }
 
@@ -482,13 +484,15 @@ public class CaseServiceImpl implements CaseService {
     @Override
     public LensSummaryResponse lensSummary(List<CaseStatus> status, String claimCause, String policyNumber,
                                             String insuredId, LocalDate eventDateFrom, LocalDate eventDateTo,
-                                            String q, RiskBand riskBand, Long analystId, CaseScope scope) {
+                                            String q, RiskBand riskBand, Long analystId, CaseFollowUp followUp,
+                                            CaseScope scope) {
         // analystId is the referent's filter and a referent has no analyst profile, so it never
         // coexists with a real "me" and both can share the same WHERE.
         Long me = currentAnalystId().orElse(null);
         Specification<Case> spec = and(CaseSpecifications.withFilters(
                 status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
                 analystId), CaseSpecifications.scope(scope));
+        spec = and(spec, CaseSpecifications.followUp(followUp));
 
         CaseLensCountRepository.LensCounts counts = caseRepository.countLenses(spec, me);
         return new LensSummaryResponse(

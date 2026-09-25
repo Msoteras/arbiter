@@ -4,6 +4,7 @@ import ar.edu.utn.frba.arbiter.cases.dto.AnalystDecisionRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.AnalystWorkloadResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.AssignedCaseSummaryResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseDocumentResponse;
+import ar.edu.utn.frba.arbiter.cases.dto.CaseFollowUp;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseScope;
 import ar.edu.utn.frba.arbiter.cases.dto.EligibilityCheckRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.IntakeDocumentsResponse;
@@ -70,20 +71,21 @@ public interface CaseService {
     Page<CaseResponse> listCases(List<CaseStatus> status, String claimCause, String policyNumber, String insuredId,
                                   LocalDate eventDateFrom, LocalDate eventDateTo, String q, RiskBand riskBand,
                                   Long analystId, boolean assignedToMe, boolean unassigned, boolean fraudAlert,
-                                  boolean assigned, boolean dueSoon, Integer staleDays, CaseScope scope,
-                                  Long insurerId, Pageable pageable);
+                                  boolean assigned, boolean dueSoon, CaseFollowUp followUp, Integer staleDays,
+                                  CaseScope scope, Long insurerId, Pageable pageable);
 
     default Page<CaseResponse> listCases(List<CaseStatus> status, String claimCause, String policyNumber, String insuredId,
                                           LocalDate eventDateFrom, LocalDate eventDateTo, String q, RiskBand riskBand,
                                           boolean assignedToMe, Pageable pageable) {
         return listCases(status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
-                null, assignedToMe, false, false, false, false, null, CaseScope.ALL, null, pageable);
+                null, assignedToMe, false, false, false, false, null, null, CaseScope.ALL, null, pageable);
     }
 
     /** All lens counts at once, over the same filters as the listing, using {@code count(spec)}. */
     LensSummaryResponse lensSummary(List<CaseStatus> status, String claimCause, String policyNumber,
                                      String insuredId, LocalDate eventDateFrom, LocalDate eventDateTo,
-                                     String q, RiskBand riskBand, Long analystId, CaseScope scope);
+                                     String q, RiskBand riskBand, Long analystId, CaseFollowUp followUp,
+                                     CaseScope scope);
 
     CaseResponse addDocumentsAndReclassify(Long caseId, Map<String, MultipartFile> documents);
 

@@ -1,11 +1,18 @@
 package ar.edu.utn.frba.arbiter.cases.models.repositories;
 
+import ar.edu.utn.frba.arbiter.cases.dto.CaseFollowUp;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseScope;
+import ar.edu.utn.frba.arbiter.cases.dto.ProviderType;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
+import ar.edu.utn.frba.arbiter.cases.models.entities.CaseSettlement;
+import ar.edu.utn.frba.arbiter.cases.models.entities.ExpertAssessment;
 import ar.edu.utn.frba.arbiter.cases.services.CaseStatusService;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 import ar.edu.utn.frba.arbiter.common.enums.RiskBand;
+import ar.edu.utn.frba.arbiter.common.enums.SettlementStatus;
 import jakarta.persistence.criteria.Predicate;
+import jakarta.persistence.criteria.Root;
+import jakarta.persistence.criteria.Subquery;
 import org.springframework.data.jpa.domain.Specification;
 
 import java.time.Instant;
@@ -79,6 +86,47 @@ public final class CaseSpecifications {
         return (root, query, cb) -> {
             Predicate closed = root.get("currentStatus").get("name").in(terminal);
             return scope == CaseScope.CLOSED ? closed : cb.not(closed);
+        };
+    }
+
+    public static Specification<Case> followUp(CaseFollowUp followUp) {
+        if (followUp == null) {
+            return null;
+        }
+        return switch (followUp) {
+            case EXPERT_REPORT_RECEIVED -> returnedFrom(ProviderType.ESTUDIO_LIQUIDADOR);
+            case REPAIR_REPORT_RECEIVED -> returnedFrom(ProviderType.SERVICIO_TECNICO);
+            case RETURNED_BY_REFERENT -> withSettlement(SettlementStatus.RETURNED);
+            case AWAITING_REFERENT -> withSettlement(SettlementStatus.PENDING_AUTHORIZATION);
+        };
+    }
+
+    private static Specification<Case> returnedFrom(ProviderType providerType) {
+        List<String> excluded = names(Stream.concat(
+                CaseStatusService.TERMINAL_STATUSES.stream(),
+                Stream.of(CaseStatus.PENDING_EXPERT_REPORT, CaseStatus.PENDING_REPAIR)));
+        return (root, query, cb) -> {
+            Subquery<Long> responded = query.subquery(Long.class);
+            Root<ExpertAssessment> assessment = responded.from(ExpertAssessment.class);
+            responded.select(assessment.get("id")).where(
+                    cb.equal(assessment.get("caseId"), root.get("id")),
+                    cb.equal(assessment.get("providerType"), providerType),
+                    cb.isNotNull(assessment.get("reportReceivedAt")));
+            return cb.and(cb.exists(responded),
+                    cb.not(root.get("currentStatus").get("name").in(excluded)));
+        };
+    }
+
+    private static Specification<Case> withSettlement(SettlementStatus status) {
+        List<String> closed = names(CaseStatusService.TERMINAL_STATUSES.stream());
+        return (root, query, cb) -> {
+            Subquery<Long> matching = query.subquery(Long.class);
+            Root<CaseSettlement> settlement = matching.from(CaseSettlement.class);
+            matching.select(settlement.get("id")).where(
+                    cb.equal(settlement.get("caseId"), root.get("id")),
+                    cb.equal(settlement.get("status"), status));
+            return cb.and(cb.exists(matching),
+                    cb.not(root.get("currentStatus").get("name").in(closed)));
         };
     }
 

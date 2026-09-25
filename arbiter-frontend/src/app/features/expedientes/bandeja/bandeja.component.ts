@@ -170,6 +170,7 @@ export class BandejaComponent {
   protected readonly analystFilter = signal('');
   protected readonly eventDateFrom = signal('');
   protected readonly eventDateTo = signal('');
+  protected readonly followUpFilter = signal('');
   protected readonly qDraft = signal('');
   protected readonly sortField = signal<SortField>('id');
   protected readonly sortDir = signal<SortDir>('desc');
@@ -191,6 +192,7 @@ export class BandejaComponent {
     eventDateFrom: this.eventDateFrom() || undefined,
     eventDateTo: this.eventDateTo() || undefined,
     q: this.qDebounced() || undefined,
+    followUp: (this.followUpFilter() || undefined) as ExpedienteListParams['followUp'],
     sort: `${this.sortField()},${this.sortDir()}`,
   }));
 
@@ -315,6 +317,7 @@ export class BandejaComponent {
         this.riskBandFilter() ||
         this.eventDateFrom() ||
         this.eventDateTo() ||
+        this.followUpFilter() ||
         this.qDebounced()
       ),
   );
@@ -355,6 +358,13 @@ export class BandejaComponent {
     { value: 'CRITICAL', label: 'Crítico' },
   ];
 
+  protected readonly followUpOptions: SelectOption[] = [
+    { value: 'EXPERT_REPORT_RECEIVED', label: 'Volvió del perito' },
+    { value: 'REPAIR_REPORT_RECEIVED', label: 'Volvió del servicio técnico' },
+    { value: 'RETURNED_BY_REFERENT', label: 'Devuelto por el referente' },
+    { value: 'AWAITING_REFERENT', label: 'Esperando al referente' },
+  ];
+
   protected readonly columns: ColumnDef[] = [
     { field: 'id', label: 'N°' },
     { field: 'status', label: 'Estado' },
@@ -389,6 +399,7 @@ export class BandejaComponent {
   protected readonly draftAnalyst = signal('');
   protected readonly draftDateFrom = signal('');
   protected readonly draftDateTo = signal('');
+  protected readonly draftFollowUp = signal('');
 
   protected openFilters(): void {
     this.draftStatus.set(this.statusFilter());
@@ -397,6 +408,7 @@ export class BandejaComponent {
     this.draftAnalyst.set(this.analystFilter());
     this.draftDateFrom.set(this.eventDateFrom());
     this.draftDateTo.set(this.eventDateTo());
+    this.draftFollowUp.set(this.followUpFilter());
     this.filtersOpen.set(true);
   }
   protected closeFilters(): void {
@@ -432,6 +444,7 @@ export class BandejaComponent {
     this.analystFilter.set(this.draftAnalyst());
     this.eventDateFrom.set(this.draftDateFrom());
     this.eventDateTo.set(this.draftDateTo());
+    this.followUpFilter.set(this.draftFollowUp());
     this.page.set(0);
     this.filtersOpen.set(false);
   }
@@ -442,6 +455,7 @@ export class BandejaComponent {
     this.draftAnalyst.set('');
     this.draftDateFrom.set('');
     this.draftDateTo.set('');
+    this.draftFollowUp.set('');
   }
 
   protected readonly activeFilterCount = computed(() => {
@@ -452,6 +466,7 @@ export class BandejaComponent {
     if (this.analystFilter()) n++;
     if (this.eventDateFrom()) n++;
     if (this.eventDateTo()) n++;
+    if (this.followUpFilter()) n++;
     return n;
   });
 
@@ -472,6 +487,8 @@ export class BandejaComponent {
       chips.push({ key: 'dateFrom', label: `Desde: ${this.formatDate(this.eventDateFrom())}` });
     if (this.eventDateTo())
       chips.push({ key: 'dateTo', label: `Hasta: ${this.formatDate(this.eventDateTo())}` });
+    if (this.followUpFilter())
+      chips.push({ key: 'followUp', label: this.followUpLabel(this.followUpFilter()) });
     return chips;
   });
 
@@ -495,8 +512,15 @@ export class BandejaComponent {
       case 'dateTo':
         this.eventDateTo.set('');
         break;
+      case 'followUp':
+        this.followUpFilter.set('');
+        break;
     }
     this.page.set(0);
+  }
+
+  private followUpLabel(value: string): string {
+    return this.followUpOptions.find((o) => o.value === value)?.label ?? value;
   }
 
   private analystName(id: string): string {
@@ -508,8 +532,10 @@ export class BandejaComponent {
     this.statusFilter.set('');
     this.claimCauseFilter.set('');
     this.riskBandFilter.set('');
+    this.analystFilter.set('');
     this.eventDateFrom.set('');
     this.eventDateTo.set('');
+    this.followUpFilter.set('');
     this.page.set(0);
   }
 
@@ -642,19 +668,6 @@ export class BandejaComponent {
   // ───────────────── Cell rendering ─────────────────
   protected estadoLabel(status: string): string {
     return estadoLabel(status);
-  }
-
-  /**
-   * Decided, but the amount exceeds the analyst's authority: waiting on the supervisor. The status
-   * deliberately stays unchanged so the insured doesn't see this internal step.
-   */
-  protected esperaFirma(c: ExpedienteResponse): boolean {
-    return c.settlementStatus === 'PENDING_AUTHORIZATION';
-  }
-
-  /** Returned by the supervisor, with a reason. */
-  protected devueltaPorReferente(c: ExpedienteResponse): boolean {
-    return c.settlementStatus === 'RETURNED';
   }
 
   protected estadoTone(status: string): StatusTone {

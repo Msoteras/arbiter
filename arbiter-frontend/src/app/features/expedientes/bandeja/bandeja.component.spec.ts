@@ -1,6 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, Router, UrlTree } from '@angular/router';
 import { of } from 'rxjs';
 
 import { BandejaComponent } from './bandeja.component';
@@ -20,7 +20,7 @@ describe('BandejaComponent · recorte en curso', () => {
 
   const emptyPage = { content: [], totalElements: 0, totalPages: 0, number: 0, size: 10 };
 
-  async function mount(rol = 'ANALISTA_SINIESTROS'): Promise<void> {
+  async function mount(rol = 'ANALISTA_SINIESTROS', content: unknown[] = []): Promise<void> {
     listCalls = [];
     lensCalls = [];
 
@@ -33,7 +33,12 @@ describe('BandejaComponent · recorte en curso', () => {
           useValue: {
             list: (params: ExpedienteListParams) => {
               listCalls.push(params);
-              return of(emptyPage);
+              return of({
+                ...emptyPage,
+                content,
+                totalElements: content.length,
+                totalPages: content.length ? 1 : 0,
+              });
             },
             lensSummary: (params: ExpedienteListParams) => {
               lensCalls.push(params);
@@ -57,7 +62,15 @@ describe('BandejaComponent · recorte en curso', () => {
           provide: AuthSessionService,
           useValue: { session: () => ({ rol, email: 'lucas@bbva.com' }) },
         },
-        { provide: Router, useValue: { navigate: () => Promise.resolve(true) } },
+        {
+          provide: Router,
+          useValue: {
+            navigate: () => Promise.resolve(true),
+            createUrlTree: () => new UrlTree(),
+            serializeUrl: () => '',
+            events: of(),
+          },
+        },
         { provide: ActivatedRoute, useValue: { queryParamMap: of(new Map()) } },
       ],
     }).compileComponents();
@@ -148,5 +161,78 @@ describe('BandejaComponent · recorte en curso', () => {
     expect(lastList().status).toBe('APPROVED');
     const active = fixture.nativeElement.querySelector('.lens-tab.active') as HTMLElement;
     expect(active.textContent?.trim()).toContain('Todos');
+  });
+
+  it('clearing all chips also drops the analyst filter', async () => {
+    await mount('REFERENTE_ASEGURADORA');
+    signalOf('draftAnalyst').set('7');
+    call('applyFilters');
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(lastList().analystId).toBe(7);
+
+    call('clearAllChips');
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    expect(lastList().analystId).toBeUndefined();
+  });
+
+  describe('follow-up filter', () => {
+    it('sends the follow-up to the list and the counts', async () => {
+      await mount();
+
+      signalOf('draftFollowUp').set('EXPERT_REPORT_RECEIVED');
+      call('applyFilters');
+      fixture.detectChanges();
+      await fixture.whenStable();
+
+      expect(lastList().followUp).toBe('EXPERT_REPORT_RECEIVED');
+      expect(lensCalls[lensCalls.length - 1].followUp).toBe('EXPERT_REPORT_RECEIVED');
+    });
+
+    it('shows the chosen follow-up as a chip and clearing all drops it', async () => {
+      await mount();
+      signalOf('draftFollowUp').set('RETURNED_BY_REFERENT');
+      call('applyFilters');
+      fixture.detectChanges();
+      await fixture.whenStable();
+
+      const chips = Array.from(fixture.nativeElement.querySelectorAll('.chip')) as HTMLElement[];
+      expect(chips.map((chip) => chip.textContent)).toContain(
+        jasmine.stringContaining('Devuelto por el referente'),
+      );
+
+      call('clearAllChips');
+      fixture.detectChanges();
+      await fixture.whenStable();
+
+      expect(lastList().followUp).toBeUndefined();
+    });
+
+    it('keeps only the status in the row, even when the referent returned the case', async () => {
+      await mount('ANALISTA_SINIESTROS', [
+        {
+          id: 43,
+          status: 'PENDING_ANALYST_REVIEW',
+          insuredName: 'Julián Pérez',
+          claimCause: 'Robo en vía pública',
+          eventDate: '2026-09-20T19:25:00',
+          claimedAmount: 900000,
+          analysisClassification: 'LLM_NO_RECOMIENDA_APROBAR',
+          assignedAnalystId: null,
+          assignedAnalystName: null,
+          responseDeadline: '2026-10-24',
+          deadlinePriority: 'NONE',
+          riskBand: 'MEDIUM',
+          riskScore: 0.43,
+          settlementStatus: 'RETURNED',
+        },
+      ]);
+
+      const statusCell: HTMLElement = fixture.nativeElement.querySelector('tbody td:nth-child(2)');
+      expect(statusCell.querySelectorAll('.badge').length).toBe(1);
+      expect(statusCell.textContent?.trim()).toBe('Pendiente de revisión');
+    });
   });
 });
