@@ -58,7 +58,7 @@
             <p class="note">Falta documentación obligatoria de la agenda del ramo.</p>
           } @else {
             <p class="note">
-              Cumplió los criterios objetivos del carril rápido.
+              Cumplió los criterios objetivos de Fast Track.
               <app-info-tip>
                 Fast Track es la vía express para un siniestro que cumple ciertos criterios
                 objetivos. No es una recomendación de aprobar: la decisión sigue siendo del
@@ -894,6 +894,7 @@
             [branch]="d.branch"
             [claimCause]="d.claimCause"
             [extractions]="documentAnalyses()"
+            [showMissingReadings]="d.status !== 'PENDING_CLASSIFICATION'"
           />
         }
         @case ('imagenes') {

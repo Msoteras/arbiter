@@ -48,7 +48,14 @@ export interface DocumentAnalysis {
    * it is displayed as-is and never compared.
    */
   details: ExtractedDetail[];
+  /**
+   * Whether the read itself worked. Only when `COMPLETE` does an empty field mean "the document
+   * does not say": `PARTIAL` kept the transcription alone, `FAILED` read nothing.
+   */
+  extractionStatus: ExtractionStatus;
 }
+
+export type ExtractionStatus = 'COMPLETE' | 'PARTIAL' | 'FAILED';
 
 export interface ExtractedDetail {
   name: string;

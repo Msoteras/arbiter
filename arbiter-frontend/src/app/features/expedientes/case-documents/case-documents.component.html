@@ -47,6 +47,13 @@
                   {{ formatLabel(row.doc.contentType) }} · {{ fileSize(row.doc.sizeBytes) }} ·
                   {{ uploadedAt(row.doc.uploadedAt) }}
                 </span>
+                @if (row.readIssue) {
+                  <span class="doc-read-issue">
+                    <app-badge variant="solid" tone="warning">
+                      {{ row.readIssue === 'FAILED' ? 'No se pudo leer' : 'Lectura incompleta' }}
+                    </app-badge>
+                  </span>
+                }
               </button>
             } @else {
               <div class="doc-btn is-missing">
@@ -111,7 +118,26 @@
       <!-- An empty field is "No aplica", never a mismatch: a document omitting something doesn't contradict it. -->
       @if (selectedExtraction(); as extraction) {
         <app-card class="docs-extraction" heading="Lo que el modelo leyó" [collapsible]="true">
-          @if (!selectedIsImage()) {
+          <!-- A broken read leaves every field empty, which would render as a column of "No aplica"
+               — the same as a document that states nothing. Say what happened instead. -->
+          @if (extraction.extractionStatus === 'FAILED') {
+            <div class="read-issue" role="status">
+              <p class="t-body">No se pudo leer este documento.</p>
+              <p class="t-note">
+                Ninguna regla lo pudo comparar con lo declarado (marca, IMEI, importe, hecho
+                generador, damnificado). Revisalo en la vista previa.
+              </p>
+            </div>
+          } @else if (extraction.extractionStatus === 'PARTIAL') {
+            <div class="read-issue" role="status">
+              <p class="t-body">La lectura quedó incompleta.</p>
+              <p class="t-note">
+                Se transcribió el texto, pero no se llegaron a extraer sus datos: ninguna regla lo
+                pudo comparar con lo declarado (marca, IMEI, importe, hecho generador,
+                damnificado). Revisá la transcripción o la vista previa.
+              </p>
+            </div>
+          } @else if (!selectedIsImage()) {
             <dl class="fields">
               @for (f of extractedFields(extraction); track f.label) {
                 <div class="field">
@@ -142,8 +168,10 @@
             </div>
           }
 
-          @if (extraction.transcription) {
-            <details class="transcription">
+          <!-- On FAILED the transcription is only the "couldn't read" placeholder the notice already says. -->
+          @if (extraction.transcription && extraction.extractionStatus !== 'FAILED') {
+            <!-- Open on PARTIAL: it's all that was read, and the notice points to it. -->
+            <details class="transcription" [open]="extraction.extractionStatus === 'PARTIAL'">
               <summary class="t-field-label">Ver lo que se leyó del documento</summary>
               <p class="t-body">{{ extraction.transcription }}</p>
             </details>
@@ -151,10 +179,13 @@
         </app-card>
       } @else if (selectedNotAnalyzed()) {
         <app-card class="docs-extraction" heading="Lo que el modelo leyó">
-          <p class="t-note">
-            Este documento no entró en el análisis: se cargó después de que el expediente se
-            clasificara.
-          </p>
+          <div class="read-issue" role="status">
+            <p class="t-body">No hay lectura del modelo para este documento.</p>
+            <p class="t-note">
+              Ninguna regla lo comparó con lo declarado (marca, IMEI, importe, hecho generador,
+              damnificado). Podés analizarlo igual: abrí la vista previa y revisalo a mano.
+            </p>
+          </div>
         </app-card>
       }
     </div>
