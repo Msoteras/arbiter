@@ -43,7 +43,7 @@ public class CaseDocumentAnalysisRepository {
     private List<DocumentAnalysisSummary> query(NamedParameterJdbcTemplate jdbcTemplate, Long caseId) {
         List<Row> rows = jdbcTemplate.query("""
                 SELECT a.id, a.transcription, a.document_date, a.amount, a.item_description,
-                       a.brand, a.model, a.imei, a.affected_party, d.type
+                       a.brand, a.model, a.imei, a.affected_party, a.extraction_status, d.type
                   FROM document_analysis a
                   JOIN case_documents d ON d.id = a.case_document_id
                  WHERE d.case_id = :caseId
@@ -60,7 +60,8 @@ public class CaseDocumentAnalysisRepository {
                     rs.getString("brand"),
                     rs.getString("model"),
                     rs.getString("imei"),
-                    rs.getString("affected_party"));
+                    rs.getString("affected_party"),
+                    rs.getString("extraction_status"));
         });
 
         if (rows.isEmpty()) {
@@ -84,7 +85,8 @@ public class CaseDocumentAnalysisRepository {
                         row.imei(),
                         row.affectedParty(),
                         findingsByAnalysis.getOrDefault(row.analysisId(), List.of()),
-                        detailsByAnalysis.getOrDefault(row.analysisId(), List.of())))
+                        detailsByAnalysis.getOrDefault(row.analysisId(), List.of()),
+                        row.extractionStatus()))
                 .toList();
     }
 
@@ -130,7 +132,8 @@ public class CaseDocumentAnalysisRepository {
             String brand,
             String model,
             String imei,
-            String affectedParty
+            String affectedParty,
+            String extractionStatus
     ) {
     }
 }

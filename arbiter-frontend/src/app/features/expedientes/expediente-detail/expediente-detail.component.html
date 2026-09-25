@@ -53,12 +53,18 @@
             {{ classificationLabel() }}
           </p>
           @if (!isDeterministicOutcome()) {
-            <p class="note">Confianza del modelo: {{ confidencePercent() }}%</p>
+            @if (analysisReasons().length > 0) {
+              <p class="note">
+                <button type="button" class="brief-link" (click)="verMotivos(tabsNav)">
+                  Ver motivos ({{ analysisReasons().length }})
+                </button>
+              </p>
+            }
           } @else if (needsDocs()) {
             <p class="note">Falta documentación obligatoria de la agenda del ramo.</p>
           } @else {
             <p class="note">
-              Cumplió los criterios objetivos del carril rápido.
+              Cumplió los criterios objetivos de Fast Track.
               <app-info-tip>
                 Fast Track es la vía express para un siniestro que cumple ciertos criterios
                 objetivos. No es una recomendación de aprobar: la decisión sigue siendo del
@@ -116,6 +122,15 @@
                 <p class="rcard-note">
                   Monto <strong>{{ montoExacto(s.settledAmount) }}</strong> · tope del ramo
                   {{ montoExacto(s.authorityLimit) }}
+                </p>
+              }
+              @if (derivacionesRespondidas().length > 0) {
+                <p class="rcard-note">
+                  @for (p of derivacionesRespondidas(); track p.id) {
+                    <app-badge variant="solid" [tone]="resultadoDerivacionTone(p)">
+                      {{ resultadoDerivacion(p) }}
+                    </app-badge>
+                  }
                 </p>
               }
               @if (canAuthorize()) {
@@ -306,7 +321,7 @@
       </div>
     }
 
-    <nav class="tabs" role="tablist">
+    <nav class="tabs" role="tablist" #tabsNav>
       @for (t of tabs(); track t.id) {
         <button
           role="tab"
@@ -562,6 +577,12 @@
                   message="El modelo no dejó razones"
                   sub="En Fast Track no se consulta al modelo; el score sale de los datos."
                 />
+              }
+              @if (classificationLabel() && !isDeterministicOutcome()) {
+                <p class="t-note">
+                  Confianza del modelo: {{ confidencePercent() }}% · Estimación del propio modelo,
+                  no una probabilidad de acierto.
+                </p>
               }
             </app-card>
 
@@ -894,6 +915,7 @@
             [branch]="d.branch"
             [claimCause]="d.claimCause"
             [extractions]="documentAnalyses()"
+            [showMissingReadings]="d.status !== 'PENDING_CLASSIFICATION'"
           />
         }
         @case ('imagenes') {
@@ -1288,8 +1310,8 @@
 @if (derivacionHecha(); as p) {
   <app-modal [open]="true" heading="Derivación enviada" (close)="cerrarDerivacionHecha()">
     <p class="t-body">
-      El expediente <strong>#{{ derivacionHechaCaseId() }}</strong> fue derivado con éxito a
-      <strong>{{ p.expertName }}</strong
+      <strong>{{ p.expertName }}</strong> ya tiene el expediente
+      <strong>#{{ derivacionHechaCaseId() }}</strong
       >.
     </p>
     <p class="t-note">

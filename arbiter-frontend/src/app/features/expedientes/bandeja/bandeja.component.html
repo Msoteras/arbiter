@@ -280,6 +280,16 @@
                   (valueChange)="draftDateTo.set($event)"
                 />
               </label>
+
+              <label class="filter-field">
+                <span class="t-field-label">Seguimiento</span>
+                <app-select
+                  [value]="draftFollowUp()"
+                  (valueChange)="draftFollowUp.set($event)"
+                  [options]="followUpOptions"
+                  placeholder="Todos"
+                />
+              </label>
             </div>
 
             <div class="filters-pop-foot">
@@ -370,18 +380,6 @@
                   </td>
                   <td>
                     <app-badge [tone]="estadoTone(c.status)">{{ estadoLabel(c.status) }}</app-badge>
-                    <!-- The status stays PENDING_ANALYST_REVIEW on purpose (the insured shouldn't
-                         see internal steps), so the analyst needs this to tell apart cases already
-                         sent for sign-off. -->
-                    @if (esperaFirma(c)) {
-                      <br />
-                      <span class="t-note">Esperando al referente</span>
-                    } @else if (devueltaPorReferente(c)) {
-                      <br />
-                      <app-badge variant="solid" tone="warning"
-                        >Devuelto por el referente</app-badge
-                      >
-                    }
                   </td>
                   <td>
                     @if (deadlinePrioritized(c)) {

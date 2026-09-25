@@ -1,6 +1,7 @@
 package ar.edu.utn.frba.arbiter.classification.services;
 
 import ar.edu.utn.frba.arbiter.common.dto.ClaimReport;
+import ar.edu.utn.frba.arbiter.classification.dto.DocumentExtraction;
 import ar.edu.utn.frba.arbiter.classification.dto.InsuredHistory;
 import ar.edu.utn.frba.arbiter.classification.dto.InsuredPolicy;
 import ar.edu.utn.frba.arbiter.classification.dto.BusinessRules;
@@ -238,7 +239,7 @@ class FastTrackValidatorTest {
 
         FastTrackValidator.Result result = validator.evaluate(
                 claim(new BigDecimal("100000")), policy(), history(0), rules,
-                Map.of("police_report", "texto de la denuncia"));
+                Map.of("police_report", DocumentExtraction.of("texto de la denuncia")));
 
         assertThat(result.fastTrack()).isTrue();
         assertThat(result.findings()).extracting(RuleFinding::ruleType).containsExactlyInAnyOrder(
@@ -291,6 +292,48 @@ class FastTrackValidatorTest {
 
         assertThat(result.findings()).isEmpty();
         assertThat(result.reasons()).anyMatch(r -> r.contains("ya verificada previamente"));
+    }
+
+    /** A document nobody could read is not verified paperwork: it costs the fast lane. */
+    @Test
+    void anUnreadableRequiredDocument_blocksFastTrack() {
+        BusinessRules rules = requiresPoliceReport();
+
+        FastTrackValidator.Result result = validator.evaluate(
+                claim(new BigDecimal("1000")), policy(), history(0), rules,
+                Map.of("police_report", DocumentExtraction.failed("No se pudo extraer contenido del documento adjunto.")));
+
+        assertThat(result.fastTrack()).isFalse();
+        assertThat(result.reasons()).anyMatch(r -> r.contains("No se pudo leer documentación requerida"));
+        assertThat(result.findings()).singleElement().satisfies(finding -> {
+            assertThat(finding.passed()).isFalse();
+            assertThat(finding.evaluatedValue()).contains("unreadable=police_report");
+        });
+    }
+
+    /** Half a read keeps the fast lane, but the analyst is told what went unchecked. */
+    @Test
+    void aPartiallyReadRequiredDocument_passesSuggestingManualReview() {
+        BusinessRules rules = requiresPoliceReport();
+
+        FastTrackValidator.Result result = validator.evaluate(
+                claim(new BigDecimal("1000")), policy(), history(0), rules,
+                Map.of("police_report", DocumentExtraction.partial("ACTA DE DENUNCIA…")));
+
+        assertThat(result.fastTrack()).isTrue();
+        assertThat(result.reasons()).anyMatch(r -> r.contains("se sugiere revisión manual del analista"));
+        assertThat(result.findings()).singleElement().satisfies(finding -> {
+            assertThat(finding.passed()).isTrue();
+            assertThat(finding.evaluatedValue()).contains("partial=police_report");
+        });
+    }
+
+    private BusinessRules requiresPoliceReport() {
+        return baseRules()
+                .fastTrackThresholds(BusinessRules.FastTrackThresholds.builder()
+                        .requiredDocumentTypes(List.of("police_report"))
+                        .build())
+                .build();
     }
 
     /** Neither does a gate that never got to compare anything. */

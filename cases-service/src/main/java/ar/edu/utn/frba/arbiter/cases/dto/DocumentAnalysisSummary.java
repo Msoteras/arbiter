@@ -8,8 +8,10 @@ import java.util.List;
  * What the model read out of one attachment (written by classification-service). A null field means
  * "the document doesn't say it", never "it doesn't match". Detail view only, never the inbox listing.
  *
- * @param visualFindings empty is normal, and is not evidence that the document is authentic
- * @param details        display-only fields no rule reads
+ * @param visualFindings   empty is normal, and is not evidence that the document is authentic
+ * @param details          display-only fields no rule reads
+ * @param extractionStatus {@code COMPLETE}, {@code PARTIAL} (only the transcription survived) or
+ *                         {@code FAILED}; empty fields only mean "not stated" when COMPLETE
  */
 public record DocumentAnalysisSummary(
         String documentType,
@@ -22,7 +24,8 @@ public record DocumentAnalysisSummary(
         String imei,
         String affectedParty,
         List<String> visualFindings,
-        List<Detail> details
+        List<Detail> details,
+        String extractionStatus
 ) {
 
     /** The name is the model's wording, not an identifier: nothing branches on it. */

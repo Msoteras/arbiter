@@ -1,3 +1,4 @@
+import { Component } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 
 import { SelectComponent, SelectOption } from './select.component';
@@ -279,5 +280,35 @@ describe('SelectComponent · searchable', () => {
       expect(isOpen()).toBeFalse();
       expect(errorMessage()).toBeNull();
     });
+  });
+});
+
+@Component({
+  imports: [SelectComponent],
+  template: `<label>Risk <app-select [options]="options" [(value)]="value" /></label>`,
+})
+class LabelHostComponent {
+  options: SelectOption[] = [
+    { value: 'LOW', label: 'Bajo' },
+    { value: 'HIGH', label: 'Alto' },
+    { value: 'CRITICAL', label: 'Crítico' },
+  ];
+  value = '';
+}
+
+describe('SelectComponent · inside a label', () => {
+  it('stays closed after picking an option', async () => {
+    await TestBed.configureTestingModule({ imports: [LabelHostComponent] }).compileComponents();
+    const fixture = TestBed.createComponent(LabelHostComponent);
+    fixture.detectChanges();
+
+    (fixture.nativeElement.querySelector('.trigger') as HTMLElement).click();
+    fixture.detectChanges();
+    const options = fixture.nativeElement.querySelectorAll('.option');
+    (options[options.length - 1] as HTMLElement).click();
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.value).toBe('CRITICAL');
+    expect(fixture.nativeElement.querySelector('.panel')).toBeNull();
   });
 });
