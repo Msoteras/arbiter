@@ -16,17 +16,17 @@ import java.util.List;
  * @param branchId        null for a rule scoped to the whole insurer (Hard Stop, fraud record,
  *                        scoring); the view filters by it, the referente reads {@code branchName}
  * @param coverageName    null for anything not scoped to one coverage
+ * @param changedAt       when the change was saved; for a {@code CREATED} entry, when the rule's
+ *                        first version took effect
  * @param previousValidFrom  when the replaced version had started being in force — with
- *                        {@code changedAt} it gives how long it lasted
- * @param changes         empty when the two versions are identical, which shouldn't happen but is
- *                        recorded honestly rather than hidden
- * @param current         whether the version this change introduced is still the one in force
+ *                        {@code changedAt} it gives how long it lasted; null on {@code CREATED}
+ * @param changes         never empty on {@code UPDATED} (saves that changed nothing aren't
+ *                        entries); always empty on {@code CREATED}
+ * @param current         whether this entry produced the version in force today: the newest one
+ *                        of its rule
  * @param author          who made the change: the referente's name, or the email recorded in
  *                        {@code reason} when there is no profile to name them by; null if the
- *                        reason names nobody
- * @param partial         whether the stored version lacks the rule's on/off state, so
- *                        {@code changes} only covers the parameters: an empty list then means
- *                        "not recorded", not "nothing changed"
+ *                        reason names nobody, and on {@code CREATED}, whose author isn't stored
  */
 public record RuleChangeEntry(
         String id,
@@ -42,6 +42,6 @@ public record RuleChangeEntry(
         String reason,
         List<RuleFieldChange> changes,
         boolean current,
-        boolean partial,
+        RuleChangeKind kind,
         String author) {
 }

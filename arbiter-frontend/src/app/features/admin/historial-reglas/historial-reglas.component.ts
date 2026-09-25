@@ -2,6 +2,8 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { finalize } from 'rxjs';
 
+import { documentTypeLabel, riskFactorLabel } from '../../../core/models/business-rules';
+import { RISK_BANDS, RiskBand, riskBandLabel } from '../../../core/models/risk-band';
 import { formatDateTime } from '../../../core/util/datetime';
 import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
@@ -14,12 +16,59 @@ import { SelectComponent, SelectOption } from '../../../shared/ui/select/select.
 import { BranchOption, BranchesService } from '../branches.service';
 import {
   RULE_FIELD_LABELS,
+  RULE_FIELD_LABELS_BY_TYPE,
   RULE_TYPE_LABELS,
+  RULE_VALUE_LABELS,
   RuleChangeEntry,
   RuleFieldChange,
   RuleHistoryService,
 } from '../rule-history.service';
 import { fadeInUp } from '../../../shared/animations';
+
+/** Must match rules-service `RuleChangeHistoryService.LIST_SEPARATOR`. */
+const LIST_SEPARATOR = ' · ';
+
+/**
+ * Fields the backend serializes as a joined list. Diffed item by item: striking the whole old list
+ * and repeating the whole new one leaves the referente comparing two sentences by eye.
+ */
+const LIST_FIELDS = new Set([
+  'criteria',
+  'exclusions',
+  'businessRules',
+  'requiredDocumentTypes',
+  'excludedClaimCauseIds',
+  'includedClaimCauseIds',
+  'claimCauseIds',
+  'configuration',
+]);
+
+/** Fractions the configuration screens edit as percentages: Fast Track cap, factor weight, band cut. */
+const PERCENT_FIELDS = new Set(['maxClaimedAmountRatio', 'weight', 'minScoreInclusive']);
+
+/** Keys that identify a list element; the element is already named by the row's qualifier. */
+const IDENTITY_FIELDS = new Set(['factorId', 'band']);
+
+interface ValueChange {
+  kind: 'value';
+  label: string;
+  qualifier: string | null;
+  previous: string;
+  next: string;
+}
+
+/** Also used for a scalar present on one side only: it was added or removed, not changed. */
+interface ListChange {
+  kind: 'list';
+  label: string;
+  qualifier: string | null;
+  removed: string[];
+  added: string[];
+  /** Items present on both sides, counted rather than repeated. */
+  kept: number;
+}
+
+type FieldChange = ValueChange | ListChange;
 
 interface HistoryRow {
   entry: RuleChangeEntry;
@@ -27,8 +76,7 @@ interface HistoryRow {
   author: string | null;
   scope: string | null;
   changedAt: string;
-  heldSince: string;
-  fields: { label: string; qualifier: string | null; previous: string; next: string }[];
+  fields: FieldChange[];
 }
 
 /**
@@ -158,18 +206,58 @@ export class HistorialReglasComponent {
       author: entry.author,
       scope: this.scopeOf(entry),
       changedAt: formatDateTime(entry.changedAt),
-      heldSince: formatDateTime(entry.previousValidFrom),
-      fields: entry.changes.map((change) => {
-        const base = this.baseField(change.field);
-        return {
-          // Unlabeled fields fall back to the last path segment; the factor code is the qualifier.
-          label: RULE_FIELD_LABELS[base] ?? base,
-          qualifier: this.qualifierOf(change),
-          previous: this.renderValue(change.previousValue, base),
-          next: this.renderValue(change.newValue, base),
-        };
-      }),
+      fields: entry.changes
+        // The element's own key (`factors[fraud_history].factorId`) repeats the qualifier.
+        .filter((change) => !IDENTITY_FIELDS.has(this.baseField(change.field)))
+        .map((change) => this.toField(change, entry.ruleType)),
     };
+  }
+
+  private toField(change: RuleFieldChange, ruleType: string): FieldChange {
+    const base = this.baseField(change.field);
+    // Unlabeled fields fall back to the last path segment; the factor code is the qualifier.
+    const label = RULE_FIELD_LABELS_BY_TYPE[ruleType]?.[base] ?? RULE_FIELD_LABELS[base] ?? base;
+    const qualifier = this.qualifierOf(change);
+    if (LIST_FIELDS.has(base)) {
+      const before = this.splitList(change.previousValue, base);
+      const after = this.splitList(change.newValue, base);
+      const removed = before.filter((item) => !after.includes(item));
+      const added = after.filter((item) => !before.includes(item));
+      // A pure reorder has nothing to list as added or removed: show it as a plain before/after.
+      if (removed.length > 0 || added.length > 0) {
+        const kept = after.length - added.length;
+        return { kind: 'list', label, qualifier, removed, added, kept };
+      }
+    }
+    // A side with no value means the field didn't exist there (a factor or option added to the
+    // rule later, or removed): said as "Se agregó" / "Se quitó", like the list items.
+    const absent = (value: string | null) => value === null || value === '';
+    if (absent(change.previousValue) !== absent(change.newValue)) {
+      const value = absent(change.previousValue)
+        ? this.renderValue(change.newValue, base)
+        : this.renderValue(change.previousValue, base);
+      return absent(change.previousValue)
+        ? { kind: 'list', label, qualifier, removed: [], added: [value], kept: 0 }
+        : { kind: 'list', label, qualifier, removed: [value], added: [], kept: 0 };
+    }
+    return {
+      kind: 'value',
+      label,
+      qualifier,
+      previous: this.renderValue(change.previousValue, base),
+      next: this.renderValue(change.newValue, base),
+    };
+  }
+
+  private splitList(value: string | null, field: string): string[] {
+    if (value === null || value.trim() === '') {
+      return [];
+    }
+    return value
+      .split(LIST_SEPARATOR)
+      .map((item) => item.trim())
+      .filter((item) => item !== '')
+      .map((item) => (field === 'requiredDocumentTypes' ? documentTypeLabel(item) : item));
   }
 
   /** Insurer-wide scope is stated explicitly so an empty scope isn't read as missing data. */
@@ -190,29 +278,39 @@ export class HistorialReglasComponent {
     return last.replace(/\[.*\]$/, '');
   }
 
-  /** Bracketed suffix of a list field, if any (factor code, band). */
+  /** Bracketed suffix of a list field (factor code or band), by its label. */
   private qualifierOf(change: RuleFieldChange): string | null {
     const match = /\[([^\]]+)\]/.exec(change.field);
-    return match ? match[1] : null;
+    if (!match) {
+      return null;
+    }
+    const key = match[1];
+    return RISK_BANDS.includes(key as RiskBand)
+      ? riskBandLabel(key as RiskBand)
+      : riskFactorLabel(key);
   }
 
   private renderValue(value: string | null, field: string): string {
     if (value === null || value === '') {
       return '—';
     }
-    // Stored as fractions (0..1); the configuration screens show them on a 0..100 scale.
+    // Stored as fractions (0..1); the configuration screens show them as percentages.
     const n = Number(value);
-    if (field === 'maxClaimedAmountRatio' && Number.isFinite(n)) {
+    if (PERCENT_FIELDS.has(field) && Number.isFinite(n)) {
       return `${Math.round(n * 1000) / 10}%`;
-    }
-    if (field === 'minScoreInclusive' && Number.isFinite(n)) {
-      return String(Math.round(n * 100));
     }
     if (value === 'true') {
       return 'Sí';
     }
     if (value === 'false') {
       return 'No';
+    }
+    const enumLabel = RULE_VALUE_LABELS[field]?.[value];
+    if (enumLabel) {
+      return enumLabel;
+    }
+    if (field === 'requiredDocumentTypes') {
+      return value.split(LIST_SEPARATOR).map(documentTypeLabel).join(LIST_SEPARATOR);
     }
     return value;
   }
