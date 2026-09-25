@@ -70,7 +70,7 @@ class AnalystDecisionTest {
     void recordAnalystDecision_returnsTheIdOfThePersistedDecision() {
         // cases-service stores this id on cases.classification_id: it's the audit link.
         Long caseId = 42L;
-        when(llmAnalysisRepository.findFirstByCaseIdOrderByIdDesc(caseId))
+        when(llmAnalysisRepository.findLatestByCaseId(caseId))
                 .thenReturn(Optional.of(analysis(caseId, Classification.LLM_RECOMIENDA_APROBAR)));
 
         Long classificationId = resultsService.recordAnalystDecision(
@@ -82,7 +82,7 @@ class AnalystDecisionTest {
     @Test
     void recordAnalystDecision_freezesTheAttemptCounterOntoTheAuditRow() {
         Long caseId = 42L;
-        when(llmAnalysisRepository.findFirstByCaseIdOrderByIdDesc(caseId))
+        when(llmAnalysisRepository.findLatestByCaseId(caseId))
                 .thenReturn(Optional.of(analysis(caseId, Classification.LLM_RECOMIENDA_APROBAR)));
 
         resultsService.recordAnalystDecision(caseId, new AnalystDecisionRequest(1L, "APROBAR", null, 4));
@@ -94,7 +94,7 @@ class AnalystDecisionTest {
     void recordAnalystDecision_withoutAnAttemptCount_defaultsToZero() {
         // The column is NOT NULL but the request field is optional.
         Long caseId = 42L;
-        when(llmAnalysisRepository.findFirstByCaseIdOrderByIdDesc(caseId))
+        when(llmAnalysisRepository.findLatestByCaseId(caseId))
                 .thenReturn(Optional.of(analysis(caseId, Classification.LLM_RECOMIENDA_APROBAR)));
 
         resultsService.recordAnalystDecision(caseId, new AnalystDecisionRequest(1L, "APROBAR", null, null));
@@ -106,7 +106,7 @@ class AnalystDecisionTest {
     void recordAnalystDecision_linksToTheAnalysisInsteadOfCopyingIt() {
         Long caseId = 42L;
         LlmAnalysis analysis = analysis(caseId, Classification.LLM_RECOMIENDA_APROBAR);
-        when(llmAnalysisRepository.findFirstByCaseIdOrderByIdDesc(caseId)).thenReturn(Optional.of(analysis));
+        when(llmAnalysisRepository.findLatestByCaseId(caseId)).thenReturn(Optional.of(analysis));
 
         resultsService.recordAnalystDecision(caseId,
                 new AnalystDecisionRequest(1L, "APROBAR", "Documentación completa y consistente", null));
@@ -124,7 +124,7 @@ class AnalystDecisionTest {
     @Test
     void recordAnalystDecision_rejectNormalization() {
         Long caseId = 7L;
-        when(llmAnalysisRepository.findFirstByCaseIdOrderByIdDesc(caseId))
+        when(llmAnalysisRepository.findLatestByCaseId(caseId))
                 .thenReturn(Optional.of(analysis(caseId, Classification.LLM_NO_RECOMIENDA_APROBAR)));
 
         resultsService.recordAnalystDecision(caseId, new AnalystDecisionRequest(2L, "RECHAZAR", null, null));
@@ -136,7 +136,7 @@ class AnalystDecisionTest {
     void recordAnalystDecision_leavesTheAnalysisUntouched() {
         Long caseId = 42L;
         LlmAnalysis analysis = analysis(caseId, Classification.LLM_RECOMIENDA_APROBAR);
-        when(llmAnalysisRepository.findFirstByCaseIdOrderByIdDesc(caseId)).thenReturn(Optional.of(analysis));
+        when(llmAnalysisRepository.findLatestByCaseId(caseId)).thenReturn(Optional.of(analysis));
 
         resultsService.recordAnalystDecision(caseId, new AnalystDecisionRequest(1L, "APPROVE", null, null));
 
@@ -149,7 +149,7 @@ class AnalystDecisionTest {
     @Test
     void recordAnalystDecision_onAFastTrackedCase_savesWithoutAnAnalysis() {
         Long caseId = 5L;
-        when(llmAnalysisRepository.findFirstByCaseIdOrderByIdDesc(caseId)).thenReturn(Optional.empty());
+        when(llmAnalysisRepository.findLatestByCaseId(caseId)).thenReturn(Optional.empty());
         when(caseOutcomeRepository.findOutcome(caseId))
                 .thenReturn(new CaseOutcomeRepository.CaseOutcome(true, null, "Martina Soteras"));
 
@@ -164,7 +164,7 @@ class AnalystDecisionTest {
     @Test
     void recordAnalystDecision_throwsWhenTheCaseWasNeverClassified() {
         Long caseId = 99L;
-        when(llmAnalysisRepository.findFirstByCaseIdOrderByIdDesc(caseId)).thenReturn(Optional.empty());
+        when(llmAnalysisRepository.findLatestByCaseId(caseId)).thenReturn(Optional.empty());
         when(caseOutcomeRepository.findOutcome(caseId))
                 .thenReturn(new CaseOutcomeRepository.CaseOutcome(false, null, null));
 

@@ -167,7 +167,7 @@ public class ClassificationResultsService {
      */
     @Transactional
     public ClaimResponse getStatus(Long caseId) {
-        Optional<LlmAnalysis> analysis = llmAnalysisRepository.findFirstByCaseIdOrderByIdDesc(caseId);
+        Optional<LlmAnalysis> analysis = llmAnalysisRepository.findLatestByCaseId(caseId);
         Optional<RiskAnalysis> risk = riskAnalysisRepository.findFirstByCaseIdOrderByIdDesc(caseId);
         CaseOutcomeRepository.CaseOutcome outcome = caseOutcomeRepository.findOutcome(caseId);
 
@@ -210,7 +210,7 @@ public class ClassificationResultsService {
     @Transactional
     public Long recordAnalystDecision(Long caseId, AnalystDecisionRequest request) {
         // A Fast Track has no analysis to point at but still needs an analyst's decision.
-        Optional<LlmAnalysis> analysis = llmAnalysisRepository.findFirstByCaseIdOrderByIdDesc(caseId);
+        Optional<LlmAnalysis> analysis = llmAnalysisRepository.findLatestByCaseId(caseId);
         if (analysis.isEmpty() && !caseOutcomeRepository.findOutcome(caseId).wasFastTrack()) {
             throw new InvalidClassificationException("No classification found for case " + caseId);
         }

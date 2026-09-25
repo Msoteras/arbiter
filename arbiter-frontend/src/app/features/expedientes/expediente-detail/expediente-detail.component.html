@@ -53,7 +53,15 @@
             {{ classificationLabel() }}
           </p>
           @if (!isDeterministicOutcome()) {
-            <p class="note">Confianza del modelo: {{ confidencePercent() }}%</p>
+            <p class="note">
+              Confianza del modelo: {{ confidencePercent() }}%
+              @if (analysisReasons().length > 0) {
+                ·
+                <button type="button" class="brief-link" (click)="verMotivos(tabsNav)">
+                  Ver motivos ({{ analysisReasons().length }})
+                </button>
+              }
+            </p>
           } @else if (needsDocs()) {
             <p class="note">Falta documentación obligatoria de la agenda del ramo.</p>
           } @else {
@@ -306,7 +314,7 @@
       </div>
     }
 
-    <nav class="tabs" role="tablist">
+    <nav class="tabs" role="tablist" #tabsNav>
       @for (t of tabs(); track t.id) {
         <button
           role="tab"
