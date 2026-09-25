@@ -74,6 +74,11 @@ public class DocumentAnalysis {
     @Column(name = "described_claim_cause", length = 120)
     private String describedClaimCause;
 
+    /** Anything but COMPLETE means the empty fields are a failed read, not what the document says. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "extraction_status", nullable = false, length = 20)
+    private DocumentExtraction.Status extractionStatus;
+
     @Column(name = "extracted_at", nullable = false)
     private Instant extractedAt;
 

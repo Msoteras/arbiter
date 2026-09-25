@@ -33,7 +33,6 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -212,6 +211,7 @@ public class ClassificationOrchestrator {
                 ? DocumentExtraction.AffectedParty.DESCONOCIDO
                 : fields.affectedParty());
         row.setDescribedClaimCause(fields.describedClaimCause());
+        row.setExtractionStatus(extraction.status());
         row.setExtractedAt(Instant.now());
         extraction.visualFindings().forEach(row::addVisualFinding);
         // Both columns are NOT NULL: one incomplete detail would fail the whole insert.
@@ -302,7 +302,6 @@ public class ClassificationOrchestrator {
         List<String> requiredForGate = requiredDocumentTypes(ctx.rules());
         Map<String, DocumentExtraction> gateExtractions =
                 extractRequiredDocuments(documents, requiredForGate, causeNames);
-        Map<String, String> gateDocumentTexts = transcriptions(gateExtractions);
 
         TemporalRuleEvaluator.Result temporal =
                 temporalRuleEvaluator.evaluate(claim, ctx.policy(), ctx.history(), ctx.rules());
@@ -314,7 +313,7 @@ public class ClassificationOrchestrator {
                 coverageScopeEvaluator.evaluate(claim, ctx.policy(), ctx.history(), ctx.rules(), gateExtractions);
 
         FastTrackValidator.Result fastTrack =
-                fastTrackValidator.evaluate(claim, ctx.policy(), ctx.history(), ctx.rules(), gateDocumentTexts);
+                fastTrackValidator.evaluate(claim, ctx.policy(), ctx.history(), ctx.rules(), gateExtractions);
 
         // Warns, never blocks: it stays out of the Fast Track condition below.
         ClaimCauseConsistencyEvaluator.Result causeMatch =
@@ -696,12 +695,6 @@ public class ClassificationOrchestrator {
         }
         log.info("[Orchestrator] Done reading the required document(s)");
         return extractions;
-    }
-
-    /** Transcription only: visual findings are interpretive and can't decide a Fast Track. */
-    private Map<String, String> transcriptions(Map<String, DocumentExtraction> extractions) {
-        return extractions.entrySet().stream()
-                .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().transcription()));
     }
 
     /** Reuses the gate's extractions. Keyed by type: the flow assumes one document per type. */

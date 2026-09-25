@@ -7,6 +7,7 @@ import ar.edu.utn.frba.arbiter.common.models.entities.User;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Coverage;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.InsurerReferent;
 import ar.edu.utn.frba.arbiter.rules.dto.RuleChangeEntry;
+import ar.edu.utn.frba.arbiter.rules.dto.RuleChangeKind;
 import ar.edu.utn.frba.arbiter.rules.dto.RuleChangeSource;
 import ar.edu.utn.frba.arbiter.rules.dto.RuleFieldChange;
 import ar.edu.utn.frba.arbiter.rules.dto.ScoringConfigDto;
@@ -18,6 +19,8 @@ import ar.edu.utn.frba.arbiter.rules.models.repositories.ClaimCauseRepository;
 import ar.edu.utn.frba.arbiter.rules.models.repositories.CoverageRepository;
 import ar.edu.utn.frba.arbiter.rules.models.repositories.InsurerReferentRepository;
 import ar.edu.utn.frba.arbiter.rules.models.repositories.InsurerRuleHistoryRepository;
+import ar.edu.utn.frba.arbiter.rules.models.repositories.InsurerRuleRepository;
+import ar.edu.utn.frba.arbiter.rules.models.repositories.ScoringConfigurationRepository;
 import ar.edu.utn.frba.arbiter.rules.models.repositories.ScoringConfigurationHistoryRepository;
 import ar.edu.utn.frba.arbiter.rules.models.repositories.UserRepository;
 import org.junit.jupiter.api.Test;
@@ -26,6 +29,8 @@ import org.springframework.data.domain.PageRequest;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Set;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -45,7 +50,10 @@ class RuleChangeHistoryServiceTest {
     private static final Instant T2 = Instant.parse("2026-04-01T10:00:00Z");
     private static final Instant T3 = Instant.parse("2026-05-01T10:00:00Z");
 
+    private final InsurerRuleRepository ruleRepository = mock(InsurerRuleRepository.class);
     private final InsurerRuleHistoryRepository ruleHistoryRepository = mock(InsurerRuleHistoryRepository.class);
+    private final ScoringConfigurationRepository scoringConfigurationRepository =
+            mock(ScoringConfigurationRepository.class);
     private final ScoringConfigurationHistoryRepository scoringHistoryRepository =
             mock(ScoringConfigurationHistoryRepository.class);
     private final ScoringConfigurationService scoringConfigurationService = mock(ScoringConfigurationService.class);
@@ -55,7 +63,8 @@ class RuleChangeHistoryServiceTest {
     private final InsurerReferentRepository insurerReferentRepository = mock(InsurerReferentRepository.class);
 
     private final RuleChangeHistoryService service = new RuleChangeHistoryService(
-            ruleHistoryRepository, scoringHistoryRepository, scoringConfigurationService,
+            ruleRepository, ruleHistoryRepository, scoringConfigurationRepository, scoringHistoryRepository,
+            scoringConfigurationService,
             coverageRepository, claimCauseRepository, userRepository, insurerReferentRepository);
 
     @Test
@@ -85,7 +94,7 @@ class RuleChangeHistoryServiceTest {
                         + "\"configuration\":{\"deadlineHours\":72}}")));
         noScoringHistory();
 
-        List<RuleChangeEntry> entries = page().getContent();
+        List<RuleChangeEntry> entries = updates();
 
         assertThat(entries).hasSize(2);
         assertThat(entries).extracting(RuleChangeEntry::changedAt).containsExactly(T3, T2);
@@ -106,7 +115,8 @@ class RuleChangeHistoryServiceTest {
                         + "\"configuration\":{\"deadlineHours\":72}}")));
         noScoringHistory();
 
-        assertThat(page().getContent()).extracting(RuleChangeEntry::current).containsExactly(true, false);
+        // Newest first: both changes, then the creation.
+        assertThat(page().getContent()).extracting(RuleChangeEntry::current).containsExactly(true, false, false);
     }
 
     /** Turning a rule off changes {@code active} and nothing in the configuration; it still has to show. */
@@ -192,16 +202,19 @@ class RuleChangeHistoryServiceTest {
                         + "\"configuration\":{\"deadlineHours\":72}}")));
         noScoringHistory();
 
-        List<RuleChangeEntry> entries = page().getContent();
+        List<RuleChangeEntry> entries = updates();
 
         assertThat(entries).hasSize(1);
         assertThat(entries.get(0).changes())
                 .containsExactly(new RuleFieldChange("deadlineHours", "72", "96"));
     }
 
-    /** A partial row's empty {@code changes} means "not recorded", so it's kept: it may hide a real change. */
+    /**
+     * A legacy row whose parameters held can't say what changed (the on/off switch wasn't stored
+     * then), so it's left out; the rule's creation carries the version in force instead.
+     */
     @Test
-    void keepsAPartialRowEvenWithNothingToShow() {
+    void dropsALegacySaveThatCannotSayWhatChanged() {
         InsurerRule rule = policeDeadlineRule("{\"deadlineHours\":72}", true);
         when(ruleHistoryRepository.findAllForHistory()).thenReturn(List.of(
                 history(1L, rule, T1, T2, "{\"deadlineHours\":72}")));
@@ -209,9 +222,71 @@ class RuleChangeHistoryServiceTest {
 
         assertThat(page().getContent()).singleElement()
                 .satisfies(entry -> {
-                    assertThat(entry.changes()).isEmpty();
-                    assertThat(entry.partial()).isTrue();
+                    assertThat(entry.kind()).isEqualTo(RuleChangeKind.CREATED);
+                    assertThat(entry.current()).isTrue();
                 });
+    }
+
+    /** A rule never edited still shows up: its creation, dated when it took effect. */
+    @Test
+    void showsTheCreationOfARuleWithNoChanges() {
+        InsurerRule rule = policeDeadlineRule("{\"deadlineHours\":72}", true);
+        when(ruleRepository.findAllForHistory()).thenReturn(List.of(rule));
+        noScoringHistory();
+
+        assertThat(page().getContent()).singleElement()
+                .satisfies(entry -> {
+                    assertThat(entry.kind()).isEqualTo(RuleChangeKind.CREATED);
+                    assertThat(entry.changedAt()).isEqualTo(T1);
+                    assertThat(entry.changes()).isEmpty();
+                    assertThat(entry.current()).isTrue();
+                });
+    }
+
+    /** A creator with no referente profile is still a user: shown by email, never left blank. */
+    @Test
+    void showsTheCreatorsEmailWhenTheyHaveNoReferenteProfile() {
+        InsurerRule rule = policeDeadlineRule("{\"deadlineHours\":72}", true);
+        rule.setCreatedBy(9L);
+        when(ruleRepository.findAllForHistory()).thenReturn(List.of(rule));
+        when(userRepository.findAllById(Set.of(9L)))
+                .thenReturn(List.of(User.builder().id(9L).email("admin@arbiter.com").build()));
+        noScoringHistory();
+
+        assertThat(page().getContent()).singleElement()
+                .extracting(RuleChangeEntry::author).isEqualTo("admin@arbiter.com");
+    }
+
+    /** The creator is a user; with a referente profile, they're shown by name. */
+    @Test
+    void namesTheUserWhoCreatedTheRule() {
+        InsurerRule rule = policeDeadlineRule("{\"deadlineHours\":72}", true);
+        rule.setCreatedBy(30L);
+        when(ruleRepository.findAllForHistory()).thenReturn(List.of(rule));
+        when(insurerReferentRepository.findByUser_IdIn(Set.of(30L)))
+                .thenReturn(List.of(referent(3L, "Ana", "Pérez", 30L)));
+        noScoringHistory();
+
+        assertThat(page().getContent()).singleElement()
+                .extracting(RuleChangeEntry::author).isEqualTo("Ana Pérez");
+    }
+
+    /** The live rule's validFrom moves with each edit; the creation is when the first version started. */
+    @Test
+    void datesTheCreationByTheFirstStoredVersion() {
+        Instant created = Instant.parse("2026-01-15T10:00:00Z");
+        InsurerRule rule = policeDeadlineRule("{\"deadlineHours\":96}", true);
+        when(ruleRepository.findAllForHistory()).thenReturn(List.of(rule));
+        when(ruleHistoryRepository.findAllForHistory()).thenReturn(List.of(
+                history(1L, rule, created, T2, "{\"active\":true,\"blocksFastTrack\":true,"
+                        + "\"configuration\":{\"deadlineHours\":72}}")));
+        noScoringHistory();
+
+        List<RuleChangeEntry> entries = page().getContent();
+
+        assertThat(entries).extracting(RuleChangeEntry::kind)
+                .containsExactly(RuleChangeKind.UPDATED, RuleChangeKind.CREATED);
+        assertThat(entries.get(1).changedAt()).isEqualTo(created);
     }
 
     /** The scope the referente needs to tell two rules of the same type apart. */
@@ -277,16 +352,16 @@ class RuleChangeHistoryServiceTest {
         when(scoringConfigurationService.get())
                 .thenReturn(new ScoringConfigDto(1L, true, false, List.of(), List.of()));
 
-        assertThat(page().getContent()).extracting(RuleChangeEntry::source)
+        assertThat(updates()).extracting(RuleChangeEntry::source)
                 .containsExactly(RuleChangeSource.INSURER_RULE, RuleChangeSource.SCORING);
     }
 
-    /** The filter offers only what the trail holds, via its own query instead of loading the whole history. */
+    /** The filter offers the types of the existing rules, via its own query instead of loading the whole history. */
     @Test
     void listsRuleTypesWithoutRereadingTheWholeTrail() {
-        when(ruleHistoryRepository.findDistinctRuleTypes())
+        when(ruleRepository.findDistinctRuleTypes())
                 .thenReturn(List.of(RuleType.POLICE_DEADLINE.name()));
-        when(scoringHistoryRepository.existsBy()).thenReturn(false);
+        when(scoringConfigurationRepository.findFirstByOrderByIdAsc()).thenReturn(Optional.empty());
 
         assertThat(service.ruleTypes()).containsExactly(RuleType.POLICE_DEADLINE.name());
         verify(ruleHistoryRepository, never()).findAllForHistory();
@@ -309,6 +384,25 @@ class RuleChangeHistoryServiceTest {
 
         assertThat(page().getContent().get(0).changes()).containsExactly(new RuleFieldChange(
                 "excludedClaimCauseIds", "Robo en vía pública", "Caída · Hurto"));
+    }
+
+    /** Repair derivation stores its claim causes under a different key, but they are ids all the same. */
+    @Test
+    void resolvesTheRepairDerivationClaimCausesToo() {
+        InsurerRule rule = InsurerRule.builder()
+                .id(8L).name("Derivación a reparación").ruleType("REPAIR_DERIVATION")
+                .active(true).blocksFastTrack(false)
+                .branch(Branch.builder().id(2L).name("Celulares").build())
+                .configuration("{\"claimCauseIds\":[4]}").validFrom(T1).build();
+        when(ruleHistoryRepository.findAllForHistory()).thenReturn(List.of(
+                history(1L, rule, T1, T2, "{\"active\":true,\"blocksFastTrack\":false,"
+                        + "\"configuration\":{\"claimCauseIds\":[1]}}")));
+        when(claimCauseRepository.findAll()).thenReturn(List.of(
+                claimCause(1L, "Hurto"), claimCause(4L, "Caída")));
+        noScoringHistory();
+
+        assertThat(page().getContent().get(0).changes()).containsExactly(new RuleFieldChange(
+                "claimCauseIds", "Hurto", "Caída"));
     }
 
     /** An id with no catalog entry stays as it was: the change happened over it either way. */
@@ -430,6 +524,13 @@ class RuleChangeHistoryServiceTest {
 
     private Page<RuleChangeEntry> page() {
         return service.find(null, null, null, null, PageRequest.of(0, 20));
+    }
+
+    /** The feed without the creations, for tests about how versions pair into changes. */
+    private List<RuleChangeEntry> updates() {
+        return page().getContent().stream()
+                .filter(entry -> entry.kind() == RuleChangeKind.UPDATED)
+                .toList();
     }
 
     private void noScoringHistory() {

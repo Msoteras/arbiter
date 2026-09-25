@@ -1,7 +1,6 @@
 <app-card @fadeInUp>
   <div class="hr-head">
     <h2 class="card-title">Historial de cambios</h2>
-    <app-badge variant="solid">Toda la aseguradora</app-badge>
   </div>
 
   <div class="hr-filters">
@@ -73,14 +72,13 @@
             @if (row.entry.current) {
               <app-badge variant="strong" tone="ok">Versión vigente</app-badge>
             }
-            @if (row.entry.partial) {
-              <app-badge variant="dashed">Registro parcial</app-badge>
-            }
           </div>
 
-          @if (row.fields.length > 0) {
+          @if (row.entry.kind === 'CREATED') {
+            <p class="hr-created t-note">Se creó la regla.</p>
+          } @else {
             <ul class="hr-fields">
-              @for (field of row.fields; track field.label + field.qualifier) {
+              @for (field of row.fields; track field.label + field.qualifier + field.kind) {
                 <li class="hr-field">
                   <span class="hr-field-name t-field-label">
                     {{ field.label }}
@@ -88,25 +86,42 @@
                       <span class="hr-qualifier">· {{ field.qualifier }}</span>
                     }
                   </span>
-                  <span class="hr-values">
-                    <span class="hr-before">{{ field.previous }}</span>
-                    <span class="hr-arrow" aria-hidden="true">→</span>
-                    <span class="hr-after">{{ field.next }}</span>
-                    <span class="sr-only"> pasó de {{ field.previous }} a {{ field.next }} </span>
-                  </span>
+                  @if (field.kind === 'list') {
+                    <ul class="hr-list">
+                      @for (item of field.removed; track item) {
+                        <li class="hr-list-item is-removed">
+                          <span class="hr-tag">Se quitó</span>
+                          <span class="hr-before">{{ item }}</span>
+                        </li>
+                      }
+                      @for (item of field.added; track item) {
+                        <li class="hr-list-item is-added">
+                          <span class="hr-tag">Se agregó</span>
+                          <span class="hr-after">{{ item }}</span>
+                        </li>
+                      }
+                      @if (field.kept > 0) {
+                        <li class="hr-list-kept t-note">
+                          {{
+                            field.kept === 1
+                              ? '1 ítem sin cambios'
+                              : field.kept + ' ítems sin cambios'
+                          }}
+                        </li>
+                      }
+                    </ul>
+                  } @else {
+                    <span class="hr-values">
+                      <span class="hr-before">{{ field.previous }}</span>
+                      <span class="hr-arrow" aria-hidden="true">→</span>
+                      <span class="hr-after">{{ field.next }}</span>
+                      <span class="sr-only"> pasó de {{ field.previous }} a {{ field.next }} </span>
+                    </span>
+                  }
                 </li>
               }
             </ul>
-          } @else {
-            <!-- No fields means a partial record (the backend omits no-op saves): saying "no
-                 changes" would claim something the audit never recorded. -->
-            <p class="hr-nochange t-note">
-              Registro anterior al detalle campo por campo: de esta versión quedó la fecha y el
-              autor, no el valor de cada parámetro.
-            </p>
           }
-
-          <p class="hr-held t-note">La versión anterior regía desde {{ row.heldSince }}</p>
         </li>
       }
     </ol>

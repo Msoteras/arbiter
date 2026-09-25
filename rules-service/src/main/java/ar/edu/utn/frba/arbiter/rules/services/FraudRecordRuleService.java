@@ -72,6 +72,7 @@ public class FraudRecordRuleService {
                     // the factor from the scoring config.
                     .active(true)
                     .validFrom(now)
+                    .createdBy(authorResolver.userIdOf(actorEmail))
                     .name(RULE_NAME)
                     .ruleType(RuleType.FRAUD_RECORD.name())
                     // DERIVAR, never RECHAZAR: a record about the person is not a legal exclusion

@@ -19,6 +19,7 @@ import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -75,7 +76,35 @@ class DocumentAnalyzerImplTest {
         assertThat(analyzer.extract(SOME_IMAGE, "image/jpeg", CATALOG).visualFindings()).isEmpty();
     }
 
-    /** A malformed answer keeps the raw text and invents no finding. */
+    @Test
+    void aWellFormedAnswerIsACompleteReadOnTheFirstTry() {
+        modelAnswers("""
+                {"transcription": "Factura B 0001-00023456", "visualFindings": []}
+                """);
+
+        assertThat(analyzer.extract(SOME_IMAGE, "image/jpeg", CATALOG).status())
+                .isEqualTo(DocumentExtraction.Status.COMPLETE);
+        verify(client, times(1)).chat(anyString(), anyList(), anyMap(), eq(false));
+    }
+
+    /** The case that reached production: the first answer is cut, the retry comes back whole. */
+    @Test
+    void aBrokenAnswerIsRetriedAndTheRetryWins() {
+        when(client.chat(anyString(), anyList(), anyMap(), eq(false))).thenReturn(
+                "{\"transcription\": \"ACTA DE DENUNCIA\", \"visualFindings\": [], \"fields\": {\"brand\": \"GOO",
+                """
+                {"transcription": "ACTA DE DENUNCIA", "visualFindings": [],
+                 "fields": {"brand": "GOOGLE", "affectedParty": "TITULAR"}}
+                """);
+
+        DocumentExtraction extraction = analyzer.extract(SOME_IMAGE, "image/jpeg", CATALOG);
+
+        assertThat(extraction.status()).isEqualTo(DocumentExtraction.Status.COMPLETE);
+        assertThat(extraction.fields().brand()).isEqualTo("GOOGLE");
+        assertThat(extraction.fields().affectedParty()).isEqualTo(DocumentExtraction.AffectedParty.TITULAR);
+    }
+
+    /** Prose instead of JSON is still the document's text, but its fields were never read. */
     @Test
     void unparseableAnswerDegradesToRawTextWithoutFindings() {
         modelAnswers("Constancia de denuncia, comisaría 15a.");
@@ -84,6 +113,60 @@ class DocumentAnalyzerImplTest {
 
         assertThat(extraction.transcription()).isEqualTo("Constancia de denuncia, comisaría 15a.");
         assertThat(extraction.visualFindings()).isEmpty();
+        assertThat(extraction.status()).isEqualTo(DocumentExtraction.Status.PARTIAL);
+        verify(client, times(2)).chat(anyString(), anyList(), anyMap(), eq(false));
+    }
+
+    /** Output cut by the token cap twice: the analyst sees the document's text, not the JSON around it. */
+    @Test
+    void truncatedAnswerKeepsOnlyTheTranscription() {
+        modelAnswers("""
+                {"transcription": "ACTA DE DENUNCIA. Domicilio: piso 6 \\"A\\", C.A.B.A.", "visualFindings": [], "fields": {"brand": "GOO""");
+
+        DocumentExtraction extraction = analyzer.extract(SOME_IMAGE, "image/jpeg", CATALOG);
+
+        assertThat(extraction.transcription()).isEqualTo("ACTA DE DENUNCIA. Domicilio: piso 6 \"A\", C.A.B.A.");
+        assertThat(extraction.visualFindings()).isEmpty();
+        assertThat(extraction.fields()).isEqualTo(DocumentExtraction.Fields.none());
+        assertThat(extraction.status()).isEqualTo(DocumentExtraction.Status.PARTIAL);
+    }
+
+    /** The cut can fall inside the transcription itself, even in the middle of an escape. */
+    @Test
+    void transcriptionCutMidwayKeepsWhatArrived() {
+        modelAnswers("{\"transcription\": \"Comisaría Vecinal 3-B\\nRelato: que siendo las 19:25\\");
+
+        DocumentExtraction extraction = analyzer.extract(SOME_IMAGE, "image/jpeg", CATALOG);
+
+        assertThat(extraction.transcription()).isEqualTo("Comisaría Vecinal 3-B\nRelato: que siendo las 19:25");
+    }
+
+    /** A JSON with nothing to salvage is never shown: the analyst would be reading the model's syntax. */
+    @Test
+    void brokenJsonWithoutTranscriptionIsAFailedRead() {
+        modelAnswers("{\"visualFindings\": [], \"fields\": {\"imei\": \"3552000000000000000000000000");
+
+        DocumentExtraction extraction = analyzer.extract(SOME_IMAGE, "image/jpeg", CATALOG);
+
+        assertThat(extraction.transcription()).contains("No se pudo extraer contenido");
+        assertThat(extraction.status()).isEqualTo(DocumentExtraction.Status.FAILED);
+    }
+
+    /** Seen with Gemini: PostgreSQL rejects NUL in text columns, which lost every reading of the case. */
+    @Test
+    void nulCharactersNeverReachTheExtraction() {
+        modelAnswers("""
+                {"transcription": "ACTA\\u0000 DE DENUNCIA", "visualFindings": ["sello\\u0000 borroso"],
+                 "fields": {"brand": "GOO\\u0000GLE", "details": [{"name": "Folio\\u0000", "value": "214\\u0000"}]}}
+                """);
+
+        DocumentExtraction extraction = analyzer.extract(SOME_IMAGE, "image/jpeg", CATALOG);
+
+        assertThat(extraction.transcription()).isEqualTo("ACTA DE DENUNCIA");
+        assertThat(extraction.visualFindings()).containsExactly("sello borroso");
+        assertThat(extraction.fields().brand()).isEqualTo("GOOGLE");
+        assertThat(extraction.fields().details())
+                .containsExactly(new DocumentExtraction.Detail("Folio", "214"));
     }
 
     @Test
@@ -94,6 +177,7 @@ class DocumentAnalyzerImplTest {
 
         assertThat(extraction.transcription()).contains("No se pudo extraer contenido");
         assertThat(extraction.visualFindings()).isEmpty();
+        assertThat(extraction.status()).isEqualTo(DocumentExtraction.Status.FAILED);
     }
 
     @Test

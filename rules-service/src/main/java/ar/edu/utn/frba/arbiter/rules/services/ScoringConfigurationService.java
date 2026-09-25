@@ -58,6 +58,7 @@ public class ScoringConfigurationService {
                     .active(dto.enabled())
                     .fullAnalysisOnFastTrack(dto.fullAnalysisOnFastTrack())
                     .validFrom(now)
+                    .createdBy(authorResolver.userIdOf(actorEmail))
                     .build();
             config = scoringConfigurationRepository.save(config);
             saveChildren(config, dto);
