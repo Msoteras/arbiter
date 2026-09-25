@@ -4,6 +4,7 @@ import ar.edu.utn.frba.arbiter.cases.dto.CaseFollowUp;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseScope;
 import ar.edu.utn.frba.arbiter.cases.dto.DocumentAnalysisSummary;
+import ar.edu.utn.frba.arbiter.cases.dto.LensSummaryResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.StatusTransitionResponse;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CaseExceptionHandler;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CaseNotFoundException;
@@ -199,6 +200,21 @@ class CaseControllerTest {
         mockMvc.perform(get("/api/v1/cases").param("followUp", "EXPERT_REPORT_RECEIVED"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content.length()").value(1));
+    }
+
+    @Test
+    void lensSummary_passesStaleDaysThroughAndAnswersTheMatrix() throws Exception {
+        LensSummaryResponse.Counts open = new LensSummaryResponse.Counts(3, 1, 2, 1, 0);
+        LensSummaryResponse.Counts none = new LensSummaryResponse.Counts(0, 0, 0, 0, 0);
+        when(caseService.lensSummary(isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
+                isNull(), isNull(), isNull(), eq(15)))
+                .thenReturn(new LensSummaryResponse(open, none, open));
+
+        mockMvc.perform(get("/api/v1/cases/lens-summary").param("staleDays", "15"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.open.total").value(3))
+                .andExpect(jsonPath("$.closed.total").value(0))
+                .andExpect(jsonPath("$.all.unassigned").value(1));
     }
 
     @Test

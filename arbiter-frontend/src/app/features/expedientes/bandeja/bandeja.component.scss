@@ -95,6 +95,16 @@
   background: var(--surface-danger-soft);
 }
 
+.lens-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-5);
+}
+.lens-clear {
+  font-size: var(--font-size-2xs);
+  color: var(--text-muted);
+}
+
 // Separates the lifecycle tabs from the ownership tabs: two axes sharing one bar.
 .lens-divider {
   align-self: center;

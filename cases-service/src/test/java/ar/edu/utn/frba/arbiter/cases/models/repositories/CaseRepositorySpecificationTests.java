@@ -619,47 +619,57 @@ class CaseRepositorySpecificationTests extends AbstractPersistenceIT {
                 .containsExactly(CaseStatus.PENDING_ANALYST_REVIEW.name());
     }
 
-    /** The five counts come from a single aggregate query and must match counting each lens separately. */
     @Test
-    void losConteosDeLasLentesDanIgualQueContarCadaUnaPorSeparado() {
+    void lensCounts_eachCellMatchesCountingThatCombinationAlone() {
         ClaimsAnalyst lucas = analyst("lucas.gomez@arbiter.test", "Lucas", "Gómez");
         assign(lucas, seeded.get(0), seeded.get(2));
 
-        Specification<Case> base = CaseSpecifications.withFilters(
-                null, null, null, null, null, null, null, null, null);
-        CaseLensCountRepository.LensCounts counts = caseRepository.countLenses(base, lucas.getId());
+        CaseLensCountRepository.LensCounts counts = caseRepository.countLenses(null, lucas.getId());
 
-        assertThat(counts.all()).isEqualTo(caseRepository.count());
-        assertThat(counts.mine()).isEqualTo(caseRepository.count(CaseSpecifications.withFilters(
-                null, null, null, null, null, null, null, null, lucas.getId())));
-        assertThat(counts.assigned()).isEqualTo(caseRepository.count(CaseSpecifications.withFilters(
-                null, null, null, null, null, null, null, null, null, false, false, true)));
-        assertThat(counts.unassigned()).isEqualTo(caseRepository.count(CaseSpecifications.withFilters(
-                null, null, null, null, null, null, null, null, null, true, false, false)));
-        assertThat(counts.fraud()).isEqualTo(caseRepository.count(CaseSpecifications.withFilters(
-                null, null, null, null, null, null, null, null, null, false, true, false)));
-        assertThat(counts.assigned() + counts.unassigned()).isEqualTo(counts.all());
+        assertThat(counts.open()).isEqualTo(new CaseLensCountRepository.OwnershipCounts(2, 1, 1, 1, 0));
+        assertThat(counts.closed()).isEqualTo(new CaseLensCountRepository.OwnershipCounts(2, 1, 1, 1, 2));
+        assertCellsMatchTheListing(null, CaseScope.OPEN, counts.open(), lucas.getId());
+        assertCellsMatchTheListing(null, CaseScope.CLOSED, counts.closed(), lucas.getId());
     }
 
-    /** With no analyst profile in the tenant (the referent), "Mine" is 0, not everything. */
     @Test
-    void sinAnalistaEnElTokenLosMiosSonCero() {
-        CaseLensCountRepository.LensCounts counts = caseRepository.countLenses(
-                CaseSpecifications.withFilters(null, null, null, null, null, null, null, null, null), null);
+    void lensCounts_mineIsZeroWithoutAnAnalystProfile() {
+        CaseLensCountRepository.LensCounts counts = caseRepository.countLenses(null, null);
 
-        assertThat(counts.mine()).isZero();
-        assertThat(counts.all()).isEqualTo(4);
+        assertThat(counts.open().mine()).isZero();
+        assertThat(counts.closed().mine()).isZero();
+        assertThat(counts.open().total() + counts.closed().total()).isEqualTo(4);
     }
 
-    /** The filter bar narrows all five counts alike. */
     @Test
-    void losConteosRespetanElRecorteYLosFiltros() {
-        Specification<Case> soloEnCurso = CaseSpecifications.scope(CaseScope.OPEN);
+    void lensCounts_theFilterBarNarrowsEveryCell() {
+        Specification<Case> robbery = CaseSpecifications.withFilters(
+                null, "Robo en vía pública", null, null, null, null, null, null, null);
 
-        CaseLensCountRepository.LensCounts counts = caseRepository.countLenses(soloEnCurso, null);
+        CaseLensCountRepository.LensCounts counts = caseRepository.countLenses(robbery, null);
 
-        assertThat(counts.all()).isEqualTo(caseRepository.count(soloEnCurso));
-        assertThat(counts.all()).isEqualTo(2);
+        assertThat(counts.open()).isEqualTo(new CaseLensCountRepository.OwnershipCounts(1, 0, 0, 1, 0));
+        assertThat(counts.closed()).isEqualTo(new CaseLensCountRepository.OwnershipCounts(1, 0, 0, 1, 1));
+        assertCellsMatchTheListing(robbery, CaseScope.OPEN, counts.open(), null);
+        assertCellsMatchTheListing(robbery, CaseScope.CLOSED, counts.closed(), null);
+    }
+
+    private void assertCellsMatchTheListing(Specification<Case> bar, CaseScope lifecycle,
+                                            CaseLensCountRepository.OwnershipCounts row, Long me) {
+        Specification<Case> base = bar == null
+                ? CaseSpecifications.scope(lifecycle)
+                : bar.and(CaseSpecifications.scope(lifecycle));
+        assertThat(row.total()).isEqualTo(caseRepository.count(base));
+        if (me != null) {
+            assertThat(row.mine()).isEqualTo(caseRepository.count(base.and(CaseSpecifications.withFilters(
+                    null, null, null, null, null, null, null, null, me))));
+        }
+        assertThat(row.assigned()).isEqualTo(caseRepository.count(base.and(CaseSpecifications.withFilters(
+                null, null, null, null, null, null, null, null, null, false, false, true))));
+        assertThat(row.unassigned()).isEqualTo(caseRepository.count(base.and(CaseSpecifications.withFilters(
+                null, null, null, null, null, null, null, null, null, true, false, false))));
+        assertThat(row.fraud()).isEqualTo(caseRepository.count(base.and(CaseSpecifications.withFilters(
+                null, null, null, null, null, null, null, null, null, false, true, false))));
     }
 
     /** The analyst lives in the tenant schema and its {@code user_id} is NOT NULL, like insured's. */
