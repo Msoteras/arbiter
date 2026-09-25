@@ -1,3 +1,4 @@
+import { isEstadoFinal } from './estado';
 import { StatusTone } from './status-tone';
 
 // Mirrors common-lib's ExpertVerdict enum.
@@ -107,13 +108,13 @@ export interface DerivationResult {
   respondedAt: string;
 }
 
-const ESPERANDO_PROVEEDOR = ['PENDING_EXPERT_REPORT', 'PENDING_REPAIR'];
+const AWAITING_PROVIDER = ['PENDING_EXPERT_REPORT', 'PENDING_REPAIR'];
 
-export function vueltaDeDerivacion(
+export function derivationBadge(
   status: string,
   result: DerivationResult | null,
 ): { label: string; tone: StatusTone } | null {
-  if (!result || ESPERANDO_PROVEEDOR.includes(status)) {
+  if (!result || AWAITING_PROVIDER.includes(status) || isEstadoFinal(status)) {
     return null;
   }
   if (result.providerType === 'SERVICIO_TECNICO') {

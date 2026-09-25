@@ -280,6 +280,15 @@
                   (valueChange)="draftDateTo.set($event)"
                 />
               </label>
+
+              <div class="filter-field">
+                <span class="t-field-label">Derivación</span>
+                <app-checkbox
+                  [checked]="draftReportReceived()"
+                  (checkedChange)="draftReportReceived.set($event)"
+                  >Con informe recibido</app-checkbox
+                >
+              </div>
             </div>
 
             <div class="filters-pop-foot">
@@ -382,9 +391,9 @@
                         >Devuelto por el referente</app-badge
                       >
                     }
-                    @if (vueltaDeDerivacion(c); as vuelta) {
+                    @if (derivationBadge(c); as badge) {
                       <br />
-                      <app-badge [tone]="vuelta.tone">{{ vuelta.label }}</app-badge>
+                      <app-badge [tone]="badge.tone">{{ badge.label }}</app-badge>
                     }
                   </td>
                   <td>

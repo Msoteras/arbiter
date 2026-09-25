@@ -188,6 +188,7 @@ public class CaseController {
             @RequestParam(defaultValue = "false") boolean fraudAlert,
             @RequestParam(defaultValue = "false") boolean assigned,
             @RequestParam(defaultValue = "false") boolean dueSoon,
+            @RequestParam(defaultValue = "false") boolean reportReceived,
             @RequestParam(required = false) Integer staleDays,
             @RequestParam(defaultValue = "ALL") CaseScope scope,
             @RequestParam(required = false) Long insurerId,
@@ -195,7 +196,7 @@ public class CaseController {
     ) {
         Page<CaseResponse> response = caseService.listCases(
                 status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
-                analystId, assignedToMe, unassigned, fraudAlert, assigned, dueSoon, staleDays, scope,
+                analystId, assignedToMe, unassigned, fraudAlert, assigned, dueSoon, reportReceived, staleDays, scope,
                 insurerId,
                 pageable);
         return ResponseEntity.ok(response);
@@ -292,11 +293,12 @@ public class CaseController {
             @RequestParam(required = false) String q,
             @RequestParam(required = false) RiskBand riskBand,
             @RequestParam(required = false) Long analystId,
+            @RequestParam(defaultValue = "false") boolean reportReceived,
             @RequestParam(defaultValue = "ALL") CaseScope scope
     ) {
         return ResponseEntity.ok(caseService.lensSummary(
                 status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
-                analystId, scope));
+                analystId, reportReceived, scope));
     }
 
     @GetMapping("/analysts/workload")

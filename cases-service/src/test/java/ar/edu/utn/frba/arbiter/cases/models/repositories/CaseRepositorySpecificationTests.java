@@ -1,10 +1,12 @@
 package ar.edu.utn.frba.arbiter.cases.models.repositories;
 
 import ar.edu.utn.frba.arbiter.cases.dto.CaseScope;
+import ar.edu.utn.frba.arbiter.cases.dto.ProviderType;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.ClaimsAnalyst;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Coverage;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Insured;
+import ar.edu.utn.frba.arbiter.cases.models.entities.ExpertAssessment;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Policy;
 import ar.edu.utn.frba.arbiter.cases.support.AbstractPersistenceIT;
 import ar.edu.utn.frba.arbiter.cases.support.CaseFixtures;
@@ -72,6 +74,9 @@ class CaseRepositorySpecificationTests extends AbstractPersistenceIT {
 
     @Autowired
     private ClaimsAnalystRepository claimsAnalystRepository;
+
+    @Autowired
+    private ExpertAssessmentRepository expertAssessmentRepository;
 
     @PersistenceContext
     private EntityManager entityManager;
@@ -490,6 +495,44 @@ class CaseRepositorySpecificationTests extends AbstractPersistenceIT {
                 // Closed months ago isn't stalled, it's finished; the one just touched isn't either.
                 .containsExactly(frozen.getId())
                 .doesNotContain(closedLongAgo.getId(), justTouched.getId());
+    }
+
+    @Test
+    void returnedFromDerivation_keepsOnlyOpenCasesWithAProviderResponse() {
+        ClaimsAnalyst lucas = analyst("derivations@arbiter.test", "Lucas", "Gómez");
+        Instant answered = Instant.parse("2026-09-10T12:00:00Z");
+        Case returned = caseRepository.save(caseOf(CaseStatus.PENDING_ANALYST_REVIEW, "Hurto",
+                "POL-CEL-2024-030", "40.123.480", "Ana", "Sosa", LocalDate.of(2026, 9, 1), null));
+        Case waitingAgain = caseRepository.save(caseOf(CaseStatus.PENDING_REPAIR, "Hurto",
+                "POL-CEL-2024-031", "40.123.481", "Beto", "Luna", LocalDate.of(2026, 9, 1), null));
+        Case closed = caseRepository.save(caseOf(CaseStatus.APPROVED, "Hurto",
+                "POL-CEL-2024-032", "40.123.482", "Ciro", "Vera", LocalDate.of(2026, 9, 1), null));
+        Case neverDerived = caseRepository.save(caseOf(CaseStatus.PENDING_ANALYST_REVIEW, "Hurto",
+                "POL-CEL-2024-033", "40.123.483", "Dora", "Mena", LocalDate.of(2026, 9, 1), null));
+        assessment(returned, ProviderType.ESTUDIO_LIQUIDADOR, answered, lucas);
+        assessment(waitingAgain, ProviderType.ESTUDIO_LIQUIDADOR, answered, lucas);
+        assessment(waitingAgain, ProviderType.SERVICIO_TECNICO, null, lucas);
+        assessment(closed, ProviderType.ESTUDIO_LIQUIDADOR, answered, lucas);
+
+        Page<Case> page = caseRepository.findAll(CaseSpecifications.returnedFromDerivation(true), FIRST_PAGE);
+
+        assertThat(page.getContent()).extracting(Case::getId)
+                .containsExactly(returned.getId())
+                .doesNotContain(waitingAgain.getId(), closed.getId(), neverDerived.getId());
+    }
+
+    private void assessment(Case caseRecord, ProviderType providerType, Instant reportReceivedAt,
+                            ClaimsAnalyst analyst) {
+        expertAssessmentRepository.save(ExpertAssessment.builder()
+                .caseId(caseRecord.getId())
+                .expertName("North Assessors")
+                .expertEmail("assessors@arbiter.test")
+                .reason("Signs to verify")
+                .derivedAt(Instant.parse("2026-09-05T12:00:00Z"))
+                .providerType(providerType)
+                .reportReceivedAt(reportReceivedAt)
+                .derivedBy(analyst)
+                .build());
     }
 
     private void age(Long caseId, Instant updatedAt) {

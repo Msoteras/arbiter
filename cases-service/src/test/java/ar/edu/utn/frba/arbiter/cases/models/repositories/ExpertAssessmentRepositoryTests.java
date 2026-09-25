@@ -34,7 +34,7 @@ class ExpertAssessmentRepositoryTests extends AbstractPersistenceIT {
 
     @BeforeEach
     void setUp() {
-        String email = "perito.tests@arbiter.test";
+        String email = "expert.tests@arbiter.test";
         analyst = claimsAnalystRepository.save(ClaimsAnalyst.builder()
                 .name("Lucas")
                 .surname("Gómez")
@@ -90,9 +90,9 @@ class ExpertAssessmentRepositoryTests extends AbstractPersistenceIT {
                       RepairOutcome repairOutcome, Instant reportReceivedAt) {
         expertAssessmentRepository.save(ExpertAssessment.builder()
                 .caseId(caseId)
-                .expertName("Estudio Norte")
-                .expertEmail("estudio@arbiter.test")
-                .reason("Indicios a verificar")
+                .expertName("North Assessors")
+                .expertEmail("assessors@arbiter.test")
+                .reason("Signs to verify")
                 .derivedAt(FIRST_REPORT.minus(5, ChronoUnit.DAYS))
                 .providerType(providerType)
                 .verdict(verdict)

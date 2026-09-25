@@ -29,7 +29,7 @@ import { AuthSessionService } from '../../../core/auth/auth-session.service';
 import { UserAdminService } from '../../../core/auth/user-admin.service';
 import { ExpedienteResponse } from '../../../core/models/expediente';
 import { clasificacionLabel, clasificacionTone } from '../../../core/models/clasificacion';
-import { vueltaDeDerivacion } from '../../../core/models/peritaje';
+import { derivationBadge } from '../../../core/models/peritaje';
 import { formatDate as formatDateUtil } from '../../../core/util/datetime';
 import {
   DeadlinePriority,
@@ -49,6 +49,7 @@ import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { InputComponent } from '../../../shared/ui/input/input.component';
 import { SelectComponent, SelectOption } from '../../../shared/ui/select/select.component';
+import { CheckboxComponent } from '../../../shared/ui/checkbox/checkbox.component';
 import { PaginationComponent } from '../../../shared/ui/pagination/pagination.component';
 import { FraudGaugeComponent } from '../../../shared/ui/fraud-gauge/fraud-gauge.component';
 import { EmptyStateComponent } from '../../../shared/ui/empty-state/empty-state.component';
@@ -97,6 +98,7 @@ type Scope = NonNullable<ExpedienteListParams['scope']>;
     ButtonComponent,
     InputComponent,
     SelectComponent,
+    CheckboxComponent,
     PaginationComponent,
     FraudGaugeComponent,
     EmptyStateComponent,
@@ -171,6 +173,7 @@ export class BandejaComponent {
   protected readonly analystFilter = signal('');
   protected readonly eventDateFrom = signal('');
   protected readonly eventDateTo = signal('');
+  protected readonly reportReceivedFilter = signal(false);
   protected readonly qDraft = signal('');
   protected readonly sortField = signal<SortField>('id');
   protected readonly sortDir = signal<SortDir>('desc');
@@ -192,6 +195,7 @@ export class BandejaComponent {
     eventDateFrom: this.eventDateFrom() || undefined,
     eventDateTo: this.eventDateTo() || undefined,
     q: this.qDebounced() || undefined,
+    reportReceived: this.reportReceivedFilter() || undefined,
     sort: `${this.sortField()},${this.sortDir()}`,
   }));
 
@@ -316,6 +320,7 @@ export class BandejaComponent {
         this.riskBandFilter() ||
         this.eventDateFrom() ||
         this.eventDateTo() ||
+        this.reportReceivedFilter() ||
         this.qDebounced()
       ),
   );
@@ -390,6 +395,7 @@ export class BandejaComponent {
   protected readonly draftAnalyst = signal('');
   protected readonly draftDateFrom = signal('');
   protected readonly draftDateTo = signal('');
+  protected readonly draftReportReceived = signal(false);
 
   protected openFilters(): void {
     this.draftStatus.set(this.statusFilter());
@@ -398,6 +404,7 @@ export class BandejaComponent {
     this.draftAnalyst.set(this.analystFilter());
     this.draftDateFrom.set(this.eventDateFrom());
     this.draftDateTo.set(this.eventDateTo());
+    this.draftReportReceived.set(this.reportReceivedFilter());
     this.filtersOpen.set(true);
   }
   protected closeFilters(): void {
@@ -433,6 +440,7 @@ export class BandejaComponent {
     this.analystFilter.set(this.draftAnalyst());
     this.eventDateFrom.set(this.draftDateFrom());
     this.eventDateTo.set(this.draftDateTo());
+    this.reportReceivedFilter.set(this.draftReportReceived());
     this.page.set(0);
     this.filtersOpen.set(false);
   }
@@ -443,6 +451,7 @@ export class BandejaComponent {
     this.draftAnalyst.set('');
     this.draftDateFrom.set('');
     this.draftDateTo.set('');
+    this.draftReportReceived.set(false);
   }
 
   protected readonly activeFilterCount = computed(() => {
@@ -453,6 +462,7 @@ export class BandejaComponent {
     if (this.analystFilter()) n++;
     if (this.eventDateFrom()) n++;
     if (this.eventDateTo()) n++;
+    if (this.reportReceivedFilter()) n++;
     return n;
   });
 
@@ -473,6 +483,8 @@ export class BandejaComponent {
       chips.push({ key: 'dateFrom', label: `Desde: ${this.formatDate(this.eventDateFrom())}` });
     if (this.eventDateTo())
       chips.push({ key: 'dateTo', label: `Hasta: ${this.formatDate(this.eventDateTo())}` });
+    if (this.reportReceivedFilter())
+      chips.push({ key: 'reportReceived', label: 'Con informe recibido' });
     return chips;
   });
 
@@ -496,6 +508,9 @@ export class BandejaComponent {
       case 'dateTo':
         this.eventDateTo.set('');
         break;
+      case 'reportReceived':
+        this.reportReceivedFilter.set(false);
+        break;
     }
     this.page.set(0);
   }
@@ -509,8 +524,10 @@ export class BandejaComponent {
     this.statusFilter.set('');
     this.claimCauseFilter.set('');
     this.riskBandFilter.set('');
+    this.analystFilter.set('');
     this.eventDateFrom.set('');
     this.eventDateTo.set('');
+    this.reportReceivedFilter.set(false);
     this.page.set(0);
   }
 
@@ -658,8 +675,8 @@ export class BandejaComponent {
     return c.settlementStatus === 'RETURNED';
   }
 
-  protected vueltaDeDerivacion(c: ExpedienteResponse): { label: string; tone: StatusTone } | null {
-    return vueltaDeDerivacion(c.status, c.lastDerivationResult);
+  protected derivationBadge(c: ExpedienteResponse): { label: string; tone: StatusTone } | null {
+    return derivationBadge(c.status, c.lastDerivationResult);
   }
 
   protected estadoTone(status: string): StatusTone {

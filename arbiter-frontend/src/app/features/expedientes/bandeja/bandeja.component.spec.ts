@@ -163,8 +163,23 @@ describe('BandejaComponent · recorte en curso', () => {
     expect(active.textContent?.trim()).toContain('Todos');
   });
 
-  describe('vuelta de una derivación', () => {
-    function expediente(overrides: Record<string, unknown>): unknown {
+  it('clearing all chips also drops the analyst filter', async () => {
+    await mount('REFERENTE_ASEGURADORA');
+    signalOf('draftAnalyst').set('7');
+    call('applyFilters');
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(lastList().analystId).toBe(7);
+
+    call('clearAllChips');
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    expect(lastList().analystId).toBeUndefined();
+  });
+
+  describe('derivation badge', () => {
+    function caseRow(overrides: Record<string, unknown>): unknown {
       return {
         id: 43,
         status: 'PENDING_ANALYST_REVIEW',
@@ -191,9 +206,9 @@ describe('BandejaComponent · recorte en curso', () => {
       );
     }
 
-    it('muestra el veredicto del perito con su tono', async () => {
+    it('shows the expert verdict with its tone', async () => {
       await mount('ANALISTA_SINIESTROS', [
-        expediente({
+        caseRow({
           lastDerivationResult: {
             providerType: 'ESTUDIO_LIQUIDADOR',
             verdict: 'FRAUD_CONFIRMED',
@@ -208,9 +223,9 @@ describe('BandejaComponent · recorte en curso', () => {
       expect(badge?.getAttribute('data-tone')).toBe('danger');
     });
 
-    it('muestra la respuesta del servicio técnico en neutro', async () => {
+    it('shows the repair shop response as neutral', async () => {
       await mount('ANALISTA_SINIESTROS', [
-        expediente({
+        caseRow({
           lastDerivationResult: {
             providerType: 'SERVICIO_TECNICO',
             verdict: null,
@@ -225,9 +240,9 @@ describe('BandejaComponent · recorte en curso', () => {
       expect(badge?.getAttribute('data-tone')).toBeNull();
     });
 
-    it('no muestra nada mientras espera al proveedor', async () => {
+    it('shows nothing while waiting for the provider', async () => {
       await mount('ANALISTA_SINIESTROS', [
-        expediente({
+        caseRow({
           status: 'PENDING_REPAIR',
           lastDerivationResult: {
             providerType: 'ESTUDIO_LIQUIDADOR',
@@ -242,8 +257,37 @@ describe('BandejaComponent · recorte en curso', () => {
       expect(badgeWith('Volvió del')).toBeUndefined();
     });
 
-    it('no muestra nada si nunca se derivó', async () => {
-      await mount('ANALISTA_SINIESTROS', [expediente({})]);
+    it('shows nothing on a closed case', async () => {
+      await mount('ANALISTA_SINIESTROS', [
+        caseRow({
+          status: 'APPROVED',
+          lastDerivationResult: {
+            providerType: 'ESTUDIO_LIQUIDADOR',
+            verdict: 'FRAUD_CONFIRMED',
+            repairOutcome: null,
+            respondedAt: '2026-08-20T22:09:06Z',
+          },
+        }),
+      ]);
+
+      expect(badgeWith('Aprobado')).toBeDefined();
+      expect(badgeWith('Volvió del')).toBeUndefined();
+    });
+
+    it('sends the report received filter to the list and the counts', async () => {
+      await mount();
+
+      signalOf('draftReportReceived').set(true);
+      call('applyFilters');
+      fixture.detectChanges();
+      await fixture.whenStable();
+
+      expect(lastList().reportReceived).toBeTrue();
+      expect(lensCalls[lensCalls.length - 1].reportReceived).toBeTrue();
+    });
+
+    it('shows nothing when the case was never derived', async () => {
+      await mount('ANALISTA_SINIESTROS', [caseRow({})]);
 
       expect(badgeWith('Pendiente de revisión')).toBeDefined();
       expect(badgeWith('Volvió del')).toBeUndefined();
