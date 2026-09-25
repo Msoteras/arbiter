@@ -382,18 +382,23 @@
                     <!-- The status stays PENDING_ANALYST_REVIEW on purpose (the insured shouldn't
                          see internal steps), so the analyst needs this to tell apart cases already
                          sent for sign-off. -->
-                    @if (esperaFirma(c)) {
-                      <br />
-                      <span class="t-note">Esperando al referente</span>
-                    } @else if (devueltaPorReferente(c)) {
-                      <br />
-                      <app-badge variant="solid" tone="warning"
-                        >Devuelto por el referente</app-badge
-                      >
-                    }
-                    @if (derivationBadge(c); as badge) {
-                      <br />
-                      <app-badge [tone]="badge.tone">{{ badge.label }}</app-badge>
+                    @let derivation = derivationNote(c);
+                    @if (esperaFirma(c) || devueltaPorReferente(c) || derivation) {
+                      <span class="status-notes t-note">
+                        @if (esperaFirma(c)) {
+                          <span>Esperando al referente</span>
+                        } @else if (devueltaPorReferente(c)) {
+                          <span>Devuelto por el referente</span>
+                        }
+                        @if (derivation) {
+                          <span
+                            [attr.data-tone]="
+                              derivation.tone !== 'neutral' ? derivation.tone : null
+                            "
+                            >{{ derivation.label }}</span
+                          >
+                        }
+                      </span>
                     }
                   </td>
                   <td>

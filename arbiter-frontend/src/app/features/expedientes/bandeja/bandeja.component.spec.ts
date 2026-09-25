@@ -178,7 +178,7 @@ describe('BandejaComponent · recorte en curso', () => {
     expect(lastList().analystId).toBeUndefined();
   });
 
-  describe('derivation badge', () => {
+  describe('status notes', () => {
     function caseRow(overrides: Record<string, unknown>): unknown {
       return {
         id: 43,
@@ -206,6 +206,14 @@ describe('BandejaComponent · recorte en curso', () => {
       );
     }
 
+    function notes(): HTMLElement[] {
+      return Array.from(fixture.nativeElement.querySelectorAll('.status-notes > span'));
+    }
+
+    function noteWith(text: string): HTMLElement | undefined {
+      return notes().find((note) => note.textContent?.includes(text));
+    }
+
     it('shows the expert verdict with its tone', async () => {
       await mount('ANALISTA_SINIESTROS', [
         caseRow({
@@ -218,9 +226,9 @@ describe('BandejaComponent · recorte en curso', () => {
         }),
       ]);
 
-      const badge = badgeWith('Volvió del perito · Fraude confirmado');
-      expect(badge).toBeDefined();
-      expect(badge?.getAttribute('data-tone')).toBe('danger');
+      const note = noteWith('Volvió del perito: Fraude confirmado');
+      expect(note).toBeDefined();
+      expect(note?.getAttribute('data-tone')).toBe('danger');
     });
 
     it('shows the repair shop response as neutral', async () => {
@@ -235,9 +243,36 @@ describe('BandejaComponent · recorte en curso', () => {
         }),
       ]);
 
-      const badge = badgeWith('Volvió del servicio técnico · Reparado');
-      expect(badge).toBeDefined();
-      expect(badge?.getAttribute('data-tone')).toBeNull();
+      const note = noteWith('Volvió del servicio técnico: Reparado');
+      expect(note).toBeDefined();
+      expect(note?.getAttribute('data-tone')).toBeNull();
+    });
+
+    it('keeps the status as the only badge and lists the rest as notes', async () => {
+      await mount('ANALISTA_SINIESTROS', [
+        caseRow({
+          settlementStatus: 'RETURNED',
+          lastDerivationResult: {
+            providerType: 'ESTUDIO_LIQUIDADOR',
+            verdict: 'INCONCLUSIVE',
+            repairOutcome: null,
+            respondedAt: '2026-09-24T15:00:00Z',
+          },
+        }),
+      ]);
+
+      const statusCell: HTMLElement = fixture.nativeElement.querySelector('tbody td:nth-child(2)');
+      expect(statusCell.querySelectorAll('.badge').length).toBe(1);
+      expect(notes().map((note) => note.textContent?.trim())).toEqual([
+        'Devuelto por el referente',
+        'Volvió del perito: No concluyente',
+      ]);
+    });
+
+    it('notes a case waiting for the supervisor', async () => {
+      await mount('ANALISTA_SINIESTROS', [caseRow({ settlementStatus: 'PENDING_AUTHORIZATION' })]);
+
+      expect(notes().map((note) => note.textContent?.trim())).toEqual(['Esperando al referente']);
     });
 
     it('shows nothing while waiting for the provider', async () => {
@@ -254,7 +289,7 @@ describe('BandejaComponent · recorte en curso', () => {
       ]);
 
       expect(badgeWith('Derivado a reparación')).toBeDefined();
-      expect(badgeWith('Volvió del')).toBeUndefined();
+      expect(noteWith('Volvió del')).toBeUndefined();
     });
 
     it('shows nothing on a closed case', async () => {
@@ -271,7 +306,7 @@ describe('BandejaComponent · recorte en curso', () => {
       ]);
 
       expect(badgeWith('Aprobado')).toBeDefined();
-      expect(badgeWith('Volvió del')).toBeUndefined();
+      expect(noteWith('Volvió del')).toBeUndefined();
     });
 
     it('sends the report received filter to the list and the counts', async () => {
@@ -290,7 +325,7 @@ describe('BandejaComponent · recorte en curso', () => {
       await mount('ANALISTA_SINIESTROS', [caseRow({})]);
 
       expect(badgeWith('Pendiente de revisión')).toBeDefined();
-      expect(badgeWith('Volvió del')).toBeUndefined();
+      expect(noteWith('Volvió del')).toBeUndefined();
     });
   });
 });

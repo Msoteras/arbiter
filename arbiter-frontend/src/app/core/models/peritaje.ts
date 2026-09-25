@@ -110,7 +110,7 @@ export interface DerivationResult {
 
 const AWAITING_PROVIDER = ['PENDING_EXPERT_REPORT', 'PENDING_REPAIR'];
 
-export function derivationBadge(
+export function derivationNote(
   status: string,
   result: DerivationResult | null,
 ): { label: string; tone: StatusTone } | null {
@@ -120,14 +120,14 @@ export function derivationBadge(
   if (result.providerType === 'SERVICIO_TECNICO') {
     return {
       label: result.repairOutcome
-        ? `Volvió del servicio técnico · ${repairOutcomeLabel(result.repairOutcome)}`
+        ? `Volvió del servicio técnico: ${repairOutcomeLabel(result.repairOutcome)}`
         : 'Volvió del servicio técnico',
       tone: 'neutral',
     };
   }
   return {
     label: result.verdict
-      ? `Volvió del perito · ${veredictoLabel(result.verdict)}`
+      ? `Volvió del perito: ${veredictoLabel(result.verdict)}`
       : 'Volvió del perito',
     tone: result.verdict ? veredictoTone(result.verdict) : 'neutral',
   };

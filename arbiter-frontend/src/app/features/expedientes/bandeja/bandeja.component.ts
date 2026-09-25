@@ -29,7 +29,7 @@ import { AuthSessionService } from '../../../core/auth/auth-session.service';
 import { UserAdminService } from '../../../core/auth/user-admin.service';
 import { ExpedienteResponse } from '../../../core/models/expediente';
 import { clasificacionLabel, clasificacionTone } from '../../../core/models/clasificacion';
-import { derivationBadge } from '../../../core/models/peritaje';
+import { derivationNote } from '../../../core/models/peritaje';
 import { formatDate as formatDateUtil } from '../../../core/util/datetime';
 import {
   DeadlinePriority,
@@ -675,8 +675,8 @@ export class BandejaComponent {
     return c.settlementStatus === 'RETURNED';
   }
 
-  protected derivationBadge(c: ExpedienteResponse): { label: string; tone: StatusTone } | null {
-    return derivationBadge(c.status, c.lastDerivationResult);
+  protected derivationNote(c: ExpedienteResponse): { label: string; tone: StatusTone } | null {
+    return derivationNote(c.status, c.lastDerivationResult);
   }
 
   protected estadoTone(status: string): StatusTone {
