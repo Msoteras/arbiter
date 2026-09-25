@@ -152,6 +152,23 @@ class DocumentAnalyzerImplTest {
         assertThat(extraction.status()).isEqualTo(DocumentExtraction.Status.FAILED);
     }
 
+    /** Seen with Gemini: PostgreSQL rejects NUL in text columns, which lost every reading of the case. */
+    @Test
+    void nulCharactersNeverReachTheExtraction() {
+        modelAnswers("""
+                {"transcription": "ACTA\\u0000 DE DENUNCIA", "visualFindings": ["sello\\u0000 borroso"],
+                 "fields": {"brand": "GOO\\u0000GLE", "details": [{"name": "Folio\\u0000", "value": "214\\u0000"}]}}
+                """);
+
+        DocumentExtraction extraction = analyzer.extract(SOME_IMAGE, "image/jpeg", CATALOG);
+
+        assertThat(extraction.transcription()).isEqualTo("ACTA DE DENUNCIA");
+        assertThat(extraction.visualFindings()).containsExactly("sello borroso");
+        assertThat(extraction.fields().brand()).isEqualTo("GOOGLE");
+        assertThat(extraction.fields().details())
+                .containsExactly(new DocumentExtraction.Detail("Folio", "214"));
+    }
+
     @Test
     void emptyAnswerReadsAsAnUnreadableDocument() {
         modelAnswers("");

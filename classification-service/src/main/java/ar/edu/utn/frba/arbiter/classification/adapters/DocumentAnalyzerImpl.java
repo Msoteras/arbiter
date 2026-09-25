@@ -272,10 +272,12 @@ public class DocumentAnalyzerImpl implements DocumentAnalyzer {
         }
         try {
             ModelOutput output = objectMapper.readValue(contentJson, ModelOutput.class);
-            String transcription = output.transcription() == null || output.transcription().isBlank()
-                    ? UNREADABLE
-                    : output.transcription();
-            return new DocumentExtraction(transcription, output.visualFindings(), toFields(output.fields(), claimCauses));
+            String transcription = clean(output.transcription());
+            List<String> findings = output.visualFindings() == null ? List.of()
+                    : output.visualFindings().stream().map(this::clean).filter(f -> f != null && !f.isBlank()).toList();
+            return new DocumentExtraction(
+                    transcription == null || transcription.isBlank() ? UNREADABLE : transcription,
+                    findings, toFields(output.fields(), claimCauses));
         } catch (Exception e) {
             log.debug("[LLM] Could not parse document extraction: {}", e.getMessage());
             return null;
@@ -289,12 +291,12 @@ public class DocumentAnalyzerImpl implements DocumentAnalyzer {
      * shown — the analyst would be reading the model's syntax.
      */
     private DocumentExtraction degrade(String content) {
-        String salvaged = salvageTranscription(content);
-        if (salvaged != null) {
+        String salvaged = clean(salvageTranscription(content));
+        if (salvaged != null && !salvaged.isBlank()) {
             log.warn("[LLM] Document analysis kept only the salvaged transcription ({} chars)", salvaged.length());
             return DocumentExtraction.partial(salvaged);
         }
-        String text = content.trim();
+        String text = clean(content).trim();
         if (!text.isEmpty() && !text.startsWith("{")) {
             log.warn("[LLM] Document analysis answered prose instead of JSON — kept as the transcription");
             return DocumentExtraction.partial(text);
@@ -367,8 +369,8 @@ public class DocumentAnalyzerImpl implements DocumentAnalyzer {
                         && blankToNull(detail.name()) != null
                         && blankToNull(detail.value()) != null)
                 .map(detail -> new DocumentExtraction.Detail(
-                        truncate(detail.name().trim(), DETAIL_NAME_MAX),
-                        truncate(detail.value().trim(), DETAIL_VALUE_MAX)))
+                        truncate(blankToNull(detail.name()), DETAIL_NAME_MAX),
+                        truncate(blankToNull(detail.value()), DETAIL_VALUE_MAX)))
                 .toList();
     }
 
@@ -429,7 +431,16 @@ public class DocumentAnalyzerImpl implements DocumentAnalyzer {
     }
 
     private String blankToNull(String raw) {
-        return raw == null || raw.isBlank() ? null : raw.trim();
+        String cleaned = clean(raw);
+        return cleaned == null || cleaned.isBlank() ? null : cleaned.trim();
+    }
+
+    /**
+     * Drops NUL characters. The model can emit {@code \u0000} and PostgreSQL rejects it in any text
+     * column, so a single one failed the insert of every extraction in the case.
+     */
+    private String clean(String raw) {
+        return raw == null ? null : raw.replace("\u0000", "");
     }
 
     private record ModelOutput(String transcription, List<String> visualFindings, ModelFields fields) {}
