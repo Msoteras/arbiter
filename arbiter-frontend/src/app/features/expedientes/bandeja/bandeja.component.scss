@@ -365,38 +365,6 @@ tbody tr:not(:last-child) td {
   text-decoration: underline;
 }
 
-.status-notes {
-  display: flex;
-  flex-direction: column;
-  margin-top: var(--space-1);
-  padding-left: var(--space-3);
-  white-space: nowrap;
-}
-.status-notes [data-tone]::before {
-  content: '';
-  display: inline-block;
-  width: 6px;
-  height: 6px;
-  margin-right: var(--space-2);
-  border-radius: var(--radius-pill);
-  vertical-align: middle;
-}
-.status-notes [data-tone='ok']::before {
-  background: var(--status-ok);
-}
-.status-notes [data-tone='warning']::before {
-  background: var(--status-warning);
-}
-.status-notes [data-tone='risk']::before {
-  background: var(--status-risk);
-}
-.status-notes [data-tone='danger']::before {
-  background: var(--status-danger);
-}
-.status-notes [data-tone='info']::before {
-  background: var(--status-info);
-}
-
 // ───────────────── Assignment cell ─────────────────
 // The analyst column is where the row is acted on (Asignarme, reassign): pinned to the right so a
 // narrow screen doesn't hide it behind the horizontal scroll. Own background so the cells scrolling

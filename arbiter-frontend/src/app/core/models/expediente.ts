@@ -2,7 +2,6 @@ import { CauseConsistency } from './cause-consistency';
 import { Clasificacion } from './clasificacion';
 import { DeadlinePriority } from './deadline-priority';
 import { ImageForensicReport } from './forensic';
-import { DerivationResult } from './peritaje';
 import { PolicySnapshot, RuleResult } from './trazabilidad';
 
 // Mirrors cases-service's StatusTransitionResponse; `fromStatus` is null on the creation row.
@@ -135,7 +134,6 @@ export interface ExpedienteResponse {
   policySnapshot: PolicySnapshot | null;
   /** Only in GET /{id} while under repair. The one referral the insured gets to see. */
   repairProvider: RepairProvider | null;
-  lastDerivationResult: DerivationResult | null;
 }
 
 export interface RepairProvider {

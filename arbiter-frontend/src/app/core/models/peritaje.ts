@@ -1,4 +1,3 @@
-import { isEstadoFinal } from './estado';
 import { StatusTone } from './status-tone';
 
 // Mirrors common-lib's ExpertVerdict enum.
@@ -99,36 +98,4 @@ export interface Peritaje {
   /** Quoted or invoiced repair cost; null when irreparable. Distinct from `indemnifiableAmount`. */
   repairCost: number | null;
   reportDocumentId: number | null;
-}
-
-export interface DerivationResult {
-  providerType: ProviderType;
-  verdict: ExpertVerdict | null;
-  repairOutcome: RepairOutcome | null;
-  respondedAt: string;
-}
-
-const AWAITING_PROVIDER = ['PENDING_EXPERT_REPORT', 'PENDING_REPAIR'];
-
-export function derivationNote(
-  status: string,
-  result: DerivationResult | null,
-): { label: string; tone: StatusTone } | null {
-  if (!result || AWAITING_PROVIDER.includes(status) || isEstadoFinal(status)) {
-    return null;
-  }
-  if (result.providerType === 'SERVICIO_TECNICO') {
-    return {
-      label: result.repairOutcome
-        ? `Volvió del servicio técnico: ${repairOutcomeLabel(result.repairOutcome)}`
-        : 'Volvió del servicio técnico',
-      tone: 'neutral',
-    };
-  }
-  return {
-    label: result.verdict
-      ? `Volvió del perito: ${veredictoLabel(result.verdict)}`
-      : 'Volvió del perito',
-    tone: result.verdict ? veredictoTone(result.verdict) : 'neutral',
-  };
 }

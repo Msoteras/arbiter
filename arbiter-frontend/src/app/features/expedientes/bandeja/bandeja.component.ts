@@ -29,7 +29,6 @@ import { AuthSessionService } from '../../../core/auth/auth-session.service';
 import { UserAdminService } from '../../../core/auth/user-admin.service';
 import { ExpedienteResponse } from '../../../core/models/expediente';
 import { clasificacionLabel, clasificacionTone } from '../../../core/models/clasificacion';
-import { derivationNote } from '../../../core/models/peritaje';
 import { formatDate as formatDateUtil } from '../../../core/util/datetime';
 import {
   DeadlinePriority,
@@ -49,7 +48,6 @@ import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { InputComponent } from '../../../shared/ui/input/input.component';
 import { SelectComponent, SelectOption } from '../../../shared/ui/select/select.component';
-import { CheckboxComponent } from '../../../shared/ui/checkbox/checkbox.component';
 import { PaginationComponent } from '../../../shared/ui/pagination/pagination.component';
 import { FraudGaugeComponent } from '../../../shared/ui/fraud-gauge/fraud-gauge.component';
 import { EmptyStateComponent } from '../../../shared/ui/empty-state/empty-state.component';
@@ -98,7 +96,6 @@ type Scope = NonNullable<ExpedienteListParams['scope']>;
     ButtonComponent,
     InputComponent,
     SelectComponent,
-    CheckboxComponent,
     PaginationComponent,
     FraudGaugeComponent,
     EmptyStateComponent,
@@ -173,7 +170,7 @@ export class BandejaComponent {
   protected readonly analystFilter = signal('');
   protected readonly eventDateFrom = signal('');
   protected readonly eventDateTo = signal('');
-  protected readonly reportReceivedFilter = signal(false);
+  protected readonly followUpFilter = signal('');
   protected readonly qDraft = signal('');
   protected readonly sortField = signal<SortField>('id');
   protected readonly sortDir = signal<SortDir>('desc');
@@ -195,7 +192,7 @@ export class BandejaComponent {
     eventDateFrom: this.eventDateFrom() || undefined,
     eventDateTo: this.eventDateTo() || undefined,
     q: this.qDebounced() || undefined,
-    reportReceived: this.reportReceivedFilter() || undefined,
+    followUp: (this.followUpFilter() || undefined) as ExpedienteListParams['followUp'],
     sort: `${this.sortField()},${this.sortDir()}`,
   }));
 
@@ -320,7 +317,7 @@ export class BandejaComponent {
         this.riskBandFilter() ||
         this.eventDateFrom() ||
         this.eventDateTo() ||
-        this.reportReceivedFilter() ||
+        this.followUpFilter() ||
         this.qDebounced()
       ),
   );
@@ -361,6 +358,13 @@ export class BandejaComponent {
     { value: 'CRITICAL', label: 'Crítico' },
   ];
 
+  protected readonly followUpOptions: SelectOption[] = [
+    { value: 'EXPERT_REPORT_RECEIVED', label: 'Volvió del perito' },
+    { value: 'REPAIR_REPORT_RECEIVED', label: 'Volvió del servicio técnico' },
+    { value: 'RETURNED_BY_REFERENT', label: 'Devuelto por el referente' },
+    { value: 'AWAITING_REFERENT', label: 'Esperando al referente' },
+  ];
+
   protected readonly columns: ColumnDef[] = [
     { field: 'id', label: 'N°' },
     { field: 'status', label: 'Estado' },
@@ -395,7 +399,7 @@ export class BandejaComponent {
   protected readonly draftAnalyst = signal('');
   protected readonly draftDateFrom = signal('');
   protected readonly draftDateTo = signal('');
-  protected readonly draftReportReceived = signal(false);
+  protected readonly draftFollowUp = signal('');
 
   protected openFilters(): void {
     this.draftStatus.set(this.statusFilter());
@@ -404,7 +408,7 @@ export class BandejaComponent {
     this.draftAnalyst.set(this.analystFilter());
     this.draftDateFrom.set(this.eventDateFrom());
     this.draftDateTo.set(this.eventDateTo());
-    this.draftReportReceived.set(this.reportReceivedFilter());
+    this.draftFollowUp.set(this.followUpFilter());
     this.filtersOpen.set(true);
   }
   protected closeFilters(): void {
@@ -440,7 +444,7 @@ export class BandejaComponent {
     this.analystFilter.set(this.draftAnalyst());
     this.eventDateFrom.set(this.draftDateFrom());
     this.eventDateTo.set(this.draftDateTo());
-    this.reportReceivedFilter.set(this.draftReportReceived());
+    this.followUpFilter.set(this.draftFollowUp());
     this.page.set(0);
     this.filtersOpen.set(false);
   }
@@ -451,7 +455,7 @@ export class BandejaComponent {
     this.draftAnalyst.set('');
     this.draftDateFrom.set('');
     this.draftDateTo.set('');
-    this.draftReportReceived.set(false);
+    this.draftFollowUp.set('');
   }
 
   protected readonly activeFilterCount = computed(() => {
@@ -462,7 +466,7 @@ export class BandejaComponent {
     if (this.analystFilter()) n++;
     if (this.eventDateFrom()) n++;
     if (this.eventDateTo()) n++;
-    if (this.reportReceivedFilter()) n++;
+    if (this.followUpFilter()) n++;
     return n;
   });
 
@@ -483,8 +487,8 @@ export class BandejaComponent {
       chips.push({ key: 'dateFrom', label: `Desde: ${this.formatDate(this.eventDateFrom())}` });
     if (this.eventDateTo())
       chips.push({ key: 'dateTo', label: `Hasta: ${this.formatDate(this.eventDateTo())}` });
-    if (this.reportReceivedFilter())
-      chips.push({ key: 'reportReceived', label: 'Con informe recibido' });
+    if (this.followUpFilter())
+      chips.push({ key: 'followUp', label: this.followUpLabel(this.followUpFilter()) });
     return chips;
   });
 
@@ -508,11 +512,15 @@ export class BandejaComponent {
       case 'dateTo':
         this.eventDateTo.set('');
         break;
-      case 'reportReceived':
-        this.reportReceivedFilter.set(false);
+      case 'followUp':
+        this.followUpFilter.set('');
         break;
     }
     this.page.set(0);
+  }
+
+  private followUpLabel(value: string): string {
+    return this.followUpOptions.find((o) => o.value === value)?.label ?? value;
   }
 
   private analystName(id: string): string {
@@ -527,7 +535,7 @@ export class BandejaComponent {
     this.analystFilter.set('');
     this.eventDateFrom.set('');
     this.eventDateTo.set('');
-    this.reportReceivedFilter.set(false);
+    this.followUpFilter.set('');
     this.page.set(0);
   }
 
@@ -660,23 +668,6 @@ export class BandejaComponent {
   // ───────────────── Cell rendering ─────────────────
   protected estadoLabel(status: string): string {
     return estadoLabel(status);
-  }
-
-  /**
-   * Decided, but the amount exceeds the analyst's authority: waiting on the supervisor. The status
-   * deliberately stays unchanged so the insured doesn't see this internal step.
-   */
-  protected esperaFirma(c: ExpedienteResponse): boolean {
-    return c.settlementStatus === 'PENDING_AUTHORIZATION';
-  }
-
-  /** Returned by the supervisor, with a reason. */
-  protected devueltaPorReferente(c: ExpedienteResponse): boolean {
-    return c.settlementStatus === 'RETURNED';
-  }
-
-  protected derivationNote(c: ExpedienteResponse): { label: string; tone: StatusTone } | null {
-    return derivationNote(c.status, c.lastDerivationResult);
   }
 
   protected estadoTone(status: string): StatusTone {

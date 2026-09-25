@@ -4,10 +4,10 @@ import ar.edu.utn.frba.arbiter.cases.dto.AnalystDecisionRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.AnalystWorkloadResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.AssignedCaseSummaryResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseDocumentResponse;
+import ar.edu.utn.frba.arbiter.cases.dto.CaseFollowUp;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseScope;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseResponse;
-import ar.edu.utn.frba.arbiter.cases.dto.DerivationResultResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.DocumentAnalysisSummary;
 import ar.edu.utn.frba.arbiter.cases.dto.EligibilityCheckRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.IntakeDocumentsResponse;
@@ -421,7 +421,7 @@ public class CaseServiceImpl implements CaseService {
                 issuer == null ? null : InsurerSlug.of(issuer),
                 issuer == null ? null : issuer.getName(),
                 caseDocumentAnalysisRepository.findByCaseId(caseId), traceabilityOf(entity),
-                repairProviderOf(entity), null, null);
+                repairProviderOf(entity), null);
     }
 
     @Override
@@ -429,7 +429,7 @@ public class CaseServiceImpl implements CaseService {
                                          String insuredId, LocalDate eventDateFrom, LocalDate eventDateTo,
                                          String q, RiskBand riskBand, Long analystId, boolean assignedToMe,
                                          boolean unassigned, boolean fraudAlert, boolean assigned,
-                                         boolean dueSoon, boolean reportReceived, Integer staleDays,
+                                         boolean dueSoon, CaseFollowUp followUp, Integer staleDays,
                                          CaseScope scope, Long insurerId, Pageable pageable) {
         if (accessPolicy.currentUserIsInsured()) {
             // Across all of the insured's insurers; the inbox lenses don't apply to them.
@@ -452,7 +452,7 @@ public class CaseServiceImpl implements CaseService {
                 status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
                 ownerId, unassigned, fraudAlert, assigned), dueSoon), CaseSpecifications.scope(scope));
         spec = and(spec, withStale(staleDays));
-        spec = and(spec, CaseSpecifications.returnedFromDerivation(reportReceived));
+        spec = and(spec, CaseSpecifications.followUp(followUp));
         return toResponses(caseRepository.findAll(spec, pageable));
     }
 
@@ -484,7 +484,7 @@ public class CaseServiceImpl implements CaseService {
     @Override
     public LensSummaryResponse lensSummary(List<CaseStatus> status, String claimCause, String policyNumber,
                                             String insuredId, LocalDate eventDateFrom, LocalDate eventDateTo,
-                                            String q, RiskBand riskBand, Long analystId, boolean reportReceived,
+                                            String q, RiskBand riskBand, Long analystId, CaseFollowUp followUp,
                                             CaseScope scope) {
         // analystId is the referent's filter and a referent has no analyst profile, so it never
         // coexists with a real "me" and both can share the same WHERE.
@@ -492,7 +492,7 @@ public class CaseServiceImpl implements CaseService {
         Specification<Case> spec = and(CaseSpecifications.withFilters(
                 status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
                 analystId), CaseSpecifications.scope(scope));
-        spec = and(spec, CaseSpecifications.returnedFromDerivation(reportReceived));
+        spec = and(spec, CaseSpecifications.followUp(followUp));
 
         CaseLensCountRepository.LensCounts counts = caseRepository.countLenses(spec, me);
         return new LensSummaryResponse(
@@ -523,25 +523,10 @@ public class CaseServiceImpl implements CaseService {
         List<Long> ids = page.getContent().stream().map(Case::getId).toList();
         Map<Long, CaseAnalysis> analyses = caseAnalysisRepository.findByCaseIds(ids);
         Map<Long, SettlementStatus> settlements = settlementService.statusesFor(ids);
-        Map<Long, DerivationResultResponse> derivations = lastDerivationResults(ids);
         return page.map(entity -> toResponse(entity, null,
                 analyses.getOrDefault(entity.getId(), CaseAnalysis.none()),
                 null, null, List.of(), Traceability.none(), null,
-                settlements.get(entity.getId()), derivations.get(entity.getId())));
-    }
-
-    private Map<Long, DerivationResultResponse> lastDerivationResults(List<Long> caseIds) {
-        if (caseIds.isEmpty()) {
-            return Map.of();
-        }
-        Map<Long, DerivationResultResponse> results = new HashMap<>();
-        for (ExpertAssessmentRepository.RespondedDerivation derivation
-                : expertAssessmentRepository.findRespondedByCaseIdIn(caseIds)) {
-            results.putIfAbsent(derivation.getCaseId(), new DerivationResultResponse(
-                    derivation.getProviderType(), derivation.getVerdict(),
-                    derivation.getRepairOutcome(), derivation.getRespondedAt()));
-        }
-        return results;
+                settlements.get(entity.getId())));
     }
 
     @Override
@@ -806,14 +791,14 @@ public class CaseServiceImpl implements CaseService {
     private CaseResponse toResponse(Case entity, List<StatusTransitionResponse> history,
                                      CaseAnalysis analysis) {
         return toResponse(entity, history, analysis, null, null, List.of(), Traceability.none(),
-                null, null, null);
+                null, null);
     }
 
     private CaseResponse toResponse(Case entity, List<StatusTransitionResponse> history,
                                      CaseAnalysis analysis, String insurerSlug, String insurerName,
                                      List<DocumentAnalysisSummary> documentAnalyses) {
         return toResponse(entity, history, analysis, insurerSlug, insurerName, documentAnalyses,
-                Traceability.none(), null, null, null);
+                Traceability.none(), null, null);
     }
 
     private CaseResponse toResponse(Case entity, List<StatusTransitionResponse> history,
@@ -821,8 +806,7 @@ public class CaseServiceImpl implements CaseService {
                                      List<DocumentAnalysisSummary> documentAnalyses,
                                      Traceability traceability,
                                      RepairProviderResponse repairProvider,
-                                     SettlementStatus settlementStatus,
-                                     DerivationResultResponse lastDerivationResult) {
+                                     SettlementStatus settlementStatus) {
         // While reclassifying, the latest llm_analysis row is the previous run: show none.
         CaseAnalysis current = entity.getStatus() == CaseStatus.PENDING_CLASSIFICATION
                 ? CaseAnalysis.none()
@@ -867,8 +851,7 @@ public class CaseServiceImpl implements CaseService {
                 documentAnalyses,
                 traceability.ruleResults(),
                 traceability.policySnapshot(),
-                repairProvider,
-                lastDerivationResult
+                repairProvider
         );
     }
 

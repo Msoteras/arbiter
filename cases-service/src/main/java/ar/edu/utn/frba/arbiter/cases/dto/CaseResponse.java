@@ -91,7 +91,6 @@ public record CaseResponse(
          * Only while in PENDING_REPAIR and only on GET /{id}. The one derivation detail the insured
          * sees; expert assessments never travel in any field they read.
          */
-        RepairProviderResponse repairProvider,
-        DerivationResultResponse lastDerivationResult
+        RepairProviderResponse repairProvider
 ) {
 }

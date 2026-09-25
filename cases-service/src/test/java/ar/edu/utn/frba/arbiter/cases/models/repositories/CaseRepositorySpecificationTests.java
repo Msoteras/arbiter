@@ -1,17 +1,21 @@
 package ar.edu.utn.frba.arbiter.cases.models.repositories;
 
+import ar.edu.utn.frba.arbiter.cases.dto.CaseFollowUp;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseScope;
 import ar.edu.utn.frba.arbiter.cases.dto.ProviderType;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.ClaimsAnalyst;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Coverage;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Insured;
+import ar.edu.utn.frba.arbiter.cases.models.entities.CaseSettlement;
 import ar.edu.utn.frba.arbiter.cases.models.entities.ExpertAssessment;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Policy;
 import ar.edu.utn.frba.arbiter.cases.support.AbstractPersistenceIT;
 import ar.edu.utn.frba.arbiter.cases.support.CaseFixtures;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 import ar.edu.utn.frba.arbiter.common.enums.RiskBand;
+import ar.edu.utn.frba.arbiter.common.enums.SettlementBasis;
+import ar.edu.utn.frba.arbiter.common.enums.SettlementStatus;
 import ar.edu.utn.frba.arbiter.common.models.entities.Branch;
 import ar.edu.utn.frba.arbiter.common.models.entities.CaseState;
 import ar.edu.utn.frba.arbiter.common.models.entities.ClaimCause;
@@ -28,6 +32,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
@@ -77,6 +82,9 @@ class CaseRepositorySpecificationTests extends AbstractPersistenceIT {
 
     @Autowired
     private ExpertAssessmentRepository expertAssessmentRepository;
+
+    @Autowired
+    private CaseSettlementRepository caseSettlementRepository;
 
     @PersistenceContext
     private EntityManager entityManager;
@@ -498,27 +506,66 @@ class CaseRepositorySpecificationTests extends AbstractPersistenceIT {
     }
 
     @Test
-    void returnedFromDerivation_keepsOnlyOpenCasesWithAProviderResponse() {
+    void followUp_splitsWhatTheExpertAndTheRepairShopAnswered() {
         ClaimsAnalyst lucas = analyst("derivations@arbiter.test", "Lucas", "Gómez");
         Instant answered = Instant.parse("2026-09-10T12:00:00Z");
-        Case returned = caseRepository.save(caseOf(CaseStatus.PENDING_ANALYST_REVIEW, "Hurto",
+        Case fromExpert = caseRepository.save(caseOf(CaseStatus.PENDING_ANALYST_REVIEW, "Hurto",
                 "POL-CEL-2024-030", "40.123.480", "Ana", "Sosa", LocalDate.of(2026, 9, 1), null));
-        Case waitingAgain = caseRepository.save(caseOf(CaseStatus.PENDING_REPAIR, "Hurto",
+        Case fromRepairShop = caseRepository.save(caseOf(CaseStatus.PENDING_ANALYST_REVIEW, "Caída",
                 "POL-CEL-2024-031", "40.123.481", "Beto", "Luna", LocalDate.of(2026, 9, 1), null));
-        Case closed = caseRepository.save(caseOf(CaseStatus.APPROVED, "Hurto",
+        Case waitingAgain = caseRepository.save(caseOf(CaseStatus.PENDING_REPAIR, "Hurto",
                 "POL-CEL-2024-032", "40.123.482", "Ciro", "Vera", LocalDate.of(2026, 9, 1), null));
-        Case neverDerived = caseRepository.save(caseOf(CaseStatus.PENDING_ANALYST_REVIEW, "Hurto",
+        Case closed = caseRepository.save(caseOf(CaseStatus.APPROVED, "Hurto",
                 "POL-CEL-2024-033", "40.123.483", "Dora", "Mena", LocalDate.of(2026, 9, 1), null));
-        assessment(returned, ProviderType.ESTUDIO_LIQUIDADOR, answered, lucas);
+        Case stillWithExpert = caseRepository.save(caseOf(CaseStatus.PENDING_EXPERT_REPORT, "Hurto",
+                "POL-CEL-2024-034", "40.123.484", "Eva", "Ruiz", LocalDate.of(2026, 9, 1), null));
+        assessment(fromExpert, ProviderType.ESTUDIO_LIQUIDADOR, answered, lucas);
+        assessment(fromRepairShop, ProviderType.SERVICIO_TECNICO, answered, lucas);
         assessment(waitingAgain, ProviderType.ESTUDIO_LIQUIDADOR, answered, lucas);
         assessment(waitingAgain, ProviderType.SERVICIO_TECNICO, null, lucas);
         assessment(closed, ProviderType.ESTUDIO_LIQUIDADOR, answered, lucas);
+        assessment(stillWithExpert, ProviderType.ESTUDIO_LIQUIDADOR, null, lucas);
 
-        Page<Case> page = caseRepository.findAll(CaseSpecifications.returnedFromDerivation(true), FIRST_PAGE);
+        assertThat(caseRepository.findAll(CaseSpecifications.followUp(CaseFollowUp.EXPERT_REPORT_RECEIVED),
+                FIRST_PAGE).getContent()).extracting(Case::getId).containsExactly(fromExpert.getId());
+        assertThat(caseRepository.findAll(CaseSpecifications.followUp(CaseFollowUp.REPAIR_REPORT_RECEIVED),
+                FIRST_PAGE).getContent()).extracting(Case::getId).containsExactly(fromRepairShop.getId());
+    }
 
-        assertThat(page.getContent()).extracting(Case::getId)
-                .containsExactly(returned.getId())
-                .doesNotContain(waitingAgain.getId(), closed.getId(), neverDerived.getId());
+    @Test
+    void followUp_findsWhatTheReferentReturnedOrStillHas() {
+        Case returned = caseRepository.save(caseOf(CaseStatus.PENDING_ANALYST_REVIEW, "Hurto",
+                "POL-CEL-2024-035", "40.123.485", "Ana", "Sosa", LocalDate.of(2026, 9, 1), null));
+        Case awaiting = caseRepository.save(caseOf(CaseStatus.PENDING_ANALYST_REVIEW, "Hurto",
+                "POL-CEL-2024-036", "40.123.486", "Beto", "Luna", LocalDate.of(2026, 9, 1), null));
+        Case authorized = caseRepository.save(caseOf(CaseStatus.APPROVED, "Hurto",
+                "POL-CEL-2024-037", "40.123.487", "Ciro", "Vera", LocalDate.of(2026, 9, 1), null));
+        Case returnedThenRejected = caseRepository.save(caseOf(CaseStatus.REJECTED, "Hurto",
+                "POL-CEL-2024-038", "40.123.488", "Dora", "Mena", LocalDate.of(2026, 9, 1), null));
+        settlement(returned, SettlementStatus.RETURNED);
+        settlement(awaiting, SettlementStatus.PENDING_AUTHORIZATION);
+        settlement(authorized, SettlementStatus.AUTHORIZED);
+        settlement(returnedThenRejected, SettlementStatus.RETURNED);
+
+        assertThat(caseRepository.findAll(CaseSpecifications.followUp(CaseFollowUp.RETURNED_BY_REFERENT),
+                FIRST_PAGE).getContent()).extracting(Case::getId).containsExactly(returned.getId());
+        assertThat(caseRepository.findAll(CaseSpecifications.followUp(CaseFollowUp.AWAITING_REFERENT),
+                FIRST_PAGE).getContent()).extracting(Case::getId).containsExactly(awaiting.getId());
+    }
+
+    private void settlement(Case caseRecord, SettlementStatus status) {
+        caseSettlementRepository.save(CaseSettlement.builder()
+                .caseId(caseRecord.getId())
+                .sumInsured(new BigDecimal("1300000.00"))
+                .settlementBasis(SettlementBasis.SUM_INSURED)
+                .calculatedAmount(new BigDecimal("1140000.00"))
+                .settledAmount(new BigDecimal("1140000.00"))
+                .status(status)
+                .coverageId(1L)
+                .analystId(7L)
+                .calculatedAt(Instant.parse("2026-09-12T12:00:00Z"))
+                .confirmedAt(Instant.parse("2026-09-12T12:00:00Z"))
+                .build());
     }
 
     private void assessment(Case caseRecord, ProviderType providerType, Instant reportReceivedAt,

@@ -178,154 +178,61 @@ describe('BandejaComponent · recorte en curso', () => {
     expect(lastList().analystId).toBeUndefined();
   });
 
-  describe('status notes', () => {
-    function caseRow(overrides: Record<string, unknown>): unknown {
-      return {
-        id: 43,
-        status: 'PENDING_ANALYST_REVIEW',
-        insuredName: 'Julián Pérez',
-        claimCause: 'Robo en vía pública',
-        eventDate: '2026-09-20T19:25:00',
-        claimedAmount: 900000,
-        analysisClassification: 'LLM_NO_RECOMIENDA_APROBAR',
-        assignedAnalystId: null,
-        assignedAnalystName: null,
-        responseDeadline: '2026-10-24',
-        deadlinePriority: 'NONE',
-        riskBand: 'MEDIUM',
-        riskScore: 0.43,
-        settlementStatus: null,
-        lastDerivationResult: null,
-        ...overrides,
-      };
-    }
-
-    function badgeWith(text: string): HTMLElement | undefined {
-      return (Array.from(fixture.nativeElement.querySelectorAll('.badge')) as HTMLElement[]).find(
-        (badge) => badge.textContent?.includes(text),
-      );
-    }
-
-    function notes(): HTMLElement[] {
-      return Array.from(fixture.nativeElement.querySelectorAll('.status-notes > span'));
-    }
-
-    function noteWith(text: string): HTMLElement | undefined {
-      return notes().find((note) => note.textContent?.includes(text));
-    }
-
-    it('shows the expert verdict with its tone', async () => {
-      await mount('ANALISTA_SINIESTROS', [
-        caseRow({
-          lastDerivationResult: {
-            providerType: 'ESTUDIO_LIQUIDADOR',
-            verdict: 'FRAUD_CONFIRMED',
-            repairOutcome: null,
-            respondedAt: '2026-09-20T15:00:00Z',
-          },
-        }),
-      ]);
-
-      const note = noteWith('Volvió del perito: Fraude confirmado');
-      expect(note).toBeDefined();
-      expect(note?.getAttribute('data-tone')).toBe('danger');
-    });
-
-    it('shows the repair shop response as neutral', async () => {
-      await mount('ANALISTA_SINIESTROS', [
-        caseRow({
-          lastDerivationResult: {
-            providerType: 'SERVICIO_TECNICO',
-            verdict: null,
-            repairOutcome: 'REPAIRED',
-            respondedAt: '2026-09-20T15:00:00Z',
-          },
-        }),
-      ]);
-
-      const note = noteWith('Volvió del servicio técnico: Reparado');
-      expect(note).toBeDefined();
-      expect(note?.getAttribute('data-tone')).toBeNull();
-    });
-
-    it('keeps the status as the only badge and lists the rest as notes', async () => {
-      await mount('ANALISTA_SINIESTROS', [
-        caseRow({
-          settlementStatus: 'RETURNED',
-          lastDerivationResult: {
-            providerType: 'ESTUDIO_LIQUIDADOR',
-            verdict: 'INCONCLUSIVE',
-            repairOutcome: null,
-            respondedAt: '2026-09-24T15:00:00Z',
-          },
-        }),
-      ]);
-
-      const statusCell: HTMLElement = fixture.nativeElement.querySelector('tbody td:nth-child(2)');
-      expect(statusCell.querySelectorAll('.badge').length).toBe(1);
-      expect(notes().map((note) => note.textContent?.trim())).toEqual([
-        'Devuelto por el referente',
-        'Volvió del perito: No concluyente',
-      ]);
-    });
-
-    it('notes a case waiting for the supervisor', async () => {
-      await mount('ANALISTA_SINIESTROS', [caseRow({ settlementStatus: 'PENDING_AUTHORIZATION' })]);
-
-      expect(notes().map((note) => note.textContent?.trim())).toEqual(['Esperando al referente']);
-    });
-
-    it('shows nothing while waiting for the provider', async () => {
-      await mount('ANALISTA_SINIESTROS', [
-        caseRow({
-          status: 'PENDING_REPAIR',
-          lastDerivationResult: {
-            providerType: 'ESTUDIO_LIQUIDADOR',
-            verdict: 'FRAUD_DISCARDED',
-            repairOutcome: null,
-            respondedAt: '2026-09-18T12:00:00Z',
-          },
-        }),
-      ]);
-
-      expect(badgeWith('Derivado a reparación')).toBeDefined();
-      expect(noteWith('Volvió del')).toBeUndefined();
-    });
-
-    it('shows nothing on a closed case', async () => {
-      await mount('ANALISTA_SINIESTROS', [
-        caseRow({
-          status: 'APPROVED',
-          lastDerivationResult: {
-            providerType: 'ESTUDIO_LIQUIDADOR',
-            verdict: 'FRAUD_CONFIRMED',
-            repairOutcome: null,
-            respondedAt: '2026-08-20T22:09:06Z',
-          },
-        }),
-      ]);
-
-      expect(badgeWith('Aprobado')).toBeDefined();
-      expect(noteWith('Volvió del')).toBeUndefined();
-    });
-
-    it('sends the report received filter to the list and the counts', async () => {
+  describe('follow-up filter', () => {
+    it('sends the follow-up to the list and the counts', async () => {
       await mount();
 
-      signalOf('draftReportReceived').set(true);
+      signalOf('draftFollowUp').set('EXPERT_REPORT_RECEIVED');
       call('applyFilters');
       fixture.detectChanges();
       await fixture.whenStable();
 
-      expect(lastList().reportReceived).toBeTrue();
-      expect(lensCalls[lensCalls.length - 1].reportReceived).toBeTrue();
+      expect(lastList().followUp).toBe('EXPERT_REPORT_RECEIVED');
+      expect(lensCalls[lensCalls.length - 1].followUp).toBe('EXPERT_REPORT_RECEIVED');
     });
 
-    it('shows nothing when the case was never derived', async () => {
-      await mount('ANALISTA_SINIESTROS', [caseRow({})]);
+    it('shows the chosen follow-up as a chip and clearing all drops it', async () => {
+      await mount();
+      signalOf('draftFollowUp').set('RETURNED_BY_REFERENT');
+      call('applyFilters');
+      fixture.detectChanges();
+      await fixture.whenStable();
 
-      expect(badgeWith('Pendiente de revisión')).toBeDefined();
-      expect(noteWith('Volvió del')).toBeUndefined();
+      const chips = Array.from(fixture.nativeElement.querySelectorAll('.chip')) as HTMLElement[];
+      expect(chips.map((chip) => chip.textContent)).toContain(
+        jasmine.stringContaining('Devuelto por el referente'),
+      );
+
+      call('clearAllChips');
+      fixture.detectChanges();
+      await fixture.whenStable();
+
+      expect(lastList().followUp).toBeUndefined();
+    });
+
+    it('keeps only the status in the row, even when the referent returned the case', async () => {
+      await mount('ANALISTA_SINIESTROS', [
+        {
+          id: 43,
+          status: 'PENDING_ANALYST_REVIEW',
+          insuredName: 'Julián Pérez',
+          claimCause: 'Robo en vía pública',
+          eventDate: '2026-09-20T19:25:00',
+          claimedAmount: 900000,
+          analysisClassification: 'LLM_NO_RECOMIENDA_APROBAR',
+          assignedAnalystId: null,
+          assignedAnalystName: null,
+          responseDeadline: '2026-10-24',
+          deadlinePriority: 'NONE',
+          riskBand: 'MEDIUM',
+          riskScore: 0.43,
+          settlementStatus: 'RETURNED',
+        },
+      ]);
+
+      const statusCell: HTMLElement = fixture.nativeElement.querySelector('tbody td:nth-child(2)');
+      expect(statusCell.querySelectorAll('.badge').length).toBe(1);
+      expect(statusCell.textContent?.trim()).toBe('Pendiente de revisión');
     });
   });
 });

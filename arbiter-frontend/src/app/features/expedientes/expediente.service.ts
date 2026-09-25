@@ -158,7 +158,11 @@ export interface ExpedienteListParams {
   assigned?: boolean;
   /** HIGH or CRITICAL risk. */
   fraudAlert?: boolean;
-  reportReceived?: boolean;
+  followUp?:
+    | 'EXPERT_REPORT_RECEIVED'
+    | 'REPAIR_REPORT_RECEIVED'
+    | 'RETURNED_BY_REFERENT'
+    | 'AWAITING_REFERENT';
   /** Backend default: `ALL`. */
   scope?: 'OPEN' | 'CLOSED' | 'ALL';
   /** Only for an insured with policies at more than one insurer. */
@@ -227,7 +231,7 @@ export class ExpedienteService {
     if (params.unassigned) query['unassigned'] = 'true';
     if (params.assigned) query['assigned'] = 'true';
     if (params.fraudAlert) query['fraudAlert'] = 'true';
-    if (params.reportReceived) query['reportReceived'] = 'true';
+    if (params.followUp) query['followUp'] = params.followUp;
     if (params.scope) query['scope'] = params.scope;
     if (params.staleDays != null) query['staleDays'] = String(params.staleDays);
     if (params.insurerId != null) query['insurerId'] = String(params.insurerId);
@@ -344,7 +348,7 @@ export class ExpedienteService {
     if (params.q) query['q'] = params.q;
     if (params.riskBand) query['riskBand'] = params.riskBand;
     if (params.analystId != null) query['analystId'] = String(params.analystId);
-    if (params.reportReceived) query['reportReceived'] = 'true';
+    if (params.followUp) query['followUp'] = params.followUp;
     if (params.scope) query['scope'] = params.scope;
     return this.http.get<LensSummary>(`${this.baseUrl}/lens-summary`, { params: query });
   }

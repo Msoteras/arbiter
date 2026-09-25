@@ -2,12 +2,9 @@ package ar.edu.utn.frba.arbiter.cases.services;
 
 import ar.edu.utn.frba.arbiter.cases.config.tenant.CallerContext;
 import ar.edu.utn.frba.arbiter.cases.dto.AnalystDecisionRequest;
-import ar.edu.utn.frba.arbiter.cases.dto.DerivationResultResponse;
-import ar.edu.utn.frba.arbiter.cases.dto.RepairOutcome;
 import ar.edu.utn.frba.arbiter.cases.dto.SettlementDecisionRequest;
 import ar.edu.utn.frba.arbiter.cases.models.entities.CaseSettlement;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.UserRepository;
-import ar.edu.utn.frba.arbiter.common.enums.ExpertVerdict;
 import ar.edu.utn.frba.arbiter.common.enums.SettlementBasis;
 import ar.edu.utn.frba.arbiter.common.enums.SettlementStatus;
 import ar.edu.utn.frba.arbiter.common.models.entities.User;
@@ -632,28 +629,6 @@ class CaseServiceImplTest {
         assertThat(response.getContent().get(0).settlementStatus())
                 .isEqualTo(SettlementStatus.PENDING_AUTHORIZATION);
         assertThat(response.getContent().get(1).settlementStatus()).isNull();
-    }
-
-    @Test
-    void listCases_carriesTheLatestDerivationResponse() {
-        Case returned = caseRecord(2L, CaseStatus.PENDING_ANALYST_REVIEW);
-        Case neverDerived = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
-        Pageable pageable = PageRequest.of(0, 20);
-        when(caseRepository.findAll(isNull(Specification.class), eq(pageable)))
-                .thenReturn(new PageImpl<>(List.of(returned, neverDerived), pageable, 2));
-        Instant repairedAt = Instant.parse("2026-09-20T15:00:00Z");
-        when(expertAssessmentRepository.findRespondedByCaseIdIn(List.of(2L, 1L))).thenReturn(List.of(
-                responded(2L, ProviderType.SERVICIO_TECNICO, null, RepairOutcome.REPAIRED, repairedAt),
-                responded(2L, ProviderType.ESTUDIO_LIQUIDADOR, ExpertVerdict.FRAUD_DISCARDED, null,
-                        repairedAt.minusSeconds(86_400))));
-
-        Page<CaseResponse> response = caseService.listCases(
-                null, null, null, null, null, null, null, null, false, pageable);
-
-        assertThat(response.getContent().get(0).lastDerivationResult()).isEqualTo(
-                new DerivationResultResponse(
-                        ProviderType.SERVICIO_TECNICO, null, RepairOutcome.REPAIRED, repairedAt));
-        assertThat(response.getContent().get(1).lastDerivationResult()).isNull();
     }
 
     @Test
@@ -1589,37 +1564,6 @@ class CaseServiceImplTest {
                 "test@example.com",
                 "11-5555-0000"
         );
-    }
-
-    private static ExpertAssessmentRepository.RespondedDerivation responded(
-            Long caseId, ProviderType providerType, ExpertVerdict verdict, RepairOutcome repairOutcome,
-            Instant respondedAt) {
-        return new ExpertAssessmentRepository.RespondedDerivation() {
-            @Override
-            public Long getCaseId() {
-                return caseId;
-            }
-
-            @Override
-            public ProviderType getProviderType() {
-                return providerType;
-            }
-
-            @Override
-            public ExpertVerdict getVerdict() {
-                return verdict;
-            }
-
-            @Override
-            public RepairOutcome getRepairOutcome() {
-                return repairOutcome;
-            }
-
-            @Override
-            public Instant getRespondedAt() {
-                return respondedAt;
-            }
-        };
     }
 
     private Case caseRecord(Long id, CaseStatus status) {
