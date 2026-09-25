@@ -124,6 +124,15 @@
                   {{ montoExacto(s.authorityLimit) }}
                 </p>
               }
+              @if (derivacionesRespondidas().length > 0) {
+                <p class="rcard-note">
+                  @for (p of derivacionesRespondidas(); track p.id) {
+                    <app-badge variant="solid" [tone]="resultadoDerivacionTone(p)">
+                      {{ resultadoDerivacion(p) }}
+                    </app-badge>
+                  }
+                </p>
+              }
               @if (canAuthorize()) {
                 <div class="decision-btns">
                   <app-button variant="secondary" [disabled]="signing()" (click)="askReturn()">
