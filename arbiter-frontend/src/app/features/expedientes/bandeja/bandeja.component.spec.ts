@@ -262,6 +262,27 @@ describe('BandejaComponent · recorte en curso', () => {
       expect(lastList().assigned).toBeTrue();
       expect(tabCount('Asignados')).toBe('12');
     });
+
+    it('exports exactly the combination on screen', async () => {
+      await mount();
+      const component = fixture.componentInstance as unknown as {
+        fetchAllPages: (params: ExpedienteListParams) => unknown;
+        downloadCsv: () => void;
+        exportAs: (format: string) => void;
+      };
+      const fetchAllPages = spyOn(component, 'fetchAllPages').and.returnValue(of([]));
+      spyOn(component, 'downloadCsv');
+
+      clickScope('Cerrados');
+      clickScope('Mis asignados');
+      await fixture.whenStable();
+      component.exportAs('csv');
+
+      const exported = fetchAllPages.calls.mostRecent().args[0];
+      expect(exported.scope).toBe('CLOSED');
+      expect(exported.assignedToMe).toBeTrue();
+      expect(exported.unassigned).toBeFalse();
+    });
   });
 
   describe('links from the dashboard', () => {
