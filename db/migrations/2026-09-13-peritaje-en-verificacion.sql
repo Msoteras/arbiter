@@ -1,16 +1,5 @@
--- =============================================================================
--- 2026-09-13 · Peritaje visible para el asegurado como "En verificación"
---
--- Migración puntual y NO destructiva, para aplicar sobre una base que ya tiene
--- datos (Railway) sin pasar por el trío reset → init → seed.
---
--- PENDING_EXPERT_REPORT le mostraba 'En análisis' al asegurado, pero su seguimiento
--- ya listaba "Enviado a verificación con un perito": el título y el badge
--- contradecían al timeline. La derivación se nombra; el motivo, nunca.
---
--- `init-multitenant.sql` ya quedó actualizado para las bases nuevas.
--- Idempotente: se puede correr más de una vez sin romper nada.
--- =============================================================================
+-- 2026-09-13 · PENDING_EXPERT_REPORT shows the insured 'En verificación', matching their timeline. The
+-- referral is named, the reason never. Idempotent.
 
 BEGIN;
 

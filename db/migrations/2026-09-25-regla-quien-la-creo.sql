@@ -1,35 +1,8 @@
--- =============================================================================
--- 2026-09-25 · Quién creó cada regla y la configuración del puntaje
---
--- Migración puntual y NO destructiva, para aplicar sobre una base que ya tiene
--- datos (Railway) sin pasar por el trío reset → init → seed.
---
--- Agrega, NOT NULL:
---   · <tenant>.insurer_rule          → created_by, el usuario que creó la regla.
---   · <tenant>.scoring_configuration → created_by, ídem para la configuración del puntaje.
---
--- Apunta a arbiter_common.users y no a insurer_referent a propósito: el autor es
--- siempre un usuario, sin atarlo a qué rol puede configurar reglas hoy.
---
--- Completa las filas existentes con el usuario del referente que hizo el primer
--- cambio registrado de esa regla; si nunca se modificó (incluidas las que cargó
--- el script de datos), con el del primer referente de la aseguradora, que es
--- quien se considera que la cargó. Recién después pasa la columna a NOT NULL: si
--- una aseguradora no tuviera referente, falla ahí y no deja la columna a medias.
---
--- IMPORTANTE: los servicios corren con ddl-auto=validate. Aplicar ANTES de
--- desplegar el código que declara el campo, o rules-service no levanta.
---
--- DESPUÉS de esta migración, reemplazar arbiter_common.create_tenant_schema por
--- la de db/init-multitenant.sql, que ahora recibe p_created_by: borrar la de un
--- parámetro (DROP FUNCTION arbiter_common.create_tenant_schema(TEXT)) y correr el
--- bloque CREATE OR REPLACE FUNCTION ... $fn$ LANGUAGE plpgsql; tal cual está en el
--- init. No se copia acá para no tener dos versiones de la función que mantener.
--- (En Railway ya se hizo el 25/09/2026.)
---
--- Idempotente: se puede correr más de una vez sin romper nada (solo completa
--- las filas que siguen en NULL).
--- =============================================================================
+-- 2026-09-25 · created_by (NOT NULL, arbiter_common.users) on insurer_rule and scoring_configuration,
+-- backfilled with the referente of the first recorded change or the insurer's first referente. Apply
+-- before deploying rules-service. Afterwards drop arbiter_common.create_tenant_schema(TEXT) and run the
+-- CREATE OR REPLACE FUNCTION block from init-multitenant.sql, which takes p_created_by (done on Railway on
+-- 25/09/2026). Idempotent.
 
 BEGIN;
 
@@ -81,7 +54,7 @@ END $$;
 
 COMMIT;
 
--- Verificación: a quién quedó atribuida cada regla, por aseguradora.
+-- Check: who each rule is attributed to, per insurer.
 DO $$
 DECLARE
     tenant TEXT;

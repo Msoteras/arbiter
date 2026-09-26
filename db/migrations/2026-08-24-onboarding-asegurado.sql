@@ -1,23 +1,5 @@
--- =============================================================================
--- 2026-08-24 · arbiter_*.insured — columnas de onboarding + consentimiento versionado
---
--- Migración puntual y NO destructiva, para aplicar sobre una base que ya tiene
--- datos (Railway) sin pasar por el trío reset → init → seed.
---
--- Por qué: commit 90e3579 (onboarding de asegurado) suma 4 columnas a `insured`
--- para el flujo de primer ingreso (InsuredProfileController/Service):
---   · image_consent_version, image_consent_at: versión y fecha del consentimiento
---     de uso de imagen, antes solo existía el booleano `image_consent`.
---   · onboarding_complete, onboarding_completed_at: si el asegurado ya pasó la
---     pantalla de bienvenida.
---
--- `init-multitenant.sql` ya quedó actualizado: una base creada de cero desde ese
--- script ya trae las columnas. Este archivo es solo para las bases que ya existían
--- (Railway) — con ddl-auto=validate, sin esto auth-service/cases-service/
--- classification-service no arrancan (Hibernate: "Schema-validation: missing column").
---
--- Idempotente: se puede correr más de una vez sin romper nada.
--- =============================================================================
+-- 2026-08-24 · Onboarding columns and versioned image consent on arbiter_*.insured.
+-- Without them auth, cases and classification fail schema validation. Idempotent.
 
 BEGIN;
 
@@ -35,7 +17,7 @@ ALTER TABLE arbiter_provincia.insured
 
 COMMIT;
 
--- Verificación: las 4 columnas nuevas en ambos tenants.
+-- Check: the 4 new columns in both tenants.
 SELECT table_schema, column_name, data_type, is_nullable
   FROM information_schema.columns
  WHERE table_name = 'insured'

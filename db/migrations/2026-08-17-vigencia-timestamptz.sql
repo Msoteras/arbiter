@@ -1,13 +1,5 @@
--- Migración manual, una vez, contra la BD viva (Railway). No hay Flyway: db/init-multitenant.sql
--- solo corre al crear el volumen desde cero, así que los cambios de esquema no llegan solos a una
--- base que ya tiene datos.
---
--- Historia de este archivo: primero se corrió con TIMESTAMPTZ (commit a28da47). Eso rompió
--- distinto: rs.getObject(col, LocalDateTime.class) en InsurerDatabaseAdapter (JDBC crudo, no JPA)
--- no puede leer una columna con timezone — el driver de Postgres exige OffsetDateTime/Instant para
--- TIMESTAMPTZ. Este script corrige a TIMESTAMP (sin timezone), que es lo que quedó en
--- db/init-multitenant.sql. AT TIME ZONE 'UTC' en el USING para que la conversión sea determinista
--- sin depender del timezone de la sesión que corra esto (los valores se cargaron en UTC).
+-- 2026-08-17 · Policy validity back to TIMESTAMP without time zone: InsurerDatabaseAdapter reads it
+-- as LocalDateTime over raw JDBC, which fails on TIMESTAMPTZ. Values were loaded in UTC.
 
 BEGIN;
 
@@ -21,6 +13,6 @@ ALTER TABLE aseguradora_provincia.poliza
 
 COMMIT;
 
--- Verificación:
+-- Check:
 -- SELECT id, numero, vigencia_desde, vigencia_hasta FROM aseguradora_bbva.poliza ORDER BY id;
 -- SELECT id, numero, vigencia_desde, vigencia_hasta FROM aseguradora_provincia.poliza ORDER BY id;

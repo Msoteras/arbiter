@@ -1378,7 +1378,7 @@ COMMIT;
 -- Onboarding a third insurer needs no hand-written DDL:
 --   INSERT INTO arbiter_common.insurer (legal_name, name, tax_id, active, schema_name)
 --        VALUES ('La Segunda Seguros S.A.', 'La Segunda', '30-50001328-8', TRUE, 'arbiter_lasegunda');
---   SELECT arbiter_common.create_tenant_schema('arbiter_lasegunda', <users.id de quien la da de alta>);
+--   SELECT arbiter_common.create_tenant_schema('arbiter_lasegunda', <users.id of whoever registers it>);
 --   SELECT arbiter_common.create_insurer_db_schema(
 --       'aseguradora_lasegunda', 'La Segunda Seguros S.A.', '30-50001328-8', '0331');
 --

@@ -1,34 +1,14 @@
--- =============================================================================
--- 2026-08-25 · arbiter_common.users.email — índice único
---
--- Por qué: el alta masiva de asegurados ("Dar de alta usuarios") reconoce a la
--- persona POR EMAIL para no duplicarla — alguien asegurado en dos compañías es un
--- solo login con dos filas en user_insurer (Roman Castillo, users(9), es
--- exactamente ese caso). Hoy ese de-dup vive solo en código: `users.email` no
--- tiene UNIQUE, cosa que el propio esquema marca como pendiente:
---
---   "Worth revisiting: auth0_sub and email are both login keys, and without a
---    constraint two rows can claim the same identity."
---
--- Sin el índice, dos corridas simultáneas (o un bug) meten identidades duplicadas
--- en silencio y quedan dos filas peleando por el mismo login.
---
--- NO destructiva, pero SÍ puede fallar: si ya hay emails repetidos, el índice no
--- se crea. Por eso el chequeo va primero — si devuelve filas, hay que resolver
--- esos duplicados a mano antes de correr el ALTER.
--- =============================================================================
+-- 2026-08-25 · Unique index on arbiter_common.users.email: bulk provisioning dedupes people by email.
+-- It fails if duplicates already exist, so step 1 checks first.
 
--- ─── Paso 1: ¿hay duplicados? Si esto devuelve filas, NO sigas. ──────────────
+-- Step 1: any duplicates? If this returns rows, stop and fix them by hand.
 SELECT lower(email) AS email, COUNT(*) AS veces,
        array_agg(id ORDER BY id) AS ids
   FROM arbiter_common.users
  GROUP BY lower(email)
 HAVING COUNT(*) > 1;
 
--- ─── Paso 2: el índice ───────────────────────────────────────────────────────
--- Sobre lower(email): el login busca por email y 'Ana@x.com' y 'ana@x.com' son la
--- misma casilla — un UNIQUE sensible a mayúsculas dejaría pasar justo el duplicado
--- que esto viene a impedir.
+-- Step 2: the index, on lower(email) since the login treats both cases as the same address.
 BEGIN;
 
 CREATE UNIQUE INDEX IF NOT EXISTS users_email_lower_uq
@@ -36,7 +16,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS users_email_lower_uq
 
 COMMIT;
 
--- Verificación.
+-- Check.
 SELECT indexname, indexdef
   FROM pg_indexes
  WHERE schemaname = 'arbiter_common'

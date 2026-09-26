@@ -1,13 +1,5 @@
--- Migración manual, una vez, contra la BD viva (Railway). No hay Flyway: db/init-multitenant.sql
--- solo corre al crear el volumen desde cero, así que estas dos columnas nuevas de `cases`
--- (classification_failure_reason, classification_failure_message — ver el CREATE TABLE en
--- db/init-multitenant.sql) no llegan solas a una base que ya tiene datos.
---
--- Las escribe classification-service (CaseOutcomeRepository.recordClassificationFailure) cuando
--- processClaimClassification agota los reintentos, y las lee cases-service para decidir qué
--- expedientes CLASSIFICATION_FAILED reencolar (ClassificationRefreshScheduler.recoverInfrastructureFailures).
---
--- IF NOT EXISTS: para poder re-correr esto sin romper si alguien ya lo aplicó a mano.
+-- 2026-08-28 · cases.classification_failure_reason/_message: written when classification runs out of
+-- retries, read by ClassificationRefreshScheduler to requeue infrastructure failures. Idempotent.
 
 BEGIN;
 
@@ -21,7 +13,7 @@ ALTER TABLE arbiter_provincia.cases
 
 COMMIT;
 
--- Verificación:
+-- Check:
 -- SELECT column_name, data_type FROM information_schema.columns
 --  WHERE table_schema = 'arbiter_bbva' AND table_name = 'cases'
 --    AND column_name LIKE 'classification_failure%';

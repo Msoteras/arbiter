@@ -1,33 +1,6 @@
--- =============================================================================
--- H0007 — lo que el modelo extrae de cada documento, completo
---
--- Dos cosas, y son distintas a propósito:
---
---   1. document_analysis suma brand/model. Son campos TIPADOS porque una regla los
---      compara: DocumentInconsistencyEvaluator cruza la marca del documento contra el
---      bien asegurado. Es el chequeo que el IMEI no puede hacer fuera de Celulares —
---      una póliza de Tecnología Portátil no tiene IMEI, así que sin esto la factura de
---      reparación de otra notebook no se cruza contra nada.
---
---   2. document_detail es la lista GENÉRICA nombre/valor para todo lo demás que el
---      documento diga y ninguna regla lea: nro. de factura, nro. de serie, comercio.
---      Existe para que sumar un dato nuevo no pida una migración cada vez.
---
--- La distinción importa y no es estética: un dato que una regla compara necesita el
--- tipo (una fecha se resta, un importe se compara con tolerancia). Y sobre todo,
--- necesita que el nombre sea un contrato. En document_detail el nombre es como lo
--- llamó el modelo, así que una regla que buscara ahí dejaría de encontrarlo el día que
--- el modelo lo redacte distinto — y fallaría EN SILENCIO, que en este motor se lee como
--- "no hay nada mal". Cuando un detalle empiece a alimentar una regla, se promueve a
--- columna tipada.
---
--- Idempotente. No borra ni reescribe nada: las dos columnas nacen NULL y las
--- extracciones viejas quedan como están — nadie las relee, y el próximo análisis del
--- mismo documento las completa (document_analysis se reemplaza en cada corrida).
---
--- Uso:
---   psql "$DATABASE_URL" -f db/migrations/2026-09-07-datos-documento.sql
--- =============================================================================
+-- 2026-09-07 · H0007: document_analysis gets brand/model, typed because DocumentInconsistencyEvaluator
+-- compares them; document_detail holds every other name/value the model reads. A detail that starts
+-- feeding a rule becomes a typed column: matching a model-chosen name would fail silently. Idempotent.
 
 BEGIN;
 
@@ -42,8 +15,7 @@ BEGIN
            AND schema_name <> 'arbiter_common'
          ORDER BY schema_name
     LOOP
-        -- Un esquema de aseguradora sin document_analysis sería uno a medio crear; se
-        -- saltea en vez de romper la migración entera por él.
+        -- A tenant schema without document_analysis is half-created: skip it.
         IF NOT EXISTS (
             SELECT 1 FROM information_schema.tables
              WHERE table_schema = tenant AND table_name = 'document_analysis'
@@ -71,9 +43,9 @@ END $$;
 
 COMMIT;
 
--- ─── Verificación ────────────────────────────────────────────────────────────
+-- ─── Verification ────────────────────────────────────────────────────────────
 --
--- 1. Las dos columnas nuevas en cada esquema de aseguradora (una fila por tenant):
+-- 1. The two new columns in every tenant schema (one row per tenant):
 --
 -- SELECT table_schema, string_agg(column_name, ', ' ORDER BY column_name)
 --   FROM information_schema.columns
@@ -81,16 +53,15 @@ COMMIT;
 --  GROUP BY table_schema
 --  ORDER BY table_schema;
 --
--- 2. La tabla nueva en cada esquema:
+-- 2. The new table in every schema:
 --
 -- SELECT table_schema
 --   FROM information_schema.tables
 --  WHERE table_name = 'document_detail'
 --  ORDER BY table_schema;
 --
--- 3. Después de reclasificar un expediente con adjuntos, que la extracción esté
---    completando lo nuevo. brand en NULL sobre una fila vieja es lo esperado; en una
---    recién escrita (extracted_at de hoy) sobre una factura, no:
+-- 3. After reclassifying a case with attachments: brand NULL is expected on old rows, not on a fresh
+--    invoice row:
 --
 -- SELECT a.id, a.extracted_at, a.item_description, a.brand, a.model,
 --        (SELECT count(*) FROM arbiter_bbva.document_detail d WHERE d.analysis_id = a.id) AS detalles
