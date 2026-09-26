@@ -274,13 +274,14 @@ public class CaseController {
     @PreAuthorize("hasAnyRole('ANALISTA_SINIESTROS', 'REFERENTE_ASEGURADORA')")
     @Operation(summary = "Conteos de las lentes de la bandeja",
             description = """
-                    Devuelve de una sola vez cuántos expedientes hay en cada lente (todos, míos,
-                    asignados, sin asignar, alerta de fraude) para los filtros que se pasen — los
-                    mismos que acepta el listado.
+                    Devuelve de una sola vez cuántos expedientes hay en cada combinación de ciclo de
+                    vida (en curso, cerrados, todos) y pertenencia (todos, míos, asignados, sin
+                    asignar, alerta de fraude) para los filtros que se pasen — los mismos que acepta
+                    el listado, sin `scope`: el ciclo de vida ya viene cruzado en la respuesta.
 
-                    Existe para no pedir una lente por request: eran cinco llamadas por cada cambio
-                    de filtro, y cada una traía además una fila entera solo para leerle el total.
-                    Acá se cuenta sin materializar filas.
+                    Existe para no pedir una lente por request: la bandeja lee la celda de la
+                    combinación elegida, así que cambiar de pestaña no vuelve a consultar. Se cuenta
+                    en una sola consulta, sin materializar filas.
 
                     "Míos" da 0 para el referente, que no tiene perfil de analista en el tenant.
                     """)
@@ -295,11 +296,11 @@ public class CaseController {
             @RequestParam(required = false) RiskBand riskBand,
             @RequestParam(required = false) Long analystId,
             @RequestParam(required = false) CaseFollowUp followUp,
-            @RequestParam(defaultValue = "ALL") CaseScope scope
+            @RequestParam(required = false) Integer staleDays
     ) {
         return ResponseEntity.ok(caseService.lensSummary(
                 status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
-                analystId, followUp, scope));
+                analystId, followUp, staleDays));
     }
 
     @GetMapping("/analysts/workload")
