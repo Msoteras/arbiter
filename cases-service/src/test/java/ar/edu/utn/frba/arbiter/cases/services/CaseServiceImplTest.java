@@ -2,8 +2,10 @@ package ar.edu.utn.frba.arbiter.cases.services;
 
 import ar.edu.utn.frba.arbiter.cases.config.tenant.CallerContext;
 import ar.edu.utn.frba.arbiter.cases.dto.AnalystDecisionRequest;
+import ar.edu.utn.frba.arbiter.cases.dto.LensSummaryResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.SettlementDecisionRequest;
 import ar.edu.utn.frba.arbiter.cases.models.entities.CaseSettlement;
+import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseLensCountRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.UserRepository;
 import ar.edu.utn.frba.arbiter.common.enums.SettlementBasis;
 import ar.edu.utn.frba.arbiter.common.enums.SettlementStatus;
@@ -629,6 +631,20 @@ class CaseServiceImplTest {
         assertThat(response.getContent().get(0).settlementStatus())
                 .isEqualTo(SettlementStatus.PENDING_AUTHORIZATION);
         assertThat(response.getContent().get(1).settlementStatus()).isNull();
+    }
+
+    @Test
+    void lensSummary_addsBothLifecyclesIntoTheAllRow() {
+        when(caseRepository.countLenses(any(), any())).thenReturn(new CaseLensCountRepository.LensCounts(
+                new CaseLensCountRepository.OwnershipCounts(19, 7, 12, 7, 5),
+                new CaseLensCountRepository.OwnershipCounts(15, 13, 15, 0, 3)));
+
+        LensSummaryResponse summary = caseService.lensSummary(
+                null, null, null, null, null, null, null, null, null, null, null);
+
+        assertThat(summary.open()).isEqualTo(new LensSummaryResponse.Counts(19, 7, 12, 7, 5));
+        assertThat(summary.closed()).isEqualTo(new LensSummaryResponse.Counts(15, 13, 15, 0, 3));
+        assertThat(summary.all()).isEqualTo(new LensSummaryResponse.Counts(34, 20, 27, 7, 8));
     }
 
     @Test

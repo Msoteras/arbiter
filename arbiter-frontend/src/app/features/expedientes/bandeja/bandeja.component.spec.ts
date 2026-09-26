@@ -17,12 +17,24 @@ describe('BandejaComponent · recorte en curso', () => {
   let fixture: ComponentFixture<BandejaComponent>;
   let listCalls: ExpedienteListParams[];
   let lensCalls: ExpedienteListParams[];
+  let navigateCalls: unknown[][];
 
   const emptyPage = { content: [], totalElements: 0, totalPages: 0, number: 0, size: 10 };
 
-  async function mount(rol = 'ANALISTA_SINIESTROS', content: unknown[] = []): Promise<void> {
+  const summary = {
+    open: { total: 19, mine: 7, assigned: 12, unassigned: 7, fraud: 5 },
+    closed: { total: 15, mine: 13, assigned: 15, unassigned: 0, fraud: 3 },
+    all: { total: 34, mine: 20, assigned: 27, unassigned: 7, fraud: 8 },
+  };
+
+  async function mount(
+    rol = 'ANALISTA_SINIESTROS',
+    content: unknown[] = [],
+    query: Map<string, string> = new Map(),
+  ): Promise<void> {
     listCalls = [];
     lensCalls = [];
+    navigateCalls = [];
 
     await TestBed.configureTestingModule({
       imports: [BandejaComponent],
@@ -42,15 +54,7 @@ describe('BandejaComponent · recorte en curso', () => {
             },
             lensSummary: (params: ExpedienteListParams) => {
               lensCalls.push(params);
-              return of({
-                mine: 0,
-                all: 0,
-                assigned: 0,
-                unassigned: 0,
-                fraud: 0,
-                open: 0,
-                closed: 0,
-              });
+              return of(summary);
             },
             claimCauseNames: () => of([]),
             analystWorkload: () => of([]),
@@ -65,13 +69,16 @@ describe('BandejaComponent · recorte en curso', () => {
         {
           provide: Router,
           useValue: {
-            navigate: () => Promise.resolve(true),
+            navigate: (...args: unknown[]) => {
+              navigateCalls.push(args);
+              return Promise.resolve(true);
+            },
             createUrlTree: () => new UrlTree(),
             serializeUrl: () => '',
             events: of(),
           },
         },
-        { provide: ActivatedRoute, useValue: { queryParamMap: of(new Map()) } },
+        { provide: ActivatedRoute, useValue: { queryParamMap: of(query) } },
       ],
     }).compileComponents();
 
@@ -102,6 +109,13 @@ describe('BandejaComponent · recorte en curso', () => {
 
   function lastList(): ExpedienteListParams {
     return listCalls[listCalls.length - 1];
+  }
+
+  function tabCount(label: string): string | undefined {
+    const tab = (
+      Array.from(fixture.nativeElement.querySelectorAll('.lens-tab')) as HTMLElement[]
+    ).find((b) => b.textContent?.trim().startsWith(label));
+    return tab?.querySelector('.lens-count')?.textContent?.trim();
   }
 
   it('arranca pidiendo solo los expedientes en curso', async () => {
@@ -176,6 +190,160 @@ describe('BandejaComponent · recorte en curso', () => {
     await fixture.whenStable();
 
     expect(lastList().analystId).toBeUndefined();
+  });
+
+  describe('lifecycle and ownership combined', () => {
+    it('closed plus mine asks for my closed cases', async () => {
+      await mount();
+
+      clickScope('Cerrados');
+      clickScope('Mis asignados');
+      await fixture.whenStable();
+
+      expect(lastList().scope).toBe('CLOSED');
+      expect(lastList().assignedToMe).toBeTrue();
+    });
+
+    it('each axis counts inside the other one without asking again', async () => {
+      await mount();
+      const callsAfterMount = lensCalls.length;
+
+      expect(tabCount('Mis asignados')).toBe('7');
+      clickScope('Cerrados');
+      expect(tabCount('Mis asignados')).toBe('13');
+
+      clickScope('Mis asignados');
+      expect(tabCount('En curso')).toBe('7');
+      expect(tabCount('Cerrados')).toBe('13');
+      expect(tabCount('Todos')).toBe('20');
+
+      await fixture.whenStable();
+      expect(lensCalls.length).toBe(callsAfterMount);
+    });
+
+    it('tapping the active ownership again turns it off', async () => {
+      await mount();
+
+      clickScope('Todos');
+      clickScope('Sin asignar');
+      await fixture.whenStable();
+      expect(lastList().unassigned).toBeTrue();
+
+      clickScope('Sin asignar');
+      await fixture.whenStable();
+
+      expect(lastList().scope).toBe('ALL');
+      expect(lastList().unassigned).toBeFalse();
+      expect(lastList().assignedToMe).toBeFalse();
+      expect(lastList().fraudAlert).toBeFalse();
+      expect(tabCount('Todos')).toBe('34');
+    });
+
+    it('picking a status keeps the ownership', async () => {
+      await mount();
+      clickScope('Mis asignados');
+
+      signalOf('draftStatus').set('APPROVED');
+      call('applyFilters');
+      fixture.detectChanges();
+      await fixture.whenStable();
+
+      expect(lastList().scope).toBe('ALL');
+      expect(lastList().assignedToMe).toBeTrue();
+    });
+
+    it('the referent gets Asignados instead of Mis asignados', async () => {
+      await mount('REFERENTE_ASEGURADORA');
+
+      expect(tabCount('Mis asignados')).toBeUndefined();
+      clickScope('Asignados');
+      await fixture.whenStable();
+
+      expect(lastList().assigned).toBeTrue();
+      expect(tabCount('Asignados')).toBe('12');
+    });
+
+    it('exports exactly the combination on screen', async () => {
+      await mount();
+      const component = fixture.componentInstance as unknown as {
+        fetchAllPages: (params: ExpedienteListParams) => unknown;
+        downloadCsv: () => void;
+        exportAs: (format: string) => void;
+      };
+      const fetchAllPages = spyOn(component, 'fetchAllPages').and.returnValue(of([]));
+      spyOn(component, 'downloadCsv');
+
+      clickScope('Cerrados');
+      clickScope('Mis asignados');
+      await fixture.whenStable();
+      component.exportAs('csv');
+
+      const exported = fetchAllPages.calls.mostRecent().args[0];
+      expect(exported.scope).toBe('CLOSED');
+      expect(exported.assignedToMe).toBeTrue();
+      expect(exported.unassigned).toBeFalse();
+    });
+  });
+
+  describe('links from the dashboard', () => {
+    it('lands on the combination it names and cleans the URL', async () => {
+      await mount(
+        'REFERENTE_ASEGURADORA',
+        [],
+        new Map([
+          ['unassigned', 'true'],
+          ['scope', 'OPEN'],
+        ]),
+      );
+
+      expect(lastList().scope).toBe('OPEN');
+      expect(lastList().unassigned).toBeTrue();
+      const cleaned = navigateCalls[navigateCalls.length - 1][1] as {
+        queryParams: Record<string, null>;
+      };
+      expect(cleaned.queryParams['unassigned']).toBeNull();
+      expect(cleaned.queryParams['scope']).toBeNull();
+    });
+
+    it('turns the fraud link into the fraud tab plus its status', async () => {
+      await mount(
+        'REFERENTE_ASEGURADORA',
+        [],
+        new Map([
+          ['fraudAlert', 'true'],
+          ['status', 'PENDING_ANALYST_REVIEW'],
+        ]),
+      );
+      fixture.detectChanges();
+      await fixture.whenStable();
+
+      expect(lastList().fraudAlert).toBeTrue();
+      expect(lastList().status).toBe('PENDING_ANALYST_REVIEW');
+    });
+
+    it('shows the stale link as a chip that can be removed', async () => {
+      await mount(
+        'REFERENTE_ASEGURADORA',
+        [],
+        new Map([
+          ['staleDays', '15'],
+          ['scope', 'OPEN'],
+        ]),
+      );
+
+      expect(lastList().staleDays).toBe(15);
+      expect(lensCalls[lensCalls.length - 1].staleDays).toBe(15);
+      const chips = Array.from(fixture.nativeElement.querySelectorAll('.chip')) as HTMLElement[];
+      expect(chips.map((chip) => chip.textContent)).toContain(
+        jasmine.stringContaining('Sin movimiento hace más de 15 días'),
+      );
+
+      call('clearAllChips');
+      fixture.detectChanges();
+      await fixture.whenStable();
+
+      expect(lastList().staleDays).toBeUndefined();
+    });
   });
 
   describe('follow-up filter', () => {

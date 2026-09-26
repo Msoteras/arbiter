@@ -175,14 +175,18 @@ export interface AnalystWorkload {
   activeCases: number;
 }
 
-export interface LensSummary {
-  all: number;
+export interface LensCounts {
+  total: number;
   mine: number;
   assigned: number;
   unassigned: number;
   fraud: number;
-  open: number;
-  closed: number;
+}
+
+export interface LensSummary {
+  open: LensCounts;
+  closed: LensCounts;
+  all: LensCounts;
 }
 
 /** `byStatus` maps CaseStatus name to count, only for statuses with at least one case. */
@@ -349,7 +353,7 @@ export class ExpedienteService {
     if (params.riskBand) query['riskBand'] = params.riskBand;
     if (params.analystId != null) query['analystId'] = String(params.analystId);
     if (params.followUp) query['followUp'] = params.followUp;
-    if (params.scope) query['scope'] = params.scope;
+    if (params.staleDays != null) query['staleDays'] = String(params.staleDays);
     return this.http.get<LensSummary>(`${this.baseUrl}/lens-summary`, { params: query });
   }
 

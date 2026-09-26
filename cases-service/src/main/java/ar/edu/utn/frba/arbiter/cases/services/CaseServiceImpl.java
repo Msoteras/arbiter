@@ -485,19 +485,28 @@ public class CaseServiceImpl implements CaseService {
     public LensSummaryResponse lensSummary(List<CaseStatus> status, String claimCause, String policyNumber,
                                             String insuredId, LocalDate eventDateFrom, LocalDate eventDateTo,
                                             String q, RiskBand riskBand, Long analystId, CaseFollowUp followUp,
-                                            CaseScope scope) {
+                                            Integer staleDays) {
         // analystId is the referent's filter and a referent has no analyst profile, so it never
         // coexists with a real "me" and both can share the same WHERE.
         Long me = currentAnalystId().orElse(null);
-        Specification<Case> spec = and(CaseSpecifications.withFilters(
+        Specification<Case> spec = CaseSpecifications.withFilters(
                 status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
-                analystId), CaseSpecifications.scope(scope));
+                analystId);
+        spec = and(spec, withStale(staleDays));
         spec = and(spec, CaseSpecifications.followUp(followUp));
 
         CaseLensCountRepository.LensCounts counts = caseRepository.countLenses(spec, me);
-        return new LensSummaryResponse(
-                counts.all(), counts.mine(), counts.assigned(), counts.unassigned(), counts.fraud(),
-                counts.open(), counts.closed());
+        LensSummaryResponse.Counts open = toCounts(counts.open());
+        LensSummaryResponse.Counts closed = toCounts(counts.closed());
+        return new LensSummaryResponse(open, closed, new LensSummaryResponse.Counts(
+                open.total() + closed.total(), open.mine() + closed.mine(),
+                open.assigned() + closed.assigned(), open.unassigned() + closed.unassigned(),
+                open.fraud() + closed.fraud()));
+    }
+
+    private static LensSummaryResponse.Counts toCounts(CaseLensCountRepository.OwnershipCounts counts) {
+        return new LensSummaryResponse.Counts(
+                counts.total(), counts.mine(), counts.assigned(), counts.unassigned(), counts.fraud());
     }
 
     /** The analyst id is local to the schema, so "me" is resolved here from the token's email. */

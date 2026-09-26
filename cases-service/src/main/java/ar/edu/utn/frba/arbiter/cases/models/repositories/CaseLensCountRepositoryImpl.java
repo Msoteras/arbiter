@@ -14,7 +14,11 @@ import jakarta.persistence.criteria.Join;
 import jakarta.persistence.criteria.JoinType;
 import jakarta.persistence.criteria.Predicate;
 import jakarta.persistence.criteria.Root;
+import jakarta.persistence.criteria.Selection;
 import org.springframework.data.jpa.domain.Specification;
+
+import java.util.ArrayList;
+import java.util.List;
 
 public class CaseLensCountRepositoryImpl implements CaseLensCountRepository {
 
@@ -30,23 +34,23 @@ public class CaseLensCountRepositoryImpl implements CaseLensCountRepository {
         // unassigned cases from every other count.
         Join<Object, Object> analyst = root.join("analyst", JoinType.LEFT);
 
-        Expression<Long> mine = me == null
-                ? cb.literal(0L)
-                : countWhen(cb, cb.equal(analyst.get("id"), me));
-
         // Same criterion as CaseSpecifications.scope. Counted here rather than filtered in the WHERE,
-        // which already carries the active tab's scope: these counts must not depend on it.
+        // so every lifecycle row can be crossed with every ownership.
         Predicate closed = root.get("currentStatus").get("name").in(
                 CaseStatusService.TERMINAL_STATUSES.stream().map(CaseStatus::name).toList());
 
-        query.multiselect(
-                cb.count(root),
-                mine,
-                countWhen(cb, cb.isNotNull(root.get("analyst"))),
-                countWhen(cb, cb.isNull(root.get("analyst"))),
-                countWhen(cb, root.get("riskBand").in(RiskBand.HIGH, RiskBand.CRITICAL)),
-                countWhen(cb, cb.not(closed)),
-                countWhen(cb, closed));
+        List<Selection<?>> cells = new ArrayList<>();
+        for (Predicate lifecycle : List.of(cb.not(closed), closed)) {
+            cells.add(countWhen(cb, lifecycle));
+            cells.add(me == null
+                    ? cb.literal(0L)
+                    : countWhen(cb, cb.and(lifecycle, cb.equal(analyst.get("id"), me))));
+            cells.add(countWhen(cb, cb.and(lifecycle, cb.isNotNull(root.get("analyst")))));
+            cells.add(countWhen(cb, cb.and(lifecycle, cb.isNull(root.get("analyst")))));
+            cells.add(countWhen(cb, cb.and(lifecycle,
+                    root.get("riskBand").in(RiskBand.HIGH, RiskBand.CRITICAL))));
+        }
+        query.multiselect(cells);
 
         Predicate where = spec == null ? null : spec.toPredicate(root, query, cb);
         if (where != null) {
@@ -54,9 +58,12 @@ public class CaseLensCountRepositoryImpl implements CaseLensCountRepository {
         }
 
         Tuple row = entityManager.createQuery(query).getSingleResult();
-        return new LensCounts(
-                value(row, 0), value(row, 1), value(row, 2), value(row, 3), value(row, 4),
-                value(row, 5), value(row, 6));
+        return new LensCounts(ownership(row, 0), ownership(row, 5));
+    }
+
+    private static OwnershipCounts ownership(Tuple row, int from) {
+        return new OwnershipCounts(value(row, from), value(row, from + 1), value(row, from + 2),
+                value(row, from + 3), value(row, from + 4));
     }
 
     /** {@code sum(case when ... then 1 else 0)} because {@code count(*) filter} isn't standard JPA. */

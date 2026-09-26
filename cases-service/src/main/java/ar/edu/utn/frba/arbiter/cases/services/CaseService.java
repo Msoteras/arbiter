@@ -85,7 +85,7 @@ public interface CaseService {
     LensSummaryResponse lensSummary(List<CaseStatus> status, String claimCause, String policyNumber,
                                      String insuredId, LocalDate eventDateFrom, LocalDate eventDateTo,
                                      String q, RiskBand riskBand, Long analystId, CaseFollowUp followUp,
-                                     CaseScope scope);
+                                     Integer staleDays);
 
     CaseResponse addDocumentsAndReclassify(Long caseId, Map<String, MultipartFile> documents);
 
