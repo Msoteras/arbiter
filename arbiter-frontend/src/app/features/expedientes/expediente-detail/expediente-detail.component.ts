@@ -464,11 +464,7 @@ export class ExpedienteDetailComponent {
     ),
   );
 
-  /**
-   * Los avisos: no deciden cobertura ni carril rápido, marcan algo para mirar antes de resolver
-   * (hoy, que la documentación narre otro hecho que el declarado). Van aparte y arriba de las
-   * reglas porque un "No cumple" entre ellas se leería como una exclusión que el motor no dictó.
-   */
+  /** Kept above the rules: a failed advisory among them would read as an exclusion. */
   protected readonly advisoryChecks = computed<RuleResult[]>(() =>
     this.ruleResults().filter((r) => isAdvisoryCheck(r.ruleType)),
   );

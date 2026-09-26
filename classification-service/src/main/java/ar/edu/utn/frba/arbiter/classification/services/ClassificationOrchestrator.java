@@ -594,7 +594,7 @@ public class ClassificationOrchestrator {
 
     /** Routes to the analyst without calling the LLM; an exclusion never closes the case on its own. */
     private ClassificationResponse coverageExclusionResponse(CoverageRuleEvaluator.Result exclusion, ClaimReport claim) {
-        log.info("[Orchestrator] Coverage exclusion — deriva a revisión manual sin LLM. claimCause='{}'",
+        log.info("[Orchestrator] Coverage exclusion: manual review without the LLM. claimCause='{}'",
                 claim.claimCause());
         return ClassificationResponse.builder()
                 .classification(Classification.LLM_SOLICITA_REVISION_MANUAL)

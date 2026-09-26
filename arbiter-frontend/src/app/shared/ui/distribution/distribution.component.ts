@@ -7,7 +7,6 @@ export interface DistributionItem {
   label: string;
   count: number;
   tone: StatusTone;
-  /** Tooltip opcional, para categorías cuyo nombre solo no alcanza a explicar qué es. */
   description?: string;
 }
 

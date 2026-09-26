@@ -159,7 +159,7 @@ public class UserService {
     public void requestPasswordReset(String email) {
         Optional<User> found = userRepository.findByEmail(email);
         if (found.isEmpty()) {
-            log.info("[Auth] Reset de contraseña pedido para un email no registrado");
+            log.info("[Auth] Password reset requested for an unregistered email");
             return;
         }
         User user = found.get();
@@ -168,7 +168,7 @@ public class UserService {
         userRepository.save(user);
         sendGridAdapter.send(user.getEmail(), "Restablecé tu contraseña en Arbiter",
                 resetEmailBody(greetingFor(user), user.getInviteToken()));
-        log.info("[Auth] Mail de reset enviado — userId={} email={}", user.getId(), user.getEmail());
+        log.info("[Auth] Reset email sent: userId={} email={}", user.getId(), user.getEmail());
     }
 
     /**
@@ -209,7 +209,7 @@ public class UserService {
         user.setInviteToken(null);
         user.setInviteExpiresAt(null);
         User saved = userRepository.save(user);
-        log.info("[Auth] Contraseña restablecida — userId={} email={}", saved.getId(), saved.getEmail());
+        log.info("[Auth] Password reset: userId={} email={}", saved.getId(), saved.getEmail());
         return authService.issueSessionFor(saved);
     }
 

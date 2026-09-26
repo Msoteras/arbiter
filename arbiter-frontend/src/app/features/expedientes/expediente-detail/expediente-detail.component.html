@@ -665,8 +665,6 @@
         <!-- Nothing is fetched live here: everything was persisted at classification time. -->
         @case ('reglas') {
           <div class="traza">
-            <!-- Avisos arriba de las reglas: un "No cumple" entre ellas se leería como una exclusión,
-               y esto no decide nada — marca algo que el analista tiene que mirar antes de resolver. -->
             @if (advisoryChecks().length > 0) {
               <app-card heading="Para revisar antes de resolver">
                 <p class="t-note traza-intro">

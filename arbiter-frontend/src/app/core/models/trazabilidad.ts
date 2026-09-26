@@ -34,7 +34,7 @@ const RULE_TYPE_LABELS: Record<string, string> = {
   FT_POLICY_AGE: 'Antigüedad de la póliza',
   FT_POLICY_UP_TO_DATE: 'Póliza al día con sus pagos',
   FT_REQUIRED_DOCS: 'Documentación que exige Fast Track',
-  // Aviso: no decide cobertura ni carril rápido, marca algo para revisar (ver isAdvisoryCheck).
+  // Advisory only (see isAdvisoryCheck).
   CLAIM_CAUSE_MATCH: 'Hecho que narra la documentación',
 };
 
@@ -156,7 +156,7 @@ export function ruleEvaluationText(ruleType: string, evaluatedValue: string | nu
         ? `Damnificado: ${DAMNIFICADO[t['affectedParty']] ?? t['affectedParty']} · la cobertura no alcanza al grupo familiar`
         : evaluatedValue;
     case 'CLAIM_CAUSE_MATCH': {
-      // Solo hay fila si algún documento narró un hecho: los que no narran ninguno no participan.
+      // Only documents that narrate an event take part.
       const documentos = conLabelesDeDocumento(listado(t['documents']));
       return t['declared'] === t['described']
         ? `${documentos}: narra el hecho declarado (${t['declared']})`
