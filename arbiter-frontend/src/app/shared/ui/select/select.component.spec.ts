@@ -55,12 +55,12 @@ describe('SelectComponent · searchable', () => {
     fixture.detectChanges();
   });
 
-  it('el campo es un input de texto, no un botón', () => {
+  it('the field is a text input, not a button', () => {
     expect(field().tagName).toBe('INPUT');
     expect(field().getAttribute('role')).toBe('combobox');
   });
 
-  it('sin searchable el campo vuelve a ser un botón con el listado entero', () => {
+  it('without searchable the field is a button with the full list', () => {
     fixture.componentRef.setInput('searchable', false);
     fixture.detectChanges();
     expect(field().tagName).toBe('BUTTON');
@@ -69,7 +69,7 @@ describe('SelectComponent · searchable', () => {
     expect(renderedLabels()).toEqual(['Provincia', ...provinces.map((o) => o.label)]);
   });
 
-  it('con un clic despliega el listado completo y deja el foco en el campo', () => {
+  it('opens the full list on click and keeps focus on the field', () => {
     open();
 
     expect(isOpen()).toBeTrue();
@@ -77,28 +77,28 @@ describe('SelectComponent · searchable', () => {
     expect(document.activeElement).toBe(field());
   });
 
-  it('filtra ignorando acentos y mayúsculas mientras se escribe', () => {
+  it('filters ignoring accents and case while typing', () => {
     open();
     type('cordoba');
 
     expect(renderedLabels()).toEqual(['Córdoba']);
   });
 
-  it('matchea por cualquier parte del label, no solo el prefijo', () => {
+  it('matches any part of the label, not only the prefix', () => {
     open();
     type('rio');
 
     expect(renderedLabels()).toEqual(['Entre Ríos', 'Río Negro']);
   });
 
-  it('saca el placeholder del listado mientras se busca: es la opción vacía, no un resultado', () => {
+  it('drops the placeholder while searching: it is the empty option, not a result', () => {
     open();
     type('a');
 
     expect(renderedLabels()).not.toContain('Provincia');
   });
 
-  it('avisa cuando hay más resultados de los que dibuja', () => {
+  it('says when there are more results than it renders', () => {
     const many = Array.from({ length: 150 }, (_, i) => ({
       value: `loc-${i}`,
       label: `Localidad ${i}`,
@@ -114,7 +114,7 @@ describe('SelectComponent · searchable', () => {
     );
   });
 
-  it('elige con Enter la primera coincidencia y muestra su label en el campo', () => {
+  it('Enter picks the first match and shows its label in the field', () => {
     open();
     type('tucu');
     press('Enter');
@@ -124,7 +124,7 @@ describe('SelectComponent · searchable', () => {
     expect(field().value).toBe('Tucumán');
   });
 
-  it('elige con clic en la opción', () => {
+  it('picks an option on click', () => {
     open();
     type('entre');
     (fixture.nativeElement.querySelector('.option') as HTMLElement).click();
@@ -134,7 +134,7 @@ describe('SelectComponent · searchable', () => {
     expect(field().value).toBe('Entre Ríos');
   });
 
-  it('el espacio se escribe en la búsqueda en vez de elegir la opción activa', () => {
+  it('space is typed into the search instead of picking the active option', () => {
     open();
     type('entre');
     press(' ');
@@ -143,7 +143,7 @@ describe('SelectComponent · searchable', () => {
     expect(isOpen()).toBeTrue();
   });
 
-  it('descarta lo tipeado al cerrar sin elegir: el campo no guarda texto libre', () => {
+  it('discards typed text when closing without picking: the field keeps no free text', () => {
     fixture.componentInstance.value.set('Santa Fe');
     fixture.detectChanges();
     open();
@@ -154,7 +154,7 @@ describe('SelectComponent · searchable', () => {
     expect(field().value).toBe('Santa Fe');
   });
 
-  it('reabre con el listado completo: lo tipeado no sobrevive al cierre', () => {
+  it('reopens with the full list: typed text does not survive closing', () => {
     open();
     type('cordoba');
     press('Escape');
@@ -164,7 +164,7 @@ describe('SelectComponent · searchable', () => {
     expect(renderedLabels().length).toBe(provinces.length + 1);
   });
 
-  it('un clic sobre el campo ya abierto no borra lo que se venía escribiendo', () => {
+  it('a click on the open field keeps what was being typed', () => {
     open();
     type('cor');
     field().click();
@@ -174,8 +174,8 @@ describe('SelectComponent · searchable', () => {
     expect(renderedLabels()).toEqual(['Córdoba']);
   });
 
-  describe('escribir sobre el campo cerrado', () => {
-    it('abre el panel ya filtrado por la letra tipeada', () => {
+  describe('typing on the closed field', () => {
+    it('opens the panel already filtered by the typed letter', () => {
       press('c');
 
       expect(isOpen()).toBeTrue();
@@ -183,7 +183,7 @@ describe('SelectComponent · searchable', () => {
       expect(renderedLabels()).toEqual(['Córdoba', 'Tucumán']);
     });
 
-    it('deja activa la primera coincidencia, no la opción ya elegida', () => {
+    it('activates the first match, not the already selected option', () => {
       fixture.componentInstance.value.set('Santa Fe');
       fixture.detectChanges();
       press('t');
@@ -192,7 +192,7 @@ describe('SelectComponent · searchable', () => {
       expect(active.textContent!.trim()).toBe('Entre Ríos');
     });
 
-    it('no se dispara con teclas de control ni con atajos del navegador', () => {
+    it('is not triggered by control keys or browser shortcuts', () => {
       press('F5');
       expect(isOpen()).toBeFalse();
 
@@ -200,7 +200,7 @@ describe('SelectComponent · searchable', () => {
       expect(isOpen()).toBeFalse();
     });
 
-    it('el espacio abre el listado completo en vez de buscar por " "', () => {
+    it('space opens the full list instead of searching for " "', () => {
       press(' ');
 
       expect(field().value).toBe('');
@@ -237,12 +237,12 @@ describe('SelectComponent · searchable', () => {
       fixture.detectChanges();
     });
 
-    it('no marca nada antes de que el usuario pase por el campo', () => {
+    it('flags nothing before the user visits the field', () => {
       expect(errorMessage()).toBeNull();
       expect(field().classList).not.toContain('is-invalid');
     });
 
-    it('el clic afuera cierra el panel y deja el campo marcado como obligatorio', () => {
+    it('an outside click closes the panel and flags the field as required', () => {
       open();
       clickOutside();
 
@@ -252,7 +252,7 @@ describe('SelectComponent · searchable', () => {
       expect(field().getAttribute('aria-invalid')).toBe('true');
     });
 
-    it('cierra aunque el click no burbujee hasta document (adentro de un modal)', () => {
+    it('closes even if the click does not bubble to document (inside a modal)', () => {
       open();
       clickOutsideInsideModal();
 
@@ -260,7 +260,7 @@ describe('SelectComponent · searchable', () => {
       expect(errorMessage()).toBe('Elegí la provincia donde pasó.');
     });
 
-    it('elegir una opción levanta la marca', () => {
+    it('picking an option clears the flag', () => {
       open();
       clickOutside();
       open();
@@ -271,7 +271,7 @@ describe('SelectComponent · searchable', () => {
       expect(errorMessage()).toBeNull();
     });
 
-    it('sin required, cerrar sin elegir no marca nada', () => {
+    it('without required, closing without picking flags nothing', () => {
       fixture.componentRef.setInput('required', false);
       fixture.detectChanges();
       open();

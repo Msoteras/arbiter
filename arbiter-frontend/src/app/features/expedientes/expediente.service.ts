@@ -203,7 +203,6 @@ export class ExpedienteService {
   private readonly http = inject(HttpClient);
   private readonly baseUrl = `${environment.apiBaseUrl}/cases`;
 
-  /** Distinct claim cause names across all branches. */
   claimCauseNames(): Observable<string[]> {
     return this.http.get<string[]>(`${environment.apiBaseUrl}/claim-causes/all`);
   }
@@ -248,9 +247,8 @@ export class ExpedienteService {
   }
 
   /**
-   * Documents requested at filing: the Fast Track list for the matching coverage, or the full agenda
-   * when none is configured. The rest is requested only if the claim misses Fast Track. 503 if the
-   * rules engine can't be read.
+   * The Fast Track list for the matching coverage, or the full agenda when none is configured; the rest
+   * only if the claim misses Fast Track. 503 if the rules engine can't be read.
    */
   intakeDocuments(
     policyNumber: string,
@@ -328,10 +326,7 @@ export class ExpedienteService {
     return this.http.post<ExpedienteResponse>(`${this.baseUrl}/${caseId}/assign`, { analystId });
   }
 
-  /**
-   * Sends a closed case (APPROVED / REJECTED / LAPSED) back to analyst review without reverting the
-   * previous decision. 409 from a non-terminal status.
-   */
+  /** Back to analyst review without reverting the previous decision. 409 from a non-terminal status. */
   reopen(caseId: number, reason: string): Observable<ExpedienteResponse> {
     return this.http.post<ExpedienteResponse>(`${this.baseUrl}/${caseId}/reopen`, { reason });
   }

@@ -56,7 +56,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                         claims.getSubject(), null, authorities);
                 SecurityContextHolder.getContext().setAuthentication(authentication);
             } catch (JwtException | IllegalArgumentException ex) {
-                log.warn("JWT inválido o expirado en {} {}: {}", request.getMethod(), request.getRequestURI(), ex.getMessage());
+                log.warn("Invalid or expired JWT on {} {}: {}", request.getMethod(), request.getRequestURI(), ex.getMessage());
             }
         }
         filterChain.doFilter(request, response);

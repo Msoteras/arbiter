@@ -71,12 +71,10 @@ public class Case {
     @JoinColumn(name = "policy_id", nullable = false)
     private Policy policy;
 
-    /** The coverage the case was filed under; a policy holds several. */
     @ManyToOne(fetch = FetchType.EAGER, optional = false)
     @JoinColumn(name = "coverage_id", nullable = false)
     private Coverage coverage;
 
-    /** Null until classification-service records it. */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "policy_snapshot_id")
     private PolicySnapshot policySnapshot;
@@ -87,7 +85,6 @@ public class Case {
     @Column(name = "occurred_at", nullable = false)
     private LocalDateTime occurredAt;
 
-    /** Nullable: not every claim cause requires a police report. */
     @Column(name = "police_report_at")
     private LocalDateTime policeReportAt;
 
@@ -120,9 +117,9 @@ public class Case {
     private CaseState currentStatus;
 
     /**
-     * Written by classification-service. A Fast Track leaves no {@code llm_analysis} row, so this is
-     * what tells it apart from "not classified yet". Initialized because Hibernate always includes
-     * the column in the INSERT, bypassing the schema default.
+     * Written by classification-service; the only trace of a Fast Track, which leaves no
+     * {@code llm_analysis} row. Initialized because Hibernate always INSERTs the column, bypassing the
+     * schema default.
      */
     @Builder.Default
     @Column(name = "was_fast_track", nullable = false)
@@ -140,17 +137,11 @@ public class Case {
     @Column(length = 40)
     private String destination;
 
-    /**
-     * Raw id: the table belongs to rules-service. Written by classification-service with the score.
-     * Null when the baseline scoring was used.
-     */
+    /** Raw id: rules-service's table. Null when the baseline scoring was used. */
     @Column(name = "scoring_configuration_id")
     private Long scoringConfigurationId;
 
-    /**
-     * Cached from {@code risk_analysis}, the auditable source, because the inbox filters and sorts by
-     * band. Null when the claim wasn't scored, never a real LOW.
-     */
+    /** Cached from {@code risk_analysis} because the inbox filters and sorts by it; null means not scored. */
     @Column(name = "risk_score", precision = 4, scale = 3)
     @JdbcTypeCode(SqlTypes.NUMERIC)
     private Double riskScore;
@@ -171,8 +162,8 @@ public class Case {
     private String manualAdjustmentNote;
 
     /**
-     * Null means unassigned. A real FK within the tenant schema, which also bounds assignment to the
-     * insurer's own analysts. EAGER because the inbox shows the name on every row and open-in-view is off.
+     * A real FK within the tenant schema, which bounds assignment to the insurer's own analysts. EAGER:
+     * the inbox shows the name on every row and open-in-view is off.
      */
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "analyst_id")
@@ -200,10 +191,7 @@ public class Case {
     @Column(name = "documents_unverified_since")
     private Instant documentsUnverifiedSince;
 
-    /**
-     * Links the verdict to the classification it decided on (audit trail). Raw id: the table belongs
-     * to classification-service. Null until the analyst decides.
-     */
+    /** The classification the verdict decided on. Raw id: classification-service's table. */
     @Column(name = "classification_id")
     private Long classificationId;
 

@@ -119,8 +119,7 @@ class ExpertAssessmentServiceTest {
         ExpertAssessmentResponse response = expertAssessmentService.derive(CASE_ID,
                 new DeriveToExpertRequest(3L, "Banda CRÍTICA e imagen reutilizada"), ProviderType.ESTUDIO_LIQUIDADOR);
 
-        // Copied, not read through the association: editing the catalog later must not rewrite
-        // who assessed THIS claim.
+        // Copied: editing the catalog later must not rewrite who assessed THIS claim.
         assertThat(response.expertName()).isEqualTo("Estudio Verifica S.R.L.");
         assertThat(response.expertEmail()).isEqualTo("verifica@example.com");
         assertThat(response.reason()).isEqualTo("Banda CRÍTICA e imagen reutilizada");
@@ -131,10 +130,7 @@ class ExpertAssessmentServiceTest {
                 eq(StatusChangeActor.ANALYST), any());
     }
 
-    /**
-     * The mail is best-effort: a SendGrid failure can't undo a derivation that happened. But it must
-     * show, or a case waiting on an expert nobody told would be invisible.
-     */
+    /** The mail is best-effort, but a failure must show or the case would wait on nobody. */
     @Test
     void derive_recordsThatNobodyWasNotified_whenTheEmailNeverWentOut() {
         Case caseRecord = caseAwaitingReview();
@@ -200,10 +196,7 @@ class ExpertAssessmentServiceTest {
                 eq(StatusChangeActor.ANALYST), any());
     }
 
-    /**
-     * The expert already proved it: an extra manual step to reach the person's record would be
-     * forgotten, leaving someone unflagged with a report that says otherwise.
-     */
+    /** A manual step to flag the person after a proven fraud would be forgotten. */
     @Test
     void receiveReport_confirmingFraud_recordsItOnTheInsured() {
         givenAReportCanBeFiled();
@@ -213,8 +206,7 @@ class ExpertAssessmentServiceTest {
 
         ArgumentCaptor<String> reason = ArgumentCaptor.forClass(String.class);
         verify(fraudRecordService).registerFromExpertReport(eq(CASE_ID), reason.capture());
-        // The reason must say who found it and what they wrote: it's what gets read years later
-        // next to the flag on the person.
+        // It's what gets read years later next to the flag on the person.
         assertThat(reason.getValue())
                 .contains("Estudio Verifica S.R.L.")
                 .contains("El equipo ya estaba dañado antes de la vigencia");
@@ -244,10 +236,7 @@ class ExpertAssessmentServiceTest {
                 .thenAnswer(invocation -> invocation.getArgument(0));
     }
 
-    /**
-     * The report is evidence and is never overwritten. The case status can't detect it: a case back
-     * in review with its report is in the same status as one never derived.
-     */
+    /** The report is evidence, never overwritten; the case status alone can't tell it came back. */
     @Test
     void receiveReport_rejectsASecondReport() {
         Case caseRecord = caseInStatus(CaseStatus.PENDING_ANALYST_REVIEW);
@@ -302,16 +291,12 @@ class ExpertAssessmentServiceTest {
         DerivationOptionsResponse options = expertAssessmentService.options(CASE_ID, ProviderType.ESTUDIO_LIQUIDADOR);
 
         assertThat(options.eligible()).isFalse();
-        // The firms are still returned: the screen explains why it can't derive, and needs both
-        // amounts for that, not just the verdict.
+        // Still returned: the screen explains why it can't derive and needs both amounts.
         assertThat(options.firms()).hasSize(1);
         assertThat(options.minClaimedAmount()).isEqualByComparingTo("2000000");
     }
 
-    /**
-     * An insurer that never configured the rule doesn't derive (e.g. extended warranty, where the
-     * assessment costs more than the device).
-     */
+    /** Without the rule it doesn't derive (e.g. extended warranty: the assessment costs more than the item). */
     @Test
     void options_isNotEligible_whenTheInsurerDoesNotDeriveThisBranch() {
         when(caseRepository.findById(CASE_ID)).thenReturn(Optional.of(caseAwaitingReview()));
@@ -326,7 +311,6 @@ class ExpertAssessmentServiceTest {
         assertThat(options.minClaimedAmount()).isNull();
     }
 
-    /** Enabled by rule but with no firms loaded: there's still nobody to derive to. */
     @Test
     void options_isNotEligible_whenTheCatalogIsEmpty() {
         when(caseRepository.findById(CASE_ID)).thenReturn(Optional.of(caseAwaitingReview()));
@@ -336,7 +320,7 @@ class ExpertAssessmentServiceTest {
         assertThat(expertAssessmentService.options(CASE_ID, ProviderType.ESTUDIO_LIQUIDADOR).eligible()).isFalse();
     }
 
-    /** The threshold is enforced in the backend, not just by hiding the button: a frontend rule is a suggestion. */
+    /** Enforced in the backend too: hiding the button is only a suggestion. */
     @Test
     void derive_refusesWhenTheAmountIsBelowTheInsurersThreshold() {
         when(caseRepository.findById(CASE_ID)).thenReturn(Optional.of(caseAwaitingReview()));
@@ -352,7 +336,7 @@ class ExpertAssessmentServiceTest {
     }
 
     @Test
-    void deriveToRepair_movesTheCaseToPendingRepair_withoutAskingForThePeritajeThreshold() {
+    void deriveToRepair_movesTheCaseToPendingRepair_withoutAskingForTheExpertAssessmentThreshold() {
         Case caseRecord = caseAwaitingReview();
         when(caseRepository.findById(CASE_ID)).thenReturn(Optional.of(caseRecord));
         when(claimsAnalystRepository.findByEmail(ANALYST_EMAIL)).thenReturn(Optional.of(analyst()));
@@ -446,10 +430,7 @@ class ExpertAssessmentServiceTest {
         verify(fraudRecordService, never()).registerFromExpertReport(any(), any());
     }
 
-    /**
-     * The repair quote goes to its own column, NOT the expert's: one answers what the claim is worth,
-     * the other what the repair costs, and the settlement needs to know which one it's reading.
-     */
+    /** The quote goes to its own column: what the repair costs, not what the claim is worth. */
     @Test
     void receiveRepairReport_storesTheQuoteInItsOwnColumn() {
         Case caseRecord = caseInStatus(CaseStatus.PENDING_REPAIR);
@@ -475,7 +456,6 @@ class ExpertAssessmentServiceTest {
         assertThat(response.indemnifiableAmount()).isNull();
     }
 
-    /** Reporting a quote without its amount doesn't answer what was asked. */
     @Test
     void receiveRepairReport_rejectsAQuoteWithNoAmount() {
         when(caseRepository.findById(CASE_ID))
@@ -503,10 +483,7 @@ class ExpertAssessmentServiceTest {
         verify(expertAssessmentRepository, never()).save(any());
     }
 
-    /**
-     * A shop that already repaired the item charges for the work, and that amount is what gets
-     * settled; without it the settlement would propose paying zero.
-     */
+    /** An already-repaired item's invoice is what gets settled; without it the proposal would be zero. */
     @Test
     void receiveRepairReport_takesTheInvoiceOfAnAlreadyRepairedItem() {
         Case caseRecord = caseInStatus(CaseStatus.PENDING_REPAIR);
@@ -557,9 +534,8 @@ class ExpertAssessmentServiceTest {
     }
 
     /**
-     * Only the case owner may derive, not any analyst in the tenant: deriving mails an external
-     * expert and leaves the case where the assigned analyst can no longer decide.
-     * {@code @PreAuthorize} only checks the role; this checks the case, same as approve/reject.
+     * Deriving mails an external expert and leaves the case where its owner can no longer decide, so
+     * {@code @PreAuthorize}'s role check isn't enough, same as approve/reject.
      */
     @Test
     void derive_refusesWhenNobodyOwnsTheCase() {
@@ -615,8 +591,7 @@ class ExpertAssessmentServiceTest {
     }
 
     private Case caseInStatus(CaseStatus status) {
-        // The branch needs an id because the service filters the expert catalog by branch, and the
-        // fixture builds it without one.
+        // The service filters the expert catalog by branch, and the fixture builds it without an id.
         ClaimCause cause = CaseFixtures.claimCause("Celulares", "Robo en vía pública");
         cause.setBranch(Branch.builder().id(BRANCH_ID).name("Celulares").build());
         cause.setId(CLAIM_CAUSE_ID);

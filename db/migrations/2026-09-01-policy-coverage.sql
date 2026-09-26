@@ -1,39 +1,6 @@
--- =============================================================================
--- 2026-09-01 · Una póliza tiene VARIAS coberturas
---
--- Migración puntual y NO destructiva del dato, para aplicar sobre una base que ya
--- tiene datos (Railway) sin pasar por el trío reset → init → seed.
---
--- Qué cambia, por cada esquema de aseguradora:
---   · nueva tabla <tenant>.policy_coverage (cobertura contratada, con su suma
---     asegurada y su franquicia)
---   · se traen TODAS las coberturas de cada póliza desde la BD Aseguradora
---   · se dropean policy.coverage_id y policy.sum_insured
---
--- Por qué: la BD Aseguradora —que es el origen— modela `poliza 1──* cobertura` y
--- deja la suma asegurada EN LA COBERTURA (aseguradora_*.cobertura). Arbiter tenía
--- policy.coverage_id NOT NULL, o sea una cobertura por póliza, así que
--- PolicySynchronizer importaba `coverages.get(0)` y tiraba el resto. En Railway eso
--- se ve como las 11 pólizas de BBVA con coverage_id = 1: todas apuntando a Robo,
--- con los expedientes de Hurto colgados de la cobertura equivocada.
---
--- IMPORTANTE — por qué el backfill lee la BD Aseguradora y no policy.coverage_id:
--- copiar la columna vieja dejaría a cada póliza YA sincronizada con una sola
--- cobertura (la equivocada) para siempre. PolicySynchronizer solo importa pólizas
--- que Arbiter todavía no tiene (CaseReferenceResolver.resolvePolicy hace
--- findByExternalPolicyNumber().orElseGet(import)), así que a esas 11 nunca les
--- volvería a agregar las que faltan. Los dos esquemas viven en la misma instancia
--- Postgres (arbiter_X ↔ aseguradora_X, ver InsurerDbSchema), así que el backfill
--- puede leer el origen directamente.
---
--- IMPORTANTE: los servicios corren con ddl-auto=validate. Aplicar esto ANTES
--- de desplegar el código que deja de leer policy.coverage_id / policy.sum_insured.
---
--- `init-multitenant.sql` ya quedó actualizado: una base creada de cero desde ese
--- script ya nace así. Este archivo es solo para las bases que ya existían.
---
--- Idempotente: se puede correr más de una vez sin romper nada.
--- =============================================================================
+-- 2026-09-01 · A policy has SEVERAL coverages: new policy_coverage, backfilled from the insurer database
+-- (not from policy.coverage_id, which kept only the first one), and policy.coverage_id/sum_insured are
+-- dropped. Apply before deploying the code (ddl-auto=validate). Idempotent.
 
 BEGIN;
 
@@ -63,11 +30,8 @@ BEGIN
             'CREATE INDEX IF NOT EXISTS idx_policy_coverage_policy ON %I.policy_coverage (policy_id)',
             tenant);
 
-        -- 1. Backfill desde el origen: todas las coberturas que la compañía tiene para cada
-        --    póliza. El puente es el nombre (aseguradora.cobertura.nombre = arbiter.coverage.name),
-        --    el mismo que usa PolicySynchronizer — la BD Aseguradora no conoce nuestros ids.
-        --    Una cobertura que el referente no configuró en el catálogo del tenant no entra: es
-        --    exactamente lo que hace el sync, y crearla acá dejaría una cobertura sin reglas.
+        -- 1. Backfill from the source, matched by coverage name like PolicySynchronizer. Coverages missing from
+        --    the tenant's catalog are left out, as the sync does.
         IF to_regclass(insurer_db || '.cobertura') IS NOT NULL THEN
             EXECUTE format($dml$
                 INSERT INTO %I.policy_coverage (policy_id, coverage_id, display_order, sum_insured, deductible_pct)
@@ -80,9 +44,7 @@ BEGIN
             $dml$, tenant, tenant, insurer_db, insurer_db, tenant);
         END IF;
 
-        -- 2. Red de seguridad: una póliza que la BD Aseguradora no tenga (o cuyas coberturas no
-        --    estén en el catálogo) quedaría sin ninguna fila, y policy_coverage vacío hace que el
-        --    alta de denuncia falle con 422. Para esas se copia lo que había en la columna vieja.
+        -- 2. Safety net: a policy left with no row would make filing fail with 422, so the old column is copied.
         IF EXISTS (
             SELECT 1 FROM information_schema.columns
             WHERE table_schema = tenant AND table_name = 'policy' AND column_name = 'coverage_id'
@@ -105,20 +67,20 @@ END $$;
 
 COMMIT;
 
--- Verificación 1 — cada póliza con sus coberturas (las de celulares tienen que traer 2):
+-- Check 1: each policy with its coverages (Celulares ones bring 2):
 -- SELECT p.external_policy_number, c.name, pc.display_order, pc.sum_insured, pc.deductible_pct
 --   FROM arbiter_bbva.policy p
 --   JOIN arbiter_bbva.policy_coverage pc ON pc.policy_id = p.id
 --   JOIN arbiter_bbva.coverage c ON c.id = pc.coverage_id
 --  ORDER BY p.id, pc.display_order;
 --
--- Verificación 2 — ninguna póliza puede quedar sin coberturas (el alta daría 422):
+-- Check 2: no policy without coverages (filing would answer 422):
 -- SELECT p.external_policy_number
 --   FROM arbiter_bbva.policy p
 --  WHERE NOT EXISTS (SELECT 1 FROM arbiter_bbva.policy_coverage pc WHERE pc.policy_id = p.id);
 --
--- Verificación 3 — expedientes YA creados apuntando a una cobertura que no responde por su hecho
--- generador. Esta migración NO los toca (ver docs/temas-a-discutir.md, punto 3):
+-- Check 3: existing cases whose coverage doesn't answer for their cause; not touched here
+-- (docs/temas-a-discutir.md, point 3):
 -- SELECT e.id, cc.name AS hecho, c.name AS cobertura_del_expediente
 --   FROM arbiter_bbva.cases e
 --   JOIN arbiter_common.claim_cause cc ON cc.id = e.claim_cause_id

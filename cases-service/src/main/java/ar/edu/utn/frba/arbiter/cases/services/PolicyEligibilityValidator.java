@@ -16,12 +16,9 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 /**
- * Policy checks at intake: if the event doesn't fall under a contract with coverage, the case is
- * never created. This doesn't resolve a case, so it doesn't bypass the human in the loop — it
- * returns the reason to the insured on the spot instead of queueing a case someone must close.
- *
- * <p>Fails open: with no data to verify, or with rules-service unreachable, the case proceeds and
- * classification looks at it again. A hard rejection needs certainty.
+ * Intake policy checks: an event outside a contract with coverage never becomes a case. It resolves
+ * nothing, so the human in the loop stays; it just tells the insured on the spot. Fails open: with no
+ * data or rules-service down, the case proceeds and classification looks again.
  */
 @Service
 @RequiredArgsConstructor
@@ -35,11 +32,7 @@ public class PolicyEligibilityValidator {
     private final InsurerAdapter insurerAdapter;
     private final RulesServiceClient rulesServiceClient;
 
-    /**
-     * @param policyNumber looked up again in the insurer DB for the term and arrears fields
-     *                     {@code Coverage} doesn't carry
-     * @param claimCause   null during the wizard's precheck, which runs before the cause is asked
-     */
+    /** @param claimCause null during the wizard's precheck, which runs before the cause is asked */
     public void validate(String policyNumber, LocalDateTime eventDate, LocalDateTime policeReportAt,
                           Coverage coverage, ClaimCause claimCause) {
         assertCoherentDates(eventDate, policeReportAt);
@@ -58,9 +51,8 @@ public class PolicyEligibilityValidator {
     }
 
     /**
-     * The wizard already hides excluded causes, but a client posting straight to {@code POST /cases}
-     * must be stopped server side too. classification-service's {@code CoverageRuleEvaluator} still
-     * runs later and leaves the audited rule result.
+     * The wizard already hides excluded causes, but a direct {@code POST /cases} must be stopped too.
+     * {@code CoverageRuleEvaluator} still leaves the audited rule result later.
      */
     private void assertCoverageIncludesClaimCause(ClaimCause claimCause, Coverage coverage) {
         if (claimCause == null || coverage == null || coverage.getId() == null) {

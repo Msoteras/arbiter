@@ -6,12 +6,10 @@ import java.util.List;
 
 /**
  * What a document <b>says</b> and what it <b>looks like</b>, kept apart so the classifier never reads
- * a visual observation as document content.
+ * a visual observation as content.
  *
- * @param visualFindings signs of tampering; empty is normal, and they feed the analyst, never a rule
- * @param fields         the same data, typed, so code can compare it
- * @param status         whether the read itself worked: empty fields only mean "the document doesn't
- *                       say it" when this is {@link Status#COMPLETE}
+ * @param visualFindings signs of tampering; they feed the analyst, never a rule
+ * @param status         empty fields only mean "the document doesn't say it" when {@link Status#COMPLETE}
  */
 public record DocumentExtraction(
         String transcription, List<String> visualFindings, Fields fields, Status status) {
@@ -21,7 +19,6 @@ public record DocumentExtraction(
         COMPLETE,
         /** Only the transcription survived a broken answer; findings and fields were lost. */
         PARTIAL,
-        /** Nothing usable was read. */
         FAILED;
 
         public Status worst(Status other) {
@@ -30,10 +27,8 @@ public record DocumentExtraction(
     }
 
     /**
-     * Null means "the document doesn't say", never "doesn't match". Data gets a typed field only when
-     * a rule compares it; anything the analyst only reads goes in {@code details}.
-     * {@code describedClaimCause} is a name from the branch's catalog — the extraction's schema allows
-     * nothing else — and null when the document narrates no event.
+     * Null means "the document doesn't say", never "doesn't match". Only data a rule compares gets a
+     * typed field; the rest goes in {@code details}. {@code describedClaimCause} is a catalog name or null.
      */
     public record Fields(
             LocalDate documentDate,
@@ -55,16 +50,13 @@ public record DocumentExtraction(
         }
     }
 
-    /**
-     * Displayed, never compared: the name is whatever the model called it, so branching on it would
-     * break silently. Data a rule needs belongs in {@link Fields}.
-     */
+    /** Displayed, never compared: the name is whatever the model called it. Rule data goes in {@link Fields}. */
     public record Detail(String name, String value) {
     }
 
     /**
-     * Who suffered the event, for the {@code covers_family_group} rule. {@link #DESCONOCIDO} is a
-     * first-class value: the rule then doesn't take part, rather than assuming either side.
+     * Who suffered the event, for the {@code covers_family_group} rule. With {@link #DESCONOCIDO} the rule
+     * doesn't take part rather than assuming either side.
      */
     public enum AffectedParty {
         TITULAR,
@@ -80,7 +72,6 @@ public record DocumentExtraction(
         status = status == null ? Status.COMPLETE : status;
     }
 
-    /** A read that worked. */
     public DocumentExtraction(String transcription, List<String> visualFindings, Fields fields) {
         this(transcription, visualFindings, fields, Status.COMPLETE);
     }

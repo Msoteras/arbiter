@@ -131,14 +131,11 @@ public class CaseServiceImpl implements CaseService {
     }
 
     /**
-     * Enforced server side: a client posting straight to the endpoint must not file without the
-     * required documents. Only the first round (what Fast Track requires) is demanded here; the
-     * rest is requested at classification time if needed.
+     * Enforced server side so a direct POST can't skip the first round (what Fast Track requires); the
+     * rest is requested at classification. An unreadable list lets the claim through, marked for
+     * {@code DocumentRecheckScheduler}, rather than leaving the insured out over our own outage.
      *
-     * <p>An unreadable list lets the claim through rather than leaving the insured out over our own
-     * outage; the case is marked for {@code DocumentRecheckScheduler}.
-     *
-     * @return {@code false} when the list couldn't be read, so the case goes in marked
+     * @return {@code false} when the list couldn't be read
      */
     private boolean verifyRequiredDocuments(
             Long coverageId, String branch, String claimCause, Map<String, MultipartFile> documents) {
@@ -162,7 +159,7 @@ public class CaseServiceImpl implements CaseService {
 
     private CaseResponse createCaseInIssuingTenant(CaseRequest request, Map<String, MultipartFile> documents) {
         // Validated rather than silently overwritten: a mismatch means the client sent something wrong.
-        assertFilingOwnDenuncia(request.insuredId());
+        assertFilingOwnClaim(request.insuredId());
 
         // The insured resolves first: an unsynced policy imported from the insurer DB needs a holder.
         Insured insured = referenceResolver.applyDeclaredDetails(
@@ -219,11 +216,7 @@ public class CaseServiceImpl implements CaseService {
                 List.of());
     }
 
-    /**
-     * Fast Track's documents, falling back to the full schedule when none is configured.
-     *
-     * @return {@code null} when rules-service couldn't be read at all
-     */
+    /** Fast Track's documents, else the full schedule; {@code null} when rules-service couldn't be read. */
     private List<String> intakeDocumentTypes(Long coverageId, String branch, String claimCause) {
         List<String> fastTrackDocs = rulesServiceClient.fastTrackDocumentTypes(coverageId);
         if (fastTrackDocs == null) {
@@ -284,7 +277,7 @@ public class CaseServiceImpl implements CaseService {
      * {@code applyDeclaredDetails}: contact details aren't persisted before the claim is submitted.
      */
     private EligibilityCheckResponse checkEligibilityInIssuingTenant(EligibilityCheckRequest request) {
-        assertFilingOwnDenuncia(request.insuredId());
+        assertFilingOwnClaim(request.insuredId());
         try {
             Insured insured = referenceResolver.resolveInsured(request.insuredId());
             Policy policy = referenceResolver.resolvePolicy(request.policyNumber(), insured.getId());
@@ -311,7 +304,7 @@ public class CaseServiceImpl implements CaseService {
      * The DNI comes from the signed token, never the request. A caller with no DNI isn't an
      * insured, so this refuses them too rather than letting them through on a null.
      */
-    private void assertFilingOwnDenuncia(String declaredInsuredId) {
+    private void assertFilingOwnClaim(String declaredInsuredId) {
         String callerDni = CallerContext.get().insuredId();
         if (callerDni == null || !callerDni.equals(declaredInsuredId)) {
             throw new InsuredIdentityMismatchException();
@@ -366,11 +359,7 @@ public class CaseServiceImpl implements CaseService {
         return toResponse(entity);
     }
 
-    /**
-     * The frontend sends the case JSON itself as a multipart part named "case", which the
-     * {@code Map<String, MultipartFile>} binding picks up alongside the documents. It must not be
-     * stored or forwarded to OCR as a document.
-     */
+    /** The multipart part carrying the case JSON itself; never stored or sent to OCR as a document. */
     private static final String CASE_PAYLOAD_KEY = "case";
 
     /** Replaces any prior document of the same type. */
@@ -463,7 +452,6 @@ public class CaseServiceImpl implements CaseService {
         return base == null ? extra : base.and(extra);
     }
 
-    /** Open cases with no change at all in the last {@code staleDays} days. */
     private Specification<Case> withStale(Integer staleDays) {
         if (staleDays == null || staleDays <= 0) {
             return null;
@@ -621,7 +609,6 @@ public class CaseServiceImpl implements CaseService {
             activeByAnalyst.put(row.getAnalystId(), row.getTotal());
         }
 
-        // Every analyst of the tenant, those without active cases at zero.
         List<AnalystWorkloadResponse> workload = new ArrayList<>();
         for (ClaimsAnalyst analyst : claimsAnalystRepository.findAll()) {
             workload.add(new AnalystWorkloadResponse(
@@ -736,10 +723,7 @@ public class CaseServiceImpl implements CaseService {
         resolve(entity, targetStatus, analyst.getId(), request.decision(), request.justification());
     }
 
-    /**
-     * Shared by the direct approval and the referent's later authorization, so both leave the
-     * same trail.
-     */
+    /** Shared by the direct approval and the referent's later authorization, so both leave the same trail. */
     private void resolve(Case entity, CaseStatus targetStatus, Long analystId,
                          String decision, String justification) {
         // The attempt count lives here and the audit record keeps its final value. The settlement
@@ -755,10 +739,7 @@ public class CaseServiceImpl implements CaseService {
                 StatusChangeActor.ANALYST, "decisión del analista: " + decision);
     }
 
-    /**
-     * Records the decision with the justification the analyst left held, then approves the case,
-     * which triggers the email with the amount.
-     */
+    /** Records the held decision with its justification, then approves the case (which emails the amount). */
     @Override
     @Transactional
     public void authorizeSettlement(Long caseId) {
@@ -796,7 +777,6 @@ public class CaseServiceImpl implements CaseService {
         return toResponse(entity, null, CaseAnalysis.none());
     }
 
-    /** The single place the joins are flattened into the shape the frontend speaks. */
     private CaseResponse toResponse(Case entity, List<StatusTransitionResponse> history,
                                      CaseAnalysis analysis) {
         return toResponse(entity, history, analysis, null, null, List.of(), Traceability.none(),
@@ -864,9 +844,7 @@ public class CaseServiceImpl implements CaseService {
         );
     }
 
-    /**
-     * Only while the item is at the repair shop, and only in the detail since it costs a query.
-     */
+    /** Only while the item is at the repair shop, and only in the detail since it costs a query. */
     private RepairProviderResponse repairProviderOf(Case entity) {
         if (entity.getStatus() != CaseStatus.PENDING_REPAIR) {
             return null;
@@ -882,11 +860,7 @@ public class CaseServiceImpl implements CaseService {
         return !CaseStatusService.isDeadlineRunning(entity.getStatus());
     }
 
-    /**
-     * What the analysis tab reads, grouped so list callers don't pass two more empty parameters.
-     *
-     * @param ruleResults null when they couldn't be read; "none ran" is the empty list
-     */
+    /** @param ruleResults null when they couldn't be read; "none ran" is the empty list */
     private record Traceability(List<RuleResultResponse> ruleResults,
                                 PolicySnapshotResponse policySnapshot) {
 

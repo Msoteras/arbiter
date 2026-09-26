@@ -21,9 +21,8 @@ public class PolicyService {
     private final InsurerAdapter insurerAdapter;
 
     /**
-     * @param includeExpired false for claim filing, which may only offer policies that will pass
-     *                       eligibility; true for the profile listing, where hiding an expired
-     *                       policy would only confuse the insured.
+     * @param includeExpired false for claim filing (only policies that pass eligibility); true for the
+     *                       profile, where hiding an expired policy would confuse the insured
      */
     public List<PolicyResponse> listByInsured(String insuredId, boolean includeExpired) {
         assertOwnPolicies(insuredId);

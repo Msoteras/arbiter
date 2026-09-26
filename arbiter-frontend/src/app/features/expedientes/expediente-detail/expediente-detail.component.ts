@@ -356,10 +356,7 @@ export class ExpedienteDetailComponent {
     return d ? clasificacionTone(d.analysisClassification) : 'neutral';
   });
 
-  /**
-   * Only shown when there is something to look at: MATCHES adds nothing and null means the check
-   * didn't run.
-   */
+  /** Only with something to look at: MATCHES adds nothing and null means it didn't run. */
   protected readonly showCauseConsistency = computed(() =>
     shouldSurfaceCauseConsistency(this.data()?.causeConsistency),
   );
@@ -379,10 +376,7 @@ export class ExpedienteDetailComponent {
     return d ? Math.round(d.analysisConfidence * 100) : 0;
   });
 
-  /**
-   * Empty for Fast Track / missing documentation (rules gate, not the LLM) or before
-   * classification; the tab is hidden then.
-   */
+  /** Empty for Fast Track, missing documentation or before classification; the tab is hidden then. */
   protected readonly analysisReasons = computed<string[]>(() =>
     (this.data()?.analysisReasons ?? []).map(conLabelesDeDocumento),
   );
@@ -454,7 +448,6 @@ export class ExpedienteDetailComponent {
     ];
   });
 
-  // ----- traceability -----
   private readonly ruleResults = computed<RuleResult[]>(() => this.data()?.ruleResults ?? []);
 
   /** Kept apart from the Fast Track criteria: failing one means something different in each table. */
@@ -464,11 +457,7 @@ export class ExpedienteDetailComponent {
     ),
   );
 
-  /**
-   * Los avisos: no deciden cobertura ni carril rápido, marcan algo para mirar antes de resolver
-   * (hoy, que la documentación narre otro hecho que el declarado). Van aparte y arriba de las
-   * reglas porque un "No cumple" entre ellas se leería como una exclusión que el motor no dictó.
-   */
+  /** Kept above the rules: a failed advisory among them would read as an exclusion. */
   protected readonly advisoryChecks = computed<RuleResult[]>(() =>
     this.ruleResults().filter((r) => isAdvisoryCheck(r.ruleType)),
   );
@@ -547,7 +536,6 @@ export class ExpedienteDetailComponent {
     () => this.data()?.policySnapshot ?? null,
   );
 
-  // ----- insured's policies (current data, not the classification snapshot) -----
   // Lazy-loaded from their own endpoint: an insurer-DB query most case views never need.
   private readonly polizas = toSignal(
     combineLatest([
@@ -645,10 +633,8 @@ export class ExpedienteDetailComponent {
     return value == null ? null : this.formatMonto(value);
   }
 
-  // ----- status history -----
   protected readonly history = computed<StatusTransition[]>(() => this.data()?.statusHistory ?? []);
 
-  /** Only when forensic analysis actually ran on some image. */
   protected readonly hayAnalisisImagenes = computed(
     () => (this.data()?.forensicReport?.findings?.length ?? 0) > 0,
   );
@@ -661,7 +647,6 @@ export class ExpedienteDetailComponent {
     }),
   );
 
-  // ----- tabs -----
   // Conditional tabs appear only once something has run (referral, classification, forensics).
   // 'conversacion' is always shown: an empty thread is where talking to the insured starts. It
   // carries a dot when something is unread.
@@ -710,11 +695,7 @@ export class ExpedienteDetailComponent {
     { id: 'historial' as TabId, label: 'Historial' },
   ]);
 
-  /**
-   * Unread messages from the insured. Fetched apart from the case and not as one more
-   * `CaseResponse` field: the same DTO builds the inbox, so counting per row would be one query
-   * per listed case.
-   */
+  /** Fetched apart: counting per row in the shared `CaseResponse` would cost a query per inbox case. */
   protected readonly unreadMessages = signal(0);
   private readonly selectedTab = signal<TabId>('resumen');
 
@@ -737,7 +718,6 @@ export class ExpedienteDetailComponent {
     tabs.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
-  // ----- analyst decision -----
   private readonly verbLabels: Record<Verb, string> = {
     aprobar: 'Aprobar',
     rechazar: 'Rechazar',
@@ -846,7 +826,6 @@ export class ExpedienteDetailComponent {
     });
   }
 
-  // ----- settlement amount -----
   // The backend computes it and explains it line by line; the analyst confirms or adjusts it with a
   // justification.
 
@@ -878,7 +857,6 @@ export class ExpedienteDetailComponent {
     () => this.settlement()?.status === 'PENDING_AUTHORIZATION',
   );
 
-  /** Returned by the supervisor, with a reason to fix. */
   protected readonly liquidacionDevuelta = computed(() => this.settlement()?.status === 'RETURNED');
 
   /** Computed on the proposal, so the analyst learns before confirming that it needs sign-off. */
@@ -991,7 +969,6 @@ export class ExpedienteDetailComponent {
     return null;
   });
 
-  // ----- supervisor sign-off on a settlement above the analyst's authority -----
   // Same actions as the authorizations screen, so the supervisor can sign from the case itself.
   protected readonly canAuthorize = computed(
     () => this.session.session()?.rol === 'REFERENTE_ASEGURADORA' && this.esperandoAutorizacion(),
@@ -1055,7 +1032,6 @@ export class ExpedienteDetailComponent {
     });
   }
 
-  // ----- reopening a closed case -----
   // Shared with the supervisor, like assigning: reopening resolves nothing.
   protected readonly showReopen = signal(false);
   protected readonly reopenReason = signal('');
@@ -1098,7 +1074,6 @@ export class ExpedienteDetailComponent {
     });
   }
 
-  // ----- referral to expert assessment -----
   // Not a verdict: it suspends the case to gather evidence, hence its own endpoint instead of
   // /decision.
   protected readonly derivado = computed(() => this.data()?.status === 'PENDING_EXPERT_REPORT');
@@ -1164,9 +1139,8 @@ export class ExpedienteDetailComponent {
   );
 
   /**
-   * Same owner rule as `puedeDerivar`: the backend refuses anyone but the assigned analyst. And
-   * `eligible` is only true when the claim cause admits repair and there is a repair shop to send
-   * it to; while loading or on error it is null, so the button stays hidden.
+   * Owner only, like `puedeDerivar`. `eligible` is true only when the cause admits repair and there is a
+   * shop to send it to; null while loading or on error, so the button stays hidden.
    */
   protected readonly puedeDerivarAReparacion = computed(
     () =>
@@ -1222,7 +1196,6 @@ export class ExpedienteDetailComponent {
       (this.puedeDerivar() && !!this.sugerenciaDerivacion()),
   );
 
-  // ----- "Antes de decidir" -----
   // Brings existing evidence next to the buttons; adds no criteria and suggests nothing.
 
   protected readonly plazoTexto = computed(() => {
@@ -1243,7 +1216,6 @@ export class ExpedienteDetailComponent {
       : 'neutral';
   });
 
-  /** Referrals that already came back. */
   protected readonly derivacionesRespondidas = computed(() =>
     this.derivaciones().filter((p) => p.verdict || p.repairOutcome),
   );
@@ -1376,7 +1348,6 @@ export class ExpedienteDetailComponent {
     this.derivacionHecha.set(null);
   }
 
-  // ----- expert report / repair shop response -----
   protected readonly showInforme = signal(false);
   protected readonly informeTipo = signal<ProviderType>('ESTUDIO_LIQUIDADOR');
   protected readonly informeEsReparacion = computed(
@@ -1495,7 +1466,6 @@ export class ExpedienteDetailComponent {
     });
   }
 
-  // ----- insured's fraud record -----
   // Separate from the expert report: carrying a finding over to the person's future claims is the
   // analyst's act, recorded with their name and reason (Ley 25.326).
   private readonly antecedentes = toSignal(
@@ -1642,7 +1612,6 @@ export class ExpedienteDetailComponent {
     }).format(amount);
   }
 
-  // ----- manual classification retry (CLASSIFICATION_FAILED) -----
   // The scheduler only sweeps PENDING_CLASSIFICATION, so exhausted cases must be requeued by hand.
   protected readonly isFailed = computed(() => this.data()?.status === 'CLASSIFICATION_FAILED');
   protected readonly retrying = signal(false);
@@ -1667,7 +1636,6 @@ export class ExpedienteDetailComponent {
     });
   }
 
-  // ----- assignment -----
   // Both operational roles can assign; only the analyst can take a case for themselves.
   protected readonly assignSaving = signal(false);
   protected readonly assignError = signal<string | null>(null);
@@ -1684,17 +1652,13 @@ export class ExpedienteDetailComponent {
   );
 
   protected readonly analystMenuItems = computed<MenuItem[]>(() => {
-    // The current assignee is left out.
     const assignedId = this.data()?.assignedAnalystId;
     return this.analysts()
       .filter((a) => a.id !== assignedId)
       .map((a) => ({ value: String(a.id), label: `${a.nombre} ${a.apellido}` }));
   });
 
-  /**
-   * Per-tenant analyst id, found by email in the tenant-scoped analyst list (the session only has
-   * the user id). Null for the supervisor.
-   */
+  /** Per-tenant analyst id, found by email (the session only has the user id). Null for the supervisor. */
   private readonly myAnalystId = computed<number | null>(() => {
     const email = this.session.session()?.email;
     return this.analysts().find((a) => a.email === email)?.id ?? null;
@@ -1837,7 +1801,6 @@ export class ExpedienteDetailComponent {
     });
   }
 
-  // ----- missing documentation (read-only for the analyst) -----
   protected readonly needsDocs = computed(
     () => this.data()?.analysisClassification === 'FALTA_DOCUMENTACION',
   );

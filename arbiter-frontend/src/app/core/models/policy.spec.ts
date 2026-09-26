@@ -32,8 +32,8 @@ function policy(overrides: Partial<Policy> = {}): Policy {
 }
 
 describe('policy', () => {
-  describe('vigencia', () => {
-    it('sale del campo que manda el backend, no de las fechas', () => {
+  describe('validity', () => {
+    it('comes from the field the backend sends, not from the dates', () => {
       // Dates look current, but the backend field wins.
       const vencida = policy({
         effectiveFrom: '2026-01-01T00:00:00',
@@ -46,7 +46,7 @@ describe('policy', () => {
       expect(policyValidityTone(vencida)).toBe('danger');
     });
 
-    it('mapea cada estado a su label y su tono', () => {
+    it('maps each status to its label and tone', () => {
       const cases: [PolicyValidity, string, string][] = [
         ['CURRENT', 'Vigente', 'ok'],
         ['EXPIRED', 'Vencida', 'danger'],
@@ -60,13 +60,13 @@ describe('policy', () => {
       }
     });
 
-    it('una póliza que aún no arrancó no cuenta como vencida', () => {
+    it('a policy that has not started yet is not expired', () => {
       expect(isExpired(policy({ validity: 'NOT_YET_ACTIVE' }))).toBeFalse();
     });
   });
 
-  describe('estado de pago', () => {
-    it('es un eje independiente de la vigencia', () => {
+  describe('payment status', () => {
+    it('is independent from the validity', () => {
       const vigenteConDeuda = policy({ validity: 'CURRENT', upToDate: false });
       expect(isExpired(vigenteConDeuda)).toBeFalse();
       expect(policyPaymentLabel(vigenteConDeuda)).toBe('Con deuda');

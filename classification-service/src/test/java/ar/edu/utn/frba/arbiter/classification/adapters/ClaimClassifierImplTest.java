@@ -89,7 +89,7 @@ class ClaimClassifierImplTest {
     }
 
     @Test
-    void classify_rejectsFaltaDocumentacionToo_itIsTheGatesCallNotTheModels() {
+    void classify_rejectsMissingDocumentationToo_itIsTheGatesCallNotTheModels() {
         modelAnswers("""
                 {"classification":"FALTA_DOCUMENTACION","factors":["falta la factura"],"confidence":0.8}
                 """);

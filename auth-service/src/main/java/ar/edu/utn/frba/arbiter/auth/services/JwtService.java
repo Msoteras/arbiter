@@ -32,9 +32,8 @@ public class JwtService {
     void init() {
         String secret = properties.jwt().secret();
         if (secret == null || secret.isBlank()) {
-            log.warn("JWT_SECRET no configurado: generando una clave efímera para este proceso. "
-                    + "Los tokens no sobreviven un reinicio ni se comparten entre instancias — "
-                    + "configurar JWT_SECRET fuera de dev.");
+            log.warn("JWT_SECRET not set: using an ephemeral key. Tokens won't survive a restart "
+                    + "nor be shared across instances; set JWT_SECRET outside dev.");
             key = Jwts.SIG.HS256.key().build();
             return;
         }

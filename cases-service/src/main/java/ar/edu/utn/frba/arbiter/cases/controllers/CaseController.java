@@ -451,7 +451,7 @@ public class CaseController {
                     + "most recent first. Amounts within the analyst's own attribution aren't here: "
                     + "nobody else signed them.")
     public ResponseEntity<List<AuthorizedSettlementResponse>> authorizedSettlements() {
-        return ResponseEntity.ok(settlementService.authorizedByReferente());
+        return ResponseEntity.ok(settlementService.authorizedByReferent());
     }
 
     @PostMapping("/{caseId}/settlement/authorize")

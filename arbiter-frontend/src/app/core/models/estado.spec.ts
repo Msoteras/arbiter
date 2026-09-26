@@ -2,7 +2,7 @@ import { estadoSimplificadoEfectivo, movimientoAseguradoLabel, proximoPaso } fro
 
 // Tests the contract, not the wording: which movements the insured sees, and never the referral reason.
 describe('movimientoAseguradoLabel', () => {
-  it('distingue el alta de la vuelta con documentación', () => {
+  it('tells the filing apart from the return with documents', () => {
     expect(movimientoAseguradoLabel('PENDING_CLASSIFICATION', null)).toBe('Denuncia recibida');
     expect(movimientoAseguradoLabel('PENDING_CLASSIFICATION', 'AWAITING_DOCUMENTATION')).toBe(
       'Recibimos tu documentación',
@@ -13,24 +13,24 @@ describe('movimientoAseguradoLabel', () => {
     );
   });
 
-  it('no muestra el reintento manual como una carga de documentación', () => {
+  it('does not show the manual retry as a document upload', () => {
     expect(movimientoAseguradoLabel('PENDING_CLASSIFICATION', 'CLASSIFICATION_FAILED')).toBeNull();
   });
 
   // Analyst-assignment rows are stored with from == to.
-  it('no muestra las asignaciones de analista', () => {
+  it('does not show analyst assignments', () => {
     expect(movimientoAseguradoLabel('PENDING_ANALYST_REVIEW', 'PENDING_ANALYST_REVIEW')).toBeNull();
     expect(movimientoAseguradoLabel('CLASSIFICATION_FAILED', 'CLASSIFICATION_FAILED')).toBeNull();
     expect(movimientoAseguradoLabel('AWAITING_DOCUMENTATION', 'AWAITING_DOCUMENTATION')).toBeNull();
   });
 
-  it('le cuenta que el caso se derivó a un perito', () => {
+  it('tells them the case was referred to an expert', () => {
     expect(movimientoAseguradoLabel('PENDING_EXPERT_REPORT', 'PENDING_ANALYST_REVIEW')).toBe(
       'Enviado a verificación con un perito',
     );
   });
 
-  it('nombra la reapertura de un expediente cerrado', () => {
+  it('names the reopening of a closed case', () => {
     expect(movimientoAseguradoLabel('PENDING_ANALYST_REVIEW', 'APPROVED')).toBe(
       'Reabrimos tu siniestro',
     );
@@ -45,7 +45,7 @@ describe('movimientoAseguradoLabel', () => {
     );
   });
 
-  it('distingue volver del peritaje de entrar a revisión por primera vez', () => {
+  it('tells a return from the expert apart from a first review', () => {
     expect(movimientoAseguradoLabel('PENDING_ANALYST_REVIEW', 'PENDING_EXPERT_REPORT')).toBe(
       'Verificación finalizada',
     );
@@ -54,7 +54,7 @@ describe('movimientoAseguradoLabel', () => {
     );
   });
 
-  it('cuenta la ida y la vuelta del servicio técnico', () => {
+  it('tells the trip to and back from the repair shop', () => {
     expect(movimientoAseguradoLabel('PENDING_REPAIR', 'PENDING_ANALYST_REVIEW')).toBe(
       'Enviado al servicio técnico',
     );
@@ -63,11 +63,11 @@ describe('movimientoAseguradoLabel', () => {
     );
   });
 
-  it('no muestra la falla de clasificación', () => {
+  it('does not show the classification failure', () => {
     expect(movimientoAseguradoLabel('CLASSIFICATION_FAILED', 'PENDING_CLASSIFICATION')).toBeNull();
   });
 
-  it('muestra la resolución', () => {
+  it('shows the resolution', () => {
     expect(movimientoAseguradoLabel('APPROVED', 'PENDING_ANALYST_REVIEW')).toBe(
       'Siniestro aprobado',
     );
@@ -76,7 +76,7 @@ describe('movimientoAseguradoLabel', () => {
     );
   });
 
-  it('ningún próximo paso filtra el peritaje ni la clasificación', () => {
+  it('no next step leaks the expert assessment or the classification', () => {
     const prohibidas = ['perito', 'peritaje', 'informe', 'fraude', 'clasificac', 'riesgo', 'score'];
     const estados: string[] = [
       'PENDING_CLASSIFICATION',
@@ -99,7 +99,7 @@ describe('movimientoAseguradoLabel', () => {
     }
   });
 
-  it('ninguna etiqueta menciona fraude, clasificación ni riesgo', () => {
+  it('no label mentions fraud, classification or risk', () => {
     const prohibidas = ['fraude', 'fraud', 'llm', 'riesgo', 'score', 'sospech', 'clasificac'];
     const estados = [
       'PENDING_CLASSIFICATION',
@@ -126,7 +126,7 @@ describe('movimientoAseguradoLabel', () => {
 });
 
 describe('estadoSimplificadoEfectivo', () => {
-  it('no retrocede cuando el asegurado sube documentación', () => {
+  it('does not step back when the insured uploads documents', () => {
     expect(
       estadoSimplificadoEfectivo('PENDING_CLASSIFICATION', [
         'PENDING_CLASSIFICATION',
@@ -135,12 +135,12 @@ describe('estadoSimplificadoEfectivo', () => {
     ).toBe('EN_TRAMITE');
   });
 
-  it('marca Terminado solo mientras el expediente está cerrado', () => {
+  it('marks Terminado only while the case is closed', () => {
     expect(estadoSimplificadoEfectivo('APPROVED', ['PENDING_ANALYST_REVIEW'])).toBe('TERMINADO');
     expect(estadoSimplificadoEfectivo('LAPSED', ['AWAITING_DOCUMENTATION'])).toBe('TERMINADO');
   });
 
-  it('vuelve a En trámite cuando un expediente cerrado se reabre', () => {
+  it('goes back to En trámite when a closed case reopens', () => {
     expect(
       estadoSimplificadoEfectivo('PENDING_ANALYST_REVIEW', ['PENDING_ANALYST_REVIEW', 'REJECTED']),
     ).toBe('EN_TRAMITE');

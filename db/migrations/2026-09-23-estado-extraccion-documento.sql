@@ -1,28 +1,6 @@
--- =============================================================================
--- 2026-09-23 · Si la lectura del documento funcionó
---
--- Agrega document_analysis.extraction_status: COMPLETE (se leyó bien), PARTIAL (solo se
--- rescató la transcripción: la respuesta del modelo llegó cortada y se perdieron los datos)
--- o FAILED (no se pudo leer nada).
---
--- Para qué: cuando la respuesta del modelo llegaba rota (cortada por el tope de tokens, o
--- en loop repitiendo dígitos), se guardaba el JSON crudo como transcripción y los campos
--- vacíos. Un campo vacío significa "el documento no lo dice", así que el analista veía
--- "No lo aclara el documento" como si fuera un resultado real, y las reglas que comparan
--- marca, IMEI o hecho generador se quedaban afuera sin avisar.
---
--- Las filas existentes quedan COMPLETE, salvo las que guardaron el JSON crudo como
--- transcripción (empiezan con '{'): esas son lecturas rotas y se marcan FAILED. Conviene
--- re-analizar esos casos.
---
--- Hay que correrla ANTES de desplegar classification-service: con ddl-auto=validate, el
--- servicio no levanta si la columna no existe.
---
--- Idempotente: se puede correr más de una vez.
---
--- Uso:
---   psql "$DATABASE_URL" -f db/migrations/2026-09-23-estado-extraccion-documento.sql
--- =============================================================================
+-- 2026-09-23 · document_analysis.extraction_status: COMPLETE, PARTIAL (only the transcription survived) or
+-- FAILED. Existing rows whose transcription is raw JSON become FAILED; re-analyze those cases. Run before
+-- deploying classification-service (ddl-auto=validate). Idempotent.
 
 BEGIN;
 

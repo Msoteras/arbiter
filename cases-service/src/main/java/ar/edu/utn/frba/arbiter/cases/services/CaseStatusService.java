@@ -23,27 +23,19 @@ import java.util.Set;
 import static ar.edu.utn.frba.arbiter.common.enums.CaseStatus.*;
 
 /**
- * Single entry point for every case status change: the case and its audit row are written
- * together, so a case can't move without leaving a trail. Nothing else should call
- * {@code Case.setCurrentStatus}.
+ * Single entry point for status changes: the case and its audit row are written together. Nothing
+ * else should call {@code Case.setCurrentStatus}.
  */
 @Service
 @RequiredArgsConstructor
 public class CaseStatusService {
 
-    /**
-     * Art. 56 of Ley 17.418: 30 days to respond once the term is running, silence meaning
-     * acceptance. A constant rather than a rule because the law sets it for every insurer.
-     */
+    /** Art. 56 of Ley 17.418, silence meaning acceptance. A constant: the law sets it for every insurer. */
     public static final int RESPONSE_TERM_DAYS = 30;
 
-    /**
-     * States where the case waits on a third party, which interrupts the art. 56 term. Defined on
-     * the enum because reports-service needs the same list.
-     */
+    /** Waiting on a third party interrupts the art. 56 term. On the enum because reports-service shares it. */
     public static final Set<CaseStatus> PAUSING_STATUSES = Set.copyOf(CaseStatus.pausingTheTerm());
 
-    /** Closed states; the only way out is reopening. */
     public static final Set<CaseStatus> TERMINAL_STATUSES = Set.of(APPROVED, REJECTED, LAPSED);
 
     /**
@@ -118,12 +110,9 @@ public class CaseStatusService {
     }
 
     /**
-     * {@link #transition} for callers not running in the transaction that loaded the case, such as
-     * the sweeps: their copy may be stale and several instances may sweep the same schema. The
-     * move only happens if the DB still holds {@code expected}; whoever loses the race writes nothing.
-     *
-     * <p>Returns the entity re-read after the compare-and-set, so the caller can persist more on it
-     * without rewriting the row from the stale copy.
+     * {@link #transition} for callers outside the transaction that loaded the case, such as the sweeps:
+     * their copy may be stale and several instances may sweep one schema. Moves only if the DB still holds
+     * {@code expected}, and returns the entity re-read so the caller doesn't rewrite the row from its copy.
      *
      * @return the moved case, or empty if someone else got there first
      */
@@ -178,9 +167,8 @@ public class CaseStatusService {
     }
 
     /**
-     * The art. 56 term restarts in full, not with the remaining days, whenever the case moves from
-     * a stopped status to a running one: a requirement was met, or a closed case was reopened.
-     * Moves between two stopped statuses (e.g. {@code AWAITING_DOCUMENTATION → LAPSED}) don't reset.
+     * The art. 56 term restarts in full when the case moves from a stopped status to a running one; moves
+     * between two stopped statuses (e.g. {@code AWAITING_DOCUMENTATION → LAPSED}) don't reset it.
      */
     private void resumeDeadlineIfInterrupted(Case caseRecord, CaseStatus from, CaseStatus to) {
         if (!isDeadlineRunning(from) && isDeadlineRunning(to)) {

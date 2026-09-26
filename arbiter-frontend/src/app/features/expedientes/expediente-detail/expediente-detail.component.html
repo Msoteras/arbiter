@@ -32,8 +32,7 @@
   </header>
 
   <main class="det-content">
-    <!-- Three equal cards (title, main value, one detail line). Anything longer goes to the
-         full-width notices strip below so no card stretches the row. -->
+    <!-- Three equal cards; anything longer goes to the notices strip below so no card stretches the row. -->
     <div class="reasoning" @staggerReveal>
       <!-- Wording depends on the source: a non-binding LLM recommendation or an objective rules
            check (no confidence to show). Missing documentation is the insured's action, not the analyst's. -->
@@ -665,8 +664,6 @@
         <!-- Nothing is fetched live here: everything was persisted at classification time. -->
         @case ('reglas') {
           <div class="traza">
-            <!-- Avisos arriba de las reglas: un "No cumple" entre ellas se leería como una exclusión,
-               y esto no decide nada — marca algo que el analista tiene que mirar antes de resolver. -->
             @if (advisoryChecks().length > 0) {
               <app-card heading="Para revisar antes de resolver">
                 <p class="t-note traza-intro">
@@ -895,8 +892,7 @@
               }
             </app-card>
 
-            <!-- Read-only: registering one is an act on the person and stays in the summary card.
-               Only when there are any — the summary already says when there are none. -->
+            <!-- Read-only: registering one happens in the summary card. Only when there are any. -->
             @if (antecedentesPrevios().length > 0 || antecedentePropio()) {
               <app-card heading="Antecedentes de fraude del asegurado">
                 @for (a of antecedentesPrevios(); track a.id) {
@@ -1051,8 +1047,7 @@
   </div>
 }
 
-<!-- Approval includes determining the amount: the company treats both as a single act.
-     Wide only when approving, to fit the settlement sheet. -->
+<!-- Approval includes determining the amount: the company treats both as a single act. -->
 <app-modal
   [open]="showJustify()"
   [heading]="decisionModalHeading()"
@@ -1233,7 +1228,6 @@
   </ng-container>
 </app-modal>
 
-<!-- The reason is mandatory: it is the audit trail for why a closed case was reopened. -->
 <app-modal [open]="showAuthorize()" heading="Autorizar la liquidación" (close)="cancelSign()">
   @if (settlement(); as s) {
     <p class="t-body">
@@ -1250,8 +1244,7 @@
   </ng-container>
 </app-modal>
 
-<!-- Returning doesn't reject the claim: the case stays with the analyst, and the reason is all
-     they get to know what to fix. -->
+<!-- Returning doesn't reject the claim: the reason is all the analyst gets to fix it. -->
 <app-modal
   [open]="showReturn()"
   heading="Devolver la liquidación al analista"
@@ -1274,6 +1267,7 @@
   </ng-container>
 </app-modal>
 
+<!-- The reason is mandatory: it is the audit trail for why a closed case was reopened. -->
 <app-modal [open]="showReopen()" heading="Reabrir expediente" (close)="cancelReopen()">
   <p class="t-note">
     El expediente vuelve a revisión del analista con el plazo de respuesta corriendo de nuevo. No se

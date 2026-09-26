@@ -1,24 +1,5 @@
--- =============================================================================
--- llm_analysis — whether the narrative matches the declared claim cause
---
--- Three columns for the reading only the model can do: does the insured's account
--- describe the claim cause they declared? A report filed as "Robo en vía pública"
--- whose narrative says "se me cayó el celu" is the case this exists for.
---
---   cause_consistency      MATCHES | AMBIGUOUS | CONTRADICTS
---   suggested_claim_cause  the cause the narrative points to, when it isn't the declared one
---   cause_evidence         the passage the reading rests on
---
--- All nullable: an analysis may not assess it, and every analysis written before
--- these columns existed has nothing to put there.
---
--- The deployed database already has them — they were added there by hand on
--- 02/09/2026, before any script carried them. This makes them part of the schema
--- for every other database. Idempotent: where they already exist it changes nothing.
---
--- Usage:
---   psql "$DATABASE_URL" -f db/migrations/2026-09-10-coherencia-hecho-generador.sql
--- =============================================================================
+-- 2026-09-10 · llm_analysis: whether the narrative matches the declared claim cause (cause_consistency,
+-- suggested_claim_cause, cause_evidence). Added by hand on the deployed database before; idempotent.
 
 BEGIN;
 
@@ -33,8 +14,7 @@ BEGIN
            AND schema_name <> 'arbiter_common'
          ORDER BY schema_name
     LOOP
-        -- A tenant schema without llm_analysis is a half-created one; skip it instead
-        -- of failing the whole migration over it.
+        -- A tenant schema without llm_analysis is half-created: skip it.
         IF NOT EXISTS (
             SELECT 1 FROM information_schema.tables
              WHERE table_schema = tenant AND table_name = 'llm_analysis'

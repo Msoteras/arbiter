@@ -27,10 +27,9 @@ public record BusinessRules(
 ) {
 
     /**
-     * A hard rule evaluated by code. {@code id} is what {@code rule_result.rule_id} points at.
-     * Parameters are type-specific: {@code COVERAGE_EXCLUSION} matches claim causes by id (names
-     * repeat across branches), {@code POLICE_DEADLINE} uses {@code deadlineHours}; the rest take
-     * their thresholds from the coverage limits on the enclosing record.
+     * A hard rule evaluated by code; {@code id} is what {@code rule_result.rule_id} points at.
+     * {@code COVERAGE_EXCLUSION} matches claim causes by id (names repeat across branches),
+     * {@code POLICE_DEADLINE} uses {@code deadlineHours}; the rest use the enclosing coverage limits.
      */
     @Builder
     public record EvaluableRule(
@@ -43,10 +42,10 @@ public record BusinessRules(
     ) {}
 
     /**
-     * Insurer-wide: how long a fraud record counts and whether it vetoes Fast Track. Whether it
-     * scores is decided only by the {@link ScoringConfig}, so the two can't disagree.
+     * Insurer-wide: how long a fraud record counts and whether it vetoes Fast Track. Only
+     * {@link ScoringConfig} decides whether it scores, so the two can't disagree.
      *
-     * @param ruleId null when never configured, in which case the veto isn't evaluated
+     * @param ruleId null when never configured; the veto then isn't evaluated
      */
     @Builder
     public record FraudRecordPolicy(
@@ -75,17 +74,13 @@ public record BusinessRules(
             List<String> requiredDocumentTypes
     ) {}
 
-    /** Per-insurer fraud/risk score config: weighted factors and the bands the 0..1 score maps to. */
     @Builder
     public record ScoringConfig(
             /** Written to {@code cases.scoring_configuration_id}; null for the baseline, which isn't a row. */
             Long id,
             List<FactorWeight> factors,
             List<Band> bands,
-            /**
-             * Whether Fast Track claims still get OCR and the image-fraud cascade for a complete score.
-             * Never gates Fast Track; it only decides how much analysis runs.
-             */
+            /** Whether Fast Track claims still get OCR and the image cascade for a complete score; never gates it. */
             boolean fullAnalysisOnFastTrack
     ) {
 

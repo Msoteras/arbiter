@@ -11,7 +11,7 @@ import {
 
 describe('trazabilidad', () => {
   describe('ruleResultTone / ruleResultLabel', () => {
-    it('traduce el vocabulario del motor', () => {
+    it('translates the engine vocabulary', () => {
       expect(ruleResultTone('PASS')).toBe('ok');
       expect(ruleResultTone('FAIL')).toBe('danger');
 
@@ -19,33 +19,33 @@ describe('trazabilidad', () => {
       expect(ruleResultLabel('FAIL')).toBe('No cumple');
     });
 
-    it('trata el vocabulario viejo como cualquier literal desconocido', () => {
+    it('treats old vocabulary like any unknown literal', () => {
       expect(ruleResultTone('CUMPLE')).toBe('neutral');
       expect(ruleResultLabel('CUMPLE')).toBe('CUMPLE');
     });
 
-    it('no da por fallada una regla con un literal que no reconoce', () => {
+    it('does not mark a rule as failed when its literal is unknown', () => {
       expect(ruleResultTone('LO_QUE_SEA')).toBe('neutral');
       expect(ruleResultLabel('LO_QUE_SEA')).toBe('LO_QUE_SEA');
     });
   });
 
   // Advisory check: it decides nothing, so it must not read as a failed rule.
-  describe('avisos', () => {
-    it('se reconocen aparte de las reglas y de los criterios de Fast Track', () => {
+  describe('advisories', () => {
+    it('are told apart from the rules and the Fast Track criteria', () => {
       expect(isAdvisoryCheck('CLAIM_CAUSE_MATCH')).toBe(true);
       expect(isAdvisoryCheck('COVERS_FAMILY_GROUP')).toBe(false);
       expect(isFastTrackCriterion('CLAIM_CAUSE_MATCH')).toBe(false);
     });
 
-    it('un FAIL es "Revisar" en amarillo, no "No cumple" en rojo', () => {
+    it('a FAIL reads "Revisar" in yellow, not "No cumple" in red', () => {
       expect(advisoryResultLabel('FAIL')).toBe('Revisar');
       expect(advisoryResultTone('FAIL')).toBe('warning');
       expect(advisoryResultLabel('PASS')).toBe('Coincide');
       expect(advisoryResultTone('PASS')).toBe('ok');
     });
 
-    it('dice qué documento narra qué hecho, con el nombre del documento en castellano', () => {
+    it('says which document narrates which event, naming the document in Spanish', () => {
       expect(ruleTypeLabel('CLAIM_CAUSE_MATCH')).toBe('Hecho que narra la documentación');
       expect(
         ruleEvaluationText(
@@ -62,15 +62,15 @@ describe('trazabilidad', () => {
     });
   });
 
-  describe('reglas de alcance de cobertura', () => {
-    it('les pone nombre en castellano', () => {
+  describe('coverage scope rules', () => {
+    it('names them in Spanish', () => {
       expect(ruleTypeLabel('COVERS_FAMILY_GROUP')).toBe('Alcance al grupo familiar');
       expect(ruleTypeLabel('CLAIM_EXHAUSTS_COVERAGE')).toBe(
         'Cobertura consumida por un siniestro previo',
       );
     });
 
-    it('dice quién fue el damnificado en castellano', () => {
+    it('names the affected party in Spanish', () => {
       expect(ruleEvaluationText('COVERS_FAMILY_GROUP', 'affectedParty=FAMILIAR')).toBe(
         'Damnificado: un familiar · la cobertura no alcanza al grupo familiar',
       );
@@ -79,7 +79,7 @@ describe('trazabilidad', () => {
       );
     });
 
-    it('distingue el cero de la ausencia de dato al contar siniestros liquidados', () => {
+    it('tells zero apart from missing data when counting settled claims', () => {
       expect(ruleEvaluationText('CLAIM_EXHAUSTS_COVERAGE', 'settledClaimsOnPolicy=0 max=0')).toBe(
         'Sin siniestros liquidados previos sobre esta póliza',
       );
@@ -93,7 +93,7 @@ describe('trazabilidad', () => {
   });
 
   describe('ruleEvaluationText', () => {
-    it('arma la frase de cada tipo de regla con los mismos números del literal', () => {
+    it('builds each rule type sentence with the numbers of the literal', () => {
       expect(
         ruleEvaluationText(
           'POLICY_IN_FORCE',
@@ -125,7 +125,7 @@ describe('trazabilidad', () => {
       );
     });
 
-    it('singulariza el tope de eventos', () => {
+    it('uses the singular for a one-event cap', () => {
       expect(ruleEvaluationText('MAX_EVENTS_YEAR', 'events12m=1 max=2')).toBe(
         '1 siniestro en los últimos 12 meses · máximo 2',
       );
@@ -134,7 +134,7 @@ describe('trazabilidad', () => {
       );
     });
 
-    it('deja pasar lo que ya viene en prosa, y el literal crudo si no lo reconoce', () => {
+    it('passes prose through, and the raw literal when unknown', () => {
       expect(ruleEvaluationText('FRAUD_RECORD', 'sin antecedentes vigentes (ventana 36m)')).toBe(
         'Sin antecedentes vigentes en los últimos 36 meses',
       );
@@ -145,8 +145,8 @@ describe('trazabilidad', () => {
     });
   });
 
-  describe('criterios de Fast Track (H0038)', () => {
-    it('arma la frase de cada criterio con el valor que se comparó', () => {
+  describe('Fast Track criteria (H0038)', () => {
+    it('builds each criterion sentence with the compared value', () => {
       expect(ruleEvaluationText('FT_AMOUNT_RATIO', 'ratio=21.9% max=50.0%')).toBe(
         'Reclama el 21.9% de la suma asegurada · tope 50.0%',
       );
@@ -164,7 +164,7 @@ describe('trazabilidad', () => {
       );
     });
 
-    it('distingue el criterio que no se pudo evaluar del que se evaluó y falló', () => {
+    it('tells a criterion that could not be evaluated apart from one that failed', () => {
       expect(ruleEvaluationText('FT_AMOUNT_RATIO', 'ratio=sin datos max=50.0%')).toBe(
         'Sin monto reclamado o sin suma asegurada · tope 50.0%',
       );
@@ -173,7 +173,7 @@ describe('trazabilidad', () => {
       );
     });
 
-    it('traduce los códigos de documento a lo que el analista conoce', () => {
+    it('translates document codes into what the analyst knows', () => {
       expect(ruleEvaluationText('FT_REQUIRED_DOCS', 'required=police_report missing=ninguno')).toBe(
         'Presente: Denuncia policial',
       );
@@ -185,7 +185,7 @@ describe('trazabilidad', () => {
       ).toBe('Falta: Foto del bien');
     });
 
-    it('separa los criterios del gate de las reglas duras', () => {
+    it('separates the gate criteria from the hard rules', () => {
       expect(isFastTrackCriterion('FT_AMOUNT_RATIO')).toBe(true);
       expect(isFastTrackCriterion('POLICY_IN_FORCE')).toBe(false);
       // The configuration row type is not an evaluated criterion either.
@@ -194,7 +194,7 @@ describe('trazabilidad', () => {
   });
 
   describe('ruleTypeLabel', () => {
-    it('traduce los tipos conocidos y muestra el literal de los que no', () => {
+    it('translates known types and shows the literal of unknown ones', () => {
       expect(ruleTypeLabel('POLICE_DEADLINE')).toBe('Plazo de la denuncia policial');
       expect(ruleTypeLabel('POLICY_STANDING')).toBe('Mora de la póliza');
       expect(ruleTypeLabel('FRAUD_RECORD')).toBe('Antecedente de fraude');
