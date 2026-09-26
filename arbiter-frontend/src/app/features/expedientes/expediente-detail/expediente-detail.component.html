@@ -55,7 +55,7 @@
           @if (!isDeterministicOutcome()) {
             @if (analysisReasons().length > 0) {
               <p class="note">
-                <button type="button" class="brief-link" (click)="verMotivos(tabsNav)">
+                <button type="button" class="brief-link" (click)="verAnalisis(tabsNav)">
                   Ver motivos ({{ analysisReasons().length }})
                 </button>
               </p>
@@ -472,6 +472,30 @@
                   <p class="rcard-note error">{{ assignError() }}</p>
                 }
               </app-card>
+
+              <!-- Answers "why this band" without leaving the tab where the analyst decides. -->
+              @if (topRiskFactors().length > 0) {
+                <app-card heading="Factores principales de riesgo">
+                  <ul class="riesgo-factores">
+                    @for (f of topRiskFactors(); track f.factorId) {
+                      <li>
+                        <span>{{ factorLabel(f.factorId) }}</span>
+                        <span class="tabular">+{{ f.aporte }}</span>
+                      </li>
+                    }
+                  </ul>
+                  @if (fastTrackScoreScope() === 'partial') {
+                    <p class="rcard-note">Score parcial: sin documentos ni imágenes.</p>
+                  }
+                  <button
+                    type="button"
+                    class="brief-link riesgo-desglose"
+                    (click)="verAnalisis(tabsNav)"
+                  >
+                    Ver desglose completo
+                  </button>
+                </app-card>
+              }
 
               <!-- About the person, not this claim, hence the side column. -->
               @if (mostrarAntecedente()) {
