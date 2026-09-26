@@ -110,6 +110,7 @@ public class HardRuleService {
             ruleRepository.save(InsurerRule.builder()
                     .active(requested.enabled())
                     .validFrom(now)
+                    .createdBy(authorResolver.userIdOf(actorEmail))
                     .name(defaultName(requested.ruleType(), coverageId))
                     .ruleType(requested.ruleType().name())
                     // A failed hard rule never rejects on its own (human-in-the-loop): it derives to

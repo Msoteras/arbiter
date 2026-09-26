@@ -534,6 +534,9 @@ export class ExpedienteDetailComponent {
       .filter((s) => s.aporte > 0),
   );
 
+  /** The summary card only answers "why this band": zero-contribution factors explain nothing. */
+  protected readonly topRiskFactors = computed(() => this.scoreSegments().slice(0, 2));
+
   protected readonly scoreTone = computed<StatusTone>(() => {
     const tones: Record<number, StatusTone> = { 1: 'ok', 2: 'warning', 3: 'risk', 4: 'danger' };
     const band = this.riskGaugeBand();
@@ -729,7 +732,7 @@ export class ExpedienteDetailComponent {
   }
 
   /** The tabs sit below the fold on mobile: without the scroll the click would look like a no-op. */
-  protected verMotivos(tabs: HTMLElement): void {
+  protected verAnalisis(tabs: HTMLElement): void {
     this.setTab('analisis');
     tabs.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }

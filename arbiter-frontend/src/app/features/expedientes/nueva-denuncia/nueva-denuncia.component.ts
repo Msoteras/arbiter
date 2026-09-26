@@ -508,13 +508,18 @@ export class NuevaDenunciaComponent {
         if (eventDate && !eventTime) {
           return null;
         }
+        // Sent only once complete: defaulting a missing time to midnight would put a same-day
+        // report before the event and trip the backend's ordering check mid-entry.
+        const policeDate = this.policeReportDate();
+        const policeTime = this.policeReportTime();
         return {
           insuredId: policy.insuredId,
           policyNumber: policy.policyNumber,
           eventDate: eventDate ? eventDate + 'T' + eventTime + ':00' : undefined,
-          policeReportAt: this.policeReportDate()
-            ? this.policeReportDate() + 'T' + (this.policeReportTime() || '00:00') + ':00'
-            : undefined,
+          policeReportAt:
+            isTypedDate(policeDate) && policeTime
+              ? policeDate + 'T' + policeTime + ':00'
+              : undefined,
         };
       }),
     ).pipe(

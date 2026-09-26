@@ -2,6 +2,7 @@ package ar.edu.utn.frba.arbiter.rules.models.repositories;
 
 import ar.edu.utn.frba.arbiter.rules.models.entities.InsurerRule;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 
 import java.util.Collection;
 import java.util.List;
@@ -33,4 +34,12 @@ public interface InsurerRuleRepository extends JpaRepository<InsurerRule, Long> 
 
     /** Several insurer-wide rules at once — same shape as {@link #findByBranch_IdAndCoverageIdAndRuleTypeIn}. */
     List<InsurerRule> findByBranch_IdIsNullAndCoverageIdIsNullAndRuleTypeIn(Collection<String> ruleTypes);
+
+    /** Every rule with its branch, for the change history, which names the scope of each one. */
+    @Query("SELECT r FROM InsurerRule r LEFT JOIN FETCH r.branch")
+    List<InsurerRule> findAllForHistory();
+
+    /** The history's type filter: every rule shows at least its creation there. */
+    @Query("SELECT DISTINCT r.ruleType FROM InsurerRule r ORDER BY 1")
+    List<String> findDistinctRuleTypes();
 }

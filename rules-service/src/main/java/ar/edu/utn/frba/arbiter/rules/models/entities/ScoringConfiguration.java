@@ -47,4 +47,8 @@ public class ScoringConfiguration {
      */
     @Column(name = "full_analysis_on_fast_track", nullable = false)
     private boolean fullAnalysisOnFastTrack;
+
+    /** Same as {@code InsurerRule#createdBy}. */
+    @Column(name = "created_by", nullable = false)
+    private Long createdBy;
 }

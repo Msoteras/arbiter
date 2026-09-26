@@ -187,6 +187,23 @@ button.doc-btn.selected {
   align-items: start;
 }
 
+.doc-read-issue {
+  display: flex;
+}
+
+/* Status, not decoration: a border in the semaphore color, never a saturated fill. */
+.read-issue {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-3);
+  border: 1px solid var(--status-warning);
+  border-radius: var(--radius-ctl);
+  background: var(--surface-soft);
+}
+.read-issue p {
+  margin: 0;
+}
+
 .fields {
   margin: 0;
   display: grid;

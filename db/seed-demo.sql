@@ -166,23 +166,23 @@ SELECT setval(pg_get_serial_sequence('arbiter_bbva.coverage','id'),
 -- Same rule set as the other two coverages, minus POLICE_DEADLINE: accidental damage has
 -- no police report to file.
 INSERT INTO arbiter_bbva.insurer_rule (active, valid_from, name, rule_type, effect, priority,
-                                       blocks_fast_track, branch_id, coverage_id, configuration) VALUES
+                                       blocks_fast_track, branch_id, coverage_id, configuration, created_by) VALUES
     (TRUE, '2026-01-01 00:00:00+00',
      'La cobertura de daño accidental solo cubre rotura y caída', 'COVERAGE_EXCLUSION', 'RECHAZAR', 1,
-     TRUE, 1, 3, '{"excludedClaimCauseIds":[2,3]}'),
+     TRUE, 1, 3, '{"excludedClaimCauseIds":[2,3]}', 3),
     (TRUE, '2026-01-01 00:00:00+00',
      'Fast Track — Daño accidental', 'FAST_TRACK', 'APROBAR', 1,
      FALSE, 1, 3, '{"maxClaimedAmountRatio":0.5,"maxPriorClaims":0,"requiresUpToDatePolicy":true,
                     "requiredDocumentTypes":["purchase_proof","repair_quote"],
                     "criteria":["Primer siniestro del asegurado",
                                 "Monto reclamado inferior al 50% de la suma asegurada",
-                                "Póliza al día con sus pagos"]}'),
+                                "Póliza al día con sus pagos"]}', 3),
     (TRUE, '2026-01-01 00:00:00+00', 'Carencia de la cobertura (cobertura 3)',
-     'WAITING_PERIOD',  'DERIVAR', 2, TRUE, 1, 3, '{}'),
+     'WAITING_PERIOD',  'DERIVAR', 2, TRUE, 1, 3, '{}', 3),
     (TRUE, '2026-01-01 00:00:00+00', 'Plazo de denuncia a la aseguradora (cobertura 3)',
-     'REPORT_DEADLINE', 'DERIVAR', 3, TRUE, 1, 3, '{}'),
+     'REPORT_DEADLINE', 'DERIVAR', 3, TRUE, 1, 3, '{}', 3),
     (TRUE, '2026-01-01 00:00:00+00', 'Tope de eventos por año (cobertura 3)',
-     'MAX_EVENTS_YEAR', 'DERIVAR', 5, TRUE, 1, 3, '{}');
+     'MAX_EVENTS_YEAR', 'DERIVAR', 5, TRUE, 1, 3, '{}', 3);
 
 -- Local snapshots of the policies above. coverage 1 = 'Robo de celular', 2 = 'Hurto',
 -- 3 = 'Daño accidental' (Premium policies only).
@@ -348,22 +348,22 @@ SELECT setval(pg_get_serial_sequence('arbiter_provincia.coverage','id'),
 -- Without this deny-list the coverage would cover the whole branch. Tecnología Portátil
 -- causes: 6 Daño accidental, 7 Robo en vía pública, 8 Hurto.
 INSERT INTO arbiter_provincia.insurer_rule (active, valid_from, name, rule_type, effect, priority,
-                                            blocks_fast_track, branch_id, coverage_id, configuration) VALUES
+                                            blocks_fast_track, branch_id, coverage_id, configuration, created_by) VALUES
     (TRUE, '2026-01-01 00:00:00+00',
      'La cobertura de daño accidental solo cubre daño accidental', 'COVERAGE_EXCLUSION', 'RECHAZAR', 1,
-     TRUE, 2, 3, '{"excludedClaimCauseIds":[7,8]}');
+     TRUE, 2, 3, '{"excludedClaimCauseIds":[7,8]}', 6);
 
 -- Fast Track thresholds for this coverage. The amount cap is 60%, above robbery's 50%, on
 -- purpose: a repair is a large share of a small sum insured.
 INSERT INTO arbiter_provincia.insurer_rule (active, valid_from, name, rule_type, effect, priority,
-                                            blocks_fast_track, branch_id, coverage_id, configuration) VALUES
+                                            blocks_fast_track, branch_id, coverage_id, configuration, created_by) VALUES
     (TRUE, '2026-01-01 00:00:00+00',
      'Fast Track — Daño accidental', 'FAST_TRACK', 'APROBAR', 1,
      FALSE, 2, 3, '{"maxClaimedAmountRatio":0.6,"maxPriorClaims":0,"requiresUpToDatePolicy":true,
                     "requiredDocumentTypes":["purchase_proof","repair_quote"],
                     "criteria":["Primer siniestro del asegurado",
                                 "Monto reclamado inferior al 60% de la suma asegurada",
-                                "Póliza al día con sus pagos"]}');
+                                "Póliza al día con sus pagos"]}', 6);
 
 -- Same person as arbiter_bbva.insured(1) — one identity, two tenants, no shared row.
 INSERT INTO arbiter_provincia.insured (id, name, surname, dni, email, phone, case_count, pep, user_id) VALUES

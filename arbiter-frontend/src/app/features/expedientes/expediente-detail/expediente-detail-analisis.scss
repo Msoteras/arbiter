@@ -52,8 +52,10 @@
 
 .analisis-grid {
   display: grid;
-  grid-template-columns: 1.6fr 1fr;
+  /* The reasons are long prose; the score is a number and a short list. */
+  grid-template-columns: minmax(0, 2.2fr) minmax(0, 1fr);
   gap: var(--space-4);
+  align-items: start;
 }
 
 .razones {

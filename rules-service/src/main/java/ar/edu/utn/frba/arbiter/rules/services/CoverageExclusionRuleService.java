@@ -75,6 +75,7 @@ public class CoverageExclusionRuleService {
             rule = InsurerRule.builder()
                     .active(true)
                     .validFrom(now)
+                    .createdBy(authorResolver.userIdOf(actorEmail))
                     .name("Exclusiones de cobertura " + coverageId)
                     .ruleType(RuleType.COVERAGE_EXCLUSION.name())
                     .effect("RECHAZAR")

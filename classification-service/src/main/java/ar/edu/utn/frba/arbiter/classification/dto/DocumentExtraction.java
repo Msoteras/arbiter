@@ -10,8 +10,24 @@ import java.util.List;
  *
  * @param visualFindings signs of tampering; empty is normal, and they feed the analyst, never a rule
  * @param fields         the same data, typed, so code can compare it
+ * @param status         whether the read itself worked: empty fields only mean "the document doesn't
+ *                       say it" when this is {@link Status#COMPLETE}
  */
-public record DocumentExtraction(String transcription, List<String> visualFindings, Fields fields) {
+public record DocumentExtraction(
+        String transcription, List<String> visualFindings, Fields fields, Status status) {
+
+    /** Ordered from best to worst, so a multi-page document takes its worst page. */
+    public enum Status {
+        COMPLETE,
+        /** Only the transcription survived a broken answer; findings and fields were lost. */
+        PARTIAL,
+        /** Nothing usable was read. */
+        FAILED;
+
+        public Status worst(Status other) {
+            return compareTo(other) >= 0 ? this : other;
+        }
+    }
 
     /**
      * Null means "the document doesn't say", never "doesn't match". Data gets a typed field only when
@@ -61,9 +77,23 @@ public record DocumentExtraction(String transcription, List<String> visualFindin
         transcription = transcription == null ? "" : transcription;
         visualFindings = visualFindings == null ? List.of() : List.copyOf(visualFindings);
         fields = fields == null ? Fields.none() : fields;
+        status = status == null ? Status.COMPLETE : status;
+    }
+
+    /** A read that worked. */
+    public DocumentExtraction(String transcription, List<String> visualFindings, Fields fields) {
+        this(transcription, visualFindings, fields, Status.COMPLETE);
     }
 
     public static DocumentExtraction of(String transcription) {
         return new DocumentExtraction(transcription, List.of(), Fields.none());
+    }
+
+    public static DocumentExtraction partial(String transcription) {
+        return new DocumentExtraction(transcription, List.of(), Fields.none(), Status.PARTIAL);
+    }
+
+    public static DocumentExtraction failed(String transcription) {
+        return new DocumentExtraction(transcription, List.of(), Fields.none(), Status.FAILED);
     }
 }

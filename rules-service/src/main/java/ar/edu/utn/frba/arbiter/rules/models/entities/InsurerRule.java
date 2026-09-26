@@ -76,4 +76,12 @@ public class InsurerRule {
 
     @Column(name = "coverage_id")
     private Long coverageId;
+
+    /**
+     * The {@code arbiter_common.users} id of whoever created the rule: the user saving it from the
+     * app, or, for an insurer's default rules, the user who onboarded the insurer. A user and not a
+     * referente on purpose, so the author isn't tied to who may configure rules today.
+     */
+    @Column(name = "created_by", nullable = false)
+    private Long createdBy;
 }

@@ -16,7 +16,7 @@ import { catchError, combineLatest, map, of, startWith, switchMap } from 'rxjs';
 
 import { ExpedienteService } from '../expediente.service';
 import { DocumentAgendaService } from '../document-agenda.service';
-import { DocumentAnalysis } from '../../../core/models/expediente';
+import { DocumentAnalysis, ExtractionStatus } from '../../../core/models/expediente';
 import { formatDate } from '../../../core/util/datetime';
 import {
   CASE_DOCUMENT_TYPES,
@@ -48,6 +48,8 @@ interface DocRow {
   doc: CaseDocument | null;
   /** Attachment outside the document agenda (e.g. the expert report). */
   extra: boolean;
+  /** Set when the model's read of this document broke; flagged in the list so it isn't missed. */
+  readIssue: Exclude<ExtractionStatus, 'COMPLETE'> | null;
 }
 
 type PreviewState =
@@ -81,6 +83,12 @@ export class CaseDocumentsComponent {
   readonly reloadToken = input(0);
   /** Empty in the insured portal: the insured never sees the model's readings. */
   readonly extractions = input<DocumentAnalysis[]>([]);
+  /**
+   * Says so when a document has no reading, even if the case has none at all. Only the analyst's
+   * view sets it, once classification is over: `extractions` alone can't tell "no readings" from
+   * "not allowed to see them", and the portal must never show the notice.
+   */
+  readonly showMissingReadings = input(false);
   /** Off in the portal, where the missing-documentation banner already covers it. */
   readonly showMissing = input(true);
   readonly heading = input('Agenda documental');
@@ -144,12 +152,15 @@ export class CaseDocumentsComponent {
 
   protected readonly rows = computed<DocRow[]>(() => {
     const docs = this.agendaDocuments();
-    const all = this.requiredTypes().map(({ type, label }) => ({
-      type,
-      label,
-      doc: docs.find((d) => d.type === type) ?? null,
-      extra: false,
-    }));
+    const extractions = this.extractions();
+    const readIssue = (type: string): DocRow['readIssue'] => {
+      const status = extractions.find((e) => e.documentType === type)?.extractionStatus;
+      return status === 'PARTIAL' || status === 'FAILED' ? status : null;
+    };
+    const all = this.requiredTypes().map(({ type, label }) => {
+      const doc = docs.find((d) => d.type === type) ?? null;
+      return { type, label, doc, extra: false, readIssue: doc ? readIssue(type) : null };
+    });
     const agenda = this.showMissing() ? all : all.filter((r) => r.doc);
     return [
       ...agenda,
@@ -158,6 +169,7 @@ export class CaseDocumentsComponent {
         label: documentTypeLabel(doc.type),
         doc,
         extra: true,
+        readIssue: readIssue(doc.type),
       })),
     ];
   });
@@ -181,10 +193,13 @@ export class CaseDocumentsComponent {
     return this.extractions().find((e) => e.documentType === p.doc.type) ?? null;
   });
 
-  /** The case has readings but not for this document: it was uploaded after classification. */
+  /**
+   * No reading for this document: not read on that path (Fast Track, an exclusion), uploaded later,
+   * or its reading broke and was removed. The cause isn't known here, so the notice doesn't guess.
+   */
   protected readonly selectedNotAnalyzed = computed(
     () =>
-      this.extractions().length > 0 &&
+      (this.showMissingReadings() || this.extractions().length > 0) &&
       this.selectedExtraction() === null &&
       this.preview().status !== 'empty',
   );

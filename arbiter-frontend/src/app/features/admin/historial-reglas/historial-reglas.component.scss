@@ -94,14 +94,14 @@
   flex-direction: column;
   gap: var(--space-2);
 }
+/* Grid so every value starts on the same column, whatever the label's length. */
 .hr-field {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
   align-items: baseline;
-  gap: var(--space-3);
-  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
 }
 .hr-field-name {
-  flex: 1 1 220px;
   min-width: 0;
   color: var(--text-secondary);
 }
@@ -111,17 +111,16 @@
 }
 
 .hr-values {
-  flex: 1 1 auto;
   display: flex;
   align-items: baseline;
   gap: var(--space-2);
   font-size: var(--font-size-sm);
   min-width: 0;
 }
-/* Old value muted, new one primary: no red/green, since a change is neither success nor error. */
+/* Old value muted, new one primary: no red/green, since a change is neither success nor error.
+   No strikethrough either: the arrow and the "Se quitó" tag already say it, in words. */
 .hr-before {
   color: var(--text-muted);
-  text-decoration: line-through;
   word-break: break-word;
 }
 .hr-arrow {
@@ -134,17 +133,40 @@
   word-break: break-word;
 }
 
-.hr-nochange {
-  margin: var(--space-2) 0 0;
-  font-style: italic;
+/* List fields: one line per item, so a long criterion wraps on its own instead of the whole list
+   running together. The tag carries the meaning; color stays neutral like the scalar diff. */
+.hr-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: var(--font-size-sm);
+  min-width: 0;
 }
-.hr-held {
-  margin: var(--space-2) 0 0;
+.hr-list-item {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+/* Fixed width so the items line up whether the tag says "Se quitó" or "Se agregó". */
+.hr-tag {
+  flex: 0 0 9ch;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+}
+.hr-list-kept {
+  margin: 0;
   color: var(--text-muted);
 }
 
+.hr-created {
+  margin: var(--space-2) 0 0;
+}
+
 @media (max-width: 640px) {
-  .hr-field-name {
-    flex-basis: 100%;
+  .hr-field {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
