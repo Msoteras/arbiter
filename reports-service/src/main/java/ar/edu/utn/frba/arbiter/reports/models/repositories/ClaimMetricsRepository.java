@@ -38,12 +38,12 @@ import java.util.List;
 import java.util.function.Function;
 
 /**
- * The dashboard's aggregations, all counted by the database so a quarter never loads every case into
- * memory. Same direct, read-only access to other modules' tables as {@link ResolvedCaseRepository}.
+ * The dashboard's aggregations, counted by the database. Read-only access to other modules' tables,
+ * like {@link ResolvedCaseRepository}.
  *
- * <p><b>Queries run on Hibernate's connection, not one from the pool.</b> Table names are unqualified
- * and resolve through the tenant {@code search_path}; a template over the {@code DataSource} fails with
- * "relation cases does not exist" in production while passing in tests, where the schema is flat.
+ * <p><b>Queries run on Hibernate's connection, not the pool's:</b> unqualified table names resolve
+ * through the tenant {@code search_path}. Over the {@code DataSource} they fail with "relation cases
+ * does not exist" in production and pass in tests, where the schema is flat.
  */
 @Repository
 @RequiredArgsConstructor
@@ -57,8 +57,8 @@ public class ClaimMetricsRepository {
                  ORDER BY case_id, id DESC
             )""";
 
-    // Claim cause is always joined because the branch filter hangs off it. The leading newline keeps
-    // this from welding onto the SELECT it is concatenated after.
+    // Claim cause always joined: the branch filter hangs off it. The leading newline keeps this off
+    // the SELECT it is concatenated after.
     private static final String FROM_CASES = "\n" + """
               FROM cases c
               JOIN claim_cause cc ON cc.id = c.claim_cause_id""";
@@ -66,10 +66,7 @@ public class ClaimMetricsRepository {
     /** Claims FILED in the period: the population every distribution is drawn from. */
     private static final String REPORTED_WINDOW = " WHERE c.reported_at >= :from AND c.reported_at < :to";
 
-    /**
-     * How classification-service writes a failed rule ({@code RuleFinding}). A literal rather than a
-     * shared enum: it is that module's table format, read by a single query here.
-     */
+    /** How classification-service writes a failed rule: its table format, so a literal, not an enum. */
     private static final String FAILED = "FAIL";
 
     private static final RowMapper<MetricCount> COUNT_ROW =
@@ -91,7 +88,6 @@ public class ClaimMetricsRepository {
                 (rs, rowNum) -> new IntakeTotals(rs.getLong("reported"), rs.getLong("fast_track"))));
     }
 
-    /** One pass over the cohort with five counters, instead of five scans. */
     @Transactional(readOnly = true)
     public IntakeFunnel intakeFunnel(Instant from, Instant to, MetricsFilter filter) {
         String sql = "WITH " + LATEST_LLM_CTE + """
@@ -116,10 +112,8 @@ public class ClaimMetricsRepository {
     }
 
     /**
-     * Over the claims resolved in the period, the same population as the summary's rates.
-     *
-     * <p>Agreement is measured against the final status, not the decision string: that column holds
-     * "APPROVE" from the app and "APROBAR" from seed data, while the status is enum-backed.
+     * Over the claims resolved in the period. Agreement is judged by final status, not the decision
+     * string, which holds "APPROVE" from the app and "APROBAR" from seed data.
      */
     @Transactional(readOnly = true)
     public RecommendationAgreement recommendationAgreement(Instant from, Instant to, MetricsFilter filter) {
@@ -148,7 +142,7 @@ public class ClaimMetricsRepository {
                 RecommendationAgreement.of(rs.getLong("decided"), rs.getLong("agreed"))));
     }
 
-    /** Ordered by the catalog's ids (the lifecycle), not by size, so the chart reads as the claim advances. */
+    /** Ordered by catalog id (the lifecycle), not size, so the chart reads as the claim advances. */
     @Transactional(readOnly = true)
     public List<MetricCount> countByStatus(Instant from, Instant to, MetricsFilter filter) {
         String sql = "SELECT s.name AS label, count(*) AS total"
@@ -166,8 +160,8 @@ public class ClaimMetricsRepository {
     }
 
     /**
-     * Same precedence as the resolution report: the Fast Track flag wins over any older model run,
-     * else the newest run. A claim still being classified contributes a null label.
+     * Same precedence as the resolution report: the Fast Track flag, else the newest model run. A claim
+     * still being classified contributes a null label.
      */
     @Transactional(readOnly = true)
     public List<MetricCount> countByClassification(Instant from, Instant to, MetricsFilter filter) {
@@ -180,7 +174,7 @@ public class ClaimMetricsRepository {
         return query(template -> template.query(sql, period(from, to, filter), COUNT_ROW));
     }
 
-    /** Read off the denormalized column on the case, the same one the inbox filters by. */
+    /** The denormalized column on the case, the same one the inbox filters by. */
     @Transactional(readOnly = true)
     public List<MetricCount> countByRiskBand(Instant from, Instant to, MetricsFilter filter) {
         String sql = "SELECT c.risk_band AS label, count(*) AS total" + FROM_CASES
@@ -189,9 +183,9 @@ public class ClaimMetricsRepository {
     }
 
     /**
-     * @param totalSeconds   average from filing to decision: the time the insured lived through
-     * @param waitingSeconds average part spent waiting on third parties; null along with the total when
-     *                       nothing was decided
+     * @param totalSeconds   filing to decision: the time the insured lived through
+     * @param waitingSeconds the part spent waiting on third parties; null with the total when nothing
+     *                       was decided
      */
     public record ResolutionSplit(Double totalSeconds, Double waitingSeconds) {
 
@@ -199,9 +193,8 @@ public class ClaimMetricsRepository {
     }
 
     /**
-     * Total time and the part spent waiting on third parties ({@link CaseResolutionSql#WAITING_CTE}):
-     * the insurer's procedure says those derivations interrupt the legal term, so they are not the
-     * operation's time. Over DECIDED cases only; a lapsed case is months of the insured's silence.
+     * Waiting on third parties ({@link CaseResolutionSql#WAITING_CTE}) interrupts the legal term, so it
+     * is not the operation's time. DECIDED cases only: a lapsed case is months of the insured's silence.
      */
     @Transactional(readOnly = true)
     public ResolutionSplit resolutionSplit(Instant from, Instant to, MetricsFilter filter) {
@@ -232,9 +225,8 @@ public class ClaimMetricsRepository {
     }
 
     /**
-     * Decided cases whose handling time (total minus waiting on third parties) exceeded the insurer's
-     * target; otherwise requesting an expert report, the right move, would count against the target.
-     * Lapsed cases excluded. Strict comparison: closing on the target day meets it.
+     * Decided cases whose handling time (total minus waiting) exceeded the target, so requesting an
+     * expert report doesn't count against it. Lapsed excluded; closing on the target day meets it.
      */
     @Transactional(readOnly = true)
     public long countDecidedOverTarget(Instant from, Instant to, int targetDays, MetricsFilter filter) {
@@ -262,9 +254,8 @@ public class ClaimMetricsRepository {
     }
 
     /**
-     * Art. 56 compliance over the cases DECIDED in the period. The deadline is read from the case, not
-     * recomputed: cases-service owns that rule, and a second implementation here would drift.
-     * Compared by day: the term expires at the end of its last day.
+     * Art. 56 compliance over cases DECIDED in the period. The deadline is read from the case, not
+     * recomputed: cases-service owns that rule. Compared by day: the term ends with its last day.
      */
     @Transactional(readOnly = true)
     public LegalDeadline legalDeadlineCompliance(
@@ -291,8 +282,8 @@ public class ClaimMetricsRepository {
     }
 
     /**
-     * A reopening is a transition from a final status to a non-final one, so a new final status needs
-     * no change here. {@code EXISTS}, not a count: it counts reopened cases, not reopenings.
+     * A reopening is a final-to-non-final transition. {@code EXISTS}, not a count: it counts reopened
+     * cases, not reopenings.
      */
     @Transactional(readOnly = true)
     public ReopeningRate reopeningRate(Instant from, Instant to, MetricsFilter filter) {
@@ -317,8 +308,8 @@ public class ClaimMetricsRepository {
     }
 
     /**
-     * Only {@code AUTHORIZED} settlements, anchored to {@code confirmed_at}. Deductions are read frozen
-     * from the settlement, not recomputed: the branch's deductible may have changed since.
+     * Only {@code AUTHORIZED} settlements, by {@code confirmed_at}. Deductions are read frozen from the
+     * settlement: the branch's deductible may have changed since.
      */
     @Transactional(readOnly = true)
     public SettledAmounts settledAmounts(Instant from, Instant to, MetricsFilter filter) {
@@ -349,8 +340,8 @@ public class ClaimMetricsRepository {
     }
 
     /**
-     * The amount saved counts only rejected cases: one approved despite fraud saved nothing. Expert
-     * backing uses {@code EXISTS}, since a case may have several derivations and a join would double-count.
+     * Only rejected cases count as saved: one approved despite fraud saved nothing. Expert backing uses
+     * {@code EXISTS}, since a join over several derivations would double-count.
      */
     @Transactional(readOnly = true)
     public FraudDetection fraudDetection(Instant from, Instant to, MetricsFilter filter) {
@@ -383,7 +374,6 @@ public class ClaimMetricsRepository {
                 rs.getBigDecimal("amount_not_paid"))));
     }
 
-    /** One pass with two {@code FILTER}s rather than two queries over the same rows. */
     @Transactional(readOnly = true)
     public FastTrackImpact fastTrackImpact(Instant from, Instant to, MetricsFilter filter) {
         String sql = CaseResolutionSql.RESOLUTION_CTE + """
@@ -415,8 +405,8 @@ public class ClaimMetricsRepository {
     }
 
     /**
-     * Derivations sent in the period per kind of third party. The average covers only the answered ones
-     * ({@code avg} skips nulls): measuring pending ones against now would shift it on every refresh.
+     * Derivations sent in the period per kind of third party. Only answered ones are averaged: pending
+     * ones measured against now would shift on every refresh.
      */
     @Transactional(readOnly = true)
     public List<DerivationTurnaround> derivationTurnaround(Instant from, Instant to, MetricsFilter filter) {
@@ -439,11 +429,10 @@ public class ClaimMetricsRepository {
     }
 
     /**
-     * Which rules stopped the most claims filed in the period. Only {@code FAIL} rows (the table also
-     * audits {@code PASS}), and no advisory checks ({@link RuleType#advisoryRules()}): their FAIL
-     * stopped nothing. {@code count(DISTINCT case_id)} because {@code rule_result} is append-only,
-     * one row per run. The name falls back to the rule type for coverage and Fast Track checks, which
-     * are audited with a null {@code rule_id}.
+     * Rules that stopped the most claims filed in the period: {@code FAIL} rows only, no advisory checks
+     * ({@link RuleType#advisoryRules()}: they stop nothing), and {@code DISTINCT case_id} because
+     * {@code rule_result} is append-only. Coverage and Fast Track checks carry no {@code rule_id}, so
+     * they are named by type.
      */
     @Transactional(readOnly = true)
     public List<MetricCount> countByBlockingRule(Instant from, Instant to, MetricsFilter filter) {
@@ -463,7 +452,6 @@ public class ClaimMetricsRepository {
                 COUNT_ROW));
     }
 
-    /** One row per final status reached in the period, with its own average time to get there. */
     @Transactional(readOnly = true)
     public List<ResolvedTotals> resolvedTotals(Instant from, Instant to, MetricsFilter filter) {
         String sql = CaseResolutionSql.RESOLUTION_CTE + """
@@ -485,7 +473,7 @@ public class ClaimMetricsRepository {
     }
 
     /**
-     * Buckets are truncated in the insurer's time zone, not UTC, so a claim filed at 9 PM in Buenos Aires
+     * Buckets truncated in the insurer's time zone, not UTC: a claim filed at 9 PM in Buenos Aires
      * belongs to that day. Empty buckets are absent; the service fills the gaps.
      */
     @Transactional(readOnly = true)
@@ -531,7 +519,7 @@ public class ClaimMetricsRepository {
 
     /**
      * Appended rather than {@code :branchId IS NULL OR ...}: Postgres can't infer the type of a
-     * parameter only ever compared to NULL and rejects the statement.
+     * parameter only ever compared to NULL.
      */
     private static String filters(MetricsFilter filter) {
         StringBuilder sql = new StringBuilder();

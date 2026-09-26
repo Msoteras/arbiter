@@ -29,9 +29,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Reads an attachment with the vision model: its text (OCR) and signs of manipulation. This is the
- * only pass that sees the image (the classifier works on text), so anything visual must be captured
- * here in {@code visualFindings}.
+ * Reads an attachment with the vision model: its text (OCR) and signs of manipulation. The only pass
+ * that sees the image, so anything visual must be captured here in {@code visualFindings}.
  */
 @Service
 public class DocumentAnalyzerImpl implements DocumentAnalyzer {
@@ -52,7 +51,6 @@ public class DocumentAnalyzerImpl implements DocumentAnalyzer {
 
     private static final Pattern TRANSCRIPTION_START = Pattern.compile("\"transcription\"\\s*:\\s*\"");
 
-    /** Where the branch's claim causes go in the prompt. */
     private static final String CATALOG_PLACEHOLDER = "{{claimCauseCatalog}}";
 
     private final LlmClient client;
@@ -70,13 +68,9 @@ public class DocumentAnalyzerImpl implements DocumentAnalyzer {
     }
 
     /**
-     * Forcing the shape is what keeps the two halves apart. Without it the model returns prose and
-     * an "observación:" line inside the transcription reads as if the document said it.
-     *
-     * <p>Built per call and not a constant because {@code describedClaimCause} is an enum of the
-     * branch's own catalog: the model can only name a cause the insurer has, so the code never has
-     * to guess which one "robo con violencia" meant. Null is one of the values — most documents
-     * narrate no event at all.
+     * Forcing the shape keeps the two halves apart: as prose, an "observación:" line inside the
+     * transcription reads as if the document said it. Built per call because {@code describedClaimCause}
+     * is an enum of the branch's own catalog, plus null: most documents narrate no event.
      */
     private static Map<String, Object> outputSchema(List<String> claimCauses) {
         List<String> causeValues = new ArrayList<>(claimCauses);
@@ -86,9 +80,8 @@ public class DocumentAnalyzerImpl implements DocumentAnalyzer {
                 "properties", Map.of(
                         "transcription", Map.of("type", "string"),
                         "visualFindings", Map.of("type", "array", "items", Map.of("type", "string")),
-                        // All nullable: a document has no reason to carry every one of them. The
-                        // schema doesn't require them so the model doesn't invent what's missing.
-                        // Map.ofEntries and not Map.of: past ten pairs the varargs overload is gone.
+                        // All nullable and none required, so the model doesn't invent what's missing.
+                        // Map.ofEntries: Map.of stops at ten pairs.
                         "fields", Map.of(
                                 "type", "object",
                                 "properties", Map.ofEntries(
@@ -101,8 +94,8 @@ public class DocumentAnalyzerImpl implements DocumentAnalyzer {
                                         Map.entry("affectedParty", Map.of("enum",
                                                 List.of("TITULAR", "FAMILIAR", "TERCERO", "DESCONOCIDO"))),
                                         Map.entry("describedClaimCause", Map.of("enum", causeValues)),
-                                        // Name and value both required: half a detail says nothing to
-                                        // the analyst and only risks a row that can't be stored.
+                                        // Both required: half a detail says nothing and risks a row
+                                        // that can't be stored.
                                         Map.entry("details", Map.of(
                                                 "type", "array",
                                                 "items", Map.of(
@@ -117,7 +110,7 @@ public class DocumentAnalyzerImpl implements DocumentAnalyzer {
         );
     }
 
-    /** The catalog as the prompt lists it; an empty one says so, and the schema then only allows null. */
+    /** An empty catalog says so, and the schema then only allows null. */
     private String promptFor(List<String> claimCauses) {
         String catalog = claimCauses.isEmpty()
                 ? "(no hay catálogo disponible: devolvé `describedClaimCause` en null)"
@@ -145,7 +138,7 @@ public class DocumentAnalyzerImpl implements DocumentAnalyzer {
                 && content[0] == '%' && content[1] == 'P' && content[2] == 'D' && content[3] == 'F';
     }
 
-    /** Diagnostic: first bytes (format signature) to identify what actually arrived. */
+    /** Diagnostic: the format signature of what actually arrived. */
     private String magicBytesHex(byte[] content) {
         int len = Math.min(content.length, 16);
         StringBuilder sb = new StringBuilder();
@@ -155,7 +148,7 @@ public class DocumentAnalyzerImpl implements DocumentAnalyzer {
         return sb.toString().trim();
     }
 
-    /** Diagnostic: if even Java's own decoder can't read it, it's a format problem (e.g. HEIC), not Ollama's fault. */
+    /** Diagnostic: if Java's own decoder can't read it either, it's the format (e.g. HEIC), not Ollama. */
     private boolean isDecodableImage(byte[] content) {
         try {
             return ImageIO.read(new ByteArrayInputStream(content)) != null;
@@ -221,8 +214,8 @@ public class DocumentAnalyzerImpl implements DocumentAnalyzer {
     }
 
     /**
-     * Details accumulate, deduplicated by name <b>and</b> value: repeated headers collapse, but the
-     * same name with two values survives as a contradiction worth showing the analyst.
+     * Deduplicated by name <b>and</b> value: repeated headers collapse, but one name with two values
+     * survives as a contradiction worth showing the analyst.
      */
     private List<DocumentExtraction.Detail> mergeDetails(
             List<DocumentExtraction.Detail> accumulated, List<DocumentExtraction.Detail> page) {
@@ -241,8 +234,8 @@ public class DocumentAnalyzerImpl implements DocumentAnalyzer {
     }
 
     /**
-     * A broken answer (cut by the output token cap, or a generation stuck repeating digits) is
-     * retried before settling for less: the fields it loses are what the consistency rules compare.
+     * A broken answer (cut by the token cap, or stuck repeating digits) is retried: the fields it loses
+     * are what the consistency rules compare.
      */
     private DocumentExtraction extractFromImage(byte[] imageContent, List<String> claimCauses) {
         String base64 = Base64.getEncoder().encodeToString(imageContent);
@@ -285,10 +278,9 @@ public class DocumentAnalyzerImpl implements DocumentAnalyzer {
     }
 
     /**
-     * What's left of a broken answer, with no findings or fields: silence beats a made-up finding.
-     * The transcription is salvaged from truncated JSON; an answer that isn't JSON at all is prose
-     * the model wrote instead, still the document's text. A JSON that yields nothing is never
-     * shown — the analyst would be reading the model's syntax.
+     * What's left of a broken answer, without findings or fields: silence beats a made-up finding. The
+     * transcription is salvaged from truncated JSON, or kept if the answer is prose; a JSON that yields
+     * nothing is never shown.
      */
     private DocumentExtraction degrade(String content) {
         String salvaged = clean(salvageTranscription(content));
@@ -305,10 +297,7 @@ public class DocumentAnalyzerImpl implements DocumentAnalyzer {
         return DocumentExtraction.failed(UNREADABLE);
     }
 
-    /**
-     * Reads the {@code transcription} string out of a JSON cut off mid-way (output token cap), up
-     * to its closing quote or, if the cut fell inside it, up to where it stops. Null if absent.
-     */
+    /** The {@code transcription} of a JSON cut off by the token cap, up to where it stops; null if absent. */
     private String salvageTranscription(String json) {
         Matcher start = TRANSCRIPTION_START.matcher(json);
         if (!start.find()) {
@@ -357,8 +346,8 @@ public class DocumentAnalyzerImpl implements DocumentAnalyzer {
     }
 
     /**
-     * Drops details missing a name or value (the columns are NOT NULL, so one would fail the whole
-     * document) and truncates long ones to {@code DocumentDetail}'s widths rather than dropping them.
+     * Drops details missing a name or value (NOT NULL columns: one would fail the whole document) and
+     * truncates long ones to {@code DocumentDetail}'s widths.
      */
     private List<DocumentExtraction.Detail> toDetails(List<ModelDetail> details) {
         if (details == null) {
@@ -392,10 +381,9 @@ public class DocumentAnalyzerImpl implements DocumentAnalyzer {
     }
 
     /**
-     * Back to the catalog's own spelling, or null. The schema already restricts the value, but a
-     * provider that doesn't honor the enum could still return "hurto" or something off the list —
-     * and the rule compares names, so an unmatched value must read as "the document doesn't say",
-     * never as a cause that differs from the declared one.
+     * Back to the catalog's own spelling, or null. A provider that ignores the schema's enum could return
+     * "hurto" or something off the list, and an unmatched value must read as "the document doesn't say",
+     * never as a different cause.
      */
     private String matchClaimCause(String raw, List<String> claimCauses) {
         if (raw == null || raw.isBlank()) {
@@ -435,10 +423,7 @@ public class DocumentAnalyzerImpl implements DocumentAnalyzer {
         return cleaned == null || cleaned.isBlank() ? null : cleaned.trim();
     }
 
-    /**
-     * Drops NUL characters. The model can emit {@code \u0000} and PostgreSQL rejects it in any text
-     * column, so a single one failed the insert of every extraction in the case.
-     */
+    /** PostgreSQL rejects NUL in any text column, and a single one failed every extraction in the case. */
     private String clean(String raw) {
         return raw == null ? null : raw.replace("\u0000", "");
     }

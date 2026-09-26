@@ -213,7 +213,6 @@ class SettlementServiceTest {
         assertThat(response.warnings()).isEmpty();
     }
 
-    /** The other zero isn't a failure: there were no instalments left, and it must read that way. */
     @Test
     void tellsApartAnEmptyDeductionFromAMissingOne() {
         when(caseRepository.findPolicySnapshot(1L)).thenReturn(Optional.of(PolicySnapshot.builder()
@@ -235,7 +234,6 @@ class SettlementServiceTest {
                 .satisfies(line -> assertThat(line.detail()).isEqualTo("no quedan cuotas por vencer"));
     }
 
-    /** A signed amount doesn't move because someone reopened the screen with a different value. */
     @Test
     void anAlreadyConfirmedSettlementIsReturnedAsIsAndIgnoresThePreviewValue() {
         when(settlementRepository.findByCaseId(1L)).thenReturn(Optional.of(CaseSettlement.builder()
@@ -262,8 +260,6 @@ class SettlementServiceTest {
         assertThat(response.warnings()).isEmpty();
     }
 
-    // ─── Amount suggested from the documents ────────────────────────────────────
-
     /**
      * In a repair the amount comes from the quote, which the model already read while classifying.
      * It's offered with its source: a number without provenance is worth less than none.
@@ -283,7 +279,6 @@ class SettlementServiceTest {
         assertThat(response.calculatedAmount()).isEqualByComparingTo("0.00");
     }
 
-    /** In a total loss settled by the lesser of the two, the purchase proof is what answers. */
     @Test
     void suggestsThePurchaseProofWhenTheCeilingIsTheLesserOfTheTwo() {
         claim.setCoverage(coverage(SettlementBasis.LESSER_OF_SUM_AND_REPLACEMENT, "10.00", false));
@@ -313,7 +308,6 @@ class SettlementServiceTest {
         assertThat(response.suggestedFrom()).isNull();
     }
 
-    /** The right document with no readable amount suggests nothing: it doesn't fall back to the other type. */
     @Test
     void suggestsNothingWhenTheRightDocumentHasNoReadableAmount() {
         claim.setCoverage(repairCoverage());
@@ -490,8 +484,6 @@ class SettlementServiceTest {
                 .build();
     }
 
-    // ─── Irreparable item ───────────────────────────────────────────────────────
-
     /**
      * A damage coverage settles by repair assuming the item survived. If the shop declares it
      * irreparable, for insurance purposes it's gone as if stolen, and the sum insured is paid.
@@ -563,9 +555,6 @@ class SettlementServiceTest {
         assertThat(response.formula()).isEqualTo(SettlementFormula.REPAIR);
     }
 
-    // ─── Settlement authority ───────────────────────────────────────────────────
-
-    /** Within the ceiling the analyst's signature is enough: there's no second signer to record. */
     @Test
     void anAmountWithinTheBranchAttributionIsAuthorizedOnTheSpot() {
         claim.setClaimCause(claimCause(1L));
@@ -580,7 +569,6 @@ class SettlementServiceTest {
         assertThat(saved.getAuthorizedByUserId()).isNull();
     }
 
-    /** The ceiling is inclusive. */
     @Test
     void anAmountExactlyAtTheCeilingStillNeedsNoReferent() {
         claim.setClaimCause(claimCause(1L));

@@ -37,10 +37,8 @@ import java.util.Optional;
 import java.util.function.Function;
 
 /**
- * Tells the insured their case moved, by email and in the in-app panel.
- *
- * <p>Only statuses that ask them for something or are the outcome: the rest is internal and would
- * leak classification, score or reasons.
+ * Tells the insured their case moved, by email and in the panel, only for statuses that ask them for
+ * something or are the outcome: the rest is internal and would leak classification, score or reasons.
  */
 @Service
 @RequiredArgsConstructor

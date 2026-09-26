@@ -62,10 +62,9 @@ type TabId = 'coberturas' | 'exclusiones' | 'fastTrack' | 'documentacion' | 'reg
 type GeneralView = 'hardStop' | 'scoring' | 'fraude' | 'atribuciones' | 'objetivo' | 'historial';
 
 /**
- * Branch master-detail with per-tab drafts, each saved by its own button (cases-service for
- * coverages, rules-service for the rest). Branches are a GLOBAL catalog shared by every insurer.
- * Insurer-wide config (Hard Stop, scoring, etc.) lives outside the master-detail on purpose.
- * The UI shows percentages (0..100); the backend contract uses fractions (0..1).
+ * Branch master-detail with per-tab drafts, each saved by its own button. Branches are a GLOBAL
+ * catalog; insurer-wide config lives outside the master-detail on purpose. The UI shows percentages
+ * (0..100); the backend uses fractions (0..1).
  */
 @Component({
   selector: 'app-reglas',
@@ -351,7 +350,6 @@ export class ReglasComponent {
     return this.view() === 'ramo' && this.selectedId() === r.id;
   }
 
-  /** Insurer-wide sections, not tied to a branch. */
   protected readonly generalSections: { id: GeneralView; label: string }[] = [
     { id: 'hardStop', label: 'Hard Stop' },
     { id: 'scoring', label: 'Puntaje de riesgo' },
@@ -695,8 +693,6 @@ export class ReglasComponent {
     return this.tabs.some((t) => t.id === saved) ? (saved as TabId) : 'coberturas';
   }
 
-  // ───────────────── Branch rename ─────────────────
-
   protected setName(name: string): void {
     this.draft.update((d) => (d ? { ...d, name } : d));
     this.renameSaved.set(false);
@@ -764,7 +760,6 @@ export class ReglasComponent {
     });
   }
 
-  // ───────────────── Coverages ─────────────────
   protected addCoverage(): void {
     const coverage: Coverage = {
       id: `cov-${Date.now()}`,
@@ -793,7 +788,6 @@ export class ReglasComponent {
     this.expandedCoverageId.set(coverage.id);
   }
 
-  // ───────────────── Hard temporal rules per coverage ─────────────────
   /** Empty while loading, or for a coverage not yet saved. */
   protected hardRulesOf(c: Coverage): HardRule[] {
     return c.hardRules ?? [];
@@ -846,7 +840,6 @@ export class ReglasComponent {
     );
   }
 
-  // ───────────────── Hard Stop: insurer-wide rules ─────────────────
   // Policy in force and arrears don't depend on the coverage: loaded once, not per branch.
   protected readonly insurerHardRules = signal<InsurerHardRule[]>([]);
   // `detailLoading` doesn't cover this load; without it the rules would briefly show as inactive.
@@ -938,7 +931,6 @@ export class ReglasComponent {
     });
   }
 
-  // ───────────────── Hard exclusions per coverage ─────────────────
   /** Only saved coverages (numeric id) can have exclusions. */
   protected canEditExclusions(c: Coverage): boolean {
     return this.isPersistedId(c.id);
@@ -1029,7 +1021,6 @@ export class ReglasComponent {
     return this.intStr(c.waitingPeriodDays);
   }
 
-  // ───────────────── Coverages: accordion and rule rows ─────────────────
   /** One coverage open at a time. */
   protected readonly expandedCoverageId = signal<string | null>(null);
 
@@ -1141,7 +1132,6 @@ export class ReglasComponent {
     this.setCoverageField(c.id, { claimExhaustsCoverage: !c.claimExhaustsCoverage });
   }
 
-  // ───────────────── Coverages: settlement amount ─────────────────
   protected readonly settlementFormulaOptions: SelectOption[] = [
     { value: 'TOTAL_LOSS', label: 'Pérdida total — el bien no está' },
     { value: 'REPAIR', label: 'Reparación — el bien quedó dañado' },
@@ -1188,7 +1178,6 @@ export class ReglasComponent {
     this.patch({ commonExclusions: items });
   }
 
-  // ───────────────── Fast Track thresholds (switch + value) ─────────────────
   /**
    * A threshold is active when it has a value (`null` = not evaluated). Turning it off remembers the
    * last value so turning it back on restores it.
@@ -1291,12 +1280,10 @@ export class ReglasComponent {
     return this.pctFromRatio(this.draft()?.fastTrack.maxClaimedAmountRatio ?? null);
   }
 
-  // ───────────────── Business rules ─────────────────
   protected setBusinessRules(items: string[]): void {
     this.patch({ businessRules: items });
   }
 
-  // ───────────────── Saving ─────────────────
   /**
    * Saves the Fast Track of the coverage picked in the selector, and only that one: every coverage
    * has its own FAST_TRACK rule, because each demands different documents.
@@ -1477,7 +1464,6 @@ export class ReglasComponent {
     });
   }
 
-  // ───────────────── Document agenda matrix ─────────────────
   protected isDocRequiredFor(claimCauseId: number, code: string): boolean {
     return this.draft()?.requiredDocumentsByClaimCause[claimCauseId]?.includes(code) ?? false;
   }
@@ -1552,7 +1538,6 @@ export class ReglasComponent {
     return e instanceof Error ? e.message : 'No se pudo guardar.';
   }
 
-  // ───────────────── Helpers ─────────────────
   private patch(partial: Partial<RamoRules>): void {
     this.draft.update((d) => (d ? { ...d, ...partial } : d));
   }

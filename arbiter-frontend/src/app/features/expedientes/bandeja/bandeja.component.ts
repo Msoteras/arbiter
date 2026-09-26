@@ -162,7 +162,6 @@ export class BandejaComponent {
     }
   }
 
-  // ───────────────── Lens tabs ─────────────────
   // One bar, two axes combined with AND: a lifecycle is always picked, an ownership is optional.
 
   protected readonly lifecycle = signal<Lifecycle>('open');
@@ -217,7 +216,6 @@ export class BandejaComponent {
     });
   }
 
-  // ───────────────── Filters, search, sort and paging ─────────────────
   protected readonly statusFilter = signal('');
   protected readonly claimCauseFilter = signal('');
   protected readonly riskBandFilter = signal('');
@@ -400,7 +398,6 @@ export class BandejaComponent {
       : { message: 'Todavía no hay expedientes cerrados.', sub: 'Sin cerrados' };
   });
 
-  // ───────────────── Select catalogs ─────────────────
   // Every CaseStatus value, in lifecycle order: keep in sync with the enum.
   private static readonly STATUS_VALUES: CaseStatus[] = [
     'PENDING_CLASSIFICATION',
@@ -464,7 +461,6 @@ export class BandejaComponent {
     });
   }
 
-  // ───────────────── Filters popover ─────────────────
   // Draft values are applied on "Aplicar filtros" and discarded if closed without applying.
   protected readonly filtersOpen = signal(false);
   protected readonly draftStatus = signal('');
@@ -643,8 +639,6 @@ export class BandejaComponent {
     this.router.navigate(['/cases', id]);
   }
 
-  // ───────────────── Assignment ─────────────────
-
   protected readonly assigning = signal<number | null>(null);
   protected readonly assignError = signal<string | null>(null);
 
@@ -695,7 +689,6 @@ export class BandejaComponent {
   private static readonly RELEASE = '__release__';
 
   protected assignMenuItems(c: ExpedienteResponse): MenuItem[] {
-    // The current assignee is left out.
     const others = this.analystMenuItems().filter(
       (item) => item.value !== String(c.assignedAnalystId),
     );
@@ -746,7 +739,6 @@ export class BandejaComponent {
     });
   }
 
-  // ───────────────── Cell rendering ─────────────────
   protected estadoLabel(status: string): string {
     return estadoLabel(status);
   }
@@ -808,7 +800,6 @@ export class BandejaComponent {
     return c.insuredId;
   }
 
-  // ───────────────── Export (CSV / XLSX) ─────────────────
   protected readonly exporting = signal(false);
 
   protected readonly exportOptions: MenuItem[] = [

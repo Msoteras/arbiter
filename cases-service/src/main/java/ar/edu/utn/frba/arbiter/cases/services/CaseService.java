@@ -29,9 +29,8 @@ public interface CaseService {
     CaseResponse createCase(CaseRequest request, Map<String, MultipartFile> documents);
 
     /**
-     * Runs the same gate as {@link #createCase} without creating anything, so the wizard can block
-     * or warn before the insured uploads documentation. Ineligibility comes back as
-     * {@code eligible=false}, never as an exception.
+     * The {@link #createCase} gate without creating anything, so the wizard can block or warn before the
+     * upload. Ineligibility is {@code eligible=false}, never an exception.
      */
     EligibilityCheckResponse checkEligibility(EligibilityCheckRequest request);
 
@@ -61,12 +60,12 @@ public interface CaseService {
     CaseDocument getDocument(Long caseId, Long documentId, String insurerSlug);
 
     /**
-     * Paginated, newest first by default; every filter is optional and combinable. The insurer
-     * scope is not a filter: the tenant schema already bounds the listing to one insurer.
+     * Newest first by default; every filter is optional. The tenant schema already bounds it to one
+     * insurer.
      *
-     * <p>{@code assignedToMe} is a boolean rather than an analyst id because that id is local to the
-     * schema: "me" is resolved from the token, and a caller with no analyst profile gets an empty
-     * page, not everything. {@code analystId}, by contrast, is the referent's explicit filter.
+     * <p>{@code assignedToMe} rather than an analyst id because that id is local to the schema; a caller
+     * with no analyst profile gets an empty page, not everything. {@code analystId} is the referent's
+     * filter.
      */
     Page<CaseResponse> listCases(List<CaseStatus> status, String claimCause, String policyNumber, String insuredId,
                                   LocalDate eventDateFrom, LocalDate eventDateTo, String q, RiskBand riskBand,

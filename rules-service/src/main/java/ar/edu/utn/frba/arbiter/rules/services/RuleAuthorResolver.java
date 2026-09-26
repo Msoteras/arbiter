@@ -8,11 +8,7 @@ import ar.edu.utn.frba.arbiter.rules.models.repositories.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
-/**
- * Turns the actor of a rule save (the JWT carries their email) into the ids the audit columns point
- * at: the {@code insurer_referent} for a change's {@code changed_by}, the {@code users} row for a
- * creation's {@code created_by}.
- */
+/** Turns the actor's email (from the JWT) into the ids the audit columns point at. */
 @Component
 @RequiredArgsConstructor
 public class RuleAuthorResolver {
@@ -20,10 +16,7 @@ public class RuleAuthorResolver {
     private final InsurerReferentRepository insurerReferentRepository;
     private final UserRepository userRepository;
 
-    /**
-     * Null when the actor has no referente profile in this tenant: a missing author must not keep
-     * the rule from being saved.
-     */
+    /** Null without a referente profile in this tenant: a missing author must not block the save. */
     public Long referentIdOf(String actorEmail) {
         if (actorEmail == null || actorEmail.isBlank()) {
             return null;

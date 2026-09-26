@@ -326,7 +326,6 @@ class ExpertAssessmentServiceTest {
         assertThat(options.minClaimedAmount()).isNull();
     }
 
-    /** Enabled by rule but with no firms loaded: there's still nobody to derive to. */
     @Test
     void options_isNotEligible_whenTheCatalogIsEmpty() {
         when(caseRepository.findById(CASE_ID)).thenReturn(Optional.of(caseAwaitingReview()));
@@ -336,7 +335,7 @@ class ExpertAssessmentServiceTest {
         assertThat(expertAssessmentService.options(CASE_ID, ProviderType.ESTUDIO_LIQUIDADOR).eligible()).isFalse();
     }
 
-    /** The threshold is enforced in the backend, not just by hiding the button: a frontend rule is a suggestion. */
+    /** Enforced in the backend too: hiding the button is only a suggestion. */
     @Test
     void derive_refusesWhenTheAmountIsBelowTheInsurersThreshold() {
         when(caseRepository.findById(CASE_ID)).thenReturn(Optional.of(caseAwaitingReview()));
@@ -475,7 +474,6 @@ class ExpertAssessmentServiceTest {
         assertThat(response.indemnifiableAmount()).isNull();
     }
 
-    /** Reporting a quote without its amount doesn't answer what was asked. */
     @Test
     void receiveRepairReport_rejectsAQuoteWithNoAmount() {
         when(caseRepository.findById(CASE_ID))
@@ -557,9 +555,8 @@ class ExpertAssessmentServiceTest {
     }
 
     /**
-     * Only the case owner may derive, not any analyst in the tenant: deriving mails an external
-     * expert and leaves the case where the assigned analyst can no longer decide.
-     * {@code @PreAuthorize} only checks the role; this checks the case, same as approve/reject.
+     * Deriving mails an external expert and leaves the case where its owner can no longer decide, so
+     * {@code @PreAuthorize}'s role check isn't enough, same as approve/reject.
      */
     @Test
     void derive_refusesWhenNobodyOwnsTheCase() {

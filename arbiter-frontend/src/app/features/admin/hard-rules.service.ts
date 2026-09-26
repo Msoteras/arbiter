@@ -9,9 +9,8 @@ export type HardRuleType =
   'WAITING_PERIOD' | 'REPORT_DEADLINE' | 'POLICE_DEADLINE' | 'MAX_EVENTS_YEAR';
 
 /**
- * A hard rule as the referente edits it: whether it's active and — only for POLICE_DEADLINE — its
- * threshold in hours. The rest of the thresholds don't live here: they're terms of the contract,
- * edited above in the coverage's own fields (waiting period, report deadline, events cap).
+ * A hard rule as the referente edits it: its switch and, only for POLICE_DEADLINE, its threshold in
+ * hours. The other thresholds are contract terms, edited in the coverage's own fields.
  */
 export interface HardRule {
   ruleType: HardRuleType;

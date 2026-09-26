@@ -44,10 +44,8 @@ import java.util.Locale;
 import java.util.Optional;
 
 /**
- * Determining the amount to pay. {@link #forCase} proposes: it recomputes from frozen inputs and
- * writes nothing, so the analyst can preview as often as they like. {@link #confirm} records: it
- * runs once, inside the approval. The calculation never settles anything on its own — what the
- * analyst signed is what gets stored.
+ * {@link #forCase} proposes: it recomputes from frozen inputs and writes nothing. {@link #confirm}
+ * records, once, inside the approval: what the analyst signed is what gets stored.
  */
 @Service
 @RequiredArgsConstructor
@@ -182,12 +180,9 @@ public class SettlementService {
     }
 
     /**
-     * An amount already on file, offered to the analyst as a suggestion only — never applied.
-     *
-     * <p>Provider valuations beat the insured's documents, and the latest received wins. Which
-     * document answers depends on the formula: the repair quote for a repair, the purchase proof
-     * for a total loss settled by the lesser value. With no accredited amount to fill in, only the
-     * expert's indemnifiable amount can be proposed, for the final amount.
+     * An amount on file, offered as a suggestion only. Provider valuations beat the insured's documents
+     * and the latest wins; the document depends on the formula (repair quote, or purchase proof for a
+     * total loss). With nothing to accredit, only the expert's indemnifiable amount is proposed.
      */
     private Suggestion suggestionFor(Long caseId, Coverage coverage) {
         // Newest first: each new valuation supersedes the previous one.
@@ -290,10 +285,7 @@ public class SettlementService {
         return caseRecord.getClaimCause().getBranch().getId();
     }
 
-    /**
-     * Oldest first: a claim already decided by its analyst is burning the 30-day legal term while
-     * it waits.
-     */
+    /** Oldest first: a decided claim is burning the 30-day legal term while it waits. */
     @Transactional(readOnly = true)
     public List<PendingSettlementResponse> pendingAuthorization() {
         return settlementRepository
@@ -397,9 +389,7 @@ public class SettlementService {
                 .orElseThrow(() -> new SettlementNotFoundException(caseId));
     }
 
-    /**
-     * Only marks the settlement; resolving the case belongs to the case lifecycle.
-     */
+    /** Only marks the settlement; resolving the case belongs to the case lifecycle. */
     @Transactional
     public CaseSettlement markAuthorized(Long caseId, Long referentUserId) {
         CaseSettlement settlement = require(caseId);
@@ -414,9 +404,7 @@ public class SettlementService {
         return settlementRepository.save(settlement);
     }
 
-    /**
-     * Not a rejection of the claim: the analyst keeps the case and can settle it again.
-     */
+    /** Not a rejection of the claim: the analyst keeps the case and can settle it again. */
     @Transactional
     public CaseSettlement returnToAnalyst(Long caseId, Long referentUserId, String reason) {
         if (reason == null || reason.isBlank()) {
@@ -492,9 +480,7 @@ public class SettlementService {
                 warnings);
     }
 
-    /**
-     * Built here rather than in the SPA so the wording and the arithmetic can't drift apart.
-     */
+    /** Built here rather than in the SPA so the wording and the arithmetic can't drift apart. */
     private List<SettlementResponse.Line> breakdown(CaseSettlement s, boolean confirmed,
                                                     Coverage coverage) {
         List<SettlementResponse.Line> lines = new ArrayList<>();

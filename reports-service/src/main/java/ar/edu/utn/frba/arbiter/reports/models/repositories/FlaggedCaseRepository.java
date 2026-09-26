@@ -22,23 +22,16 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * Read side of the fraud report. Same direct, read-only access to other modules' tables on Hibernate's
- * connection as {@link ResolvedCaseRepository}, for the same reasons.
- */
+/** Read side of the fraud report, on Hibernate's connection like {@link ResolvedCaseRepository}. */
 @Repository
 @RequiredArgsConstructor
 public class FlaggedCaseRepository {
 
     /**
-     * Correlated subqueries rather than joins: they count over a different grain than the row, and
-     * joining would multiply the case by its documents.
-     *
-     * <p>The 12-month window is counted from each case's own {@code reported_at}, so a row reads the
-     * same whenever the report is run. {@code claims_in_window} is context only, not a signal.
-     *
-     * <p>{@code document_inconsistency_note} only reads the case's LATEST {@code risk_analysis}, so a
-     * case reclassified after its documentation was fixed reads clean, like {@code cases.risk_band}.
+     * Correlated subqueries rather than joins, which would multiply the case by its documents. The
+     * 12-month window counts from each case's {@code reported_at}, so a row reads the same whenever the
+     * report runs; {@code claims_in_window} is context, not a signal. Only the LATEST
+     * {@code risk_analysis} feeds {@code document_inconsistency_note}, so a reclassified case reads clean.
      */
     private static final String FLAGGED_CASES = """
             WITH candidate AS (
@@ -92,10 +85,8 @@ public class FlaggedCaseRepository {
     private final EntityManager entityManager;
 
     /**
-     * @param from     inclusive
      * @param to       exclusive
-     * @param branchId branch ("ramo") of the claim's cause; null for every branch
-     * @param riskBand alert level; null for every band, including the cases the scoring never ran on
+     * @param riskBand null for every band, including the cases the scoring never ran on
      */
     @Transactional(readOnly = true)
     public List<FraudReportRow> findFlaggedBetween(Instant from, Instant to, Long branchId,
@@ -106,8 +97,7 @@ public class FlaggedCaseRepository {
                 .addValue("fraudConfirmed", ExpertVerdict.FRAUD_CONFIRMED.name())
                 .addValue("highBands", List.of(RiskBand.HIGH.name(), RiskBand.CRITICAL.name()));
         StringBuilder sql = new StringBuilder(FLAGGED_CASES);
-        // Appended rather than `:branchId IS NULL OR ...`: Postgres can't infer the type of a
-        // parameter that is only ever compared to NULL and rejects the statement.
+        // Appended: Postgres can't infer the type of a parameter only ever compared to NULL.
         if (branchId != null) {
             sql.append("   AND cc.branch_id = :branchId\n");
             params.addValue("branchId", branchId);
@@ -116,8 +106,8 @@ public class FlaggedCaseRepository {
             sql.append("   AND c.risk_band = :riskBand\n");
             params.addValue("riskBand", riskBand.name());
         }
-        // Coinciding signals first, then the higher band. Sorted here rather than in each surface so
-        // the screen, the CSV and the PDF all lead with the same case.
+        // Coinciding signals first, then the higher band, so the screen, the CSV and the PDF all lead
+        // with the same case.
         params.addValue("criticalBand", RiskBand.CRITICAL.name())
                 .addValue("highBand", RiskBand.HIGH.name());
         sql.append("""
@@ -131,17 +121,13 @@ public class FlaggedCaseRepository {
         List<FraudReportRow> rows = entityManager.unwrap(Session.class).doReturningWork(connection ->
                 new NamedParameterJdbcTemplate(new SingleConnectionDataSource(connection, true))
                         .query(sql.toString(), params, (rs, rowNum) -> toRow(rs)));
-        // The WHERE only pre-filters; signalsOf is the definition, and a row without a signal
-        // would be one the report can't explain.
+        // The WHERE only pre-filters; signalsOf is the definition.
         return rows.stream().filter(row -> !row.signals().isEmpty()).toList();
     }
 
     /**
      * Every claim filed in the period and branch, flagged or not: the report's denominator. No
      * alert-level cut, so the share stays readable when the screen is filtered to one band.
-     *
-     * @param from inclusive
-     * @param to   exclusive
      */
     @Transactional(readOnly = true)
     public long countClaimsBetween(Instant from, Instant to, Long branchId) {
@@ -164,11 +150,7 @@ public class FlaggedCaseRepository {
         return total == null ? 0 : total;
     }
 
-    /**
-     * Lets the report name its branch filter even when it matched nothing.
-     *
-     * @return null if no branch has that id
-     */
+    /** Names the branch filter even when it matched nothing; null if no branch has that id. */
     @Transactional(readOnly = true)
     public String findBranchName(Long branchId) {
         return entityManager.unwrap(Session.class).doReturningWork(connection ->

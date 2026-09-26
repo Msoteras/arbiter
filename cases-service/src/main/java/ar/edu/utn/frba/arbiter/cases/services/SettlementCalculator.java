@@ -17,9 +17,8 @@ import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 
 /**
- * Works out what a claim should pay: pure arithmetic over the case, the configured coverage and the
- * policy snapshot frozen at classification time. The formula transcribes the insurer's product
- * manuals:
+ * What a claim should pay, from the case, the configured coverage and the frozen policy snapshot, per
+ * the insurer's product manuals:
  *
  * <pre>
  *   TOTAL LOSS — the item is gone
@@ -38,12 +37,9 @@ import java.time.temporal.ChronoUnit;
  *   = amount payable      (never negative)
  * </pre>
  *
- * <p>Pending instalments are only deducted on a total loss, which extinguishes the contract; after
- * a repair the insured keeps paying for cover they still have. The deductible is a percentage of
- * the sum insured, not of the amount paid, so it doesn't shrink on a second event.
- *
- * <p>This only proposes; the analyst confirms or adjusts. The risk score deliberately plays no
- * part: a suspicious claim is rejected or sent to an expert, not quietly paid less.
+ * <p>Pending instalments only on a total loss, which extinguishes the contract. The deductible is a
+ * percentage of the sum insured, so it doesn't shrink on a second event. This only proposes, and the
+ * risk score plays no part: a suspicious claim is rejected or referred, not quietly paid less.
  */
 @Service
 public class SettlementCalculator {
@@ -121,9 +117,8 @@ public class SettlementCalculator {
     }
 
     /**
-     * The snapshot first: it is what the insurer answered when the claim was filed, while the local
-     * {@code policy_coverage} keeps being re-synced. The fallback is per coverage because a policy
-     * has no aggregate sum insured.
+     * The snapshot first: it is what the insurer answered at filing, while {@code policy_coverage} keeps
+     * being re-synced. A policy has no aggregate sum insured, hence the per-coverage fallback.
      */
     private BigDecimal sumInsured(PolicyCoverage policyCoverage, PolicySnapshot snapshot) {
         if (snapshot != null && snapshot.getSumInsured() != null) {
@@ -135,10 +130,7 @@ public class SettlementCalculator {
         return BigDecimal.ZERO;
     }
 
-    /**
-     * The rate written into this contract wins over the coverage's default: the policy may have been
-     * sold with a different deductible.
-     */
+    /** The contract's own rate wins over the coverage's default: it may have been sold differently. */
     private BigDecimal deductibleRate(Coverage coverage, PolicyCoverage policyCoverage) {
         if (policyCoverage != null && policyCoverage.getDeductiblePct() != null) {
             return policyCoverage.getDeductiblePct();
@@ -172,10 +164,7 @@ public class SettlementCalculator {
         return snapshot.getEventsInYear();
     }
 
-    /**
-     * The first event of the year is worth 100%; from the second on, the coverage's reduced rate
-     * applies, if configured.
-     */
+    /** 100% for the year's first event; from the second on, the coverage's reduced rate if configured. */
     private BigDecimal eventPercentage(Coverage coverage, int eventOrdinal) {
         if (eventOrdinal < 2 || coverage.getSecondEventPercentage() == null) {
             return FULL_PERCENTAGE;

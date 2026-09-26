@@ -16,12 +16,9 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 /**
- * Policy checks at intake: if the event doesn't fall under a contract with coverage, the case is
- * never created. This doesn't resolve a case, so it doesn't bypass the human in the loop — it
- * returns the reason to the insured on the spot instead of queueing a case someone must close.
- *
- * <p>Fails open: with no data to verify, or with rules-service unreachable, the case proceeds and
- * classification looks at it again. A hard rejection needs certainty.
+ * Intake policy checks: an event outside a contract with coverage never becomes a case. It resolves
+ * nothing, so the human in the loop stays; it just tells the insured on the spot. Fails open: with no
+ * data or rules-service down, the case proceeds and classification looks again.
  */
 @Service
 @RequiredArgsConstructor

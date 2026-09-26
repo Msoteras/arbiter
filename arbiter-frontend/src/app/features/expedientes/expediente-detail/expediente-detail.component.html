@@ -1049,8 +1049,7 @@
   </div>
 }
 
-<!-- Approval includes determining the amount: the company treats both as a single act.
-     Wide only when approving, to fit the settlement sheet. -->
+<!-- Approval includes determining the amount: the company treats both as a single act. -->
 <app-modal
   [open]="showJustify()"
   [heading]="decisionModalHeading()"
@@ -1231,7 +1230,6 @@
   </ng-container>
 </app-modal>
 
-<!-- The reason is mandatory: it is the audit trail for why a closed case was reopened. -->
 <app-modal [open]="showAuthorize()" heading="Autorizar la liquidación" (close)="cancelSign()">
   @if (settlement(); as s) {
     <p class="t-body">
@@ -1272,6 +1270,7 @@
   </ng-container>
 </app-modal>
 
+<!-- The reason is mandatory: it is the audit trail for why a closed case was reopened. -->
 <app-modal [open]="showReopen()" heading="Reabrir expediente" (close)="cancelReopen()">
   <p class="t-note">
     El expediente vuelve a revisión del analista con el plazo de respuesta corriendo de nuevo. No se

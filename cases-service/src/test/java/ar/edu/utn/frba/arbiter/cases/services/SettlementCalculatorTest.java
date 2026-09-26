@@ -76,7 +76,6 @@ class SettlementCalculatorTest {
         assertThat(settlement.getCalculatedAmount()).isEqualByComparingTo("900000.00");
     }
 
-    /** A replacement value above the sum insured doesn't raise anything — the sum insured is a cap. */
     @Test
     void ignoresAReplacementValueAboveTheSumInsured() {
         Coverage coverage = coverage(SettlementBasis.LESSER_OF_SUM_AND_REPLACEMENT, "10.00", null, false, false);
@@ -107,7 +106,6 @@ class SettlementCalculatorTest {
         assertThat(settlement.getCalculatedAmount()).isEqualByComparingTo("320000.00");
     }
 
-    /** With no reduced rate configured, being the second event changes nothing. */
     @Test
     void doesNotReduceASecondEventWhenTheCoverageSetsNoRate() {
         Coverage coverage = coverage(SettlementBasis.SUM_INSURED, "10.00", null, false, false);
@@ -169,7 +167,6 @@ class SettlementCalculatorTest {
         assertThat(settlement.getCalculatedAmount()).isEqualByComparingTo("450000.00");
     }
 
-    /** An event after the term ends can't leave instalments to fall due. */
     @Test
     void countsNoInstallmentsForAnEventAfterTheTermEnds() {
         Coverage coverage = coverage(SettlementBasis.SUM_INSURED, "10.00", null, true, false);
@@ -218,7 +215,6 @@ class SettlementCalculatorTest {
         assertThat(settlement.getCalculatedAmount()).isEqualByComparingTo("640000.00");
     }
 
-    /** Every input the sheet was built from is frozen on the row, not just the result. */
     @Test
     void freezesTheInputsAlongsideTheResult() {
         Coverage coverage = coverage(SettlementBasis.LESSER_OF_SUM_AND_REPLACEMENT, "10.00", "50.00", true, true);

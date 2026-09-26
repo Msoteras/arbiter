@@ -14,12 +14,9 @@ import org.springframework.web.client.RestClientException;
 import javax.crypto.SecretKey;
 
 /**
- * System-to-system read of the resolution target from rules-service.
- *
- * <p>The one thing this module does not read straight from the database: {@code insurer_rule} is
- * configuration another module administers, and reading it by SQL would couple this module to a JSONB
- * format it doesn't own. Signs its own service token instead of forwarding the user's, because an
- * analyst may be viewing the dashboard and the referent-only endpoint would reject them.
+ * Reads the resolution target from rules-service rather than by SQL: {@code insurer_rule} is JSONB
+ * that module owns. Signs its own service token, since the endpoint is referent-only and an analyst
+ * may be the one viewing the dashboard.
  */
 @Component
 public class RulesServiceClient {
@@ -38,10 +35,7 @@ public class RulesServiceClient {
         this.jwtKey = JwtSupport.key(jwtSecret);
     }
 
-    /**
-     * <b>A rules-service outage doesn't take the dashboard down.</b> Without the target the card shows
-     * the average alone, same as for an insurer that never configured one.
-     */
+    /** A rules-service outage doesn't take the dashboard down: the card shows the average alone. */
     public ResolutionTarget resolutionTarget() {
         try {
             String serviceToken =
@@ -64,8 +58,8 @@ public class RulesServiceClient {
     }
 
     /**
-     * Mirrors rules-service's {@code ResolutionTargetDto}. Not deserialized into {@link ResolutionTarget}
-     * because Jackson fails at runtime on its {@code exceeded} component, which the JSON never carries.
+     * Not {@link ResolutionTarget}: Jackson fails at runtime on its {@code exceeded} component, which the
+     * JSON never carries.
      */
     private record Response(boolean enabled, Integer targetDays) {
     }

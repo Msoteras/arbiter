@@ -16,8 +16,8 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Each rule needs the insurer to have it active and the data to evaluate it; the tests cover both
- * absences separately because they mean different things.
+ * Each rule needs to be active and to have its data; both absences are tested apart because they
+ * mean different things.
  */
 class TemporalRuleEvaluatorTest {
 
@@ -25,8 +25,6 @@ class TemporalRuleEvaluatorTest {
 
     private static final LocalDateTime EVENT = LocalDateTime.of(2026, 6, 13, 20, 0);
     private static final long POLICE_DEADLINE_HOURS = 72L;
-
-    // ─── Active rules (what rules-service serves) ──────────────────────────────
 
     private static BusinessRules.EvaluableRule active(long id, RuleType type) {
         return BusinessRules.EvaluableRule.builder()
@@ -48,9 +46,6 @@ class TemporalRuleEvaluatorTest {
                 activePoliceDeadline(POLICE_DEADLINE_HOURS),
                 active(8L, RuleType.MAX_EVENTS_YEAR));
     }
-
-    // ─── Police-report deadline ─────────────────────────────────────────────
-    // The event is 2026-06-13 at 20:00.
 
     private ClaimReport claimWithPoliceReport(LocalDateTime policeReportAt) {
         return ClaimReport.builder()
@@ -90,7 +85,6 @@ class TemporalRuleEvaluatorTest {
         assertThat(result.reasons()).anyMatch(r -> r.contains("Denuncia policial fuera de plazo"));
     }
 
-    /** The threshold is the insurer's: with 120h configured, the report that failed at 72h passes. */
     @Test
     void theDeadlineComesFromTheInsurersRule_notFromAConstant() {
         TemporalRuleEvaluator.Result result = evaluator.evaluate(
@@ -117,7 +111,6 @@ class TemporalRuleEvaluatorTest {
         assertThat(result.reasons()).anyMatch(r -> r.contains("La denuncia policial declarada es anterior al hecho"));
     }
 
-    /** "No police report was filed" is legitimate: the rule doesn't participate, doesn't block blindly. */
     @Test
     void withoutADeclaredPoliceReport_theRuleDoesNotParticipate() {
         TemporalRuleEvaluator.Result result = evaluator.evaluate(
@@ -129,7 +122,7 @@ class TemporalRuleEvaluatorTest {
         assertThat(result.blocksFastTrack()).isFalse();
     }
 
-    /** Active but with no threshold (the referente can save it that way): not evaluated. */
+    /** The referente can save it without a threshold. */
     @Test
     void anEnabledPoliceDeadlineWithoutThreshold_doesNotParticipate() {
         BusinessRules.EvaluableRule noThreshold = BusinessRules.EvaluableRule.builder()
@@ -217,10 +210,8 @@ class TemporalRuleEvaluatorTest {
                 .build();
     }
 
-    // ─── Waiting period ─────────────────────────────────────────────────────────
-    // The event is 2026-06-13. The waiting period is counted from the policy's start date.
+    // The waiting period counts from the policy's start date.
 
-    /** A 5-day-old policy with a 30-day waiting period: there's a contract, but no coverage yet. */
     @Test
     void eventInsideTheWaitingPeriod_blocksFastTrack() {
         TemporalRuleEvaluator.Result result = evaluator.evaluate(
@@ -233,7 +224,6 @@ class TemporalRuleEvaluatorTest {
         assertThat(result.reasons()).anyMatch(r -> r.contains("período de carencia de 30 días"));
     }
 
-    /** Same case, one day after the waiting period ends: covered. */
     @Test
     void eventAfterTheWaitingPeriod_doesNotBlock() {
         TemporalRuleEvaluator.Result result = evaluator.evaluate(
@@ -245,7 +235,7 @@ class TemporalRuleEvaluatorTest {
         assertThat(result.blocksFastTrack()).isFalse();
     }
 
-    /** The exact day the waiting period ends is already covered (start 05/14 + 30 days = 06/13). */
+    /** Start 05/14 + 30 days = 06/13, the event's day. */
     @Test
     void theDayTheWaitingPeriodEnds_isAlreadyCovered() {
         TemporalRuleEvaluator.Result result = evaluator.evaluate(
@@ -257,7 +247,6 @@ class TemporalRuleEvaluatorTest {
         assertThat(result.blocksFastTrack()).isFalse();
     }
 
-    /** No waiting period configured, the rule doesn't participate — doesn't block blindly. */
     @Test
     void withoutAWaitingPeriodConfigured_theRuleDoesNotParticipate() {
         TemporalRuleEvaluator.Result result = evaluator.evaluate(
@@ -269,7 +258,6 @@ class TemporalRuleEvaluatorTest {
         assertThat(result.blocksFastTrack()).isFalse();
     }
 
-    // ── Coverage window ───────────────────────────────────────────────────────
     @Test
     void eventOutsidePolicyPeriod_blocks() {
         var result = evaluator.evaluate(
@@ -287,7 +275,6 @@ class TemporalRuleEvaluatorTest {
         assertThat(result.blocksFastTrack()).isFalse();
     }
 
-    // ── Report deadline ───────────────────────────────────────────────────────
     @Test
     void reportedLate_blocks() {
         // Reported 100h after the event, the coverage's deadline is 72h.
@@ -318,7 +305,6 @@ class TemporalRuleEvaluatorTest {
         assertThat(result.reasons()).anyMatch(r -> r.contains("La denuncia declarada es anterior al hecho"));
     }
 
-    // ── Events-per-year cap ─────────────────────────────────────────────────
     @Test
     void exceedsMaxAnnualEvents_blocks() {
         // Cap of 1/year, already 1 claim in the branch over the trailing 12 months → this one is #2.
@@ -361,8 +347,7 @@ class TemporalRuleEvaluatorTest {
         assertThat(result.findings()).isEmpty();
     }
 
-    // ── Arrears ───────────────────────────────────────────────────────────────
-    // No threshold of its own — the source fact is InsuredPolicy.upToDate().
+    // Arrears has no threshold of its own: the source fact is InsuredPolicy.upToDate().
 
     @Test
     void policyUpToDate_passes() {
@@ -393,7 +378,6 @@ class TemporalRuleEvaluatorTest {
         });
     }
 
-    /** An insurer that never turned the rule on isn't affected by a policy in arrears. */
     @Test
     void withoutTheRuleActive_arrearsDoNotParticipate() {
         var result = evaluator.evaluate(
@@ -405,9 +389,6 @@ class TemporalRuleEvaluatorTest {
         assertThat(result.findings()).noneMatch(f -> f.ruleType().equals(RuleType.POLICY_STANDING.name()));
     }
 
-    // ── Per-insurer activation ─────────────────────────────────────────────
-
-    /** With no rules configured nothing is evaluated, so adding hard rules is additive. */
     @Test
     void withoutConfiguredRules_nothingIsEvaluated() {
         BusinessRules noRules = BusinessRules.builder()
@@ -429,7 +410,6 @@ class TemporalRuleEvaluatorTest {
         assertThat(result.findings()).isEmpty();
     }
 
-    /** Turning one rule off doesn't turn off the others: the referente flips them one at a time. */
     @Test
     void onlyTheEnabledRulesAreEvaluated() {
         var result = evaluator.evaluate(
@@ -448,8 +428,6 @@ class TemporalRuleEvaluatorTest {
                 .satisfies(f -> assertThat(f.ruleType()).isEqualTo(RuleType.POLICY_IN_FORCE.name()));
         assertThat(result.blocksFastTrack()).isFalse();
     }
-
-    // ── Audit trail ────────────────────────────────────────────────────────
 
     /** Passes are recorded too: a table with only rejections doesn't prove the others ran. */
     @Test
@@ -475,7 +453,6 @@ class TemporalRuleEvaluatorTest {
                 .containsOnly("PASS");
     }
 
-    /** The {@code insurer_rule} id travels: {@code rule_result} needs it. */
     @Test
     void findingsCarryTheInsurerRuleId() {
         var result = evaluator.evaluate(

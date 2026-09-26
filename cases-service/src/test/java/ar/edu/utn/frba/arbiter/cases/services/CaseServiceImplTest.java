@@ -355,8 +355,6 @@ class CaseServiceImplTest {
         verify(claimsAnalysisClient, never()).analyzeAndPersist(any(), any());
     }
 
-    // ─────────── Filing on someone else's behalf ───────────
-
     @Test
     void createCase_claimOnBehalfOfAnotherInsured_isRejected() {
         CallerContext.set(new CallerContext.Caller("42.987.654", List.of(1L), "arbiter_bbva"));
@@ -429,10 +427,7 @@ class CaseServiceImplTest {
         verify(caseRepository).save(any(Case.class));
     }
 
-    /**
-     * The insured is told which repair shop has their device, or they wouldn't know where it is.
-     * It's the only derivation detail that reaches their screen; expert assessments never do.
-     */
+    /** The only derivation detail the insured sees; expert assessments never reach them. */
     @Test
     void getCase_inRepair_tellsWhoHasTheItem() {
         when(caseRepository.findById(1L))
@@ -451,7 +446,6 @@ class CaseServiceImplTest {
         assertThat(provider.email()).isEqualTo("service@example.com");
     }
 
-    /** In any other status the provider means nothing and isn't even looked up. */
     @Test
     void getCase_outsideRepair_carriesNoProvider() {
         when(caseRepository.findById(1L))
@@ -610,11 +604,7 @@ class CaseServiceImplTest {
         assertThat(response.getContent().get(1).id()).isEqualTo(1L);
     }
 
-    /**
-     * A case the analyst already signed and one still awaiting a decision are both
-     * PENDING_ANALYST_REVIEW (the status doesn't move while the referent signs, so the insured
-     * doesn't see internal steps). Only the settlement status tells them apart in the inbox.
-     */
+    /** Both are PENDING_ANALYST_REVIEW while the referent signs; only the settlement tells them apart. */
     @Test
     void listCases_tellsApartTheOnesWaitingForTheReferent() {
         Case despachado = caseRecord(2L, CaseStatus.PENDING_ANALYST_REVIEW);
@@ -845,8 +835,6 @@ class CaseServiceImplTest {
         verify(caseStatusService).recordAssignment(entity, StatusChangeActor.ANALYST, "expediente liberado");
     }
 
-    // ─── reopenCase ────────────────────────────────────────────────────────────────
-
     @Test
     void reopenCase_transitionsBackToAnalystReviewWithThePrefixedReason() {
         Case entity = caseRecord(1L, CaseStatus.APPROVED);
@@ -894,10 +882,7 @@ class CaseServiceImplTest {
         verify(caseStatusService, never()).transition(any(), any(), any(), any());
     }
 
-    /**
-     * The 409 guard lives in {@code CaseStatusService.transition}; this only checks the service
-     * lets it propagate untouched for the controller to map.
-     */
+    /** The 409 guard is CaseStatusService's; this only checks it propagates untouched. */
     @Test
     void reopenCase_notTerminal_propagatesTheStateMachinesRefusal() {
         Case entity = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
@@ -992,7 +977,6 @@ class CaseServiceImplTest {
         verify(caseStatusService, never()).transition(any(), any(), any(), any());
     }
 
-    /** Authorizing makes the approval effective, using the held justification. */
     @Test
     void authorizeSettlement_recordsTheHeldDecisionAndApprovesTheCase() {
         Case entity = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
@@ -1016,7 +1000,6 @@ class CaseServiceImplTest {
                 eq(StatusChangeActor.ANALYST), any());
     }
 
-    /** Returning it doesn't move the case: it never left the analyst's review. */
     @Test
     void returnSettlement_leavesTheCaseWhereItIs() {
         authenticateAs("referente@example.com");
@@ -1044,10 +1027,7 @@ class CaseServiceImplTest {
                 .build();
     }
 
-    /**
-     * Approving also means setting how much is paid. Without an amount there's no approval: the
-     * insurer would owe a sum nobody set.
-     */
+    /** Without an amount the insurer would owe a sum nobody set. */
     @Test
     void recordAnalystDecision_approveWithoutSettlement_throwsBeforeForwarding() {
         Case entity = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
@@ -1140,10 +1120,7 @@ class CaseServiceImplTest {
         verify(claimsAnalysisClient, never()).forwardAnalystDecision(any(), any());
     }
 
-    /**
-     * Only the assigned analyst may decide: this enforces assign → decide instead of letting a
-     * decision act as an implicit assignment.
-     */
+    /** Enforces assign → decide: a decision never acts as an implicit assignment. */
     @Test
     void recordAnalystDecision_caseNotAssigned_throwsBeforeForwarding() {
         Case entity = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
@@ -1204,10 +1181,7 @@ class CaseServiceImplTest {
         assertThat(response.analysisConfidence()).isEqualTo(0.0);
     }
 
-    /**
-     * The document schedule is the "complete case" contract and must be enforced by the backend,
-     * not only by the wizard.
-     */
+    /** The schedule is the "complete case" contract: enforced by the backend, not only the wizard. */
     @Test
     void createCase_missingARequiredDocument_isRejectedAndNothingIsPersisted() {
         CaseRequest request = caseRequest();
@@ -1225,7 +1199,6 @@ class CaseServiceImplTest {
         verify(caseRepository, never()).save(any(Case.class));
     }
 
-    /** An empty file fills the slot but isn't the document: it counts as missing. */
     @Test
     void createCase_emptyFileDoesNotCountAsTheDocument() {
         CaseRequest request = caseRequest();
@@ -1264,9 +1237,8 @@ class CaseServiceImplTest {
     }
 
     /**
-     * An empty list is an answer ("this cause requires no documents"); null means the schedule
-     * couldn't be read. Neither blocks filing, but the latter is marked for
-     * {@code DocumentRecheckScheduler} to verify later.
+     * An empty list is an answer ("no documents required"); null means the schedule couldn't be read,
+     * which doesn't block filing either but marks the case for {@code DocumentRecheckScheduler}.
      */
     @Test
     void createCase_withoutAReadableSchedule_goesThroughMarkedUnverified() {
@@ -1306,10 +1278,7 @@ class CaseServiceImplTest {
         assertThat(captor.getValue().getDocumentsUnverifiedSince()).isNull();
     }
 
-    /**
-     * With a fast-track list configured, filing asks only for that list; the rest is requested
-     * later, and only if the claim doesn't fast-track.
-     */
+    /** The rest of the schedule is requested later, only if the claim doesn't fast-track. */
     @Test
     void createCase_withTheFastTrackList_doesNotDemandTheWholeSchedule() {
         CaseRequest request = caseRequest();
@@ -1348,7 +1317,6 @@ class CaseServiceImplTest {
         verify(caseRepository, never()).save(any(Case.class));
     }
 
-    /** If the list can't be read the claim goes through marked, as with an unreadable schedule. */
     @Test
     void createCase_withoutAReadableFastTrackList_goesThroughMarkedUnverified() {
         CaseRequest request = caseRequest();
@@ -1369,8 +1337,6 @@ class CaseServiceImplTest {
         verify(rulesServiceClient, never()).requiredDocumentTypes(any(), any());
     }
 
-    // ─────────── Document batch the wizard shows the insured ───────────
-
     @Test
     void intakeDocuments_returnsTheFastTrackListWhenTheCoverageHasOne() {
         stubPolicyAndInsuredResolution();
@@ -1388,7 +1354,6 @@ class CaseServiceImplTest {
         verify(rulesServiceClient, never()).requiredDocumentTypes(any(), any());
     }
 
-    /** With no list configured there'd be nothing to ask for, so it falls back to the whole schedule. */
     @Test
     void intakeDocuments_fallsBackToTheWholeSchedule() {
         stubPolicyAndInsuredResolution();
@@ -1447,11 +1412,8 @@ class CaseServiceImplTest {
 
     @Test
     void createCase_withDocuments_ignoresCasePayloadKey() {
-        // The frontend sends the case JSON itself as a Blob under the "case" multipart key
-        // (see ExpedienteService.create), and Spring's Map<String, MultipartFile> binding picks
-        // it up alongside the real documents. It must never be persisted as a document — if it
-        // were, it'd travel to classification-service's OCR step, which tries to read every
-        // non-PDF attachment as an image and fails ("Failed to load image or audio file").
+        // The frontend sends the case JSON as a Blob under the "case" multipart key, which the
+        // Map<String, MultipartFile> binding picks up with the documents. Stored as one, OCR would fail on it.
         CaseRequest request = caseRequest();
         Case saved = caseRecord(1L, CaseStatus.PENDING_CLASSIFICATION);
         stubReferenceResolution();
@@ -1499,11 +1461,8 @@ class CaseServiceImplTest {
         assertThat(stored.getContent()).isEqualTo("new".getBytes());
     }
 
-    // ───────────────── checkEligibility ─────────────────
-    // Same resolution createCase does up to (not including) building the Case — see
-    // CaseServiceImpl#checkEligibilityInIssuingTenant's javadoc. What's under test here is that a
-    // PolicyNotEligibleException/PolicyInsuredMismatchException becomes eligible=false instead of
-    // propagating, and that nothing gets persisted either way.
+    // checkEligibility turns PolicyNotEligibleException/PolicyInsuredMismatchException into
+    // eligible=false instead of propagating, and persists nothing either way.
 
     private EligibilityCheckRequest eligibilityRequest() {
         return new EligibilityCheckRequest(
@@ -1599,10 +1558,7 @@ class CaseServiceImplTest {
                 .build();
     }
 
-    /**
-     * checkEligibility only resolves policy + insured (see
-     * CaseServiceImpl#checkEligibilityInIssuingTenant) — no claim cause, no declared details.
-     */
+    /** checkEligibility only resolves policy and insured: no claim cause, no declared details. */
     private Insured stubPolicyAndInsuredResolution() {
         Policy policy = CaseFixtures.policy("POL-CEL-2024-001", "Celular Protegido Básico");
         Insured insured = CaseFixtures.insured("40.123.456", "Laura", "Fernández");

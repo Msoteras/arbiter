@@ -5,17 +5,12 @@ import java.time.LocalDate;
 import java.util.List;
 
 /**
- * Everything the dashboard draws for one insurer and one period, in a single response so the screen
- * paints in one round trip. The insurer is never a parameter: it comes from the caller's JWT.
+ * The whole dashboard for one insurer and period, in one round trip. The insurer comes from the JWT.
  *
- * @param granularity      derived from the period length and from how much happened in it
  * @param filter           echoed back so the screen can tell "no claims" from "no claims matching"
- * @param funnel           the period's intake followed forward; a different population from
- *                         {@link #summary()}
- * @param previousSummary  the same summary over the preceding period of equal length; null only if it
- *                         could not be computed
- * @param resolutionTarget the insurer's own service goal, not the legal deadline (see
- *                         {@link #legalDeadline()})
+ * @param funnel           the period's intake followed forward; not the {@link #summary()} population
+ * @param previousSummary  the preceding period of equal length; null only if it could not be computed
+ * @param resolutionTarget the insurer's own goal, not the legal deadline
  * @param legalDeadline    decisions made within the art. 56 term
  * @param byStatus         claims filed in the period by their <b>current</b> status
  */

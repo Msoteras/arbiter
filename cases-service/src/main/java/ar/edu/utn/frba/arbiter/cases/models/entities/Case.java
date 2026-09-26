@@ -120,9 +120,9 @@ public class Case {
     private CaseState currentStatus;
 
     /**
-     * Written by classification-service. A Fast Track leaves no {@code llm_analysis} row, so this is
-     * what tells it apart from "not classified yet". Initialized because Hibernate always includes
-     * the column in the INSERT, bypassing the schema default.
+     * Written by classification-service; the only trace of a Fast Track, which leaves no
+     * {@code llm_analysis} row. Initialized because Hibernate always INSERTs the column, bypassing the
+     * schema default.
      */
     @Builder.Default
     @Column(name = "was_fast_track", nullable = false)
@@ -140,10 +140,7 @@ public class Case {
     @Column(length = 40)
     private String destination;
 
-    /**
-     * Raw id: the table belongs to rules-service. Written by classification-service with the score.
-     * Null when the baseline scoring was used.
-     */
+    /** Raw id: rules-service's table. Null when the baseline scoring was used. */
     @Column(name = "scoring_configuration_id")
     private Long scoringConfigurationId;
 
@@ -200,10 +197,7 @@ public class Case {
     @Column(name = "documents_unverified_since")
     private Instant documentsUnverifiedSince;
 
-    /**
-     * Links the verdict to the classification it decided on (audit trail). Raw id: the table belongs
-     * to classification-service. Null until the analyst decides.
-     */
+    /** The classification the verdict decided on. Raw id: classification-service's table. */
     @Column(name = "classification_id")
     private Long classificationId;
 

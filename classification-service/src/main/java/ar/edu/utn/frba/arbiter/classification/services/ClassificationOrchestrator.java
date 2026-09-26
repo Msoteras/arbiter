@@ -41,8 +41,7 @@ public class ClassificationOrchestrator {
     private static final Logger log = LoggerFactory.getLogger(ClassificationOrchestrator.class);
 
     /**
-     * Art. 58 Ley 17.418: the right to claim prescribes 1 year from the event for property lines (the
-     * 3-year term for life insurance doesn't apply to any configured branch). A constant, not an
+     * Art. 58 Ley 17.418: property claims prescribe 1 year from the event. A constant, not an
      * {@code insurer_rule}: it's the law, not the referente's to turn off.
      */
     private static final long PRESCRIPTION_YEARS = 1;
@@ -128,8 +127,8 @@ public class ClassificationOrchestrator {
     }
 
     /**
-     * Without a case: no policy snapshot, extraction records or image-fraud cascade. OCR is lazy: only
-     * the documents the Fast Track gate requires are read before it, and the rest only if it doesn't resolve.
+     * Without a case: no policy snapshot, extraction records or image-fraud cascade. OCR is lazy: the
+     * gate's documents first, the rest only if Fast Track doesn't resolve.
      */
     public ClassificationResponse classify(ClaimReport claim, List<AttachmentDocument> documents) {
         log.info("[Orchestrator] Starting isolated classification — policy='{}' insuredId='{}' branch='{}' " +
@@ -143,7 +142,7 @@ public class ClassificationOrchestrator {
 
     /**
      * Adds the image-fraud cascade, which needs the {@code caseId} to exclude self-matches and persist
-     * embeddings. It runs exactly when the documentation was analyzed: images are just another attachment.
+     * embeddings; it runs whenever the documentation was analyzed.
      */
     public ClassificationResponse classify(Long caseId, ClaimReport claim, List<AttachmentDocument> documents) {
         Context ctx = fetchContext(claim);
@@ -157,8 +156,8 @@ public class ClassificationOrchestrator {
     }
 
     /**
-     * Joins extractions (by type) to attachments (by {@code documentId}): {@code case_documents} is
-     * unique per type within a case. Best-effort: failing to write must not sink the classification.
+     * Joins extractions (by type) to attachments (by {@code documentId}): a type is unique within a case.
+     * Best-effort: failing to write must not sink the classification.
      */
     private void recordDocumentExtractions(
             List<AttachmentDocument> documents, Map<String, DocumentExtraction> extractions) {
@@ -223,8 +222,7 @@ public class ClassificationOrchestrator {
 
     /**
      * Freezes what the insurer DB answered, since it keeps changing and a re-run must be explainable.
-     * Best-effort: an audit row that fails to write must not sink the classification, but it's logged
-     * as an error.
+     * Best-effort, but logged as an error.
      */
     private void recordPolicySnapshot(Long caseId, ClaimReport claim, Context ctx) {
         if (caseId == null) {
@@ -323,8 +321,7 @@ public class ClassificationOrchestrator {
 
         if (fastTrack.fastTrack() && !temporal.blocksFastTrack() && !scope.blocksFastTrack()
                 && !fraud.blocksFastTrack()) {
-            // Per-insurer flag: read every attachment and run the image cascade even on Fast Track,
-            // for a complete score. Off by default so Fast Track stays fast.
+            // Per-insurer: read everything and run the image cascade even on Fast Track, for a complete score.
             boolean fullAnalysis = fullAnalysisOnFastTrack(ctx.rules());
             Map<String, DocumentExtraction> fastTrackExtractions = fullAnalysis
                     ? extractAllAttachments(documents, gateExtractions, causeNames)
@@ -423,10 +420,10 @@ public class ClassificationOrchestrator {
                            List<InsuredFraudRecord> fraudRecords) {}
 
     /**
-     * Adds the claims filed through Arbiter to the insurer's history, which never receives them back;
-     * otherwise the rules would count zero for someone who filed that same week. The {@code arbiter-}
-     * prefix allows de-duplicating if the insurer ever syncs them. {@code totalAmountClaimed} is what
-     * was paid, so it's left untouched.
+     * Adds the claims filed through Arbiter, which the insurer's history never receives back; otherwise
+     * the rules would count zero for someone who filed that same week. The {@code arbiter-} prefix allows
+     * de-duplicating if the insurer ever syncs them. {@code totalAmountClaimed} is what was paid, so it's
+     * left untouched.
      */
     private InsuredHistory withArbiterAntecedents(InsuredHistory history, ClaimReport claim) {
         if (claim.priorClaims().isEmpty()) {
@@ -498,9 +495,8 @@ public class ClassificationOrchestrator {
     }
 
     /**
-     * The hard rules evaluate the <b>declared</b> claim cause, so an account describing an excluded
-     * one would otherwise slip through. The model only names the cause; coverage is decided by
-     * {@link CoverageRuleEvaluator}.
+     * The hard rules evaluate the <b>declared</b> cause, so an account describing an excluded one would
+     * slip through. The model only names the cause; {@link CoverageRuleEvaluator} decides coverage.
      *
      * <ul>
      *   <li>{@code AMBIGUOUS}: only a factor; everyday wording is too vague to reroute an honest claim.
@@ -560,8 +556,8 @@ public class ClassificationOrchestrator {
     }
 
     /**
-     * The full document schedule, checked by presence. Not the Fast Track gate's short list, which is
-     * checked by extracted text because an unreadable document can't expedite anything.
+     * The full document schedule, by presence. The Fast Track gate's short list goes by extracted text
+     * instead: an unreadable document can't expedite anything.
      */
     private List<String> checkRequiredDocuments(BusinessRules rules, List<String> providedDocumentTypes) {
         if (rules.requiredDocumentTypes() == null || rules.requiredDocumentTypes().isEmpty()) {
@@ -605,9 +601,9 @@ public class ClassificationOrchestrator {
     }
 
     /**
-     * Evaluated in code, skipping the LLM: nothing interpretive is left. Unlike a coverage exclusion it
-     * recommends {@code LLM_NO_RECOMIENDA_APROBAR}, since prescription is a closed legal question; the
-     * analyst still rejects formally.
+     * Decided in code, skipping the LLM. Unlike an exclusion it recommends
+     * {@code LLM_NO_RECOMIENDA_APROBAR}: prescription is a closed legal question. The analyst still
+     * rejects formally.
      */
     private boolean isPrescribed(ClaimReport claim) {
         if (claim.eventDate() == null || claim.reportedAt() == null) {
@@ -797,9 +793,8 @@ public class ClassificationOrchestrator {
     }
 
     /**
-     * What the engine already decided, injected into the prompt as established fact. The fraud record
-     * is deliberately left out (like the score): it would bias the model's reading of this claim, so its
-     * reasons are appended after the classifier answers.
+     * What the engine already decided, given to the prompt as fact. The fraud record is left out, like the
+     * score, so it doesn't bias the reading; its reasons are appended after the classifier answers.
      */
     private List<String> engineFindings(CoverageRuleEvaluator.Result exclusion, TemporalRuleEvaluator.Result temporal) {
         List<String> findings = new ArrayList<>(temporal.reasons());

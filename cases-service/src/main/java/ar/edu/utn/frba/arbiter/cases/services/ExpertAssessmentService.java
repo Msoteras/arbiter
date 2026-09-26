@@ -42,11 +42,9 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Referral of a case to an external expert or repair shop, and the return of their report.
- *
- * <p>Kept off the decision endpoint on purpose: referring is not a verdict, and mixing "I need more
- * evidence" into the immutable decision audit log would blur it. The report doesn't re-run the
- * model either — the LLM could only restate or contradict expert evidence; the analyst decides.
+ * Referral of a case to an expert or repair shop, and their report. Kept off the decision endpoint:
+ * referring isn't a verdict and would blur the immutable decision log. The report doesn't re-run the
+ * model either; the analyst decides.
  */
 @Service
 @RequiredArgsConstructor
@@ -66,9 +64,7 @@ public class ExpertAssessmentService {
     private final RulesServiceClient rulesServiceClient;
     private final FraudRecordService fraudRecordService;
 
-    /**
-     * Eligible only if the insurer's rule allows it AND there is someone in the catalog to refer to.
-     */
+    /** Eligible only if the insurer's rule allows it AND the catalog has someone to refer to. */
     @Transactional(readOnly = true)
     public DerivationOptionsResponse options(Long caseId, ProviderType providerType) {
         Case caseRecord = findCase(caseId);
@@ -201,9 +197,7 @@ public class ExpertAssessmentService {
         return assessment;
     }
 
-    /**
-     * Only what both provider kinds share; each flow sets its own outcome fields before calling.
-     */
+    /** Only what both provider kinds share; each flow sets its own outcome fields first. */
     private void finishRound(Case caseRecord, ExpertAssessment assessment, String note,
                              MultipartFile report, String transitionNote) {
         Long caseId = caseRecord.getId();
@@ -283,11 +277,7 @@ public class ExpertAssessmentService {
         return caseRecord.getClaimCause().getBranch().getId();
     }
 
-    /**
-     * Resolved from the JWT, never the request body, so nobody can attribute a referral to someone else.
-     *
-     * @return the calling analyst, so the caller doesn't resolve them twice
-     */
+    /** Resolved from the JWT, never the body, so nobody can attribute a referral to someone else. */
     private ClaimsAnalyst assertCallerOwns(Case caseRecord) {
         ClaimsAnalyst caller = callerAnalyst();
         if (caseRecord.getAnalyst() == null) {

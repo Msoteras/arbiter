@@ -9,30 +9,21 @@ import ar.edu.utn.frba.arbiter.common.dto.RuleResultResponse;
 
 import java.util.List;
 
-/**
- * Adapter boundary to classification-service.
- * Implementations call classification-service's POST /api/v1/claims (async, returns a caseId)
- * and poll GET /api/v1/claims/{caseId} until a result is available.
- */
+/** Adapter to classification-service: POST /api/v1/claims enqueues, GET /api/v1/claims/{caseId} polls. */
 public interface ClaimsAnalysisClient {
 
     /** Sends the case data and the full set of accumulated documents, not just the new ones. */
     AnalysisResult analyzeAndPersist(Case caseRecord, List<CaseDocument> documents);
 
-    /**
-     * Same as {@link #analyzeAndPersist}, for callers with no HTTP request behind them: signs a
-     * service token since there is no caller JWT to forward.
-     */
+    /** For callers with no HTTP request behind them: signs a service token instead of forwarding a JWT. */
     AnalysisResult analyzeAndPersistAsSystem(Case caseRecord, List<CaseDocument> documents);
 
     /** Single, non-blocking attempt; returns false while classification is still pending. */
     boolean refreshClassification(Case caseRecord);
 
     /**
-     * Forwards the analyst's decision so classification-service records it in the audit trail.
-     *
-     * @return the id of the {@code case_classification} row it created, to be stored on
-     *         {@code cases.classification_id}; null if the response didn't carry one.
+     * @return the {@code case_classification} row created, for {@code cases.classification_id}; null if
+     *         the response carried none
      */
     Long forwardAnalystDecision(Long caseId, AnalystDecisionRequest request);
 

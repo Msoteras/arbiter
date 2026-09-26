@@ -19,7 +19,6 @@ export interface RiskBreakdownItem {
   /** Normalized contribution in [0,1]. */
   rawScore: number;
   weight: number;
-  /** rawScore * weight. */
   weightedContribution: number;
   rationale: string;
 }
@@ -68,10 +67,7 @@ export type SettlementStatus = 'AUTHORIZED' | 'PENDING_AUTHORIZATION' | 'RETURNE
 // Mirrors cases-service's CaseResponse (GET /api/v1/cases/{id}).
 export interface ExpedienteResponse {
   id: number;
-  /**
-   * Only sent in the insured's cross-insurer list. `insurerSlug` is needed to refetch the case
-   * because `id` repeats across insurers.
-   */
+  /** Only in the insured's cross-insurer list, where `id` repeats across insurers. */
   insurerSlug?: string | null;
   insurerName?: string | null;
   status: string;
@@ -98,20 +94,14 @@ export interface ExpedienteResponse {
   riskBreakdown: RiskBreakdownItem[] | null;
   /** Analyst-only. Null when it did not run (Fast Track or no image attachments). */
   forensicReport: ImageForensicReport | null;
-  /**
-   * Analyst id within the insurer (same as `GET /auth/users/analysts`), not the session user id.
-   * Null = unassigned.
-   */
+  /** Analyst id within the insurer (as in `GET /auth/users/analysts`), not the user id. Null = unassigned. */
   assignedAnalystId: number | null;
   assignedAnalystName: string | null;
   analysisClassification: Clasificacion | string;
   analysisConfidence: number;
   /** One element per reason. Empty on Fast Track or before classification. */
   analysisReasons: string[];
-  /**
-   * Whether the free-text account matches the selected claim cause. Null means "not evaluated"
-   * (model did not run), never MATCHES.
-   */
+  /** Null means "not evaluated" (the model did not run), never MATCHES. */
   causeConsistency: CauseConsistency | string | null;
   /** Only with CONTRADICTS. */
   suggestedClaimCause: string | null;
@@ -123,9 +113,8 @@ export interface ExpedienteResponse {
   responseDeadline: string;
   deadlinePriority: DeadlinePriority;
   /**
-   * Tells apart, in the inbox, a case waiting on the analyst from one awaiting the referent's
-   * sign-off: both stay in `PENDING_ANALYST_REVIEW` so the insured never sees the internal step.
-   * Only sent in lists; the detail fetches the full settlement from its own endpoint.
+   * Tells apart a case waiting on the analyst from one awaiting the referent's sign-off; both stay in
+   * `PENDING_ANALYST_REVIEW` so the insured never sees the internal step. Lists only.
    */
   settlementStatus: SettlementStatus | null;
   /** Only in GET /{id}; null in lists. */

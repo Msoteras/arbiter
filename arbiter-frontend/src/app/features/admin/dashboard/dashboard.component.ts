@@ -123,8 +123,6 @@ export class DashboardComponent {
   private readonly locale = inject(LOCALE_ID);
   private readonly theme: ChartTheme = readChartTheme();
 
-  // ─── Controls ──────────────────────────────────────────────────────────────────────
-
   protected readonly period = signal<PeriodChoice>('MONTH');
   protected readonly customFrom = signal(isoDaysAgo(29));
   protected readonly customTo = signal(isoDaysAgo(0));
@@ -155,8 +153,6 @@ export class DashboardComponent {
   protected readonly canFilterByAnalyst = computed(
     () => this.session.session()?.rol === 'REFERENTE_ASEGURADORA',
   );
-
-  // ─── Data ──────────────────────────────────────────────────────────────────────────
 
   /** Kept while the next period loads, so the screen doesn't flicker. */
   protected readonly data = signal<ClaimMetrics | null>(null);
@@ -249,8 +245,6 @@ export class DashboardComponent {
   protected setAnalyst(value: string): void {
     this.analystId.set(value === ALL ? null : Number(value));
   }
-
-  // ─── Derived state ─────────────────────────────────────────────────────────────────
 
   protected readonly isEmpty = computed(() => {
     const summary = this.data()?.summary;
@@ -623,8 +617,6 @@ export class DashboardComponent {
     }
   });
 
-  // ─── Formatting ────────────────────────────────────────────────────────────────────
-
   private percent(rate: number | null | undefined): string {
     return formatRate(rate);
   }
@@ -649,7 +641,6 @@ export class DashboardComponent {
     return trendText({ current, previous, format, good, base });
   }
 
-  /** "14/06" or "jun 2026". */
   private bucketLabel(point: TimelinePoint): string {
     const date = new Date(`${point.bucket}T00:00:00`);
     if (this.data()?.granularity === 'MONTH') {
@@ -688,7 +679,6 @@ function labelOrEmpty(count: MetricCount, label: (raw: string) => string, empty:
   return count.label === null ? empty : label(count.label);
 }
 
-/** ISO date N days ago, as a date input expects. */
 function isoDaysAgo(days: number): string {
   const date = new Date();
   date.setDate(date.getDate() - days);

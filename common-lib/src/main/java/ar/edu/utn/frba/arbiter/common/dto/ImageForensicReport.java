@@ -3,12 +3,9 @@ package ar.edu.utn.frba.arbiter.common.dto;
 import java.util.List;
 
 /**
- * Image-fraud analysis for the analyst UI (analyst-only), grouped per image.
- *
- * @param webSearchesPerformed lets the UI tell "not searched" from "searched and found nothing"
- * @param imageConsent         recorded so a refusal is auditable under Ley 25.326 (zero searches
- *                             alone is ambiguous). Boxed: null means not recorded, as in reports
- *                             persisted before the field existed, and must not read as a refusal
+ * @param webSearchesPerformed tells "not searched" apart from "searched and found nothing"
+ * @param imageConsent         kept for Ley 25.326 audits; null means not recorded (older reports),
+ *                             never a refusal
  */
 public record ImageForensicReport(
         int imagesAnalyzed,
@@ -18,9 +15,8 @@ public record ImageForensicReport(
 ) {
 
     /**
-     * @param documentType the {@code case_documents.type}, unique per case: what the UI joins on to
-     *                     fetch the file
-     * @param webFinding   null when the web wasn't searched for this image
+     * @param documentType the {@code case_documents.type}, unique per case: what the UI joins on
+     * @param webFinding   null when the web was not searched for this image
      */
     public record ImageFinding(
             String label,

@@ -37,12 +37,10 @@ export interface FastTrackRuleResponse {
 }
 
 /**
- * The referente's Fast Track, persisted for real (rules-service :8081 + cases-service :8083, routed
- * by the proxy). The FAST_TRACK rule lives PER COVERAGE in insurer_rule — each coverage demands
- * different documents (a theft doesn't come with a repair quote) — and the classification engine
- * reads it that way ({@code getByCoverage(coverageId)}). So it's always read and saved one coverage
- * at a time, and there's deliberately no per-branch operation: fanning one config out to every
- * coverage of the branch is what overwrote Robo and Hurto with Daño accidental's documents.
+ * The referente's Fast Track. The FAST_TRACK rule lives PER COVERAGE in insurer_rule (each coverage
+ * demands different documents) and the engine reads it that way, so it's read and saved one coverage
+ * at a time. Deliberately no per-branch operation: fanning one config out overwrote Robo and Hurto
+ * with Daño accidental's documents.
  */
 @Injectable({ providedIn: 'root' })
 export class FastTrackRulesService {

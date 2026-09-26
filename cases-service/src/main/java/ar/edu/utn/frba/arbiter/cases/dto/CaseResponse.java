@@ -17,8 +17,8 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * {@code riskScore} and {@code riskBand} are null when the claim wasn't scored, which is distinct from
- * a real {@code LOW}. {@code forensicReport} is analyst-only, never shown to the insured.
+ * A null {@code riskScore}/{@code riskBand} means not scored, never a real {@code LOW}.
+ * {@code forensicReport} is analyst-only.
  */
 public record CaseResponse(
         Long id,
@@ -49,7 +49,7 @@ public record CaseResponse(
         double analysisConfidence,
         /** Empty on Fast Track or before classification. */
         List<String> analysisReasons,
-        /** Whether the insured's account matches the declared claim cause. Null means "not evaluated", never {@code MATCHES}. */
+        /** Null means "not evaluated", never {@code MATCHES}. */
         CauseConsistency causeConsistency,
         /** Only with CONTRADICTS. */
         String suggestedClaimCause,
@@ -64,7 +64,7 @@ public record CaseResponse(
         String assignedAnalystName,
         Instant createdAt,
         Instant updatedAt,
-        /** Legal deadline to respond (art. 56, Ley 17.418): claim report + 30 days. */
+        /** Art. 56, Ley 17.418. */
         LocalDate responseDeadline,
         /** Derived, not persisted. */
         DeadlinePriority deadlinePriority,

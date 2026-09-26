@@ -42,8 +42,8 @@ import static ar.edu.utn.frba.arbiter.reports.support.CaseTables.ROBO_CELULARES;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Against real Postgres: the {@code DISTINCT ON} that picks the last closing, the Fast Track
- * precedence and the time-zone-aware day buckets are the feature.
+ * Against real Postgres: the {@code DISTINCT ON}, the Fast Track precedence and the time-zone day
+ * buckets are the feature.
  */
 @SpringBootTest
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
@@ -228,7 +228,7 @@ class ClaimMetricsRepositoryTests extends AbstractPersistenceIT {
         resolvedWithRecommendation(1, "LLM_RECOMIENDA_APROBAR", APPROVED);
         // Recommended against, approved anyway: the analyst overrode the model.
         resolvedWithRecommendation(2, "LLM_NO_RECOMIENDA_APROBAR", APPROVED);
-        // "Requiere revisión manual" points nowhere — nothing to agree or disagree with.
+        // Manual review points nowhere: nothing to agree or disagree with.
         resolvedWithRecommendation(3, "LLM_SOLICITA_REVISION_MANUAL", APPROVED);
         // Lapsed: nobody decided it, so it is not a disagreement either.
         resolvedWithRecommendation(4, "LLM_RECOMIENDA_APROBAR", LAPSED);
@@ -304,7 +304,6 @@ class ClaimMetricsRepositoryTests extends AbstractPersistenceIT {
         assertThat(repository.countDecidedOverTarget(AUGUST_FROM, AUGUST_TO, 30, NONE)).isZero();
     }
 
-    /** The target is measured against handling time: waiting on documentation doesn't count against it. */
     @Test
     void overTarget_discountsWhatTheCaseSpentWaitingOnSomebodyOutside() {
         jdbcTemplate.update(
@@ -366,7 +365,6 @@ class ClaimMetricsRepositoryTests extends AbstractPersistenceIT {
         assertThat(split.waitingSeconds()).isZero();
     }
 
-    /** Measured against the deadline stored on the case, not recomputed here. */
     @Test
     void theLegalTerm_comparesEachDecisionAgainstTheDeadlineTheCaseCarried() {
         // Decided 05/08, due 10/08: on time.
@@ -385,7 +383,6 @@ class ClaimMetricsRepositoryTests extends AbstractPersistenceIT {
                 .isEqualTo(LegalDeadline.of(2, 1));
     }
 
-    /** The term expires at the end of its last day: deciding that same day is on time. */
     @Test
     void theLegalTerm_countsTheDayOfTheDeadlineItselfAsInTime() {
         tables.insertCase(1, "2026-08-01T10:00:00Z", APPROVED, ROBO_CELULARES, false, LAURA, null);
@@ -405,7 +402,6 @@ class ClaimMetricsRepositoryTests extends AbstractPersistenceIT {
                 .isEqualTo(new LegalDeadline(0, 0, null));
     }
 
-    /** A reopening is a final-to-non-final transition, counted per case rather than per reopening. */
     @Test
     void reopening_countsCasesThatCameBackFromAFinalStatus_onceEach() {
         // Approved, reopened, approved again: one reopened case.
@@ -428,7 +424,6 @@ class ClaimMetricsRepositoryTests extends AbstractPersistenceIT {
                 .isEqualTo(ReopeningRate.of(3, 2));
     }
 
-    /** Lapsed cases count too. */
     @Test
     void reopening_readsEveryClosedCase_lapsedOnesIncluded() {
         tables.insertCase(1, "2026-08-01T10:00:00Z", LAPSED, ROBO_CELULARES, false, null, null);
@@ -438,7 +433,6 @@ class ClaimMetricsRepositoryTests extends AbstractPersistenceIT {
                 .isEqualTo(ReopeningRate.of(1, 0));
     }
 
-    /** Anchored to the settlement's confirmation date, authorized settlements only. */
     @Test
     void settled_addsUpOnlyTheAuthorisedSettlementsConfirmedInThePeriod() {
         tables.insertCase(1, "2026-07-20T10:00:00Z", APPROVED, ROBO_CELULARES, false, LAURA, null);
@@ -468,7 +462,6 @@ class ClaimMetricsRepositoryTests extends AbstractPersistenceIT {
         assertThat(settled.overdue()).isEqualByComparingTo("10000.00");
     }
 
-    /** The claimed amount is optional, so the response says how many settlements it covers. */
     @Test
     void settled_saysOnHowManySettlementsTheClaimedAmountCouldBeAddedUp() {
         tables.insertCase(1, "2026-08-01T10:00:00Z", APPROVED, ROBO_CELULARES, false, LAURA, null);
@@ -491,7 +484,6 @@ class ClaimMetricsRepositoryTests extends AbstractPersistenceIT {
         assertThat(repository.settledAmounts(AUGUST_FROM, AUGUST_TO, NONE).average()).isNull();
     }
 
-    /** The amount saved only counts rejected cases: approving despite fraud saved nothing. */
     @Test
     void fraud_countsWhatWasNotPaidOnlyOnTheRejectedOnes() {
         // Fraud determined, rejected, backed by an expert assessment.
@@ -523,7 +515,6 @@ class ClaimMetricsRepositoryTests extends AbstractPersistenceIT {
         assertThat(fraud.amountNotPaid()).isEqualByComparingTo("550000.00");
     }
 
-    /** Two derivations on the same case don't count it twice as backed. */
     @Test
     void fraud_countsTheExpertBackingOncePerCase_evenWithTwoDerivations() {
         tables.insertCase(1, "2026-08-01T10:00:00Z", REJECTED, ROBO_CELULARES, false, LAURA, null);
@@ -561,7 +552,6 @@ class ClaimMetricsRepositoryTests extends AbstractPersistenceIT {
                 .isEqualTo(new FastTrackImpact(0, null, 1, 96.0));
     }
 
-    /** Derivations count by when they were sent; the average only covers answered ones. */
     @Test
     void derivations_averageOnlyTheOnesThatCameBack_andKeepThePendingOnesVisible() {
         tables.insertCase(1, "2026-08-01T00:00:00Z", PENDING_REVIEW, ROBO_CELULARES, false, LAURA, null);
@@ -584,7 +574,6 @@ class ClaimMetricsRepositoryTests extends AbstractPersistenceIT {
         assertThat(derivations.getFirst().pending()).isEqualTo(1);
     }
 
-    /** Only FAILs, one case per rule despite reclassification, and the type as name without a rule row. */
     @Test
     void blockingRules_countCasesStoppedOnce_evenIfTheCaseWasReclassified() {
         tables.rule(14, "Vigencia de la póliza");

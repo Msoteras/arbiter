@@ -14,24 +14,14 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
- * Whether the claim cause the documents narrate is the one the insured declared.
+ * Whether the claim cause the documents narrate is the one the insured declared. They can disagree, by
+ * mistake or because robo is covered and hurto isn't, and off the LLM path nobody compared them: a
+ * hurto declared as robo could Fast Track with a police report caratulado HURTO attached.
  *
- * <p>The insured picks the claim cause from a selector and writes the account separately, so the
- * two can disagree — by mistake, or because robo is covered and hurto isn't. The LLM already reads
- * the account against the declared cause, but it only runs off the Fast Track path: a hurto
- * declared as robo took the fast lane of a coverage that excludes hurto, with a police report
- * caratulado HURTO attached that nobody compared. This closes that on the path where it was open.
- *
- * <p>Same split as the family-group rule: the extraction reads which cause a document narrates
- * ({@link DocumentExtraction.Fields#describedClaimCause()}, a name from the branch's catalog) and
- * the code compares. The model never decides whether anything matches.
- *
- * <p><b>It warns, it doesn't block</b> (team's call, 22/09/2026). The case keeps its classification
- * — Fast Track included — and the analyst gets the reason and a {@code rule_result} row to look at
- * before deciding. That's why it's an advisory {@link RuleType#CLAIM_CAUSE_MATCH}, not a hard rule.
- *
- * <p>A document that narrates no cause (an invoice, a block certificate) doesn't take part, and with
- * none that does the check writes no row: "no document said" is not a match.
+ * <p>The extraction names the narrated cause ({@link DocumentExtraction.Fields#describedClaimCause()});
+ * the code compares. <b>It warns, it doesn't block</b> (team's call, 22/09/2026), hence an advisory
+ * {@link RuleType#CLAIM_CAUSE_MATCH}. With no document narrating a cause it writes no row: "no
+ * document said" is not a match.
  */
 @Component
 public class ClaimCauseConsistencyEvaluator {
@@ -51,10 +41,9 @@ public class ClaimCauseConsistencyEvaluator {
     }
 
     /**
-     * @param documents the extractions available at this point, by attachment type: only the gate's
-     *                  on the Fast Track path, all of them otherwise
-     * @param catalog   the branch's claim causes, to tell the analyst whether the narrated one is
-     *                  covered — the engine's word, from {@code COVERAGE_EXCLUSION}
+     * @param documents the extractions read so far, by attachment type: only the gate's on the Fast Track
+     *                  path, all of them otherwise
+     * @param catalog   the branch's claim causes, to say whether the narrated one is covered
      */
     public Result evaluate(ClaimReport claim, Map<String, DocumentExtraction> documents,
                            List<ClassificationRequest.ClaimCauseOption> catalog) {
