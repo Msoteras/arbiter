@@ -12,7 +12,7 @@ import { NewClaimModalService } from '../../expedientes/new-claim-modal.service'
 import { PolicyService } from '../../expedientes/policy.service';
 
 /** Each simplified status bucket must expand to every `CaseStatus` it covers. */
-describe('MisExpedientesComponent · filtros', () => {
+describe('MisExpedientesComponent · filters', () => {
   let fixture: ComponentFixture<MisExpedientesComponent>;
   let listCalls: ExpedienteListParams[];
 
@@ -63,7 +63,7 @@ describe('MisExpedientesComponent · filtros', () => {
   const bbva = policy('1', 'BBVA Seguros');
   const provincia = policy('2', 'Provincia Seguros');
 
-  it('sin filtros no manda estado ni aseguradora', async () => {
+  it('sends no status or insurer without filters', async () => {
     await mount([bbva]);
 
     expect(lastList().status).toBeUndefined();
@@ -71,7 +71,7 @@ describe('MisExpedientesComponent · filtros', () => {
     expect(lastList().insuredId).toBe('42.987.654');
   });
 
-  it('"En trámite" se expande a los cuatro estados del cajón', async () => {
+  it('"En trámite" expands to the four statuses it groups', async () => {
     await mount([bbva]);
 
     signalOf('estadoFilter').set('EN_TRAMITE');
@@ -87,7 +87,7 @@ describe('MisExpedientesComponent · filtros', () => {
     ]);
   });
 
-  it('"Terminado" manda los tres estados finales', async () => {
+  it('"Terminado" sends the three final statuses', async () => {
     await mount([bbva]);
 
     signalOf('estadoFilter').set('TERMINADO');
@@ -97,25 +97,25 @@ describe('MisExpedientesComponent · filtros', () => {
     expect(lastList().status).toEqual(['APPROVED', 'REJECTED', 'LAPSED']);
   });
 
-  it('con una sola aseguradora no ofrece el filtro', async () => {
+  it('does not offer the filter with a single insurer', async () => {
     await mount([bbva]);
 
     expect(fixture.nativeElement.textContent).not.toContain('Aseguradora');
   });
 
-  it('con pólizas en dos compañías sí lo ofrece', async () => {
+  it('offers it with policies in two insurers', async () => {
     await mount([bbva, provincia]);
 
     expect(fixture.nativeElement.textContent).toContain('Aseguradora');
   });
 
-  it('no repite la aseguradora cuando hay varias pólizas de la misma', async () => {
+  it('does not repeat an insurer with several policies', async () => {
     await mount([bbva, policy('1', 'BBVA Seguros')]);
 
     expect(fixture.nativeElement.textContent).not.toContain('Aseguradora');
   });
 
-  it('cambiar un filtro vuelve a la primera página', async () => {
+  it('changing a filter goes back to the first page', async () => {
     await mount([bbva]);
     signalOf('page').set(2);
     fixture.detectChanges();
@@ -129,7 +129,7 @@ describe('MisExpedientesComponent · filtros', () => {
     expect(lastList().page).toBe(0);
   });
 
-  it('las fechas viajan como rango del hecho', async () => {
+  it('dates travel as the event date range', async () => {
     await mount([bbva]);
 
     signalOf('desde').set('2026-08-01');

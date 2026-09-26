@@ -13,7 +13,7 @@ import { ExpedienteListParams, ExpedienteService } from '../expediente.service';
  * The lifecycle scope must travel in the request params: filtering the fetched page client-side
  * would yield uneven pages and a wrong total.
  */
-describe('BandejaComponent · recorte en curso', () => {
+describe('BandejaComponent · lifecycle scope', () => {
   let fixture: ComponentFixture<BandejaComponent>;
   let listCalls: ExpedienteListParams[];
   let lensCalls: ExpedienteListParams[];
@@ -118,26 +118,25 @@ describe('BandejaComponent · recorte en curso', () => {
     return tab?.querySelector('.lens-count')?.textContent?.trim();
   }
 
-  it('arranca pidiendo solo los expedientes en curso', async () => {
+  it('starts by asking only for open cases', async () => {
     await mount();
 
     expect(listCalls[0].scope).toBe('OPEN');
   });
 
-  it('arranca igual para el referente', async () => {
+  it('starts the same way for the referent', async () => {
     await mount('REFERENTE_ASEGURADORA');
 
     expect(listCalls[0].scope).toBe('OPEN');
   });
 
-  /** Each tab's count must be what that tab will show, independent of the active scope. */
-  it('los conteos de las pestañas no arrastran el recorte', async () => {
+  it('tab counts do not carry the active scope', async () => {
     await mount();
 
     expect(lensCalls[0].scope).toBeUndefined();
   });
 
-  it('cambiar el recorte se lo pide al backend', async () => {
+  it('changing the scope asks the backend', async () => {
     await mount();
 
     clickScope('Cerrados');
@@ -149,7 +148,7 @@ describe('BandejaComponent · recorte en curso', () => {
     expect(lastList().scope).toBe('ALL');
   });
 
-  it('cambiar el recorte vuelve a la primera página', async () => {
+  it('changing the scope goes back to the first page', async () => {
     await mount();
     signalOf('page').set(3);
     fixture.detectChanges();
@@ -160,8 +159,7 @@ describe('BandejaComponent · recorte en curso', () => {
     expect(lastList().page).toBe(0);
   });
 
-  /** A closed status under the "open" scope can never match, so the scope widens itself. */
-  it('elegir un estado cerrado afloja el recorte a todos', async () => {
+  it('picking a closed status widens the scope to all', async () => {
     await mount();
     expect(listCalls[0].scope).toBe('OPEN');
 
