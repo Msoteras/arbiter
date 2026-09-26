@@ -182,7 +182,6 @@ class TemporalRuleEvaluatorTest {
                 .claimCause("Robo en vía pública").status("Aprobado").build();
     }
 
-    /** All five active; the thresholds that belong to the coverage are passed as parameters. */
     private BusinessRules rules(Long reportDeadlineHours, Integer maxEventsPerYear) {
         return BusinessRules.builder()
                 .branchId("Celulares")
@@ -209,8 +208,6 @@ class TemporalRuleEvaluatorTest {
                 .evaluableRules(allActive())
                 .build();
     }
-
-    // The waiting period counts from the policy's start date.
 
     @Test
     void eventInsideTheWaitingPeriod_blocksFastTrack() {
@@ -346,8 +343,6 @@ class TemporalRuleEvaluatorTest {
         assertThat(result.reasons()).isEmpty();
         assertThat(result.findings()).isEmpty();
     }
-
-    // Arrears has no threshold of its own: the source fact is InsuredPolicy.upToDate().
 
     @Test
     void policyUpToDate_passes() {

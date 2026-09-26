@@ -650,10 +650,7 @@ export class BandejaComponent {
     this.analysts().map((a) => ({ value: String(a.id), label: `${a.nombre} ${a.apellido}` })),
   );
 
-  /**
-   * The per-tenant analyst id, found by email in the (tenant-scoped) analyst list; the session only
-   * has the user id. Null for the supervisor.
-   */
+  /** Per-tenant analyst id, found by email (the session only has the user id). Null for the supervisor. */
   private readonly myAnalystId = computed<number | null>(() => {
     const email = this.session.session()?.email;
     return this.analysts().find((a) => a.email === email)?.id ?? null;

@@ -85,9 +85,8 @@ public class CaseNotificationService {
                             + "querés continuar con el reclamo, comunicate con nosotros."));
 
     /**
-     * Not in {@link #MESSAGES}, which is keyed by destination: a reopened case lands in
-     * {@code PENDING_ANALYST_REVIEW}, like every ordinary classification. The analyst's reason is
-     * internal and never sent.
+     * Not in {@link #MESSAGES}, keyed by destination: a reopened case lands where any classification does.
+     * The analyst's reason is internal and never sent.
      */
     private static final String REOPENED_TYPE = "REOPENED";
 
@@ -219,7 +218,6 @@ public class CaseNotificationService {
         return Math.min(unread, PANEL_LIMIT);
     }
 
-    /** Each schema comes back ordered on its own; interleaving them by date is the point. */
     private List<NotificationResponse> newestFirst(List<NotificationResponse> merged) {
         return merged.stream()
                 .sorted(Comparator.comparing(NotificationResponse::createdAt).reversed())
@@ -329,10 +327,7 @@ public class CaseNotificationService {
                 """.formatted(message.body(), approvedAmountLine(caseRecord, type), caseRecord.getId());
     }
 
-    /**
-     * Empty when there is no settlement row, and best-effort: failing to read the amount must not
-     * stop the approval email.
-     */
+    /** Empty without a settlement; best-effort, so a failed read never stops the approval email. */
     private String approvedAmountLine(Case caseRecord, String type) {
         if (!CaseStatus.APPROVED.name().equals(type)) {
             return "";

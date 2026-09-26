@@ -366,7 +366,6 @@ public class ClassificationOrchestrator {
         List<String> engineFindings = engineFindings(exclusion, temporal);
         engineFindings.addAll(fullScope.reasons());
 
-        // Every attachment is read now, not just the gate's.
         ClaimCauseConsistencyEvaluator.Result fullCauseMatch =
                 claimCauseConsistencyEvaluator.evaluate(claim, extractions, catalog);
 
@@ -420,10 +419,9 @@ public class ClassificationOrchestrator {
                            List<InsuredFraudRecord> fraudRecords) {}
 
     /**
-     * Adds the claims filed through Arbiter, which the insurer's history never receives back; otherwise
-     * the rules would count zero for someone who filed that same week. The {@code arbiter-} prefix allows
-     * de-duplicating if the insurer ever syncs them. {@code totalAmountClaimed} is what was paid, so it's
-     * left untouched.
+     * Adds the claims filed through Arbiter, which the insurer's history never receives back; the
+     * {@code arbiter-} prefix allows de-duplicating if it ever does. {@code totalAmountClaimed} is what
+     * was paid, so it's left untouched.
      */
     private InsuredHistory withArbiterAntecedents(InsuredHistory history, ClaimReport claim) {
         if (claim.priorClaims().isEmpty()) {
@@ -602,8 +600,7 @@ public class ClassificationOrchestrator {
 
     /**
      * Decided in code, skipping the LLM. Unlike an exclusion it recommends
-     * {@code LLM_NO_RECOMIENDA_APROBAR}: prescription is a closed legal question. The analyst still
-     * rejects formally.
+     * {@code LLM_NO_RECOMIENDA_APROBAR}: prescription is a closed legal question.
      */
     private boolean isPrescribed(ClaimReport claim) {
         if (claim.eventDate() == null || claim.reportedAt() == null) {

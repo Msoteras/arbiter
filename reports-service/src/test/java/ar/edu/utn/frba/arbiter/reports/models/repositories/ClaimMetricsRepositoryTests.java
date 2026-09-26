@@ -208,14 +208,11 @@ class ClaimMetricsRepositoryTests extends AbstractPersistenceIT {
         // Fast Track: decided, but the model never ran — it must NOT count as analyzed.
         tables.decision(1, "APPROVE", LAURA);
         tables.insertCase(1, "2026-08-02T10:00:00Z", APPROVED, ROBO_CELULARES, true, LAURA, 1L);
-        // Analyzed and decided.
         tables.decision(2, "REJECT", LAURA);
         tables.insertCase(2, "2026-08-03T10:00:00Z", REJECTED, ROBO_CELULARES, false, LAURA, 2L);
         tables.recommendation(2, "LLM_NO_RECOMIENDA_APROBAR");
-        // Analyzed, still on someone's desk.
         tables.insertCase(3, "2026-08-04T10:00:00Z", PENDING_REVIEW, ROBO_CELULARES, false, LAURA, null);
         tables.recommendation(3, "LLM_RECOMIENDA_APROBAR");
-        // July: out of the cohort entirely.
         tables.insertCase(4, "2026-07-20T10:00:00Z", PENDING_REVIEW, ROBO_CELULARES, false, null, null);
 
         assertThat(repository.intakeFunnel(AUGUST_FROM, AUGUST_TO, NONE))
@@ -224,7 +221,6 @@ class ClaimMetricsRepositoryTests extends AbstractPersistenceIT {
 
     @Test
     void agreement_countsOnlyTheClaimsWhoseRecommendationPointedSomewhere() {
-        // Recommended approving, ended approved: agreement.
         resolvedWithRecommendation(1, "LLM_RECOMIENDA_APROBAR", APPROVED);
         // Recommended against, approved anyway: the analyst overrode the model.
         resolvedWithRecommendation(2, "LLM_NO_RECOMIENDA_APROBAR", APPROVED);
@@ -332,8 +328,7 @@ class ClaimMetricsRepositoryTests extends AbstractPersistenceIT {
                         + "ON CONFLICT (id) DO NOTHING");
         long awaitingDocs = 3;
 
-        // Filed 01/08, approved 11/08: 10 wall-clock days, 6 of them (03/08 to 09/08) awaiting
-        // documentation from the insured.
+        // 10 wall-clock days, 6 of them (03/08 to 09/08) awaiting documentation.
         tables.insertCase(1, "2026-08-01T00:00:00Z", APPROVED, ROBO_CELULARES, false, LAURA, null);
         tables.transition(1, null, PENDING_REVIEW, "2026-08-01T00:00:00Z");
         tables.transition(1, PENDING_REVIEW, awaitingDocs, "2026-08-03T00:00:00Z");
@@ -416,7 +411,6 @@ class ClaimMetricsRepositoryTests extends AbstractPersistenceIT {
         tables.transition(2, PENDING_REVIEW, REJECTED, "2026-08-06T10:00:00Z");
         tables.transition(2, REJECTED, PENDING_REVIEW, "2026-08-07T10:00:00Z");
         tables.transition(2, PENDING_REVIEW, REJECTED, "2026-08-12T10:00:00Z");
-        // Closed once, never reopened.
         tables.insertCase(3, "2026-08-01T10:00:00Z", APPROVED, ROBO_CELULARES, false, LAURA, null);
         tables.transition(3, PENDING_REVIEW, APPROVED, "2026-08-08T10:00:00Z");
 

@@ -32,11 +32,7 @@ public class PolicyEligibilityValidator {
     private final InsurerAdapter insurerAdapter;
     private final RulesServiceClient rulesServiceClient;
 
-    /**
-     * @param policyNumber looked up again in the insurer DB for the term and arrears fields
-     *                     {@code Coverage} doesn't carry
-     * @param claimCause   null during the wizard's precheck, which runs before the cause is asked
-     */
+    /** @param claimCause null during the wizard's precheck, which runs before the cause is asked */
     public void validate(String policyNumber, LocalDateTime eventDate, LocalDateTime policeReportAt,
                           Coverage coverage, ClaimCause claimCause) {
         assertCoherentDates(eventDate, policeReportAt);
@@ -55,9 +51,8 @@ public class PolicyEligibilityValidator {
     }
 
     /**
-     * The wizard already hides excluded causes, but a client posting straight to {@code POST /cases}
-     * must be stopped server side too. classification-service's {@code CoverageRuleEvaluator} still
-     * runs later and leaves the audited rule result.
+     * The wizard already hides excluded causes, but a direct {@code POST /cases} must be stopped too.
+     * {@code CoverageRuleEvaluator} still leaves the audited rule result later.
      */
     private void assertCoverageIncludesClaimCause(ClaimCause claimCause, Coverage coverage) {
         if (claimCause == null || coverage == null || coverage.getId() == null) {

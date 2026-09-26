@@ -28,10 +28,9 @@ import java.util.List;
 public class FlaggedCaseRepository {
 
     /**
-     * Correlated subqueries rather than joins, which would multiply the case by its documents. The
-     * 12-month window counts from each case's {@code reported_at}, so a row reads the same whenever the
-     * report runs; {@code claims_in_window} is context, not a signal. Only the LATEST
-     * {@code risk_analysis} feeds {@code document_inconsistency_note}, so a reclassified case reads clean.
+     * Correlated subqueries: a join would multiply the case by its documents. The 12-month window counts
+     * from each case's {@code reported_at}, so a row reads the same whenever the report runs. Only the
+     * LATEST {@code risk_analysis} feeds {@code document_inconsistency_note}.
      */
     private static final String FLAGGED_CASES = """
             WITH candidate AS (
@@ -84,10 +83,7 @@ public class FlaggedCaseRepository {
 
     private final EntityManager entityManager;
 
-    /**
-     * @param to       exclusive
-     * @param riskBand null for every band, including the cases the scoring never ran on
-     */
+    /** @param riskBand null for every band, including the cases never scored */
     @Transactional(readOnly = true)
     public List<FraudReportRow> findFlaggedBetween(Instant from, Instant to, Long branchId,
                                                    RiskBand riskBand) {

@@ -14,14 +14,9 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
- * Whether the claim cause the documents narrate is the one the insured declared. They can disagree, by
- * mistake or because robo is covered and hurto isn't, and off the LLM path nobody compared them: a
- * hurto declared as robo could Fast Track with a police report caratulado HURTO attached.
- *
- * <p>The extraction names the narrated cause ({@link DocumentExtraction.Fields#describedClaimCause()});
- * the code compares. <b>It warns, it doesn't block</b> (team's call, 22/09/2026), hence an advisory
- * {@link RuleType#CLAIM_CAUSE_MATCH}. With no document narrating a cause it writes no row: "no
- * document said" is not a match.
+ * Whether the cause the documents narrate is the declared one. Off the LLM path nobody compared them:
+ * a hurto declared as robo could Fast Track with a police report caratulado HURTO. <b>It warns, it
+ * doesn't block</b> (team's call, 22/09/2026); with no document narrating a cause it writes no row.
  */
 @Component
 public class ClaimCauseConsistencyEvaluator {
@@ -29,10 +24,7 @@ public class ClaimCauseConsistencyEvaluator {
     /** {@code rule_result.evaluated_value} is {@code VARCHAR(150)}. */
     private static final int EVALUATED_VALUE_MAX = 150;
 
-    /**
-     * @param reasons  one readable warning when a document narrates another cause, for the analyst
-     * @param findings the audit row — PASS when every document that narrates a cause agrees
-     */
+    /** @param findings the audit row: PASS when every document that narrates a cause agrees */
     public record Result(List<String> reasons, List<RuleFinding> findings) {
 
         public static Result none() {

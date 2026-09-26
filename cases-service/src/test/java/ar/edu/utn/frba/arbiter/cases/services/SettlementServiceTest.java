@@ -133,9 +133,8 @@ class SettlementServiceTest {
     }
 
     /**
-     * The sum insured is the contractual ceiling ("el límite máximo a indemnizar por cada
-     * siniestro", art. 3): below it the analyst can move freely with a reason, above it there is
-     * nothing to justify.
+     * The sum insured is the contractual ceiling (art. 3): below it the analyst adjusts with a reason,
+     * above it nothing justifies the amount.
      */
     @Test
     void anAmountAboveTheSumInsuredIsRejectedEvenWithAReason() {
@@ -170,11 +169,7 @@ class SettlementServiceTest {
         assertThat(response.breakdown().get(1).detail()).startsWith("10% de la suma asegurada (");
     }
 
-    /**
-     * A coverage that settles by the lesser of sum insured and replacement cost, with nothing
-     * accredited, quietly falls back to the sum insured. The analyst has to be told before they
-     * sign, not after.
-     */
+    /** With nothing accredited, "lesser of" silently falls back to the sum insured: warn before signing. */
     @Test
     void warnsWhenTheBasisNeedsAReplacementValueAndThereIsNone() {
         claim.setCoverage(coverage(SettlementBasis.LESSER_OF_SUM_AND_REPLACEMENT, "10.00", false));
@@ -185,9 +180,8 @@ class SettlementServiceTest {
     }
 
     /**
-     * A deduction the coverage enables is shown even at zero, with the reason next to it: the two
-     * possible zeros ("no instalments left" and "data missing") must read differently, since the
-     * analyst can make up for the second by adjusting the amount.
+     * An enabled deduction shows even at zero, with its reason: "none left" and "data missing" must read
+     * differently, since the analyst can make up for the second.
      */
     @Test
     void showsADeductionAtZeroOnTheSheetWithTheReasonInstead() {
@@ -260,10 +254,7 @@ class SettlementServiceTest {
         assertThat(response.warnings()).isEmpty();
     }
 
-    /**
-     * In a repair the amount comes from the quote, which the model already read while classifying.
-     * It's offered with its source: a number without provenance is worth less than none.
-     */
+    /** A repair's amount comes from the quote the model read, offered with its source. */
     @Test
     void suggestsTheAmountTheModelReadOffTheRepairQuote() {
         claim.setCoverage(repairCoverage());
@@ -293,10 +284,7 @@ class SettlementServiceTest {
         assertThat(response.suggestedFor()).isEqualTo(SettlementSuggestionTarget.ACCREDITED_AMOUNT);
     }
 
-    /**
-     * Where the field changes nothing (total loss by sum insured) nothing is suggested: it would
-     * invite entering data that doesn't change the amount.
-     */
+    /** Nothing is suggested where the field wouldn't change the amount (total loss by sum insured). */
     @Test
     void suggestsNothingWhereTheAccreditedAmountChangesNothing() {
         when(documentAnalysisRepository.findByCaseId(1L)).thenReturn(List.of(
@@ -334,11 +322,7 @@ class SettlementServiceTest {
         assertThat(settlementService.forCase(1L, null).suggestedAmount()).isNull();
     }
 
-    /**
-     * After an expert assessment the suggested amount is the expert's, not the quote's: someone
-     * inspected the item, versus a paper the insured brought. Offering the latter would suggest the
-     * weaker source.
-     */
+    /** The expert's amount beats the quote: someone inspected the item. */
     @Test
     void theExpertAmountWinsOverTheQuote() {
         claim.setCoverage(repairCoverage());
@@ -355,11 +339,7 @@ class SettlementServiceTest {
         assertThat(response.suggestedFor()).isEqualTo(SettlementSuggestionTarget.ACCREDITED_AMOUNT);
     }
 
-    /**
-     * The repair shop's quote also beats the insured's paper, for the same reason. It lives in its
-     * own column (what the repair COSTS, not what the claim is worth), which in a repair is exactly
-     * the calculation base.
-     */
+    /** The shop's quote also beats the insured's paper; its own column is exactly a repair's base. */
     @Test
     void theRepairShopQuoteIsSuggestedAsTheAccreditedAmount() {
         claim.setCoverage(repairCoverage());
@@ -377,10 +357,7 @@ class SettlementServiceTest {
         assertThat(response.suggestedFor()).isEqualTo(SettlementSuggestionTarget.ACCREDITED_AMOUNT);
     }
 
-    /**
-     * With two valuations on the same case the latest received wins, as the insurer handles them.
-     * Here the repair shop answered after the expert.
-     */
+    /** The latest valuation wins; here the repair shop answered after the expert. */
     @Test
     void theLatestValuationReplacesTheEarlierOne() {
         claim.setCoverage(repairCoverage());
@@ -399,10 +376,7 @@ class SettlementServiceTest {
         assertThat(response.suggestedFrom()).isEqualTo("repair_report");
     }
 
-    /**
-     * By sum insured only the final amount can be proposed, and only the expert speaks to that: what
-     * the shop charges for a repair isn't an opinion on what should be paid.
-     */
+    /** By sum insured only the expert speaks to the final amount; a repair cost isn't one. */
     @Test
     void theRepairShopQuoteIsNotOfferedAsTheAmountToPay() {
         when(expertAssessmentRepository.findByCaseIdOrderByDerivedAtDesc(1L)).thenReturn(List.of(
@@ -416,11 +390,7 @@ class SettlementServiceTest {
         assertThat(response.suggestedFor()).isNull();
     }
 
-    /**
-     * The expert determines what should be paid, not a replacement value, so it still applies when
-     * settling by sum insured (where there's no accredited amount) and targets the final amount.
-     * Those expensive coverages are the only ones that reach an expert assessment.
-     */
+    /** The expert's amount targets the final amount, so it applies even when settling by sum insured. */
     @Test
     void theExpertAmountIsSuggestedForTheAmountItselfWhenSettlingBySumInsured() {
         when(expertAssessmentRepository.findByCaseIdOrderByDerivedAtDesc(1L)).thenReturn(List.of(
@@ -434,10 +404,7 @@ class SettlementServiceTest {
         assertThat(response.suggestedFor()).isEqualTo(SettlementSuggestionTarget.SETTLED_AMOUNT);
     }
 
-    /**
-     * The purchase proof doesn't sneak in that way: by sum insured it doesn't change the amount.
-     * Only the expert assessment has a say there.
-     */
+    /** By sum insured the purchase proof changes nothing, so only the expert has a say. */
     @Test
     void aDocumentAmountIsStillNotSuggestedWhenSettlingBySumInsured() {
         when(documentAnalysisRepository.findByCaseId(1L)).thenReturn(List.of(
@@ -451,10 +418,7 @@ class SettlementServiceTest {
         assertThat(response.suggestedFor()).isNull();
     }
 
-    /**
-     * An expert report with no amount doesn't hide the quote: not every report has a number (a
-     * confirmed fraud has nothing to indemnify), and then the quote is still the best there is.
-     */
+    /** A report with no amount (e.g. confirmed fraud) doesn't hide the quote. */
     @Test
     void anExpertReportWithNoAmountFallsBackToTheQuote() {
         claim.setCoverage(repairCoverage());
@@ -484,10 +448,7 @@ class SettlementServiceTest {
                 .build();
     }
 
-    /**
-     * A damage coverage settles by repair assuming the item survived. If the shop declares it
-     * irreparable, for insurance purposes it's gone as if stolen, and the sum insured is paid.
-     */
+    /** An irreparable item is gone as if stolen, so the sum insured is paid. */
     @Test
     void anIrreparableItemIsSettledAsATotalLoss() {
         claim.setCoverage(repairCoverage());
@@ -516,17 +477,13 @@ class SettlementServiceTest {
         assertThat(response.breakdown())
                 .anyMatch(line -> "Suma asegurada".equals(line.concept())
                         && line.detail() != null && line.detail().contains("irreparable"));
-        // And this coverage doesn't deduct instalments, as a theft would: the switch was configured
-        // for repairs, where the deduction doesn't exist.
+        // Nor deducts instalments as a theft would: the switch was configured for repairs.
         assertThat(response.breakdown())
                 .anyMatch(line -> "Cuotas a vencer".equals(line.concept())
                         && line.detail() != null && line.detail().contains("no tiene configurado"));
     }
 
-    /**
-     * The warning looks at the applied formula, not the coverage's: asking for a repair quote next
-     * to a sheet settled as a total loss would contradict it.
-     */
+    /** Checked against the applied formula: asking for a quote next to a total-loss sheet contradicts it. */
     @Test
     void anIrreparableItemIsNotAskedForARepairQuote() {
         claim.setCoverage(repairCoverage());
@@ -580,10 +537,7 @@ class SettlementServiceTest {
         assertThat(saved.getStatus()).isEqualTo(SettlementStatus.AUTHORIZED);
     }
 
-    /**
-     * Above the ceiling it waits, and the analyst's justification is held: the decision isn't
-     * recorded yet, and when the referent signs it must be forwarded with what the analyst wrote.
-     */
+    /** Above the ceiling it waits, holding the justification to forward when the referent signs. */
     @Test
     void anAmountOverTheCeilingWaitsForTheReferentAndHoldsTheJustification() {
         claim.setClaimCause(claimCause(1L));
@@ -609,10 +563,7 @@ class SettlementServiceTest {
         assertThat(saved.getAuthorityLimit()).isNull();
     }
 
-    /**
-     * Without inheriting the id, the save would insert a second settlement for the same case and hit
-     * the UNIQUE constraint.
-     */
+    /** Without inheriting the id, the save would insert a second settlement and hit the UNIQUE constraint. */
     @Test
     void reconfirmingOverwritesTheExistingRowInsteadOfInsertingASecond() {
         CaseSettlement existing = CaseSettlement.builder()
@@ -627,8 +578,7 @@ class SettlementServiceTest {
                 new SettlementDecisionRequest(null, new BigDecimal("608000.00"), null));
 
         assertThat(saved.getId()).isEqualTo(55L);
-        // The return reason is cleared: reconfirming IS the answer to it, and keeping it would make
-        // the settlement look returned again.
+        // Reconfirming IS the answer to the return; keeping the reason would make it look returned again.
         assertThat(saved.getReturnReason()).isNull();
     }
 
@@ -645,8 +595,7 @@ class SettlementServiceTest {
         assertThat(saved.getStatus()).isEqualTo(SettlementStatus.AUTHORIZED);
         assertThat(saved.getAuthorizedByUserId()).isEqualTo(3L);
         assertThat(saved.getAuthorizedAt()).isNotNull();
-        // From here on the justification lives in case_classification; keeping it here too would
-        // store it twice.
+        // It now lives in case_classification; keeping it here would store it twice.
         assertThat(saved.getPendingJustification()).isNull();
     }
 

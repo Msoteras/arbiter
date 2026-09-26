@@ -74,7 +74,6 @@ public record BusinessRules(
             List<String> requiredDocumentTypes
     ) {}
 
-    /** Per-insurer fraud/risk score config: weighted factors and the bands the 0..1 score maps to. */
     @Builder
     public record ScoringConfig(
             /** Written to {@code cases.scoring_configuration_id}; null for the baseline, which isn't a row. */

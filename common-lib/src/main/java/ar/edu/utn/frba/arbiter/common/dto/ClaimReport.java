@@ -8,7 +8,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
-/** Sent by cases-service to classification-service; without {@code attachmentsOcr} it reads the files itself. */
+/** Without {@code attachmentsOcr}, classification-service reads the files itself. */
 @Builder
 public record ClaimReport(
         @NotBlank String branch,
@@ -33,7 +33,7 @@ public record ClaimReport(
         // External web search consent (CLIP runs regardless). Boxed: null means NO, so it fails closed.
         Boolean imageConsent,
         List<String> attachmentsOcr,
-        // Claims filed through Arbiter, merged with the company's history for the annual cap and Fast Track.
+        // Claims filed through Arbiter: the insurer's history never receives them.
         List<PriorClaim> priorClaims
 ) {
 

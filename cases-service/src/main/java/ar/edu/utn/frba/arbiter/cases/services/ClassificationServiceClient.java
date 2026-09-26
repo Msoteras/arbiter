@@ -150,8 +150,6 @@ public class ClassificationServiceClient implements ClaimsAnalysisClient {
                 .policeReportAt(caseRecord.getPoliceReportAt())
                 .imageConsent(caseRecord.getInsured().isImageConsent())
                 .attachmentsOcr(List.of())
-                // The insurer's history only holds what it settled itself; claims filed here never
-                // flow back, so without these the annual cap and Fast Track's prior-claims check read zero.
                 .priorClaims(antecedentsOf(caseRecord))
                 .build();
 
@@ -305,10 +303,7 @@ public class ClassificationServiceClient implements ClaimsAnalysisClient {
         return records == null ? List.of() : records;
     }
 
-    /**
-     * Degrades to {@code null} instead of failing the case detail: the traceability tab is context.
-     * Not an empty list, which would mean "no rule ran".
-     */
+    /** Degrades to {@code null}, not an empty list ("no rule ran"): the traceability tab is only context. */
     @Override
     public List<RuleResultResponse> ruleResultsOf(Long caseId) {
         try {

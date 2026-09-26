@@ -166,10 +166,7 @@ public class SettlementService {
         settlement.setPendingJustification(needsReferent ? justification : null);
     }
 
-    /**
-     * This policy's terms for the case's coverage; only a fallback for the snapshot. Null if the
-     * coverage isn't synced yet.
-     */
+    /** Only a fallback for the snapshot; null if the coverage isn't synced yet. */
     private PolicyCoverage policyCoverageOf(Case caseRecord) {
         if (caseRecord.getPolicy() == null || caseRecord.getCoverage() == null) {
             return null;
@@ -277,7 +274,6 @@ public class SettlementService {
     private record Suggestion(BigDecimal amount, String documentType,
                               SettlementSuggestionTarget target) {}
 
-    /** The branch hangs off the claim cause — {@code cases} has no column of its own for it. */
     private Long branchIdOf(Case caseRecord) {
         if (caseRecord.getClaimCause() == null || caseRecord.getClaimCause().getBranch() == null) {
             return null;

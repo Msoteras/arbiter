@@ -5,14 +5,11 @@ import java.time.LocalDate;
 import java.util.List;
 
 /**
- * The whole dashboard for one insurer and period, in one round trip. The insurer comes from the JWT.
+ * The whole dashboard in one round trip; the insurer comes from the JWT.
  *
- * @param filter           echoed back so the screen can tell "no claims" from "no claims matching"
- * @param funnel           the period's intake followed forward; not the {@link #summary()} population
- * @param previousSummary  the preceding period of equal length; null only if it could not be computed
- * @param resolutionTarget the insurer's own goal, not the legal deadline
- * @param legalDeadline    decisions made within the art. 56 term
- * @param byStatus         claims filed in the period by their <b>current</b> status
+ * @param filter   echoed back so the screen can tell "no claims" from "no claims matching"
+ * @param funnel   the period's intake followed forward; not the {@link #summary()} population
+ * @param byStatus claims filed in the period by their <b>current</b> status
  */
 public record ClaimMetrics(
         LocalDate from,

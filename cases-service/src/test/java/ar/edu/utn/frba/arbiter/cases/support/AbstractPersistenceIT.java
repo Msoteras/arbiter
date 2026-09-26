@@ -11,16 +11,9 @@ import java.sql.SQLException;
 import java.sql.Statement;
 
 /**
- * Singleton-container pattern: no {@code @Testcontainers}/{@code @Container}, because those stop
- * the container in each class's {@code afterAll} and would kill it for the next class in the same
- * run. It starts once per JVM in the static block and Ryuk removes it when the run ends.
- *
- * <p>ddl-auto is {@code update} only here (production validates against
- * {@code db/init-multitenant.sql}). {@code update} doesn't create schemas, so
- * {@code arbiter_common} is created by hand before the context starts.
- *
- * <p>Tagged {@code it}: subclasses are excluded from {@code mvn test} and run with
- * {@code mvn verify -Pit}.
+ * Singleton container: {@code @Testcontainers} would stop it after each class. {@code update} only
+ * here, and it doesn't create schemas, so {@code arbiter_common} is created by hand. Tagged
+ * {@code it}: runs with {@code mvn verify -Pit}, not {@code mvn test}.
  */
 @Tag("it")
 @TestPropertySource(properties = {
@@ -38,8 +31,7 @@ public abstract class AbstractPersistenceIT {
                 POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword());
              Statement stmt = conn.createStatement()) {
             stmt.execute("CREATE SCHEMA IF NOT EXISTS arbiter_common");
-            // Case search uses unaccent() (CaseSpecifications.freeText); in production
-            // db/init-multitenant.sql creates it.
+            // Used by CaseSpecifications.freeText; in production init-multitenant.sql creates it.
             stmt.execute("CREATE EXTENSION IF NOT EXISTS unaccent");
         } catch (SQLException e) {
             throw new RuntimeException(e);

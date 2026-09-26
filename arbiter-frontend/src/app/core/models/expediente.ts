@@ -13,7 +13,6 @@ export interface StatusTransition {
   changedAt: string;
 }
 
-/** One factor's contribution to the fraud score (backend RiskBreakdownItem). */
 export interface RiskBreakdownItem {
   factorId: string;
   /** Normalized contribution in [0,1]. */
@@ -78,7 +77,6 @@ export interface ExpedienteResponse {
   coverage: string | null;
   insuredItem: string;
   insuredId: string;
-  /** Resolved by classification-service when classifying; null until then. */
   insuredName: string | null;
   /** Politically exposed person, as self-declared (AML due diligence). Not a fraud signal. */
   pep: boolean;
@@ -99,7 +97,7 @@ export interface ExpedienteResponse {
   assignedAnalystName: string | null;
   analysisClassification: Clasificacion | string;
   analysisConfidence: number;
-  /** One element per reason. Empty on Fast Track or before classification. */
+  /** Empty on Fast Track or before classification. */
   analysisReasons: string[];
   /** Null means "not evaluated" (the model did not run), never MATCHES. */
   causeConsistency: CauseConsistency | string | null;
@@ -121,10 +119,7 @@ export interface ExpedienteResponse {
   statusHistory: StatusTransition[] | null;
   /** Only in GET /{id}. */
   documentAnalyses: DocumentAnalysis[];
-  /**
-   * Only in GET /{id}; includes PASS results. Empty = no rule ran; `null` = could not be read,
-   * and the UI says so differently.
-   */
+  /** Only in GET /{id}, PASS included. Empty = no rule ran; `null` = could not be read. */
   ruleResults: RuleResult[] | null;
   /** The policy as the insurer DB returned it at classification time, not the current one. */
   policySnapshot: PolicySnapshot | null;

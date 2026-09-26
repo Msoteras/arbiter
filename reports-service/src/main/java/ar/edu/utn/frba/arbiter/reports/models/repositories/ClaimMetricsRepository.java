@@ -38,12 +38,9 @@ import java.util.List;
 import java.util.function.Function;
 
 /**
- * The dashboard's aggregations, counted by the database. Read-only access to other modules' tables,
- * like {@link ResolvedCaseRepository}.
- *
- * <p><b>Queries run on Hibernate's connection, not the pool's:</b> unqualified table names resolve
- * through the tenant {@code search_path}. Over the {@code DataSource} they fail with "relation cases
- * does not exist" in production and pass in tests, where the schema is flat.
+ * The dashboard's aggregations. On Hibernate's connection, not the pool's: unqualified table names
+ * resolve through the tenant {@code search_path} (over the {@code DataSource} they fail in production
+ * and pass in tests, where the schema is flat).
  */
 @Repository
 @RequiredArgsConstructor
@@ -57,8 +54,7 @@ public class ClaimMetricsRepository {
                  ORDER BY case_id, id DESC
             )""";
 
-    // Claim cause always joined: the branch filter hangs off it. The leading newline keeps this off
-    // the SELECT it is concatenated after.
+    // The branch filter hangs off claim cause; the leading newline separates it from the SELECT.
     private static final String FROM_CASES = "\n" + """
               FROM cases c
               JOIN claim_cause cc ON cc.id = c.claim_cause_id""";
@@ -77,7 +73,6 @@ public class ClaimMetricsRepository {
     /** @param fastTrack the case flag is the only trace: a Fast Track leaves no analysis row */
     public record IntakeTotals(long reported, long fastTrack) {}
 
-    /** @param averageSeconds from filing to resolution for this status alone; null when not computable */
     public record ResolvedTotals(String status, long count, Double averageSeconds) {}
 
     @Transactional(readOnly = true)
@@ -159,10 +154,7 @@ public class ClaimMetricsRepository {
         return query(template -> template.query(sql, period(from, to, filter), COUNT_ROW));
     }
 
-    /**
-     * Same precedence as the resolution report: the Fast Track flag, else the newest model run. A claim
-     * still being classified contributes a null label.
-     */
+    /** Fast Track flag first, else the newest model run; a claim still classifying gives null. */
     @Transactional(readOnly = true)
     public List<MetricCount> countByClassification(Instant from, Instant to, MetricsFilter filter) {
         String sql = "WITH " + LATEST_LLM_CTE + """
@@ -174,7 +166,6 @@ public class ClaimMetricsRepository {
         return query(template -> template.query(sql, period(from, to, filter), COUNT_ROW));
     }
 
-    /** The denormalized column on the case, the same one the inbox filters by. */
     @Transactional(readOnly = true)
     public List<MetricCount> countByRiskBand(Instant from, Instant to, MetricsFilter filter) {
         String sql = "SELECT c.risk_band AS label, count(*) AS total" + FROM_CASES
@@ -182,11 +173,7 @@ public class ClaimMetricsRepository {
         return query(template -> template.query(sql, period(from, to, filter), COUNT_ROW));
     }
 
-    /**
-     * @param totalSeconds   filing to decision: the time the insured lived through
-     * @param waitingSeconds the part spent waiting on third parties; null with the total when nothing
-     *                       was decided
-     */
+    /** {@code waitingSeconds} is part of {@code totalSeconds}; both null when nothing was decided. */
     public record ResolutionSplit(Double totalSeconds, Double waitingSeconds) {
 
         public static final ResolutionSplit NONE = new ResolutionSplit(null, null);
@@ -281,10 +268,7 @@ public class ClaimMetricsRepository {
                 LegalDeadline.of(rs.getLong("decided"), rs.getLong("on_time"))));
     }
 
-    /**
-     * A reopening is a final-to-non-final transition. {@code EXISTS}, not a count: it counts reopened
-     * cases, not reopenings.
-     */
+    /** Counts reopened cases ({@code EXISTS}), not reopenings. */
     @Transactional(readOnly = true)
     public ReopeningRate reopeningRate(Instant from, Instant to, MetricsFilter filter) {
         String sql = CaseResolutionSql.RESOLUTION_CTE + """
@@ -429,10 +413,8 @@ public class ClaimMetricsRepository {
     }
 
     /**
-     * Rules that stopped the most claims filed in the period: {@code FAIL} rows only, no advisory checks
-     * ({@link RuleType#advisoryRules()}: they stop nothing), and {@code DISTINCT case_id} because
-     * {@code rule_result} is append-only. Coverage and Fast Track checks carry no {@code rule_id}, so
-     * they are named by type.
+     * {@code FAIL} rows only, no advisory checks, one per case ({@code rule_result} is append-only).
+     * Coverage and Fast Track checks have no {@code rule_id}, so they are named by type.
      */
     @Transactional(readOnly = true)
     public List<MetricCount> countByBlockingRule(Instant from, Instant to, MetricsFilter filter) {
@@ -551,7 +533,6 @@ public class ClaimMetricsRepository {
         return rs.wasNull() ? null : seconds / 3600;
     }
 
-    /** On Hibernate's connection so the tenant search_path applies (see the class Javadoc). */
     private <T> T query(Function<NamedParameterJdbcTemplate, T> work) {
         // suppressClose: the connection is Hibernate's and Hibernate closes it.
         return entityManager.unwrap(Session.class).doReturningWork(connection ->

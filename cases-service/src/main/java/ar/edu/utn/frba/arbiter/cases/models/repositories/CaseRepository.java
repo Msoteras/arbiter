@@ -151,7 +151,6 @@ public interface CaseRepository extends JpaRepository<Case, Long>, JpaSpecificat
                               @Param("expected") CaseState expected,
                               @Param("target") CaseState target);
 
-    /** Cases filed while their document schedule couldn't be read. */
     List<Case> findByDocumentsUnverifiedSinceIsNotNull();
 
     /**

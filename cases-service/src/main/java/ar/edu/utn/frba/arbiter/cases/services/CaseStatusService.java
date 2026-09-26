@@ -36,7 +36,6 @@ public class CaseStatusService {
     /** Waiting on a third party interrupts the art. 56 term. On the enum because reports-service shares it. */
     public static final Set<CaseStatus> PAUSING_STATUSES = Set.copyOf(CaseStatus.pausingTheTerm());
 
-    /** Closed states; the only way out is reopening. */
     public static final Set<CaseStatus> TERMINAL_STATUSES = Set.of(APPROVED, REJECTED, LAPSED);
 
     /**
@@ -168,9 +167,8 @@ public class CaseStatusService {
     }
 
     /**
-     * The art. 56 term restarts in full, not with the remaining days, whenever the case moves from
-     * a stopped status to a running one: a requirement was met, or a closed case was reopened.
-     * Moves between two stopped statuses (e.g. {@code AWAITING_DOCUMENTATION → LAPSED}) don't reset.
+     * The art. 56 term restarts in full when the case moves from a stopped status to a running one; moves
+     * between two stopped statuses (e.g. {@code AWAITING_DOCUMENTATION → LAPSED}) don't reset it.
      */
     private void resumeDeadlineIfInterrupted(Case caseRecord, CaseStatus from, CaseStatus to) {
         if (!isDeadlineRunning(from) && isDeadlineRunning(to)) {

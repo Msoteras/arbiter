@@ -9,7 +9,6 @@ import java.util.List;
  * a visual observation as content.
  *
  * @param visualFindings signs of tampering; they feed the analyst, never a rule
- * @param fields         the same data, typed, so code can compare it
  * @param status         empty fields only mean "the document doesn't say it" when {@link Status#COMPLETE}
  */
 public record DocumentExtraction(

@@ -1,8 +1,7 @@
 import { HardRule } from '../../features/admin/hard-rules.service';
 import { RiskBand } from './risk-band';
 
-// Rules configuration edited by the referent, organized per branch (ramo). Fraud scoring is not
-// here: it is a single per-insurer config (see ScoringConfig).
+// Referent-edited rules, per branch; fraud scoring is per insurer (see ScoringConfig).
 
 export type SettlementBasis = 'SUM_INSURED' | 'LESSER_OF_SUM_AND_REPLACEMENT';
 
@@ -44,7 +43,6 @@ export interface Coverage {
   hardRules?: HardRule[];
 }
 
-/** Deterministic Fast Track gate, configured per branch. */
 export interface FastTrackConfig {
   enabled: boolean;
   minPolicyAgeMonths: number | null;
@@ -62,7 +60,6 @@ export interface FactorWeight {
   weight: number;
 }
 
-/** A band applies when the normalized score is >= minScoreInclusive (0..1). */
 export interface RiskBandCut {
   band: RiskBand;
   minScoreInclusive: number;
@@ -87,7 +84,6 @@ export interface RamoRules {
    */
   coverageCount: number;
   commonExclusions: string[];
-  /** claimCauseId → required document type codes. */
   requiredDocumentsByClaimCause: { [claimCauseId: number]: string[] };
   businessRules: string[];
   fastTrack: FastTrackConfig;

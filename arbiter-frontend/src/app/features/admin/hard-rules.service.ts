@@ -31,10 +31,7 @@ export type InsurerHardRuleType = 'POLICY_IN_FORCE' | 'POLICY_STANDING';
 /** `onArrears`, only meaningful for POLICY_STANDING. */
 export type OnArrears = 'REJECT' | 'STANDBY';
 
-/**
- * A Hard Stop rule as the referente edits it: whether it's active and — only for POLICY_STANDING —
- * what happens when a policy is found in arrears at intake.
- */
+/** A Hard Stop rule: its switch and, only for POLICY_STANDING, what arrears at intake do. */
 export interface InsurerHardRule {
   ruleType: InsurerHardRuleType;
   enabled: boolean;

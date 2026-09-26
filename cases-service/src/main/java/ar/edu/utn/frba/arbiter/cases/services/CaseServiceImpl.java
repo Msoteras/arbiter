@@ -452,7 +452,6 @@ public class CaseServiceImpl implements CaseService {
         return base == null ? extra : base.and(extra);
     }
 
-    /** Open cases with no change at all in the last {@code staleDays} days. */
     private Specification<Case> withStale(Integer staleDays) {
         if (staleDays == null || staleDays <= 0) {
             return null;
@@ -610,7 +609,6 @@ public class CaseServiceImpl implements CaseService {
             activeByAnalyst.put(row.getAnalystId(), row.getTotal());
         }
 
-        // Every analyst of the tenant, those without active cases at zero.
         List<AnalystWorkloadResponse> workload = new ArrayList<>();
         for (ClaimsAnalyst analyst : claimsAnalystRepository.findAll()) {
             workload.add(new AnalystWorkloadResponse(
@@ -725,10 +723,7 @@ public class CaseServiceImpl implements CaseService {
         resolve(entity, targetStatus, analyst.getId(), request.decision(), request.justification());
     }
 
-    /**
-     * Shared by the direct approval and the referent's later authorization, so both leave the
-     * same trail.
-     */
+    /** Shared by the direct approval and the referent's later authorization, so both leave the same trail. */
     private void resolve(Case entity, CaseStatus targetStatus, Long analystId,
                          String decision, String justification) {
         // The attempt count lives here and the audit record keeps its final value. The settlement
@@ -744,10 +739,7 @@ public class CaseServiceImpl implements CaseService {
                 StatusChangeActor.ANALYST, "decisión del analista: " + decision);
     }
 
-    /**
-     * Records the decision with the justification the analyst left held, then approves the case,
-     * which triggers the email with the amount.
-     */
+    /** Records the held decision with its justification, then approves the case (which emails the amount). */
     @Override
     @Transactional
     public void authorizeSettlement(Long caseId) {

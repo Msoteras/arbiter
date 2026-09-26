@@ -6,11 +6,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.NullNode;
 
 /**
- * The auditable state of a rule when it was replaced: the configuration plus {@code active} and
- * {@code blocksFastTrack}, since toggling a rule changes nothing in its configuration.
+ * The configuration plus {@code active} and {@code blocksFastTrack}: toggling a rule leaves its
+ * configuration untouched.
  *
- * @param legacy the row holds only the bare configuration and never recorded {@code active};
- *               reading it as {@code false} would invent a change
+ * @param legacy the row never recorded {@code active}; reading it as {@code false} would invent a change
  */
 public record InsurerRuleSnapshot(
         boolean active, boolean blocksFastTrack, JsonNode configuration, boolean legacy) {

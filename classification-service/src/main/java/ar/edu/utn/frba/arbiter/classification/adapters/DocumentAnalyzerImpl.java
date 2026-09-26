@@ -138,7 +138,6 @@ public class DocumentAnalyzerImpl implements DocumentAnalyzer {
                 && content[0] == '%' && content[1] == 'P' && content[2] == 'D' && content[3] == 'F';
     }
 
-    /** Diagnostic: the format signature of what actually arrived. */
     private String magicBytesHex(byte[] content) {
         int len = Math.min(content.length, 16);
         StringBuilder sb = new StringBuilder();
@@ -278,9 +277,8 @@ public class DocumentAnalyzerImpl implements DocumentAnalyzer {
     }
 
     /**
-     * What's left of a broken answer, without findings or fields: silence beats a made-up finding. The
-     * transcription is salvaged from truncated JSON, or kept if the answer is prose; a JSON that yields
-     * nothing is never shown.
+     * What's left of a broken answer: the salvageable transcription, never findings or fields (silence
+     * beats a made-up finding).
      */
     private DocumentExtraction degrade(String content) {
         String salvaged = clean(salvageTranscription(content));
@@ -381,9 +379,8 @@ public class DocumentAnalyzerImpl implements DocumentAnalyzer {
     }
 
     /**
-     * Back to the catalog's own spelling, or null. A provider that ignores the schema's enum could return
-     * "hurto" or something off the list, and an unmatched value must read as "the document doesn't say",
-     * never as a different cause.
+     * Back to the catalog's spelling, or null: a provider ignoring the schema's enum could return anything,
+     * and an unmatched value must read as "the document doesn't say", never as a different cause.
      */
     private String matchClaimCause(String raw, List<String> claimCauses) {
         if (raw == null || raw.isBlank()) {

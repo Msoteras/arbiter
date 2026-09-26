@@ -49,9 +49,8 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * The referente's history of rule changes, read-only over the two append-only audit tables. A stored
- * row is the version that ended, so each change pairs it with its successor. Merged and paged in
- * memory: a SQL page would cut a rule's version chain, and there are a few dozen rules per insurer.
+ * Merged and paged in memory: a SQL page would cut a rule's version chain, and there are a few dozen
+ * rules per insurer.
  */
 @Service
 @RequiredArgsConstructor
@@ -89,7 +88,6 @@ public class RuleChangeHistoryService {
      *
      * @param ruleType null for every type; a {@code RuleType} literal or {@value #SCORING_RULE_TYPE}
      * @param branchId insurer-wide rules have no branch, so setting it leaves them out
-     * @param to       exclusive
      */
     @Transactional(readOnly = true)
     public Page<RuleChangeEntry> find(String ruleType, Long branchId, Instant from, Instant to, Pageable pageable) {

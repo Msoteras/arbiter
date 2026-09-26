@@ -161,10 +161,7 @@ class CaseServiceImplTest {
     @InjectMocks
     private CaseServiceImpl caseService;
 
-    /**
-     * By default the policy has a single contracted coverage answering for any cause; coverage
-     * resolution itself is tested in {@link PolicyCoverageResolverTest}.
-     */
+    /** One coverage answers for any cause; its resolution is tested in {@link PolicyCoverageResolverTest}. */
     @BeforeEach
     void oneContractedCoverageByDefault() {
         lenient().when(policyCoverageResolver.resolveFor(any(), any()))
@@ -182,10 +179,7 @@ class CaseServiceImplTest {
         lenient().when(caseDocumentAnalysisRepository.findByCaseId(any())).thenReturn(List.of());
     }
 
-    /**
-     * By default the coverage has no fast-track document list, so the gate falls back to the whole
-     * document schedule; tests of the minimal list override it.
-     */
+    /** No fast-track document list by default, so the gate falls back to the whole schedule. */
     @BeforeEach
     void noFastTrackDocumentListByDefault() {
         lenient().when(rulesServiceClient.fastTrackDocumentTypes(any())).thenReturn(List.of());
@@ -203,10 +197,7 @@ class CaseServiceImplTest {
                 .thenAnswer(invocation -> invocation.getArgument(2, Supplier.class).get());
     }
 
-    /**
-     * Filing requires the payload DNI to match the token's, so every createCase test needs a caller
-     * with {@link #caseRequest()}'s DNI; rejection tests override it.
-     */
+    /** Filing requires the payload DNI to match the token's; rejection tests override this caller. */
     @BeforeEach
     void callerIsTheInsuredFiling() {
         CallerContext.set(new CallerContext.Caller(CALLER_DNI, List.of(1L), "arbiter_bbva"));
@@ -338,8 +329,7 @@ class CaseServiceImplTest {
     @Test
     void createCase_unresolvablePolicy_throwsAndPersistsNothing() {
         CaseRequest request = caseRequest();
-        // The insured is resolved before the policy (on-demand sync needs an owner to point at), so
-        // this test needs it even though it doesn't exercise it.
+        // Resolved before the policy (on-demand sync needs an owner), so needed even if not exercised.
         Insured insured = CaseFixtures.insured(CALLER_DNI, "Laura", "Fernández");
         insured.setId(1L);
         when(referenceResolver.resolveInsured(CALLER_DNI)).thenReturn(insured);
@@ -370,8 +360,7 @@ class CaseServiceImplTest {
 
     @Test
     void createCase_callerWithoutDni_isRejected() {
-        // Analysts and referents have no `insured` row, so their token carries no DNI. The
-        // controller already blocks the role; this checks the service doesn't let a null through.
+        // Analysts and referents carry no DNI; the controller blocks the role, this checks for a null.
         CallerContext.set(new CallerContext.Caller(null, List.of(1L), "arbiter_bbva"));
 
         assertThatThrownBy(() -> caseService.createCase(caseRequest(), null))
@@ -382,8 +371,7 @@ class CaseServiceImplTest {
 
     @Test
     void createCase_policyBelongingToAnotherInsured_isRejected() {
-        // Each resolves fine on its own; what doesn't exist is the pair. Explicit ids because the
-        // pair is exactly what's compared.
+        // Each resolves fine alone; what doesn't exist is the pair, hence the explicit ids.
         Insured insured = CaseFixtures.insured(CALLER_DNI, "Laura", "Fernández");
         insured.setId(7L);
         Policy someoneElsesPolicy = CaseFixtures.policy("POL-CEL-2024-001", "Celular Protegido Básico");
@@ -456,8 +444,7 @@ class CaseServiceImplTest {
 
     @Test
     void getCase_joinsTheClassificationFromLlmAnalysis() {
-        // The recommendation comes from the join, and reasons travel one per row (llm_reason), not
-        // flattened into a string.
+        // The recommendation comes from the join; reasons travel one per row, not flattened.
         Case entity = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
         when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
         when(caseAnalysisRepository.findByCaseId(1L)).thenReturn(new CaseAnalysis(
@@ -475,8 +462,7 @@ class CaseServiceImplTest {
 
     @Test
     void getCase_fastTracked_reportsFastTrackWithoutAnLlmRow() {
-        // Fast Track leaves no llm_analysis row (the table's CHECK rejects FAST_TRACK), so the
-        // classification must come from was_fast_track or it would read as unclassified.
+        // Fast Track leaves no llm_analysis row, so the classification must come from was_fast_track.
         Case entity = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
         entity.setDeterministicFastTrack(true);
         when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
@@ -485,15 +471,13 @@ class CaseServiceImplTest {
 
         assertThat(response.analysisClassification()).isEqualTo(Classification.FAST_TRACK);
         assertThat(response.analysisConfidence()).isEqualTo(1.0);
-        // No reasons of its own: any llm_reason rows belong to a previous run and aren't Fast
-        // Track's.
+        // Any llm_reason rows belong to a previous run, not to the Fast Track.
         assertThat(response.analysisReasons()).isEmpty();
     }
 
     @Test
     void getCase_beingReclassified_doesNotSurfaceThePreviousRun() {
-        // llm_analysis is append-only: while reclassifying, the old run is still the latest row.
-        // Showing it would claim a current recommendation exactly when there is none.
+        // Append-only: while reclassifying, the old run is still the latest row and must not show.
         Case entity = caseRecord(1L, CaseStatus.PENDING_CLASSIFICATION);
         when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
         when(caseAnalysisRepository.findByCaseId(1L)).thenReturn(new CaseAnalysis(
@@ -574,8 +558,7 @@ class CaseServiceImplTest {
 
     @Test
     void addDocumentsAndReclassify_someoneElsesCase_isRejected() {
-        // Same ownership check as reads, failing as 404 rather than 403 so as not to confirm the
-        // case exists.
+        // Same ownership check as reads: 404, not 403, so as not to confirm the case exists.
         Case someoneElses = caseRecord(1L, CaseStatus.AWAITING_DOCUMENTATION);
         when(caseRepository.findById(1L)).thenReturn(Optional.of(someoneElses));
         doThrow(new CaseNotFoundException(1L)).when(accessPolicy).assertCanRead(someoneElses);
@@ -761,8 +744,7 @@ class CaseServiceImplTest {
 
     @Test
     void assignAnalyst_calledByReferent_attributesTheHistoryRowToTheReferent() {
-        // The endpoint is shared by ANALISTA_SINIESTROS and REFERENTE_ASEGURADORA: the history can't
-        // attribute everything to the analyst.
+        // Shared by analysts and referents: the history can't attribute everything to the analyst.
         Case entity = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
         when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
         when(claimsAnalystRepository.findById(7L)).thenReturn(Optional.of(analyst(7L, "Lucas", "Gómez")));
@@ -797,8 +779,7 @@ class CaseServiceImplTest {
 
     @Test
     void assignAnalyst_analystOutsideTheTenant_throwsNotFound() {
-        // claims_analyst is per schema: another insurer's analyst isn't in this table, which is why
-        // isolation needs no separate check.
+        // claims_analyst is per schema, so another insurer's analyst simply isn't there.
         Case entity = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
         when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
         when(claimsAnalystRepository.findById(404L)).thenReturn(Optional.empty());
@@ -843,8 +824,7 @@ class CaseServiceImplTest {
 
         caseService.reopenCase(1L, "el analista se equivocó");
 
-        // The reason is stored prefixed: it's all the history keeps, and without the prefix a
-        // reopening row would read like any decision reason.
+        // Stored prefixed, or a reopening row would read like any decision reason.
         verify(caseStatusService).transition(entity, CaseStatus.PENDING_ANALYST_REVIEW,
                 StatusChangeActor.ANALYST, "expediente reabierto: el analista se equivocó");
     }
@@ -944,9 +924,8 @@ class CaseServiceImplTest {
 
         caseService.recordAnalystDecision(1L, request);
 
-        // Forwarded with the analyst resolved from the JWT (not the request) and the case's retry
-        // counter, which the frontend doesn't know and case_classification freezes. The settlement
-        // does NOT travel: money is this module's record; classification-service audits the verdict.
+        // The analyst comes from the JWT and the retry counter from the case. The settlement doesn't
+        // travel: classification-service audits the verdict, not the money.
         verify(claimsAnalysisClient).forwardAnalystDecision(1L,
                 new AnalystDecisionRequest(7L, "APPROVE", "Documentación completa", entity.getClassificationAttempts(), null));
         verify(settlementService).confirm(entity, 7L, "Documentación completa", settlement);
@@ -955,8 +934,8 @@ class CaseServiceImplTest {
     }
 
     /**
-     * Above the analyst's settlement authority the approval is NOT recorded yet: otherwise the case
-     * would carry a verdict with no effect, and two decisions if the referent returns the settlement.
+     * Above the analyst's authority the approval isn't recorded yet, or a referent return would leave
+     * two decisions.
      */
     @Test
     void recordAnalystDecision_settlementOverTheAttribution_holdsTheDecisionAndTheCase() {
@@ -992,8 +971,7 @@ class CaseServiceImplTest {
         caseService.authorizeSettlement(1L);
 
         verify(settlementService).markAuthorized(1L, 3L);
-        // The decision is attributed to the ANALYST who made it, not the referent who signed: the
-        // verdict is still theirs, the referent authorized the amount.
+        // Attributed to the analyst who decided, not to the referent who authorized the amount.
         verify(claimsAnalysisClient).forwardAnalystDecision(1L, new AnalystDecisionRequest(
                 7L, "APPROVE", "Monto alto pero documentado", entity.getClassificationAttempts(), null));
         verify(caseStatusService).transition(eq(entity), eq(CaseStatus.APPROVED),
@@ -1567,10 +1545,7 @@ class CaseServiceImplTest {
         return insured;
     }
 
-    /**
-     * Every createCase test needs the four lookups to resolve; what varies is only what each one
-     * then asserts. Mirrors the graph {@link #caseRecord} builds.
-     */
+    /** The four lookups every createCase test needs; mirrors the graph {@link #caseRecord} builds. */
     private void stubReferenceResolution() {
         Insured insured = stubPolicyAndInsuredResolution();
         when(referenceResolver.applyDeclaredDetails(any(), any())).thenReturn(insured);

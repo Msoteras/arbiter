@@ -408,11 +408,7 @@ export class ReglasComponent {
     });
   }
 
-  /**
-   * Loads the branch's coverages for the Fast Track selector and the persisted config of the first
-   * one, overlaid on the draft so the referente sees what's stored. Best-effort: if it fails the
-   * draft keeps its defaults. Only for branches with a real branchId.
-   */
+  /** The branch's coverages for the selector, plus the first one's stored config. Best-effort. */
   private loadFastTrackFromBackend(r: RamoRules): void {
     const branchId = this.branchIdOf(r);
     if (branchId == null) {
@@ -438,10 +434,7 @@ export class ReglasComponent {
     });
   }
 
-  /**
-   * Switching coverage replaces the whole tab's content. With unsaved changes the selector is
-   * disabled (see the template), so this never drops an edit silently.
-   */
+  /** Replaces the whole tab; with unsaved changes the selector is disabled, so no edit drops silently. */
   protected selectFtCoverage(value: string): void {
     const d = this.draft();
     const branchId = d ? this.branchIdOf(d) : null;
@@ -1090,10 +1083,7 @@ export class ReglasComponent {
     return type === 'POLICE_DEADLINE' ? 'horas' : type === 'MAX_EVENTS_YEAR' ? 'por año' : 'días';
   }
 
-  /**
-   * Unifies access: three thresholds are coverage columns (contract terms) and the police deadline
-   * lives on the rule itself.
-   */
+  /** Three thresholds are coverage columns; the police deadline lives on the rule itself. */
   protected hardRuleValue(c: Coverage, type: HardRuleType): string {
     switch (type) {
       case 'WAITING_PERIOD':
@@ -1284,10 +1274,7 @@ export class ReglasComponent {
     this.patch({ businessRules: items });
   }
 
-  /**
-   * Saves the Fast Track of the coverage picked in the selector, and only that one: every coverage
-   * has its own FAST_TRACK rule, because each demands different documents.
-   */
+  /** Only the coverage picked in the selector: each has its own FAST_TRACK rule. */
   protected saveFastTrack(): void {
     const d = this.draft();
     if (!d || this.ftSaving()) {

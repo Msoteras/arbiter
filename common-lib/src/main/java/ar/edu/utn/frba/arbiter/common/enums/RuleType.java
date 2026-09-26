@@ -3,9 +3,8 @@ package ar.edu.utn.frba.arbiter.common.enums;
 import java.util.List;
 
 /**
- * Rule vocabulary shared by {@code insurer_rule.rule_type} (VARCHAR(20), hence {@link #POLICE_DEADLINE})
- * and {@code rule_result.rule_type}. Configuration types are never evaluated; hard rules and
- * {@code FT_*} criteria leave an auditable {@code rule_result}; advisory checks only flag something.
+ * Shared by {@code insurer_rule.rule_type} (VARCHAR(20), hence {@link #POLICE_DEADLINE}) and
+ * {@code rule_result.rule_type}.
  */
 public enum RuleType {
 
@@ -19,7 +18,6 @@ public enum RuleType {
     /** A management target read by reports-service, not the legal deadline ({@code response_deadline}). */
     RESOLUTION_TARGET,
 
-    /** Blacklist of claim causes the coverage doesn't cover. */
     COVERAGE_EXCLUSION,
 
     POLICY_IN_FORCE,
@@ -34,18 +32,15 @@ public enum RuleType {
     /** Over the trailing 12 months, per branch. */
     MAX_EVENTS_YEAR,
 
-    /**
-     * Seeded inactive: the referente turns it on. No tiered arrears (1/2/3 unpaid installments): no
-     * schema has an installment ledger.
-     */
+    /** Seeded inactive. No tiered arrears: no schema has an installment ledger. */
     POLICY_STANDING,
 
     /** Without an active row fraud records are ignored; {@code windowMonths} sets how long one counts. */
     FRAUD_RECORD,
 
     /**
-     * This and {@link #CLAIM_EXHAUSTS_COVERAGE} are {@code coverage} columns, not {@code insurer_rule}
-     * rows, which is why {@code rule_result.rule_id} is nullable.
+     * Like {@link #CLAIM_EXHAUSTS_COVERAGE}, a {@code coverage} column with no rule row, hence the
+     * nullable {@code rule_result.rule_id}.
      */
     COVERS_FAMILY_GROUP,
 
@@ -63,10 +58,7 @@ public enum RuleType {
 
     FT_REQUIRED_DOCS,
 
-    /**
-     * Advisory: the Fast Track path never runs the LLM, so this is its only check of the narrative
-     * against the declared cause. It never blocks.
-     */
+    /** Advisory, and the Fast Track path's only check of the narrative against the declared cause. */
     CLAIM_CAUSE_MATCH;
 
     /** {@link #COVERAGE_EXCLUSION} is left out: it is configured per coverage with its own selector. */
@@ -85,10 +77,7 @@ public enum RuleType {
     }
 
 
-    /**
-     * A FAIL warns the analyst but stops nothing: reports leave them out of the blocking rules and the
-     * case detail shows them apart.
-     */
+    /** A FAIL warns the analyst but stops nothing. */
     public static List<RuleType> advisoryRules() {
         return List.of(CLAIM_CAUSE_MATCH);
     }

@@ -2,10 +2,7 @@ package ar.edu.utn.frba.arbiter.reports.models.repositories;
 
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 
-/**
- * Resolution date and time waiting on third parties, shared so the dashboard and the resolution
- * report agree. {@link #RESOLUTION_CTE} opens the {@code WITH}; the rest join with {@code ",\n"}.
- */
+/** Shared so the dashboard and the resolution report agree. {@link #RESOLUTION_CTE} opens the WITH. */
 final class CaseResolutionSql {
 
     /**

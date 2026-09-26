@@ -4,8 +4,7 @@ import java.util.List;
 
 /**
  * @param webSearchesPerformed tells "not searched" apart from "searched and found nothing"
- * @param imageConsent         kept for Ley 25.326 audits; null means not recorded (older reports),
- *                             never a refusal
+ * @param imageConsent         for Ley 25.326 audits; null means not recorded, never a refusal
  */
 public record ImageForensicReport(
         int imagesAnalyzed,
@@ -14,10 +13,7 @@ public record ImageForensicReport(
         List<ImageFinding> findings
 ) {
 
-    /**
-     * @param documentType the {@code case_documents.type}, unique per case: what the UI joins on
-     * @param webFinding   null when the web was not searched for this image
-     */
+    /** @param documentType the {@code case_documents.type}, unique per case: what the UI joins on */
     public record ImageFinding(
             String label,
             String documentType,
@@ -25,7 +21,6 @@ public record ImageForensicReport(
             WebFinding webFinding
     ) {}
 
-    /** @param similarity cosine similarity in [0,1] */
     public record InternalMatch(
             Long matchedCaseId,
             String matchedDocumentType,

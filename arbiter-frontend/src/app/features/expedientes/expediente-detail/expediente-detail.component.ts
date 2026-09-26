@@ -356,10 +356,7 @@ export class ExpedienteDetailComponent {
     return d ? clasificacionTone(d.analysisClassification) : 'neutral';
   });
 
-  /**
-   * Only shown when there is something to look at: MATCHES adds nothing and null means the check
-   * didn't run.
-   */
+  /** Only with something to look at: MATCHES adds nothing and null means it didn't run. */
   protected readonly showCauseConsistency = computed(() =>
     shouldSurfaceCauseConsistency(this.data()?.causeConsistency),
   );
@@ -379,10 +376,7 @@ export class ExpedienteDetailComponent {
     return d ? Math.round(d.analysisConfidence * 100) : 0;
   });
 
-  /**
-   * Empty for Fast Track / missing documentation (rules gate, not the LLM) or before
-   * classification; the tab is hidden then.
-   */
+  /** Empty for Fast Track, missing documentation or before classification; the tab is hidden then. */
   protected readonly analysisReasons = computed<string[]>(() =>
     (this.data()?.analysisReasons ?? []).map(conLabelesDeDocumento),
   );
@@ -641,7 +635,6 @@ export class ExpedienteDetailComponent {
 
   protected readonly history = computed<StatusTransition[]>(() => this.data()?.statusHistory ?? []);
 
-  /** Only when forensic analysis actually ran on some image. */
   protected readonly hayAnalisisImagenes = computed(
     () => (this.data()?.forensicReport?.findings?.length ?? 0) > 0,
   );
@@ -702,11 +695,7 @@ export class ExpedienteDetailComponent {
     { id: 'historial' as TabId, label: 'Historial' },
   ]);
 
-  /**
-   * Unread messages from the insured. Fetched apart from the case and not as one more
-   * `CaseResponse` field: the same DTO builds the inbox, so counting per row would be one query
-   * per listed case.
-   */
+  /** Fetched apart: counting per row in the shared `CaseResponse` would cost a query per inbox case. */
   protected readonly unreadMessages = signal(0);
   private readonly selectedTab = signal<TabId>('resumen');
 
@@ -868,7 +857,6 @@ export class ExpedienteDetailComponent {
     () => this.settlement()?.status === 'PENDING_AUTHORIZATION',
   );
 
-  /** Returned by the supervisor, with a reason to fix. */
   protected readonly liquidacionDevuelta = computed(() => this.settlement()?.status === 'RETURNED');
 
   /** Computed on the proposal, so the analyst learns before confirming that it needs sign-off. */
@@ -1151,9 +1139,8 @@ export class ExpedienteDetailComponent {
   );
 
   /**
-   * Same owner rule as `puedeDerivar`: the backend refuses anyone but the assigned analyst. And
-   * `eligible` is only true when the claim cause admits repair and there is a repair shop to send
-   * it to; while loading or on error it is null, so the button stays hidden.
+   * Owner only, like `puedeDerivar`. `eligible` is true only when the cause admits repair and there is a
+   * shop to send it to; null while loading or on error, so the button stays hidden.
    */
   protected readonly puedeDerivarAReparacion = computed(
     () =>
@@ -1229,7 +1216,6 @@ export class ExpedienteDetailComponent {
       : 'neutral';
   });
 
-  /** Referrals that already came back. */
   protected readonly derivacionesRespondidas = computed(() =>
     this.derivaciones().filter((p) => p.verdict || p.repairOutcome),
   );
@@ -1672,10 +1658,7 @@ export class ExpedienteDetailComponent {
       .map((a) => ({ value: String(a.id), label: `${a.nombre} ${a.apellido}` }));
   });
 
-  /**
-   * Per-tenant analyst id, found by email in the tenant-scoped analyst list (the session only has
-   * the user id). Null for the supervisor.
-   */
+  /** Per-tenant analyst id, found by email (the session only has the user id). Null for the supervisor. */
   private readonly myAnalystId = computed<number | null>(() => {
     const email = this.session.session()?.email;
     return this.analysts().find((a) => a.email === email)?.id ?? null;

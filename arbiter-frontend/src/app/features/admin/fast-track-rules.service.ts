@@ -9,10 +9,7 @@ export interface CoverageOption {
   name: string;
 }
 
-/**
- * Mirrors rules-service FastTrackConfigDto: the thresholds of the deterministic Fast Track gate.
- * A null field means that criterion doesn't apply.
- */
+/** Mirrors rules-service FastTrackConfigDto; a null field means that criterion doesn't apply. */
 export interface FastTrackConfigDto {
   maxClaimedAmountRatio: number | null;
   maxPriorClaims: number | null;

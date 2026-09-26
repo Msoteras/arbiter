@@ -8,7 +8,6 @@ import ar.edu.utn.frba.arbiter.rules.models.repositories.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
-/** Turns the actor's email (from the JWT) into the ids the audit columns point at. */
 @Component
 @RequiredArgsConstructor
 public class RuleAuthorResolver {

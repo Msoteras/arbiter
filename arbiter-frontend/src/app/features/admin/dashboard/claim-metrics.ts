@@ -62,7 +62,6 @@ export interface IntakeFunnel {
   analyzed: number;
   decided: number;
   fastTrack: number;
-  /** Without a final status as of today. */
   stillOpen: number;
 }
 
@@ -127,7 +126,6 @@ export interface FraudDetection {
   decided: number;
   /** Determined by the analyst, not the risk band. */
   fraudDetermined: number;
-  /** Of those, the ones confirmed by an expert report. */
   backedByExpert: number;
   /** Claimed amount of the rejected ones only: nothing was saved on approved ones. */
   amountNotPaid: string;

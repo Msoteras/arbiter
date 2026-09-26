@@ -416,10 +416,7 @@ export class DashboardComponent {
     return `Objetivo: ${target.targetDays} d de gestión · ${target.exceeded} de ${decided} lo superaron`;
   }
 
-  /**
-   * Shown only from one hour of waiting: below that it's a case passing briefly through a waiting
-   * status, and the line would just say "0 h".
-   */
+  /** Only from one hour of waiting: below that the line would just say "0 h". */
   protected readonly waitingBreakdown = computed(() => {
     const summary = this.data()?.summary;
     const total = summary?.averageResolutionHours;
@@ -482,7 +479,6 @@ export class DashboardComponent {
     };
   });
 
-  /** null when there was no fraud in the period. */
   protected readonly fraud = computed(() => {
     const fraud = this.data()?.fraud;
     if (!fraud || fraud.fraudDetermined === 0) {
