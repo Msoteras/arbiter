@@ -245,7 +245,7 @@ class RuleChangeHistoryServiceTest {
 
     /** A creator with no referente profile is still a user: shown by email, never left blank. */
     @Test
-    void showsTheCreatorsEmailWhenTheyHaveNoReferenteProfile() {
+    void showsTheCreatorsEmailWhenTheyHaveNoReferentProfile() {
         InsurerRule rule = policeDeadlineRule("{\"deadlineHours\":72}", true);
         rule.setCreatedBy(9L);
         when(ruleRepository.findAllForHistory()).thenReturn(List.of(rule));
@@ -496,7 +496,7 @@ class RuleChangeHistoryServiceTest {
 
     /** Without a referente profile behind the email, the email itself is the author. */
     @Test
-    void showsTheEmailWhenTheReasonNamesNoReferente() {
+    void showsTheEmailWhenTheReasonNamesNoReferent() {
         InsurerRule rule = policeDeadlineRule("{\"deadlineHours\":120}", true);
         when(ruleHistoryRepository.findAllForHistory()).thenReturn(List.of(
                 history(1L, rule, T1, T2, "{\"active\":true,\"blocksFastTrack\":true,"

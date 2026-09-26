@@ -170,20 +170,20 @@ class CaseRepositorySpecificationTests extends AbstractPersistenceIT {
      * {@code FETCH} would leave lazy).
      */
     @Test
-    void elListadoTraeTodoLoQueElMapeoNavegaConLaSesionCerrada() {
+    void listingLoadsEverythingTheMappingNavigatesAfterTheSessionCloses() {
         // Before the query, or the seed leaves the graph in the cache and the test always passes.
         entityManager.flush();
         entityManager.clear();
 
-        List<Case> porPagina = caseRepository.findAll(
+        List<Case> byPage = caseRepository.findAll(
                 CaseSpecifications.withFilters(null, null, null, null, null, null, null, null, null),
                 FIRST_PAGE).getContent();
-        List<Case> porSort = caseRepository.findAll(
+        List<Case> bySort = caseRepository.findAll(
                 CaseSpecifications.withFilters(null, null, null, "40.123.456", null, null, null, null, null),
                 Sort.unsorted());
         entityManager.clear();
 
-        assertThatCode(() -> Stream.concat(porPagina.stream(), porSort.stream()).forEach(entity -> {
+        assertThatCode(() -> Stream.concat(byPage.stream(), bySort.stream()).forEach(entity -> {
             entity.getClaimCause().getName();
             entity.getClaimCause().getBranch().getName();
             entity.getInsured().getDni();

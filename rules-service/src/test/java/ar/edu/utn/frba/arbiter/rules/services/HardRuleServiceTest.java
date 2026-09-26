@@ -137,7 +137,7 @@ class HardRuleServiceTest {
 
     /** The snapshot points at the referente who made the change; the reason keeps naming them too. */
     @Test
-    void historyRecordsTheReferenteWhoMadeTheChange() {
+    void historyRecordsTheReferentWhoMadeTheChange() {
         InsurerRule existing = rule(7L, RuleType.POLICE_DEADLINE, true, "{\"deadlineHours\":72}");
         when(ruleRepository.findFirstByBranch_IdAndCoverageIdAndRuleType(1L, 1L, "POLICE_DEADLINE"))
                 .thenReturn(Optional.of(existing));

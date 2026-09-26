@@ -352,7 +352,7 @@ class ExpertAssessmentServiceTest {
     }
 
     @Test
-    void deriveToRepair_movesTheCaseToPendingRepair_withoutAskingForThePeritajeThreshold() {
+    void deriveToRepair_movesTheCaseToPendingRepair_withoutAskingForTheExpertAssessmentThreshold() {
         Case caseRecord = caseAwaitingReview();
         when(caseRepository.findById(CASE_ID)).thenReturn(Optional.of(caseRecord));
         when(claimsAnalystRepository.findByEmail(ANALYST_EMAIL)).thenReturn(Optional.of(analyst()));

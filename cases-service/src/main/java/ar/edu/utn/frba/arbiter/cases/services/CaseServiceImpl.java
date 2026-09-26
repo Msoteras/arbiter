@@ -162,7 +162,7 @@ public class CaseServiceImpl implements CaseService {
 
     private CaseResponse createCaseInIssuingTenant(CaseRequest request, Map<String, MultipartFile> documents) {
         // Validated rather than silently overwritten: a mismatch means the client sent something wrong.
-        assertFilingOwnDenuncia(request.insuredId());
+        assertFilingOwnClaim(request.insuredId());
 
         // The insured resolves first: an unsynced policy imported from the insurer DB needs a holder.
         Insured insured = referenceResolver.applyDeclaredDetails(
@@ -284,7 +284,7 @@ public class CaseServiceImpl implements CaseService {
      * {@code applyDeclaredDetails}: contact details aren't persisted before the claim is submitted.
      */
     private EligibilityCheckResponse checkEligibilityInIssuingTenant(EligibilityCheckRequest request) {
-        assertFilingOwnDenuncia(request.insuredId());
+        assertFilingOwnClaim(request.insuredId());
         try {
             Insured insured = referenceResolver.resolveInsured(request.insuredId());
             Policy policy = referenceResolver.resolvePolicy(request.policyNumber(), insured.getId());
@@ -311,7 +311,7 @@ public class CaseServiceImpl implements CaseService {
      * The DNI comes from the signed token, never the request. A caller with no DNI isn't an
      * insured, so this refuses them too rather than letting them through on a null.
      */
-    private void assertFilingOwnDenuncia(String declaredInsuredId) {
+    private void assertFilingOwnClaim(String declaredInsuredId) {
         String callerDni = CallerContext.get().insuredId();
         if (callerDni == null || !callerDni.equals(declaredInsuredId)) {
             throw new InsuredIdentityMismatchException();

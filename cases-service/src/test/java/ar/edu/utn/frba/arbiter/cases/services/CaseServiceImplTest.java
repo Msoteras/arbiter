@@ -358,7 +358,7 @@ class CaseServiceImplTest {
     // ─────────── Filing on someone else's behalf ───────────
 
     @Test
-    void createCase_denunciaOnBehalfOfAnotherInsured_isRejected() {
+    void createCase_claimOnBehalfOfAnotherInsured_isRejected() {
         CallerContext.set(new CallerContext.Caller("42.987.654", List.of(1L), "arbiter_bbva"));
 
         assertThatThrownBy(() -> caseService.createCase(caseRequest(), null))
@@ -616,7 +616,7 @@ class CaseServiceImplTest {
      * doesn't see internal steps). Only the settlement status tells them apart in the inbox.
      */
     @Test
-    void listCases_tellsApartTheOnesWaitingForTheReferente() {
+    void listCases_tellsApartTheOnesWaitingForTheReferent() {
         Case despachado = caseRecord(2L, CaseStatus.PENDING_ANALYST_REVIEW);
         Case pendiente = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
         Pageable pageable = PageRequest.of(0, 20);

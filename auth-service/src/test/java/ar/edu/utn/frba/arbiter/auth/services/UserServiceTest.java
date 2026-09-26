@@ -105,7 +105,7 @@ class UserServiceTest {
                 authService);
     }
 
-    private CreateUserRequest analistaRequest() {
+    private CreateUserRequest analystRequest() {
         return new CreateUserRequest("nuevo.analista@arbiter.test", "Lucas", "Gómez", UserRole.ANALISTA_SINIESTROS);
     }
 
@@ -134,7 +134,7 @@ class UserServiceTest {
             return u;
         });
 
-        UserResponse response = userService.createUser(analistaRequest(), "referente@arbiter.test");
+        UserResponse response = userService.createUser(analystRequest(), "referente@arbiter.test");
 
         assertThat(response.id()).isEqualTo(42L);
         assertThat(response.email()).isEqualTo("nuevo.analista@arbiter.test");
@@ -161,12 +161,12 @@ class UserServiceTest {
         when(userRepository.findByEmail("nuevo.analista@arbiter.test"))
                 .thenReturn(Optional.of(User.builder().id(1L).build()));
 
-        assertThatThrownBy(() -> userService.createUser(analistaRequest(), "referente@arbiter.test"))
+        assertThatThrownBy(() -> userService.createUser(analystRequest(), "referente@arbiter.test"))
                 .isInstanceOf(EmailAlreadyExistsException.class);
     }
 
     @Test
-    void createUser_roleOtherThanAnalista_throwsRoleNotAllowed() {
+    void createUser_roleOtherThanAnalyst_throwsRoleNotAllowed() {
         userService = userService(Optional.empty());
         CreateUserRequest request = new CreateUserRequest(
                 "asegurado@arbiter.test", "Martina", "Fernández", UserRole.ASEGURADO);
@@ -181,7 +181,7 @@ class UserServiceTest {
         doThrow(new InvalidEmailDomainException("nuevo.analista@arbiter.test"))
                 .when(emailDomainValidator).validate("nuevo.analista@arbiter.test");
 
-        assertThatThrownBy(() -> userService.createUser(analistaRequest(), "referente@arbiter.test"))
+        assertThatThrownBy(() -> userService.createUser(analystRequest(), "referente@arbiter.test"))
                 .isInstanceOf(InvalidEmailDomainException.class);
 
         verify(userRepository, never()).save(any());
@@ -200,7 +200,7 @@ class UserServiceTest {
         });
         doThrow(new RuntimeException("SendGrid down")).when(sendGridAdapter).send(anyString(), anyString(), anyString());
 
-        assertThatThrownBy(() -> userService.createUser(analistaRequest(), "referente@arbiter.test"))
+        assertThatThrownBy(() -> userService.createUser(analystRequest(), "referente@arbiter.test"))
                 .isInstanceOf(RuntimeException.class);
 
         ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
@@ -484,8 +484,8 @@ class UserServiceTest {
                 .roles(new HashSet<>(Set.of(analystRole()))).build();
         when(userRepository.findById(7L)).thenReturn(Optional.of(target));
         when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
-        Role referenteRole = Role.builder().id(3L).code("REFERENTE_ASEGURADORA").name("Referente de aseguradora").build();
-        when(roleRepository.findByCode("REFERENTE_ASEGURADORA")).thenReturn(Optional.of(referenteRole));
+        Role referentRole = Role.builder().id(3L).code("REFERENTE_ASEGURADORA").name("Referente de aseguradora").build();
+        when(roleRepository.findByCode("REFERENTE_ASEGURADORA")).thenReturn(Optional.of(referentRole));
         lenient().when(tenantProfileService.find(any(), any())).thenReturn(Optional.empty());
 
         UserResponse response = userService.updateRole(7L, UserRole.REFERENTE_ASEGURADORA, "referente@arbiter.test");

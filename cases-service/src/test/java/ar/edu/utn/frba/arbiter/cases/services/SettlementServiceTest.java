@@ -390,10 +390,10 @@ class SettlementServiceTest {
     @Test
     void theLatestValuationReplacesTheEarlierOne() {
         claim.setCoverage(repairCoverage());
-        Instant ayer = Instant.now().minusSeconds(86_400);
+        Instant yesterday = Instant.now().minusSeconds(86_400);
         when(expertAssessmentRepository.findByCaseIdOrderByDerivedAtDesc(1L)).thenReturn(List.of(
                 ExpertAssessment.builder().caseId(1L).providerType(ProviderType.ESTUDIO_LIQUIDADOR)
-                        .reportReceivedAt(ayer)
+                        .reportReceivedAt(yesterday)
                         .indemnifiableAmount(new BigDecimal("120000.00")).build(),
                 ExpertAssessment.builder().caseId(1L).providerType(ProviderType.SERVICIO_TECNICO)
                         .reportReceivedAt(Instant.now())
@@ -582,7 +582,7 @@ class SettlementServiceTest {
 
     /** The ceiling is inclusive. */
     @Test
-    void anAmountExactlyAtTheCeilingStillNeedsNoReferente() {
+    void anAmountExactlyAtTheCeilingStillNeedsNoReferent() {
         claim.setClaimCause(claimCause(1L));
         when(authorityService.limitFor(1L)).thenReturn(new BigDecimal("608000.00"));
 
@@ -597,7 +597,7 @@ class SettlementServiceTest {
      * recorded yet, and when the referent signs it must be forwarded with what the analyst wrote.
      */
     @Test
-    void anAmountOverTheCeilingWaitsForTheReferenteAndHoldsTheJustification() {
+    void anAmountOverTheCeilingWaitsForTheReferentAndHoldsTheJustification() {
         claim.setClaimCause(claimCause(1L));
         when(authorityService.limitFor(1L)).thenReturn(new BigDecimal("500000.00"));
 
@@ -711,7 +711,7 @@ class SettlementServiceTest {
                 InsurerReferent.builder().name("Sofía").surname("Martínez")
                         .user(User.builder().id(3L).build()).build()));
 
-        var rows = settlementService.authorizedByReferente();
+        var rows = settlementService.authorizedByReferent();
 
         assertThat(rows).singleElement().satisfies(row -> {
             assertThat(row.caseId()).isEqualTo(1L);
@@ -733,7 +733,7 @@ class SettlementServiceTest {
                 .build()));
         when(caseRepository.findAllById(List.of(99L))).thenReturn(List.of());
 
-        assertThat(settlementService.authorizedByReferente()).isEmpty();
+        assertThat(settlementService.authorizedByReferent()).isEmpty();
     }
 
     @Test

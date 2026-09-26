@@ -75,7 +75,7 @@ class PromptBuilderTest {
     }
 
     @Test
-    void renderRulesAndPolicy_includesTheRulesTheReferenteWrote() {
+    void renderRulesAndPolicy_includesTheRulesTheReferentWrote() {
         BusinessRules rules = BusinessRules.builder()
                 .branchId("Celulares")
                 .claimCauseId("Robo en vía pública")

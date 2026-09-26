@@ -105,7 +105,7 @@ class ClaimSecurityTest extends AbstractPersistenceIT {
     // would return 400 and the security gate wouldn't be measured.
 
     @Test
-    void recordDecision_asAsegurado_returns403() throws Exception {
+    void recordDecision_asInsured_returns403() throws Exception {
         mockMvc.perform(post("/api/v1/claims/1/decision")
                         .header("Authorization", "Bearer " + tokenFor("ASEGURADO"))
                         .contentType(MediaType.APPLICATION_JSON)
@@ -118,7 +118,7 @@ class ClaimSecurityTest extends AbstractPersistenceIT {
 
     /** The analystId travels in the body, so only cases-service's service token may call this. */
     @Test
-    void recordDecision_asAnalista_isRejected() throws Exception {
+    void recordDecision_asAnalyst_isRejected() throws Exception {
         mockMvc.perform(post("/api/v1/claims/999999/decision")
                         .header("Authorization", "Bearer " + tokenFor("ANALISTA_SINIESTROS"))
                         .contentType(MediaType.APPLICATION_JSON)

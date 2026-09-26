@@ -44,10 +44,10 @@ class InsuredPolicyTest {
     /** Validity starts at an exact hour: an event earlier that same day is not covered. */
     @Test
     void sameCalendarDayButBeforeTheStartHourIsNotCovered() {
-        LocalDateTime vigenciaDesde = LocalDateTime.of(2026, 6, 14, 12, 0);
-        LocalDateTime vigenciaHasta = LocalDateTime.of(2026, 9, 14, 12, 0);
-        LocalDateTime hecho = LocalDateTime.of(2026, 6, 14, 9, 40); // 2h20m earlier, same day
+        LocalDateTime start = LocalDateTime.of(2026, 6, 14, 12, 0);
+        LocalDateTime end = LocalDateTime.of(2026, 9, 14, 12, 0);
+        LocalDateTime event = LocalDateTime.of(2026, 6, 14, 9, 40); // 2h20m earlier, same day
 
-        assertThat(policy(vigenciaDesde, vigenciaHasta).inForceOn(hecho)).isFalse();
+        assertThat(policy(start, end).inForceOn(event)).isFalse();
     }
 }

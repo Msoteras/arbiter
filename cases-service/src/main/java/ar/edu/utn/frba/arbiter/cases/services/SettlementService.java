@@ -160,12 +160,12 @@ public class SettlementService {
         settlement.setAuthorizedByUserId(null);
         settlement.setAuthorizedAt(null);
 
-        boolean needsReferente = limit != null && authorized.compareTo(limit) > 0;
-        settlement.setStatus(needsReferente
+        boolean needsReferent = limit != null && authorized.compareTo(limit) > 0;
+        settlement.setStatus(needsReferent
                 ? SettlementStatus.PENDING_AUTHORIZATION
                 : SettlementStatus.AUTHORIZED);
         // Held until the referent authorizes, when the decision is forwarded with the analyst's own justification.
-        settlement.setPendingJustification(needsReferente ? justification : null);
+        settlement.setPendingJustification(needsReferent ? justification : null);
     }
 
     /**
@@ -327,7 +327,7 @@ public class SettlementService {
 
     /** Most recent first. */
     @Transactional(readOnly = true)
-    public List<AuthorizedSettlementResponse> authorizedByReferente() {
+    public List<AuthorizedSettlementResponse> authorizedByReferent() {
         List<CaseSettlement> settlements = settlementRepository
                 .findTop50ByStatusAndAuthorizedAtIsNotNullOrderByAuthorizedAtDesc(
                         SettlementStatus.AUTHORIZED);
