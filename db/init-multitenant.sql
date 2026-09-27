@@ -1184,7 +1184,9 @@ BEGIN
             (6, 'fraud_history', 0.60, 1),
             -- Loaded from the referente panel on 25/09/2026 in both insurers, once its two false
             -- positives were fixed (amount vs. the wrong document, the purchase proof's date).
-            (7, 'document_inconsistency', 0.40, 1)
+            (7, 'document_inconsistency', 0.40, 1),
+            -- Weak signal on its own: plenty of honest buyers insure at the point of sale.
+            (8, 'purchase_to_report_time', 0.25, 1)
         $ddl$, p_schema);
 
     EXECUTE format($ddl$

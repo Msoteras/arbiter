@@ -19,9 +19,8 @@ public class BaselineRulesAdapter implements RulesAdapter {
 
     /**
      * Image factors can stay active: non-evaluable factors are dropped from the weighted average, so
-     * image-less claims aren't diluted. {@code PURCHASE_TO_REPORT_TIME} is left out because it uses the
-     * policy start date as a proxy for the purchase date (biased score); {@code DOCUMENT_INCONSISTENCY}
-     * is left out because enabling it is a per-insurer decision. Weights are normalized by the engine.
+     * image-less claims aren't diluted. {@code PURCHASE_TO_REPORT_TIME} and {@code DOCUMENT_INCONSISTENCY}
+     * are left out because enabling them is a per-insurer decision. Weights are normalized by the engine.
      */
     private static final BusinessRules.ScoringConfig DEFAULT_SCORING_CONFIG = BusinessRules.ScoringConfig.builder()
             .factors(List.of(

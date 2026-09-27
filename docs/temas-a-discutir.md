@@ -273,7 +273,9 @@ entra por el carril rápido.
 - Peso **0,40** en las dos aseguradoras: en Railway, cargado desde el panel del referente; en
   `init-multitenant.sql`, para las bases nuevas. `BaselineRulesAdapter` lo sigue dejando afuera a
   propósito: fuera de nuestras dos aseguradoras, activarlo es decisión de cada compañía.
-- `purchase_to_report_time` sigue sin peso.
+- `purchase_to_report_time` (27/09/2026): ahora toma la fecha de compra de la factura, no el alta de
+  la póliza, que ya cubren la carencia y `FT_POLICY_AGE`. Sin factura con fecha, no se evalúa. Peso
+  **0,25** en `init-multitenant.sql`; en Railway hay que cargarlo desde el panel del referente.
 
 Lo que sigue queda como registro.
 
