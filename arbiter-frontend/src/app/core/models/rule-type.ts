@@ -82,8 +82,7 @@ const RULE_TYPE_INFO: Record<string, { label: string; description: string }> = {
   },
   VISUAL_TAMPERING: {
     label: 'Señales de adulteración en la documentación',
-    description:
-      'Un documento muestra señales de haber sido alterado. Es un aviso, no bloquea.',
+    description: 'Un documento muestra señales de haber sido alterado. Es un aviso, no bloquea.',
   },
 };
 
