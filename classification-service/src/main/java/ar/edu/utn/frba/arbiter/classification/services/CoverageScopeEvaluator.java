@@ -53,7 +53,7 @@ public class CoverageScopeEvaluator {
 
         boolean block = !reasons.isEmpty();
         if (block) {
-            log.info("[CoverageScopeEvaluator] Alcance de cobertura incumplido (bloquea Fast Track): {}", reasons);
+            log.info("[CoverageScopeEvaluator] Coverage scope not met (blocks Fast Track): {}", reasons);
         }
         return new Result(block, reasons, findings);
     }

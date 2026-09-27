@@ -1,10 +1,6 @@
 /**
- * Centralized date/time formatting for the SPA.
- *
- * `toLocaleString('es-AR')` without an explicit `hour12` can drop the AM/PM
- * marker on some ICU builds, rendering 19:30 as "07:30" (a 12h difference with
- * no meridiem). Forcing `hour12: false` keeps a 24h clock everywhere, which is
- * what the event time of a claim needs (it can matter for the analysis).
+ * `toLocaleString('es-AR')` without `hour12` can drop the AM/PM marker on some ICU builds, showing
+ * 19:30 as "07:30"; forcing `hour12: false` keeps a 24h clock everywhere.
  */
 
 const DATE_TIME_OPTIONS: Intl.DateTimeFormatOptions = {
@@ -73,7 +69,6 @@ export function formatDateTime(value: string | Date | null | undefined, fallback
   return parseLocal(value).toLocaleString('es-AR', DATE_TIME_OPTIONS);
 }
 
-/** Date only, no time. */
 export function formatDate(value: string | Date | null | undefined, fallback = '—'): string {
   if (!value) {
     return fallback;
@@ -114,11 +109,9 @@ export function todayIso(now: Date = new Date()): string {
 }
 
 /**
- * Shifts a `yyyy-MM-dd` date by whole days, staying on the calendar.
- *
- * The arithmetic runs in UTC on purpose: shifting a local `Date` across a DST boundary lands on
- * 23:00 of the previous day and silently drops one. Returns '' for anything that is not a
- * complete date, so a half-typed input never yields a real-looking result.
+ * Shifts a `yyyy-MM-dd` date by whole days. In UTC on purpose: a local `Date` crossing a DST boundary
+ * lands on 23:00 of the previous day. Returns '' for an incomplete date, so a half-typed input never
+ * yields a real-looking result.
  */
 export function addDays(isoDate: string, days: number): string {
   if (!isTypedDate(isoDate)) {

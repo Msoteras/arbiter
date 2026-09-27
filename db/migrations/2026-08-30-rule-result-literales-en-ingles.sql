@@ -1,31 +1,5 @@
--- =============================================================================
--- 2026-08-30 · rule_result.result: un solo vocabulario
---
--- Migración de DATOS, idempotente y acotada. Aplicar sobre una base que ya tiene
--- datos (Railway) sin pasar por el trío reset → init → seed.
---
--- El motor escribe PASS/FAIL (RuleFinding.result()). Un seed viejo escribía
--- CUMPLE/NO_CUMPLE, y esas filas siguen en pie: al 30/08 conviven los cuatro
--- literales en Railway.
---
---     arbiter_bbva       PASS 40 · FAIL 4 · CUMPLE 6 · NO_CUMPLE 3
---     arbiter_provincia  PASS  5 · FAIL 2 · CUMPLE 2 · NO_CUMPLE 2
---
--- El frontend las venía tapando con un alias (PASSED = ['PASS','CUMPLE']). Eso
--- no es defensa contra un caso hipotético: sostiene 13 filas que existen. Pero
--- deja el vocabulario partido para siempre, y cada lector nuevo del código tiene
--- que enterarse de que hay dos. Se unifica acá, en los datos, y el alias se va.
---
--- `seed-demo.sql` ya escribe PASS/FAIL, así que una base recreada desde cero
--- nunca vuelve a tener los literales viejos: esto aplica sólo a las que ya
--- existían.
---
--- ORDEN: aplicar ANTES de desplegar el frontend que saca el alias. Si el código
--- sube primero, esas 13 filas se muestran con el literal crudo y sin tono —
--- degradado prolijo, no roto, pero feo.
---
--- Idempotente: correrlo dos veces no cambia nada la segunda.
--- =============================================================================
+-- 2026-08-30 · Data: an old seed wrote rule_result CUMPLE/NO_CUMPLE; everything becomes PASS/FAIL.
+-- Apply before deploying the frontend that drops the alias, or those rows show without a tone. Idempotent.
 
 BEGIN;
 
@@ -52,8 +26,7 @@ END $$;
 
 COMMIT;
 
--- Verificación: sólo PASS y FAIL deberían quedar. Cualquier otro literal acá es
--- un vocabulario que este script no conocía — revisarlo antes de darlo por bueno.
+-- Check: only PASS and FAIL should remain; any other literal needs a look first.
 SELECT table_schema, result, count(*) AS filas
   FROM (SELECT 'arbiter_bbva' AS table_schema, result FROM arbiter_bbva.rule_result
         UNION ALL

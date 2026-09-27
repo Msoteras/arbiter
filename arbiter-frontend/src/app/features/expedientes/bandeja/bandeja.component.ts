@@ -10,7 +10,7 @@ import {
   untracked,
 } from '@angular/core';
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, ParamMap, Router, RouterLink } from '@angular/router';
 import {
   catchError,
   debounceTime,
@@ -23,7 +23,12 @@ import {
 } from 'rxjs';
 import * as XLSX from 'xlsx';
 
-import { ExpedienteService, ExpedienteListParams } from '../expediente.service';
+import {
+  ExpedienteService,
+  ExpedienteListParams,
+  LensCounts,
+  LensSummary,
+} from '../expediente.service';
 import { CaseNavigationService } from '../case-navigation.service';
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
 import { UserAdminService } from '../../../core/auth/user-admin.service';
@@ -82,10 +87,21 @@ type LoadState =
   | { status: 'ok'; data: ExpedienteResponse[]; totalElements: number; totalPages: number }
   | { status: 'error' };
 
-/** `open`/`closed` scope by lifecycle; the rest filter by ownership (or fraud alert). */
-type Lens = 'open' | 'closed' | 'mine' | 'all' | 'assigned' | 'unassigned' | 'fraud';
+type Lifecycle = 'open' | 'closed' | 'all';
 
-type Scope = NonNullable<ExpedienteListParams['scope']>;
+type Ownership = 'mine' | 'assigned' | 'unassigned' | 'fraud';
+
+const SCOPE_OF: Record<Lifecycle, NonNullable<ExpedienteListParams['scope']>> = {
+  open: 'OPEN',
+  closed: 'CLOSED',
+  all: 'ALL',
+};
+
+const NO_COUNTS: LensCounts = { total: 0, mine: 0, assigned: 0, unassigned: 0, fraud: 0 };
+
+const NO_SUMMARY: LensSummary = { open: NO_COUNTS, closed: NO_COUNTS, all: NO_COUNTS };
+
+const LINK_PARAMS = ['scope', 'unassigned', 'fraudAlert', 'status', 'staleDays'];
 
 @Component({
   selector: 'app-bandeja',
@@ -124,6 +140,7 @@ export class BandejaComponent {
         this.qDraft.set(q);
         this.page.set(0);
       }
+      this.applyLinkedLens(params);
     });
 
     this.service.claimCauseNames().subscribe({
@@ -145,31 +162,68 @@ export class BandejaComponent {
     }
   }
 
-  // ───────────────── Lens tabs ─────────────────
-  // One bar for both axes, so combinations like "unassigned AND closed" go through the status filter.
+  // One bar, two axes combined with AND: a lifecycle is always picked, an ownership is optional.
 
-  protected readonly lens = signal<Lens>('open');
+  protected readonly lifecycle = signal<Lifecycle>('open');
+  protected readonly ownership = signal<Ownership | null>(null);
 
-  protected setLens(lens: Lens): void {
-    this.lens.set(lens);
+  protected readonly lifecycleTabs: { value: Lifecycle; label: string }[] = [
+    { value: 'open', label: 'En curso' },
+    { value: 'closed', label: 'Cerrados' },
+    { value: 'all', label: 'Todos' },
+  ];
+
+  protected readonly ownershipTabs = computed<{ value: Ownership; label: string }[]>(() => [
+    this.isReferente()
+      ? { value: 'assigned', label: 'Asignados' }
+      : { value: 'mine', label: 'Mis asignados' },
+    { value: 'unassigned', label: 'Sin asignar' },
+    { value: 'fraud', label: 'Riesgo de fraude' },
+  ]);
+
+  protected setLifecycle(lifecycle: Lifecycle): void {
+    this.lifecycle.set(lifecycle);
     this.page.set(0);
   }
 
-  /** Ownership tabs don't scope by lifecycle, so they match the count shown on the tab. */
-  private scopeOf(lens: Lens): Scope {
-    if (lens === 'open') {
-      return 'OPEN';
-    }
-    return lens === 'closed' ? 'CLOSED' : 'ALL';
+  protected toggleOwnership(ownership: Ownership): void {
+    this.ownership.update((current) => (current === ownership ? null : ownership));
+    this.page.set(0);
   }
 
-  // ───────────────── Filters, search, sort and paging ─────────────────
+  private applyLinkedLens(params: ParamMap): void {
+    if (!LINK_PARAMS.some((key) => params.has(key))) {
+      return;
+    }
+    const scope = params.get('scope');
+    this.lifecycle.set(scope === 'CLOSED' ? 'closed' : scope === 'ALL' ? 'all' : 'open');
+    this.ownership.set(
+      params.get('unassigned') === 'true'
+        ? 'unassigned'
+        : params.get('fraudAlert') === 'true'
+          ? 'fraud'
+          : null,
+    );
+    this.statusFilter.set(params.get('status') ?? '');
+    const staleDays = Number(params.get('staleDays'));
+    this.staleDaysFilter.set(staleDays > 0 ? staleDays : null);
+    this.page.set(0);
+    this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: Object.fromEntries(LINK_PARAMS.map((key) => [key, null])),
+      queryParamsHandling: 'merge',
+      replaceUrl: true,
+    });
+  }
+
   protected readonly statusFilter = signal('');
   protected readonly claimCauseFilter = signal('');
   protected readonly riskBandFilter = signal('');
   protected readonly analystFilter = signal('');
   protected readonly eventDateFrom = signal('');
   protected readonly eventDateTo = signal('');
+  protected readonly followUpFilter = signal('');
+  protected readonly staleDaysFilter = signal<number | null>(null);
   protected readonly qDraft = signal('');
   protected readonly sortField = signal<SortField>('id');
   protected readonly sortDir = signal<SortDir>('desc');
@@ -191,15 +245,16 @@ export class BandejaComponent {
     eventDateFrom: this.eventDateFrom() || undefined,
     eventDateTo: this.eventDateTo() || undefined,
     q: this.qDebounced() || undefined,
-    sort: `${this.sortField()},${this.sortDir()}`,
+    followUp: (this.followUpFilter() || undefined) as ExpedienteListParams['followUp'],
+    staleDays: this.staleDaysFilter() ?? undefined,
   }));
 
   /** Picking a status leaves the lifecycle tabs; otherwise e.g. "Aprobado" under "En curso" is always empty. */
   private readonly statusFilterWidensScope = effect(() => {
     const status = this.statusFilter();
     untracked(() => {
-      if (status && (this.lens() === 'open' || this.lens() === 'closed')) {
-        this.lens.set('all');
+      if (status && this.lifecycle() !== 'all') {
+        this.lifecycle.set('all');
       }
     });
   });
@@ -210,11 +265,12 @@ export class BandejaComponent {
   /** Filters + lens: single source for both the table and the export, so the file matches the screen. */
   private readonly viewFilters = computed<ExpedienteListParams>(() => ({
     ...this.activeFilters(),
-    scope: this.scopeOf(this.lens()),
-    assignedToMe: this.lens() === 'mine',
-    assigned: this.lens() === 'assigned',
-    unassigned: this.lens() === 'unassigned',
-    fraudAlert: this.lens() === 'fraud',
+    sort: `${this.sortField()},${this.sortDir()}`,
+    scope: SCOPE_OF[this.lifecycle()],
+    assignedToMe: this.ownership() === 'mine',
+    assigned: this.ownership() === 'assigned',
+    unassigned: this.ownership() === 'unassigned',
+    fraudAlert: this.ownership() === 'fraud',
   }));
 
   private readonly requestParams = computed<ExpedienteListParams & { reload: number }>(() => ({
@@ -287,25 +343,21 @@ export class BandejaComponent {
       })),
     ).pipe(
       switchMap(({ filters }) =>
-        this.service
-          .lensSummary(filters)
-          .pipe(
-            catchError(() =>
-              of({ mine: 0, all: 0, assigned: 0, unassigned: 0, fraud: 0, open: 0, closed: 0 }),
-            ),
-          ),
+        this.service.lensSummary(filters).pipe(catchError(() => of(NO_SUMMARY))),
       ),
     ),
-    { initialValue: { mine: 0, all: 0, assigned: 0, unassigned: 0, fraud: 0, open: 0, closed: 0 } },
+    { initialValue: NO_SUMMARY },
   );
 
-  protected readonly mineCount = computed(() => this.counts().mine);
-  protected readonly allCount = computed(() => this.counts().all);
-  protected readonly assignedCount = computed(() => this.counts().assigned);
-  protected readonly unassignedCount = computed(() => this.counts().unassigned);
-  protected readonly fraudCount = computed(() => this.counts().fraud);
-  protected readonly openCount = computed(() => this.counts().open);
-  protected readonly closedCount = computed(() => this.counts().closed);
+  protected lifecycleCount(lifecycle: Lifecycle): number {
+    const row = this.counts()[lifecycle];
+    const ownership = this.ownership();
+    return ownership ? row[ownership] : row.total;
+  }
+
+  protected ownershipCount(ownership: Ownership): number {
+    return this.counts()[this.lifecycle()][ownership];
+  }
 
   protected readonly hasActiveFilters = computed(
     () =>
@@ -315,15 +367,37 @@ export class BandejaComponent {
         this.riskBandFilter() ||
         this.eventDateFrom() ||
         this.eventDateTo() ||
+        this.followUpFilter() ||
+        this.analystFilter() ||
+        this.staleDaysFilter() ||
         this.qDebounced()
       ),
   );
 
-  protected readonly emptyByScope = computed(
-    () => this.isEmpty() && !this.hasActiveFilters() && this.scopeOf(this.lens()) !== 'ALL',
+  protected readonly emptyByLens = computed(
+    () =>
+      this.isEmpty() &&
+      !this.hasActiveFilters() &&
+      (this.lifecycle() !== 'all' || this.ownership() !== null),
   );
 
-  // ───────────────── Select catalogs ─────────────────
+  protected readonly emptyLensMessage = computed<{ message: string; sub: string }>(() => {
+    const ownership = this.ownershipTabs().find((tab) => tab.value === this.ownership());
+    if (ownership) {
+      const lifecycle = this.lifecycleTabs.find((tab) => tab.value === this.lifecycle())!;
+      return {
+        message: `No hay expedientes en «${lifecycle.label}» con «${ownership.label}».`,
+        sub: 'Sin coincidencias',
+      };
+    }
+    return this.lifecycle() === 'open'
+      ? {
+          message: 'No hay expedientes en curso. Probá con «Todos» para ver los ya cerrados.',
+          sub: 'Nada pendiente',
+        }
+      : { message: 'Todavía no hay expedientes cerrados.', sub: 'Sin cerrados' };
+  });
+
   // Every CaseStatus value, in lifecycle order: keep in sync with the enum.
   private static readonly STATUS_VALUES: CaseStatus[] = [
     'PENDING_CLASSIFICATION',
@@ -355,6 +429,13 @@ export class BandejaComponent {
     { value: 'CRITICAL', label: 'Crítico' },
   ];
 
+  protected readonly followUpOptions: SelectOption[] = [
+    { value: 'EXPERT_REPORT_RECEIVED', label: 'Volvió del perito' },
+    { value: 'REPAIR_REPORT_RECEIVED', label: 'Volvió del servicio técnico' },
+    { value: 'RETURNED_BY_REFERENT', label: 'Devuelto por el referente' },
+    { value: 'AWAITING_REFERENT', label: 'Esperando al referente' },
+  ];
+
   protected readonly columns: ColumnDef[] = [
     { field: 'id', label: 'N°' },
     { field: 'status', label: 'Estado' },
@@ -380,7 +461,6 @@ export class BandejaComponent {
     });
   }
 
-  // ───────────────── Filters popover ─────────────────
   // Draft values are applied on "Aplicar filtros" and discarded if closed without applying.
   protected readonly filtersOpen = signal(false);
   protected readonly draftStatus = signal('');
@@ -389,6 +469,7 @@ export class BandejaComponent {
   protected readonly draftAnalyst = signal('');
   protected readonly draftDateFrom = signal('');
   protected readonly draftDateTo = signal('');
+  protected readonly draftFollowUp = signal('');
 
   protected openFilters(): void {
     this.draftStatus.set(this.statusFilter());
@@ -397,6 +478,7 @@ export class BandejaComponent {
     this.draftAnalyst.set(this.analystFilter());
     this.draftDateFrom.set(this.eventDateFrom());
     this.draftDateTo.set(this.eventDateTo());
+    this.draftFollowUp.set(this.followUpFilter());
     this.filtersOpen.set(true);
   }
   protected closeFilters(): void {
@@ -432,6 +514,7 @@ export class BandejaComponent {
     this.analystFilter.set(this.draftAnalyst());
     this.eventDateFrom.set(this.draftDateFrom());
     this.eventDateTo.set(this.draftDateTo());
+    this.followUpFilter.set(this.draftFollowUp());
     this.page.set(0);
     this.filtersOpen.set(false);
   }
@@ -442,6 +525,7 @@ export class BandejaComponent {
     this.draftAnalyst.set('');
     this.draftDateFrom.set('');
     this.draftDateTo.set('');
+    this.draftFollowUp.set('');
   }
 
   protected readonly activeFilterCount = computed(() => {
@@ -452,6 +536,7 @@ export class BandejaComponent {
     if (this.analystFilter()) n++;
     if (this.eventDateFrom()) n++;
     if (this.eventDateTo()) n++;
+    if (this.followUpFilter()) n++;
     return n;
   });
 
@@ -472,6 +557,11 @@ export class BandejaComponent {
       chips.push({ key: 'dateFrom', label: `Desde: ${this.formatDate(this.eventDateFrom())}` });
     if (this.eventDateTo())
       chips.push({ key: 'dateTo', label: `Hasta: ${this.formatDate(this.eventDateTo())}` });
+    if (this.followUpFilter())
+      chips.push({ key: 'followUp', label: this.followUpLabel(this.followUpFilter()) });
+    const staleDays = this.staleDaysFilter();
+    if (staleDays)
+      chips.push({ key: 'staleDays', label: `Sin movimiento hace más de ${staleDays} días` });
     return chips;
   });
 
@@ -495,8 +585,18 @@ export class BandejaComponent {
       case 'dateTo':
         this.eventDateTo.set('');
         break;
+      case 'followUp':
+        this.followUpFilter.set('');
+        break;
+      case 'staleDays':
+        this.staleDaysFilter.set(null);
+        break;
     }
     this.page.set(0);
+  }
+
+  private followUpLabel(value: string): string {
+    return this.followUpOptions.find((o) => o.value === value)?.label ?? value;
   }
 
   private analystName(id: string): string {
@@ -508,8 +608,11 @@ export class BandejaComponent {
     this.statusFilter.set('');
     this.claimCauseFilter.set('');
     this.riskBandFilter.set('');
+    this.analystFilter.set('');
     this.eventDateFrom.set('');
     this.eventDateTo.set('');
+    this.followUpFilter.set('');
+    this.staleDaysFilter.set(null);
     this.page.set(0);
   }
 
@@ -536,8 +639,6 @@ export class BandejaComponent {
     this.router.navigate(['/cases', id]);
   }
 
-  // ───────────────── Assignment ─────────────────
-
   protected readonly assigning = signal<number | null>(null);
   protected readonly assignError = signal<string | null>(null);
 
@@ -549,10 +650,7 @@ export class BandejaComponent {
     this.analysts().map((a) => ({ value: String(a.id), label: `${a.nombre} ${a.apellido}` })),
   );
 
-  /**
-   * The per-tenant analyst id, found by email in the (tenant-scoped) analyst list; the session only
-   * has the user id. Null for the supervisor.
-   */
+  /** Per-tenant analyst id, found by email (the session only has the user id). Null for the supervisor. */
   private readonly myAnalystId = computed<number | null>(() => {
     const email = this.session.session()?.email;
     return this.analysts().find((a) => a.email === email)?.id ?? null;
@@ -588,7 +686,6 @@ export class BandejaComponent {
   private static readonly RELEASE = '__release__';
 
   protected assignMenuItems(c: ExpedienteResponse): MenuItem[] {
-    // The current assignee is left out.
     const others = this.analystMenuItems().filter(
       (item) => item.value !== String(c.assignedAnalystId),
     );
@@ -639,22 +736,8 @@ export class BandejaComponent {
     });
   }
 
-  // ───────────────── Cell rendering ─────────────────
   protected estadoLabel(status: string): string {
     return estadoLabel(status);
-  }
-
-  /**
-   * Decided, but the amount exceeds the analyst's authority: waiting on the supervisor. The status
-   * deliberately stays unchanged so the insured doesn't see this internal step.
-   */
-  protected esperaFirma(c: ExpedienteResponse): boolean {
-    return c.settlementStatus === 'PENDING_AUTHORIZATION';
-  }
-
-  /** Returned by the supervisor, with a reason. */
-  protected devueltaPorReferente(c: ExpedienteResponse): boolean {
-    return c.settlementStatus === 'RETURNED';
   }
 
   protected estadoTone(status: string): StatusTone {
@@ -714,7 +797,6 @@ export class BandejaComponent {
     return c.insuredId;
   }
 
-  // ───────────────── Export (CSV / XLSX) ─────────────────
   protected readonly exporting = signal(false);
 
   protected readonly exportOptions: MenuItem[] = [
@@ -805,7 +887,7 @@ export class BandejaComponent {
     const link = this.document.createElement('a');
     link.href = url;
     // The lens goes in the filename so the file says whose cases it holds.
-    const scope = this.lens() === 'mine' ? 'mios-' : '';
+    const scope = this.ownership() === 'mine' ? 'mios-' : '';
     link.download = `expedientes-${scope}${this.timestampForFilename()}.${extension}`;
     link.click();
     URL.revokeObjectURL(url);

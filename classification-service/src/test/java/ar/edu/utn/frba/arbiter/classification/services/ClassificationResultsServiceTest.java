@@ -158,7 +158,7 @@ class ClassificationResultsServiceTest {
     }
 
     @Test
-    void getStatus_noRisk_exposedAsSinScorearNotLow() {
+    void getStatus_noRisk_exposedAsUnscoredNotLow() {
         when(llmAnalysisRepository.findLatestByCaseId(7L))
                 .thenReturn(Optional.of(analysis(Classification.LLM_RECOMIENDA_APROBAR)));
         when(riskAnalysisRepository.findFirstByCaseIdOrderByIdDesc(7L)).thenReturn(Optional.empty());

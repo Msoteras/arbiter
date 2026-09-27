@@ -1,28 +1,6 @@
--- =============================================================================
--- 2026-09-22 · Valentín Aguirre — asegurado de BBVA exclusivo para las mutaciones
---
--- Migración puntual y NO destructiva, para aplicar sobre una base con datos (Railway).
---
--- Para qué: las mutaciones de docs/postman/test-docs/mutaciones-celulares.js necesitan un
--- asegurado sin historial. Cada caso cargado en Arbiter cuenta como siniestro previo de
--- quien lo cargó: Martina ya acumula 15 en BBVA y Roman 1, y con uno solo ya falla el
--- máximo de siniestros previos del Fast Track (0) antes de que el documento mutado tenga
--- la oportunidad de mover algo. Este asegurado se limpia antes de
--- cada mutación con scripts/reset-asegurados-de-prueba.sql.
---
--- Igual que 2026-08-25-asegurado-sin-cuenta.sql, toca SOLO la BD Aseguradora. La cuenta,
--- arbiter_bbva.insured y la invitación salen del alta masiva del referente, que es el
--- camino real: sin login de Auth0 no hay forma de cargar un caso a su nombre (solo el
--- asegurado denuncia, y solo a nombre propio). Después del alta masiva, la póliza la
--- trae PolicySynchronizer la primera vez que se la pide.
---
--- Los datos coinciden con perfiles.js (perfil `mutaciones`): si se cambia uno, cambiar el
--- otro. Mismos montos que la póliza de Martina (POL-CEL-2026-042), así el caso base se
--- comporta igual que el robo de siempre. Coberturas con los mismos nombres que el resto:
--- PolicySynchronizer las matchea por nombre contra arbiter_bbva.coverage.
---
--- Idempotente: se puede correr más de una vez.
--- =============================================================================
+-- 2026-09-22 · Valentín Aguirre: a BBVA insured with no history, only for the mutations (every filed case
+-- counts as a previous claim and trips the Fast Track cap). Insurer database only: the account and the
+-- policy copy come from bulk provisioning and PolicySynchronizer. Keep in sync with perfiles.js. Idempotent.
 
 BEGIN;
 
@@ -35,7 +13,7 @@ ON CONFLICT (id) DO NOTHING;
 SELECT setval(pg_get_serial_sequence('aseguradora_bbva.asegurado', 'id'),
               (SELECT MAX(id) FROM aseguradora_bbva.asegurado));
 
--- Vigente hoy: es lo único que el alta masiva mira (vigencia_hasta >= NOW()).
+-- In force today: bulk provisioning only looks at vigencia_hasta >= NOW().
 INSERT INTO aseguradora_bbva.poliza (id, numero, nro_certificado, titular_id, rama, producto,
                                      bien_asegurado, imei, vigencia_desde, vigencia_hasta,
                                      estado_contrato, estado_pago, cuotas_pagas, cuotas_impagas,
@@ -55,7 +33,7 @@ ON CONFLICT DO NOTHING;
 
 COMMIT;
 
--- Verificación: tiene que aparecer con ya_tiene_cuenta = f hasta que corra el alta masiva.
+-- Check: ya_tiene_cuenta must be f until bulk provisioning runs.
 SELECT DISTINCT a.documento, a.nombre, a.apellido, a.email,
        (u.id IS NOT NULL) AS ya_tiene_cuenta
   FROM aseguradora_bbva.asegurado a

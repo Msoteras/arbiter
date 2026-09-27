@@ -304,7 +304,7 @@
   font-size: var(--font-size-lg);
 }
 
-/* Alineado bajo el título: ancho del punto + su gap con el título. */
+/* Aligned under the title: the dot's width plus its gap. */
 .att-detail {
   margin: 0;
   padding-left: calc(var(--space-2) + var(--space-3));

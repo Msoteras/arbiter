@@ -23,18 +23,12 @@ export interface Policy {
   branch: string;
   insuredItem: string | null;
   product: string;
-  /**
-   * ISO with time, for DISPLAY only. They carry no timezone, so never compare them here: whether
-   * the policy covers is decided by `validity`.
-   */
+  /** ISO with time and no timezone, for DISPLAY only: whether it covers is `validity`. */
   effectiveFrom: string;
   effectiveTo: string;
   validity: PolicyValidity;
   upToDate: boolean;
-  /**
-   * The FIRST coverage's amounts, for the policy card summary only. Anything that decides must use
-   * the matching entry in `coverages`.
-   */
+  /** The FIRST coverage's amounts, for the card summary only; decisions use `coverages`. */
   insuredAmount: number;
   deductible: number;
   coverages: PolicyCoverage[];
@@ -43,10 +37,7 @@ export interface Policy {
 // Validity and payment status are independent axes: a policy can be in force with debt, or paid
 // up and expired. Keep them as separate indicators.
 
-/**
- * Computed by the backend, never derived here from the timezone-less dates, so every screen reads
- * the same clock. `NOT_YET_ACTIVE`: issued with a future start date.
- */
+/** From the backend, never derived from the timezone-less dates. `NOT_YET_ACTIVE`: future start. */
 export type PolicyValidity = 'CURRENT' | 'NOT_YET_ACTIVE' | 'EXPIRED';
 
 export function isExpired(policy: Policy): boolean {

@@ -1,37 +1,9 @@
--- =============================================================================
--- 2026-08-17 · Derivación a peritaje
---
--- Migración puntual y NO destructiva, para aplicar sobre una base que ya tiene
--- datos (Railway) sin pasar por el trío reset → init → seed.
---
--- Qué agrega:
---   · arbiter_common.case_status: el estado PENDING_EXPERT_REPORT (id 7).
---   · <tenant>.expert_firm: catálogo de peritos externos por aseguradora.
---   · <tenant>.expert_assessment: la derivación y el informe que vuelve.
---   · <tenant>.insurer_rule: la política EXPERT_DERIVATION por ramo (monto mínimo).
---
--- Por qué: frente a indicios de fraude, rechazar directo apoyándose en una
--- sospecha del modelo no tiene respaldo — el estado SINIESTRO RECHAZADO exige
--- "una causa legal o convencional de exclusión", y un indicio no lo es. El
--- peritaje es el eslabón que convierte la sospecha en un hecho verificado
--- (procedimiento BBVA 2.6, "en caso de hallarse indicadores de fraude").
---
--- IMPORTANTE: los servicios corren con ddl-auto=validate. Apenas exista el
--- código que declara estas entidades, una base sin estas tablas hace que
--- cases-service NO levante. Aplicar esto ANTES de desplegar el código.
---
--- `init-multitenant.sql` y `seed-demo.sql` ya quedaron actualizados: una base
--- creada de cero desde esos scripts ya trae todo esto. Este archivo es solo
--- para las bases que ya existían.
---
--- Idempotente: se puede correr más de una vez sin romper nada.
--- =============================================================================
+-- 2026-08-17 · Referral to an expert: PENDING_EXPERT_REPORT, expert_firm, expert_assessment and the
+-- EXPERT_DERIVATION policy. Apply before deploying the code (ddl-auto=validate). Idempotent.
 
 BEGIN;
 
--- ─── El estado nuevo ─────────────────────────────────────────────────────────
--- El asegurado ve 'En análisis': que su siniestro se haya derivado a un perito
--- es tráfico interno, y contárselo filtraría la sospecha que lo motivó.
+-- The insured sees 'En análisis': telling them about the expert would leak the suspicion.
 INSERT INTO arbiter_common.case_status (id, name, description, insured_status, is_final) VALUES
     (7, 'PENDING_EXPERT_REPORT', 'Derivado a peritaje, esperando el informe', 'En análisis', FALSE)
 ON CONFLICT (name) DO NOTHING;
@@ -39,9 +11,6 @@ ON CONFLICT (name) DO NOTHING;
 SELECT setval(pg_get_serial_sequence('arbiter_common.case_status', 'id'),
               (SELECT MAX(id) FROM arbiter_common.case_status));
 
--- ─── Las tablas por tenant ───────────────────────────────────────────────────
--- Un DO en vez de repetir el DDL por esquema: mañana hay una tercera aseguradora
--- y la lista sale de insurer, que es el registro de quién existe.
 DO $$
 DECLARE
     tenant TEXT;
@@ -86,9 +55,7 @@ BEGIN
     END LOOP;
 END $$;
 
--- ─── Peritos de demo ─────────────────────────────────────────────────────────
--- Los mismos que siembra seed-demo.sql, para que una base migrada y una creada
--- de cero queden idénticas. Sin al menos uno, el analista no tiene a quién derivar.
+-- Same as seed-demo.sql; without one the analyst has nobody to refer to.
 INSERT INTO arbiter_bbva.expert_firm (id, name, email, zone, active, branch_id) VALUES
     (1, 'Estudio Verifica S.R.L.',   'perito.arbiter@gmail.com', 'CABA y GBA', TRUE, NULL),
     (2, 'Peritajes Tecnológicos SA', 'perito.arbiter@gmail.com', 'CABA',       TRUE, 1)
@@ -104,11 +71,8 @@ ON CONFLICT (id) DO NOTHING;
 SELECT setval(pg_get_serial_sequence('arbiter_provincia.expert_firm', 'id'),
               (SELECT MAX(id) FROM arbiter_provincia.expert_firm));
 
--- ─── Política de derivación, una por ramo ────────────────────────────────────
--- Sin esta fila el analista NO ve la opción de derivar: el peritaje es opt-in porque
--- abajo de cierto monto cuesta más que el siniestro. Los ids no se fijan a mano acá
--- (a diferencia de init, que crea el esquema vacío): en una base con datos ya hay
--- reglas cargadas y la secuencia asigna el próximo libre.
+-- Without this row the analyst gets no referral option: it is opt-in because below some
+-- amount an expert costs more than the claim. Ids come from the sequence.
 DO $$
 DECLARE
     tenant TEXT;

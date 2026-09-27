@@ -4,6 +4,7 @@ import ar.edu.utn.frba.arbiter.cases.dto.AnalystDecisionRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.AnalystWorkloadResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.AssignedCaseSummaryResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseDocumentResponse;
+import ar.edu.utn.frba.arbiter.cases.dto.CaseFollowUp;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseScope;
 import ar.edu.utn.frba.arbiter.cases.dto.EligibilityCheckRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.IntakeDocumentsResponse;
@@ -28,26 +29,20 @@ public interface CaseService {
     CaseResponse createCase(CaseRequest request, Map<String, MultipartFile> documents);
 
     /**
-     * Runs the same gate as {@link #createCase} without creating anything, so the wizard can block
-     * or warn before the insured uploads documentation. Ineligibility comes back as
-     * {@code eligible=false}, never as an exception.
+     * The {@link #createCase} gate without creating anything, so the wizard can block or warn before the
+     * upload. Ineligibility is {@code eligible=false}, never an exception.
      */
     EligibilityCheckResponse checkEligibility(EligibilityCheckRequest request);
 
     /**
-     * The first batch of documents for a claim not yet filed: what Fast Track requires for the
-     * coverage answering for that claim cause, or the full document schedule if none is configured.
-     * Fails with 503 if the rules engine can't be read — an empty list would mean "nothing needed".
+     * Fast Track's documents for the coverage, else the full schedule. 503 if the rules engine can't be
+     * read: an empty list would mean "nothing needed".
      */
     IntakeDocumentsResponse intakeDocuments(String policyNumber, String branch, String claimCause);
 
     CaseResponse getCase(Long caseId);
 
-    /**
-     * @param insurerSlug which of the insured's insurers to look in; only needed for someone insured
-     *                    at more than one, since case ids repeat across schemas. Null resolves
-     *                    against the login tenant.
-     */
+    /** @param insurerSlug only for someone insured at several insurers: case ids repeat across schemas */
     CaseResponse getCase(Long caseId, String insurerSlug);
 
     List<CaseDocumentResponse> getDocuments(Long caseId);
@@ -60,30 +55,31 @@ public interface CaseService {
     CaseDocument getDocument(Long caseId, Long documentId, String insurerSlug);
 
     /**
-     * Paginated, newest first by default; every filter is optional and combinable. The insurer
-     * scope is not a filter: the tenant schema already bounds the listing to one insurer.
+     * Newest first by default; every filter is optional. The tenant schema already bounds it to one
+     * insurer.
      *
-     * <p>{@code assignedToMe} is a boolean rather than an analyst id because that id is local to the
-     * schema: "me" is resolved from the token, and a caller with no analyst profile gets an empty
-     * page, not everything. {@code analystId}, by contrast, is the referent's explicit filter.
+     * <p>{@code assignedToMe} rather than an analyst id because that id is local to the schema; a caller
+     * with no analyst profile gets an empty page, not everything. {@code analystId} is the referent's
+     * filter.
      */
     Page<CaseResponse> listCases(List<CaseStatus> status, String claimCause, String policyNumber, String insuredId,
                                   LocalDate eventDateFrom, LocalDate eventDateTo, String q, RiskBand riskBand,
                                   Long analystId, boolean assignedToMe, boolean unassigned, boolean fraudAlert,
-                                  boolean assigned, boolean dueSoon, Integer staleDays, CaseScope scope,
-                                  Long insurerId, Pageable pageable);
+                                  boolean assigned, boolean dueSoon, CaseFollowUp followUp, Integer staleDays,
+                                  CaseScope scope, Long insurerId, Pageable pageable);
 
     default Page<CaseResponse> listCases(List<CaseStatus> status, String claimCause, String policyNumber, String insuredId,
                                           LocalDate eventDateFrom, LocalDate eventDateTo, String q, RiskBand riskBand,
                                           boolean assignedToMe, Pageable pageable) {
         return listCases(status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
-                null, assignedToMe, false, false, false, false, null, CaseScope.ALL, null, pageable);
+                null, assignedToMe, false, false, false, false, null, null, CaseScope.ALL, null, pageable);
     }
 
     /** All lens counts at once, over the same filters as the listing, using {@code count(spec)}. */
     LensSummaryResponse lensSummary(List<CaseStatus> status, String claimCause, String policyNumber,
                                      String insuredId, LocalDate eventDateFrom, LocalDate eventDateTo,
-                                     String q, RiskBand riskBand, Long analystId, CaseScope scope);
+                                     String q, RiskBand riskBand, Long analystId, CaseFollowUp followUp,
+                                     Integer staleDays);
 
     CaseResponse addDocumentsAndReclassify(Long caseId, Map<String, MultipartFile> documents);
 
@@ -113,18 +109,14 @@ public interface CaseService {
     /** The case doesn't move: it never left the analyst's review. */
     void returnSettlement(Long caseId, String reason);
 
-    /**
-     * Replaces any previous owner. Assigning never resolves or moves the case. An analyst id from
-     * another insurer doesn't resolve in the tenant schema and ends in 404.
-     */
+    /** Replaces any previous owner without moving the case; another insurer's analyst id ends in 404. */
     CaseResponse assignAnalyst(Long caseId, Long analystId);
 
     CaseResponse unassignAnalyst(Long caseId);
 
     /**
-     * Sends a closed case back to {@code PENDING_ANALYST_REVIEW}. Not a new verdict: the previous
-     * decision, risk and fraud record stay untouched. The reason is mandatory because it is the
-     * only explanation left in the history.
+     * Back to {@code PENDING_ANALYST_REVIEW} without touching the previous decision, risk or fraud record.
+     * The reason is mandatory: it is the only explanation left in the history.
      */
     CaseResponse reopenCase(Long caseId, String reason);
 

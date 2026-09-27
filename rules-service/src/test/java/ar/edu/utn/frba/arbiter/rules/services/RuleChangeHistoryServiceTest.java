@@ -39,11 +39,6 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/**
- * The referente's rule change history. What's under test is the pairing: a stored snapshot is the
- * version that <i>ended</i>, so a change only exists once it's read together with whatever replaced
- * it. Plain Mockito, no Spring.
- */
 class RuleChangeHistoryServiceTest {
 
     private static final Instant T1 = Instant.parse("2026-03-01T10:00:00Z");
@@ -80,10 +75,7 @@ class RuleChangeHistoryServiceTest {
         assertThat(RuleChangeHistoryService.actorOf(null)).isNull();
     }
 
-    /**
-     * Two snapshots and a live rule are three versions, so two changes: the oldest snapshot pairs
-     * with the middle one, not with the live rule, or the intermediate edit disappears.
-     */
+    /** Three versions, two changes: the oldest snapshot pairs with the middle one, not the live rule. */
     @Test
     void pairsEachSnapshotWithTheVersionThatReplacedIt() {
         InsurerRule rule = policeDeadlineRule("{\"deadlineHours\":120}", true);
@@ -104,7 +96,6 @@ class RuleChangeHistoryServiceTest {
                 .containsExactly(new RuleFieldChange("deadlineHours", "48", "72"));
     }
 
-    /** Only the change that produced the version in force today is the current one. */
     @Test
     void marksOnlyTheLastChangeOfEachRuleAsCurrent() {
         InsurerRule rule = policeDeadlineRule("{\"deadlineHours\":120}", true);
@@ -119,7 +110,6 @@ class RuleChangeHistoryServiceTest {
         assertThat(page().getContent()).extracting(RuleChangeEntry::current).containsExactly(true, false, false);
     }
 
-    /** Turning a rule off changes {@code active} and nothing in the configuration; it still has to show. */
     @Test
     void reportsTheOnOffToggleAsAChange() {
         InsurerRule rule = policeDeadlineRule("{\"deadlineHours\":72}", false);
@@ -132,7 +122,6 @@ class RuleChangeHistoryServiceTest {
                 .containsExactly(new RuleFieldChange("active", "true", "false"));
     }
 
-    /** The free-text rules store a bare JSON array, which has no key, so it needs a named field. */
     @Test
     void namesTheConfigurationOfARuleThatStoresABareList() {
         InsurerRule rule = InsurerRule.builder()
@@ -155,15 +144,11 @@ class RuleChangeHistoryServiceTest {
                 "configuration", "Daño estético", "Daño estético · Uso comercial"));
     }
 
-    /**
-     * Legacy rows hold the bare configuration without {@code active}; read naively, that would show
-     * a state change nobody made. Only the real difference may show.
-     */
     @Test
     void doesNotInventAStateChangeWhenTheStoredRowPredatesTheFlags() {
         InsurerRule rule = policeDeadlineRule("{\"deadlineHours\":120}", true);
         when(ruleHistoryRepository.findAllForHistory()).thenReturn(List.of(
-                // Legacy shape: the configuration stored bare, with no active/blocksFastTrack.
+                // Legacy shape: the bare configuration, without the switches.
                 history(1L, rule, T1, T2, "{\"deadlineHours\":72}")));
         noScoringHistory();
 
@@ -171,7 +156,6 @@ class RuleChangeHistoryServiceTest {
                 .containsExactly(new RuleFieldChange("deadlineHours", "72", "120"));
     }
 
-    /** A legacy row whose configuration was a bare array — how the free-text rules stored it. */
     @Test
     void readsALegacyRowThatStoredABareList() {
         InsurerRule rule = InsurerRule.builder()
@@ -186,7 +170,6 @@ class RuleChangeHistoryServiceTest {
                 "configuration", "Daño estético", "Daño estético · Uso comercial"));
     }
 
-    /** A stored row for a save that left the rule as it was is not a change and is hidden. */
     @Test
     void leavesOutASaveThatChangedNothing() {
         InsurerRule untouched = policeDeadlineRule("{\"deadlineHours\":72}", true);
@@ -195,7 +178,6 @@ class RuleChangeHistoryServiceTest {
                 .active(true).blocksFastTrack(true).coverageId(9L)
                 .configuration("{\"deadlineHours\":96}").validFrom(T1).build();
         when(ruleHistoryRepository.findAllForHistory()).thenReturn(List.of(
-                // Identical before and after: the referente saved without touching this one.
                 history(1L, untouched, T1, T2, "{\"active\":true,\"blocksFastTrack\":true,"
                         + "\"configuration\":{\"deadlineHours\":72}}"),
                 history(2L, edited, T1, T2, "{\"active\":true,\"blocksFastTrack\":true,"
@@ -209,10 +191,6 @@ class RuleChangeHistoryServiceTest {
                 .containsExactly(new RuleFieldChange("deadlineHours", "72", "96"));
     }
 
-    /**
-     * A legacy row whose parameters held can't say what changed (the on/off switch wasn't stored
-     * then), so it's left out; the rule's creation carries the version in force instead.
-     */
     @Test
     void dropsALegacySaveThatCannotSayWhatChanged() {
         InsurerRule rule = policeDeadlineRule("{\"deadlineHours\":72}", true);
@@ -227,7 +205,6 @@ class RuleChangeHistoryServiceTest {
                 });
     }
 
-    /** A rule never edited still shows up: its creation, dated when it took effect. */
     @Test
     void showsTheCreationOfARuleWithNoChanges() {
         InsurerRule rule = policeDeadlineRule("{\"deadlineHours\":72}", true);
@@ -243,9 +220,8 @@ class RuleChangeHistoryServiceTest {
                 });
     }
 
-    /** A creator with no referente profile is still a user: shown by email, never left blank. */
     @Test
-    void showsTheCreatorsEmailWhenTheyHaveNoReferenteProfile() {
+    void showsTheCreatorsEmailWhenTheyHaveNoReferentProfile() {
         InsurerRule rule = policeDeadlineRule("{\"deadlineHours\":72}", true);
         rule.setCreatedBy(9L);
         when(ruleRepository.findAllForHistory()).thenReturn(List.of(rule));
@@ -257,7 +233,6 @@ class RuleChangeHistoryServiceTest {
                 .extracting(RuleChangeEntry::author).isEqualTo("admin@arbiter.com");
     }
 
-    /** The creator is a user; with a referente profile, they're shown by name. */
     @Test
     void namesTheUserWhoCreatedTheRule() {
         InsurerRule rule = policeDeadlineRule("{\"deadlineHours\":72}", true);
@@ -271,7 +246,6 @@ class RuleChangeHistoryServiceTest {
                 .extracting(RuleChangeEntry::author).isEqualTo("Ana Pérez");
     }
 
-    /** The live rule's validFrom moves with each edit; the creation is when the first version started. */
     @Test
     void datesTheCreationByTheFirstStoredVersion() {
         Instant created = Instant.parse("2026-01-15T10:00:00Z");
@@ -289,7 +263,6 @@ class RuleChangeHistoryServiceTest {
         assertThat(entries.get(1).changedAt()).isEqualTo(created);
     }
 
-    /** The scope the referente needs to tell two rules of the same type apart. */
     @Test
     void resolvesBranchAndCoverageNames() {
         InsurerRule rule = policeDeadlineRule("{\"deadlineHours\":72}", true);
@@ -309,10 +282,6 @@ class RuleChangeHistoryServiceTest {
         assertThat(entry.previousValidFrom()).isEqualTo(T1);
     }
 
-    /**
-     * A factor weight is identified by its code, never by its position in the array: inserting a
-     * factor would otherwise shift every index and report the whole list as changed.
-     */
     @Test
     void keysScoringFactorsByCodeAndNotByPosition() {
         when(ruleHistoryRepository.findAllForHistory()).thenReturn(List.of());
@@ -337,7 +306,6 @@ class RuleChangeHistoryServiceTest {
         assertThat(changes.get(0).newValue()).isEqualTo("0.4");
     }
 
-    /** Both trails are one feed for the referente, in real time order and not one table after the other. */
     @Test
     void mergesBothTrailsChronologically() {
         InsurerRule rule = policeDeadlineRule("{\"deadlineHours\":72}", true);
@@ -356,7 +324,6 @@ class RuleChangeHistoryServiceTest {
                 .containsExactly(RuleChangeSource.INSURER_RULE, RuleChangeSource.SCORING);
     }
 
-    /** The filter offers the types of the existing rules, via its own query instead of loading the whole history. */
     @Test
     void listsRuleTypesWithoutRereadingTheWholeTrail() {
         when(ruleRepository.findDistinctRuleTypes())
@@ -367,7 +334,6 @@ class RuleChangeHistoryServiceTest {
         verify(ruleHistoryRepository, never()).findAllForHistory();
     }
 
-    /** Excluded claim causes are stored as ids but shown by name, which is what the referente picked. */
     @Test
     void resolvesClaimCauseIdsToTheirNames() {
         InsurerRule rule = InsurerRule.builder()
@@ -386,7 +352,6 @@ class RuleChangeHistoryServiceTest {
                 "excludedClaimCauseIds", "Robo en vía pública", "Caída · Hurto"));
     }
 
-    /** Repair derivation stores its claim causes under a different key, but they are ids all the same. */
     @Test
     void resolvesTheRepairDerivationClaimCausesToo() {
         InsurerRule rule = InsurerRule.builder()
@@ -405,7 +370,6 @@ class RuleChangeHistoryServiceTest {
                 "claimCauseIds", "Hurto", "Caída"));
     }
 
-    /** An id with no catalog entry stays as it was: the change happened over it either way. */
     @Test
     void leavesAClaimCauseIdThatNoLongerResolves() {
         InsurerRule rule = InsurerRule.builder()
@@ -421,7 +385,6 @@ class RuleChangeHistoryServiceTest {
         assertThat(page().getContent().get(0).changes().get(0).newValue()).isEqualTo("99");
     }
 
-    /** The scoring row's own id is internal and must not show up as a change. */
     @Test
     void keepsTheScoringRowIdOutOfTheDiff() {
         when(ruleHistoryRepository.findAllForHistory()).thenReturn(List.of());
@@ -438,10 +401,6 @@ class RuleChangeHistoryServiceTest {
                 .containsExactly("enabled");
     }
 
-    /**
-     * A factor is keyed by its code whatever property the stored JSON puts first; otherwise every
-     * factor would read as removed and re-added.
-     */
     @Test
     void keysFactorsByCodeEvenWhenTheStoredJsonOrdersPropertiesDifferently() {
         when(ruleHistoryRepository.findAllForHistory()).thenReturn(List.of());
@@ -461,7 +420,6 @@ class RuleChangeHistoryServiceTest {
                 .containsExactly(new RuleFieldChange("factors[IMAGE_REUSED].weight", "0.2", "0.4"));
     }
 
-    /** The author is the referente recorded in changed_by, not whoever the reason happens to name. */
     @Test
     void namesTheAuthorFromChangedBy() {
         InsurerRule rule = policeDeadlineRule("{\"deadlineHours\":120}", true);
@@ -477,7 +435,6 @@ class RuleChangeHistoryServiceTest {
         verify(userRepository, never()).findByEmailIn(any());
     }
 
-    /** Rows saved without changed_by still get an author, from the email the reason ends with. */
     @Test
     void fallsBackToTheReasonWhenChangedByIsNull() {
         InsurerRule rule = policeDeadlineRule("{\"deadlineHours\":120}", true);
@@ -494,9 +451,8 @@ class RuleChangeHistoryServiceTest {
         verify(insurerReferentRepository, never()).findAllById(any());
     }
 
-    /** Without a referente profile behind the email, the email itself is the author. */
     @Test
-    void showsTheEmailWhenTheReasonNamesNoReferente() {
+    void showsTheEmailWhenTheReasonNamesNoReferent() {
         InsurerRule rule = policeDeadlineRule("{\"deadlineHours\":120}", true);
         when(ruleHistoryRepository.findAllForHistory()).thenReturn(List.of(
                 history(1L, rule, T1, T2, "{\"active\":true,\"blocksFastTrack\":true,"
@@ -526,7 +482,6 @@ class RuleChangeHistoryServiceTest {
         return service.find(null, null, null, null, PageRequest.of(0, 20));
     }
 
-    /** The feed without the creations, for tests about how versions pair into changes. */
     private List<RuleChangeEntry> updates() {
         return page().getContent().stream()
                 .filter(entry -> entry.kind() == RuleChangeKind.UPDATED)

@@ -18,8 +18,8 @@ public class MockInsuredDirectoryAdapter implements InsuredDirectoryAdapter {
 
     @Override
     public List<InsuredDirectoryEntry> findWithPoliciesInForce(String insurerDbSchema) {
-        log.warn("[InsuredDirectory] Perfil 'insurer-db' apagado — no hay BD Aseguradora que leer, "
-                + "el alta masiva no va a encontrar asegurados (schema pedido: {})", insurerDbSchema);
+        log.warn("[InsuredDirectory] 'insurer-db' profile off: no insurer database to read, "
+                + "bulk provisioning will find no insured (schema: {})", insurerDbSchema);
         return List.of();
     }
 }

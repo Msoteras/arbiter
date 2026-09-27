@@ -26,7 +26,7 @@ class RiskBreakdownJsonConverterTest {
     }
 
     @Test
-    void nullAndBlankStaySinScorear() {
+    void nullAndBlankStayUnscored() {
         assertThat(converter.convertToDatabaseColumn(null)).isNull();
         assertThat(converter.convertToEntityAttribute(null)).isNull();
         assertThat(converter.convertToEntityAttribute("  ")).isNull();

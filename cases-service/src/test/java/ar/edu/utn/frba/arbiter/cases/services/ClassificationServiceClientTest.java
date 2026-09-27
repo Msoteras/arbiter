@@ -87,7 +87,7 @@ class ClassificationServiceClientTest {
     }
 
     @Test
-    void faltaDocumentacion_transitionsToAwaitingDocumentation() {
+    void missingDocumentation_transitionsToAwaitingDocumentation() {
         Case entity = pendingCase(3L);
         winsTheTurn(entity, CaseStatus.AWAITING_DOCUMENTATION);
         expectPoll(3L, "FALTA_DOCUMENTACION", "1.0",

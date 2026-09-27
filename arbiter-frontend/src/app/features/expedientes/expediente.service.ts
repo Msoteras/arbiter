@@ -158,6 +158,11 @@ export interface ExpedienteListParams {
   assigned?: boolean;
   /** HIGH or CRITICAL risk. */
   fraudAlert?: boolean;
+  followUp?:
+    | 'EXPERT_REPORT_RECEIVED'
+    | 'REPAIR_REPORT_RECEIVED'
+    | 'RETURNED_BY_REFERENT'
+    | 'AWAITING_REFERENT';
   /** Backend default: `ALL`. */
   scope?: 'OPEN' | 'CLOSED' | 'ALL';
   /** Only for an insured with policies at more than one insurer. */
@@ -170,14 +175,18 @@ export interface AnalystWorkload {
   activeCases: number;
 }
 
-export interface LensSummary {
-  all: number;
+export interface LensCounts {
+  total: number;
   mine: number;
   assigned: number;
   unassigned: number;
   fraud: number;
-  open: number;
-  closed: number;
+}
+
+export interface LensSummary {
+  open: LensCounts;
+  closed: LensCounts;
+  all: LensCounts;
 }
 
 /** `byStatus` maps CaseStatus name to count, only for statuses with at least one case. */
@@ -194,7 +203,6 @@ export class ExpedienteService {
   private readonly http = inject(HttpClient);
   private readonly baseUrl = `${environment.apiBaseUrl}/cases`;
 
-  /** Distinct claim cause names across all branches. */
   claimCauseNames(): Observable<string[]> {
     return this.http.get<string[]>(`${environment.apiBaseUrl}/claim-causes/all`);
   }
@@ -226,6 +234,7 @@ export class ExpedienteService {
     if (params.unassigned) query['unassigned'] = 'true';
     if (params.assigned) query['assigned'] = 'true';
     if (params.fraudAlert) query['fraudAlert'] = 'true';
+    if (params.followUp) query['followUp'] = params.followUp;
     if (params.scope) query['scope'] = params.scope;
     if (params.staleDays != null) query['staleDays'] = String(params.staleDays);
     if (params.insurerId != null) query['insurerId'] = String(params.insurerId);
@@ -238,9 +247,8 @@ export class ExpedienteService {
   }
 
   /**
-   * Documents requested at filing: the Fast Track list for the matching coverage, or the full agenda
-   * when none is configured. The rest is requested only if the claim misses Fast Track. 503 if the
-   * rules engine can't be read.
+   * The Fast Track list for the matching coverage, or the full agenda when none is configured; the rest
+   * only if the claim misses Fast Track. 503 if the rules engine can't be read.
    */
   intakeDocuments(
     policyNumber: string,
@@ -318,10 +326,7 @@ export class ExpedienteService {
     return this.http.post<ExpedienteResponse>(`${this.baseUrl}/${caseId}/assign`, { analystId });
   }
 
-  /**
-   * Sends a closed case (APPROVED / REJECTED / LAPSED) back to analyst review without reverting the
-   * previous decision. 409 from a non-terminal status.
-   */
+  /** Back to analyst review without reverting the previous decision. 409 from a non-terminal status. */
   reopen(caseId: number, reason: string): Observable<ExpedienteResponse> {
     return this.http.post<ExpedienteResponse>(`${this.baseUrl}/${caseId}/reopen`, { reason });
   }
@@ -342,7 +347,8 @@ export class ExpedienteService {
     if (params.q) query['q'] = params.q;
     if (params.riskBand) query['riskBand'] = params.riskBand;
     if (params.analystId != null) query['analystId'] = String(params.analystId);
-    if (params.scope) query['scope'] = params.scope;
+    if (params.followUp) query['followUp'] = params.followUp;
+    if (params.staleDays != null) query['staleDays'] = String(params.staleDays);
     return this.http.get<LensSummary>(`${this.baseUrl}/lens-summary`, { params: query });
   }
 

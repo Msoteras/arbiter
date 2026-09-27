@@ -1,13 +1,10 @@
 import { HardRule } from '../../features/admin/hard-rules.service';
 import { RiskBand } from './risk-band';
 
-// Rules configuration edited by the referent, organized per branch (ramo). Fraud scoring is not
-// here: it is a single per-insurer config (see ScoringConfig).
+// Referent-edited rules, per branch; fraud scoring is per insurer (see ScoringConfig).
 
-/** Mirrors the backend SettlementBasis enum. */
 export type SettlementBasis = 'SUM_INSURED' | 'LESSER_OF_SUM_AND_REPLACEMENT';
 
-/** Mirrors the backend SettlementFormula enum. */
 export type SettlementFormula = 'TOTAL_LOSS' | 'REPAIR';
 
 export interface Coverage {
@@ -22,7 +19,7 @@ export interface Coverage {
   reportingWindowDays: number | null;
   /** Per year and policy. */
   maxAnnualClaims: number | null;
-  /** Days after policy start during which the coverage does not apply yet. null = none. */
+  /** Days after policy start before the coverage applies. null = none. */
   waitingPeriodDays: number | null;
   coversFamilyGroup: boolean;
   claimExhaustsCoverage: boolean;
@@ -37,22 +34,15 @@ export interface Coverage {
   deductOverdueBalance: boolean;
   /** Free-text exclusions fed to the LLM prompt. */
   exclusions: string[];
-  /**
-   * Claim cause ids this coverage does not cover: a hard exclusion evaluated by the rules engine
-   * (COVERAGE_EXCLUSION), not the LLM. Loaded from rules-service with the coverage detail.
-   */
+  /** A hard exclusion evaluated by the rules engine (COVERAGE_EXCLUSION), not the LLM. */
   excludedClaimCauseIds?: number[];
   /**
-   * Hard temporal rules the insurer has active for this coverage (coverage window, waiting
-   * period, deadlines, events cap, arrears). They're each rule's switch, not its threshold: the
-   * thresholds are the fields above, except the police-report deadline, which has no column of
-   * its own and travels inside its own rule. Optional: `HardRulesService` loads them from
-   * rules-service.
+   * Each active temporal rule's switch, not its threshold: thresholds are the fields above, except the
+   * police-report deadline, which travels inside its rule. Loaded by `HardRulesService`.
    */
   hardRules?: HardRule[];
 }
 
-/** Deterministic Fast Track gate, configured per branch. */
 export interface FastTrackConfig {
   enabled: boolean;
   minPolicyAgeMonths: number | null;
@@ -70,7 +60,6 @@ export interface FactorWeight {
   weight: number;
 }
 
-/** A band applies when the normalized score is >= minScoreInclusive (0..1). */
 export interface RiskBandCut {
   band: RiskBand;
   minScoreInclusive: number;
@@ -79,10 +68,7 @@ export interface RiskBandCut {
 /** Single per-insurer fraud scoring config (not per branch), served at `/api/v1/rules/scoring`. */
 export interface ScoringConfig {
   enabled: boolean;
-  /**
-   * Whether Fast Track still runs the heavy analysis (OCR + image fraud) so the score is complete.
-   * It never vetoes Fast Track: it only decides how much analysis runs.
-   */
+  /** Whether Fast Track still runs OCR and image fraud for a complete score. Never vetoes Fast Track. */
   fullAnalysisOnFastTrack: boolean;
   factors: FactorWeight[];
   bands: RiskBandCut[];
@@ -93,13 +79,11 @@ export interface RamoRules {
   name: string;
   coverages: Coverage[];
   /**
-   * How many coverages the ramo has, from `/coverages/summary` — accurate for every ramo up
-   * front, unlike `coverages.length`, which stays 0 until the referente actually selects the
-   * ramo and its full detail loads. The sidebar badge reads this, not `coverages.length`.
+   * From `/coverages/summary`, so it's right for every ramo up front; `coverages.length` stays 0 until
+   * the ramo is selected. The sidebar badge reads this.
    */
   coverageCount: number;
   commonExclusions: string[];
-  /** claimCauseId → required document type codes. */
   requiredDocumentsByClaimCause: { [claimCauseId: number]: string[] };
   businessRules: string[];
   fastTrack: FastTrackConfig;

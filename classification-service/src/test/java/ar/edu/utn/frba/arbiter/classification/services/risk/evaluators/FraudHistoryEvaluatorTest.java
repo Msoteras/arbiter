@@ -24,13 +24,13 @@ class FraudHistoryEvaluatorTest {
     /** With no rule configured the factor still runs, with the default window. */
     @Test
     void withNoRuleConfiguredItStillGradesWithTheDefaultWindow() {
-        Contribution reciente = evaluator.evaluate(context(sinRegla(), expertBacked(monthsAgo(1))));
-        Contribution viejo = evaluator.evaluate(
-                context(sinRegla(), expertBacked(monthsAgo(BusinessRules.FraudRecordPolicy.DEFAULT_WINDOW_MONTHS + 1))));
+        Contribution recent = evaluator.evaluate(context(noRule(), expertBacked(monthsAgo(1))));
+        Contribution old = evaluator.evaluate(
+                context(noRule(), expertBacked(monthsAgo(BusinessRules.FraudRecordPolicy.DEFAULT_WINDOW_MONTHS + 1))));
 
-        assertThat(reciente.evaluable()).isTrue();
-        assertThat(reciente.score()).isEqualTo(1.0);
-        assertThat(viejo.score()).isEqualTo(0.0);
+        assertThat(recent.evaluable()).isTrue();
+        assertThat(recent.score()).isEqualTo(1.0);
+        assertThat(old.score()).isEqualTo(0.0);
     }
 
     @Test
@@ -107,7 +107,7 @@ class FraudHistoryEvaluatorTest {
                 .ruleId(17L).windowMonths(WINDOW_MONTHS).blocksFastTrack(true).build();
     }
 
-    private BusinessRules.FraudRecordPolicy sinRegla() {
+    private BusinessRules.FraudRecordPolicy noRule() {
         return BusinessRules.FraudRecordPolicy.unconfigured();
     }
 

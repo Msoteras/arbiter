@@ -1,15 +1,21 @@
 package ar.edu.utn.frba.arbiter.cases.models.repositories;
 
+import ar.edu.utn.frba.arbiter.cases.dto.CaseFollowUp;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseScope;
+import ar.edu.utn.frba.arbiter.cases.dto.ProviderType;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.ClaimsAnalyst;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Coverage;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Insured;
+import ar.edu.utn.frba.arbiter.cases.models.entities.CaseSettlement;
+import ar.edu.utn.frba.arbiter.cases.models.entities.ExpertAssessment;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Policy;
 import ar.edu.utn.frba.arbiter.cases.support.AbstractPersistenceIT;
 import ar.edu.utn.frba.arbiter.cases.support.CaseFixtures;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 import ar.edu.utn.frba.arbiter.common.enums.RiskBand;
+import ar.edu.utn.frba.arbiter.common.enums.SettlementBasis;
+import ar.edu.utn.frba.arbiter.common.enums.SettlementStatus;
 import ar.edu.utn.frba.arbiter.common.models.entities.Branch;
 import ar.edu.utn.frba.arbiter.common.models.entities.CaseState;
 import ar.edu.utn.frba.arbiter.common.models.entities.ClaimCause;
@@ -26,6 +32,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
@@ -35,9 +42,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 
 /**
- * Against real Postgres, not a mocked {@code CaseRepository}: {@link CaseSpecifications#withFilters}
- * may build a spec that looks right in Java, but only Hibernate running the Criteria API against a
- * real database exercises it.
+ * Against real Postgres: a spec can look right in Java, and only the Criteria API running against a
+ * real database proves it.
  */
 @SpringBootTest
 @Transactional
@@ -73,6 +79,12 @@ class CaseRepositorySpecificationTests extends AbstractPersistenceIT {
     @Autowired
     private ClaimsAnalystRepository claimsAnalystRepository;
 
+    @Autowired
+    private ExpertAssessmentRepository expertAssessmentRepository;
+
+    @Autowired
+    private CaseSettlementRepository caseSettlementRepository;
+
     @PersistenceContext
     private EntityManager entityManager;
 
@@ -91,10 +103,7 @@ class CaseRepositorySpecificationTests extends AbstractPersistenceIT {
                         .build()));
     }
 
-    /**
-     * Same for the rest of the graph the case points at. Every FK is NOT NULL, so a case can't be
-     * persisted until branch → claim cause, insured and coverage → policy all exist.
-     */
+    /** Every FK is NOT NULL: branch → claim cause, insured and coverage → policy must exist first. */
     private ClaimCause claimCause(String branchName, String causeName) {
         Branch branch = branchRepository.findByName(branchName)
                 .orElseGet(() -> branchRepository.save(CaseFixtures.branch(branchName)));
@@ -106,8 +115,7 @@ class CaseRepositorySpecificationTests extends AbstractPersistenceIT {
     private Insured insured(String dni, String name, String surname) {
         return insuredRepository.findByDni(dni)
                 .orElseGet(() -> {
-                    // insured.user_id is NOT NULL: identity lives in the common schema and the
-                    // profile in the tenant's, so both ends must be created.
+                    // insured.user_id is NOT NULL: identity lives in the common schema, the profile in the tenant's.
                     Insured person = CaseFixtures.insured(dni, name, surname);
                     person.setUser(userRepository.save(CaseFixtures.user(dni + "@example.com")));
                     return insuredRepository.save(person);
@@ -152,25 +160,24 @@ class CaseRepositorySpecificationTests extends AbstractPersistenceIT {
     }
 
     /**
-     * Mapping to {@code CaseResponse} runs with the session closed, so everything it navigates must
-     * come in the query (e.g. {@code claimCause.branch}, which the {@code @EntityGraph}'s default
-     * {@code FETCH} would leave lazy).
+     * The mapping runs with the session closed, so everything it navigates must come in the query (e.g.
+     * {@code claimCause.branch}, which the {@code @EntityGraph}'s default FETCH would leave lazy).
      */
     @Test
-    void elListadoTraeTodoLoQueElMapeoNavegaConLaSesionCerrada() {
+    void listingLoadsEverythingTheMappingNavigatesAfterTheSessionCloses() {
         // Before the query, or the seed leaves the graph in the cache and the test always passes.
         entityManager.flush();
         entityManager.clear();
 
-        List<Case> porPagina = caseRepository.findAll(
+        List<Case> byPage = caseRepository.findAll(
                 CaseSpecifications.withFilters(null, null, null, null, null, null, null, null, null),
                 FIRST_PAGE).getContent();
-        List<Case> porSort = caseRepository.findAll(
+        List<Case> bySort = caseRepository.findAll(
                 CaseSpecifications.withFilters(null, null, null, "40.123.456", null, null, null, null, null),
                 Sort.unsorted());
         entityManager.clear();
 
-        assertThatCode(() -> Stream.concat(porPagina.stream(), porSort.stream()).forEach(entity -> {
+        assertThatCode(() -> Stream.concat(byPage.stream(), bySort.stream()).forEach(entity -> {
             entity.getClaimCause().getName();
             entity.getClaimCause().getBranch().getName();
             entity.getInsured().getDni();
@@ -214,8 +221,7 @@ class CaseRepositorySpecificationTests extends AbstractPersistenceIT {
 
         Page<Case> page = caseRepository.findAll(spec, FIRST_PAGE);
 
-        // Both seeded cases with that cause belong to the same insured; the combined filter must
-        // return exactly those.
+        // Both seeded cases with that cause belong to the same insured.
         assertThat(page.getContent()).hasSize(2);
         assertThat(page.getContent())
                 .allMatch(c -> c.getClaimCause().getName().equals("Robo en vía pública"))
@@ -409,8 +415,7 @@ class CaseRepositorySpecificationTests extends AbstractPersistenceIT {
 
     @Test
     void analystFilter_combinesWithStatusAsAnd() {
-        // The analyst has two cases but only one is PENDING_ANALYST_REVIEW: crossing "Mine" with the
-        // status filter must not return the other.
+        // Two cases, one PENDING_ANALYST_REVIEW: crossing "Mine" with the status must not return the other.
         ClaimsAnalyst owner = analyst("lucas.gomez@arbiter.test", "Lucas", "Gómez");
         assign(owner, seeded.get(0), seeded.get(1));
 
@@ -427,8 +432,7 @@ class CaseRepositorySpecificationTests extends AbstractPersistenceIT {
 
     @Test
     void analystFilter_excludesUnassignedCases() {
-        // An unassigned case belongs to nobody: it can't show up in any analyst's "Mine" lens. That's
-        // what tells "unassigned" apart from "assigned to someone else".
+        // Unassigned belongs to nobody: that tells it apart from "assigned to someone else".
         ClaimsAnalyst owner = analyst("lucas.gomez@arbiter.test", "Lucas", "Gómez");
         assign(owner, seeded.get(0));
 
@@ -451,10 +455,7 @@ class CaseRepositorySpecificationTests extends AbstractPersistenceIT {
                         CaseStatus.PENDING_ANALYST_REVIEW.name(), CaseStatus.PENDING_CLASSIFICATION.name());
     }
 
-    /**
-     * A case past its art. 56 term is still open: it's the most urgent there is, not a closed one.
-     * The only status reached by expiry is {@code LAPSED}, which is already closed.
-     */
+    /** Past its art. 56 term is still open, the most urgent there is; expiry only reaches LAPSED. */
     @Test
     void openScope_keepsAnOverdueCase() {
         Case overdue = caseOf(CaseStatus.PENDING_ANALYST_REVIEW, "Hurto", "POL-CEL-2024-006",
@@ -467,10 +468,7 @@ class CaseRepositorySpecificationTests extends AbstractPersistenceIT {
         assertThat(page.getContent()).extracting(Case::getId).contains(overdue.getId());
     }
 
-    /**
-     * "Stalled" lens. Hibernate stamps {@code updatedAt} on save, so an old case has to be aged by
-     * SQL: setting it on the entity would be overwritten by {@code @UpdateTimestamp} in the same flush.
-     */
+    /** Aged by SQL: {@code @UpdateTimestamp} would overwrite an {@code updatedAt} set on the entity. */
     @Test
     void staleSince_returnsOnlyOpenCasesNobodyTouched() {
         Case frozen = caseRepository.save(caseOf(CaseStatus.PENDING_ANALYST_REVIEW, "Hurto",
@@ -490,6 +488,83 @@ class CaseRepositorySpecificationTests extends AbstractPersistenceIT {
                 // Closed months ago isn't stalled, it's finished; the one just touched isn't either.
                 .containsExactly(frozen.getId())
                 .doesNotContain(closedLongAgo.getId(), justTouched.getId());
+    }
+
+    @Test
+    void followUp_splitsWhatTheExpertAndTheRepairShopAnswered() {
+        ClaimsAnalyst lucas = analyst("derivations@arbiter.test", "Lucas", "Gómez");
+        Instant answered = Instant.parse("2026-09-10T12:00:00Z");
+        Case fromExpert = caseRepository.save(caseOf(CaseStatus.PENDING_ANALYST_REVIEW, "Hurto",
+                "POL-CEL-2024-030", "40.123.480", "Ana", "Sosa", LocalDate.of(2026, 9, 1), null));
+        Case fromRepairShop = caseRepository.save(caseOf(CaseStatus.PENDING_ANALYST_REVIEW, "Caída",
+                "POL-CEL-2024-031", "40.123.481", "Beto", "Luna", LocalDate.of(2026, 9, 1), null));
+        Case waitingAgain = caseRepository.save(caseOf(CaseStatus.PENDING_REPAIR, "Hurto",
+                "POL-CEL-2024-032", "40.123.482", "Ciro", "Vera", LocalDate.of(2026, 9, 1), null));
+        Case closed = caseRepository.save(caseOf(CaseStatus.APPROVED, "Hurto",
+                "POL-CEL-2024-033", "40.123.483", "Dora", "Mena", LocalDate.of(2026, 9, 1), null));
+        Case stillWithExpert = caseRepository.save(caseOf(CaseStatus.PENDING_EXPERT_REPORT, "Hurto",
+                "POL-CEL-2024-034", "40.123.484", "Eva", "Ruiz", LocalDate.of(2026, 9, 1), null));
+        assessment(fromExpert, ProviderType.ESTUDIO_LIQUIDADOR, answered, lucas);
+        assessment(fromRepairShop, ProviderType.SERVICIO_TECNICO, answered, lucas);
+        assessment(waitingAgain, ProviderType.ESTUDIO_LIQUIDADOR, answered, lucas);
+        assessment(waitingAgain, ProviderType.SERVICIO_TECNICO, null, lucas);
+        assessment(closed, ProviderType.ESTUDIO_LIQUIDADOR, answered, lucas);
+        assessment(stillWithExpert, ProviderType.ESTUDIO_LIQUIDADOR, null, lucas);
+
+        assertThat(caseRepository.findAll(CaseSpecifications.followUp(CaseFollowUp.EXPERT_REPORT_RECEIVED),
+                FIRST_PAGE).getContent()).extracting(Case::getId).containsExactly(fromExpert.getId());
+        assertThat(caseRepository.findAll(CaseSpecifications.followUp(CaseFollowUp.REPAIR_REPORT_RECEIVED),
+                FIRST_PAGE).getContent()).extracting(Case::getId).containsExactly(fromRepairShop.getId());
+    }
+
+    @Test
+    void followUp_findsWhatTheReferentReturnedOrStillHas() {
+        Case returned = caseRepository.save(caseOf(CaseStatus.PENDING_ANALYST_REVIEW, "Hurto",
+                "POL-CEL-2024-035", "40.123.485", "Ana", "Sosa", LocalDate.of(2026, 9, 1), null));
+        Case awaiting = caseRepository.save(caseOf(CaseStatus.PENDING_ANALYST_REVIEW, "Hurto",
+                "POL-CEL-2024-036", "40.123.486", "Beto", "Luna", LocalDate.of(2026, 9, 1), null));
+        Case authorized = caseRepository.save(caseOf(CaseStatus.APPROVED, "Hurto",
+                "POL-CEL-2024-037", "40.123.487", "Ciro", "Vera", LocalDate.of(2026, 9, 1), null));
+        Case returnedThenRejected = caseRepository.save(caseOf(CaseStatus.REJECTED, "Hurto",
+                "POL-CEL-2024-038", "40.123.488", "Dora", "Mena", LocalDate.of(2026, 9, 1), null));
+        settlement(returned, SettlementStatus.RETURNED);
+        settlement(awaiting, SettlementStatus.PENDING_AUTHORIZATION);
+        settlement(authorized, SettlementStatus.AUTHORIZED);
+        settlement(returnedThenRejected, SettlementStatus.RETURNED);
+
+        assertThat(caseRepository.findAll(CaseSpecifications.followUp(CaseFollowUp.RETURNED_BY_REFERENT),
+                FIRST_PAGE).getContent()).extracting(Case::getId).containsExactly(returned.getId());
+        assertThat(caseRepository.findAll(CaseSpecifications.followUp(CaseFollowUp.AWAITING_REFERENT),
+                FIRST_PAGE).getContent()).extracting(Case::getId).containsExactly(awaiting.getId());
+    }
+
+    private void settlement(Case caseRecord, SettlementStatus status) {
+        caseSettlementRepository.save(CaseSettlement.builder()
+                .caseId(caseRecord.getId())
+                .sumInsured(new BigDecimal("1300000.00"))
+                .settlementBasis(SettlementBasis.SUM_INSURED)
+                .calculatedAmount(new BigDecimal("1140000.00"))
+                .settledAmount(new BigDecimal("1140000.00"))
+                .status(status)
+                .coverageId(1L)
+                .analystId(7L)
+                .calculatedAt(Instant.parse("2026-09-12T12:00:00Z"))
+                .confirmedAt(Instant.parse("2026-09-12T12:00:00Z"))
+                .build());
+    }
+
+    private void assessment(Case caseRecord, ProviderType providerType, Instant reportReceivedAt,
+                            ClaimsAnalyst analyst) {
+        expertAssessmentRepository.save(ExpertAssessment.builder()
+                .caseId(caseRecord.getId())
+                .expertName("North Assessors")
+                .expertEmail("assessors@arbiter.test")
+                .reason("Signs to verify")
+                .derivedAt(Instant.parse("2026-09-05T12:00:00Z"))
+                .providerType(providerType)
+                .reportReceivedAt(reportReceivedAt)
+                .derivedBy(analyst)
+                .build());
     }
 
     private void age(Long caseId, Instant updatedAt) {
@@ -529,47 +604,57 @@ class CaseRepositorySpecificationTests extends AbstractPersistenceIT {
                 .containsExactly(CaseStatus.PENDING_ANALYST_REVIEW.name());
     }
 
-    /** The five counts come from a single aggregate query and must match counting each lens separately. */
     @Test
-    void losConteosDeLasLentesDanIgualQueContarCadaUnaPorSeparado() {
+    void lensCounts_eachCellMatchesCountingThatCombinationAlone() {
         ClaimsAnalyst lucas = analyst("lucas.gomez@arbiter.test", "Lucas", "Gómez");
         assign(lucas, seeded.get(0), seeded.get(2));
 
-        Specification<Case> base = CaseSpecifications.withFilters(
-                null, null, null, null, null, null, null, null, null);
-        CaseLensCountRepository.LensCounts counts = caseRepository.countLenses(base, lucas.getId());
+        CaseLensCountRepository.LensCounts counts = caseRepository.countLenses(null, lucas.getId());
 
-        assertThat(counts.all()).isEqualTo(caseRepository.count());
-        assertThat(counts.mine()).isEqualTo(caseRepository.count(CaseSpecifications.withFilters(
-                null, null, null, null, null, null, null, null, lucas.getId())));
-        assertThat(counts.assigned()).isEqualTo(caseRepository.count(CaseSpecifications.withFilters(
-                null, null, null, null, null, null, null, null, null, false, false, true)));
-        assertThat(counts.unassigned()).isEqualTo(caseRepository.count(CaseSpecifications.withFilters(
-                null, null, null, null, null, null, null, null, null, true, false, false)));
-        assertThat(counts.fraud()).isEqualTo(caseRepository.count(CaseSpecifications.withFilters(
-                null, null, null, null, null, null, null, null, null, false, true, false)));
-        assertThat(counts.assigned() + counts.unassigned()).isEqualTo(counts.all());
+        assertThat(counts.open()).isEqualTo(new CaseLensCountRepository.OwnershipCounts(2, 1, 1, 1, 0));
+        assertThat(counts.closed()).isEqualTo(new CaseLensCountRepository.OwnershipCounts(2, 1, 1, 1, 2));
+        assertCellsMatchTheListing(null, CaseScope.OPEN, counts.open(), lucas.getId());
+        assertCellsMatchTheListing(null, CaseScope.CLOSED, counts.closed(), lucas.getId());
     }
 
-    /** With no analyst profile in the tenant (the referent), "Mine" is 0, not everything. */
     @Test
-    void sinAnalistaEnElTokenLosMiosSonCero() {
-        CaseLensCountRepository.LensCounts counts = caseRepository.countLenses(
-                CaseSpecifications.withFilters(null, null, null, null, null, null, null, null, null), null);
+    void lensCounts_mineIsZeroWithoutAnAnalystProfile() {
+        CaseLensCountRepository.LensCounts counts = caseRepository.countLenses(null, null);
 
-        assertThat(counts.mine()).isZero();
-        assertThat(counts.all()).isEqualTo(4);
+        assertThat(counts.open().mine()).isZero();
+        assertThat(counts.closed().mine()).isZero();
+        assertThat(counts.open().total() + counts.closed().total()).isEqualTo(4);
     }
 
-    /** The filter bar narrows all five counts alike. */
     @Test
-    void losConteosRespetanElRecorteYLosFiltros() {
-        Specification<Case> soloEnCurso = CaseSpecifications.scope(CaseScope.OPEN);
+    void lensCounts_theFilterBarNarrowsEveryCell() {
+        Specification<Case> robbery = CaseSpecifications.withFilters(
+                null, "Robo en vía pública", null, null, null, null, null, null, null);
 
-        CaseLensCountRepository.LensCounts counts = caseRepository.countLenses(soloEnCurso, null);
+        CaseLensCountRepository.LensCounts counts = caseRepository.countLenses(robbery, null);
 
-        assertThat(counts.all()).isEqualTo(caseRepository.count(soloEnCurso));
-        assertThat(counts.all()).isEqualTo(2);
+        assertThat(counts.open()).isEqualTo(new CaseLensCountRepository.OwnershipCounts(1, 0, 0, 1, 0));
+        assertThat(counts.closed()).isEqualTo(new CaseLensCountRepository.OwnershipCounts(1, 0, 0, 1, 1));
+        assertCellsMatchTheListing(robbery, CaseScope.OPEN, counts.open(), null);
+        assertCellsMatchTheListing(robbery, CaseScope.CLOSED, counts.closed(), null);
+    }
+
+    private void assertCellsMatchTheListing(Specification<Case> bar, CaseScope lifecycle,
+                                            CaseLensCountRepository.OwnershipCounts row, Long me) {
+        Specification<Case> base = bar == null
+                ? CaseSpecifications.scope(lifecycle)
+                : bar.and(CaseSpecifications.scope(lifecycle));
+        assertThat(row.total()).isEqualTo(caseRepository.count(base));
+        if (me != null) {
+            assertThat(row.mine()).isEqualTo(caseRepository.count(base.and(CaseSpecifications.withFilters(
+                    null, null, null, null, null, null, null, null, me))));
+        }
+        assertThat(row.assigned()).isEqualTo(caseRepository.count(base.and(CaseSpecifications.withFilters(
+                null, null, null, null, null, null, null, null, null, false, false, true))));
+        assertThat(row.unassigned()).isEqualTo(caseRepository.count(base.and(CaseSpecifications.withFilters(
+                null, null, null, null, null, null, null, null, null, true, false, false))));
+        assertThat(row.fraud()).isEqualTo(caseRepository.count(base.and(CaseSpecifications.withFilters(
+                null, null, null, null, null, null, null, null, null, false, true, false))));
     }
 
     /** The analyst lives in the tenant schema and its {@code user_id} is NOT NULL, like insured's. */
@@ -613,10 +698,7 @@ class CaseRepositorySpecificationTests extends AbstractPersistenceIT {
                 .orElseGet(() -> coverageRepository.save(CaseFixtures.coverage("Celulares")));
     }
 
-    /**
-     * The sum insured lives in {@code policy_coverage}, not in {@code policy}: without this row the
-     * policy has nothing to be evaluated against.
-     */
+    /** The sum insured lives in {@code policy_coverage}: without this row there is nothing to evaluate. */
     private Policy withCoverage(Policy policy) {
         policyCoverageRepository.save(CaseFixtures.policyCoverage(policy.getId(), testCoverage(), 1));
         return policy;

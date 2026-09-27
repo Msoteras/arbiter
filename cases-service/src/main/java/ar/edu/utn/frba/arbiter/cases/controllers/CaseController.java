@@ -6,6 +6,7 @@ import ar.edu.utn.frba.arbiter.cases.dto.AssignAnalystRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.AssignedCaseSummaryResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseActionResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseDocumentResponse;
+import ar.edu.utn.frba.arbiter.cases.dto.CaseFollowUp;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseScope;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseResponse;
@@ -188,6 +189,7 @@ public class CaseController {
             @RequestParam(defaultValue = "false") boolean fraudAlert,
             @RequestParam(defaultValue = "false") boolean assigned,
             @RequestParam(defaultValue = "false") boolean dueSoon,
+            @RequestParam(required = false) CaseFollowUp followUp,
             @RequestParam(required = false) Integer staleDays,
             @RequestParam(defaultValue = "ALL") CaseScope scope,
             @RequestParam(required = false) Long insurerId,
@@ -195,7 +197,7 @@ public class CaseController {
     ) {
         Page<CaseResponse> response = caseService.listCases(
                 status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
-                analystId, assignedToMe, unassigned, fraudAlert, assigned, dueSoon, staleDays, scope,
+                analystId, assignedToMe, unassigned, fraudAlert, assigned, dueSoon, followUp, staleDays, scope,
                 insurerId,
                 pageable);
         return ResponseEntity.ok(response);
@@ -272,13 +274,14 @@ public class CaseController {
     @PreAuthorize("hasAnyRole('ANALISTA_SINIESTROS', 'REFERENTE_ASEGURADORA')")
     @Operation(summary = "Conteos de las lentes de la bandeja",
             description = """
-                    Devuelve de una sola vez cuántos expedientes hay en cada lente (todos, míos,
-                    asignados, sin asignar, alerta de fraude) para los filtros que se pasen — los
-                    mismos que acepta el listado.
+                    Devuelve de una sola vez cuántos expedientes hay en cada combinación de ciclo de
+                    vida (en curso, cerrados, todos) y pertenencia (todos, míos, asignados, sin
+                    asignar, alerta de fraude) para los filtros que se pasen — los mismos que acepta
+                    el listado, sin `scope`: el ciclo de vida ya viene cruzado en la respuesta.
 
-                    Existe para no pedir una lente por request: eran cinco llamadas por cada cambio
-                    de filtro, y cada una traía además una fila entera solo para leerle el total.
-                    Acá se cuenta sin materializar filas.
+                    Existe para no pedir una lente por request: la bandeja lee la celda de la
+                    combinación elegida, así que cambiar de pestaña no vuelve a consultar. Se cuenta
+                    en una sola consulta, sin materializar filas.
 
                     "Míos" da 0 para el referente, que no tiene perfil de analista en el tenant.
                     """)
@@ -292,11 +295,12 @@ public class CaseController {
             @RequestParam(required = false) String q,
             @RequestParam(required = false) RiskBand riskBand,
             @RequestParam(required = false) Long analystId,
-            @RequestParam(defaultValue = "ALL") CaseScope scope
+            @RequestParam(required = false) CaseFollowUp followUp,
+            @RequestParam(required = false) Integer staleDays
     ) {
         return ResponseEntity.ok(caseService.lensSummary(
                 status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
-                analystId, scope));
+                analystId, followUp, staleDays));
     }
 
     @GetMapping("/analysts/workload")
@@ -447,7 +451,7 @@ public class CaseController {
                     + "most recent first. Amounts within the analyst's own attribution aren't here: "
                     + "nobody else signed them.")
     public ResponseEntity<List<AuthorizedSettlementResponse>> authorizedSettlements() {
-        return ResponseEntity.ok(settlementService.authorizedByReferente());
+        return ResponseEntity.ok(settlementService.authorizedByReferent());
     }
 
     @PostMapping("/{caseId}/settlement/authorize")

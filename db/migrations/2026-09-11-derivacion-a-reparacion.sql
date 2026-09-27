@@ -1,28 +1,6 @@
--- =============================================================================
--- 2026-09-11 · Derivación a reparación (servicio técnico)
---
--- Migración puntual y NO destructiva, para aplicar sobre una base que ya tiene
--- datos (Railway) sin pasar por el trío reset → init → seed.
---
--- Agrega:
---   · arbiter_common.case_status  → la fila PENDING_REPAIR (estado PAUSANTE, no final:
---     el expediente espera al proveedor y el plazo del art. 56 queda interrumpido,
---     igual que con PENDING_EXPERT_REPORT).
---   · <tenant>.expert_firm        → provider_type, para que el mismo catálogo tenga
---     estudios liquidadores y servicios técnicos.
---   · <tenant>.expert_assessment  → provider_type + repair_outcome, y el unique pasa
---     de (case_id) a (case_id, provider_type): un expediente puede ir al perito,
---     volver sin fraude, y recién entonces al servicio técnico.
---
--- El resultado de la reparación va en columna propia y NO en `verdict`: ese es
--- vocabulario de fraude y un FRAUD_CONFIRMED le deja el antecedente al asegurado.
---
--- IMPORTANTE: los servicios corren con ddl-auto=validate. Aplicar ANTES de
--- desplegar el código que declara los campos, o cases-service no levanta.
--- `init-multitenant.sql` ya quedó actualizado para las bases nuevas.
---
--- Idempotente: se puede correr más de una vez sin romper nada.
--- =============================================================================
+-- 2026-09-11 · Referral to a repair shop: PENDING_REPAIR (pauses the art. 56 term, not final), provider_type
+-- on expert_firm and expert_assessment, and repair_outcome apart from verdict, which is fraud vocabulary.
+-- One referral per case and provider type. Apply before deploying the code (ddl-auto=validate). Idempotent.
 
 BEGIN;
 
@@ -58,8 +36,7 @@ BEGIN
                     DEFAULT ''ESTUDIO_LIQUIDADOR'',
                 ADD COLUMN IF NOT EXISTS repair_outcome VARCHAR(20)', tenant);
 
-        -- El unique viejo es por (case_id) a secas: bloquea la segunda derivación aunque sea a
-        -- otro tipo de proveedor, que es justo lo que esta historia habilita.
+        -- The old unique on case_id alone blocks a second referral to another kind of provider.
         EXECUTE format(
             'ALTER TABLE %I.expert_assessment DROP CONSTRAINT IF EXISTS expert_assessment_case_unique',
             tenant);
@@ -82,7 +59,7 @@ BEGIN
                 CHECK (repair_outcome IS NULL
                        OR repair_outcome IN (''REPAIRED'', ''IRREPARABLE'', ''QUOTE_SENT''))', tenant);
 
-        -- El viejo exigía `verdict` para toda devolución. Ahora cada tipo vuelve con el suyo.
+        -- The old check required a verdict on every response; now each kind returns its own.
         EXECUTE format(
             'ALTER TABLE %I.expert_assessment
                 DROP CONSTRAINT IF EXISTS expert_assessment_report_complete', tenant);
@@ -99,7 +76,7 @@ END $$;
 
 COMMIT;
 
--- Verificación: el estado nuevo y las columnas nuevas, una fila por aseguradora.
+-- Check: the new status and columns, one row per insurer.
 SELECT name, insured_status, is_final FROM arbiter_common.case_status WHERE name = 'PENDING_REPAIR';
 
 SELECT table_schema, table_name, column_name, data_type, is_nullable

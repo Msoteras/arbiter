@@ -123,7 +123,7 @@ function normalize(text: string): string {
               [class.is-placeholder]="opt.value === ''"
               [attr.aria-selected]="value() === opt.value"
               (mousedown)="$event.preventDefault()"
-              (click)="select(opt)"
+              (click)="$event.preventDefault(); select(opt)"
               (mousemove)="activeIndex.set(i)"
             >
               {{ opt.label }}

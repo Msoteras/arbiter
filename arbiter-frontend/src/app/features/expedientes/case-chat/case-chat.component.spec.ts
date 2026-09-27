@@ -7,7 +7,7 @@ import { CaseMessagesSocketService } from '../case-messages-socket.service';
 import { CaseMessageEvent, CaseMessageThread } from '../../../core/models/case-message';
 
 /** The socket frame is shared by both sides and carries no `mine`: the component must place it. */
-describe('CaseChatComponent — mensajes que llegan por el socket', () => {
+describe('CaseChatComponent · messages over the socket', () => {
   let fixture: ComponentFixture<CaseChatComponent>;
   let pushed: Subject<CaseMessageEvent>;
   let markRead: jasmine.Spy;
@@ -66,7 +66,7 @@ describe('CaseChatComponent — mensajes que llegan por el socket', () => {
     });
   }
 
-  it('ubica del lado del otro un mensaje del lado contrario', () => {
+  it('places a message from the other side on the other side', () => {
     pushed.next({
       id: 2,
       caseId: 29,
@@ -80,7 +80,7 @@ describe('CaseChatComponent — mensajes que llegan por el socket', () => {
     expect(bubbles()[1]).toEqual({ who: 'Equipo de siniestros', body: '¿La tenés?', mine: false });
   });
 
-  it('ubica como propio un mensaje del lado del que mira', () => {
+  it('places a message from the viewer side as their own', () => {
     pushed.next({
       id: 3,
       caseId: 29,
@@ -94,7 +94,7 @@ describe('CaseChatComponent — mensajes que llegan por el socket', () => {
   });
 
   /** The sender also receives its own message over the socket. */
-  it('ignora el eco de un mensaje que ya está en el hilo', () => {
+  it('ignores the echo of a message already in the thread', () => {
     pushed.next({
       id: 1,
       caseId: 29,
@@ -107,7 +107,7 @@ describe('CaseChatComponent — mensajes que llegan por el socket', () => {
     expect(bubbles().length).toBe(1);
   });
 
-  it('marca leído lo que entra, y no lo que sale', () => {
+  it('marks incoming messages as read, not outgoing ones', () => {
     markRead.calls.reset();
     pushed.next({
       id: 4,

@@ -1,32 +1,6 @@
--- =============================================================================
--- 2026-09-12 · El taller también factura
---
--- Migración puntual y NO destructiva, para aplicar sobre una base que ya tiene
--- datos (Railway) sin pasar por el trío reset → init → seed.
---
--- Cambia, sobre <tenant>.expert_assessment:
---   · quoted_amount → repair_cost. El importe ya no es sólo un presupuesto: cuando
---     el taller arregla el equipo, lo que informa es lo que cobró. Las dos cosas
---     son lo mismo para la liquidación —cuánto sale el arreglo— pero "quoted" sólo
---     nombraba una.
---   · El CHECK de completitud, para que el importe acompañe a los dos resultados
---     que tienen trabajo detrás.
---
--- Qué resultado admite qué importe:
---   · QUOTE_SENT   → obligatorio. Decir que mandaron presupuesto sin decir cuánto
---                    no contesta la pregunta que se les hizo.
---   · REPAIRED     → opcional. Hay factura, pero puede llegar después del informe.
---   · IRREPARABLE  → prohibido. No hubo trabajo que cobrar.
---
--- Va sobre 2026-09-12-presupuesto-del-taller.sql, que creó la columna. Si esa no
--- corrió, correla antes: ésta renombra, no crea.
---
--- IMPORTANTE: los servicios corren con ddl-auto=validate. Aplicar ANTES de
--- desplegar el código que declara el campo, o cases-service no levanta.
--- `init-multitenant.sql` ya quedó actualizado para las bases nuevas.
---
--- Idempotente: se puede correr más de una vez sin romper nada.
--- =============================================================================
+-- 2026-09-12 · expert_assessment.quoted_amount becomes repair_cost (the shop also bills a repair), and the
+-- completeness check: required with QUOTE_SENT, optional with REPAIRED, forbidden with IRREPARABLE.
+-- Run after 2026-09-12-presupuesto-del-taller.sql and before deploying the code. Idempotent.
 
 BEGIN;
 
@@ -70,7 +44,7 @@ END $$;
 
 COMMIT;
 
--- Verificación: la columna renombrada, una fila por aseguradora, y ninguna quoted_amount.
+-- Check: the renamed column, one row per insurer, and no quoted_amount left.
 SELECT table_schema, column_name, data_type, is_nullable
   FROM information_schema.columns
  WHERE table_name = 'expert_assessment' AND column_name IN ('repair_cost', 'quoted_amount')
