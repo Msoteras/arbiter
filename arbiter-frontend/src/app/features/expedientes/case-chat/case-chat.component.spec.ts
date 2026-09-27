@@ -4,12 +4,17 @@ import { Subject, of } from 'rxjs';
 import { CaseChatComponent } from './case-chat.component';
 import { CaseMessagesService } from '../case-messages.service';
 import { CaseMessagesSocketService } from '../case-messages-socket.service';
-import { CaseMessageEvent, CaseMessageThread } from '../../../core/models/case-message';
+import {
+  CaseMessage,
+  CaseMessageEvent,
+  CaseMessageThread,
+} from '../../../core/models/case-message';
 
 /** The socket frame is shared by both sides and carries no `mine`: the component must place it. */
 describe('CaseChatComponent · messages over the socket', () => {
   let fixture: ComponentFixture<CaseChatComponent>;
   let pushed: Subject<CaseMessageEvent>;
+  let posted: Subject<CaseMessage>;
   let markRead: jasmine.Spy;
 
   const thread: CaseMessageThread = {
@@ -32,6 +37,7 @@ describe('CaseChatComponent · messages over the socket', () => {
 
   beforeEach(async () => {
     pushed = new Subject<CaseMessageEvent>();
+    posted = new Subject<CaseMessage>();
     markRead = jasmine.createSpy('markRead').and.returnValue(of(void 0));
 
     await TestBed.configureTestingModule({
@@ -42,7 +48,7 @@ describe('CaseChatComponent · messages over the socket', () => {
           useValue: {
             thread: () => of(thread),
             markRead,
-            post: () => of(null),
+            post: () => posted.asObservable(),
           },
         },
         { provide: CaseMessagesSocketService, useValue: { watch: () => pushed.asObservable() } },
@@ -105,6 +111,36 @@ describe('CaseChatComponent · messages over the socket', () => {
     fixture.detectChanges();
 
     expect(bubbles().length).toBe(1);
+  });
+
+  it('shows a sent message once when its echo arrives before the POST answers', () => {
+    const chat = fixture.componentInstance as unknown as {
+      draft: { set(value: string): void };
+      send(): void;
+    };
+    chat.draft.set('Ya la subí.');
+    chat.send();
+
+    pushed.next({
+      id: 6,
+      caseId: 29,
+      sender: 'INSURED',
+      body: 'Ya la subí.',
+      createdAt: '2026-08-30T12:10:00Z',
+    });
+    posted.next({
+      id: 6,
+      sender: 'INSURED',
+      mine: true,
+      body: 'Ya la subí.',
+      createdAt: '2026-08-30T12:10:00Z',
+      readAt: null,
+    });
+    fixture.detectChanges();
+
+    expect(bubbles().filter((b) => b.body === 'Ya la subí.')).toEqual([
+      { who: 'Vos', body: 'Ya la subí.', mine: true },
+    ]);
   });
 
   it('marks incoming messages as read, not outgoing ones', () => {

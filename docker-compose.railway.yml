@@ -162,6 +162,7 @@ services:
       SENDGRID_API_KEY: ${SENDGRID_API_KEY:-}
       SENDGRID_FROM_ADDRESS: ${SENDGRID_FROM_ADDRESS:-no-reply@arbiter.test}
       SENDGRID_FROM_NAME: ${SENDGRID_FROM_NAME:-Arbiter}
+      FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:-http://localhost:4200}
     depends_on:
       classification-service:
         condition: service_started

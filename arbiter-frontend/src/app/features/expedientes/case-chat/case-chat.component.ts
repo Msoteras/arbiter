@@ -240,7 +240,9 @@ export class CaseChatComponent {
 
   private append(message: CaseMessage): void {
     this.thread.update((current) =>
-      current ? { ...current, messages: [...current.messages, message] } : current,
+      !current || current.messages.some((m) => m.id === message.id)
+        ? current
+        : { ...current, messages: [...current.messages, message] },
     );
   }
 }
