@@ -1,5 +1,6 @@
 package ar.edu.utn.frba.arbiter.reports.services.export;
 
+import ar.edu.utn.frba.arbiter.reports.dto.ReportBranding;
 import ar.edu.utn.frba.arbiter.reports.dto.ResolutionReport;
 import ar.edu.utn.frba.arbiter.reports.dto.ResolutionReportRow;
 import ar.edu.utn.frba.arbiter.reports.dto.ResolutionSummary;
@@ -9,11 +10,14 @@ import org.apache.pdfbox.text.PDFTextStripper;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.LongStream;
 
+import static ar.edu.utn.frba.arbiter.reports.support.ReportFixtures.BBVA;
 import static ar.edu.utn.frba.arbiter.reports.support.ReportFixtures.CLOCK;
 import static ar.edu.utn.frba.arbiter.reports.support.ReportFixtures.approvedRow;
+import static ar.edu.utn.frba.arbiter.reports.support.ReportFixtures.brandedAs;
 import static ar.edu.utn.frba.arbiter.reports.support.ReportFixtures.augustReport;
 import static ar.edu.utn.frba.arbiter.reports.support.ReportFixtures.fastTrackRow;
 import static ar.edu.utn.frba.arbiter.reports.support.ReportFixtures.lapsedRow;
@@ -22,7 +26,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 /** Reads the generated PDF back as text: what matters is what a person sees on the page. */
 class PdfResolutionReportExporterTest {
 
-    private final PdfResolutionReportExporter exporter = new PdfResolutionReportExporter(CLOCK);
+    private final PdfResolutionReportExporter exporter =
+            new PdfResolutionReportExporter(CLOCK, brandedAs(BBVA));
 
     @Test
     void writesTheTitleThePeriodAndTheRows() throws IOException {
@@ -142,8 +147,52 @@ class PdfResolutionReportExporterTest {
         assertThat(pdf.text()).contains("Ana ? Pérez");
     }
 
+    @Test
+    void theHeaderNamesTheInsurerAndAttributesArbiter() throws IOException {
+        Rendered pdf = render(List.of(approvedRow(42)));
+
+        assertThat(pdf.text()).contains("BBVA Seguros Argentina S.A.", "Generado con", "Arbiter");
+    }
+
+    /** Pages get printed, split and filed on their own, so not one of them may be anonymous. */
+    @Test
+    void everyPageCarriesTheInsurer() throws IOException {
+        List<ResolutionReportRow> rows = LongStream.range(1000, 1090).mapToObj(id -> approvedRow(id)).toList();
+
+        List<String> pages = pageTexts(augustReport(rows));
+
+        assertThat(pages).hasSizeGreaterThanOrEqualTo(3)
+                .allSatisfy(page -> assertThat(page).contains("BBVA Seguros Argentina S.A."));
+    }
+
+    /** The identity sits on top of the figures: losing it must not cost the referent the export. */
+    @Test
+    void withoutAnInsurer_theHeaderFallsBackInsteadOfFailingTheExport() throws IOException {
+        byte[] bytes = new PdfResolutionReportExporter(CLOCK, brandedAs(ReportBranding.UNKNOWN))
+                .export(augustReport(List.of(approvedRow(42))));
+
+        try (PDDocument document = Loader.loadPDF(bytes)) {
+            assertThat(new PDFTextStripper().getText(document))
+                    .contains("Aseguradora", "Reporte de resolución de siniestros", "Ana Pérez");
+        }
+    }
+
     private Rendered render(List<ResolutionReportRow> rows) throws IOException {
         return render(augustReport(rows));
+    }
+
+    private List<String> pageTexts(ResolutionReport report) throws IOException {
+        byte[] bytes = exporter.export(report);
+        try (PDDocument document = Loader.loadPDF(bytes)) {
+            List<String> pages = new ArrayList<>();
+            PDFTextStripper stripper = new PDFTextStripper();
+            for (int page = 1; page <= document.getNumberOfPages(); page++) {
+                stripper.setStartPage(page);
+                stripper.setEndPage(page);
+                pages.add(stripper.getText(document));
+            }
+            return pages;
+        }
     }
 
     private Rendered render(ResolutionReport report) throws IOException {

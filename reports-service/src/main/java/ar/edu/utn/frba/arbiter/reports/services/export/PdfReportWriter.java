@@ -1,5 +1,6 @@
 package ar.edu.utn.frba.arbiter.reports.services.export;
 
+import ar.edu.utn.frba.arbiter.reports.dto.ReportBranding;
 import ar.edu.utn.frba.arbiter.reports.exceptions.ReportGenerationException;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
@@ -17,9 +18,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Lays out a report as a landscape A4 table: heading, header row repeated on every page, and page
- * numbers at the foot. Shared by every {@code Pdf*Exporter} so all reports look the same; only the
- * columns and cells vary, which is all the {@link Spec} carries.
+ * Lays out a report as a landscape A4 table: the insurer's brand header, the heading, a header row
+ * repeated on every page, and page numbers at the foot. Shared by every {@code Pdf*Exporter} so all
+ * reports look the same; only the columns and cells vary, which is all the {@link Spec} carries.
  */
 final class PdfReportWriter {
 
@@ -41,10 +42,25 @@ final class PdfReportWriter {
      */
     private static final int MAX_CELL_LINES = 2;
 
+    /** Brand header: the monogram box sets its height, and everything else centres on that box. */
+    private static final float MONOGRAM_BOX = 17;
+    private static final float MONOGRAM_SIZE = 8.5f;
+    private static final float MARK_SIZE = 15;
+    private static final float BRAND_NAME_SIZE = 10;
+    private static final float BRAND_GAP = 7;
+    private static final float BRAND_RULE_GAP = 8;
+    /** Kept clear between the insurer's name and the attribution, so they never read as one line. */
+    private static final float BRAND_MIN_GUTTER = 18;
+
+    private static final String WORDMARK = "Arbiter";
+    private static final String GENERATED_WITH = "Generado con";
+
     private static final float INK = 0.1f;
     private static final float MUTED = 0.4f;
     private static final float RULE = 0.85f;
     private static final float HEAD_FILL = 0.94f;
+    /** Knocked-out text, for the monogram's letters over the filled box. */
+    private static final float PAPER = 1f;
 
     private static final String ELLIPSIS = "…";
 
@@ -59,6 +75,7 @@ final class PdfReportWriter {
     /**
      * @param headingLines the filter line and the summary, in order
      * @param emptyMessage shown when there are no rows, so an empty report still says which one it is
+     * @param branding     whose report this is; never null, {@link ReportBranding#UNKNOWN} stands in
      */
     record Spec(
             String title,
@@ -68,7 +85,8 @@ final class PdfReportWriter {
             List<String[]> rows,
             String emptyMessage,
             Instant generatedAt,
-            ZoneId zone
+            ZoneId zone,
+            ReportBranding branding
     ) {
         Spec {
             if (header.length != widths.length) {
@@ -92,7 +110,8 @@ final class PdfReportWriter {
             PDFont bold = new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD);
 
             PDPageContentStream content = newPage(document);
-            float y = drawHeading(content, regular, bold, spec, PAGE.getHeight() - MARGIN);
+            float y = drawBrandHeader(content, regular, bold, spec);
+            y = drawHeading(content, regular, bold, spec, y);
             y = drawHeaderRow(content, bold, spec, y);
             if (spec.rows().isEmpty()) {
                 text(content, regular, META_SIZE, MUTED, MARGIN + CELL_PADDING, y - ROW_HEIGHT,
@@ -105,7 +124,8 @@ final class PdfReportWriter {
                 if (y - height < MARGIN) {
                     content.close();
                     content = newPage(document);
-                    y = drawHeaderRow(content, bold, spec, PAGE.getHeight() - MARGIN);
+                    y = drawBrandHeader(content, regular, bold, spec);
+                    y = drawHeaderRow(content, bold, spec, y);
                 }
                 y = drawRow(content, regular, spec, lines, y);
             }
@@ -123,6 +143,48 @@ final class PdfReportWriter {
         PDPage page = new PDPage(PAGE);
         document.addPage(page);
         return new PDPageContentStream(document, page);
+    }
+
+    /**
+     * The insurer owns the document and Arbiter only produced it, so the tenant's identity leads and
+     * the attribution sits on the opposite margin. Drawn on every page rather than the first: each
+     * sheet of a report that gets printed, split or filed has to say whose it is on its own.
+     *
+     * @return the y the report's own heading starts from
+     */
+    private static float drawBrandHeader(PDPageContentStream content, PDFont regular, PDFont bold,
+                                         Spec spec) throws IOException {
+        float boxBottom = PAGE.getHeight() - MARGIN - MONOGRAM_BOX;
+        // Centred on the box, not on its baseline, which would ride high against the mark.
+        float baseline = boxBottom + (MONOGRAM_BOX - BRAND_NAME_SIZE) / 2 + 1.5f;
+        float right = MARGIN + spec.tableWidth();
+
+        float wordmarkWidth = width(WORDMARK, bold, BRAND_NAME_SIZE);
+        float labelWidth = width(GENERATED_WITH, regular, META_SIZE);
+        float attribution = labelWidth + BRAND_GAP + MARK_SIZE + 3 + wordmarkWidth;
+
+        content.setNonStrokingColor(INK);
+        content.addRect(MARGIN, boxBottom, MONOGRAM_BOX, MONOGRAM_BOX);
+        content.fill();
+        String monogram = printable(spec.branding().monogram(), bold);
+        text(content, bold, MONOGRAM_SIZE, PAPER,
+                MARGIN + (MONOGRAM_BOX - width(monogram, bold, MONOGRAM_SIZE)) / 2,
+                boxBottom + (MONOGRAM_BOX - MONOGRAM_SIZE) / 2 + 1.5f, monogram);
+        // Ellipsized rather than wrapped: the header is one line tall, and a long legal name that
+        // ran into the attribution on the other margin would read as a single mangled one.
+        float nameWidth = spec.tableWidth() - MONOGRAM_BOX - BRAND_GAP - attribution - BRAND_MIN_GUTTER;
+        text(content, bold, BRAND_NAME_SIZE, INK, MARGIN + MONOGRAM_BOX + BRAND_GAP, baseline,
+                fit(spec.branding().insurerLegalName(), bold, BRAND_NAME_SIZE, nameWidth));
+
+        float markLeft = right - wordmarkWidth - 3 - MARK_SIZE;
+        text(content, regular, META_SIZE, MUTED, markLeft - BRAND_GAP - labelWidth, baseline,
+                GENERATED_WITH);
+        ArbiterMark.draw(content, markLeft, boxBottom + (MONOGRAM_BOX - MARK_SIZE) / 2, MARK_SIZE, INK);
+        text(content, bold, BRAND_NAME_SIZE, INK, right - wordmarkWidth, baseline, WORDMARK);
+
+        float ruleY = boxBottom - BRAND_RULE_GAP;
+        rule(content, spec, ruleY);
+        return ruleY - BRAND_RULE_GAP;
     }
 
     /** @return the y where the table starts */
@@ -218,8 +280,8 @@ final class PdfReportWriter {
             try (PDPageContentStream content = new PDPageContentStream(
                     document, page, PDPageContentStream.AppendMode.APPEND, true, true)) {
                 text(content, regular, CELL_SIZE, MUTED, MARGIN, FOOTER_BASELINE,
-                        "Arbiter · " + spec.title());
-                String pageLabel = "Página %d de %d".formatted(i + 1, total);
+                        spec.branding().insurerLegalName() + " · " + spec.title());
+                String pageLabel = "Generado con Arbiter · Página %d de %d".formatted(i + 1, total);
                 float width = width(pageLabel, regular, CELL_SIZE);
                 text(content, regular, CELL_SIZE, MUTED, MARGIN + spec.tableWidth() - width,
                         FOOTER_BASELINE, pageLabel);

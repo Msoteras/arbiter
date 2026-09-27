@@ -6,6 +6,7 @@ import ar.edu.utn.frba.arbiter.reports.dto.ReportFormat;
 import ar.edu.utn.frba.arbiter.reports.dto.ResolutionReport;
 import ar.edu.utn.frba.arbiter.reports.dto.ResolutionReportRow;
 import ar.edu.utn.frba.arbiter.reports.dto.ResolutionSummary;
+import ar.edu.utn.frba.arbiter.reports.services.ReportBrandingService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -30,6 +31,7 @@ public class PdfResolutionReportExporter implements ResolutionReportExporter {
     private static final float[] WIDTHS = {36, 110, 58, 120, 56, 56, 50, 88, 50, 56, 86};
 
     private final Clock clock;
+    private final ReportBrandingService reportBrandingService;
 
     @Override
     public ReportFormat format() {
@@ -47,7 +49,8 @@ public class PdfResolutionReportExporter implements ResolutionReportExporter {
                 report.rows().stream().map(row -> cells(row, zone)).toList(),
                 "No hay siniestros resueltos en el período.",
                 report.generatedAt(),
-                zone));
+                zone,
+                reportBrandingService.current()));
     }
 
     private static List<String> headingLines(ResolutionReport report) {

@@ -5,6 +5,7 @@ import ar.edu.utn.frba.arbiter.reports.dto.FraudReportRow;
 import ar.edu.utn.frba.arbiter.reports.dto.FraudSummary;
 import ar.edu.utn.frba.arbiter.reports.dto.MetricCount;
 import ar.edu.utn.frba.arbiter.reports.dto.ReportFormat;
+import ar.edu.utn.frba.arbiter.reports.services.ReportBrandingService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -32,6 +33,7 @@ public class PdfFraudReportExporter implements FraudReportExporter {
     private static final float[] WIDTHS = {36, 100, 52, 110, 52, 44, 170, 90, 112};
 
     private final Clock clock;
+    private final ReportBrandingService reportBrandingService;
 
     @Override
     public ReportFormat format() {
@@ -49,7 +51,8 @@ public class PdfFraudReportExporter implements FraudReportExporter {
                 report.rows().stream().map(row -> cells(row, zone)).toList(),
                 "Ninguna denuncia con señales en el período.",
                 report.generatedAt(),
-                zone));
+                zone,
+                reportBrandingService.current()));
     }
 
     private static List<String> headingLines(FraudReport report) {

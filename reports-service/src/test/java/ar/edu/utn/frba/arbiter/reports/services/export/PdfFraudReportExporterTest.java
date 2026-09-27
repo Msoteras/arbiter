@@ -14,7 +14,9 @@ import java.io.IOException;
 import java.util.List;
 import java.util.stream.LongStream;
 
+import static ar.edu.utn.frba.arbiter.reports.support.ReportFixtures.BBVA;
 import static ar.edu.utn.frba.arbiter.reports.support.ReportFixtures.CLOCK;
+import static ar.edu.utn.frba.arbiter.reports.support.ReportFixtures.brandedAs;
 import static ar.edu.utn.frba.arbiter.reports.support.ReportFixtures.documentInconsistentRow;
 import static ar.edu.utn.frba.arbiter.reports.support.ReportFixtures.flaggedRow;
 import static ar.edu.utn.frba.arbiter.reports.support.ReportFixtures.lowScoreRow;
@@ -25,7 +27,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 /** Reads the generated PDF back as text: what matters is what a person sees on the page. */
 class PdfFraudReportExporterTest {
 
-    private final PdfFraudReportExporter exporter = new PdfFraudReportExporter(CLOCK);
+    private final PdfFraudReportExporter exporter =
+            new PdfFraudReportExporter(CLOCK, brandedAs(BBVA));
 
     @Test
     void writesTheTitleThePeriodAndTheRows() throws IOException {
@@ -181,6 +184,17 @@ class PdfFraudReportExporterTest {
         Rendered pdf = render(List.of(flaggedRow(42, "Ana 😀 Pérez")));
 
         assertThat(pdf.text()).contains("Ana ? Pérez");
+    }
+
+    /**
+     * The header is the writer's, not this exporter's, so every report gets the same one — including
+     * the ones nobody has written yet.
+     */
+    @Test
+    void theHeaderNamesTheInsurerAndAttributesArbiter() throws IOException {
+        Rendered pdf = render(List.of(flaggedRow(1482)));
+
+        assertThat(pdf.text()).contains("BBVA Seguros Argentina S.A.", "Generado con", "Arbiter");
     }
 
     private Rendered render(List<FraudReportRow> rows) throws IOException {
