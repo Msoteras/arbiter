@@ -15,7 +15,6 @@ import ar.edu.utn.frba.arbiter.reports.services.export.pdf.BarListBlock;
 import ar.edu.utn.frba.arbiter.reports.services.export.pdf.Block;
 import ar.edu.utn.frba.arbiter.reports.services.export.pdf.BulletsBlock;
 import ar.edu.utn.frba.arbiter.reports.services.export.pdf.CalloutBlock;
-import ar.edu.utn.frba.arbiter.reports.services.export.pdf.CaptionBlock;
 import ar.edu.utn.frba.arbiter.reports.services.export.pdf.ColumnsBlock;
 import ar.edu.utn.frba.arbiter.reports.services.export.pdf.DefinitionsBlock;
 import ar.edu.utn.frba.arbiter.reports.services.export.pdf.MatrixBlock;
@@ -58,15 +57,25 @@ public class PdfResolutionReportExporter implements ResolutionReportExporter {
             + "incluye los expedientes que siguen abiertos.";
 
     private static final String METHOD = "Se tomaron los expedientes cuya fecha de resolución cae "
-            + "dentro del período y cuyo ramo y tipo de siniestro entran en los filtros. El tiempo "
-            + "total se mide desde la denuncia hasta el cierre, en horas corridas; el promedio se "
-            + "muestra además separado entre la gestión de la compañía y la espera de terceros.";
+            + "dentro del período y cuyo ramo y tipo de siniestro entran en los filtros.";
+
+    private static final List<MatrixBlock.Legend> MATRIX_LEGEND = List.of(
+            new MatrixBlock.Legend("El analista decidió en el mismo sentido que la recomendación",
+                    MatrixBlock.Tone.AGREEMENT),
+            new MatrixBlock.Legend("El analista decidió en sentido contrario a la recomendación",
+                    MatrixBlock.Tone.DEPARTURE),
+            new MatrixBlock.Legend("No había recomendación que seguir o no seguir",
+                    MatrixBlock.Tone.NEUTRAL));
 
     private static final List<DefinitionsBlock.Definition> GLOSSARY = List.of(
+            new DefinitionsBlock.Definition("Siguió la recomendación",
+                    "Se cuenta solo sobre los expedientes con una recomendación que se puede seguir "
+                            + "o no. Fast Track y los que piden revisión manual quedan fuera: no "
+                            + "sugieren una decisión, así que no hay nada con qué comparar."),
             new DefinitionsBlock.Definition("Fast Track",
                     "Expediente que el motor de reglas habilitó a resolver sin análisis del modelo."),
             new DefinitionsBlock.Definition("Clasificación",
-                    "Sugerencia del sistema. No obliga al analista: puede apartarse, y la decisión "
+                    "Sugerencia del sistema. El analista: puede apartarse, y la decisión "
                             + "queda registrada igual."),
             new DefinitionsBlock.Definition("Espera de terceros",
                     "Tiempo con el expediente detenido esperando al asegurado, al perito o al "
@@ -131,7 +140,6 @@ public class PdfResolutionReportExporter implements ResolutionReportExporter {
 
         blocks.add(SectionBlock.of("Resumen del período"));
         blocks.add(new StatCardsBlock(cards(report, decided)));
-        blocks.add(new CaptionBlock(comparison(report.summary(), report.previousSummary())));
         blocks.add(new ColumnsBlock(timeline(report), StackBlock.of(
                 byStatus(report.summary()), byClaimCause(report.summary())), 0.54f));
 
@@ -197,42 +205,29 @@ public class PdfResolutionReportExporter implements ResolutionReportExporter {
     /**
      * A departure is a legitimate outcome, not an error. The card is toned because it is the figure
      * the referent has to look at, and says how many rather than scoring anybody.
+     *
+     * <p>The note spells out the denominator. "2 de 4" on a period of six closed cases is the right
+     * figure and the wrong impression: Fast Track and a request for manual review suggest no
+     * decision, so there is nothing for the analyst to have followed or departed from.
      */
     private static StatCardsBlock.Card agreementCard(List<ResolutionReportRow> rows) {
         long comparable = rows.stream().filter(row -> followed(row) != null).count();
         if (comparable == 0) {
             return new StatCardsBlock.Card("Siguió la recomendación", "Sin datos",
-                    "ninguna recomendación del modelo para comparar",
+                    "ninguno de los %d tuvo recomendación que seguir".formatted(rows.size()),
                     StatCardsBlock.Style.UNAVAILABLE);
         }
         long agreed = rows.stream().filter(row -> Boolean.TRUE.equals(followed(row))).count();
         long deviations = comparable - agreed;
-        String note = switch ((int) Math.min(deviations, 2)) {
-            case 0 -> "sin desvíos en el período";
-            case 1 -> "un desvío en el período";
-            default -> deviations + " desvíos en el período";
+        String deviationNote = switch ((int) Math.min(deviations, 2)) {
+            case 0 -> "sin desvíos";
+            case 1 -> "1 desvío";
+            default -> deviations + " desvíos";
         };
         return new StatCardsBlock.Card("Siguió la recomendación",
-                "%d de %d".formatted(agreed, comparable), note,
+                "%d de %d".formatted(agreed, comparable),
+                "%d de %d con recomendación · %s".formatted(comparable, rows.size(), deviationNote),
                 deviations == 0 ? StatCardsBlock.Style.PLAIN : StatCardsBlock.Style.ALERT);
-    }
-
-    private static String comparison(ResolutionSummary summary, ResolutionSummary previous) {
-        long previousCases = previous.totalCases();
-        String previousTime = previous.averageMinutes() == null
-                ? "sin tiempo promedio"
-                : ReportLabels.duration(Math.round(previous.averageMinutes()));
-        return "Vs. período anterior de igual duración: %d %s%s · Tiempo promedio: %s%s · Fast Track: %s%s"
-                .formatted(
-                        previousCases,
-                        previousCases == 1 ? "expediente resuelto" : "expedientes resueltos",
-                        ReportLabels.countDelta(summary.totalCases(), previousCases, previousCases),
-                        previousTime,
-                        ReportLabels.durationDelta(summary.averageMinutes(), previous.averageMinutes(),
-                                previous.decidedCases()),
-                        ReportLabels.percent(previous.fastTrackRate()),
-                        ReportLabels.rateDelta(summary.fastTrackRate(), previous.fastTrackRate(),
-                                previousCases));
     }
 
     // ── charts ──────────────────────────────────────────────────────────────────
@@ -361,19 +356,13 @@ public class PdfResolutionReportExporter implements ResolutionReportExporter {
 
     private static TableBlock table(ResolutionReport report, ZoneId zone) {
         List<TableBlock.Row> rows = report.rows().stream().map(row -> row(row, zone)).toList();
-        boolean anyDeviation = report.rows().stream()
-                .anyMatch(row -> Boolean.FALSE.equals(followed(row)));
         return new TableBlock(
                 "Detalle de expedientes cerrados",
                 caption(report.rows().size()),
                 COLUMNS,
                 rows,
                 "No hay expedientes cerrados en el período con estos filtros.",
-                anyDeviation
-                        ? "Las filas resaltadas marcan decisiones que se apartaron de la "
-                        + "recomendación del sistema. Apartarse es una facultad del analista; "
-                        + "la fila está marcada para poder leerla, no para observarla."
-                        : null);
+                null);
     }
 
     private static String caption(int size) {
@@ -430,7 +419,7 @@ public class PdfResolutionReportExporter implements ResolutionReportExporter {
             matrixRows.add(new MatrixBlock.Row(
                     ReportLabels.classification(classification), row));
         }
-        return new MatrixBlock("Sistema y analista, cruzados", columns, matrixRows);
+        return new MatrixBlock("Sistema y analista, cruzados", columns, matrixRows, MATRIX_LEGEND);
     }
 
     private static int decisionColumn(String decision) {

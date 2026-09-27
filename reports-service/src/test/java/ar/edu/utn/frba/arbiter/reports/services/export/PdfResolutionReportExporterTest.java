@@ -150,16 +150,15 @@ class PdfResolutionReportExporterTest {
         assertThat(pdf.text()).contains(
                 "SIGUIÓ LA RECOMENDACIÓN",
                 "1 de 2",
-                "un desvío en el período",
+                "2 de 2 con recomendación · 1 desvío",
                 "El expediente #7 se aprobó pese a que el sistema recomendaba lo contrario.");
     }
 
     @Test
-    void withNoDepartures_nothingIsMarkedAndTheCardSaysSo() throws IOException {
+    void withNoDepartures_theCardSaysSo() throws IOException {
         Rendered pdf = render(List.of(approvedRow(1)));
 
-        assertThat(pdf.text()).contains("sin desvíos en el período");
-        assertThat(pdf.text()).doesNotContain("Las filas resaltadas");
+        assertThat(pdf.text()).contains("1 de 1 con recomendación · sin desvíos");
     }
 
     /** Fast Track has no recommendation to depart from, so there is nothing to compare it against. */
@@ -168,7 +167,7 @@ class PdfResolutionReportExporterTest {
         Rendered pdf = render(List.of(fastTrackRow(1), fastTrackRow(2)));
 
         assertThat(pdf.text()).contains("SIGUIÓ LA RECOMENDACIÓN", "Sin datos",
-                "ninguna recomendación del modelo para comparar");
+                "ninguno de los 2 tuvo recomendación que seguir");
     }
 
     @Test
@@ -180,31 +179,44 @@ class PdfResolutionReportExporterTest {
                 "Recomienda aprobar", "Fast Track", "Sin clasificación");
     }
 
+    /** Nothing else on the page says what a tinted cell is claiming. */
     @Test
-    void theSummaryLine_comparesAgainstThePreviousPeriod() throws IOException {
+    void theCrossTabSaysWhatItsColoursMean() throws IOException {
+        Rendered pdf = render(List.of(approvedRow(1), fastTrackRow(2), departedRow(7)));
+
+        assertThat(pdf.text()).contains(
+                "El analista decidió en el mismo sentido que la recomendación",
+                "El analista decidió en sentido contrario a la recomendación",
+                "No había recomendación que seguir o no seguir");
+    }
+
+    /**
+     * The count that reads wrong without its denominator: six closed cases can still be "2 de 4"
+     * when two of them were Fast Track.
+     */
+    @Test
+    void theAgreementCardSaysWhatItsDenominatorIs() throws IOException {
+        Rendered pdf = render(List.of(approvedRow(1), fastTrackRow(2), fastTrackRow(3),
+                departedRow(7)));
+
+        assertThat(pdf.text()).contains("1 de 2", "2 de 4 con recomendación · 1 desvío");
+        assertThat(pdf.text()).contains(
+                "Se cuenta solo sobre los expedientes con una recomendación que se puede seguir o no.");
+    }
+
+    /**
+     * The document no longer carries the previous period. It still travels in the report, so nothing
+     * from it may leak onto the page by accident.
+     */
+    @Test
+    void theExportDoesNotMentionThePreviousPeriod() throws IOException {
         ResolutionSummary previous =
                 new ResolutionSummary(6, 6, 1200.0, 200.0, 3, 0.5, List.of(), List.of());
 
         Rendered pdf = render(augustReport(
                 List.of(approvedRow(1), fastTrackRow(2), lapsedRow(3)), null, null, previous));
 
-        assertThat(pdf.text()).contains(
-                "Vs. período anterior de igual duración: 6 expedientes resueltos (-3) · "
-                        + "Tiempo promedio: 20 h (+6 h 15 min) · Fast Track: 50% (-16,7 pp)");
-    }
-
-    /** Below the minimum base, the previous figures print but nothing claims a trend out of them. */
-    @Test
-    void theComparison_dropsTheDeltaWhenThePreviousPeriodIsTooThin() throws IOException {
-        ResolutionSummary previous =
-                new ResolutionSummary(3, 3, 1200.0, 200.0, 1, 0.5, List.of(), List.of());
-
-        Rendered pdf = render(augustReport(
-                List.of(approvedRow(1), fastTrackRow(2), lapsedRow(3)), null, null, previous));
-
-        assertThat(pdf.text()).contains(
-                "Vs. período anterior de igual duración: 3 expedientes resueltos · "
-                        + "Tiempo promedio: 20 h · Fast Track: 50%");
+        assertThat(pdf.text()).doesNotContain("período anterior");
     }
 
     /** Nobody decided anything in the period: no average, rather than one over the lapsed ones. */

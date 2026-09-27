@@ -8,12 +8,14 @@ import java.util.List;
 /**
  * A small cross-tab: what the system suggested against what the analyst decided.
  *
- * <p>The report's point in one shape — where the two agree, and the cells where they did not. The
- * semaphore is per cell rather than per row: on a row of recommendations only one column can be a
- * departure, and toning the agreeing cell as well would read as if it were one too.
+ * <p>The report's point in one shape — where the two agree, and the cells where they did not. It
+ * carries its own legend because nothing else on the page says what a tinted cell is claiming.
+ *
+ * <p>The semaphore is per cell rather than per row: on a row of recommendations only one column can
+ * be a departure, and toning the agreeing cell as well would read as if it were one too.
  */
-public record MatrixBlock(String heading, List<String> columnLabels, List<Row> rows)
-        implements Block {
+public record MatrixBlock(String heading, List<String> columnLabels, List<Row> rows,
+                          List<Legend> legend) implements Block {
 
     private static final float LABEL_FRACTION = 0.40f;
     private static final float CELL_WIDTH = 42;
@@ -22,6 +24,8 @@ public record MatrixBlock(String heading, List<String> columnLabels, List<Row> r
     private static final float ROW_GAP = ReportTheme.SPACE_1;
     private static final float HEADER_LEADING = 1.3f;
     private static final int MAX_HEADER_LINES = 2;
+    private static final float SWATCH = 7;
+    private static final float LEGEND_LEADING = 1.35f;
 
     public record Row(String label, List<Cell> cells) {}
 
@@ -34,22 +38,26 @@ public record MatrixBlock(String heading, List<String> columnLabels, List<Row> r
 
     public record Cell(long value, Tone tone) {}
 
+    /** One line of "this colour means this". */
+    public record Legend(String text, Tone tone) {}
+
     @Override
     public float height(float width) throws IOException {
         return ReportTheme.SECTION + ReportTheme.SPACE_3
                 + headerLines() * ReportTheme.LABEL * HEADER_LEADING + ReportTheme.SPACE_2
-                + rows.size() * (CELL_HEIGHT + ROW_GAP);
+                + rows.size() * (CELL_HEIGHT + ROW_GAP)
+                + legendHeight();
     }
 
     @Override
     public void draw(PdfCanvas canvas, float x, float top, float width) throws IOException {
-        canvas.text(x, top - ReportTheme.SECTION, heading, PdfCanvas.Weight.BOLD,
-                ReportTheme.SECTION, ReportTheme.INK);
+        float y = top;
+        canvas.text(x, y - ReportTheme.SECTION, heading, PdfCanvas.Weight.BOLD, ReportTheme.SECTION,
+                ReportTheme.INK);
+        y -= ReportTheme.SECTION + ReportTheme.SPACE_3;
 
         float labelWidth = width * LABEL_FRACTION;
         float cellsX = x + labelWidth;
-        float y = top - ReportTheme.SECTION - ReportTheme.SPACE_3;
-
         for (int column = 0; column < columnLabels.size(); column++) {
             float centre = cellsX + column * (CELL_WIDTH + CELL_GAP) + CELL_WIDTH / 2;
             float lineY = y;
@@ -78,6 +86,25 @@ public record MatrixBlock(String heading, List<String> columnLabels, List<Row> r
             }
             y -= CELL_HEIGHT + ROW_GAP;
         }
+
+        if (legend.isEmpty()) {
+            return;
+        }
+        y -= ReportTheme.SPACE_2;
+        for (Legend entry : legend) {
+            Cell swatch = new Cell(1, entry.tone());
+            canvas.panel(x, y - SWATCH, SWATCH, SWATCH, 2, fill(swatch), border(swatch));
+            canvas.text(x + SWATCH + ReportTheme.SPACE_2, y - SWATCH + 0.5f,
+                    PdfCanvas.fit(entry.text(), PdfCanvas.Weight.REGULAR, ReportTheme.NOTE,
+                            width - SWATCH - ReportTheme.SPACE_2),
+                    PdfCanvas.Weight.REGULAR, ReportTheme.NOTE, ReportTheme.MUTED);
+            y -= ReportTheme.NOTE * LEGEND_LEADING;
+        }
+    }
+
+    private float legendHeight() {
+        return legend.isEmpty() ? 0
+                : ReportTheme.SPACE_2 + legend.size() * ReportTheme.NOTE * LEGEND_LEADING;
     }
 
     /** Column titles wrap rather than run into each other: the cells they head are narrow. */
