@@ -40,11 +40,12 @@ No es un bug de cálculo: es el mismo dato contado de dos formas.
 Falta decidir un solo criterio para todo lo que ve el analista. Código: `TemporalRuleEvaluator`
 (classification-service) y `core/models/trazabilidad.ts` (front).
 
-### 1.3 Chat en tiempo real en desarrollo
-`arbiter-frontend/proxy.conf.json` tiene un cambio **sin commitear**: `changeOrigin: false` en
-`/api/v1/ws`. Sin eso, el WebSocket del chat da 403 en `ng serve`. En producción nginx manda
-`Host $host` y debería andar, pero conviene confirmarlo en Railway. Si se confirma, commitear el
-cambio del proxy o fijar `setAllowedOriginPatterns` en `WebSocketConfig`.
+### 1.3 Chat en tiempo real (resuelto)
+El WebSocket del chat daba 403 en todos los entornos, producción incluida (probado el 26/09/2026):
+Spring solo aceptaba el handshake del mismo origen, y detrás de nginx nunca lo parece porque Railway
+termina el HTTPS antes y nginx descarta el puerto. Ahora `cases-service` acepta explícitamente el
+origen de `FRONTEND_BASE_URL`, que en Railway hay que cargar también en ese servicio (ver
+`docs/despliegue-railway.md`). El cambio sin commitear de `proxy.conf.json` ya no hace falta.
 
 ### 1.4 PRs a `main` desde `hotfix/*`
 `.github/workflows/main.yml` acepta `hotfix/*` y `guard-main.yml` no, así que un hotfix nunca pasa.
