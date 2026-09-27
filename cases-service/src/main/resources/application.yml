@@ -67,6 +67,7 @@ arbiter:
   messaging:
     # Days the case thread stays open after resolution. Platform setting, not an insurer rule.
     reply-window-days: ${REPLY_WINDOW_DAYS:7}
+    allowed-origins: ${FRONTEND_BASE_URL:http://localhost:4200}
   email:
     # Without a key the adapter logs instead of sending; notifications are still recorded.
     sendgrid-api-key: ${SENDGRID_API_KEY:}
