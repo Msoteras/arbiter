@@ -188,7 +188,7 @@ declara módulo por módulo. En Railway se cargan las mismas, con estas diferenc
 
 | Variable | En Railway |
 |---|---|
-| `DB_URL` / `DB_USER` / `DB_PASSWORD` | Apuntan a Supabase, no a Railway |
+| `DB_URL` / `DB_USER` / `DB_PASSWORD` | La base vive en el Postgres de Railway. **`DB_URL` va por la red privada**: `jdbc:postgresql://${{Postgres.RAILWAY_PRIVATE_DOMAIN}}:5432/railway?sslmode=require`. El proxy público (`*.proxy.rlwy.net`) es solo para conectarse desde afuera (scripts, `psql`): usado desde los servicios, cada consulta sale a internet y vuelve, y se cobra como egress |
 | `RULES_SERVICE_URL` | `http://rules-service.railway.internal:8081` |
 | `CLASSIFICATION_SERVICE_URL` | `http://classification-service.railway.internal:8082` |
 | `EMBEDDING_SERVICE_URL` | `http://clip-embedding.railway.internal:8000` |
@@ -199,7 +199,7 @@ declara módulo por módulo. En Railway se cargan las mismas, con estas diferenc
 | `JWT_SECRET` | **El mismo valor en los 5 backends.** Si difieren, los tokens de servicio entre módulos se rechazan y el síntoma es un 401 sin explicación |
 | `PASSWORD_ENCRYPTION_PRIVATE_KEY` | Ver abajo |
 | `PORT` | **Setearla a mano** en cada backend: `auth-service` 8080, `rules-service` 8081, `classification-service` 8082, `cases-service` 8083, `reports-service` 8084. Ver abajo |
-| `JAVA_TOOL_OPTIONS` | **`-XX:MaxRAMPercentage=75.0` en los 5 backends.** No está en los Dockerfiles (solo en `docker-compose.railway.yml`), así que en Railway hay que cargarla a mano. Sin ella la JVM toma como heap máximo el **25%** de la memoria del contenedor y Spring Boot con JPA se queda corto: GC constante y OOM bajo carga |
+| `JAVA_TOOL_OPTIONS` | **`-Xmx384m -XX:+UseSerialGC`** en auth, rules, cases y reports; **`-Xmx768m -XX:+UseSerialGC`** en classification, que rasteriza PDFs en memoria. No está en los Dockerfiles, así que en Railway hay que cargarla a mano. Sin techo explícito la JVM calcula el heap sobre los 8 GB que ve el contenedor, y Railway cobra la memoria usada. SerialGC es el recolector que menos memoria ocupa y, con un solo núcleo y poca carga, sus pausas no se notan |
 
 El frontend además necesita las cinco `*_SERVICE_URL` que consume su Nginx (ya vienen con default
 en su Dockerfile, apuntando a los nombres `.railway.internal` de la tabla de arriba).
