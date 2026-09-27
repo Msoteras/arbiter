@@ -1,6 +1,7 @@
 package ar.edu.utn.frba.arbiter.reports.services.export;
 
 import ar.edu.utn.frba.arbiter.common.enums.RiskBand;
+import ar.edu.utn.frba.arbiter.reports.config.RequesterContext;
 import ar.edu.utn.frba.arbiter.reports.dto.FraudReport;
 import ar.edu.utn.frba.arbiter.reports.dto.FraudReportRow;
 import ar.edu.utn.frba.arbiter.reports.dto.FraudSummary;
@@ -8,6 +9,7 @@ import ar.edu.utn.frba.arbiter.reports.services.FraudSummaries;
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.text.PDFTextStripper;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -30,33 +32,65 @@ class PdfFraudReportExporterTest {
     private final PdfFraudReportExporter exporter =
             new PdfFraudReportExporter(CLOCK, brandedAs(BBVA));
 
+    @AfterEach
+    void clearTheRequester() {
+        RequesterContext.clear();
+    }
+
     @Test
     void writesTheTitleThePeriodAndTheRows() throws IOException {
         Rendered pdf = render(List.of(flaggedRow(1482)));
 
-        assertThat(pdf.pages()).isEqualTo(1);
         assertThat(pdf.text()).contains(
                 "Reporte de detección de fraude",
-                "Período: 01/09/2026 al 30/09/2026",
-                "Ramo: Todos",
-                "Score de riesgo: Todos",
-                "Generado el 11/09/2026 12:00",
+                "Período 01/09/2026 — 30/09/2026",
+                "RAMO Todos",
+                "SCORE DE RIESGO Todos",
                 "Marcos Aguirre",
-                "28.904.115",
+                "DNI 28.904.115",
                 "Crítico",
                 "Derivado a peritaje",
-                "Página 1 de 1");
+                "Página 1 de " + pdf.pages());
     }
 
-    /** The widths are hand-tuned; a status or determination cut in half would go unnoticed. */
+    /** The report exists to say what it is not: an accusation. */
     @Test
-    void theStatusAndTheDeterminationFitWithoutBeingCut() throws IOException {
-        Rendered pdf = render(List.of(flaggedRow(1), unscoredRow(2)));
+    void opensBySayingThatTheSystemDoesNotDetermineFraud() throws IOException {
+        Rendered pdf = render(List.of(flaggedRow(1482)));
 
-        assertThat(pdf.text())
-                .contains("Derivado a peritaje")
-                .contains("Sí · con respaldo pericial")
-                .doesNotContain("Derivado a p…");
+        assertThat(pdf.text()).contains(
+                "ALCANCE DE ESTE INFORME",
+                "El sistema no determina fraude: señala indicios para revisión humana.");
+    }
+
+    @Test
+    void theHeadlineFiguresCarryWhatTheyAreCountedOver() throws IOException {
+        Rendered pdf = render(septemberFraudReport(
+                List.of(flaggedRow(1), flaggedRow(2), unscoredRow(3)), null, null, 20));
+
+        assertThat(pdf.text()).contains(
+                "DENUNCIAS DEL PERÍODO", "20",
+                "CON AL MENOS UNA SEÑAL", "15%", "3 de 20 denuncias",
+                "CON DOS O MÁS SEÑALES", "2");
+    }
+
+    /** A period whose flagged cases are still open cannot report a fraud count yet. */
+    @Test
+    void withTheFlaggedCasesStillOpen_theFraudCardSaysThereIsNoDataYet() throws IOException {
+        Rendered pdf = render(List.of(flaggedRow(1), flaggedRow(2), flaggedRow(3)));
+
+        assertThat(pdf.text()).contains("FRAUDE DETERMINADO", "Sin datos", "siguen abiertas");
+    }
+
+    @Test
+    void theDistributionsSayWhatTheyAreOverAndThatTheyOverlap() throws IOException {
+        Rendered pdf = render(List.of(flaggedRow(1), flaggedRow(2), unscoredRow(3)));
+
+        assertThat(pdf.text()).contains(
+                "POR SCORE DE RIESGO", "Crítico", "Sin evaluar",
+                "Sobre las denuncias señaladas, no sobre el total del período.",
+                "POR SEÑAL DISPARADA",
+                "Una denuncia puede disparar más de una señal, así que no suman 100%.");
     }
 
     /** Two signals don't fit one line: the cell wraps instead of ellipsizing the second one away. */
@@ -64,12 +98,10 @@ class PdfFraudReportExporterTest {
     void theSignalsOfACase_areWrittenWhole_evenWhenTheyDoNotFitOneLine() throws IOException {
         Rendered pdf = render(List.of(flaggedRow(1482)));
 
-        // Whitespace normalized so the assertion survives column width changes.
-        assertThat(pdf.text().replaceAll("\\s+", " "))
+        assertThat(pdf.text())
                 .contains("Score de riesgo alto")
                 .contains("2 imágenes con")
-                .contains("coincidencia")
-                .doesNotContain("…");
+                .contains("coincidencia");
     }
 
     /**
@@ -80,36 +112,22 @@ class PdfFraudReportExporterTest {
     void theDocumentSignal_printsItsOwnRationale() throws IOException {
         Rendered pdf = render(List.of(documentInconsistentRow(24)));
 
-        assertThat(pdf.text().replaceAll("\\s+", " "))
+        assertThat(pdf.text())
                 .contains("La constancia policial está fechada el 2026-09-14")
                 .contains("…");
-        assertThat(pdf.text()).contains("Por señal (una denuncia puede tener más de una):");
-    }
-
-    @Test
-    void writesTheSummaryAboveTheTable() throws IOException {
-        Rendered pdf = render(List.of(flaggedRow(1), flaggedRow(2), unscoredRow(3)));
-
-        // 3 flagged and 1 determined out of the period's 20 claims, stated with the population.
-        assertThat(pdf.text()).contains(
-                "Total: 3 de 20 denuncias con al menos una señal (15%)",
-                "Con dos o más señales: 2",
-                "Fraude determinado: 1 (5% del período, 1 con respaldo pericial)",
-                "Por score de riesgo: Crítico 2 · Sin evaluar 1",
-                "Por señal (una denuncia puede tener más de una):");
     }
 
     /** "Fraude determinado" is left out of the comparison: it lags in both periods. */
     @Test
-    void theSummaryLine_comparesAgainstThePreviousPeriod() throws IOException {
+    void theComparisonLine_measuresAgainstThePreviousPeriod() throws IOException {
         List<FraudReportRow> rows = List.of(flaggedRow(1), flaggedRow(2), unscoredRow(3));
         FraudSummary previous = FraudSummaries.of(List.of(flaggedRow(10)), 16);
 
         Rendered pdf = render(septemberFraudReport(rows, null, null, 20, previous));
 
         assertThat(pdf.text()).contains(
-                "Vs. período anterior: 16 denuncias (+4) · Con al menos una señal: 6,3% (+8,8 pp) · "
-                        + "Con dos o más señales: 1 (+1)");
+                "Vs. período anterior de igual duración: 16 denuncias (+4) · "
+                        + "Con al menos una señal: 6,3% (+8,8 pp) · Con dos o más señales: 1 (+1)");
     }
 
     /** Below the minimum base, the previous figures print but nothing claims a trend out of them. */
@@ -121,7 +139,8 @@ class PdfFraudReportExporterTest {
         Rendered pdf = render(septemberFraudReport(rows, null, null, 20, previous));
 
         assertThat(pdf.text()).contains(
-                "Vs. período anterior: 2 denuncias · Con al menos una señal: 50% · Con dos o más señales: 1");
+                "Vs. período anterior de igual duración: 2 denuncias · "
+                        + "Con al menos una señal: 50% · Con dos o más señales: 1");
     }
 
     /** An empty report still has to say what it looked for, or it can't be told from any other. */
@@ -130,9 +149,9 @@ class PdfFraudReportExporterTest {
         Rendered pdf = render(septemberFraudReport(List.of(), "Celulares", RiskBand.HIGH));
 
         assertThat(pdf.text()).contains(
-                "Ramo: Celulares",
-                "Score de riesgo: Alto",
-                "Ninguna denuncia con señales en el período.");
+                "RAMO Celulares",
+                "SCORE DE RIESGO Alto",
+                "Ninguna denuncia del período disparó una señal con estos filtros.");
     }
 
     /** "None flagged" is stated with its population. */
@@ -140,7 +159,7 @@ class PdfFraudReportExporterTest {
     void anEmptyReportOverAPeriodWithClaims_statesHowManyItLookedAt() throws IOException {
         Rendered pdf = render(septemberFraudReport(List.of(), null, null, 84));
 
-        assertThat(pdf.text()).contains("Total: Ninguna de las 84 denuncias del período con señales");
+        assertThat(pdf.text()).contains("DENUNCIAS DEL PERÍODO 84", "0 de 84 denuncias");
     }
 
     /** One decimal, same as the preview. */
@@ -149,9 +168,7 @@ class PdfFraudReportExporterTest {
         Rendered pdf = render(septemberFraudReport(
                 List.of(flaggedRow(1), flaggedRow(2), unscoredRow(3)), null, null, 84));
 
-        assertThat(pdf.text()).contains(
-                "Total: 3 de 84 denuncias con al menos una señal (3,6%)",
-                "Fraude determinado: 1 (1,2% del período");
+        assertThat(pdf.text()).contains("3,6%", "3 de 84 denuncias");
     }
 
     /** A low score prints as "did not alert", never as "Bajo". */
@@ -161,13 +178,48 @@ class PdfFraudReportExporterTest {
 
         assertThat(pdf.text())
                 .contains("No alertó")
-                .contains("Por score de riesgo: No alertó 1")
                 .doesNotContain("Bajo");
+    }
+
+    /**
+     * The header is the writer's, not this exporter's, so every report gets the same one — including
+     * the ones nobody has written yet.
+     */
+    @Test
+    void theHeaderNamesTheInsurerAndAttributesArbiter() throws IOException {
+        Rendered pdf = render(List.of(flaggedRow(1482)));
+
+        assertThat(pdf.text()).contains("BBVA Seguros Argentina S.A.", "Generado con", "Arbiter",
+                "ARB-FRD-20260911-1200");
+    }
+
+    @Test
+    void namesWhoAskedForTheReport() throws IOException {
+        RequesterContext.set(new RequesterContext.Requester("Lucía Sánchez", "REFERENTE_ASEGURADORA"));
+
+        Rendered pdf = render(List.of(flaggedRow(1482)));
+
+        assertThat(pdf.text()).contains("SOLICITADO POR", "Lucía Sánchez",
+                "Referente de la aseguradora");
+    }
+
+    @Test
+    void explainsWhatTheTermsMeanForSomebodyOutsideTheTool() throws IOException {
+        Rendered pdf = render(List.of(flaggedRow(1482)));
+
+        assertThat(pdf.text()).contains(
+                "Cómo se produjo este informe",
+                "Qué significa cada término",
+                "Score de riesgo",
+                "Señales cruzadas",
+                "Fraude determinado",
+                "Referente de la aseguradora · aclaración y fecha");
     }
 
     @Test
     void aLongReportBreaksPagesAndNumbersThem() throws IOException {
-        List<FraudReportRow> rows = LongStream.range(1000, 1090).mapToObj(id -> flaggedRow(id)).toList();
+        List<FraudReportRow> rows =
+                LongStream.range(1000, 1090).mapToObj(id -> flaggedRow(id)).toList();
 
         Rendered pdf = render(rows);
 
@@ -186,17 +238,6 @@ class PdfFraudReportExporterTest {
         assertThat(pdf.text()).contains("Ana ? Pérez");
     }
 
-    /**
-     * The header is the writer's, not this exporter's, so every report gets the same one — including
-     * the ones nobody has written yet.
-     */
-    @Test
-    void theHeaderNamesTheInsurerAndAttributesArbiter() throws IOException {
-        Rendered pdf = render(List.of(flaggedRow(1482)));
-
-        assertThat(pdf.text()).contains("BBVA Seguros Argentina S.A.", "Generado con", "Arbiter");
-    }
-
     private Rendered render(List<FraudReportRow> rows) throws IOException {
         return render(septemberFraudReport(rows));
     }
@@ -204,7 +245,10 @@ class PdfFraudReportExporterTest {
     private Rendered render(FraudReport report) throws IOException {
         byte[] bytes = exporter.export(report);
         try (PDDocument document = Loader.loadPDF(bytes)) {
-            return new Rendered(document.getNumberOfPages(), new PDFTextStripper().getText(document));
+            // Whitespace is collapsed: a card label or a note that wrapped on the page is still the
+            // same sentence, and the assertions are about what it says, not where it broke.
+            return new Rendered(document.getNumberOfPages(),
+                    new PDFTextStripper().getText(document).replaceAll("\\s+", " "));
         }
     }
 

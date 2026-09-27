@@ -1,4 +1,4 @@
-package ar.edu.utn.frba.arbiter.reports.services.export;
+package ar.edu.utn.frba.arbiter.reports.services.export.pdf;
 
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
@@ -34,7 +34,7 @@ class ArbiterMarkTest {
             PDPage page = new PDPage(new PDRectangle(SIZE, SIZE));
             document.addPage(page);
             try (PDPageContentStream content = new PDPageContentStream(document, page)) {
-                ArbiterMark.draw(content, 0, 0, SIZE, 0.1f);
+                ArbiterMark.draw(content, 0, 0, SIZE, ReportTheme.INK);
             }
             image = new PDFRenderer(document).renderImage(0, SCALE);
         }

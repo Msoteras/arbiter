@@ -1,5 +1,6 @@
-package ar.edu.utn.frba.arbiter.reports.services.export;
+package ar.edu.utn.frba.arbiter.reports.services.export.pdf;
 
+import ar.edu.utn.frba.arbiter.reports.services.export.pdf.ReportTheme.Rgb;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
 
 import java.io.IOException;
@@ -18,7 +19,7 @@ import java.util.List;
  * sits — the SVG does it with a mask, which a PDF content stream has no equivalent for — and testing
  * each sampled point against the gap is the whole of it.
  */
-final class ArbiterMark {
+public final class ArbiterMark {
 
     /** The viewBox the constants below are expressed in, y pointing down as in the SVG. */
     private static final float VIEWBOX = 88;
@@ -57,14 +58,14 @@ final class ArbiterMark {
     /**
      * @param x    left edge of the square the mark occupies
      * @param y    its bottom edge
-     * @param size its side, in points
-     * @param gray the ink, on the same 0–1 scale the rest of the document uses
+     * @param size  its side, in points
+     * @param color the ink; the mark is monochrome, as the brand's own SVG exports are
      */
-    static void draw(PDPageContentStream content, float x, float y, float size, float gray)
+    public static void draw(PDPageContentStream content, float x, float y, float size, Rgb color)
             throws IOException {
         float scale = size / VIEWBOX;
-        content.setStrokingColor(gray);
-        content.setNonStrokingColor(gray);
+        content.setStrokingColor(color.red(), color.green(), color.blue());
+        content.setNonStrokingColor(color.red(), color.green(), color.blue());
         // Butt caps, as in the SVG: a round cap would close the gap the mask opens.
         content.setLineCapStyle(0);
 

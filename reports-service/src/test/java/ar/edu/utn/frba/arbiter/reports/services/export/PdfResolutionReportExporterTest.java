@@ -1,5 +1,8 @@
 package ar.edu.utn.frba.arbiter.reports.services.export;
 
+import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
+import ar.edu.utn.frba.arbiter.common.enums.Classification;
+import ar.edu.utn.frba.arbiter.reports.config.RequesterContext;
 import ar.edu.utn.frba.arbiter.reports.dto.ReportBranding;
 import ar.edu.utn.frba.arbiter.reports.dto.ResolutionReport;
 import ar.edu.utn.frba.arbiter.reports.dto.ResolutionReportRow;
@@ -7,6 +10,7 @@ import ar.edu.utn.frba.arbiter.reports.dto.ResolutionSummary;
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.text.PDFTextStripper;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -17,8 +21,8 @@ import java.util.stream.LongStream;
 import static ar.edu.utn.frba.arbiter.reports.support.ReportFixtures.BBVA;
 import static ar.edu.utn.frba.arbiter.reports.support.ReportFixtures.CLOCK;
 import static ar.edu.utn.frba.arbiter.reports.support.ReportFixtures.approvedRow;
-import static ar.edu.utn.frba.arbiter.reports.support.ReportFixtures.brandedAs;
 import static ar.edu.utn.frba.arbiter.reports.support.ReportFixtures.augustReport;
+import static ar.edu.utn.frba.arbiter.reports.support.ReportFixtures.brandedAs;
 import static ar.edu.utn.frba.arbiter.reports.support.ReportFixtures.fastTrackRow;
 import static ar.edu.utn.frba.arbiter.reports.support.ReportFixtures.lapsedRow;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -29,56 +33,151 @@ class PdfResolutionReportExporterTest {
     private final PdfResolutionReportExporter exporter =
             new PdfResolutionReportExporter(CLOCK, brandedAs(BBVA));
 
+    @AfterEach
+    void clearTheRequester() {
+        RequesterContext.clear();
+    }
+
     @Test
     void writesTheTitleThePeriodAndTheRows() throws IOException {
         Rendered pdf = render(List.of(approvedRow(42)));
 
-        assertThat(pdf.pages()).isEqualTo(1);
+        assertThat(pdf.pages()).isEqualTo(2);
         assertThat(pdf.text()).contains(
                 "Reporte de resolución de siniestros",
-                "Período: 01/08/2026 al 31/08/2026",
-                "Ramo: Todos",
-                "Tipo de siniestro: Todos",
-                "1 siniestro resuelto",
-                "Generado el 11/09/2026 12:00",
+                "Período 01/08/2026 — 31/08/2026",
+                "Todos",
                 "Ana Pérez",
-                "30.111.222",
+                "DNI 30.111.222",
                 "2 d 2 h",
                 "Recomienda aprobar",
                 "Aprobado",
-                "Página 1 de 1");
+                "Página 1 de 2");
     }
 
-    /** The aggregates go on the first page, before the detail. */
+    /** The aggregates go above the detail, each one saying what it was counted over. */
     @Test
-    void writesTheSummaryAboveTheTable() throws IOException {
+    void theHeadlineFiguresCarryWhatTheyAreCountedOver() throws IOException {
         Rendered pdf = render(List.of(approvedRow(1), fastTrackRow(2), lapsedRow(3)));
 
-        // Averaged over the 2 decided cases (the lapsed one is listed, not averaged), split into
-        // handling time and waiting on third parties.
         assertThat(pdf.text()).contains(
-                "Total: 3 siniestros resueltos",
-                "Tiempo promedio de resolución: 1 d 2 h sobre 2 decididos "
-                        + "(22 h 15 min de gestión · 4 h esperando a terceros)",
-                "Fast Track: 1 (33%)",
-                "Por estado: Aprobado 2 · Caducado 1",
-                "Por tipo de siniestro: Hurto 2 · Robo en vía pública 1");
+                "EXPEDIENTES RESUELTOS",
+                "2 aprobados · 1 caducado",
+                // Averaged over the 2 decided cases; the lapsed one is listed, not averaged.
+                "TIEMPO PROMEDIO",
+                "1 d 2 h",
+                "mediana 1 d 2 h · máx. 2 d 2 h",
+                "RESUELTOS POR FAST TRACK",
+                "33%",
+                "1 de 3");
     }
 
-    /** A heading line longer than the page wraps instead of being cut. */
     @Test
-    void aLongDistributionWrapsInsteadOfBeingCut() throws IOException {
-        List<ResolutionReportRow> rows = LongStream.rangeClosed(1, 12)
-                .mapToObj(id -> withClaimCause(approvedRow(id),
-                        "Daño por granizo sobre el bien asegurado número " + id))
-                .toList();
+    void theDistributionsAreListedWithTheirShare() throws IOException {
+        Rendered pdf = render(List.of(approvedRow(1), fastTrackRow(2), lapsedRow(3)));
 
-        Rendered pdf = render(rows);
+        assertThat(pdf.text()).contains(
+                "POR ESTADO FINAL", "Aprobado", "2 · 67%", "Caducado", "1 · 33%",
+                "POR TIPO DE SINIESTRO", "Hurto", "Robo en vía pública");
+    }
 
-        // The table cuts this column, so the full names can only come from the wrapped heading.
-        String text = pdf.text().replaceAll("\\s+", " ");
-        LongStream.rangeClosed(1, 12).forEach(id ->
-                assertThat(text).contains("Daño por granizo sobre el bien asegurado número " + id + " 1"));
+    /** Each run is its own document, and the code is what somebody quotes when asking about it. */
+    @Test
+    void everyPageCarriesTheReportCode() throws IOException {
+        List<ResolutionReportRow> rows =
+                LongStream.range(1000, 1060).mapToObj(id -> approvedRow(id)).toList();
+
+        List<String> pages = pageTexts(augustReport(rows));
+
+        assertThat(pages).hasSizeGreaterThan(1)
+                .allSatisfy(page -> assertThat(page).contains("ARB-RES-20260911-1200"));
+    }
+
+    @Test
+    void namesWhoAskedForTheReport() throws IOException {
+        RequesterContext.set(new RequesterContext.Requester("Lucía Sánchez", "REFERENTE_ASEGURADORA"));
+
+        Rendered pdf = render(List.of(approvedRow(42)));
+
+        assertThat(pdf.text()).contains("SOLICITADO POR", "Lucía Sánchez",
+                "Referente de la aseguradora");
+    }
+
+    /** A service token carries no name; the report still goes out. */
+    @Test
+    void withoutARequester_theCellSaysSoInsteadOfBeingBlank() throws IOException {
+        Rendered pdf = render(List.of(approvedRow(42)));
+
+        assertThat(pdf.text()).contains("SOLICITADO POR", "—");
+    }
+
+    @Test
+    void theHeaderNamesTheInsurerAndAttributesArbiter() throws IOException {
+        Rendered pdf = render(List.of(approvedRow(42)));
+
+        assertThat(pdf.text()).contains("BBVA Seguros Argentina S.A.", "Generado con", "Arbiter");
+    }
+
+    /** Pages get printed, split and filed on their own, so not one of them may be anonymous. */
+    @Test
+    void everyPageCarriesTheInsurer() throws IOException {
+        List<ResolutionReportRow> rows =
+                LongStream.range(1000, 1060).mapToObj(id -> approvedRow(id)).toList();
+
+        List<String> pages = pageTexts(augustReport(rows));
+
+        assertThat(pages).hasSizeGreaterThan(1)
+                .allSatisfy(page -> assertThat(page).contains("BBVA Seguros"));
+    }
+
+    /** The identity sits on top of the figures: losing it must not cost the referent the export. */
+    @Test
+    void withoutAnInsurer_theHeaderFallsBackInsteadOfFailingTheExport() throws IOException {
+        byte[] bytes = new PdfResolutionReportExporter(CLOCK, brandedAs(ReportBranding.UNKNOWN))
+                .export(augustReport(List.of(approvedRow(42))));
+
+        try (PDDocument document = Loader.loadPDF(bytes)) {
+            assertThat(new PDFTextStripper().getText(document))
+                    .contains("Aseguradora", "Reporte de resolución de siniestros", "Ana Pérez");
+        }
+    }
+
+    /** Apartarse is the analyst's call; the report marks the row so it can be read, not judged. */
+    @Test
+    void marksTheDecisionsThatDepartedFromTheRecommendation() throws IOException {
+        Rendered pdf = render(List.of(approvedRow(1), departedRow(7)));
+
+        assertThat(pdf.text()).contains(
+                "SIGUIÓ LA RECOMENDACIÓN",
+                "1 de 2",
+                "un desvío en el período",
+                "El expediente #7 se aprobó pese a que el sistema recomendaba lo contrario.");
+    }
+
+    @Test
+    void withNoDepartures_nothingIsMarkedAndTheCardSaysSo() throws IOException {
+        Rendered pdf = render(List.of(approvedRow(1)));
+
+        assertThat(pdf.text()).contains("sin desvíos en el período");
+        assertThat(pdf.text()).doesNotContain("Las filas resaltadas");
+    }
+
+    /** Fast Track has no recommendation to depart from, so there is nothing to compare it against. */
+    @Test
+    void withOnlyFastTrackRows_theAgreementCardHasNothingToCompare() throws IOException {
+        Rendered pdf = render(List.of(fastTrackRow(1), fastTrackRow(2)));
+
+        assertThat(pdf.text()).contains("SIGUIÓ LA RECOMENDACIÓN", "Sin datos",
+                "ninguna recomendación del modelo para comparar");
+    }
+
+    @Test
+    void crossesWhatTheSystemSuggestedAgainstWhatTheAnalystDecided() throws IOException {
+        Rendered pdf = render(List.of(approvedRow(1), fastTrackRow(2), lapsedRow(3)));
+
+        assertThat(pdf.text()).contains(
+                "Sistema y analista, cruzados", "APROBÓ", "RECHAZÓ", "SIN DECISIÓN",
+                "Recomienda aprobar", "Fast Track", "Sin clasificación");
     }
 
     @Test
@@ -90,8 +189,8 @@ class PdfResolutionReportExporterTest {
                 List.of(approvedRow(1), fastTrackRow(2), lapsedRow(3)), null, null, previous));
 
         assertThat(pdf.text()).contains(
-                "Vs. período anterior: 6 siniestros resueltos (-3) · Tiempo promedio: 20 h "
-                        + "(+6 h 15 min) · Fast Track: 50% (-16,7 pp)");
+                "Vs. período anterior de igual duración: 6 expedientes resueltos (-3) · "
+                        + "Tiempo promedio: 20 h (+6 h 15 min) · Fast Track: 50% (-16,7 pp)");
     }
 
     /** Below the minimum base, the previous figures print but nothing claims a trend out of them. */
@@ -104,7 +203,8 @@ class PdfResolutionReportExporterTest {
                 List.of(approvedRow(1), fastTrackRow(2), lapsedRow(3)), null, null, previous));
 
         assertThat(pdf.text()).contains(
-                "Vs. período anterior: 3 siniestros resueltos · Tiempo promedio: 20 h · Fast Track: 50%");
+                "Vs. período anterior de igual duración: 3 expedientes resueltos · "
+                        + "Tiempo promedio: 20 h · Fast Track: 50%");
     }
 
     /** Nobody decided anything in the period: no average, rather than one over the lapsed ones. */
@@ -112,7 +212,7 @@ class PdfResolutionReportExporterTest {
     void withOnlyLapsedCases_saysThereIsNoAverage() throws IOException {
         Rendered pdf = render(List.of(lapsedRow(1)));
 
-        assertThat(pdf.text()).contains("Ningún expediente decidido: sin tiempo promedio");
+        assertThat(pdf.text()).contains("Sin datos", "ningún expediente decidido en el período");
     }
 
     /** An empty report still has to say what it looked for, or it can't be told from any other. */
@@ -121,16 +221,40 @@ class PdfResolutionReportExporterTest {
         Rendered pdf = render(augustReport(List.of(), "Celulares", "Hurto"));
 
         assertThat(pdf.text()).contains(
-                "Ramo: Celulares",
-                "Tipo de siniestro: Hurto",
-                "No hay siniestros resueltos en el período.");
+                "Celulares",
+                "Hurto",
+                "No hay expedientes cerrados en el período con estos filtros.");
+    }
+
+    @Test
+    void explainsWhatTheTermsMeanForSomebodyOutsideTheTool() throws IOException {
+        Rendered pdf = render(List.of(approvedRow(42)));
+
+        assertThat(pdf.text()).contains(
+                "Cómo se produjo este informe",
+                "Qué significa cada término",
+                "Fast Track",
+                "Espera de terceros",
+                "Referente de la aseguradora · aclaración y fecha");
+    }
+
+    @Test
+    void carriesItsConfidentialityOnEveryPage() throws IOException {
+        List<ResolutionReportRow> rows =
+                LongStream.range(1000, 1060).mapToObj(id -> approvedRow(id)).toList();
+
+        List<String> pages = pageTexts(augustReport(rows));
+
+        assertThat(pages).allSatisfy(page ->
+                assertThat(page).contains("Documento confidencial · Uso interno de BBVA Seguros"));
     }
 
     @Test
     void aLongReportBreaksPagesAndNumbersThem() throws IOException {
-        List<ResolutionReportRow> rows = LongStream.range(1000, 1090).mapToObj(id -> approvedRow(id)).toList();
+        List<ResolutionReportRow> rows =
+                LongStream.range(1000, 1090).mapToObj(id -> approvedRow(id)).toList();
 
-        Rendered pdf = render(rows);
+        Rendered pdf = render(augustReport(rows));
 
         assertThat(pdf.pages()).isGreaterThanOrEqualTo(3);
         assertThat(pdf.text()).contains(
@@ -147,38 +271,18 @@ class PdfResolutionReportExporterTest {
         assertThat(pdf.text()).contains("Ana ? Pérez");
     }
 
-    @Test
-    void theHeaderNamesTheInsurerAndAttributesArbiter() throws IOException {
-        Rendered pdf = render(List.of(approvedRow(42)));
-
-        assertThat(pdf.text()).contains("BBVA Seguros Argentina S.A.", "Generado con", "Arbiter");
-    }
-
-    /** Pages get printed, split and filed on their own, so not one of them may be anonymous. */
-    @Test
-    void everyPageCarriesTheInsurer() throws IOException {
-        List<ResolutionReportRow> rows = LongStream.range(1000, 1090).mapToObj(id -> approvedRow(id)).toList();
-
-        List<String> pages = pageTexts(augustReport(rows));
-
-        assertThat(pages).hasSizeGreaterThanOrEqualTo(3)
-                .allSatisfy(page -> assertThat(page).contains("BBVA Seguros Argentina S.A."));
-    }
-
-    /** The identity sits on top of the figures: losing it must not cost the referent the export. */
-    @Test
-    void withoutAnInsurer_theHeaderFallsBackInsteadOfFailingTheExport() throws IOException {
-        byte[] bytes = new PdfResolutionReportExporter(CLOCK, brandedAs(ReportBranding.UNKNOWN))
-                .export(augustReport(List.of(approvedRow(42))));
-
-        try (PDDocument document = Loader.loadPDF(bytes)) {
-            assertThat(new PDFTextStripper().getText(document))
-                    .contains("Aseguradora", "Reporte de resolución de siniestros", "Ana Pérez");
-        }
-    }
-
     private Rendered render(List<ResolutionReportRow> rows) throws IOException {
         return render(augustReport(rows));
+    }
+
+    private Rendered render(ResolutionReport report) throws IOException {
+        byte[] bytes = exporter.export(report);
+        try (PDDocument document = Loader.loadPDF(bytes)) {
+            // Whitespace is collapsed: a card label or a note that wrapped on the page is still the
+            // same sentence, and the assertions are about what it says, not where it broke.
+            return new Rendered(document.getNumberOfPages(),
+                    new PDFTextStripper().getText(document).replaceAll("\\s+", " "));
+        }
     }
 
     private List<String> pageTexts(ResolutionReport report) throws IOException {
@@ -195,17 +299,13 @@ class PdfResolutionReportExporterTest {
         }
     }
 
-    private Rendered render(ResolutionReport report) throws IOException {
-        byte[] bytes = exporter.export(report);
-        try (PDDocument document = Loader.loadPDF(bytes)) {
-            return new Rendered(document.getNumberOfPages(), new PDFTextStripper().getText(document));
-        }
-    }
-
-    private static ResolutionReportRow withClaimCause(ResolutionReportRow row, String claimCause) {
-        return new ResolutionReportRow(row.caseId(), row.insuredName(), row.insuredDni(), row.branch(),
-                claimCause, row.reportedAt(), row.resolvedAt(), row.totalMinutes(), row.waitingMinutes(),
-                row.classification(), row.analystDecision(), row.finalStatus(), row.analystName());
+    /** Approved although the model recommended against it. */
+    private static ResolutionReportRow departedRow(long caseId) {
+        ResolutionReportRow row = approvedRow(caseId);
+        return new ResolutionReportRow(row.caseId(), row.insuredName(), row.insuredDni(),
+                row.branch(), row.claimCause(), row.reportedAt(), row.resolvedAt(),
+                row.totalMinutes(), row.waitingMinutes(), Classification.LLM_NO_RECOMIENDA_APROBAR,
+                "APPROVE", CaseStatus.APPROVED, row.analystName());
     }
 
     private record Rendered(int pages, String text) {}

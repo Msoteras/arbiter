@@ -4,6 +4,9 @@ import ar.edu.utn.frba.arbiter.common.security.JwtSupport;
 import ar.edu.utn.frba.arbiter.reports.support.AbstractPersistenceIT;
 import ar.edu.utn.frba.arbiter.reports.support.CaseTables;
 import io.jsonwebtoken.Jwts;
+import org.apache.pdfbox.Loader;
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.text.PDFTextStripper;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -110,6 +113,10 @@ class ResolutionReportExportTests extends AbstractPersistenceIT {
                 .contains("Recomienda aprobar;Aprobó;Aprobado;Laura Gómez");
     }
 
+    /**
+     * The referent's download, end to end: the file that leaves the endpoint has to open and carry
+     * the report, not merely start with the right magic bytes.
+     */
     @Test
     void pdfExport_downloadsARealPdf() throws Exception {
         MvcResult result = mockMvc.perform(get(EXPORT)
@@ -122,6 +129,35 @@ class ResolutionReportExportTests extends AbstractPersistenceIT {
 
         byte[] pdf = result.getResponse().getContentAsByteArray();
         assertThat(new String(pdf, 0, 5, StandardCharsets.ISO_8859_1)).isEqualTo("%PDF-");
+        try (PDDocument document = Loader.loadPDF(pdf)) {
+            String text = new PDFTextStripper().getText(document).replaceAll("\\s+", " ");
+            assertThat(text).contains(
+                    "Reporte de resolución de siniestros",
+                    "Período 01/08/2026 — 31/08/2026",
+                    "Resumen del período",
+                    "Detalle de expedientes cerrados",
+                    "Ana Pérez",
+                    "Documento confidencial",
+                    "Generado con Arbiter");
+        }
+    }
+
+    /**
+     * This container has no {@code arbiter_common}, so the insurer cannot be read. The header falls
+     * back and the referent still gets the report.
+     */
+    @Test
+    void pdfExport_withoutAnInsurerToName_stillProducesTheReport() throws Exception {
+        MvcResult result = mockMvc.perform(get(EXPORT)
+                        .param("from", "2026-08-01").param("to", "2026-08-31").param("format", "PDF")
+                        .header("Authorization", bearer("REFERENTE_ASEGURADORA", "public")))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        try (PDDocument document = Loader.loadPDF(result.getResponse().getContentAsByteArray())) {
+            assertThat(new PDFTextStripper().getText(document).replaceAll("\\s+", " "))
+                    .contains("Aseguradora", "Detalle de expedientes cerrados");
+        }
     }
 
     @Test

@@ -77,6 +77,16 @@ final class ReportLabels {
         return filter == null ? "Todos" : filter;
     }
 
+    /** The caller's role, for the "Solicitado por" line of an exported report. */
+    static String role(String literal) {
+        return switch (literal) {
+            case "REFERENTE_ASEGURADORA" -> "Referente de la aseguradora";
+            case "ANALISTA_SINIESTROS" -> "Analista de siniestros";
+            case "ASEGURADO" -> "Asegurado";
+            default -> literal;
+        };
+    }
+
     /**
      * Whether the score flagged the case, not what it scored: LOW/MEDIUM read "No alertó" rather than
      * their band, since the case is listed for another signal.
