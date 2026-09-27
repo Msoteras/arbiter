@@ -1,32 +1,8 @@
--- =============================================================================
--- 2026-08-30 · Conversación entre el asegurado y el analista
---
--- Migración puntual y NO destructiva, para aplicar sobre una base que ya tiene
--- datos (Railway) sin pasar por el trío reset → init → seed.
---
--- Qué agrega:
---   · <tenant>.case_message: el hilo de mensajes de un expediente, con quién lo
---     escribió y cuándo lo leyó el otro lado.
---
--- Por qué: cuando el analista necesita pedir una aclaración no tenía por dónde
--- pedirla, y el asegurado no tenía por dónde contestar. El mail de rechazo dice
--- textual "si querés conocer los motivos o no estás de acuerdo, podés
--- comunicarte con nosotros" y hasta ahora ese canal no existía.
---
--- IMPORTANTE: los servicios corren con ddl-auto=validate. Apenas exista el
--- código que declara la entidad CaseMessage, una base sin esta tabla hace que
--- cases-service NO levante. Aplicar esto ANTES de desplegar el código.
---
--- `init-multitenant.sql` ya quedó actualizado: una base creada de cero desde ese
--- script ya trae esto. Este archivo es solo para las bases que ya existían.
---
--- Idempotente: se puede correr más de una vez sin romper nada.
--- =============================================================================
+-- 2026-08-30 · case_message: the conversation between the insured and the analyst.
+-- Apply before deploying the code (ddl-auto=validate). Idempotent.
 
 BEGIN;
 
--- Un DO en vez de repetir el DDL por esquema: mañana hay una tercera aseguradora
--- y la lista sale de insurer, que es el registro de quién existe.
 DO $$
 DECLARE
     tenant TEXT;

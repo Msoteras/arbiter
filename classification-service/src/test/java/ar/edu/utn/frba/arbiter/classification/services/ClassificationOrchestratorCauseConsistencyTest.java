@@ -57,6 +57,7 @@ class ClassificationOrchestratorCauseConsistencyTest {
     @Mock private FraudRecordRuleEvaluator fraudRecordRuleEvaluator;
     @Mock private FastTrackValidator fastTrackValidator;
     @Spy private ClaimCauseConsistencyEvaluator claimCauseConsistencyEvaluator = new ClaimCauseConsistencyEvaluator();
+    @Spy private VisualFindingsEvaluator visualFindingsEvaluator = new VisualFindingsEvaluator();
     @Mock private DocumentAnalyzer documentAnalyzer;
     @Mock private PromptBuilder promptBuilder;
     @Mock private RiskScoringService riskScoringService;

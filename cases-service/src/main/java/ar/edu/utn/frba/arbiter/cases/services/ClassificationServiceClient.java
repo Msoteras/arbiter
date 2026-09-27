@@ -77,9 +77,8 @@ public class ClassificationServiceClient implements ClaimsAnalysisClient {
     }
 
     /**
-     * The user's token carries the tenant resolved at login, but filing may run under the policy's
-     * issuing insurer. Forwarding it would make classification-service write to the wrong schema,
-     * so when the tenant moved a service token for the actual tenant is signed instead.
+     * Filing may run under the policy's insurer rather than the login's; forwarding the user's token
+     * would make classification-service write to the wrong schema, so a service token is signed then.
      */
     private String authorizationHeaderForCurrentTenant() {
         if (!CallerContext.get().movedAwayFromHome()) {
@@ -108,13 +107,10 @@ public class ClassificationServiceClient implements ClaimsAnalysisClient {
     }
 
     /**
-     * The insured's other cases filed through Arbiter, in the shape the engine already uses for the
-     * insurer's claim history, so rules count both sources alike. Read on every run, not cached:
-     * hours may pass between filing and a retry.
-     *
-     * <p>Not filtered by status, matching the insurer's history; rules that care filter themselves.
-     * No settled amount: payment happens outside the platform, and leaving it null keeps an
-     * approved case from consuming the coverage until the insurer actually pays.
+     * The insured's other Arbiter cases, shaped like the insurer's claim history so rules count both
+     * alike. Read on every run: hours may pass between filing and a retry. No status filter, like the
+     * insurer's history. No settled amount: payment happens outside the platform, so an approved case
+     * doesn't consume the coverage until the insurer pays.
      */
     private List<PriorClaim> antecedentsOf(Case caseRecord) {
         List<PriorClaim> antecedents = caseRepository
@@ -154,8 +150,6 @@ public class ClassificationServiceClient implements ClaimsAnalysisClient {
                 .policeReportAt(caseRecord.getPoliceReportAt())
                 .imageConsent(caseRecord.getInsured().isImageConsent())
                 .attachmentsOcr(List.of())
-                // The insurer's history only holds what it settled itself; claims filed here never
-                // flow back, so without these the annual cap and Fast Track's prior-claims check read zero.
                 .priorClaims(antecedentsOf(caseRecord))
                 .build();
 
@@ -309,10 +303,7 @@ public class ClassificationServiceClient implements ClaimsAnalysisClient {
         return records == null ? List.of() : records;
     }
 
-    /**
-     * Degrades to {@code null} instead of failing the case detail: the traceability tab is context.
-     * Not an empty list, which would mean "no rule ran".
-     */
+    /** Degrades to {@code null}, not an empty list ("no rule ran"): the traceability tab is only context. */
     @Override
     public List<RuleResultResponse> ruleResultsOf(Long caseId) {
         try {

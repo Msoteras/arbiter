@@ -62,7 +62,6 @@ export interface IntakeFunnel {
   analyzed: number;
   decided: number;
   fastTrack: number;
-  /** Without a final status as of today. */
   stillOpen: number;
 }
 
@@ -116,8 +115,7 @@ export interface SettledAmounts {
   /** null without settlements: no average, not zero. */
   average: string | null;
   claimed: string;
-  /** Settlements with a claimed amount (it's optional for the insured). If it doesn't cover them
-   *  all, the percentage would compare different populations and isn't shown. */
+  /** With a claimed amount (optional for the insured); unless it covers all, no percentage is shown. */
   claimedCases: number;
   deductible: string;
   installments: string;
@@ -128,7 +126,6 @@ export interface FraudDetection {
   decided: number;
   /** Determined by the analyst, not the risk band. */
   fraudDetermined: number;
-  /** Of those, the ones confirmed by an expert report. */
   backedByExpert: number;
   /** Claimed amount of the rejected ones only: nothing was saved on approved ones. */
   amountNotPaid: string;

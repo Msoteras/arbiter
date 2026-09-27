@@ -1,33 +1,6 @@
--- =============================================================================
--- 2026-09-01 · El siniestro histórico se imputa a su cobertura
---
--- Migración puntual y NO destructiva, para aplicar sobre una base que ya tiene
--- datos (Railway) sin pasar por el trío reset → init → seed.
---
--- Qué agrega, en cada esquema de BD Aseguradora:
---   · aseguradora_*.siniestro_historico.cobertura_id
---
--- Por qué: la suma asegurada es de la COBERTURA y no hay tope agregado por
--- póliza (confirmado con la analista, 01/09/2026). Entonces lo que consume el
--- techo de una cobertura es lo que se liquidó contra ESA cobertura. Sin esta
--- columna, CoverageScopeEvaluator.evaluateSumInsuredLimit sumaba todo lo
--- liquidado de la póliza y lo comparaba contra el techo de una sola cobertura:
--- en la póliza 1 del seed, un robo liquidado por 700.000 reportaba la cobertura
--- de hurto (650.000) como agotada sin que se hubiera denunciado un solo hurto.
--- No rechazaba el siniestro —la regla bloquea Fast Track y aporta motivos— pero
--- le mostraba al analista un motivo falso.
---
--- Nullable a propósito: un histórico viejo puede no tener a qué cobertura
--- imputarse, y ahí la regla lo saltea en vez de cargarlo contra la equivocada.
---
--- El backfill imputa por nombre cuando la causa lo determina sin ambigüedad. Lo
--- que no se puede determinar queda en NULL — no se adivina. OJO: que la relación
--- hecho generador ↔ cobertura sea lineal está en duda (charla pendiente con el
--- equipo), así que este backfill es best-effort sobre los ramos de hoy y no una
--- regla general.
---
--- Idempotente: se puede correr más de una vez sin romper nada.
--- =============================================================================
+-- 2026-09-01 · aseguradora_*.siniestro_historico.cobertura_id: the sum insured belongs to the coverage,
+-- so only what was settled against that coverage consumes it. Nullable: history that cannot be assigned
+-- is skipped, never charged to the wrong one. Best-effort backfill by name. Idempotent.
 
 BEGIN;
 
@@ -44,7 +17,7 @@ BEGIN
             'ALTER TABLE %I.siniestro_historico ADD COLUMN IF NOT EXISTS cobertura_id BIGINT',
             insurer_db);
 
-        -- La FK aparte del ADD COLUMN para poder repetir el script sin que falle por duplicada.
+        -- The foreign key apart from ADD COLUMN, so a rerun does not fail on a duplicate.
         IF NOT EXISTS (
             SELECT 1 FROM information_schema.table_constraints
              WHERE table_schema = insurer_db
@@ -58,8 +31,7 @@ BEGIN
             $ddl$, insurer_db, insurer_db);
         END IF;
 
-        -- Backfill: la cobertura de la MISMA póliza cuyo nombre corresponde a la causa. Solo
-        -- las correspondencias que hoy son unívocas en los ramos configurados.
+        -- Backfill: the coverage of the same policy whose name matches the cause, only when unambiguous.
         EXECUTE format($dml$
             UPDATE %I.siniestro_historico h
                SET cobertura_id = c.id
@@ -78,7 +50,7 @@ END $$;
 
 COMMIT;
 
--- Verificación — los que quedan sin imputar son los que la regla va a saltear:
+-- Check: unassigned rows are the ones the rule will skip:
 -- SELECT h.id, h.causa, c.nombre AS cobertura, h.estado_resolucion, h.monto_indemnizado
 --   FROM aseguradora_bbva.siniestro_historico h
 --   LEFT JOIN aseguradora_bbva.cobertura c ON c.id = h.cobertura_id

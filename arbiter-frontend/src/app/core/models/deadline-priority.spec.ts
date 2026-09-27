@@ -14,7 +14,7 @@ function isoDaysFromToday(days: number): string {
 
 describe('deadline-priority', () => {
   describe('deadlinePriorityTone', () => {
-    it('mapea cada nivel a su tono del semáforo', () => {
+    it('maps each level to its status tone', () => {
       expect(deadlinePriorityTone('NONE')).toBe('neutral');
       expect(deadlinePriorityTone('WATCH')).toBe('warning');
       expect(deadlinePriorityTone('URGENT')).toBe('risk');
@@ -24,7 +24,7 @@ describe('deadline-priority', () => {
   });
 
   describe('isDeadlinePrioritized', () => {
-    it('es true solo para los niveles con chip', () => {
+    it('is true only for the levels that show a chip', () => {
       expect(isDeadlinePrioritized('WATCH')).toBeTrue();
       expect(isDeadlinePrioritized('URGENT')).toBeTrue();
       expect(isDeadlinePrioritized('CRITICAL')).toBeTrue();
@@ -32,22 +32,22 @@ describe('deadline-priority', () => {
       expect(isDeadlinePrioritized('NONE')).toBeFalse();
     });
 
-    it('trata valores ausentes/desconocidos como sin marca (backend viejo)', () => {
+    it('treats missing or unknown values as unflagged (older backend)', () => {
       expect(isDeadlinePrioritized(undefined as unknown as DeadlinePriority)).toBeFalse();
       expect(isDeadlinePrioritized('WHATEVER' as unknown as DeadlinePriority)).toBeFalse();
     });
   });
 
   describe('deadlinePriorityLabel', () => {
-    it('NONE no tiene texto', () => {
+    it('NONE has no text', () => {
       expect(deadlinePriorityLabel('NONE', isoDaysFromToday(20))).toBe('');
     });
 
-    it('OVERDUE es "Vencido" sin importar la fecha', () => {
+    it('OVERDUE reads "Vencido" whatever the date', () => {
       expect(deadlinePriorityLabel('OVERDUE', isoDaysFromToday(-5))).toBe('Vencido');
     });
 
-    it('cuenta los días restantes con hoy/mañana/plural', () => {
+    it('counts the remaining days as today, tomorrow or plural', () => {
       expect(deadlinePriorityLabel('CRITICAL', isoDaysFromToday(0))).toBe('Vence hoy');
       expect(deadlinePriorityLabel('CRITICAL', isoDaysFromToday(1))).toBe('Vence mañana');
       expect(deadlinePriorityLabel('URGENT', isoDaysFromToday(4))).toBe('Vence en 4 días');

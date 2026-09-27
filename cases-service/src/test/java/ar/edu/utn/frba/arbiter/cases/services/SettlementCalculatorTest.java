@@ -19,9 +19,8 @@ import java.time.ZoneId;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * The formula, checked against the documents it was transcribed from. The first test is the worked
- * example printed in BBVA's Celulares manual, numbers and all: if that one ever stops passing, the
- * calculator stopped agreeing with the product it implements.
+ * Checked against the manuals it was transcribed from. The first test is BBVA's worked example,
+ * numbers and all.
  */
 class SettlementCalculatorTest {
 
@@ -76,7 +75,6 @@ class SettlementCalculatorTest {
         assertThat(settlement.getCalculatedAmount()).isEqualByComparingTo("900000.00");
     }
 
-    /** A replacement value above the sum insured doesn't raise anything — the sum insured is a cap. */
     @Test
     void ignoresAReplacementValueAboveTheSumInsured() {
         Coverage coverage = coverage(SettlementBasis.LESSER_OF_SUM_AND_REPLACEMENT, "10.00", null, false, false);
@@ -107,7 +105,6 @@ class SettlementCalculatorTest {
         assertThat(settlement.getCalculatedAmount()).isEqualByComparingTo("320000.00");
     }
 
-    /** With no reduced rate configured, being the second event changes nothing. */
     @Test
     void doesNotReduceASecondEventWhenTheCoverageSetsNoRate() {
         Coverage coverage = coverage(SettlementBasis.SUM_INSURED, "10.00", null, false, false);
@@ -137,10 +134,7 @@ class SettlementCalculatorTest {
         assertThat(on.getCalculatedAmount()).isEqualByComparingTo("405000.00");
     }
 
-    /**
-     * Deductions bigger than the ceiling mean the insured is owed nothing, not that they owe the
-     * company: whatever is left is a debt of the policy, and collecting it is not this claim's job.
-     */
+    /** Deductions above the ceiling mean nothing is owed; the remaining debt isn't this claim's job. */
     @Test
     void neverGoesBelowZero() {
         Coverage coverage = coverage(SettlementBasis.SUM_INSURED, "10.00", null, false, true);
@@ -152,11 +146,7 @@ class SettlementCalculatorTest {
         assertThat(settlement.getCalculatedAmount()).isEqualByComparingTo("0.00");
     }
 
-    /**
-     * A coverage that deducts instalments but a snapshot that doesn't know what one costs deducts
-     * nothing. The analyst is told so by {@code SettlementService.warnings}; charging them for
-     * instalments nobody could count is the wrong way to be wrong.
-     */
+    /** An unknown instalment amount deducts nothing rather than guessing; the service warns about it. */
     @Test
     void deductsNoInstallmentsWhenTheSnapshotDoesNotCarryTheirAmount() {
         Coverage coverage = coverage(SettlementBasis.SUM_INSURED, "10.00", null, true, false);
@@ -169,7 +159,6 @@ class SettlementCalculatorTest {
         assertThat(settlement.getCalculatedAmount()).isEqualByComparingTo("450000.00");
     }
 
-    /** An event after the term ends can't leave instalments to fall due. */
     @Test
     void countsNoInstallmentsForAnEventAfterTheTermEnds() {
         Coverage coverage = coverage(SettlementBasis.SUM_INSURED, "10.00", null, true, false);
@@ -182,10 +171,7 @@ class SettlementCalculatorTest {
         assertThat(settlement.getPendingInstallmentsAmount()).isEqualByComparingTo("0.00");
     }
 
-    /**
-     * Cases without a snapshot must still be settleable, falling back to the synced
-     * {@code policy_coverage} (not the policy: it has a different sum insured per coverage).
-     */
+    /** Without a snapshot it falls back to {@code policy_coverage}: a policy has a sum insured per coverage. */
     @Test
     void fallsBackToThePolicyCoverageWhenThereIsNoSnapshot() {
         Coverage coverage = coverage(SettlementBasis.SUM_INSURED, "10.00", null, true, true);
@@ -200,10 +186,7 @@ class SettlementCalculatorTest {
         assertThat(settlement.getCalculatedAmount()).isEqualByComparingTo("1170000.00");
     }
 
-    /**
-     * The policy's own franchise wins over the one configured on the coverage: the coverage's is the
-     * insurer's default for that risk, the policy's is what THIS contract says.
-     */
+    /** The contract's own franchise wins over the coverage's default. */
     @Test
     void thePolicyOwnFranchiseWinsOverTheCoverageDefault() {
         Coverage coverage = coverage(SettlementBasis.SUM_INSURED, "10.00", null, false, false);
@@ -218,7 +201,6 @@ class SettlementCalculatorTest {
         assertThat(settlement.getCalculatedAmount()).isEqualByComparingTo("640000.00");
     }
 
-    /** Every input the sheet was built from is frozen on the row, not just the result. */
     @Test
     void freezesTheInputsAlongsideTheResult() {
         Coverage coverage = coverage(SettlementBasis.LESSER_OF_SUM_AND_REPLACEMENT, "10.00", "50.00", true, true);
@@ -238,10 +220,7 @@ class SettlementCalculatorTest {
         assertThat(settlement.getCalculatedAt()).isNotNull();
     }
 
-    /**
-     * Damage from attempted theft pays the repair quote, not the sum insured, but the franchise is
-     * still 10% of the SUM INSURED, as the policy says.
-     */
+    /** Attempted-theft damage pays the quote, but the franchise is still 10% of the SUM INSURED. */
     @Test
     void aRepairPaysTheQuoteAndNotTheSumInsured() {
         Coverage coverage = repairCoverage("10.00", true);
@@ -256,10 +235,7 @@ class SettlementCalculatorTest {
         assertThat(settlement.getCalculatedAmount()).isEqualByComparingTo("15000.00");
     }
 
-    /**
-     * A repair does NOT deduct pending instalments even when the coverage enables it: the policy
-     * survives a repair, so the insured still has the coverage those instalments pay for.
-     */
+    /** A repair never deducts pending instalments: the policy survives, and they pay for its coverage. */
     @Test
     void aRepairNeverDeductsThePendingInstallments() {
         PolicySnapshot snapshot = snapshot("800000.00", LocalDate.of(2027, 1, 1), "16000.00", null, 1);
@@ -339,10 +315,7 @@ class SettlementCalculatorTest {
                 .build();
     }
 
-    /**
-     * The formula comes decided by the service, which knows whether the device came back
-     * irreparable; these tests cover the normal case, settling as the coverage says.
-     */
+    /** The service decides the formula (irreparable items); these tests settle as the coverage says. */
     private CaseSettlement calculate(Case claim, Coverage coverage, PolicyCoverage policyCoverage,
                                      PolicySnapshot snapshot, BigDecimal replacementValue) {
         SettlementFormula formula = coverage.getSettlementFormula() == null

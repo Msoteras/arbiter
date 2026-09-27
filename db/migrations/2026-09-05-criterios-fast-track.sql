@@ -1,61 +1,14 @@
--- =============================================================================
--- 2026-09-05 · Los criterios del carril rápido, y la cobertura que le faltaba
---              al ramo Celulares de BBVA (H0038)
---
--- Migración puntual y NO destructiva, para aplicar sobre una base que ya tiene
--- datos (Railway) sin pasar por el trío reset → init → seed. Lo mismo que ya
--- quedó en db/init-multitenant.sql y db/seed-demo.sql para una base nueva.
---
--- Qué arregla, en orden:
---
---   1. Los umbrales de Fast Track no estaban en ninguna tabla. Las dos filas
---      FAST_TRACK del seed venían sin coverage_id y sin configuration, y
---      FastTrackRuleService las busca por (ramo, cobertura): no las encontraba
---      nunca. El referente veía la pantalla de Fast Track en blanco y los
---      umbrales que de verdad decidían salían del baseline de MockRulesAdapter
---      — de código, contra la decisión #12 (reglas en BD, sin redeploy).
---
---   2. Los rule_result viejos guardaban el gate como rule_type 'FAST_TRACK' con
---      un valor opaco ('0.219', 'AL_DIA'). Ahora el motor escribe un tipo por
---      criterio (FT_*) con el valor comparado, y la pantalla los muestra en una
---      card propia. Las filas viejas se reexpresan para que no queden en la
---      tabla de reglas duras diciendo '0.219'.
---
---   3. En el ramo Celulares de BBVA, los hechos generadores Rotura accidental
---      (1) y Caída (4) no los cubría NINGUNA cobertura: existían solo Robo y
---      Hurto, cuyas listas negras son [1,3,4] y [1,2,4]. No era una decisión de
---      producto — la agenda documental ya tiene cargados los requisitos de los
---      dos, el selector del wizard filtra por esas listas y por lo tanto no
---      podía ofrecerlos. Se agrega la cobertura Daño accidental al ramo, en las
---      pólizas Premium, y los expedientes de rotura pasan a colgar de ella.
---
---   4. En Provincia, la póliza POL-CEL-2026-905 no tenía contratada la
---      cobertura de Hurto y su expediente de hurto colgaba de la de Robo, que
---      lo excluye.
---
--- Lo que esta migración NO hace, a propósito: agregar Robo y Hurto al ramo
--- Tecnología Portátil de Provincia, que tiene el mismo agujero. No hay ningún
--- expediente afectado y las sumas aseguradas son un dato de negocio que hay que
--- decidir — ver docs/temas-a-discutir.md.
---
--- Ramo 1 · Celulares      → claim_cause 1 Rotura accidental, 2 Robo en vía
---                           pública, 3 Hurto, 4 Caída
--- Ramo 2 · Tec. Portátil  → claim_cause 6 Daño accidental, 7 Robo, 8 Hurto
---
--- Idempotente: se puede correr más de una vez sin romper nada.
--- =============================================================================
+-- 2026-09-05 · Fast Track criteria (H0038), and the coverage BBVA Celulares was missing:
+--   1. Fast Track thresholds as configuration, one row per coverage (they only lived in code).
+--   2. Old gate rule_result rows re-expressed per criterion (FT_*).
+--   3. BBVA Celulares gets Daño accidental: nothing covered Rotura accidental (1) or Caída (4).
+--   4. Provincia: POL-CEL-2026-905 gets Hurto, and its theft case moves to it.
+-- Tec. Portátil in Provincia has the same gap on purpose (docs/temas-a-discutir.md). Idempotent.
 
 BEGIN;
 
--- ─── 1 · Umbrales de Fast Track como configuración, una fila por cobertura ────
--- Los valores son los del baseline de MockRulesAdapter, para que la BD diga lo
--- mismo que venía decidiendo el fallback y el cambio no altere ningún veredicto.
---
--- Sin requiredDocumentTypes: qué documentos exige el ramo ya vive en
--- document_requirement (la agenda documental), que se valida en el alta.
--- Repetirlo acá hace que el gate lo vuelva a evaluar contra los adjuntos que
--- alcanzó a leer y frene Fast Tracks por documentación que el expediente sí
--- tiene.
+-- 1 · Fast Track thresholds per coverage. Values are the MockRulesAdapter baseline, so no verdict
+-- changes. No requiredDocumentTypes: the document agenda already checks that at filing.
 DO $$
 DECLARE
     tenant TEXT;
@@ -63,8 +16,7 @@ BEGIN
     FOR tenant IN
         SELECT schema_name FROM arbiter_common.insurer
     LOOP
-        -- Las filas viejas sin cobertura no las lee nadie. No se borran: hay
-        -- rule_result apuntándoles (FK), y esas filas son historial.
+        -- Old rows without coverage are not deleted: rule_result points at them.
         EXECUTE format($dml$
             UPDATE %I.insurer_rule
                SET active = FALSE,
@@ -74,9 +26,7 @@ BEGIN
                AND active
         $dml$, tenant);
 
-        -- Una fila por cobertura, con el tope que le corresponde. El nombre de la
-        -- cobertura es la llave y no el id: los ids son por esquema y no todos los
-        -- tenants tienen las mismas coberturas.
+        -- Keyed by coverage name: ids differ per schema.
         EXECUTE format($dml$
             INSERT INTO %I.insurer_rule (active, valid_from, name, rule_type, effect, priority,
                                          blocks_fast_track, branch_id, coverage_id, configuration)
@@ -93,10 +43,7 @@ BEGIN
                              "criteria":["Primer siniestro del asegurado",
                                          "Monto reclamado inferior al 30%% de la suma asegurada",
                                          "Póliza al día con sus pagos"]}'
-                       -- Daño accidental de Tecnología Portátil: el tope es más alto
-                       -- porque reparar un equipo portátil cuesta una fracción grande de
-                       -- una suma asegurada chica, y con el 50%% de robo quedarían fuera
-                       -- del carril rápido casi todos los casos del ramo.
+                       -- Higher cap: repairing a laptop costs a large share of a small sum insured.
                        WHEN b.name = 'Tecnología Portátil' THEN
                            '{"maxClaimedAmountRatio":0.6,"maxPriorClaims":0,"requiresUpToDatePolicy":true,
                              "criteria":["Primer siniestro del asegurado",
@@ -117,15 +64,8 @@ BEGIN
     END LOOP;
 END $$;
 
--- ─── 2 · Los rule_result viejos del gate, reexpresados por criterio ───────────
--- Un tipo por criterio y el valor comparado, como los escribe FastTrackValidator.
--- rule_id pasa a NULL porque los umbrales son configuración, no una regla
--- evaluable con id propio — es lo que escribe el motor hoy.
---
--- Solo se tocan las filas que se pueden reexpresar sin adivinar: un valor que es
--- un número (la relación monto/suma) y los dos literales de estado de pago.
--- Cualquier otra cosa queda como está: preferimos una fila vieja legible a una
--- inventada.
+-- 2 · Old gate rule_result rows, one type per criterion as FastTrackValidator writes them, rule_id NULL.
+-- Only rows that can be re-expressed without guessing; anything else stays as it is.
 DO $$
 DECLARE
     tenant TEXT;
@@ -133,8 +73,7 @@ BEGIN
     FOR tenant IN
         SELECT schema_name FROM arbiter_common.insurer
     LOOP
-        -- Monto reclamado sobre la suma asegurada. El tope sale de la configuración
-        -- de la cobertura del expediente, que la parte 1 ya dejó cargada.
+        -- Claimed amount over sum insured; the cap comes from the coverage set up in part 1.
         EXECUTE format($dml$
             UPDATE %I.rule_result rr
                SET rule_type = 'FT_AMOUNT_RATIO',
@@ -152,7 +91,7 @@ BEGIN
                AND rr.evaluated_value ~ '^[0-9]*\.?[0-9]+$'
         $dml$, tenant, tenant, tenant);
 
-        -- Estado de pago de la póliza.
+        -- Policy payment status.
         EXECUTE format($dml$
             UPDATE %I.rule_result
                SET rule_type = 'FT_POLICY_UP_TO_DATE',
@@ -163,14 +102,8 @@ BEGIN
                AND evaluated_value IN ('AL_DIA', 'SUSPENDIDA', 'RESUELTA')
         $dml$, tenant);
 
-        -- De paso, las filas que quedaron con el tipo de la lista blanca. La
-        -- migración 2026-09-01-coverage-exclusion-viva.sql convirtió las reglas
-        -- (insurer_rule) pero no los resultados ya escritos, y COVERAGE_INCLUSION
-        -- no existe en RuleType: la pantalla los muestra con el literal crudo.
-        -- El significado de la fila no cambia —el hecho generador estaba excluido,
-        -- por eso FAIL—, solo el tipo y el formato del valor, que pasa a ser el que
-        -- escribe CoverageRuleEvaluator (con el id, porque los nombres se repiten
-        -- entre ramos).
+        -- Also rows left with the old whitelist type: the coverage-exclusion migration fixed the rules but not
+        -- these results. Same meaning, CoverageRuleEvaluator's type and value format.
         EXECUTE format($dml$
             UPDATE %I.rule_result rr
                SET rule_type = 'COVERAGE_EXCLUSION',
@@ -183,15 +116,11 @@ BEGIN
                AND rr.evaluated_value IN (cc.name, 'claimCause=' || cc.name || ' (id=' || cc.id || ')')
         $dml$, tenant, tenant);
 
-        -- Cualquier COVERAGE_INCLUSION que no se haya podido reexpresar queda como
-        -- está: sin el nombre del hecho generador no hay forma de reconstruir el
-        -- valor sin inventarlo.
+        -- Any COVERAGE_INCLUSION without the cause name stays: its value cannot be rebuilt.
     END LOOP;
 END $$;
 
--- ─── 3 · BBVA: la cobertura Daño accidental del ramo Celulares ───────────────
--- Solo BBVA: las coberturas son configuración de cada aseguradora, y lo de
--- Provincia está pendiente de una decisión de negocio (temas-a-discutir.md).
+-- 3 · BBVA: Daño accidental for Celulares (Provincia awaits a business decision).
 DO $$
 DECLARE
     tenant     TEXT := 'arbiter_bbva';
@@ -206,8 +135,7 @@ BEGIN
 
     SELECT id INTO celulares FROM arbiter_common.branch WHERE name = 'Celulares';
 
-    -- a) La cobertura. Franquicia 20% contra el 10% de robo, que es el diferencial
-    --    habitual del daño accidental.
+    -- a) The coverage. 20% deductible, the usual premium over theft's 10%.
     EXECUTE format($dml$
         INSERT INTO %I.coverage (name, description, report_deadline_hours, max_events_per_year,
                                  covers_family_group, deductible, claim_exhausts_coverage,
@@ -232,11 +160,8 @@ BEGIN
                        tenant) USING nueva;
     END IF;
 
-    -- b) Sus reglas, con la misma forma que las de las otras dos coberturas.
-    --    Sin POLICE_DEADLINE: una rotura accidental no tiene denuncia policial que
-    --    presentar, así que la fila sería una regla imposible de cumplir.
-    --    El FAST_TRACK ya lo insertó la parte 1 si la cobertura existía; si la
-    --    acabamos de crear, entra acá.
+    -- b) Its rules, like the other two coverages. No POLICE_DEADLINE: accidental damage has no police
+    --    report. FAST_TRACK is added here if part 1 did not find the coverage.
     EXECUTE format($dml$
         INSERT INTO %I.insurer_rule (active, valid_from, name, rule_type, effect, priority,
                                      blocks_fast_track, branch_id, coverage_id, configuration)
@@ -267,10 +192,7 @@ BEGIN
                 WHERE r.coverage_id = $2 AND r.rule_type = nueva.rule_type)
     $dml$, tenant, tenant) USING celulares, nueva;
 
-    -- c) La cobertura entra en las pólizas Premium, por la misma suma que robo
-    --    (es el mismo equipo). Las Básico no la traen: a esos asegurados el wizard
-    --    sigue sin ofrecerles rotura ni caída, y eso ahora sí es producto y no un
-    --    agujero.
+    -- c) Premium policies get it for the same sum as theft; Básico ones do not, by product.
     EXECUTE format($dml$
         INSERT INTO %I.policy_coverage (policy_id, coverage_id, display_order, sum_insured, deductible_pct)
         SELECT p.id, $1, 3, robo.sum_insured, 20.00
@@ -282,7 +204,7 @@ BEGIN
                             WHERE pc.policy_id = p.id AND pc.coverage_id = $1)
     $dml$, tenant, tenant, tenant, tenant, tenant) USING nueva;
 
-    -- d) El espejo en la BD Aseguradora, que es de donde el motor lee la suma.
+    -- d) The insurer database mirror, where the engine reads the sum from.
     EXECUTE format($dml$
         INSERT INTO %I.cobertura (poliza_id, orden, nombre, suma_asegurada, franquicia_pct)
         SELECT pz.id, 3, 'Daño accidental', robo.suma_asegurada, 20.00
@@ -294,9 +216,7 @@ BEGIN
                             WHERE c.poliza_id = pz.id AND c.nombre = 'Daño accidental')
     $dml$, aseg, aseg, aseg, aseg);
 
-    -- e) Los expedientes de rotura y caída pasan a colgar de la cobertura que los
-    --    cubre. Solo si su póliza la tiene contratada: repuntar uno de una póliza
-    --    Básica lo dejaría apuntando a una cobertura que no compró.
+    -- e) Damage and drop cases move to it, only when their policy has it.
     EXECUTE format($dml$
         UPDATE %I.cases c
            SET coverage_id = $1
@@ -309,7 +229,7 @@ BEGIN
     $dml$, tenant, tenant) USING nueva;
 END $$;
 
--- ─── 4 · Provincia: la póliza sin cobertura de hurto y su expediente ─────────
+-- 4 · Provincia: the policy without theft coverage, and its case
 DO $$
 DECLARE
     tenant TEXT := 'arbiter_provincia';
@@ -328,8 +248,7 @@ BEGIN
         RETURN;
     END IF;
 
-    -- La suma de hurto es la mitad de la de robo, que es el criterio de la
-    -- compañía en el resto de sus pólizas.
+    -- Half of theft's sum, as in the insurer's other policies.
     EXECUTE format($dml$
         INSERT INTO %I.cobertura (poliza_id, orden, nombre, suma_asegurada, franquicia_pct)
         SELECT pz.id, 2, 'Hurto', round(robo.suma_asegurada / 2, 2), 15.00
@@ -351,7 +270,7 @@ BEGIN
                             WHERE pc.policy_id = p.id AND pc.coverage_id = $2)
     $dml$, tenant, tenant, tenant, tenant, tenant) USING poliza, hurto;
 
-    -- El expediente de hurto que colgaba de la cobertura de robo, que lo excluye.
+    -- The theft case that hung from the robbery coverage, which excludes it.
     EXECUTE format($dml$
         UPDATE %I.cases c
            SET coverage_id = $2
@@ -367,18 +286,11 @@ END $$;
 COMMIT;
 
 -- =============================================================================
--- Opcional · alinear el caso 11 de BBVA con el fixture nuevo
+-- Optional · align BBVA case 11 with the new fixture
 -- =============================================================================
 --
--- Esta migración NO toca montos reclamados: un script de datos no debería
--- reescribir lo que alguien denunció, aunque la base sea de demo.
---
--- Pero el caso 11 reclama 470.000 sobre una suma asegurada de 500.000 (94%) y
--- está marcado como Fast Track, que con el tope de 50% de su cobertura no
--- podría haber calificado. Después de esta migración eso se ve: la card de
--- criterios muestra "Cumple" con un 94% contra un tope de 50%. En el seed nuevo
--- el caso quedó en 240.000 (48%). Si querés dejar la base desplegada igual que
--- el fixture, corré esto a mano:
+-- Claimed amounts are not rewritten here, but case 11 claims 94% of its sum insured under a 50% cap
+-- and is marked Fast Track. To match the new seed (240,000, 48%), run by hand:
 --
 -- UPDATE arbiter_bbva.cases SET claimed_amount = 240000.00 WHERE id = 11;
 -- UPDATE arbiter_bbva.rule_result SET evaluated_value = 'ratio=48.0% max=50.0%'
@@ -391,11 +303,10 @@ COMMIT;
 --  WHERE case_id = 11;
 
 -- =============================================================================
--- Verificación (correr después, por esquema)
+-- Check (afterwards, per schema)
 -- =============================================================================
 --
--- 1. Cada cobertura tiene que tener su fila FAST_TRACK con configuration, y no
---    puede quedar ninguna FAST_TRACK activa sin cobertura:
+-- 1. Each coverage has its FAST_TRACK row with configuration, and none is active without coverage:
 --
 -- SELECT c.name, r.active, r.configuration->>'maxClaimedAmountRatio' AS tope
 --   FROM arbiter_bbva.coverage c
@@ -405,12 +316,11 @@ COMMIT;
 -- SELECT count(*) FROM arbiter_bbva.insurer_rule
 --  WHERE rule_type = 'FAST_TRACK' AND coverage_id IS NULL AND active;  -- 0
 --
--- 2. No puede quedar ningún rule_result con el tipo viejo:
+-- 2. No rule_result left with the old type:
 --
 -- SELECT rule_type, count(*) FROM arbiter_bbva.rule_result GROUP BY 1 ORDER BY 1;
 --
--- 3. Todo hecho generador del ramo tiene que ser cubierto por alguna cobertura
---    (esta es la que encontró el agujero de Rotura accidental y Caída):
+-- 3. Every claim cause of the branch is covered by some coverage:
 --
 -- WITH excl AS (
 --   SELECT r.coverage_id, (jsonb_array_elements(r.configuration->'excludedClaimCauseIds'))::bigint AS cause
@@ -421,9 +331,8 @@ COMMIT;
 --    AND NOT EXISTS (SELECT 1 FROM excl e WHERE e.coverage_id = cov.id AND e.cause = cc.id)
 --  WHERE cc.branch_id = 1 GROUP BY cc.id, cc.name ORDER BY cc.id;
 --
--- 4. Ningún expediente puede colgar de una cobertura que excluya su hecho
---    generador, salvo los dos casos de demo de "hurto no cubierto", ni apuntar a
---    una cobertura que su póliza no tenga contratada:
+-- 4. No case hangs from a coverage that excludes its cause (except the two "uncovered theft" demo
+--    cases), nor from one its policy doesn't have:
 --
 -- SELECT c.id, c.claim_cause_id, c.coverage_id
 --   FROM arbiter_bbva.cases c JOIN arbiter_bbva.insurer_rule r

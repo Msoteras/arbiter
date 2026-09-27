@@ -27,7 +27,7 @@ class PromptBuilderTest {
     @BeforeEach
     void setUp() throws IOException {
         promptBuilder = new PromptBuilder(
-                new LlmProperties("ollama", "classification-v5"),
+                new LlmProperties("ollama", "classification-v6"),
                 new DefaultResourceLoader());
     }
 
@@ -75,7 +75,7 @@ class PromptBuilderTest {
     }
 
     @Test
-    void renderRulesAndPolicy_includesTheRulesTheReferenteWrote() {
+    void renderRulesAndPolicy_includesTheRulesTheReferentWrote() {
         BusinessRules rules = BusinessRules.builder()
                 .branchId("Celulares")
                 .claimCauseId("Robo en vía pública")

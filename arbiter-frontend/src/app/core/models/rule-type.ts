@@ -74,24 +74,23 @@ const RULE_TYPE_INFO: Record<string, { label: string; description: string }> = {
     label: 'Fast Track: documentación',
     description: 'Faltan documentos requeridos, o no son legibles, para el trámite rápido.',
   },
-  // Aviso, no regla: el tablero de "reglas que frenaron" lo excluye (no frenó nada). Está para que
-  // el mapa siga reflejando todo RuleType.
+  // Advisory, not a rule: the "rules that stopped a case" dashboard leaves it out.
   CLAIM_CAUSE_MATCH: {
     label: 'Hecho que narra la documentación',
     description:
       'La documentación narra un hecho generador distinto del declarado. Es un aviso para el analista: no bloquea el trámite.',
   },
+  VISUAL_TAMPERING: {
+    label: 'Señales de adulteración en la documentación',
+    description: 'Un documento muestra señales de haber sido alterado. Es un aviso, no bloquea.',
+  },
 };
 
-/**
- * Traduce un literal de `RuleType`. Si `raw` no está en el mapa, se devuelve tal cual: puede ser
- * ya un nombre en castellano que el referente le puso a su regla (`insurer_rule.name`).
- */
+/** Unknown values come back as-is: they can be the name a referente gave their own rule. */
 export function ruleTypeLabel(raw: string): string {
   return RULE_TYPE_INFO[raw]?.label ?? raw;
 }
 
-/** Descripción de qué evalúa la regla, para un tooltip. `undefined` si `raw` no es un literal conocido. */
 export function ruleTypeDescription(raw: string): string | undefined {
   return RULE_TYPE_INFO[raw]?.description;
 }

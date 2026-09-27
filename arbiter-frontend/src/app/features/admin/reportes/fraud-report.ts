@@ -1,9 +1,6 @@
 import { RiskBand } from '../../../core/models/risk-band';
 
-/**
- * Not `MetricCount` from `resolution-report.ts`: here the label can be null (a case the scoring
- * never ran on has no band).
- */
+/** Not `MetricCount`: here the label can be null (a case never scored has no band). */
 export interface FraudBucket {
   label: string | null;
   count: number;
@@ -21,10 +18,7 @@ export interface FraudReportRow {
   branch: string;
   claimCause: string;
   reportedAt: string;
-  /**
-   * null when scoring never ran (Fast Track, or still classifying). Shown as "Sin evaluar", never as
-   * low risk.
-   */
+  /** null when scoring never ran; shown as "Sin evaluar", never as low risk. */
   riskBand: RiskBand | null;
   signals: FraudSignal[];
   /**
@@ -50,7 +44,6 @@ export interface FraudSummary {
   flagged: number;
   /** 0..1 fraction; null when there is nothing to divide by. */
   flaggedRate: number | null;
-  /** Cases with two or more coinciding signals. */
   multiSignal: number;
   fraudDetermined: number;
   /**

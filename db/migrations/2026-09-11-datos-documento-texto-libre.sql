@@ -1,25 +1,6 @@
--- =============================================================================
--- document_analysis: marca, modelo y bien, sin tope de largo
---
--- El 11/09 el expediente 42 de BBVA se clasificó y perdió las extracciones de sus
--- cuatro documentos: el INSERT falló con "value too long for type character
--- varying(100)" porque el modelo devolvió un `model` más largo que la columna, y
--- ClassificationOrchestrator atrapa ese error para no voltear la clasificación —
--- así que la pérdida es SILENCIOSA. En pantalla se ve un expediente clasificado
--- sin un dato de sus documentos, y nada dice por qué.
---
--- Estos tres campos son texto libre que devuelve un modelo de visión, así que van
--- a TEXT, igual que `transcription` y que `llm_analysis.cause_evidence`. No se
--- truncan a propósito: `DocumentInconsistencyEvaluator` COMPARA marca y modelo
--- contra el bien asegurado, y un valor cortado no es un dato incompleto, es un
--- dato equivocado que puede levantar un hallazgo falso contra el asegurado.
---
--- Idempotente: cambiar el tipo de una columna que ya es TEXT no hace nada.
--- No pierde datos (VARCHAR → TEXT es una ampliación) y no reescribe la tabla.
---
--- Uso:
---   psql "$DATABASE_URL" -f db/migrations/2026-09-11-datos-documento-texto-libre.sql
--- =============================================================================
+-- 2026-09-11 · document_analysis brand, model and item_description become TEXT: a long model value made the
+-- insert fail and the extraction was lost silently. Not truncated on purpose: they are compared with the
+-- insured item, and a cut value is a wrong one. Idempotent, no table rewrite.
 
 BEGIN;
 
@@ -61,9 +42,9 @@ END $$;
 
 COMMIT;
 
--- ─── Verificación ────────────────────────────────────────────────────────────
+-- ─── Verification ────────────────────────────────────────────────────────────
 --
--- Los tres campos en text, por tenant (tres filas por esquema):
+-- The three columns as text, per tenant (three rows per schema):
 --
 -- SELECT table_schema, column_name, data_type, character_maximum_length
 --   FROM information_schema.columns
@@ -71,8 +52,7 @@ COMMIT;
 --    AND column_name IN ('brand', 'model', 'item_description')
 --  ORDER BY table_schema, column_name;
 --
--- Y que el expediente que lo destapó ya tenga sus extracciones, después de
--- reclasificarlo:
+-- And the case that exposed it, once reclassified:
 --
 -- SELECT d.type, a.brand, a.model, length(a.item_description)
 --   FROM arbiter_bbva.document_analysis a

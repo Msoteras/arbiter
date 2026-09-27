@@ -40,137 +40,43 @@
       <app-inline-loading [size]="30" message="Cargando expedientes…" />
     </div>
   } @else {
-    <!-- One bar for two axes (lifecycle, then ownership); "Todos" clears both. The supervisor
-         variant below has no "Míos" because cases are never assigned to them. -->
-    @if (canAssign()) {
-      <div class="lens" role="tablist" aria-label="Expedientes a mostrar">
-        <button
-          type="button"
-          role="tab"
-          class="lens-tab"
-          [class.active]="lens() === 'open'"
-          [attr.aria-selected]="lens() === 'open'"
-          (click)="setLens('open')"
-        >
-          En curso <span class="lens-count">{{ openCount() }}</span>
-        </button>
-        <button
-          type="button"
-          role="tab"
-          class="lens-tab"
-          [class.active]="lens() === 'closed'"
-          [attr.aria-selected]="lens() === 'closed'"
-          (click)="setLens('closed')"
-        >
-          Cerrados <span class="lens-count">{{ closedCount() }}</span>
-        </button>
+    @if (canAssign() || isReferente()) {
+      <div class="lens">
+        <div class="lens-group" role="tablist" aria-label="Ciclo de vida">
+          @for (tab of lifecycleTabs; track tab.value) {
+            <button
+              type="button"
+              role="tab"
+              class="lens-tab"
+              [class.active]="lifecycle() === tab.value"
+              [attr.aria-selected]="lifecycle() === tab.value"
+              (click)="setLifecycle(tab.value)"
+            >
+              {{ tab.label }} <span class="lens-count">{{ lifecycleCount(tab.value) }}</span>
+            </button>
+          }
+        </div>
         <span class="lens-divider" aria-hidden="true"></span>
-        <button
-          type="button"
-          role="tab"
-          class="lens-tab"
-          [class.active]="lens() === 'mine'"
-          [attr.aria-selected]="lens() === 'mine'"
-          (click)="setLens('mine')"
-        >
-          Mis asignados <span class="lens-count">{{ mineCount() }}</span>
-        </button>
-        <button
-          type="button"
-          role="tab"
-          class="lens-tab"
-          [class.active]="lens() === 'all'"
-          [attr.aria-selected]="lens() === 'all'"
-          (click)="setLens('all')"
-        >
-          Todos <span class="lens-count">{{ allCount() }}</span>
-        </button>
-        <button
-          type="button"
-          role="tab"
-          class="lens-tab"
-          [class.active]="lens() === 'unassigned'"
-          [attr.aria-selected]="lens() === 'unassigned'"
-          (click)="setLens('unassigned')"
-        >
-          Sin asignar <span class="lens-count">{{ unassignedCount() }}</span>
-        </button>
-        <button
-          type="button"
-          role="tab"
-          class="lens-tab lens-tab--alert"
-          [class.active]="lens() === 'fraud'"
-          [attr.aria-selected]="lens() === 'fraud'"
-          (click)="setLens('fraud')"
-        >
-          <span class="lens-alert-mark" aria-hidden="true">▲</span> Riesgo de fraude
-          <span class="lens-count">{{ fraudCount() }}</span>
-        </button>
-      </div>
-    } @else if (isReferente()) {
-      <div class="lens" role="tablist" aria-label="Expedientes a mostrar">
-        <button
-          type="button"
-          role="tab"
-          class="lens-tab"
-          [class.active]="lens() === 'open'"
-          [attr.aria-selected]="lens() === 'open'"
-          (click)="setLens('open')"
-        >
-          En curso <span class="lens-count">{{ openCount() }}</span>
-        </button>
-        <button
-          type="button"
-          role="tab"
-          class="lens-tab"
-          [class.active]="lens() === 'closed'"
-          [attr.aria-selected]="lens() === 'closed'"
-          (click)="setLens('closed')"
-        >
-          Cerrados <span class="lens-count">{{ closedCount() }}</span>
-        </button>
-        <span class="lens-divider" aria-hidden="true"></span>
-        <button
-          type="button"
-          role="tab"
-          class="lens-tab"
-          [class.active]="lens() === 'all'"
-          [attr.aria-selected]="lens() === 'all'"
-          (click)="setLens('all')"
-        >
-          Todos <span class="lens-count">{{ allCount() }}</span>
-        </button>
-        <button
-          type="button"
-          role="tab"
-          class="lens-tab"
-          [class.active]="lens() === 'assigned'"
-          [attr.aria-selected]="lens() === 'assigned'"
-          (click)="setLens('assigned')"
-        >
-          Asignados <span class="lens-count">{{ assignedCount() }}</span>
-        </button>
-        <button
-          type="button"
-          role="tab"
-          class="lens-tab"
-          [class.active]="lens() === 'unassigned'"
-          [attr.aria-selected]="lens() === 'unassigned'"
-          (click)="setLens('unassigned')"
-        >
-          Sin asignar <span class="lens-count">{{ unassignedCount() }}</span>
-        </button>
-        <button
-          type="button"
-          role="tab"
-          class="lens-tab lens-tab--alert"
-          [class.active]="lens() === 'fraud'"
-          [attr.aria-selected]="lens() === 'fraud'"
-          (click)="setLens('fraud')"
-        >
-          <span class="lens-alert-mark" aria-hidden="true">▲</span> Riesgo de fraude
-          <span class="lens-count">{{ fraudCount() }}</span>
-        </button>
+        <div class="lens-group" role="group" aria-label="Pertenencia">
+          @for (tab of ownershipTabs(); track tab.value) {
+            <button
+              type="button"
+              class="lens-tab"
+              [class.lens-tab--alert]="tab.value === 'fraud'"
+              [class.active]="ownership() === tab.value"
+              [attr.aria-pressed]="ownership() === tab.value"
+              (click)="toggleOwnership(tab.value)"
+            >
+              @if (tab.value === 'fraud') {
+                <span class="lens-alert-mark" aria-hidden="true">▲</span>
+              }
+              {{ tab.label }} <span class="lens-count">{{ ownershipCount(tab.value) }}</span>
+              @if (ownership() === tab.value) {
+                <span class="lens-clear" aria-hidden="true">✕</span>
+              }
+            </button>
+          }
+        </div>
       </div>
     }
 
@@ -330,15 +236,8 @@
           message="Ningún expediente coincide con los filtros aplicados."
           sub="Sin coincidencias"
         />
-      } @else if (emptyByScope()) {
-        <app-empty-state
-          [message]="
-            lens() === 'open'
-              ? 'No hay expedientes en curso. Probá con «Todos» para ver los ya cerrados.'
-              : 'Todavía no hay expedientes cerrados.'
-          "
-          [sub]="lens() === 'open' ? 'Nada pendiente' : 'Sin cerrados'"
-        />
+      } @else if (emptyByLens()) {
+        <app-empty-state [message]="emptyLensMessage().message" [sub]="emptyLensMessage().sub" />
       } @else {
         <app-empty-state message="Todavía no hay expedientes cargados." sub="Sin expedientes" />
       }

@@ -1,20 +1,5 @@
--- =============================================================================
--- 2026-09-20 · Quién actualizó el tope de atribución de cada ramo
---
--- Migración puntual y NO destructiva, para aplicar sobre una base que ya tiene
--- datos (Railway) sin pasar por el trío reset → init → seed.
---
--- Agrega:
---   · <tenant>.settlement_authority → updated_by, quién tocó el tope por última vez.
---
--- Las filas existentes quedan con NULL: no hay con qué completarlas retroactivamente,
--- y NULL ahí significa exactamente eso — "no se sabe quién la dejó así", no un error.
---
--- IMPORTANTE: los servicios corren con ddl-auto=validate. Aplicar ANTES de
--- desplegar el código que declara el campo, o cases-service no levanta.
---
--- Idempotente: se puede correr más de una vez sin romper nada.
--- =============================================================================
+-- 2026-09-20 · settlement_authority.updated_by: who last changed the ceiling. Existing rows stay NULL,
+-- meaning "unknown". Apply before deploying the code (ddl-auto=validate). Idempotent.
 
 BEGIN;
 
@@ -34,7 +19,7 @@ END $$;
 
 COMMIT;
 
--- Verificación: la columna nueva, una fila por aseguradora.
+-- Check: the new column, one row per insurer.
 SELECT table_schema, column_name, data_type, is_nullable
   FROM information_schema.columns
  WHERE table_name = 'settlement_authority' AND column_name = 'updated_by'

@@ -23,7 +23,7 @@ class RuleAuthorResolverTest {
     private final RuleAuthorResolver resolver = new RuleAuthorResolver(insurerReferentRepository, userRepository);
 
     @Test
-    void resolvesTheReferenteOfTheActor() {
+    void resolvesTheReferentOfTheActor() {
         when(insurerReferentRepository.findFirstByUser_Email("referente@bbva.com"))
                 .thenReturn(Optional.of(InsurerReferent.builder().id(11L).build()));
 
@@ -32,7 +32,7 @@ class RuleAuthorResolverTest {
 
     /** An actor with no referente profile leaves the author empty instead of failing the save. */
     @Test
-    void isNullWhenTheActorHasNoReferenteProfile() {
+    void isNullWhenTheActorHasNoReferentProfile() {
         when(insurerReferentRepository.findFirstByUser_Email("analista@bbva.com")).thenReturn(Optional.empty());
 
         assertThat(resolver.referentIdOf("analista@bbva.com")).isNull();

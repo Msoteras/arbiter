@@ -17,15 +17,12 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * {@code riskScore} and {@code riskBand} are null when the claim wasn't scored, which is distinct from
- * a real {@code LOW}. {@code forensicReport} is analyst-only, never shown to the insured.
+ * A null {@code riskScore}/{@code riskBand} means not scored, never a real {@code LOW}.
+ * {@code forensicReport} is analyst-only.
  */
 public record CaseResponse(
         Long id,
-        /**
-         * Only set in the insured's multi-insurer listing, since case ids repeat across schemas.
-         * The slug, not the id, so no database key ends up in a URL.
-         */
+        /** Only in the insured's multi-insurer listing, since case ids repeat across schemas. */
         String insurerSlug,
         String insurerName,
         CaseStatus status,
@@ -36,7 +33,6 @@ public record CaseResponse(
         String coverage,
         String insuredItem,
         String insuredId,
-        /** Null until the first classification resolves it. */
         String insuredName,
         /** Politically exposed person: a due-diligence fact, deliberately kept out of scoring and the prompt. */
         boolean pep,
@@ -49,7 +45,7 @@ public record CaseResponse(
         double analysisConfidence,
         /** Empty on Fast Track or before classification. */
         List<String> analysisReasons,
-        /** Whether the insured's account matches the declared claim cause. Null means "not evaluated", never {@code MATCHES}. */
+        /** Null means "not evaluated", never {@code MATCHES}. */
         CauseConsistency causeConsistency,
         /** Only with CONTRADICTS. */
         String suggestedClaimCause,
@@ -64,33 +60,20 @@ public record CaseResponse(
         String assignedAnalystName,
         Instant createdAt,
         Instant updatedAt,
-        /** Legal deadline to respond (art. 56, Ley 17.418): claim report + 30 days. */
+        /** Art. 56, Ley 17.418. */
         LocalDate responseDeadline,
-        /** Derived, not persisted. */
         DeadlinePriority deadlinePriority,
-        /**
-         * Tells apart, within {@code PENDING_ANALYST_REVIEW}, a case waiting on the analyst from one
-         * waiting on the referente. Listings only; null for the insured.
-         */
+        /** Waiting on the analyst or on the referente, both {@code PENDING_ANALYST_REVIEW}. Listings only. */
         SettlementStatus settlementStatus,
         /** Null on list endpoints; only GET /{id} loads it. */
         List<StatusTransitionResponse> statusHistory,
         /** Only GET /{id} loads it. */
         List<DocumentAnalysisSummary> documentAnalyses,
-        /**
-         * Every hard rule evaluated, passes included; only GET /{id} loads it. Empty means no rule ran;
-         * null means the results couldn't be read, and the screen says different things for each.
-         */
+        /** Only on GET /{id}, passes included. Empty: no rule ran; null: they couldn't be read. */
         List<RuleResultResponse> ruleResults,
-        /**
-         * What the insurer DB answered at classification time, not today. Current policies are a
-         * separate call ({@code GET /cases/{id}/insured-policies}).
-         */
+        /** What the insurer DB answered at classification time, not today. */
         PolicySnapshotResponse policySnapshot,
-        /**
-         * Only while in PENDING_REPAIR and only on GET /{id}. The one derivation detail the insured
-         * sees; expert assessments never travel in any field they read.
-         */
+        /** Only on GET /{id} while in PENDING_REPAIR: the one derivation detail the insured sees. */
         RepairProviderResponse repairProvider
 ) {
 }

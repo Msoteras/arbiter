@@ -7,12 +7,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * System-to-system read of the text rules for the classification engine.
- *
- * <p>It exists because of a key asymmetry: the referente configures the texts <b>by branch</b>, but
- * the claim reaching the engine only carries a {@code coverageId} — branch and claim cause arrive
- * as names, not ids (see {@code ClaimReport}). So coverage → branch is resolved here and only then
- * are the texts read. Same reason {@code /internal/fast-track} is keyed by coverage.
+ * The referente writes these texts per branch, but a claim only carries its coverage id, so coverage
+ * → branch is resolved here, as in {@code /internal/fast-track}.
  */
 @Service
 public class CoverageRuleTextService {
@@ -30,10 +26,7 @@ public class CoverageRuleTextService {
         this.businessRules = businessRules;
     }
 
-    /**
-     * Returns empty — not 404 — when the coverage doesn't exist or has no branch: the engine
-     * composes this over its baseline, and a classification can't fall over missing config.
-     */
+    /** Empty, not 404: the engine composes this over its baseline and must not fail on missing config. */
     @Transactional(readOnly = true)
     public RuleTextsDto getByCoverage(Long coverageId) {
         Long branchId = coverageRepository.findById(coverageId)

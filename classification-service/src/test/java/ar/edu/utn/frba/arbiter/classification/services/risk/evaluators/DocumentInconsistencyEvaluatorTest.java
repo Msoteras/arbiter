@@ -134,11 +134,19 @@ class DocumentInconsistencyEvaluatorTest {
         assertThat(c.rationale()).contains("anterior al hecho");
     }
 
-    /** A purchase invoice is legitimately earlier: the tolerance lets it through. */
     @Test
     void aDocumentDatedAFewDaysBefore_isTolerated() {
         Contribution c = evaluator.evaluate(context(policyWithImei(), Map.of(
-                "invoice", withFields(fields(EVENT_DAY.minusDays(3), null, null)))));
+                "police_report", withFields(fields(EVENT_DAY.minusDays(3), null, null)))));
+
+        assertThat(c.score()).isEqualTo(0.0);
+    }
+
+    /** The item was bought before it was stolen: an old purchase proof is the norm, not a finding. */
+    @Test
+    void aPurchaseProofMonthsBeforeTheEvent_isNotAnInconsistency() {
+        Contribution c = evaluator.evaluate(context(policyWithImei(), Map.of(
+                "purchase_proof", withFields(fields(EVENT_DAY.minusMonths(9), null, null)))));
 
         assertThat(c.score()).isEqualTo(0.0);
     }
@@ -147,7 +155,7 @@ class DocumentInconsistencyEvaluatorTest {
     @Test
     void anAmountFarFromTheClaimedOne_isAnInconsistency() {
         Contribution c = evaluator.evaluate(context(policyWithImei(), Map.of(
-                "invoice", withFields(fields(null, new BigDecimal("450000"), null)))));
+                "purchase_proof", withFields(fields(null, new BigDecimal("450000"), null)))));
 
         assertThat(c.score()).isGreaterThan(0.0);
         assertThat(c.rationale()).contains("difiere del monto reclamado");
@@ -156,7 +164,38 @@ class DocumentInconsistencyEvaluatorTest {
     @Test
     void anAmountWithinToleranceIsNotAnInconsistency() {
         Contribution c = evaluator.evaluate(context(policyWithImei(), Map.of(
-                "invoice", withFields(fields(null, new BigDecimal("105000"), null)))));
+                "purchase_proof", withFields(fields(null, new BigDecimal("105000"), null)))));
+
+        assertThat(c.score()).isEqualTo(0.0);
+    }
+
+    /**
+     * A damage claim: what is claimed is the repair (the quote, 100,000), not what the item is worth
+     * (the invoice, 450,000). Only the quote is compared.
+     */
+    @Test
+    void onADamageClaim_onlyTheRepairQuoteIsComparedToTheClaimedAmount() {
+        Contribution c = evaluator.evaluate(context(policyWithImei(), Map.of(
+                "purchase_proof", withFields(fields(null, new BigDecimal("450000"), null)),
+                "repair_quote", withFields(fields(null, new BigDecimal("100000"), null)))));
+
+        assertThat(c.score()).isEqualTo(0.0);
+    }
+
+    @Test
+    void onADamageClaim_aQuoteFarFromTheClaimedAmount_isAnInconsistency() {
+        Contribution c = evaluator.evaluate(context(policyWithImei(), Map.of(
+                "purchase_proof", withFields(fields(null, new BigDecimal("100000"), null)),
+                "repair_quote", withFields(fields(null, new BigDecimal("30000"), null)))));
+
+        assertThat(c.rationale()).contains("'repair_quote'").contains("difiere del monto reclamado");
+    }
+
+    /** Other documents' amounts (a police report's valuation, say) never take part. */
+    @Test
+    void anAmountOnADocumentThatDoesNotSetTheClaim_isIgnored() {
+        Contribution c = evaluator.evaluate(context(policyWithImei(), Map.of(
+                "police_report", withFields(fields(null, new BigDecimal("450000"), null)))));
 
         assertThat(c.score()).isEqualTo(0.0);
     }
@@ -196,7 +235,7 @@ class DocumentInconsistencyEvaluatorTest {
     @Test
     void twoInconsistenciesSaturateTheFactor() {
         Contribution c = evaluator.evaluate(context(policyWithImei(), Map.of(
-                "invoice", withFields(fields(EVENT_DAY.minusMonths(3), new BigDecimal("450000"), "359999999999999")))));
+                "purchase_proof", withFields(fields(null, new BigDecimal("450000"), "359999999999999")))));
 
         assertThat(c.score()).isEqualTo(1.0);
     }
