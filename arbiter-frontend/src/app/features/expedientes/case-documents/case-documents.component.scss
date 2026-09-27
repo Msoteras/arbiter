@@ -189,6 +189,8 @@ button.doc-btn.selected {
 
 .doc-read-issue {
   display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
 }
 
 /* Status, not decoration: a border in the semaphore color, never a saturated fill. */

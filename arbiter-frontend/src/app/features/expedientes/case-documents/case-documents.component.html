@@ -47,11 +47,16 @@
                   {{ formatLabel(row.doc.contentType) }} · {{ fileSize(row.doc.sizeBytes) }} ·
                   {{ uploadedAt(row.doc.uploadedAt) }}
                 </span>
-                @if (row.readIssue) {
+                @if (row.readIssue || row.tamperingSigns) {
                   <span class="doc-read-issue">
-                    <app-badge variant="solid" tone="warning">
-                      {{ row.readIssue === 'FAILED' ? 'No se pudo leer' : 'Lectura incompleta' }}
-                    </app-badge>
+                    @if (row.readIssue) {
+                      <app-badge variant="solid" tone="warning">
+                        {{ row.readIssue === 'FAILED' ? 'No se pudo leer' : 'Lectura incompleta' }}
+                      </app-badge>
+                    }
+                    @if (row.tamperingSigns) {
+                      <app-badge variant="solid" tone="warning">Señales en la imagen</app-badge>
+                    }
                   </span>
                 }
               </button>
@@ -122,20 +127,11 @@
                — the same as a document that states nothing. Say what happened instead. -->
           @if (extraction.extractionStatus === 'FAILED') {
             <div class="read-issue" role="status">
-              <p class="t-body">No se pudo leer este documento.</p>
-              <p class="t-note">
-                Ninguna regla lo pudo comparar con lo declarado (marca, IMEI, importe, hecho
-                generador, damnificado). Revisalo en la vista previa.
-              </p>
+              <p class="t-body">No se pudo leer: revisalo en la vista previa.</p>
             </div>
           } @else if (extraction.extractionStatus === 'PARTIAL') {
             <div class="read-issue" role="status">
-              <p class="t-body">La lectura quedó incompleta.</p>
-              <p class="t-note">
-                Se transcribió el texto, pero no se llegaron a extraer sus datos: ninguna regla lo
-                pudo comparar con lo declarado (marca, IMEI, importe, hecho generador, damnificado).
-                Revisá la transcripción o la vista previa.
-              </p>
+              <p class="t-body">Solo se leyó el texto, no sus datos: revisalo a mano.</p>
             </div>
           } @else if (!selectedIsImage()) {
             <dl class="fields">
@@ -161,10 +157,7 @@
                   <li>{{ finding }}</li>
                 }
               </ul>
-              <p class="t-note">
-                Son observaciones del modelo sobre la imagen, no contenido del documento. Por sí
-                solas no confirman fraude.
-              </p>
+              <p class="t-note">Observaciones del modelo, no contenido del documento.</p>
             </div>
           }
 
@@ -180,11 +173,7 @@
       } @else if (selectedNotAnalyzed()) {
         <app-card class="docs-extraction" heading="Lo que el modelo leyó">
           <div class="read-issue" role="status">
-            <p class="t-body">No hay lectura del modelo para este documento.</p>
-            <p class="t-note">
-              Ninguna regla lo comparó con lo declarado (marca, IMEI, importe, hecho generador,
-              damnificado). Podés analizarlo igual: abrí la vista previa y revisalo a mano.
-            </p>
+            <p class="t-body">Sin lectura del modelo: revisalo en la vista previa.</p>
           </div>
         </app-card>
       }

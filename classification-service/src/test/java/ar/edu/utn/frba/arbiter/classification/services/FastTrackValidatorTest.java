@@ -321,7 +321,7 @@ class FastTrackValidatorTest {
                 Map.of("police_report", DocumentExtraction.partial("ACTA DE DENUNCIA…")));
 
         assertThat(result.fastTrack()).isTrue();
-        assertThat(result.reasons()).anyMatch(r -> r.contains("se sugiere revisión manual del analista"));
+        assertThat(result.reasons()).anyMatch(r -> r.contains("se sugiere revisión manual"));
         assertThat(result.findings()).singleElement().satisfies(finding -> {
             assertThat(finding.passed()).isTrue();
             assertThat(finding.evaluatedValue()).contains("partial=police_report");

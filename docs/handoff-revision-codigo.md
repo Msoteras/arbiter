@@ -53,8 +53,8 @@ Hay que decidir si se aceptan hotfixes directos a `main` y dejar un solo workflo
 ### 1.5 Qué cobertura responde por una rotura
 En la póliza BBVA de celulares (Railway), "Robo de celular" solo excluye Hurto, así que también
 "cubre" Rotura accidental y Caída; como está primera en el orden de la compañía, **toda** rotura
-cae ahí (se vio en el #44: una caída común quedó con franquicia de robo, 10%, en vez de daño
-accidental, 20%, y con los plazos de robo). La cobertura se elige solo por el hecho generador
+cae ahí (se vio en el #44, un caso de prueba borrado el 25/09/2026: una caída común quedó con
+franquicia de robo, 10%, en vez de daño accidental, 20%, y con los plazos de robo). La cobertura se elige solo por el hecho generador
 declarado; el relato no interviene, y el analista no puede cambiarla después.
 
 Argumento a favor de que robo cubra algunas roturas: si el celular se rompe en un intento de

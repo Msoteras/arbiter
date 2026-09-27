@@ -59,7 +59,10 @@ public enum RuleType {
     FT_REQUIRED_DOCS,
 
     /** Advisory, and the Fast Track path's only check of the narrative against the declared cause. */
-    CLAIM_CAUSE_MATCH;
+    CLAIM_CAUSE_MATCH,
+
+    /** Advisory · signs a document was altered. Never a PASS row: no signs doesn't prove authenticity. */
+    VISUAL_TAMPERING;
 
     /** {@link #COVERAGE_EXCLUSION} is left out: it is configured per coverage with its own selector. */
     public static List<RuleType> temporalRules() {
@@ -79,6 +82,6 @@ public enum RuleType {
 
     /** A FAIL warns the analyst but stops nothing. */
     public static List<RuleType> advisoryRules() {
-        return List.of(CLAIM_CAUSE_MATCH);
+        return List.of(CLAIM_CAUSE_MATCH, VISUAL_TAMPERING);
     }
 }

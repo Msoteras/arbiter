@@ -466,6 +466,16 @@ export class ExpedienteDetailComponent {
     this.advisoryChecks().some((r) => r.result === 'FAIL'),
   );
 
+  /** Which advisories warn, so the card's intro only mentions those. */
+  protected readonly advisoryWarningTypes = computed(
+    () =>
+      new Set(
+        this.advisoryChecks()
+          .filter((r) => r.result === 'FAIL')
+          .map((r) => r.ruleType),
+      ),
+  );
+
   /** Present both when the case took Fast Track (why) and when it didn't (which criterion failed). */
   protected readonly fastTrackCriteria = computed<RuleResult[]>(() =>
     this.ruleResults().filter((r) => isFastTrackCriterion(r.ruleType)),
