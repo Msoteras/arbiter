@@ -21,7 +21,12 @@ import {
   switchMap,
 } from 'rxjs';
 
-import { ExpedienteService, AnalystDecisionRequest, Settlement } from '../expediente.service';
+import {
+  ExpedienteService,
+  AnalystDecisionRequest,
+  ClaimCauseOption,
+  Settlement,
+} from '../expediente.service';
 import { DocumentAgendaService } from '../document-agenda.service';
 import { CaseNavigationService } from '../case-navigation.service';
 import { CaseMessagesService } from '../case-messages.service';
@@ -1357,6 +1362,80 @@ export class ExpedienteDetailComponent {
       error: (err: HttpErrorResponse) => {
         this.derivarSaving.set(false);
         this.derivarError.set(err.error?.detail || 'No se pudo derivar el expediente');
+      },
+    });
+  }
+
+  /**
+   * Only while the owner reviews it: the backend refuses any other status and a settlement awaiting
+   * the referente, and this keeps the button from offering what it would refuse.
+   */
+  protected readonly puedeCorregirCausa = computed(
+    () => this.enManosDelAnalista() && this.data()?.status === 'PENDING_ANALYST_REVIEW',
+  );
+
+  protected readonly showCorregirCausa = signal(false);
+  protected readonly causaOpciones = signal<ClaimCauseOption[] | null>(null);
+  protected readonly causaElegida = signal('');
+  protected readonly motivoCorreccion = signal('');
+  protected readonly corregirSaving = signal(false);
+  protected readonly corregirError = signal<string | null>(null);
+
+  protected readonly causaSelectOptions = computed<SelectOption[]>(() =>
+    (this.causaOpciones() ?? []).map((o) => ({
+      value: String(o.id),
+      label: `${o.name} · ${o.coverageName}`,
+    })),
+  );
+
+  askCorregirCausa(): void {
+    const d = this.data();
+    if (!d) {
+      return;
+    }
+    this.causaOpciones.set(null);
+    this.causaElegida.set('');
+    this.motivoCorreccion.set('');
+    this.corregirError.set(null);
+    this.showCorregirCausa.set(true);
+    this.service.claimCauseOptions(d.id).subscribe({
+      next: (opciones) => {
+        this.causaOpciones.set(opciones);
+        // What the narrative suggests comes preselected; the analyst still confirms it.
+        const sugerida = opciones.find((o) => o.name === d.suggestedClaimCause);
+        if (sugerida) {
+          this.causaElegida.set(String(sugerida.id));
+        }
+      },
+      error: () => {
+        this.causaOpciones.set([]);
+        this.corregirError.set('No se pudieron cargar los hechos generadores.');
+      },
+    });
+  }
+
+  cancelCorregirCausa(): void {
+    this.showCorregirCausa.set(false);
+  }
+
+  confirmCorregirCausa(): void {
+    const d = this.data();
+    const causa = this.causaElegida();
+    const motivo = this.motivoCorreccion().trim();
+    if (!d || !causa || !motivo) {
+      return;
+    }
+    this.corregirSaving.set(true);
+    this.corregirError.set(null);
+    this.service.correctClaimCause(d.id, Number(causa), motivo).subscribe({
+      next: () => {
+        this.corregirSaving.set(false);
+        this.showCorregirCausa.set(false);
+        this.reloadTrigger.update((v) => v + 1);
+      },
+      error: (err: HttpErrorResponse) => {
+        this.corregirSaving.set(false);
+        this.corregirError.set(err.error?.detail || 'No se pudo corregir el hecho generador');
       },
     });
   }

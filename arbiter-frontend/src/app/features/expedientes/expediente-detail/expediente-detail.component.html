@@ -301,6 +301,11 @@
             @if (data()?.causeEvidence; as cita) {
               <q class="aviso-cita">{{ cita }}</q>
             }
+            @if (puedeCorregirCausa()) {
+              <app-button variant="secondary" (click)="askCorregirCausa()"
+                >Corregir hecho generador</app-button
+              >
+            }
           </p>
         }
         @if (canAct() && liquidacionDevuelta() && settlement(); as s) {
@@ -383,6 +388,14 @@
                           <p class="nodata">Sin datos</p>
                         }
                       </div>
+                      <!-- When the account contradicts the declared cause; the coverage follows from it. -->
+                      @if (puedeCorregirCausa()) {
+                        <div class="corregir-causa">
+                          <app-button variant="secondary" (click)="askCorregirCausa()"
+                            >Corregir hecho generador</app-button
+                          >
+                        </div>
+                      }
                     }
                   </section>
                 }
@@ -1326,6 +1339,46 @@
       (click)="confirmDerivar()"
     >
       {{ derivarSaving() ? 'Derivando…' : 'Derivar' }}
+    </app-button>
+  </ng-container>
+</app-modal>
+
+<!-- The reason is mandatory: it is the only record of why the insured's own words were overridden. -->
+<app-modal
+  [open]="showCorregirCausa()"
+  heading="Corregir hecho generador"
+  (close)="cancelCorregirCausa()"
+>
+  <p class="t-note">
+    Declarado: <strong>{{ data()?.claimCause }}</strong
+    >. El expediente se vuelve a clasificar con la cobertura del hecho que elijas.
+  </p>
+  @if (causaOpciones() === null) {
+    <p class="t-note">Cargando…</p>
+  } @else if (causaOpciones()!.length === 0 && !corregirError()) {
+    <p class="t-note">Ninguna otra cobertura de la póliza cubre otro hecho de este ramo.</p>
+  } @else {
+    <app-select
+      [options]="causaSelectOptions()"
+      placeholder="Elegí el hecho generador…"
+      [(value)]="causaElegida"
+    />
+  }
+  <app-textarea
+    [rows]="3"
+    placeholder="Por qué lo corregís (obligatorio)…"
+    [(value)]="motivoCorreccion"
+  />
+  @if (corregirError()) {
+    <p class="rcard-note error">{{ corregirError() }}</p>
+  }
+  <ng-container modalActions>
+    <app-button variant="secondary" (click)="cancelCorregirCausa()">Cancelar</app-button>
+    <app-button
+      [disabled]="!causaElegida() || !motivoCorreccion().trim() || corregirSaving()"
+      (click)="confirmCorregirCausa()"
+    >
+      {{ corregirSaving() ? 'Corrigiendo…' : 'Corregir' }}
     </app-button>
   </ng-container>
 </app-modal>

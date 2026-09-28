@@ -11,6 +11,7 @@ import ar.edu.utn.frba.arbiter.cases.exceptions.CaseNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidStatusTransitionException;
 import ar.edu.utn.frba.arbiter.cases.models.entities.StatusChangeActor;
 import ar.edu.utn.frba.arbiter.cases.services.CaseService;
+import ar.edu.utn.frba.arbiter.cases.services.ClaimCauseCorrectionService;
 import ar.edu.utn.frba.arbiter.cases.services.SettlementService;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 import ar.edu.utn.frba.arbiter.common.enums.Classification;
@@ -56,6 +57,9 @@ class CaseControllerTest {
 
     @MockitoBean
     private SettlementService settlementService;
+
+    @MockitoBean
+    private ClaimCauseCorrectionService claimCauseCorrectionService;
 
     @Test
     void createCase_returns202WithBody() throws Exception {
@@ -313,11 +317,11 @@ class CaseControllerTest {
                 null,
                 List.of(
                         new StatusTransitionResponse(null, CaseStatus.PENDING_CLASSIFICATION,
-                                StatusChangeActor.INSURED, "denuncia registrada",
+                                StatusChangeActor.INSURED, "denuncia registrada", null,
                                 Instant.parse("2026-06-13T22:50:00Z")),
                         new StatusTransitionResponse(CaseStatus.PENDING_CLASSIFICATION,
                                 CaseStatus.PENDING_ANALYST_REVIEW,
-                                StatusChangeActor.SYSTEM, "clasificación: FAST_TRACK",
+                                StatusChangeActor.SYSTEM, "clasificación: FAST_TRACK", null,
                                 Instant.parse("2026-06-13T22:55:00Z"))
                 ),
                 // One field read (amount) and one the document doesn't carry (IMEI): the null must

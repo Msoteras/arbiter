@@ -4,6 +4,7 @@ import ar.edu.utn.frba.arbiter.cases.exceptions.UnresolvedCaseReferenceException
 import ar.edu.utn.frba.arbiter.cases.models.entities.PolicyCoverage;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.ClaimCauseRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.PolicyCoverageRepository;
+import ar.edu.utn.frba.arbiter.common.models.entities.ClaimCause;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -11,6 +12,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -84,6 +86,19 @@ public class PolicyCoverageResolver {
                     policyId, candidates.size(), claimCauseId);
         }
         return candidates.getFirst();
+    }
+
+    /**
+     * The coverage that answers for the cause, or empty when none of the policy's coverages of that
+     * branch does. Unlike {@link #resolveFor}, never falls back: a correction must not land a case on
+     * a coverage that excludes it.
+     */
+    public Optional<PolicyCoverage> coveringFor(Long policyId, ClaimCause claimCause) {
+        Long causeBranchId = claimCause.getBranch().getId();
+        return contractedCoverages(policyId).stream()
+                .filter(pc -> causeBranchId.equals(pc.getCoverage().getBranchId()))
+                .filter(pc -> !excludes(pc, claimCause.getId()))
+                .findFirst();
     }
 
     /**

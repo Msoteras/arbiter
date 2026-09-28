@@ -5,6 +5,8 @@ import ar.edu.utn.frba.arbiter.cases.dto.AnalystWorkloadResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.AssignAnalystRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.AssignedCaseSummaryResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseActionResponse;
+import ar.edu.utn.frba.arbiter.cases.dto.ClaimCauseCorrectionRequest;
+import ar.edu.utn.frba.arbiter.cases.dto.ClaimCauseOption;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseDocumentResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseFollowUp;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseScope;
@@ -22,6 +24,7 @@ import ar.edu.utn.frba.arbiter.cases.dto.LensSummaryResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.ReopenCaseRequest;
 import ar.edu.utn.frba.arbiter.cases.models.entities.CaseDocument;
 import ar.edu.utn.frba.arbiter.cases.services.CaseService;
+import ar.edu.utn.frba.arbiter.cases.services.ClaimCauseCorrectionService;
 import ar.edu.utn.frba.arbiter.cases.services.SettlementService;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 import ar.edu.utn.frba.arbiter.common.enums.RiskBand;
@@ -53,6 +56,7 @@ public class CaseController {
 
     private final CaseService caseService;
     private final SettlementService settlementService;
+    private final ClaimCauseCorrectionService claimCauseCorrectionService;
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasRole('ASEGURADO')")
@@ -389,6 +393,36 @@ public class CaseController {
     ) {
         CaseResponse response = caseService.addDocumentsAndReclassify(caseId, documents, insurer);
         return ResponseEntity.accepted().body(response);
+    }
+
+    @GetMapping("/{caseId}/claim-cause/options")
+    @PreAuthorize("hasAnyRole('ANALISTA_SINIESTROS', 'REFERENTE_ASEGURADORA')")
+    @Operation(summary = "Hechos generadores a los que se puede corregir el expediente",
+            description = "Los del mismo ramo que alguna cobertura de la póliza cubre, con la cobertura "
+                    + "que respondería por cada uno. Excluye el actual.")
+    public ResponseEntity<List<ClaimCauseOption>> claimCauseOptions(@PathVariable Long caseId) {
+        return ResponseEntity.ok(claimCauseCorrectionService.options(caseId));
+    }
+
+    // @PreAuthorize only filters by role; the service also checks the caller is the assigned analyst.
+    @PostMapping("/{caseId}/claim-cause")
+    @PreAuthorize("hasRole('ANALISTA_SINIESTROS')")
+    @Operation(summary = "Corregir el hecho generador declarado",
+            description = """
+                    Cuando el relato contradice lo que declaró el asegurado (p. ej. "robo" por un
+                    celular que se cayó). La cobertura no se elige a mano: sale del hecho generador con
+                    las mismas exclusiones que en el alta. El expediente vuelve a clasificación, porque
+                    las reglas, el Fast Track y la lectura del modelo se evaluaron para la cobertura
+                    vieja. Solo el analista asignado y solo en PENDING_ANALYST_REVIEW (otro estado →
+                    409); 422 si ninguna cobertura cubre el hecho nuevo o si la liquidación espera al
+                    referente. El motivo queda en el historial; el asegurado no se entera.
+                    """)
+    public ResponseEntity<CaseActionResponse> correctClaimCause(
+            @PathVariable Long caseId,
+            @RequestBody @Valid ClaimCauseCorrectionRequest request
+    ) {
+        claimCauseCorrectionService.correct(caseId, request);
+        return ResponseEntity.accepted().body(new CaseActionResponse(caseId, "claim-cause-corrected"));
     }
 
     // The referente may also retry: unblocking a stuck case is supervision, not a decision.
