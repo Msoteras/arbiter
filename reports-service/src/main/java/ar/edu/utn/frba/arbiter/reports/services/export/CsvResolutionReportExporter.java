@@ -16,9 +16,15 @@ import java.util.List;
 @RequiredArgsConstructor
 public class CsvResolutionReportExporter implements ResolutionReportExporter {
 
+    /**
+     * The durations read as they do on the PDF ("61 d 11 h"), so the same case says the same thing
+     * in both. They carry their unit in the value and no decimal separator, which is what kept the
+     * file out of the locale trap a formatted "1475,3" put it in: that reads as a number on an es-AR
+     * machine and as text on an en-US one.
+     */
     private static final List<String> HEADER = List.of(
             "Nº expediente", "Asegurado", "DNI", "Ramo", "Hecho generador", "Fecha de denuncia",
-            "Fecha de resolución", "Tiempo total (horas)", "Tiempo esperando a terceros (horas)",
+            "Fecha de resolución", "Tiempo total", "Tiempo esperando a terceros",
             "Clasificación", "Decisión del analista",
             "Estado final", "Analista");
 
@@ -43,8 +49,8 @@ public class CsvResolutionReportExporter implements ResolutionReportExporter {
                     row.claimCause(),
                     dateTime.format(row.reportedAt()),
                     dateTime.format(row.resolvedAt()),
-                    ReportLabels.hours(row.totalMinutes()),
-                    ReportLabels.hours(row.waitingMinutes()),
+                    ReportLabels.duration(row.totalMinutes()),
+                    ReportLabels.duration(row.waitingMinutes()),
                     ReportLabels.classification(row.classification()),
                     ReportLabels.decision(row.analystDecision()),
                     ReportLabels.status(row.finalStatus()),

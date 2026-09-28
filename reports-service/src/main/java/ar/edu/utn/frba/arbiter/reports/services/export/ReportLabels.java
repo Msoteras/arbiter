@@ -169,14 +169,6 @@ final class ReportLabels {
         return hours == 0 ? days + " d" : days + " d " + hours + " h";
     }
 
-    /** Hours with one decimal and a decimal comma, so Excel in es-AR reads it as a number. */
-    static String hours(long minutes) {
-        return BigDecimal.valueOf(minutes)
-                .divide(BigDecimal.valueOf(MINUTES_PER_HOUR), 1, RoundingMode.HALF_UP)
-                .toPlainString()
-                .replace('.', ',');
-    }
-
     /** "(+2)", "(-1)", "(=)", or "" below {@link #MIN_COMPARISON_BASE}. */
     static String countDelta(long current, long previous, long previousBase) {
         if (previousBase < MIN_COMPARISON_BASE) {

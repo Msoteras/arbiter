@@ -106,11 +106,16 @@ class ResolutionReportExportTests extends AbstractPersistenceIT {
                 .andReturn();
 
         String csv = result.getResponse().getContentAsString(StandardCharsets.UTF_8);
-        assertThat(csv.charAt(0)).isEqualTo((char) 0xFEFF);
+        // BOM so Excel reads UTF-8, then the delimiter, which Excel otherwise takes from the
+        // machine's locale and gets wrong on anything but es-AR.
+        assertThat(csv).startsWith((char) 0xFEFF + "sep=;\r\n");
         assertThat(csv).contains("Nº expediente;Asegurado;DNI");
         // Labels, not enum literals: nobody translates this file downstream.
         assertThat(csv).contains("Ana Pérez;30.111.222;Celulares;Robo en vía pública")
                 .contains("Recomienda aprobar;Aprobó;Aprobado;Laura Gómez");
+        // Durations worded as on the PDF, with no decimal separator a locale could read differently.
+        // 2 d 2 h 30 min from filing to closing, none of it waiting on a third party.
+        assertThat(csv).contains(";2 d 2 h;0 min;");
     }
 
     /**
