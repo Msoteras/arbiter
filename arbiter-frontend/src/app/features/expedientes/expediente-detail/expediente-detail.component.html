@@ -1160,10 +1160,11 @@
               </span>
               <div class="settlement-replacement">
                 <app-input
-                  type="number"
-                  [min]="0"
-                  [value]="replacementInput()"
-                  (valueChange)="replacementInput.set($event)"
+                  prefix="$"
+                  align="end"
+                  inputmode="decimal"
+                  [value]="amountInputLabel(replacementInput())"
+                  (valueChange)="replacementInput.set(amountInputValue($event))"
                   placeholder="Sin cargar"
                 />
                 <app-button variant="secondary" (click)="applyReplacementValue()"
@@ -1210,10 +1211,11 @@
           <label class="fieldset">
             <span class="t-field-label">Monto a pagar</span>
             <app-input
-              type="number"
-              [min]="0"
-              [value]="settledAmountInput()"
-              (valueChange)="settledAmountInput.set($event)"
+              prefix="$"
+              align="end"
+              inputmode="decimal"
+              [value]="amountInputLabel(settledAmountInput())"
+              (valueChange)="settledAmountInput.set(amountInputValue($event))"
               [placeholder]="montoExacto(s.calculatedAmount)"
             />
 
@@ -1537,10 +1539,11 @@
         }
       </span>
       <app-input
-        type="number"
-        [min]="0"
-        [value]="montoInforme()"
-        (valueChange)="montoInforme.set($event)"
+        prefix="$"
+        align="end"
+        inputmode="decimal"
+        [value]="amountInputLabel(montoInforme())"
+        (valueChange)="montoInforme.set(amountInputValue($event))"
         [placeholder]="informeEsReparacion() ? 'Cuánto sale el arreglo' : 'Sin monto'"
       />
       <span class="justification-hint">
