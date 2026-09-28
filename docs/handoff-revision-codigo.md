@@ -10,27 +10,7 @@ Este archivo se borra cuando se vacíe.
 
 ## 1. Temas en espera (necesitan charla, no código)
 
-### 1.1 Liquidación mayor que lo reclamado
-El cálculo del monto a pagar **no usa el monto reclamado**: parte de la suma asegurada de la
-cobertura. Casos vistos:
-- #32: reclamó $350.000 y se liquidó $960.000. El servicio técnico lo declaró irreparable y la
-  fórmula pasó a pérdida total: suma asegurada ($1.200.000) menos franquicia del 20%.
-- #37 (prueba del 23/09): robo, reclamó $900.000 y la propuesta da $1.170.000 = suma asegurada
-  ($1.300.000) menos franquicia del 10%.
-
-Opciones:
-1. Dejarlo así: lo fija la póliza, no lo que pide el asegurado (el reclamado es opcional y suele
-   ponerse a ojo). El analista ya puede bajar el monto a mano al aprobar.
-2. Tope en lo reclamado: pagar lo menor entre el cálculo y lo pedido. Evita pagar de más, pero
-   castiga a quien puso un número bajo.
-3. Tope por valor de reposición: configurar la cobertura con `LESSER_OF_SUM_AND_REPLACEMENT`
-   (ya existe) para que el tope sea el valor acreditado por documentación (p. ej. la factura). Hoy
-   "Robo de celular" usa `SUM_INSURED`. Es la que más se apoya en documentación y no en lo declarado.
-
-Código: `SettlementCalculator` y `SettlementService` (cases-service); enums `SettlementFormula` y
-`SettlementBasis` (common-lib).
-
-### 1.2 "17" contra "18" siniestros previos
+### 1.1 "17" contra "18" siniestros previos
 No es un bug de cálculo: es el mismo dato contado de dos formas.
 - La regla `MAX_EVENTS_YEAR` guarda `events12m`, que es el número de evento **contando este
   siniestro** (18). La pantalla lo muestra como "18 siniestros en los últimos 12 meses".
@@ -40,18 +20,18 @@ No es un bug de cálculo: es el mismo dato contado de dos formas.
 Falta decidir un solo criterio para todo lo que ve el analista. Código: `TemporalRuleEvaluator`
 (classification-service) y `core/models/trazabilidad.ts` (front).
 
-### 1.3 Chat en tiempo real (resuelto)
+### 1.2 Chat en tiempo real (resuelto)
 El WebSocket del chat daba 403 en todos los entornos, producción incluida (probado el 26/09/2026):
 Spring solo aceptaba el handshake del mismo origen, y detrás de nginx nunca lo parece porque Railway
 termina el HTTPS antes y nginx descarta el puerto. Ahora `cases-service` acepta explícitamente el
 origen de `FRONTEND_BASE_URL`, que en Railway hay que cargar también en ese servicio (ver
 `docs/despliegue-railway.md`). El cambio sin commitear de `proxy.conf.json` ya no hace falta.
 
-### 1.4 PRs a `main` desde `hotfix/*`
+### 1.3 PRs a `main` desde `hotfix/*`
 `.github/workflows/main.yml` acepta `hotfix/*` y `guard-main.yml` no, así que un hotfix nunca pasa.
 Hay que decidir si se aceptan hotfixes directos a `main` y dejar un solo workflow.
 
-### 1.5 Qué cobertura responde por una rotura
+### 1.4 Qué cobertura responde por una rotura
 En la póliza BBVA de celulares (Railway), "Robo de celular" solo excluye Hurto, así que también
 "cubre" Rotura accidental y Caída; como está primera en el orden de la compañía, **toda** rotura
 cae ahí (se vio en el #44, un caso de prueba borrado el 25/09/2026: una caída común quedó con
