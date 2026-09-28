@@ -157,11 +157,16 @@
                         <span>{{ plazo }}</span>
                       }
                     }
+                    <!-- Hidden at zero: it means an input is missing, not that nothing is owed. -->
                     @if (settlement(); as s) {
-                      <span
-                        >Si aprobás
-                        <strong class="tabular">{{ montoExacto(s.calculatedAmount) }}</strong></span
-                      >
+                      @if (s.calculatedAmount > 0) {
+                        <span
+                          >Si aprobás
+                          <strong class="tabular">{{
+                            montoExacto(s.calculatedAmount)
+                          }}</strong></span
+                        >
+                      }
                     }
                     @for (p of derivacionesRespondidas(); track p.id) {
                       <app-badge variant="solid" [tone]="resultadoDerivacionTone(p)">
