@@ -179,6 +179,26 @@ class SettlementServiceTest {
         assertThat(response.warnings()).anyMatch(w -> w.contains("valor de reposición acreditado"));
     }
 
+    /** The claimed amount is a reference, not a cap: the sheet keeps the policy's number and warns. */
+    @Test
+    void warnsWhenTheProposalIsAboveWhatTheInsuredClaimed() {
+        claim.setClaimedAmount(new BigDecimal("500000.00"));
+
+        SettlementResponse response = settlementService.forCase(1L, null);
+
+        assertThat(response.calculatedAmount()).isEqualByComparingTo("608000.00");
+        assertThat(response.warnings()).anyMatch(w -> w.contains("supera lo que reclamó"));
+    }
+
+    @Test
+    void doesNotWarnWhenTheProposalIsWithinWhatWasClaimed() {
+        claim.setClaimedAmount(new BigDecimal("620000.00"));
+
+        SettlementResponse response = settlementService.forCase(1L, null);
+
+        assertThat(response.warnings()).noneMatch(w -> w.contains("supera lo que reclamó"));
+    }
+
     /**
      * An enabled deduction shows even at zero, with its reason: "none left" and "data missing" must read
      * differently, since the analyst can make up for the second.
