@@ -885,6 +885,15 @@ export class ExpedienteDetailComponent {
     return s?.formula === 'REPAIR' || s?.settlementBasis === 'LESSER_OF_SUM_AND_REPLACEMENT';
   });
 
+  /**
+   * A total loss settled by the lesser of the two: today's replacement value is the base of the
+   * amount, so approval waits for it. Never defaulted to the sum insured.
+   */
+  protected readonly pideReposicion = computed(() => {
+    const s = this.settlement();
+    return s?.formula === 'TOTAL_LOSS' && s.settlementBasis === 'LESSER_OF_SUM_AND_REPLACEMENT';
+  });
+
   /** Offered only until the analyst enters a value; never applied automatically. */
   protected readonly sugerenciaDisponible = computed(() => {
     const s = this.settlement();
@@ -965,6 +974,9 @@ export class ExpedienteDetailComponent {
   protected readonly approvalBlockedReason = computed<string | null>(() => {
     if (!this.settlement()) {
       return 'No se pudo calcular el monto a pagar.';
+    }
+    if (this.pideReposicion() && this.replacementApplied() == null) {
+      return 'Cargá cuánto cuesta hoy reponer el bien y recalculá.';
     }
     if (this.amountToAuthorize() == null) {
       return 'El monto a pagar tiene que ser un número.';

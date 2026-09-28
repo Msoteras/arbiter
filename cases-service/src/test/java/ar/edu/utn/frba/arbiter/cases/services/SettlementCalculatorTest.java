@@ -63,16 +63,16 @@ class SettlementCalculatorTest {
         assertThat(settlement.getCalculatedAmount()).isEqualByComparingTo("500000.00");
     }
 
-    /** A ceiling can't be lowered by a number nobody produced. */
+    /** The replacement value is the base: the sum insured is only its cap, never the default. */
     @Test
-    void fallsBackToTheSumInsuredWhenNoReplacementValueWasAccredited() {
+    void paysNothingUntilAReplacementValueIsRecorded() {
         Coverage coverage = coverage(SettlementBasis.LESSER_OF_SUM_AND_REPLACEMENT, "10.00", null, false, false);
         PolicySnapshot snapshot = snapshot("1000000.00", LocalDate.of(2027, 1, 1), null, null, 1);
 
         CaseSettlement settlement = calculate(
                 claim(LocalDateTime.of(2026, 6, 1, 10, 0)), coverage, null, snapshot, null);
 
-        assertThat(settlement.getCalculatedAmount()).isEqualByComparingTo("900000.00");
+        assertThat(settlement.getCalculatedAmount()).isEqualByComparingTo("0.00");
     }
 
     @Test
