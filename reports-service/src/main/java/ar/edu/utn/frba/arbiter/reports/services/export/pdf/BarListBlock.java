@@ -5,12 +5,6 @@ import ar.edu.utn.frba.arbiter.reports.services.export.pdf.ReportTheme.Rgb;
 import java.io.IOException;
 import java.util.List;
 
-/**
- * A distribution as labelled bars: how the period split by status, by claim cause, by risk band.
- *
- * <p>Each bar carries its count and its share as text, so the chart is still readable printed in
- * black and white — the length says "more", the numbers say how much more.
- */
 public record BarListBlock(String label, List<Bar> bars, String note) implements Block {
 
     private static final float LABEL_FRACTION = 0.42f;
@@ -20,10 +14,6 @@ public record BarListBlock(String label, List<Bar> bars, String note) implements
     private static final float LABEL_LEADING = 1.2f;
     private static final int MAX_LABEL_LINES = 2;
 
-    /**
-     * @param share fraction of the whole between 0 and 1; null prints no percentage and draws no fill
-     * @param color the semaphore tone for a band or status, or ink where the split carries no state
-     */
     public record Bar(String label, long count, Double share, Rgb color) {}
 
     @Override
@@ -57,7 +47,6 @@ public record BarListBlock(String label, List<Bar> bars, String note) implements
                 textY -= ReportTheme.BODY * LABEL_LEADING;
             }
 
-            // Centred on the first line of the label, which is where the eye reads the row.
             float trackY = y - ReportTheme.BODY * LABEL_LEADING / 2 - TRACK_HEIGHT / 2;
             canvas.panel(trackX, trackY, trackWidth, TRACK_HEIGHT, TRACK_HEIGHT / 2,
                     ReportTheme.BORDER_SUBTLE, null);

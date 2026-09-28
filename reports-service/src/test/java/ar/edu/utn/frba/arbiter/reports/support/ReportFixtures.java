@@ -36,14 +36,13 @@ public final class ReportFixtures {
     /** Of those, 8 h waiting on documents from the insured: not the insurer's own time. */
     public static final long APPROVED_ROW_WAITING_MINUTES = 8 * 60;
 
-    /** The insurer the exported PDFs are branded with. Two words, so its monogram is "BS". */
+    /** Two words, so its monogram is "BS". */
     public static final ReportBranding BBVA =
             new ReportBranding("BBVA Seguros", "BBVA Seguros Argentina S.A.");
 
     private ReportFixtures() {
     }
 
-    /** Stands in for the tenant lookup, which the exporters only ever ask for the current branding. */
     public static ReportBrandingService brandedAs(ReportBranding branding) {
         ReportBrandingService service = mock(ReportBrandingService.class);
         when(service.current()).thenReturn(branding);

@@ -11,21 +11,12 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.List;
 
-/**
- * Flows a {@link ReportDocument}'s blocks down portrait A4 pages, and draws the furniture every page
- * carries: the brand rule, the header naming the insurer, and the footer.
- *
- * <p>Portrait, unlike the landscape sheet this replaced. A report that gets printed, filed and
- * signed is a document, not a spreadsheet; the detail table earns its width back by stacking the
- * pairs of values that used to need a column each.
- */
 public final class PdfDocumentWriter {
 
     private static final PDRectangle PAGE = PDRectangle.A4;
     private static final float MARGIN = 42;
     private static final float CONTENT_WIDTH = PAGE.getWidth() - 2 * MARGIN;
 
-    /** Full-bleed brand rule along the very top edge. */
     private static final float TOP_RULE = 3;
 
     private static final float BRAND_ROW = 18;
@@ -59,7 +50,6 @@ public final class PdfDocumentWriter {
         }
     }
 
-    /** Places one block, breaking the page — and the block, if it can be broken — as needed. */
     private static Page place(PDDocument pdf, ReportDocument document, Page page, Block block)
             throws IOException {
         Block pending = block;
@@ -78,8 +68,7 @@ public final class PdfDocumentWriter {
                 continue;
             }
             if (page.isEmpty()) {
-                // Taller than a whole page and indivisible. Drawing it overflows the bottom margin,
-                // which is visible and fixable; starting another empty page would never terminate.
+                // Taller than a page and indivisible: drawing it overflows, another page never ends.
                 pending.draw(page.canvas, MARGIN, page.y, CONTENT_WIDTH);
                 page.y -= pending.height(CONTENT_WIDTH) + pending.spacingAfter();
                 return page;
@@ -106,12 +95,6 @@ public final class PdfDocumentWriter {
         return new Page(content, canvas, top);
     }
 
-    /**
-     * The insurer owns the document and Arbiter only produced it, so the tenant's identity leads and
-     * the attribution sits on the opposite margin.
-     *
-     * @return the y the body starts from
-     */
     private static float drawBrandHeader(PdfCanvas canvas, ReportDocument document)
             throws IOException {
         ReportBranding branding = document.branding();
@@ -125,8 +108,6 @@ public final class PdfDocumentWriter {
         float wordmark = PdfCanvas.width(WORDMARK, PdfCanvas.Weight.BOLD, ReportTheme.LEAD);
         float label = PdfCanvas.width(GENERATED_WITH, PdfCanvas.Weight.REGULAR, ReportTheme.NOTE);
         float markLeft = right - wordmark - 3 - MARK_SIZE;
-        // Ellipsized rather than wrapped: the header is one line tall, and a legal name that ran
-        // into the attribution would read as a single mangled string.
         float nameWidth = markLeft - label - ReportTheme.SPACE_3 - MARGIN - BRAND_ROW
                 - ReportTheme.SPACE_2;
         canvas.text(MARGIN + BRAND_ROW + ReportTheme.SPACE_2, baseline,
@@ -146,7 +127,6 @@ public final class PdfDocumentWriter {
         return ruleY - ReportTheme.SPACE_5;
     }
 
-    /** Pages 2 and on: enough to identify a sheet that got separated from the first one. */
     private static float drawRunningHeader(PdfCanvas canvas, ReportDocument document)
             throws IOException {
         float top = PAGE.getHeight() - MARGIN;
@@ -185,7 +165,7 @@ public final class PdfDocumentWriter {
                 ReportTheme.ON_INK);
     }
 
-    /** Page numbers go in last: "de m" is not known until every block has been laid out. */
+    /** Last: "de m" is not known until every block has been laid out. */
     private static void drawFooters(PDDocument pdf, ReportDocument document) throws IOException {
         int total = pdf.getNumberOfPages();
         List<String> note = PdfCanvas.wrap(document.confidentialityNote(),
@@ -211,7 +191,6 @@ public final class PdfDocumentWriter {
         }
     }
 
-    /** One page being filled: its stream, its canvas and how far down the body has reached. */
     private static final class Page {
 
         private final PDPageContentStream content;

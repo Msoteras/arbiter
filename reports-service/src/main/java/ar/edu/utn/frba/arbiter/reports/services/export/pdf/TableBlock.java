@@ -5,15 +5,6 @@ import ar.edu.utn.frba.arbiter.reports.services.export.pdf.ReportTheme.Rgb;
 import java.io.IOException;
 import java.util.List;
 
-/**
- * The detail the aggregates were computed from, one case per row.
- *
- * <p>Cells stack a second, quieter line under the first so a portrait page can carry what a landscape
- * one needed a column for — a pair of dates, a decision under the recommendation it departed from.
- *
- * <p>The only block that splits across pages: everything else is placed whole, but a period's detail
- * is as long as it is.
- */
 public record TableBlock(String heading, String caption, List<Column> columns, List<Row> rows,
                          String emptyMessage) implements Block {
 
@@ -26,13 +17,10 @@ public record TableBlock(String heading, String caption, List<Column> columns, L
     private static final float RIGHT_GUTTER = ReportTheme.SPACE_3;
     private static final int MAX_LINES_PER_PART = 2;
 
-    /** @param weight share of the table's width, relative to the other columns */
     public record Column(String header, float weight, boolean alignRight) {}
 
-    /** @param highlight a tint across the whole row, or null; reserved for rows that need a look */
     public record Row(List<Cell> cells, Rgb highlight) {}
 
-    /** @param secondary the quieter line under {@code primary}; null leaves the cell one line tall */
     public record Cell(Part primary, Part secondary) {
 
         public static Cell of(String text) {
@@ -139,7 +127,6 @@ public record TableBlock(String heading, String caption, List<Column> columns, L
         if (fits == 0 || fits == rows.size()) {
             return null;
         }
-        // The continuation drops the heading: the page's running header already names the report.
         return new Split(
                 new TableBlock(heading, caption, columns, rows.subList(0, fits), emptyMessage),
                 new TableBlock(null, null, columns, rows.subList(fits, rows.size()), emptyMessage));
@@ -203,11 +190,7 @@ public record TableBlock(String heading, String caption, List<Column> columns, L
                 MAX_LINES_PER_PART);
     }
 
-    /**
-     * A left-aligned column is separated from the next one by that one's own left padding. A
-     * right-aligned one ends where its cell ends, so it has to keep the gap itself or its values sit
-     * against the column that follows.
-     */
+    /** A right-aligned column ends where its cell does, so it has to keep the gap itself. */
     private static float gutter(boolean alignRight) {
         return alignRight ? RIGHT_GUTTER : CELL_GAP;
     }
@@ -228,10 +211,6 @@ public record TableBlock(String heading, String caption, List<Column> columns, L
         return heading == null ? 0 : ReportTheme.SECTION + ReportTheme.SPACE_3;
     }
 
-    /**
-     * Sized to the tallest column title rather than fixed: a portrait page makes some columns narrow,
-     * and a title cut to fit ("Sistema · …") is the wrong title.
-     */
     private float headerHeight(float width) throws IOException {
         float[] widths = columnWidths(width);
         int lines = 1;

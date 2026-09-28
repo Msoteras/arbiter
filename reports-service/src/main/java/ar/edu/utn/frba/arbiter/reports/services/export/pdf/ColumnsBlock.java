@@ -2,13 +2,6 @@ package ar.edu.utn.frba.arbiter.reports.services.export.pdf;
 
 import java.io.IOException;
 
-/**
- * Two blocks side by side, divided by a hairline — the chart and its distributions on the summary
- * page, the cross-tab and the glossary on the detail page.
- *
- * <p>Never split across pages: a pair placed together is placed together because it is read
- * together.
- */
 public record ColumnsBlock(Block left, Block right, float leftFraction) implements Block {
 
     private static final float GAP = ReportTheme.SPACE_5;

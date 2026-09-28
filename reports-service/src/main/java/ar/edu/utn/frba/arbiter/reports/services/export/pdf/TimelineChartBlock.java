@@ -5,13 +5,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.DoubleFunction;
 
-/**
- * How the headline figure moved across the period, one point per bucket.
- *
- * <p>A bucket the metric could not be computed for is drawn hollow on the baseline and breaks the
- * line, rather than being joined through as if it were a zero — the difference between "nothing was
- * resolved" and "everything resolved instantly" is the whole point of the chart.
- */
+/** A bucket with no value is drawn hollow on the baseline and breaks the line, never as a zero. */
 public record TimelineChartBlock(String label, List<Point> points, DoubleFunction<String> format,
                                  String emptyMessage) implements Block {
 
@@ -21,10 +15,6 @@ public record TimelineChartBlock(String label, List<Point> points, DoubleFunctio
     private static final float VALUE_ROW = ReportTheme.NOTE * 1.4f;
     private static final int AXIS_TICKS = 3;
 
-    /**
-     * @param value null when the bucket has nothing to average
-     * @param note  what the point is computed over, e.g. "3 cierres"
-     */
     public record Point(String bucket, Double value, String note) {}
 
     @Override
@@ -62,8 +52,6 @@ public record TimelineChartBlock(String label, List<Point> points, DoubleFunctio
                     ReportTheme.MUTED_SOFT);
         }
 
-        // The points sit inside the gridlines by a dot's width, so the first and last are not
-        // sliced in half by the edge of the plot.
         float inset = DOT_RADIUS + 1;
         float pointsLeft = plotLeft + inset;
         float pointsWidth = plotWidth - 2 * inset;
@@ -118,16 +106,11 @@ public record TimelineChartBlock(String label, List<Point> points, DoubleFunctio
         }
     }
 
-    /**
-     * Nudges an axis label back inside the block. The last bucket's label is wider than the gap it
-     * has left, and centring it on the point would run it past the column's edge.
-     */
     private static float clamped(float centre, String text, float x, float width) throws IOException {
         float half = PdfCanvas.width(text, PdfCanvas.Weight.REGULAR, ReportTheme.NOTE) / 2;
         return Math.min(Math.max(centre, x + half), x + width - half);
     }
 
-    /** Thins the axis out until its labels stop colliding; a year of weeks is 53 buckets. */
     private int labelStep(float step) {
         if (step <= 0) {
             return 1;
@@ -139,7 +122,6 @@ public record TimelineChartBlock(String label, List<Point> points, DoubleFunctio
         return points.stream().anyMatch(point -> point.value() != null);
     }
 
-    /** Never zero: the plot divides by it, and a flat period would otherwise vanish. */
     private double maximum() {
         double max = points.stream()
                 .filter(point -> point.value() != null)

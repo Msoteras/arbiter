@@ -16,12 +16,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class CsvResolutionReportExporter implements ResolutionReportExporter {
 
-    /**
-     * The durations read as they do on the PDF ("61 d 11 h"), so the same case says the same thing
-     * in both. They carry their unit in the value and no decimal separator, which is what kept the
-     * file out of the locale trap a formatted "1475,3" put it in: that reads as a number on an es-AR
-     * machine and as text on an en-US one.
-     */
+    // Durations worded as on the PDF: no decimal separator for a locale to read differently.
     private static final List<String> HEADER = List.of(
             "Nº expediente", "Asegurado", "DNI", "Ramo", "Hecho generador", "Fecha de denuncia",
             "Fecha de resolución", "Tiempo total", "Tiempo esperando a terceros",

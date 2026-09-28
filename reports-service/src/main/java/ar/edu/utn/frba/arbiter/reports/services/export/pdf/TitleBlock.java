@@ -3,12 +3,6 @@ package ar.edu.utn.frba.arbiter.reports.services.export.pdf;
 import java.io.IOException;
 import java.util.List;
 
-/**
- * The report's name, the period it covers and the code it is filed under.
- *
- * <p>The code sits in a box of its own on the opposite margin because it is what somebody quotes when
- * they ask about this particular run — it has to be findable without reading the title.
- */
 public record TitleBlock(String title, String periodLabel, String code) implements Block {
 
     private static final float CODE_WIDTH = 132;

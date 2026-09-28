@@ -5,19 +5,12 @@ import ar.edu.utn.frba.arbiter.reports.services.export.pdf.ReportTheme.Rgb;
 import java.io.IOException;
 import java.util.List;
 
-/**
- * A tinted panel stating what the report does and does not cover.
- *
- * <p>Every report carries one. A figure read out of a document that never said what it counted is
- * the way these end up quoted for something they do not measure.
- */
 public record CalloutBlock(String label, String body, Rgb fill, Rgb border, Rgb labelColor)
         implements Block {
 
     private static final float PADDING = 10;
     private static final float LEADING = 1.35f;
 
-    /** The neutral, brand-tinted callout every report opens with. */
     public static CalloutBlock scope(String body) {
         return new CalloutBlock("Alcance de este informe", body, ReportTheme.ACCENT_SOFT,
                 ReportTheme.ACCENT_SOFT_BORDER, ReportTheme.ACCENT_STRONG);

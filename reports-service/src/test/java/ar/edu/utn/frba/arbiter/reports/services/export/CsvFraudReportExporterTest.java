@@ -59,7 +59,6 @@ class CsvFraudReportExporterTest {
         return new String(exporter.export(septemberFraudReport(rows)), StandardCharsets.UTF_8);
     }
 
-    /** Drops the BOM and the "sep=" declaration, leaving the header and the rows. */
     private static List<String> lines(String csv) {
         List<String> all = List.of(csv.substring(1).split("\r\n"));
         return all.subList(1, all.size());

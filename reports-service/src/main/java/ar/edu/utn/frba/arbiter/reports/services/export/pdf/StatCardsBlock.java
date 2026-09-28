@@ -6,13 +6,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * The row of headline figures under "Resumen del período".
- *
- * <p>Every card carries the number and what it was counted over, because the number alone is the
- * part that gets quoted. {@link Style#ALERT} is the semaphore, not decoration: it marks the one card
- * the referent has to act on.
- */
 public record StatCardsBlock(List<Card> cards) implements Block {
 
     private static final float PADDING = 9;
@@ -24,11 +17,9 @@ public record StatCardsBlock(List<Card> cards) implements Block {
     private static final int MAX_NOTE_LINES = 2;
 
     public enum Style {
-        /** The ordinary card. */
+
         PLAIN,
-        /** Something departed from what the system expected, and the referent should look. */
         ALERT,
-        /** The figure could not be computed; the card says why instead of printing a misleading 0. */
         UNAVAILABLE
     }
 
@@ -48,8 +39,6 @@ public record StatCardsBlock(List<Card> cards) implements Block {
             labelLines = Math.max(labelLines, labelLines(card, cardWidth).size());
             noteLines = Math.max(noteLines, noteLines(card, cardWidth).size());
         }
-        // The value is measured at its full size even when one card had to shrink, so the row of
-        // cards keeps a single height.
         return 2 * PADDING
                 + labelLines * ReportTheme.LABEL * LABEL_LEADING + ReportTheme.SPACE_2
                 + ReportTheme.STAT * VALUE_LEADING + ReportTheme.SPACE_2
@@ -99,7 +88,6 @@ public record StatCardsBlock(List<Card> cards) implements Block {
         }
     }
 
-    /** A long value ("Sin datos") shrinks rather than overflowing the card it belongs to. */
     private float valueSize(Card card, float width) throws IOException {
         float available = width - 2 * PADDING;
         float size = ReportTheme.STAT;
@@ -114,10 +102,7 @@ public record StatCardsBlock(List<Card> cards) implements Block {
         return PdfCanvas.wrapLabel(card.label(), width - 2 * PADDING, MAX_LABEL_LINES);
     }
 
-    /**
-     * A newline in the note breaks the line there instead of letting the wrap fall where it may.
-     * Without it "máx. 87 d 15 h" splits after the "87 d", which reads as two different figures.
-     */
+    /** A newline in the note breaks the line there, so "máx. 87 d 15 h" is not split mid-figure. */
     private static List<String> noteLines(Card card, float width) throws IOException {
         List<String> lines = new ArrayList<>();
         for (String segment : card.note().split("\n")) {

@@ -3,13 +3,6 @@ package ar.edu.utn.frba.arbiter.reports.services.export.pdf;
 import java.io.IOException;
 import java.util.List;
 
-/**
- * A heading and a paragraph explaining how the report was produced.
- *
- * <p>Its own heading rather than a {@link SectionBlock}: this one lives inside a
- * {@link ColumnsBlock}, where a full-width rule under the heading would cut across the column
- * beside it.
- */
 public record ProseBlock(String heading, String body) implements Block {
 
     private static final float LEADING = 1.4f;

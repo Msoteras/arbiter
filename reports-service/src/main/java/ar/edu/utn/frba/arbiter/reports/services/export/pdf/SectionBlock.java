@@ -2,10 +2,6 @@ package ar.edu.utn.frba.arbiter.reports.services.export.pdf;
 
 import java.io.IOException;
 
-/**
- * A heading that opens a section, optionally with a quieter caption beside it saying what the
- * section is counted over.
- */
 public record SectionBlock(String heading, String caption) implements Block {
 
     public static SectionBlock of(String heading) {

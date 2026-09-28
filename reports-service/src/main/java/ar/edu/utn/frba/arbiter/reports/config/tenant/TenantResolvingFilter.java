@@ -15,10 +15,8 @@ import javax.crypto.SecretKey;
 import java.io.IOException;
 
 /**
- * Sets {@link TenantContext} from the JWT's {@code tenantSchema} claim, and {@link RequesterContext}
- * from the name and role beside it. Parses the token itself because common-lib's
- * JwtAuthenticationFilter only keeps the role, not the full claim set — and parses it once for both,
- * rather than leaving a second filter to drift out of step with this one.
+ * Sets {@link TenantContext} and {@link RequesterContext} from the JWT. Parses the token itself
+ * because common-lib's JwtAuthenticationFilter only keeps the role, not the full claim set.
  */
 public class TenantResolvingFilter extends OncePerRequestFilter {
 
@@ -59,11 +57,7 @@ public class TenantResolvingFilter extends OncePerRequestFilter {
         }
     }
 
-    /**
-     * The token carries the name split in two, as the rest of the platform stores it.
-     *
-     * @return null when neither half is present, e.g. a service token issued by a scheduled job
-     */
+    /** @return null when neither half is present, e.g. a service token issued by a job */
     private static String fullName(Claims claims) {
         String name = claims.get("nombre", String.class);
         String surname = claims.get("apellido", String.class);

@@ -27,7 +27,6 @@ import static ar.edu.utn.frba.arbiter.reports.support.ReportFixtures.fastTrackRo
 import static ar.edu.utn.frba.arbiter.reports.support.ReportFixtures.lapsedRow;
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** Reads the generated PDF back as text: what matters is what a person sees on the page. */
 class PdfResolutionReportExporterTest {
 
     private final PdfResolutionReportExporter exporter =
@@ -55,7 +54,6 @@ class PdfResolutionReportExporterTest {
                 "Página 1 de 2");
     }
 
-    /** The aggregates go above the detail, each one saying what it was counted over. */
     @Test
     void theHeadlineFiguresCarryWhatTheyAreCountedOver() throws IOException {
         Rendered pdf = render(List.of(approvedRow(1), fastTrackRow(2), lapsedRow(3)));
@@ -63,7 +61,6 @@ class PdfResolutionReportExporterTest {
         assertThat(pdf.text()).contains(
                 "EXPEDIENTES RESUELTOS",
                 "2 aprobados · 1 caducado",
-                // Averaged over the 2 decided cases; the lapsed one is listed, not averaged.
                 "TIEMPO PROMEDIO",
                 "1 d 2 h",
                 "mediana 1 d 2 h · máx. 2 d 2 h",
@@ -81,7 +78,6 @@ class PdfResolutionReportExporterTest {
                 "POR TIPO DE SINIESTRO", "Hurto", "Robo en vía pública");
     }
 
-    /** Each run is its own document, and the code is what somebody quotes when asking about it. */
     @Test
     void everyPageCarriesTheReportCode() throws IOException {
         List<ResolutionReportRow> rows =
@@ -103,7 +99,6 @@ class PdfResolutionReportExporterTest {
                 "Referente de la aseguradora");
     }
 
-    /** A service token carries no name; the report still goes out. */
     @Test
     void withoutARequester_theCellSaysSoInsteadOfBeingBlank() throws IOException {
         Rendered pdf = render(List.of(approvedRow(42)));
@@ -118,7 +113,6 @@ class PdfResolutionReportExporterTest {
         assertThat(pdf.text()).contains("BBVA Seguros Argentina S.A.", "Generado con", "Arbiter");
     }
 
-    /** Pages get printed, split and filed on their own, so not one of them may be anonymous. */
     @Test
     void everyPageCarriesTheInsurer() throws IOException {
         List<ResolutionReportRow> rows =
@@ -130,7 +124,6 @@ class PdfResolutionReportExporterTest {
                 .allSatisfy(page -> assertThat(page).contains("BBVA Seguros"));
     }
 
-    /** The identity sits on top of the figures: losing it must not cost the referent the export. */
     @Test
     void withoutAnInsurer_theHeaderFallsBackInsteadOfFailingTheExport() throws IOException {
         byte[] bytes = new PdfResolutionReportExporter(CLOCK, brandedAs(ReportBranding.UNKNOWN))
@@ -142,7 +135,6 @@ class PdfResolutionReportExporterTest {
         }
     }
 
-    /** Apartarse is the analyst's call; the report marks the row so it can be read, not judged. */
     @Test
     void marksTheDecisionsThatDepartedFromTheRecommendation() throws IOException {
         Rendered pdf = render(List.of(approvedRow(1), departedRow(7)));
@@ -161,7 +153,6 @@ class PdfResolutionReportExporterTest {
         assertThat(pdf.text()).contains("1 de 1 con recomendación · sin desvíos");
     }
 
-    /** Fast Track has no recommendation to depart from, so there is nothing to compare it against. */
     @Test
     void withOnlyFastTrackRows_theAgreementCardHasNothingToCompare() throws IOException {
         Rendered pdf = render(List.of(fastTrackRow(1), fastTrackRow(2)));
@@ -179,7 +170,6 @@ class PdfResolutionReportExporterTest {
                 "Recomienda aprobar", "Fast Track", "Sin clasificación");
     }
 
-    /** Nothing else on the page says what a tinted cell is claiming. */
     @Test
     void theCrossTabSaysWhatItsColoursMean() throws IOException {
         Rendered pdf = render(List.of(approvedRow(1), fastTrackRow(2), departedRow(7)));
@@ -190,10 +180,6 @@ class PdfResolutionReportExporterTest {
                 "No había recomendación que seguir o no seguir");
     }
 
-    /**
-     * The count that reads wrong without its denominator: six closed cases can still be "2 de 4"
-     * when two of them were Fast Track.
-     */
     @Test
     void theAgreementCardSaysWhatItsDenominatorIs() throws IOException {
         Rendered pdf = render(List.of(approvedRow(1), fastTrackRow(2), fastTrackRow(3),
@@ -204,10 +190,6 @@ class PdfResolutionReportExporterTest {
                 "Solo cuenta los expedientes con recomendación.");
     }
 
-    /**
-     * The document no longer carries the previous period. It still travels in the report, so nothing
-     * from it may leak onto the page by accident.
-     */
     @Test
     void theExportDoesNotMentionThePreviousPeriod() throws IOException {
         ResolutionSummary previous =
@@ -219,7 +201,6 @@ class PdfResolutionReportExporterTest {
         assertThat(pdf.text()).doesNotContain("Vs. período anterior");
     }
 
-    /** Nobody decided anything in the period: no average, rather than one over the lapsed ones. */
     @Test
     void withOnlyLapsedCases_saysThereIsNoAverage() throws IOException {
         Rendered pdf = render(List.of(lapsedRow(1)));
@@ -227,7 +208,6 @@ class PdfResolutionReportExporterTest {
         assertThat(pdf.text()).contains("Sin datos", "ningún expediente decidido en el período");
     }
 
-    /** An empty report still has to say what it looked for, or it can't be told from any other. */
     @Test
     void anEmptyReportSaysSo_andStillNamesItsFilters() throws IOException {
         Rendered pdf = render(augustReport(List.of(), "Celulares", "Hurto"));
@@ -290,8 +270,6 @@ class PdfResolutionReportExporterTest {
     private Rendered render(ResolutionReport report) throws IOException {
         byte[] bytes = exporter.export(report);
         try (PDDocument document = Loader.loadPDF(bytes)) {
-            // Whitespace is collapsed: a card label or a note that wrapped on the page is still the
-            // same sentence, and the assertions are about what it says, not where it broke.
             return new Rendered(document.getNumberOfPages(),
                     new PDFTextStripper().getText(document).replaceAll("\\s+", " "));
         }
@@ -311,7 +289,6 @@ class PdfResolutionReportExporterTest {
         }
     }
 
-    /** Approved although the model recommended against it. */
     private static ResolutionReportRow departedRow(long caseId) {
         ResolutionReportRow row = approvedRow(caseId);
         return new ResolutionReportRow(row.caseId(), row.insuredName(), row.insuredDni(),

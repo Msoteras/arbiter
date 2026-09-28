@@ -32,10 +32,7 @@ class CsvResolutionReportExporterTest {
                         + "790 d;780 d;Sin clasificación;Sin decisión;Caducado;");
     }
 
-    /**
-     * Excel takes the delimiter from the machine's regional settings, not from the file: without
-     * this line an en-US machine splits on the comma and the values land under the wrong headers.
-     */
+    /** Excel takes the delimiter from the machine locale, not the file, unless the file says so. */
     @Test
     void declaresItsSeparator_soExcelDoesNotGuessItFromTheLocale() {
         String csv = export(List.of(approvedRow(42)));
@@ -43,13 +40,11 @@ class CsvResolutionReportExporterTest {
         assertThat(csv).startsWith((char) 0xFEFF + "sep=;\r\n");
     }
 
-    /** The same wording as the PDF, and no decimal separator to be read differently per locale. */
     @Test
     void writesDurationsAsTheyReadOnThePdf() {
         String csv = export(List.of(approvedRow(42)));
 
         assertThat(csv).contains("Tiempo esperando a terceros");
-        // 2 d 2 h 30 min in total, of which 8 h were spent waiting on the insured.
         assertThat(csv).contains(";2 d 2 h;8 h;");
         assertThat(lines(csv).get(1)).doesNotContain(",");
     }
@@ -76,7 +71,6 @@ class CsvResolutionReportExporterTest {
         return new String(exporter.export(augustReport(rows)), StandardCharsets.UTF_8);
     }
 
-    /** Drops the BOM and the "sep=" declaration, leaving the header and the rows. */
     private static List<String> lines(String csv) {
         List<String> all = List.of(csv.substring(1).split("\r\n"));
         return all.subList(1, all.size());

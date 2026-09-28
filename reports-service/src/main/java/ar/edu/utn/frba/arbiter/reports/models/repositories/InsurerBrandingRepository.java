@@ -11,14 +11,6 @@ import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
 
-/**
- * The caller's insurer, for the header of an exported report.
- *
- * <p>Read-only plain JDBC over named columns like the rest of this module. Two deliberate differences
- * from {@link ResolvedCaseRepository}: the table is schema-qualified and the query runs on a pooled
- * connection rather than Hibernate's, because {@code insurer} is the platform's own table and must
- * not resolve through whichever tenant {@code search_path} the request happens to carry.
- */
 @Repository
 @RequiredArgsConstructor
 public class InsurerBrandingRepository {
@@ -34,10 +26,8 @@ public class InsurerBrandingRepository {
     private final NamedParameterJdbcTemplate jdbcTemplate;
 
     /**
-     * <b>A header nobody could read doesn't take the export down.</b> The identity is decoration on
-     * top of the figures, so an unreachable common schema logs and falls back to the neutral header
-     * instead of failing a report the referent asked for. Runs outside any transaction on purpose: a
-     * failed statement inside one would mark it rollback-only and the fallback would never be reached.
+     * Outside any transaction: a failed statement inside one is marked rollback-only and the
+     * fallback never runs. A header nobody could read must not cost the referent the export.
      *
      * @return empty if no insurer owns that schema, or if the lookup failed
      */

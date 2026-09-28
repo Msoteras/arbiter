@@ -5,15 +5,6 @@ import ar.edu.utn.frba.arbiter.reports.services.export.pdf.ReportTheme.Rgb;
 import java.io.IOException;
 import java.util.List;
 
-/**
- * A small cross-tab: what the system suggested against what the analyst decided.
- *
- * <p>The report's point in one shape — where the two agree, and the cells where they did not. It
- * carries its own legend because nothing else on the page says what a tinted cell is claiming.
- *
- * <p>The semaphore is per cell rather than per row: on a row of recommendations only one column can
- * be a departure, and toning the agreeing cell as well would read as if it were one too.
- */
 public record MatrixBlock(String heading, List<String> columnLabels, List<Row> rows,
                           List<Legend> legend) implements Block {
 
@@ -29,16 +20,11 @@ public record MatrixBlock(String heading, List<String> columnLabels, List<Row> r
 
     public record Row(String label, List<Cell> cells) {}
 
-    /**
-     * What a count in this cell means. Only a row that carried an actionable recommendation can be
-     * agreed with or departed from; everywhere else the count is just a count, and toning it would
-     * claim something the data does not say.
-     */
+    /** Only a row with an actionable recommendation can be agreed with or departed from. */
     public enum Tone {AGREEMENT, DEPARTURE, NEUTRAL}
 
     public record Cell(long value, Tone tone) {}
 
-    /** One line of "this colour means this". */
     public record Legend(String text, Tone tone) {}
 
     @Override
@@ -107,7 +93,6 @@ public record MatrixBlock(String heading, List<String> columnLabels, List<Row> r
                 : ReportTheme.SPACE_2 + legend.size() * ReportTheme.NOTE * LEGEND_LEADING;
     }
 
-    /** Column titles wrap rather than run into each other: the cells they head are narrow. */
     private static List<String> labelLines(String label) throws IOException {
         return PdfCanvas.wrapLabel(label, CELL_WIDTH + CELL_GAP, MAX_HEADER_LINES);
     }

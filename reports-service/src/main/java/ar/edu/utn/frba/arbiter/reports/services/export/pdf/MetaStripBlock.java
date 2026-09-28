@@ -3,18 +3,12 @@ package ar.edu.utn.frba.arbiter.reports.services.export.pdf;
 import java.io.IOException;
 import java.util.List;
 
-/**
- * The band of labelled facts under the title: the filters the report ran with, who asked for it and
- * when. Equal columns on one tinted surface, so it reads as the document's masthead rather than as
- * content of its own.
- */
 public record MetaStripBlock(List<Cell> cells) implements Block {
 
     private static final float PADDING = 10;
     private static final float VALUE_LEADING = 1.3f;
     private static final int MAX_VALUE_LINES = 2;
 
-    /** @param note a second, quieter line under the value; null when there is nothing to qualify */
     public record Cell(String label, String value, String note) {
 
         public static Cell of(String label, String value) {
@@ -55,8 +49,6 @@ public record MetaStripBlock(List<Cell> cells) implements Block {
             }
 
             if (cell.note() != null) {
-                // Anchored to the band's own value block, not to this cell's, so the notes line up
-                // even when one column's value wrapped and another's did not.
                 float noteTop = top - PADDING - ReportTheme.LABEL - ReportTheme.SPACE_2
                         - valueLines * ReportTheme.BODY * VALUE_LEADING - ReportTheme.SPACE_1;
                 canvas.text(columnX, noteTop - ReportTheme.NOTE,
@@ -72,7 +64,6 @@ public record MetaStripBlock(List<Cell> cells) implements Block {
         return ReportTheme.SPACE_4;
     }
 
-    /** The tallest value sets the band's height, or the columns would sit at different depths. */
     private int valueLines(float width) throws IOException {
         float textWidth = (width - 2 * PADDING) / cells.size() - ReportTheme.SPACE_3;
         int lines = 1;

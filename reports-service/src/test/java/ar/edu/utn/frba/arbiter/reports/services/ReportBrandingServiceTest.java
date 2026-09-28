@@ -36,10 +36,6 @@ class ReportBrandingServiceTest {
         assertThat(service.current()).isEqualTo(BBVA);
     }
 
-    /**
-     * No tenant means no insurer to name, and the common schema has no row to look for: asking would
-     * only cost a query that can't answer.
-     */
     @Test
     void withoutAResolvedTenant_fallsBackWithoutAsking() {
         assertThat(service.current()).isEqualTo(ReportBranding.UNKNOWN);

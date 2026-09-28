@@ -5,12 +5,6 @@ import ar.edu.utn.frba.arbiter.reports.services.export.pdf.ReportTheme.Rgb;
 import java.io.IOException;
 import java.util.List;
 
-/**
- * The few things in the period somebody should actually look at, stated in words.
- *
- * <p>Each line is a fact read straight off the rows the report lists — never an interpretation. The
- * dot carries the semaphore tone of whatever the line is about.
- */
 public record BulletsBlock(String label, List<Bullet> bullets) implements Block {
 
     private static final float PADDING = 10;

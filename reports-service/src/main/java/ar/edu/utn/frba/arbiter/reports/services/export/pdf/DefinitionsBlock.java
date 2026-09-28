@@ -3,13 +3,6 @@ package ar.edu.utn.frba.arbiter.reports.services.export.pdf;
 import java.io.IOException;
 import java.util.List;
 
-/**
- * What each term in the report means.
- *
- * <p>The report leaves the company and is read by people who do not work in the tool: "Fast Track",
- * "clasificación" and "tiempo total" all have a precise meaning here that is not the everyday one,
- * and a number read under the wrong one is worse than no number.
- */
 public record DefinitionsBlock(String heading, List<Definition> definitions) implements Block {
 
     private static final float TERM_FRACTION = 0.34f;

@@ -3,12 +3,6 @@ package ar.edu.utn.frba.arbiter.reports.services.export.pdf;
 import java.io.IOException;
 import java.util.List;
 
-/**
- * Ruled lines for the people who sign the report off on paper.
- *
- * <p>Arbiter records who generated the document, not who approved it leaving the company; that is a
- * signature, and the sheet has to leave room for it.
- */
 public record SignatureBlock(List<String> captions) implements Block {
 
     private static final float RULE_GAP = ReportTheme.SPACE_5;

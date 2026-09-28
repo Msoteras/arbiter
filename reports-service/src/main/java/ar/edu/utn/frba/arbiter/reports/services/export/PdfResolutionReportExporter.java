@@ -44,7 +44,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 
-/** What the resolution report says; where it lands on the page is {@link PdfDocumentWriter}'s. */
 @Component
 @RequiredArgsConstructor
 public class PdfResolutionReportExporter implements ResolutionReportExporter {
@@ -85,18 +84,13 @@ public class PdfResolutionReportExporter implements ResolutionReportExporter {
             new TableBlock.Column("Asegurado", 19, false),
             new TableBlock.Column("Siniestro", 18, false),
             new TableBlock.Column("Denuncia · cierre", 17, false),
-            // Wider than it needs for its values: right-aligned, it also carries the gap that keeps
-            // it off the column beside it.
             new TableBlock.Column("Tiempo", 13, true),
             new TableBlock.Column("Sistema · analista", 15, false),
             new TableBlock.Column("Estado final", 12, false));
 
-    /** Enough ids to act on; past that the table below is the place to read them. */
     private static final int MAX_LISTED_DEVIATIONS = 6;
-    /** How far past the average a case has to sit before it is worth naming as the slowest. */
     private static final double SLOW_MULTIPLE = 2;
 
-    /** Column order of the cross-tab, and of the counters that feed it. */
     private static final int COLUMN_APPROVED = 0;
     private static final int COLUMN_REJECTED = 1;
     private static final int COLUMN_UNDECIDED = 2;
@@ -156,8 +150,6 @@ public class PdfResolutionReportExporter implements ResolutionReportExporter {
         return blocks;
     }
 
-    // ── summary ─────────────────────────────────────────────────────────────────
-
     private static List<StatCardsBlock.Card> cards(ResolutionReport report,
                                                    List<ResolutionReportRow> decided) {
         ResolutionSummary summary = report.summary();
@@ -171,7 +163,6 @@ public class PdfResolutionReportExporter implements ResolutionReportExporter {
                 agreementCard(report.rows()));
     }
 
-    /** What the period closed as, in the same breath as how many: "4" alone says nothing. */
     private static String outcomeNote(ResolutionSummary summary) {
         if (summary.byStatus().isEmpty()) {
             return "sin expedientes en el período";
@@ -194,8 +185,6 @@ public class PdfResolutionReportExporter implements ResolutionReportExporter {
                     "ningún expediente decidido en el período", StatCardsBlock.Style.UNAVAILABLE);
         }
         List<Long> minutes = decided.stream().map(ResolutionReportRow::totalMinutes).sorted().toList();
-        // One figure per line: wrapped freely, "máx. 87 d 15 h" breaks after the "87 d" and reads
-        // as two separate numbers.
         return StatCardsBlock.Card.of("Tiempo promedio",
                 ReportLabels.duration(Math.round(summary.averageMinutes())),
                 "mediana %s ·\nmáx. %s".formatted(
@@ -203,14 +192,7 @@ public class PdfResolutionReportExporter implements ResolutionReportExporter {
                         ReportLabels.duration(minutes.getLast())));
     }
 
-    /**
-     * A departure is a legitimate outcome, not an error. The card is toned because it is the figure
-     * the referent has to look at, and says how many rather than scoring anybody.
-     *
-     * <p>The note spells out the denominator. "2 de 4" on a period of six closed cases is the right
-     * figure and the wrong impression: Fast Track and a request for manual review suggest no
-     * decision, so there is nothing for the analyst to have followed or departed from.
-     */
+    /** The note carries the denominator: "2 de 4" over six closed cases is right but reads wrong. */
     private static StatCardsBlock.Card agreementCard(List<ResolutionReportRow> rows) {
         long comparable = rows.stream().filter(row -> followed(row) != null).count();
         if (comparable == 0) {
@@ -231,10 +213,7 @@ public class PdfResolutionReportExporter implements ResolutionReportExporter {
                 deviations == 0 ? StatCardsBlock.Style.PLAIN : StatCardsBlock.Style.ALERT);
     }
 
-    // ── charts ──────────────────────────────────────────────────────────────────
-
     private static Block timeline(ResolutionReport report) {
-        // The bucket is already a date in the insurer's zone, so it needs no zone to render.
         DateTimeFormatter bucketFormat = report.granularity() == TimelineGranularity.MONTH
                 ? DateTimeFormatter.ofPattern("MM/yyyy")
                 : DateTimeFormatter.ofPattern("dd/MM");
@@ -283,12 +262,6 @@ public class PdfResolutionReportExporter implements ResolutionReportExporter {
         return new BarListBlock("Por tipo de siniestro", bars, null);
     }
 
-    // ── narrative ───────────────────────────────────────────────────────────────
-
-    /**
-     * Only facts read straight off the rows the report already lists — never an interpretation of
-     * them. Each one is there because it is the row somebody would otherwise have to find by hand.
-     */
     private static List<BulletsBlock.Bullet> bullets(ResolutionReport report,
                                                      List<ResolutionReportRow> decided) {
         List<BulletsBlock.Bullet> bullets = new ArrayList<>();
@@ -353,8 +326,6 @@ public class PdfResolutionReportExporter implements ResolutionReportExporter {
                 : Optional.empty();
     }
 
-    // ── detail ──────────────────────────────────────────────────────────────────
-
     private static TableBlock table(ResolutionReport report, ZoneId zone) {
         List<TableBlock.Row> rows = report.rows().stream().map(row -> row(row, zone)).toList();
         return new TableBlock(
@@ -395,7 +366,6 @@ public class PdfResolutionReportExporter implements ResolutionReportExporter {
                 departed ? ReportTheme.DANGER_SOFT : null);
     }
 
-    /** What the system suggested against what the analyst decided, counted over the same rows. */
     private static MatrixBlock matrix(List<ResolutionReportRow> rows) {
         boolean anyUndecided = rows.stream().anyMatch(row -> row.analystDecision() == null);
         List<String> columns = anyUndecided
@@ -430,11 +400,6 @@ public class PdfResolutionReportExporter implements ResolutionReportExporter {
         };
     }
 
-    /**
-     * Only a row carrying an actionable recommendation has an agreeing cell and a departing one.
-     * Fast Track, a request for manual review and an undecided case have nothing to agree with, so
-     * their counts stay neutral instead of reading as a verdict on the analyst.
-     */
     private static MatrixBlock.Tone tone(Classification classification, int column) {
         if (classification == null || column == COLUMN_UNDECIDED) {
             return MatrixBlock.Tone.NEUTRAL;
@@ -448,8 +413,6 @@ public class PdfResolutionReportExporter implements ResolutionReportExporter {
                     MatrixBlock.Tone.NEUTRAL;
         };
     }
-
-    // ── shared ──────────────────────────────────────────────────────────────────
 
     private static Boolean followed(ResolutionReportRow row) {
         return Recommendations.followed(row.classification(), row.analystDecision());
@@ -477,7 +440,6 @@ public class PdfResolutionReportExporter implements ResolutionReportExporter {
         return ReportLabels.status(CaseStatus.valueOf(count.label()));
     }
 
-    /** Every status label is an adjective ending in -o, so the plural is the one rule. */
     private static String plural(String label) {
         return label.toLowerCase(Locale.ROOT) + "s";
     }

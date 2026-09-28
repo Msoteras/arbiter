@@ -36,7 +36,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
-/** What the fraud report says; where it lands on the page is {@link PdfDocumentWriter}'s. */
 @Component
 @RequiredArgsConstructor
 public class PdfFraudReportExporter implements FraudReportExporter {
@@ -122,8 +121,6 @@ public class PdfFraudReportExporter implements FraudReportExporter {
         return blocks;
     }
 
-    // ── summary ─────────────────────────────────────────────────────────────────
-
     private static List<StatCardsBlock.Card> cards(FraudReport report) {
         FraudSummary summary = report.summary();
         return List.of(
@@ -142,14 +139,6 @@ public class PdfFraudReportExporter implements FraudReportExporter {
                 fraudCard(report));
     }
 
-    /**
-     * Recent claims are still open, so the count lags: saying so is the difference between a low
-     * figure and a wrong one.
-     *
-     * <p>"Sin determinar" rather than a bare 0 or "sin datos": the figure is not missing and the
-     * claims are not cleared — nobody has determined anything yet, which is the word the label
-     * itself uses.
-     */
     private static StatCardsBlock.Card fraudCard(FraudReport report) {
         FraudSummary summary = report.summary();
         long open = report.rows().stream().filter(row -> open(row.status())).count();
@@ -165,8 +154,6 @@ public class PdfFraudReportExporter implements FraudReportExporter {
                         : "%d con respaldo pericial".formatted(summary.backedByExpert()));
     }
 
-    // ── charts ──────────────────────────────────────────────────────────────────
-
     private static Block byAlertLevel(FraudSummary summary) {
         List<BarListBlock.Bar> bars = summary.byAlertLevel().stream()
                 .map(count -> new BarListBlock.Bar(ReportLabels.alertLevel(count.label()),
@@ -177,7 +164,6 @@ public class PdfFraudReportExporter implements FraudReportExporter {
                 "Sobre las denuncias señaladas, no sobre el total del período.");
     }
 
-    /** Buckets overlap: a claim that fired two rules is counted under both, so they add up past it. */
     private static Block bySignal(FraudSummary summary) {
         List<BarListBlock.Bar> bars = summary.bySignal().stream()
                 .map(count -> new BarListBlock.Bar(ReportLabels.signal(count.label()), count.count(),
@@ -185,8 +171,6 @@ public class PdfFraudReportExporter implements FraudReportExporter {
                 .toList();
         return new BarListBlock("Por señal disparada", bars, null);
     }
-
-    // ── narrative ───────────────────────────────────────────────────────────────
 
     private static List<BulletsBlock.Bullet> bullets(FraudReport report) {
         List<BulletsBlock.Bullet> bullets = new ArrayList<>();
@@ -220,7 +204,6 @@ public class PdfFraudReportExporter implements FraudReportExporter {
         return bullets;
     }
 
-    /** The one insured behind an outsized share of the period, when there is one. */
     private static Optional<Map.Entry<Insured, Long>> repeatInsured(FraudReport report) {
         if (report.rows().size() < 3) {
             return Optional.empty();
@@ -235,8 +218,6 @@ public class PdfFraudReportExporter implements FraudReportExporter {
     }
 
     private record Insured(String name, String dni) {}
-
-    // ── detail ──────────────────────────────────────────────────────────────────
 
     private static TableBlock table(FraudReport report, ZoneId zone) {
         List<TableBlock.Row> rows = report.rows().stream().map(row -> row(row, zone)).toList();
@@ -268,12 +249,6 @@ public class PdfFraudReportExporter implements FraudReportExporter {
                 row.riskBand() == RiskBand.CRITICAL ? ReportTheme.DANGER_SOFT : null);
     }
 
-    // ── shared ──────────────────────────────────────────────────────────────────
-
-    /**
-     * Mirrors {@code case_status.is_final}: the three states a case can end in. Kept here rather
-     * than on the enum because only the reports ask the question, and common-lib reaches everywhere.
-     */
     private static boolean open(CaseStatus status) {
         return status != CaseStatus.APPROVED && status != CaseStatus.REJECTED
                 && status != CaseStatus.LAPSED;

@@ -13,13 +13,6 @@ import java.io.IOException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * Rasterises the mark and reads pixels back: it is the one thing in an exported report that no text
- * extraction can see, so nothing else would notice the day it stops being drawn.
- *
- * <p>The mark fills a page of its own viewBox's size, which makes an image pixel {@code (sx, sy) *
- * SCALE} the SVG coordinate {@code (sx, sy)} — both systems count y downwards from the top.
- */
 class ArbiterMarkTest {
 
     private static final float SIZE = 88;
@@ -42,7 +35,6 @@ class ArbiterMarkTest {
 
     @Test
     void drawsTheArcAndTheRing() {
-        // Leftmost point of the arc, and the ring's stroke straight below its centre.
         assertThat(inked(10, 44)).isTrue();
         assertThat(inked(21, 76)).isTrue();
     }
@@ -52,11 +44,6 @@ class ArbiterMarkTest {
         assertThat(inked(44, 44)).isFalse();
     }
 
-    /**
-     * The gap the SVG cuts with a mask. This point sits on the arc's centre line, where it passes
-     * between the ring's stroke and its dot: ink here would mean the arc ran straight through the
-     * ring instead of stopping short of it.
-     */
     @Test
     void stopsTheArcShortOfTheRing() {
         assertThat(inked(23.54f, 71.15f)).isFalse();

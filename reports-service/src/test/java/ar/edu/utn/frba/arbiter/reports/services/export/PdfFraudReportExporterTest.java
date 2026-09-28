@@ -26,7 +26,6 @@ import static ar.edu.utn.frba.arbiter.reports.support.ReportFixtures.septemberFr
 import static ar.edu.utn.frba.arbiter.reports.support.ReportFixtures.unscoredRow;
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** Reads the generated PDF back as text: what matters is what a person sees on the page. */
 class PdfFraudReportExporterTest {
 
     private final PdfFraudReportExporter exporter =
@@ -53,7 +52,6 @@ class PdfFraudReportExporterTest {
                 "Página 1 de " + pdf.pages());
     }
 
-    /** The report exists to say what it is not: an accusation. */
     @Test
     void opensBySayingThatTheSystemDoesNotDetermineFraud() throws IOException {
         Rendered pdf = render(List.of(flaggedRow(1482)));
@@ -74,10 +72,6 @@ class PdfFraudReportExporterTest {
                 "CON DOS O MÁS SEÑALES", "2");
     }
 
-    /**
-     * A period whose flagged cases are still open cannot report a fraud count yet. Neither a bare 0
-     * nor "sin datos": the figure is not missing and the claims are not cleared.
-     */
     @Test
     void withTheFlaggedCasesStillOpen_theFraudCardSaysNothingIsDeterminedYet() throws IOException {
         Rendered pdf = render(List.of(flaggedRow(1), flaggedRow(2), flaggedRow(3)));
@@ -96,7 +90,6 @@ class PdfFraudReportExporterTest {
                 "POR SEÑAL DISPARADA");
     }
 
-    /** Two signals don't fit one line: the cell wraps instead of ellipsizing the second one away. */
     @Test
     void theSignalsOfACase_areWrittenWhole_evenWhenTheyDoNotFitOneLine() throws IOException {
         Rendered pdf = render(List.of(flaggedRow(1482)));
@@ -107,10 +100,6 @@ class PdfFraudReportExporterTest {
                 .contains("coincidencia");
     }
 
-    /**
-     * The document signal carries its own rationale; a long one is still capped at two lines and
-     * ellipsized (the CSV and the screen carry it whole).
-     */
     @Test
     void theDocumentSignal_printsItsOwnRationale() throws IOException {
         Rendered pdf = render(List.of(documentInconsistentRow(24)));
@@ -120,10 +109,6 @@ class PdfFraudReportExporterTest {
                 .contains("…");
     }
 
-    /**
-     * The document no longer carries the previous period. It still travels in the report, so nothing
-     * from it may leak onto the page by accident.
-     */
     @Test
     void theExportDoesNotMentionThePreviousPeriod() throws IOException {
         List<FraudReportRow> rows = List.of(flaggedRow(1), flaggedRow(2), unscoredRow(3));
@@ -134,7 +119,6 @@ class PdfFraudReportExporterTest {
         assertThat(pdf.text()).doesNotContain("Vs. período anterior");
     }
 
-    /** An empty report still has to say what it looked for, or it can't be told from any other. */
     @Test
     void anEmptyReportSaysSo_andStillNamesItsFilters() throws IOException {
         Rendered pdf = render(septemberFraudReport(List.of(), "Celulares", RiskBand.HIGH));
@@ -145,7 +129,6 @@ class PdfFraudReportExporterTest {
                 "Ninguna denuncia del período disparó una señal con estos filtros.");
     }
 
-    /** "None flagged" is stated with its population. */
     @Test
     void anEmptyReportOverAPeriodWithClaims_statesHowManyItLookedAt() throws IOException {
         Rendered pdf = render(septemberFraudReport(List.of(), null, null, 84));
@@ -153,7 +136,6 @@ class PdfFraudReportExporterTest {
         assertThat(pdf.text()).contains("DENUNCIAS DEL PERÍODO 84", "0 de 84 denuncias");
     }
 
-    /** One decimal, same as the preview. */
     @Test
     void theRatesKeepOneDecimal() throws IOException {
         Rendered pdf = render(septemberFraudReport(
@@ -162,7 +144,6 @@ class PdfFraudReportExporterTest {
         assertThat(pdf.text()).contains("3,6%", "3 de 84 denuncias");
     }
 
-    /** A low score prints as "did not alert", never as "Bajo". */
     @Test
     void aLowScoringCase_readsAsNotAlerted_ratherThanAsItsBand() throws IOException {
         Rendered pdf = render(List.of(lowScoreRow(1455)));
@@ -172,10 +153,6 @@ class PdfFraudReportExporterTest {
                 .doesNotContain("Bajo");
     }
 
-    /**
-     * The header is the writer's, not this exporter's, so every report gets the same one — including
-     * the ones nobody has written yet.
-     */
     @Test
     void theHeaderNamesTheInsurerAndAttributesArbiter() throws IOException {
         Rendered pdf = render(List.of(flaggedRow(1482)));
@@ -236,8 +213,6 @@ class PdfFraudReportExporterTest {
     private Rendered render(FraudReport report) throws IOException {
         byte[] bytes = exporter.export(report);
         try (PDDocument document = Loader.loadPDF(bytes)) {
-            // Whitespace is collapsed: a card label or a note that wrapped on the page is still the
-            // same sentence, and the assertions are about what it says, not where it broke.
             return new Rendered(document.getNumberOfPages(),
                     new PDFTextStripper().getText(document).replaceAll("\\s+", " "));
         }

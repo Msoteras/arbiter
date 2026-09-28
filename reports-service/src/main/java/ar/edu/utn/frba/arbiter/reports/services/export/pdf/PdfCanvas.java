@@ -11,24 +11,14 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
-/**
- * Everything the blocks are allowed to put on a page: text with the document's two weights, filled
- * and stroked shapes, and the metrics they need to lay themselves out before drawing.
- *
- * <p>Helvetica rather than an embedded Arimo: the two are metric-compatible, Arimo is already
- * declared with Helvetica as its fallback in {@code _tokens.scss}, and the standard 14 fonts need no
- * font file shipped with the service.
- */
 public final class PdfCanvas {
 
     public enum Weight {REGULAR, BOLD}
 
-    /** The standard 14 fonts are immutable, so one instance serves every document. */
     private static final PDFont REGULAR = new PDType1Font(Standard14Fonts.FontName.HELVETICA);
     private static final PDFont BOLD = new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD);
 
     private static final String ELLIPSIS = "…";
-    /** Bézier handle length for a quarter circle of radius 1. */
     private static final float KAPPA = 0.5523f;
 
     private final PDPageContentStream content;
@@ -36,8 +26,6 @@ public final class PdfCanvas {
     public PdfCanvas(PDPageContentStream content) {
         this.content = content;
     }
-
-    // ── text ────────────────────────────────────────────────────────────────────
 
     public void text(float x, float baseline, String value, Weight weight, float size, Rgb color)
             throws IOException {
@@ -54,10 +42,6 @@ public final class PdfCanvas {
         write(centre - width(value, weight, size) / 2, baseline, value, weight, size, color, 0);
     }
 
-    /**
-     * The uppercase eyebrow over a card, a column or a section. Tracking does the work weight would
-     * otherwise do, which keeps these from competing with the headings they label.
-     */
     public void label(float x, float baseline, String value, Rgb color) throws IOException {
         write(x, baseline, value.toUpperCase(Locale.ROOT), Weight.BOLD, ReportTheme.LABEL, color,
                 ReportTheme.LABEL_TRACKING);
@@ -69,10 +53,6 @@ public final class PdfCanvas {
                 + ReportTheme.LABEL_TRACKING * printable(upper, font(Weight.BOLD)).length();
     }
 
-    /**
-     * Wraps a label the way {@link #label} will draw it: uppercased and tracked. Wrapping the
-     * original case would measure a string narrower than the one that ends up on the page.
-     */
     public static List<String> wrapLabel(String value, float maxWidth, int maxLines)
             throws IOException {
         List<String> lines = new ArrayList<>();
@@ -108,15 +88,12 @@ public final class PdfCanvas {
         }
     }
 
-    // ── shapes ──────────────────────────────────────────────────────────────────
-
     public void fillRect(float x, float y, float width, float height, Rgb color) throws IOException {
         content.setNonStrokingColor(color.red(), color.green(), color.blue());
         content.addRect(x, y, width, height);
         content.fill();
     }
 
-    /** @param fill null leaves the panel transparent; {@code border} null leaves it unstroked */
     public void panel(float x, float y, float width, float height, float radius, Rgb fill, Rgb border)
             throws IOException {
         if (fill != null) {
@@ -156,7 +133,6 @@ public final class PdfCanvas {
         content.setLineCapStyle(0);
     }
 
-    /** @param fill null draws the dot hollow, which is how a bucket with no value reads on a chart */
     public void dot(float centreX, float centreY, float radius, Rgb fill, Rgb border)
             throws IOException {
         circlePath(centreX, centreY, radius);
@@ -205,14 +181,11 @@ public final class PdfCanvas {
         return content;
     }
 
-    // ── metrics ─────────────────────────────────────────────────────────────────
-
     public static float width(String value, Weight weight, float size) throws IOException {
         PDFont font = font(weight);
         return font.getStringWidth(printable(value, font)) / 1000 * size;
     }
 
-    /** One line, cut with an ellipsis so a value that did not fit still shows that it was cut. */
     public static String fit(String value, Weight weight, float size, float maxWidth)
             throws IOException {
         String text = printable(value, font(weight));
@@ -244,7 +217,6 @@ public final class PdfCanvas {
         return lines;
     }
 
-    /** Overflow past {@code maxLines} is ellipsized into the last one rather than dropped silently. */
     public static List<String> wrap(String value, Weight weight, float size, float maxWidth,
                                     int maxLines) throws IOException {
         List<String> lines = wrap(value, weight, size, maxWidth);
@@ -261,10 +233,7 @@ public final class PdfCanvas {
         return weight == Weight.BOLD ? BOLD : REGULAR;
     }
 
-    /**
-     * The standard 14 fonts only encode WinAnsi; a single unsupported character would make
-     * {@code showText} throw and lose the whole file.
-     */
+    /** The standard 14 fonts only encode WinAnsi: one stray glyph makes showText lose the file. */
     private static String printable(String value, PDFont font) {
         if (value == null) {
             return "";
