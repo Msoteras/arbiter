@@ -201,7 +201,7 @@ class PdfResolutionReportExporterTest {
 
         assertThat(pdf.text()).contains("1 de 2", "2 de 4 con recomendación · 1 desvío");
         assertThat(pdf.text()).contains(
-                "Se cuenta solo sobre los expedientes con una recomendación que se puede seguir o no.");
+                "Solo cuenta los expedientes con recomendación.");
     }
 
     /**

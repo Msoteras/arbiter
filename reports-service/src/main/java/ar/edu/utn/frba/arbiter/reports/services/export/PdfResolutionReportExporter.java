@@ -69,19 +69,17 @@ public class PdfResolutionReportExporter implements ResolutionReportExporter {
 
     private static final List<DefinitionsBlock.Definition> GLOSSARY = List.of(
             new DefinitionsBlock.Definition("Siguió la recomendación",
-                    "Se cuenta solo sobre los expedientes con una recomendación que se puede seguir "
-                            + "o no. Fast Track y los que piden revisión manual quedan fuera: no "
-                            + "sugieren una decisión, así que no hay nada con qué comparar."),
+                    "Solo cuenta los expedientes con recomendación. Fast Track y revisión manual "
+                            + "no sugieren decisión, así que quedan fuera."),
             new DefinitionsBlock.Definition("Fast Track",
-                    "Expediente que el motor de reglas habilitó a resolver sin análisis del modelo."),
+                    "Expediente que las reglas habilitaron a resolver sin análisis del modelo."),
             new DefinitionsBlock.Definition("Clasificación",
-                    "Sugerencia del sistema. El analista: puede apartarse, y la decisión "
-                            + "queda registrada igual."),
+                    "Sugerencia del sistema. No obliga: el analista puede apartarse."),
             new DefinitionsBlock.Definition("Espera de terceros",
-                    "Tiempo con el expediente detenido esperando al asegurado, al perito o al "
-                            + "servicio técnico. Corre, pero no se le imputa a la gestión."),
+                    "Tiempo esperando al asegurado, al perito o al servicio técnico. No se imputa "
+                            + "a la gestión."),
             new DefinitionsBlock.Definition("Tiempo total",
-                    "Diferencia entre la denuncia y la resolución, sin descontar esa espera."));
+                    "De la denuncia a la resolución, sin descontar esa espera."));
 
     private static final List<TableBlock.Column> COLUMNS = List.of(
             new TableBlock.Column("Nº", 6, false),
