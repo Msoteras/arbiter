@@ -96,7 +96,8 @@ public class SettlementService {
         // So the analyst sees before signing that the amount will need the referent.
         proposal.setAuthorityLimit(authorityService.limitFor(branchIdOf(caseRecord)));
         return toResponse(proposal, false,
-                warnings(coverage, snapshot, replacementValue, proposal.getFormula()), coverage,
+                warnings(coverage, snapshot, replacementValue, proposal, caseRecord.getClaimedAmount()),
+                coverage,
                 suggestionFor(caseId, coverage));
     }
 
@@ -422,8 +423,10 @@ public class SettlementService {
      * its own line instead. None of them block: the analyst can still adjust and justify.
      */
     private List<String> warnings(Coverage coverage, PolicySnapshot snapshot,
-                                  BigDecimal replacementValue, SettlementFormula formula) {
+                                  BigDecimal replacementValue, CaseSettlement proposal,
+                                  BigDecimal claimedAmount) {
         List<String> warnings = new ArrayList<>();
+        SettlementFormula formula = proposal.getFormula();
 
         if (snapshot == null) {
             warnings.add("El expediente no tiene póliza consultada: la suma asegurada sale de la copia "
@@ -442,6 +445,13 @@ public class SettlementService {
                 && !accredited) {
             warnings.add("La cobertura liquida por el menor entre la suma asegurada y el valor de "
                     + "reposición, pero no hay valor de reposición acreditado: se toma la suma asegurada.");
+        }
+        // A reference, not a cap: the claimed amount is the insured's own guess, and the policy
+        // pays the loss, not what was asked for. Paying more than asked is still worth a look.
+        if (claimedAmount != null && claimedAmount.signum() > 0
+                && proposal.getCalculatedAmount().compareTo(claimedAmount) > 0) {
+            warnings.add("La propuesta supera lo que reclamó el asegurado (%s)."
+                    .formatted(money(claimedAmount)));
         }
         return warnings;
     }
