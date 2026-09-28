@@ -306,7 +306,8 @@ BEGIN
             -- the insurer's catalog already splits losses from damage.
             settlement_formula              VARCHAR(20)   NOT NULL DEFAULT 'TOTAL_LOSS',
             -- TOTAL_LOSS only; a repair is capped by its quote. LESSER_OF_SUM_AND_REPLACEMENT is
-            -- what clause 340 art. 7 requires for Tecnología Portátil.
+            -- what annex 340 art. 7 requires, and both the phone and the Tecnología Portátil
+            -- policies carry it.
             settlement_basis                VARCHAR(30)   NOT NULL DEFAULT 'SUM_INSURED',
             -- Share of the cap paid for the second and later events of the year.
             -- NULL = the event number reduces nothing.
@@ -984,13 +985,14 @@ BEGIN
                                  claim_exhausts_coverage, is_individual, waiting_period_days, branch_id,
                                  settlement_formula, settlement_basis, second_event_percentage,
                                  deduct_pending_installments, deduct_overdue_balance) VALUES
-            -- Total loss: sum insured minus deductible minus the year's pending installments,
-            -- since the policy ends with the claim. Two events a year, the second at 50%%.
+            -- Total loss: the lesser of sum insured and replacement value (annex 340 art. 7) minus
+            -- deductible minus the year's pending installments, since the policy ends with the
+            -- claim. Two events a year, the second at 50%%.
             (1, 'Robo de celular', 'Cobertura por robo en vía pública', 72, 2, FALSE, 10.00, FALSE, TRUE, 30, 1,
-             'TOTAL_LOSS', 'SUM_INSURED', 50.00, TRUE, TRUE),
+             'TOTAL_LOSS', 'LESSER_OF_SUM_AND_REPLACEMENT', 50.00, TRUE, TRUE),
             -- One event a year, so no second-event percentage.
             (2, 'Hurto', 'Cobertura por hurto sin violencia', 72, 1, FALSE, 20.00, TRUE, TRUE, 30, 1,
-             'TOTAL_LOSS', 'SUM_INSURED', NULL, TRUE, TRUE)
+             'TOTAL_LOSS', 'LESSER_OF_SUM_AND_REPLACEMENT', NULL, TRUE, TRUE)
         $ddl$, p_schema);
 
     -- Per-branch caps sized to each branch's typical sum insured, so small claims stay with
