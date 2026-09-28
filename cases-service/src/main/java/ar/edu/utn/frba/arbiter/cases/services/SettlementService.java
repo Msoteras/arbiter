@@ -21,6 +21,7 @@ import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseSettlementRepositor
 import ar.edu.utn.frba.arbiter.cases.models.repositories.ExpertAssessmentRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.InsurerReferentRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.PolicyCoverageRepository;
+import ar.edu.utn.frba.arbiter.common.enums.DeductibleBasis;
 import ar.edu.utn.frba.arbiter.common.enums.SettlementBasis;
 import ar.edu.utn.frba.arbiter.common.enums.SettlementFormula;
 import ar.edu.utn.frba.arbiter.common.enums.SettlementStatus;
@@ -527,18 +528,23 @@ public class SettlementService {
                     s.getSumInsured()));
         }
 
+        BigDecimal ceiling = repair || byReplacement ? accreditedCeiling(s) : s.getSumInsured();
+        BigDecimal lossAmount = ceiling;
         if (s.getEventPercentage() != null && s.getEventPercentage().compareTo(FULL_PERCENTAGE) != 0) {
-            BigDecimal ceiling = repair || byReplacement ? accreditedCeiling(s) : s.getSumInsured();
+            lossAmount = percentageOf(ceiling, s.getEventPercentage());
             lines.add(SettlementResponse.Line.base(
                     "Tope por ser el %d.º evento del año".formatted(s.getEventOrdinal()),
                     "%s%% del techo".formatted(trimPercentage(s.getEventPercentage())),
-                    percentageOf(ceiling, s.getEventPercentage())));
+                    lossAmount));
         }
 
         if (s.getDeductibleRate() != null && s.getDeductibleRate().signum() > 0) {
+            boolean onLoss = s.getDeductibleBasis() == DeductibleBasis.LOSS_AMOUNT;
             lines.add(SettlementResponse.Line.deduction("Franquicia",
-                    "%s%% de la suma asegurada (%s)".formatted(
-                            trimPercentage(s.getDeductibleRate()), money(s.getSumInsured())),
+                    "%s%% %s (%s)".formatted(
+                            trimPercentage(s.getDeductibleRate()),
+                            onLoss ? "del monto del siniestro" : "de la suma asegurada",
+                            money(onLoss ? lossAmount : s.getSumInsured())),
                     s.getDeductibleAmount()));
         }
 

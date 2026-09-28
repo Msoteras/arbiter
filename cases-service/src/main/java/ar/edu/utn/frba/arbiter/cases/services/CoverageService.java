@@ -5,6 +5,7 @@ import ar.edu.utn.frba.arbiter.cases.dto.CoverageOption;
 import ar.edu.utn.frba.arbiter.cases.dto.CoverageSummary;
 import ar.edu.utn.frba.arbiter.cases.dto.CoverageUpsertRequest;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CoverageNotFoundException;
+import ar.edu.utn.frba.arbiter.common.enums.DeductibleBasis;
 import ar.edu.utn.frba.arbiter.common.enums.SettlementBasis;
 import ar.edu.utn.frba.arbiter.common.enums.SettlementFormula;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Coverage;
@@ -85,6 +86,8 @@ public class CoverageService {
         coverage.setExclusions(request.exclusions());
         coverage.setDeductible(request.deductibleRatio() == null
                 ? null : request.deductibleRatio().multiply(HUNDRED));
+        coverage.setDeductibleBasis(request.deductibleBasis() == null
+                ? DeductibleBasis.SUM_INSURED : request.deductibleBasis());
         coverage.setReportDeadlineHours(request.reportingWindowDays() == null
                 ? null : request.reportingWindowDays() * HOURS_PER_DAY);
         coverage.setMaxEventsPerYear(request.maxAnnualClaims());
@@ -109,6 +112,7 @@ public class CoverageService {
                 coverage.getClause(),
                 coverage.getDeductible() == null
                         ? null : coverage.getDeductible().divide(HUNDRED),
+                coverage.getDeductibleBasis(),
                 coverage.getReportDeadlineHours() == null
                         ? null : Math.toIntExact(coverage.getReportDeadlineHours() / HOURS_PER_DAY),
                 coverage.getMaxEventsPerYear(),

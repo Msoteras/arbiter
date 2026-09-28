@@ -1,5 +1,6 @@
 package ar.edu.utn.frba.arbiter.cases.dto;
 
+import ar.edu.utn.frba.arbiter.common.enums.DeductibleBasis;
 import ar.edu.utn.frba.arbiter.common.enums.SettlementBasis;
 import ar.edu.utn.frba.arbiter.common.enums.SettlementFormula;
 import jakarta.validation.constraints.DecimalMax;
@@ -15,6 +16,8 @@ public record CoverageUpsertRequest(
         @NotBlank String name,
         String clause,
         @DecimalMin(value = "0.0") @DecimalMax(value = "1.0") BigDecimal deductibleRatio,
+        /** What the deductible applies to. Null means {@code SUM_INSURED}. */
+        DeductibleBasis deductibleBasis,
         @Min(0) Integer reportingWindowDays,
         @Min(0) Integer maxAnnualClaims,
         /** Days after the policy starts during which this coverage doesn't apply yet. Null means none. */

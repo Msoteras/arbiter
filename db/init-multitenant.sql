@@ -309,6 +309,9 @@ BEGIN
             -- what annex 340 art. 7 requires, and both the phone and the Tecnología Portátil
             -- policies carry it.
             settlement_basis                VARCHAR(30)   NOT NULL DEFAULT 'SUM_INSURED',
+            -- What the deductible percentage applies to: the sum insured (BBVA's phone policy)
+            -- or the amount actually indemnified. Each insurer's policy says which.
+            deductible_basis                VARCHAR(20)   NOT NULL DEFAULT 'SUM_INSURED',
             -- Share of the cap paid for the second and later events of the year.
             -- NULL = the event number reduces nothing.
             second_event_percentage         NUMERIC(5,2),
@@ -320,6 +323,8 @@ BEGIN
 
             CONSTRAINT coverage_settlement_basis_check
                 CHECK (settlement_basis IN ('SUM_INSURED', 'LESSER_OF_SUM_AND_REPLACEMENT')),
+            CONSTRAINT coverage_deductible_basis_check
+                CHECK (deductible_basis IN ('SUM_INSURED', 'LOSS_AMOUNT')),
             CONSTRAINT coverage_settlement_formula_check
                 CHECK (settlement_formula IN ('TOTAL_LOSS', 'REPAIR'))
         )$ddl$, p_schema);
@@ -893,7 +898,8 @@ BEGIN
             settlement_basis            VARCHAR(30)   NOT NULL,
             replacement_value           NUMERIC(15,2),
             deductible_rate             NUMERIC(5,2),            -- percentage points
-            event_ordinal               INTEGER       NOT NULL DEFAULT 1,
+            deductible_basis            VARCHAR(20)   NOT NULL DEFAULT 'SUM_INSURED',
+            event_ordinal              INTEGER       NOT NULL DEFAULT 1,
             event_percentage            NUMERIC(5,2)  NOT NULL DEFAULT 100,
             pending_installments        INTEGER       NOT NULL DEFAULT 0,
             installment_amount          NUMERIC(15,2),
@@ -932,7 +938,9 @@ BEGIN
             CONSTRAINT case_settlement_status_check
                 CHECK (status IN ('AUTHORIZED', 'PENDING_AUTHORIZATION', 'RETURNED')),
             CONSTRAINT case_settlement_basis_check
-                CHECK (settlement_basis IN ('SUM_INSURED', 'LESSER_OF_SUM_AND_REPLACEMENT'))
+                CHECK (settlement_basis IN ('SUM_INSURED', 'LESSER_OF_SUM_AND_REPLACEMENT')),
+            CONSTRAINT case_settlement_deductible_basis_check
+                CHECK (deductible_basis IN ('SUM_INSURED', 'LOSS_AMOUNT'))
         )$ddl$, p_schema, p_schema, p_schema, p_schema, p_schema);
 
     -- ─── notification ────────────────────────────────────────────────────────────

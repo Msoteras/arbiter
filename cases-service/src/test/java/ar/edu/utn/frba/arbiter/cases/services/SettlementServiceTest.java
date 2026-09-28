@@ -19,6 +19,7 @@ import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseSettlementRepositor
 import ar.edu.utn.frba.arbiter.cases.models.repositories.ExpertAssessmentRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.InsurerReferentRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.PolicyCoverageRepository;
+import ar.edu.utn.frba.arbiter.common.enums.DeductibleBasis;
 import ar.edu.utn.frba.arbiter.common.enums.SettlementBasis;
 import ar.edu.utn.frba.arbiter.common.enums.SettlementFormula;
 import ar.edu.utn.frba.arbiter.common.enums.SettlementStatus;
@@ -192,6 +193,22 @@ class SettlementServiceTest {
         assertThat(response.calculatedAmount()).isEqualByComparingTo("420000.00");
         assertThat(response.breakdown().getFirst().amount()).isEqualByComparingTo("500000.00");
         assertThat(response.warnings()).noneMatch(w -> w.contains("no se puede aprobar"));
+    }
+
+    @Test
+    void theSheetSaysTheDeductibleWasTakenFromTheLoss() {
+        Coverage coverage = coverage(SettlementBasis.LESSER_OF_SUM_AND_REPLACEMENT, "10.00", false);
+        coverage.setDeductibleBasis(DeductibleBasis.LOSS_AMOUNT);
+        claim.setCoverage(coverage);
+
+        SettlementResponse response = settlementService.forCase(1L, new BigDecimal("500000.00"));
+
+        // 500,000 − 10% of 500,000.
+        assertThat(response.calculatedAmount()).isEqualByComparingTo("450000.00");
+        assertThat(response.breakdown())
+                .filteredOn(line -> "Franquicia".equals(line.concept()))
+                .singleElement()
+                .satisfies(line -> assertThat(line.detail()).startsWith("10% del monto del siniestro ("));
     }
 
     @Test
