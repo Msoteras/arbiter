@@ -31,22 +31,6 @@ origen de `FRONTEND_BASE_URL`, que en Railway hay que cargar también en ese ser
 `.github/workflows/main.yml` acepta `hotfix/*` y `guard-main.yml` no, así que un hotfix nunca pasa.
 Hay que decidir si se aceptan hotfixes directos a `main` y dejar un solo workflow.
 
-### 1.4 Qué cobertura responde por una rotura
-En la póliza BBVA de celulares (Railway), "Robo de celular" solo excluye Hurto, así que también
-"cubre" Rotura accidental y Caída; como está primera en el orden de la compañía, **toda** rotura
-cae ahí (se vio en el #44, un caso de prueba borrado el 25/09/2026: una caída común quedó con
-franquicia de robo, 10%, en vez de daño accidental, 20%, y con los plazos de robo). La cobertura se elige solo por el hecho generador
-declarado; el relato no interviene, y el analista no puede cambiarla después.
-
-Argumento a favor de que robo cubra algunas roturas: si el celular se rompe en un intento de
-arrebato, es razonable que responda robo. Opciones:
-1. Un hecho generador aparte ("Rotura por intento de robo") que cubra solo "Robo de celular", y que
-   "Rotura accidental" y "Caída" las excluya robo. Es configuración, sin código.
-2. Que el analista pueda reasignar la cobertura mirando el relato (requiere desarrollo).
-
-Antes de decidir: confirmar qué dice la póliza de la compañía sobre daños por intento de robo.
-Código: `PolicyCoverageResolver` (cases-service).
-
 ---
 
 ## 2. Bugs encontrados durante la limpieza
