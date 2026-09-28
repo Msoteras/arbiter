@@ -74,23 +74,26 @@ class PdfFraudReportExporterTest {
                 "CON DOS O MÁS SEÑALES", "2");
     }
 
-    /** A period whose flagged cases are still open cannot report a fraud count yet. */
+    /**
+     * A period whose flagged cases are still open cannot report a fraud count yet. Neither a bare 0
+     * nor "sin datos": the figure is not missing and the claims are not cleared.
+     */
     @Test
-    void withTheFlaggedCasesStillOpen_theFraudCardSaysThereIsNoDataYet() throws IOException {
+    void withTheFlaggedCasesStillOpen_theFraudCardSaysNothingIsDeterminedYet() throws IOException {
         Rendered pdf = render(List.of(flaggedRow(1), flaggedRow(2), flaggedRow(3)));
 
-        assertThat(pdf.text()).contains("FRAUDE DETERMINADO", "Sin datos", "siguen abiertas");
+        assertThat(pdf.text()).contains("FRAUDE DETERMINADO", "Sin determinar",
+                "3 de las 3 señaladas siguen abiertas");
     }
 
     @Test
-    void theDistributionsSayWhatTheyAreOverAndThatTheyOverlap() throws IOException {
+    void theDistributionsSayWhatTheScoreOneIsCountedOver() throws IOException {
         Rendered pdf = render(List.of(flaggedRow(1), flaggedRow(2), unscoredRow(3)));
 
         assertThat(pdf.text()).contains(
                 "POR SCORE DE RIESGO", "Crítico", "Sin evaluar",
                 "Sobre las denuncias señaladas, no sobre el total del período.",
-                "POR SEÑAL DISPARADA",
-                "Una denuncia puede disparar más de una señal, así que no suman 100%.");
+                "POR SEÑAL DISPARADA");
     }
 
     /** Two signals don't fit one line: the cell wraps instead of ellipsizing the second one away. */
@@ -117,30 +120,18 @@ class PdfFraudReportExporterTest {
                 .contains("…");
     }
 
-    /** "Fraude determinado" is left out of the comparison: it lags in both periods. */
+    /**
+     * The document no longer carries the previous period. It still travels in the report, so nothing
+     * from it may leak onto the page by accident.
+     */
     @Test
-    void theComparisonLine_measuresAgainstThePreviousPeriod() throws IOException {
+    void theExportDoesNotMentionThePreviousPeriod() throws IOException {
         List<FraudReportRow> rows = List.of(flaggedRow(1), flaggedRow(2), unscoredRow(3));
         FraudSummary previous = FraudSummaries.of(List.of(flaggedRow(10)), 16);
 
         Rendered pdf = render(septemberFraudReport(rows, null, null, 20, previous));
 
-        assertThat(pdf.text()).contains(
-                "Vs. período anterior de igual duración: 16 denuncias (+4) · "
-                        + "Con al menos una señal: 6,3% (+8,8 pp) · Con dos o más señales: 1 (+1)");
-    }
-
-    /** Below the minimum base, the previous figures print but nothing claims a trend out of them. */
-    @Test
-    void theComparison_dropsTheDeltaWhenThePreviousPeriodIsTooThin() throws IOException {
-        List<FraudReportRow> rows = List.of(flaggedRow(1), flaggedRow(2), unscoredRow(3));
-        FraudSummary previous = FraudSummaries.of(List.of(flaggedRow(10)), 2);
-
-        Rendered pdf = render(septemberFraudReport(rows, null, null, 20, previous));
-
-        assertThat(pdf.text()).contains(
-                "Vs. período anterior de igual duración: 2 denuncias · "
-                        + "Con al menos una señal: 50% · Con dos o más señales: 1");
+        assertThat(pdf.text()).doesNotContain("Vs. período anterior");
     }
 
     /** An empty report still has to say what it looked for, or it can't be told from any other. */

@@ -3,6 +3,7 @@ package ar.edu.utn.frba.arbiter.reports.services.export.pdf;
 import ar.edu.utn.frba.arbiter.reports.services.export.pdf.ReportTheme.Rgb;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -113,9 +114,17 @@ public record StatCardsBlock(List<Card> cards) implements Block {
         return PdfCanvas.wrapLabel(card.label(), width - 2 * PADDING, MAX_LABEL_LINES);
     }
 
+    /**
+     * A newline in the note breaks the line there instead of letting the wrap fall where it may.
+     * Without it "máx. 87 d 15 h" splits after the "87 d", which reads as two different figures.
+     */
     private static List<String> noteLines(Card card, float width) throws IOException {
-        return PdfCanvas.wrap(card.note(), PdfCanvas.Weight.REGULAR, ReportTheme.NOTE,
-                width - 2 * PADDING, MAX_NOTE_LINES);
+        List<String> lines = new ArrayList<>();
+        for (String segment : card.note().split("\n")) {
+            lines.addAll(PdfCanvas.wrap(segment, PdfCanvas.Weight.REGULAR, ReportTheme.NOTE,
+                    width - 2 * PADDING, MAX_NOTE_LINES));
+        }
+        return lines.size() <= MAX_NOTE_LINES ? lines : lines.subList(0, MAX_NOTE_LINES);
     }
 
     private float cardWidth(float width) {

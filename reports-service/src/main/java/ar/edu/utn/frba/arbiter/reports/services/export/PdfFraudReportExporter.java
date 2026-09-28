@@ -12,7 +12,6 @@ import ar.edu.utn.frba.arbiter.reports.services.export.pdf.BarListBlock;
 import ar.edu.utn.frba.arbiter.reports.services.export.pdf.Block;
 import ar.edu.utn.frba.arbiter.reports.services.export.pdf.BulletsBlock;
 import ar.edu.utn.frba.arbiter.reports.services.export.pdf.CalloutBlock;
-import ar.edu.utn.frba.arbiter.reports.services.export.pdf.CaptionBlock;
 import ar.edu.utn.frba.arbiter.reports.services.export.pdf.ColumnsBlock;
 import ar.edu.utn.frba.arbiter.reports.services.export.pdf.DefinitionsBlock;
 import ar.edu.utn.frba.arbiter.reports.services.export.pdf.MetaStripBlock;
@@ -52,8 +51,7 @@ public class PdfFraudReportExporter implements FraudReportExporter {
 
     private static final String METHOD = "Se evaluaron las denuncias cuya fecha cae dentro del "
             + "período y cuyo ramo entra en el filtro. Cada una pasó por las reglas vigentes al "
-            + "momento de la denuncia y queda señalada cuando dispara al menos una. El score de "
-            + "riesgo es el que el motor ya escribió sobre el expediente, no uno propio del reporte.";
+            + "momento de la denuncia y queda señalada cuando dispara al menos una.";
 
     private static final List<DefinitionsBlock.Definition> GLOSSARY = List.of(
             new DefinitionsBlock.Definition("Score de riesgo",
@@ -109,7 +107,6 @@ public class PdfFraudReportExporter implements FraudReportExporter {
 
         blocks.add(SectionBlock.of("Resumen del período"));
         blocks.add(new StatCardsBlock(cards(report)));
-        blocks.add(new CaptionBlock(comparison(report.summary(), report.previousSummary())));
         blocks.add(ColumnsBlock.evenly(byAlertLevel(report.summary()), bySignal(report.summary())));
 
         List<BulletsBlock.Bullet> bullets = bullets(report);
@@ -148,12 +145,16 @@ public class PdfFraudReportExporter implements FraudReportExporter {
     /**
      * Recent claims are still open, so the count lags: saying so is the difference between a low
      * figure and a wrong one.
+     *
+     * <p>"Sin determinar" rather than a bare 0 or "sin datos": the figure is not missing and the
+     * claims are not cleared — nobody has determined anything yet, which is the word the label
+     * itself uses.
      */
     private static StatCardsBlock.Card fraudCard(FraudReport report) {
         FraudSummary summary = report.summary();
         long open = report.rows().stream().filter(row -> open(row.status())).count();
         if (summary.fraudDetermined() == 0 && open > 0) {
-            return new StatCardsBlock.Card("Fraude determinado", "Sin datos",
+            return new StatCardsBlock.Card("Fraude determinado", "Sin determinar",
                     "%d de las %d señaladas siguen abiertas".formatted(open, summary.flagged()),
                     StatCardsBlock.Style.UNAVAILABLE);
         }
@@ -162,20 +163,6 @@ public class PdfFraudReportExporter implements FraudReportExporter {
                 summary.backedByExpert() == summary.fraudDetermined()
                         ? "todos con respaldo pericial"
                         : "%d con respaldo pericial".formatted(summary.backedByExpert()));
-    }
-
-    private static String comparison(FraudSummary summary, FraudSummary previous) {
-        long previousClaims = previous.totalClaims();
-        return ("Vs. período anterior de igual duración: %d %s%s · Con al menos una señal: %s%s · "
-                + "Con dos o más señales: %d%s").formatted(
-                previousClaims,
-                previousClaims == 1 ? "denuncia" : "denuncias",
-                ReportLabels.countDelta(summary.totalClaims(), previousClaims, previousClaims),
-                ReportLabels.percentWithOneDecimal(previous.flaggedRate()),
-                ReportLabels.rateDelta(summary.flaggedRate(), previous.flaggedRate(), previousClaims),
-                previous.multiSignal(),
-                ReportLabels.countDelta(summary.multiSignal(), previous.multiSignal(),
-                        previousClaims));
     }
 
     // ── charts ──────────────────────────────────────────────────────────────────
@@ -190,14 +177,13 @@ public class PdfFraudReportExporter implements FraudReportExporter {
                 "Sobre las denuncias señaladas, no sobre el total del período.");
     }
 
-    /** Buckets overlap, so they add up past the flagged count; the note says so rather than hiding it. */
+    /** Buckets overlap: a claim that fired two rules is counted under both, so they add up past it. */
     private static Block bySignal(FraudSummary summary) {
         List<BarListBlock.Bar> bars = summary.bySignal().stream()
                 .map(count -> new BarListBlock.Bar(ReportLabels.signal(count.label()), count.count(),
                         share(count.count(), summary.flagged()), ReportTheme.INK_SOFT))
                 .toList();
-        return new BarListBlock("Por señal disparada", bars,
-                "Una denuncia puede disparar más de una señal, así que no suman 100%.");
+        return new BarListBlock("Por señal disparada", bars, null);
     }
 
     // ── narrative ───────────────────────────────────────────────────────────────
@@ -260,9 +246,7 @@ public class PdfFraudReportExporter implements FraudReportExporter {
                         .formatted(report.rows().size(), report.summary().totalClaims()),
                 COLUMNS,
                 rows,
-                "Ninguna denuncia del período disparó una señal con estos filtros.",
-                "El score se imprime como texto además de su color, así que el informe se lee igual "
-                        + "en blanco y negro.");
+                "Ninguna denuncia del período disparó una señal con estos filtros.");
     }
 
     private static TableBlock.Row row(FraudReportRow row, ZoneId zone) {

@@ -73,8 +73,7 @@ public class PdfResolutionReportExporter implements ResolutionReportExporter {
                             + "no sugieren decisión, así que quedan fuera."),
             new DefinitionsBlock.Definition("Fast Track",
                     "Expediente que las reglas habilitaron a resolver sin análisis del modelo."),
-            new DefinitionsBlock.Definition("Clasificación",
-                    "Sugerencia del sistema. No obliga: el analista puede apartarse."),
+            new DefinitionsBlock.Definition("Clasificación", "Sugerencia del sistema."),
             new DefinitionsBlock.Definition("Espera de terceros",
                     "Tiempo esperando al asegurado, al perito o al servicio técnico. No se imputa "
                             + "a la gestión."),
@@ -83,10 +82,12 @@ public class PdfResolutionReportExporter implements ResolutionReportExporter {
 
     private static final List<TableBlock.Column> COLUMNS = List.of(
             new TableBlock.Column("Nº", 6, false),
-            new TableBlock.Column("Asegurado", 20, false),
-            new TableBlock.Column("Siniestro", 19, false),
+            new TableBlock.Column("Asegurado", 19, false),
+            new TableBlock.Column("Siniestro", 18, false),
             new TableBlock.Column("Denuncia · cierre", 17, false),
-            new TableBlock.Column("Tiempo", 11, true),
+            // Wider than it needs for its values: right-aligned, it also carries the gap that keeps
+            // it off the column beside it.
+            new TableBlock.Column("Tiempo", 13, true),
             new TableBlock.Column("Sistema · analista", 15, false),
             new TableBlock.Column("Estado final", 12, false));
 
@@ -193,9 +194,11 @@ public class PdfResolutionReportExporter implements ResolutionReportExporter {
                     "ningún expediente decidido en el período", StatCardsBlock.Style.UNAVAILABLE);
         }
         List<Long> minutes = decided.stream().map(ResolutionReportRow::totalMinutes).sorted().toList();
+        // One figure per line: wrapped freely, "máx. 87 d 15 h" breaks after the "87 d" and reads
+        // as two separate numbers.
         return StatCardsBlock.Card.of("Tiempo promedio",
                 ReportLabels.duration(Math.round(summary.averageMinutes())),
-                "mediana %s · máx. %s".formatted(
+                "mediana %s ·\nmáx. %s".formatted(
                         ReportLabels.duration(median(minutes)),
                         ReportLabels.duration(minutes.getLast())));
     }
@@ -359,8 +362,7 @@ public class PdfResolutionReportExporter implements ResolutionReportExporter {
                 caption(report.rows().size()),
                 COLUMNS,
                 rows,
-                "No hay expedientes cerrados en el período con estos filtros.",
-                null);
+                "No hay expedientes cerrados en el período con estos filtros.");
     }
 
     private static String caption(int size) {

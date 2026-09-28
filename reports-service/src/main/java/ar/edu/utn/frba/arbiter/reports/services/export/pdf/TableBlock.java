@@ -15,7 +15,7 @@ import java.util.List;
  * is as long as it is.
  */
 public record TableBlock(String heading, String caption, List<Column> columns, List<Row> rows,
-                         String emptyMessage, String footnote) implements Block {
+                         String emptyMessage) implements Block {
 
     private static final float HEADER_PADDING = ReportTheme.SPACE_1;
     private static final float HEADER_LEADING = 1.35f;
@@ -23,6 +23,7 @@ public record TableBlock(String heading, String caption, List<Column> columns, L
     private static final float ROW_PADDING = 4.5f;
     private static final float LINE_LEADING = 1.25f;
     private static final float CELL_GAP = 5;
+    private static final float RIGHT_GUTTER = ReportTheme.SPACE_3;
     private static final int MAX_LINES_PER_PART = 2;
 
     /** @param weight share of the table's width, relative to the other columns */
@@ -67,7 +68,7 @@ public record TableBlock(String heading, String caption, List<Column> columns, L
         for (Row row : rows) {
             total += rowHeight(row, width);
         }
-        return total + footnoteHeight(width);
+        return total;
     }
 
     @Override
@@ -94,7 +95,7 @@ public record TableBlock(String heading, String caption, List<Column> columns, L
             float lineY = y - HEADER_PADDING;
             for (String line : headerLines(column, widths[i])) {
                 if (column.alignRight()) {
-                    canvas.label(columnX + widths[i] - CELL_GAP - PdfCanvas.labelWidth(line),
+                    canvas.label(columnX + widths[i] - RIGHT_GUTTER - PdfCanvas.labelWidth(line),
                             lineY - ReportTheme.LABEL, line, ReportTheme.MUTED);
                 } else {
                     canvas.label(columnX, lineY - ReportTheme.LABEL, line, ReportTheme.MUTED);
@@ -121,15 +122,6 @@ public record TableBlock(String heading, String caption, List<Column> columns, L
             y -= rowHeight;
             canvas.line(x, y, x + width, y, ReportTheme.BORDER_SUBTLE, ReportTheme.HAIRLINE);
         }
-
-        if (footnote != null) {
-            float noteY = y - ReportTheme.SPACE_2;
-            for (String line : footnoteLines(width)) {
-                canvas.text(x, noteY - ReportTheme.NOTE, line, PdfCanvas.Weight.REGULAR,
-                        ReportTheme.NOTE, ReportTheme.MUTED);
-                noteY -= ReportTheme.NOTE * 1.3f;
-            }
-        }
     }
 
     @Override
@@ -147,12 +139,10 @@ public record TableBlock(String heading, String caption, List<Column> columns, L
         if (fits == 0 || fits == rows.size()) {
             return null;
         }
-        // The continuation drops the heading and the footnote: the page's running header already
-        // names the report, and a note about the rows belongs after the last of them.
+        // The continuation drops the heading: the page's running header already names the report.
         return new Split(
-                new TableBlock(heading, caption, columns, rows.subList(0, fits), emptyMessage, null),
-                new TableBlock(null, null, columns, rows.subList(fits, rows.size()), emptyMessage,
-                        footnote));
+                new TableBlock(heading, caption, columns, rows.subList(0, fits), emptyMessage),
+                new TableBlock(null, null, columns, rows.subList(fits, rows.size()), emptyMessage));
     }
 
     private void drawCells(PdfCanvas canvas, Row row, float x, float top, float[] widths)
@@ -174,9 +164,9 @@ public record TableBlock(String heading, String caption, List<Column> columns, L
     private static float drawPart(PdfCanvas canvas, Part part, float x, float top, float width,
                                   float size, boolean alignRight) throws IOException {
         float y = top;
-        for (String line : partLines(part, width, size)) {
+        for (String line : partLines(part, width, size, alignRight)) {
             if (alignRight) {
-                canvas.textRight(x + width - CELL_GAP, y - size, line,
+                canvas.textRight(x + width - RIGHT_GUTTER, y - size, line,
                         part.bold() ? PdfCanvas.Weight.BOLD : PdfCanvas.Weight.REGULAR, size,
                         part.color());
             } else {
@@ -194,20 +184,32 @@ public record TableBlock(String heading, String caption, List<Column> columns, L
         float tallest = 0;
         for (int i = 0; i < row.cells().size(); i++) {
             Cell cell = row.cells().get(i);
-            float height = partLines(cell.primary(), widths[i], ReportTheme.CELL).size()
+            boolean alignRight = columns.get(i).alignRight();
+            float height = partLines(cell.primary(), widths[i], ReportTheme.CELL, alignRight).size()
                     * ReportTheme.CELL * LINE_LEADING;
             if (cell.secondary() != null) {
-                height += partLines(cell.secondary(), widths[i], ReportTheme.CELL_SUB).size()
-                        * ReportTheme.CELL_SUB * LINE_LEADING;
+                height += partLines(cell.secondary(), widths[i], ReportTheme.CELL_SUB, alignRight)
+                        .size() * ReportTheme.CELL_SUB * LINE_LEADING;
             }
             tallest = Math.max(tallest, height);
         }
         return tallest + 2 * ROW_PADDING;
     }
 
-    private static List<String> partLines(Part part, float width, float size) throws IOException {
+    private static List<String> partLines(Part part, float width, float size, boolean alignRight)
+            throws IOException {
         return PdfCanvas.wrap(part.text(), part.bold() ? PdfCanvas.Weight.BOLD
-                : PdfCanvas.Weight.REGULAR, size, width - CELL_GAP, MAX_LINES_PER_PART);
+                        : PdfCanvas.Weight.REGULAR, size, width - gutter(alignRight),
+                MAX_LINES_PER_PART);
+    }
+
+    /**
+     * A left-aligned column is separated from the next one by that one's own left padding. A
+     * right-aligned one ends where its cell ends, so it has to keep the gap itself or its values sit
+     * against the column that follows.
+     */
+    private static float gutter(boolean alignRight) {
+        return alignRight ? RIGHT_GUTTER : CELL_GAP;
     }
 
     private float[] columnWidths(float width) {
@@ -240,17 +242,7 @@ public record TableBlock(String heading, String caption, List<Column> columns, L
     }
 
     private static List<String> headerLines(Column column, float width) throws IOException {
-        return PdfCanvas.wrapLabel(column.header(), width - CELL_GAP, MAX_HEADER_LINES);
-    }
-
-    private float footnoteHeight(float width) throws IOException {
-        if (footnote == null) {
-            return 0;
-        }
-        return ReportTheme.SPACE_2 + footnoteLines(width).size() * ReportTheme.NOTE * 1.3f;
-    }
-
-    private List<String> footnoteLines(float width) throws IOException {
-        return PdfCanvas.wrap(footnote, PdfCanvas.Weight.REGULAR, ReportTheme.NOTE, width);
+        return PdfCanvas.wrapLabel(column.header(), width - gutter(column.alignRight()),
+                MAX_HEADER_LINES);
     }
 }

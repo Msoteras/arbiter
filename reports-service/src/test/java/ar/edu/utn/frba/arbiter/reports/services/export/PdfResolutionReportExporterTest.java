@@ -216,7 +216,7 @@ class PdfResolutionReportExporterTest {
         Rendered pdf = render(augustReport(
                 List.of(approvedRow(1), fastTrackRow(2), lapsedRow(3)), null, null, previous));
 
-        assertThat(pdf.text()).doesNotContain("período anterior");
+        assertThat(pdf.text()).doesNotContain("Vs. período anterior");
     }
 
     /** Nobody decided anything in the period: no average, rather than one over the lapsed ones. */
