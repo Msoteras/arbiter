@@ -154,12 +154,14 @@ SELECT setval(pg_get_serial_sequence('arbiter_bbva.insured','id'),
 
 -- ─── Daño accidental coverage for Celulares ──────────────────────────────────
 -- Covers the causes the robbery and theft coverages exclude (1 Rotura accidental,
--- 4 Caída); without it no coverage answers for them. Settles as a repair.
+-- 4 Caída); without it no coverage answers for them. Settles as a repair; an irreparable item
+-- becomes a total loss and pays the lesser of sum insured and replacement value, like a theft.
 INSERT INTO arbiter_bbva.coverage (id, name, description, report_deadline_hours, max_events_per_year,
                                    covers_family_group, deductible, claim_exhausts_coverage,
-                                   is_individual, waiting_period_days, branch_id, settlement_formula) VALUES
+                                   is_individual, waiting_period_days, branch_id, settlement_formula,
+                                   settlement_basis) VALUES
     (3, 'Daño accidental', 'Cobertura por rotura o caída accidental del equipo', 72, 2, FALSE,
-     20.00, FALSE, TRUE, 30, 1, 'REPAIR');
+     20.00, FALSE, TRUE, 30, 1, 'REPAIR', 'LESSER_OF_SUM_AND_REPLACEMENT');
 SELECT setval(pg_get_serial_sequence('arbiter_bbva.coverage','id'),
               (SELECT MAX(id) FROM arbiter_bbva.coverage));
 
