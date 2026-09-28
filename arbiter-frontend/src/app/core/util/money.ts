@@ -9,6 +9,24 @@ export function formatMoney(amount: number | null | undefined, fallback = '—')
   return amount === null || amount === undefined ? fallback : ARS.format(amount);
 }
 
+const THOUSANDS = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 0 });
+
+/** `612500.5` → `612.500,5`, keeping a trailing comma while the cents are still being typed. */
+export function amountInputLabel(value: string): string {
+  if (value === '') {
+    return '';
+  }
+  const [whole, cents] = value.split('.');
+  const label = THOUSANDS.format(Number(whole));
+  return cents === undefined ? label : `${label},${cents}`;
+}
+
+export function amountInputValue(typed: string): string {
+  const [whole, ...cents] = typed.replace(/[^\d,]/g, '').split(',');
+  const digits = whole.replace(/^0+(?=\d)/, '');
+  return cents.length === 0 ? digits : `${digits || '0'}.${cents.join('').slice(0, 2)}`;
+}
+
 /** Shows both the absolute deductible and its contracted percentage when available. */
 export function formatDeductible(
   amount: number | null | undefined,

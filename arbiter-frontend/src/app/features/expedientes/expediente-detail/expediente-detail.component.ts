@@ -105,6 +105,7 @@ import {
 import { RiskBand, riskBandLabel } from '../../../core/models/risk-band';
 import { StatusTone } from '../../../core/models/status-tone';
 import { chatListStamp, formatDate, formatDateTime } from '../../../core/util/datetime';
+import { amountInputLabel, amountInputValue } from '../../../core/util/money';
 import { FraudGaugeComponent } from '../../../shared/ui/fraud-gauge/fraud-gauge.component';
 import { InfoTipComponent } from '../../../shared/ui/info-tip/info-tip.component';
 import { EmptyStateComponent } from '../../../shared/ui/empty-state/empty-state.component';
@@ -1794,6 +1795,9 @@ export class ExpedienteDetailComponent {
       maximumFractionDigits: 0,
     }).format(amount);
   }
+
+  protected readonly amountInputLabel = amountInputLabel;
+  protected readonly amountInputValue = amountInputValue;
 
   /** Like {@link formatMonto} but with cents: rounding would show a figure other than the one saved. */
   protected montoExacto(amount: number | null): string {
