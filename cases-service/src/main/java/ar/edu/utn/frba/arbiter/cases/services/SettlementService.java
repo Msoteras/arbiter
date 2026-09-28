@@ -82,9 +82,11 @@ public class SettlementService {
         Case caseRecord = caseRepository.findById(caseId)
                 .orElseThrow(() -> new CaseNotFoundException(caseId));
 
-        Optional<CaseSettlement> confirmed = settlementRepository.findByCaseId(caseId);
-        if (confirmed.isPresent()) {
-            return toResponse(confirmed.get(), true, List.of(), caseRecord.getCoverage(), null);
+        Optional<CaseSettlement> stored = settlementRepository.findByCaseId(caseId);
+        // A returned settlement is back in the analyst's hands: it is proposed again, from today's
+        // coverage terms, rather than frozen at what the referent sent back.
+        if (stored.isPresent() && stored.get().getStatus() != SettlementStatus.RETURNED) {
+            return toResponse(stored.get(), true, List.of(), caseRecord.getCoverage(), null);
         }
 
         PolicySnapshot snapshot = caseRepository.findPolicySnapshot(caseId).orElse(null);
@@ -94,6 +96,11 @@ public class SettlementService {
                 caseRecord, coverage, policyCoverageOf(caseRecord), snapshot, replacementValue, formula);
         // So the analyst sees before signing that the amount will need the referent.
         proposal.setAuthorityLimit(authorityService.limitFor(branchIdOf(caseRecord)));
+        // Kept on the proposal so the analyst still sees why it came back.
+        stored.ifPresent(returned -> {
+            proposal.setStatus(SettlementStatus.RETURNED);
+            proposal.setReturnReason(returned.getReturnReason());
+        });
         return toResponse(proposal, false,
                 warnings(coverage, snapshot, replacementValue, proposal, caseRecord.getClaimedAmount()),
                 coverage,
@@ -477,7 +484,7 @@ public class SettlementService {
                 s.getAdjustmentReason(),
                 confirmed,
                 s.getConfirmedAt(),
-                confirmed ? s.getStatus() : null,
+                confirmed || s.getStatus() == SettlementStatus.RETURNED ? s.getStatus() : null,
                 s.getAuthorityLimit(),
                 s.getReturnReason(),
                 suggestion == null ? null : suggestion.amount(),

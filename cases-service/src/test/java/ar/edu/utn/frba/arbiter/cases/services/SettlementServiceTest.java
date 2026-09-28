@@ -315,6 +315,31 @@ class SettlementServiceTest {
         assertThat(response.warnings()).isEmpty();
     }
 
+    /** Sent back by the referent: proposed again from today's terms, keeping the reason. */
+    @Test
+    void aReturnedSettlementIsProposedAgainWithTheReferentsReason() {
+        claim.setCoverage(coverage(SettlementBasis.LESSER_OF_SUM_AND_REPLACEMENT, "10.00", false));
+        when(settlementRepository.findByCaseId(1L)).thenReturn(Optional.of(CaseSettlement.builder()
+                .caseId(1L)
+                .formula(SettlementFormula.TOTAL_LOSS)
+                .sumInsured(new BigDecimal("800000.00"))
+                .settlementBasis(SettlementBasis.SUM_INSURED)
+                .calculatedAmount(new BigDecimal("720000.00"))
+                .settledAmount(new BigDecimal("720000.00"))
+                .status(SettlementStatus.RETURNED)
+                .returnReason("Supera lo reclamado")
+                .confirmedAt(Instant.now())
+                .build()));
+
+        SettlementResponse response = settlementService.forCase(1L, new BigDecimal("500000.00"));
+
+        assertThat(response.confirmed()).isFalse();
+        assertThat(response.status()).isEqualTo(SettlementStatus.RETURNED);
+        assertThat(response.returnReason()).isEqualTo("Supera lo reclamado");
+        assertThat(response.settlementBasis()).isEqualTo(SettlementBasis.LESSER_OF_SUM_AND_REPLACEMENT);
+        assertThat(response.calculatedAmount()).isEqualByComparingTo("420000.00");
+    }
+
     /** A repair's amount comes from the quote the model read, offered with its source. */
     @Test
     void suggestsTheAmountTheModelReadOffTheRepairQuote() {
