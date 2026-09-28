@@ -405,6 +405,14 @@
                                 />
                               </label>
                             }
+                            <label class="fieldset grow">
+                              <span class="t-field-label">Franquicia sobre</span>
+                              <app-select
+                                [options]="deductibleBasisOptions"
+                                [value]="c.deductibleBasis"
+                                (valueChange)="setCoverageDeductibleBasis(c.id, $event)"
+                              />
+                            </label>
                             <label class="fieldset">
                               <span class="t-field-label">2.º evento del año (%)</span>
                               <app-input

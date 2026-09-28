@@ -4,6 +4,7 @@ import { Observable, finalize, forkJoin, of } from 'rxjs';
 
 import {
   Coverage,
+  DeductibleBasis,
   DOCUMENT_TYPES,
   FastTrackConfig,
   RamoRules,
@@ -542,6 +543,7 @@ export class ReglasComponent {
       clause: c.clause ?? '',
       insuredAmount: null,
       deductibleRatio: c.deductibleRatio,
+      deductibleBasis: c.deductibleBasis ?? 'SUM_INSURED',
       reportingWindowDays: c.reportingWindowDays,
       maxAnnualClaims: c.maxAnnualClaims,
       waitingPeriodDays: c.waitingPeriodDays,
@@ -760,6 +762,7 @@ export class ReglasComponent {
       clause: '',
       insuredAmount: null,
       deductibleRatio: null,
+      deductibleBasis: 'SUM_INSURED',
       reportingWindowDays: null,
       maxAnnualClaims: null,
       waitingPeriodDays: null,
@@ -1029,7 +1032,10 @@ export class ReglasComponent {
   protected coverageSummary(c: Coverage): string[] {
     const chips: string[] = [];
     if (c.deductibleRatio != null) {
-      chips.push(`Franquicia ${this.pctFromRatio(c.deductibleRatio)}%`);
+      chips.push(
+        `Franquicia ${this.pctFromRatio(c.deductibleRatio)}%` +
+          (c.deductibleBasis === 'LOSS_AMOUNT' ? ' del siniestro' : ''),
+      );
     }
     if (c.waitingPeriodDays != null) {
       chips.push(`Carencia ${c.waitingPeriodDays} d`);
@@ -1146,6 +1152,15 @@ export class ReglasComponent {
 
   protected setCoverageSettlementBasis(id: string, value: string): void {
     this.setCoverageField(id, { settlementBasis: value as SettlementBasis });
+  }
+
+  protected readonly deductibleBasisOptions: SelectOption[] = [
+    { value: 'SUM_INSURED', label: 'La suma asegurada' },
+    { value: 'LOSS_AMOUNT', label: 'El monto del siniestro' },
+  ];
+
+  protected setCoverageDeductibleBasis(id: string, value: string): void {
+    this.setCoverageField(id, { deductibleBasis: value as DeductibleBasis });
   }
 
   protected coverageSecondEventPct(c: Coverage): string {
@@ -1394,6 +1409,7 @@ export class ReglasComponent {
       name: c.name,
       clause: c.clause || null,
       deductibleRatio: c.deductibleRatio,
+      deductibleBasis: c.deductibleBasis,
       reportingWindowDays: c.reportingWindowDays,
       maxAnnualClaims: c.maxAnnualClaims,
       waitingPeriodDays: c.waitingPeriodDays,

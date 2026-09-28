@@ -5,6 +5,7 @@ import ar.edu.utn.frba.arbiter.cases.models.entities.CaseSettlement;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Policy;
 import ar.edu.utn.frba.arbiter.cases.models.entities.PolicyCoverage;
 import ar.edu.utn.frba.arbiter.cases.models.entities.PolicySnapshot;
+import ar.edu.utn.frba.arbiter.common.enums.DeductibleBasis;
 import ar.edu.utn.frba.arbiter.common.enums.SettlementBasis;
 import ar.edu.utn.frba.arbiter.common.enums.SettlementFormula;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Coverage;
@@ -274,6 +275,49 @@ class SettlementCalculatorTest {
                 new BigDecimal("250000.00"));
 
         assertThat(settlement.getCalculatedAmount()).isEqualByComparingTo("90000.00");
+    }
+
+    /** On the sum insured, a deductible larger than a cheap repair leaves nothing to pay. */
+    @Test
+    void aDeductibleOnTheSumInsuredCanSwallowACheapRepair() {
+        Coverage coverage = repairCoverage("10.00", false);
+        PolicySnapshot snapshot = snapshot("1300000.00", LocalDate.of(2027, 1, 1), null, null, 1);
+
+        CaseSettlement settlement = calculate(
+                claim(LocalDateTime.of(2026, 6, 1, 10, 0)), coverage, null, snapshot, new BigDecimal("80000.00"));
+
+        assertThat(settlement.getDeductibleAmount()).isEqualByComparingTo("130000.00");
+        assertThat(settlement.getCalculatedAmount()).isEqualByComparingTo("0.00");
+        assertThat(settlement.getDeductibleBasis()).isEqualTo(DeductibleBasis.SUM_INSURED);
+    }
+
+    @Test
+    void aDeductibleOnTheLossIsAShareOfTheRepair() {
+        Coverage coverage = repairCoverage("10.00", false);
+        coverage.setDeductibleBasis(DeductibleBasis.LOSS_AMOUNT);
+        PolicySnapshot snapshot = snapshot("1300000.00", LocalDate.of(2027, 1, 1), null, null, 1);
+
+        CaseSettlement settlement = calculate(
+                claim(LocalDateTime.of(2026, 6, 1, 10, 0)), coverage, null, snapshot, new BigDecimal("80000.00"));
+
+        assertThat(settlement.getDeductibleAmount()).isEqualByComparingTo("8000.00");
+        assertThat(settlement.getCalculatedAmount()).isEqualByComparingTo("72000.00");
+        assertThat(settlement.getDeductibleBasis()).isEqualTo(DeductibleBasis.LOSS_AMOUNT);
+    }
+
+    /** On the loss, the deductible follows the event cap down too. */
+    @Test
+    void aDeductibleOnTheLossAppliesAfterTheSecondEventCap() {
+        Coverage coverage = coverage(SettlementBasis.LESSER_OF_SUM_AND_REPLACEMENT, "10.00", "50.00", false, false);
+        coverage.setDeductibleBasis(DeductibleBasis.LOSS_AMOUNT);
+        PolicySnapshot snapshot = snapshot("1300000.00", LocalDate.of(2027, 1, 1), null, null, 2);
+
+        CaseSettlement settlement = calculate(
+                claim(LocalDateTime.of(2026, 6, 1, 10, 0)), coverage, null, snapshot, new BigDecimal("600000.00"));
+
+        // 600,000 × 50% = 300,000; 10% of that is 30,000.
+        assertThat(settlement.getDeductibleAmount()).isEqualByComparingTo("30000.00");
+        assertThat(settlement.getCalculatedAmount()).isEqualByComparingTo("270000.00");
     }
 
     /** A damage coverage: settles by repair, with the quote as the ceiling. */
