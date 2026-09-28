@@ -1105,9 +1105,7 @@
                     ? 'Presupuesto de reparación'
                     : 'Cuánto cuesta reponer el bien'
                 }}
-                @if (s.formula === 'REPAIR') {
-                  <span class="required" aria-hidden="true">*</span>
-                }
+                <span class="required" aria-hidden="true">*</span>
               </span>
               <div class="settlement-replacement">
                 <app-input
@@ -1115,7 +1113,7 @@
                   [min]="0"
                   [value]="replacementInput()"
                   (valueChange)="replacementInput.set($event)"
-                  placeholder="Sin acreditar"
+                  placeholder="Sin cargar"
                 />
                 <app-button variant="secondary" (click)="applyReplacementValue()"
                   >Recalcular</app-button
@@ -1126,8 +1124,7 @@
                   Del presupuesto del expediente. Es la base del cálculo, con tope en la suma
                   asegurada.
                 } @else {
-                  Según la factura o el presupuesto del expediente. Si es menor que la suma
-                  asegurada, se indemniza por este valor.
+                  Precio actual de un equipo idéntico. Si hubo peritaje, el del perito.
                 }
               </span>
 

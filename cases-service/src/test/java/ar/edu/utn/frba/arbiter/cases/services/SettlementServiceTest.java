@@ -169,14 +169,55 @@ class SettlementServiceTest {
         assertThat(response.breakdown().get(1).detail()).startsWith("10% de la suma asegurada (");
     }
 
-    /** With nothing accredited, "lesser of" silently falls back to the sum insured: warn before signing. */
+    /** Nothing to pay until the analyst says what the item is worth today, and the sheet says so. */
     @Test
-    void warnsWhenTheBasisNeedsAReplacementValueAndThereIsNone() {
+    void asksForTheReplacementValueInsteadOfProposingTheSumInsured() {
         claim.setCoverage(coverage(SettlementBasis.LESSER_OF_SUM_AND_REPLACEMENT, "10.00", false));
 
         SettlementResponse response = settlementService.forCase(1L, null);
 
-        assertThat(response.warnings()).anyMatch(w -> w.contains("valor de reposición acreditado"));
+        assertThat(response.calculatedAmount()).isEqualByComparingTo("0.00");
+        assertThat(response.warnings()).anyMatch(w -> w.contains("no se puede aprobar"));
+        assertThat(response.breakdown().getFirst().concept()).isEqualTo("Valor de reposición");
+        assertThat(response.breakdown().getFirst().detail()).startsWith("sin cargar");
+    }
+
+    @Test
+    void theReplacementValueIsTheBaseOfTheSheet() {
+        claim.setCoverage(coverage(SettlementBasis.LESSER_OF_SUM_AND_REPLACEMENT, "10.00", false));
+
+        SettlementResponse response = settlementService.forCase(1L, new BigDecimal("500000.00"));
+
+        // 500,000 − 80,000 franchise (10% of the 800,000 sum insured).
+        assertThat(response.calculatedAmount()).isEqualByComparingTo("420000.00");
+        assertThat(response.breakdown().getFirst().amount()).isEqualByComparingTo("500000.00");
+        assertThat(response.warnings()).noneMatch(w -> w.contains("no se puede aprobar"));
+    }
+
+    @Test
+    void approvingWithoutAReplacementValueIsRejected() {
+        claim.setCoverage(coverage(SettlementBasis.LESSER_OF_SUM_AND_REPLACEMENT, "10.00", false));
+
+        assertThatThrownBy(() -> settlementService.confirm(claim, 7L, "Documentación completa",
+                new SettlementDecisionRequest(null, new BigDecimal("720000.00"), "Vale eso")))
+                .isInstanceOf(InvalidSettlementException.class)
+                .hasMessageContaining("reponer el bien");
+    }
+
+    /** The expert's valuation is what the item is worth, so it fills the replacement value. */
+    @Test
+    void theExpertValuationIsSuggestedAsTheReplacementValue() {
+        claim.setCoverage(coverage(SettlementBasis.LESSER_OF_SUM_AND_REPLACEMENT, "10.00", false));
+        when(expertAssessmentRepository.findByCaseIdOrderByDerivedAtDesc(1L)).thenReturn(List.of(
+                ExpertAssessment.builder().caseId(1L).providerType(ProviderType.ESTUDIO_LIQUIDADOR)
+                        .reportReceivedAt(Instant.now())
+                        .indemnifiableAmount(new BigDecimal("540000.00")).build()));
+
+        SettlementResponse response = settlementService.forCase(1L, null);
+
+        assertThat(response.suggestedAmount()).isEqualByComparingTo("540000.00");
+        assertThat(response.suggestedFrom()).isEqualTo("expert_report");
+        assertThat(response.suggestedFor()).isEqualTo(SettlementSuggestionTarget.ACCREDITED_AMOUNT);
     }
 
     /** The claimed amount is a reference, not a cap: the sheet keeps the policy's number and warns. */
@@ -290,8 +331,9 @@ class SettlementServiceTest {
         assertThat(response.calculatedAmount()).isEqualByComparingTo("0.00");
     }
 
+    /** The invoice is what the item cost back then; without an expert the analyst sets today's value. */
     @Test
-    void suggestsThePurchaseProofWhenTheCeilingIsTheLesserOfTheTwo() {
+    void thePurchaseProofIsNotSuggestedAsTheReplacementValue() {
         claim.setCoverage(coverage(SettlementBasis.LESSER_OF_SUM_AND_REPLACEMENT, "10.00", false));
         when(documentAnalysisRepository.findByCaseId(1L)).thenReturn(List.of(
                 document("purchase_proof", new BigDecimal("620000.00")),
@@ -299,9 +341,8 @@ class SettlementServiceTest {
 
         SettlementResponse response = settlementService.forCase(1L, null);
 
-        assertThat(response.suggestedAmount()).isEqualByComparingTo("620000.00");
-        assertThat(response.suggestedFrom()).isEqualTo("purchase_proof");
-        assertThat(response.suggestedFor()).isEqualTo(SettlementSuggestionTarget.ACCREDITED_AMOUNT);
+        assertThat(response.suggestedAmount()).isNull();
+        assertThat(response.suggestedFor()).isNull();
     }
 
     /** Nothing is suggested where the field wouldn't change the amount (total loss by sum insured). */
@@ -481,6 +522,26 @@ class SettlementServiceTest {
 
         assertThat(response.formula()).isEqualTo(SettlementFormula.TOTAL_LOSS);
         assertThat(response.calculatedAmount()).isEqualByComparingTo("720000.00");
+    }
+
+    /** Irreparable pays what the item is worth, like a theft, when the coverage settles by the lesser. */
+    @Test
+    void anIrreparableItemPaysItsReplacementValueNotTheSumInsured() {
+        Coverage coverage = repairCoverage();
+        coverage.setSettlementBasis(SettlementBasis.LESSER_OF_SUM_AND_REPLACEMENT);
+        claim.setCoverage(coverage);
+        when(expertAssessmentRepository.findByCaseIdOrderByDerivedAtDesc(1L)).thenReturn(List.of(
+                ExpertAssessment.builder().caseId(1L).providerType(ProviderType.SERVICIO_TECNICO)
+                        .reportReceivedAt(Instant.now())
+                        .repairOutcome(RepairOutcome.IRREPARABLE).build()));
+
+        assertThat(settlementService.forCase(1L, null).calculatedAmount()).isEqualByComparingTo("0.00");
+
+        SettlementResponse response = settlementService.forCase(1L, new BigDecimal("450000.00"));
+
+        // 450,000 − 80,000 franchise.
+        assertThat(response.calculatedAmount()).isEqualByComparingTo("370000.00");
+        assertThat(response.breakdown().getFirst().detail()).contains("irreparable");
     }
 
     /** Switching formulas silently would change the analyst's sheet without saying why. */

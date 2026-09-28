@@ -11,8 +11,9 @@ public enum SettlementBasis {
     SUM_INSURED,
 
     /**
-     * The lesser of the sum insured and the accredited replacement value (clause 340, art. 7).
-     * Without a replacement value on file it falls back to the sum insured.
+     * The lesser of the sum insured and what replacing the item costs today (annex 340, art. 7).
+     * The replacement value is the settlement's base: without it there is nothing to pay yet, and
+     * the case can't be approved.
      */
     LESSER_OF_SUM_AND_REPLACEMENT
 }

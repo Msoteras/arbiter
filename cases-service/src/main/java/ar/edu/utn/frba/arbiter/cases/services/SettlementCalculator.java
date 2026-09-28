@@ -22,7 +22,8 @@ import java.time.temporal.ChronoUnit;
  *
  * <pre>
  *   TOTAL LOSS — the item is gone
- *   ceiling               = sum insured (or the lesser of it and the replacement value)
+ *   ceiling               = sum insured, or the lesser of it and the replacement value (0 until
+ *                           the analyst records one)
  *   event cap             = ceiling × event %          (2nd event of the year → 50%)
  *   − deductible          = sum insured × deductible %
  *   − pending instalments = instalments left × instalment amount
@@ -139,21 +140,17 @@ public class SettlementCalculator {
     }
 
     /**
-     * On a repair it is the accredited quote capped by the sum insured, and zero with no quote —
-     * falling back to the sum insured would pay a whole phone for an uncosted broken screen. On a
-     * total loss with nothing accredited it stays the sum insured the contract fixed.
+     * The accredited amount capped by the sum insured, and zero with none: on a repair it is the
+     * quote, on a lesser-of total loss what the item is worth today. Falling back to the sum insured
+     * would pay a whole new phone for one worth half of it. Only a flat sum-insured basis pays it as is.
      */
     private BigDecimal ceiling(SettlementFormula formula, SettlementBasis basis,
                                BigDecimal sumInsured, BigDecimal accreditedAmount) {
-        boolean accredited = accreditedAmount != null && accreditedAmount.signum() > 0;
-
-        if (formula == SettlementFormula.REPAIR) {
-            return accredited ? sumInsured.min(money(accreditedAmount)) : BigDecimal.ZERO;
-        }
-        if (basis != SettlementBasis.LESSER_OF_SUM_AND_REPLACEMENT || !accredited) {
+        if (formula != SettlementFormula.REPAIR && basis != SettlementBasis.LESSER_OF_SUM_AND_REPLACEMENT) {
             return sumInsured;
         }
-        return sumInsured.min(money(accreditedAmount));
+        boolean accredited = accreditedAmount != null && accreditedAmount.signum() > 0;
+        return accredited ? sumInsured.min(money(accreditedAmount)) : BigDecimal.ZERO;
     }
 
     /** Frozen by classification-service; 1 when the snapshot predates the column. */
