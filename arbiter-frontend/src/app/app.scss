@@ -321,6 +321,20 @@
   background: var(--accent);
 }
 
+.nav-badge {
+  margin-left: auto;
+  min-width: var(--space-4);
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-pill);
+  background: var(--chrome-fg);
+  color: var(--chrome-bg);
+  font-size: var(--font-size-2xs);
+  font-weight: var(--font-weight-bold);
+  line-height: var(--space-4);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
 .nav-scrim {
   position: fixed;
   inset: var(--appbar-h) 0 0 0;

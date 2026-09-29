@@ -33,3 +33,16 @@ export interface CaseMessageThread {
 
 /** The backend's cap (`CaseMessageRequest`), mirrored to warn before sending. */
 export const MESSAGE_MAX_LENGTH = 2000;
+
+/** One row of `GET /cases/messages/inbox`: the case plus its last message. */
+export interface CaseMessageInboxItem {
+  caseId: number;
+  insuredName: string;
+  branch: string;
+  claimCause: string;
+  status: string;
+  lastMessageBody: string;
+  lastMessageSender: MessageSender;
+  lastMessageAt: string;
+  unreadCount: number;
+}

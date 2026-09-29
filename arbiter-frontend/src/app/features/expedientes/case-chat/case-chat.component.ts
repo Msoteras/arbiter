@@ -48,6 +48,7 @@ const POLL_MS = 60_000;
   selector: 'app-case-chat',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [CardComponent, ButtonComponent, TextareaComponent, InlineLoadingComponent],
+  host: { '[class.full-height]': 'fullHeight()' },
   templateUrl: './case-chat.component.html',
   styleUrl: './case-chat.component.scss',
 })
@@ -62,6 +63,10 @@ export class CaseChatComponent {
   /** What the other side is called on screen; each portal names its counterpart differently. */
   readonly counterparty = input('Equipo de siniestros');
   readonly heading = input('Conversación');
+  /** No card chrome and no `heading` — for a screen that already draws its own header/frame. */
+  readonly bare = input(false);
+  /** Stretches the thread to the container's height instead of a fixed `max-height`. */
+  readonly fullHeight = input(false);
 
   /** Lets the containing screen clear its unread marker. */
   readonly unreadChange = output<number>();

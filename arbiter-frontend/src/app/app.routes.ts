@@ -85,6 +85,20 @@ export const routes: Routes = [
       ),
   },
   {
+    path: 'messages',
+    canActivate: [roleGuard],
+    data: { roles: ['ANALISTA_SINIESTROS', 'REFERENTE_ASEGURADORA'] },
+    loadComponent: () =>
+      import('./features/messages/messages.component').then((m) => m.MessagesComponent),
+  },
+  {
+    path: 'messages/:caseId',
+    canActivate: [roleGuard],
+    data: { roles: ['ANALISTA_SINIESTROS', 'REFERENTE_ASEGURADORA'] },
+    loadComponent: () =>
+      import('./features/messages/messages.component').then((m) => m.MessagesComponent),
+  },
+  {
     // No roles in data: any authenticated session gets in, but it is not public in production.
     path: 'styleguide',
     canActivate: [roleGuard],

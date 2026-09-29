@@ -1,9 +1,9 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
-import { Injectable, inject } from '@angular/core';
-import { Observable } from 'rxjs';
+import { Injectable, computed, inject, signal } from '@angular/core';
+import { Observable, tap } from 'rxjs';
 
 import { environment } from '../../../environments/environment';
-import { CaseMessage, CaseMessageThread } from '../../core/models/case-message';
+import { CaseMessage, CaseMessageInboxItem, CaseMessageThread } from '../../core/models/case-message';
 
 /**
  * The case conversation between the insured and the analyst. `insurer` follows the same rule as
@@ -14,6 +14,19 @@ import { CaseMessage, CaseMessageThread } from '../../core/models/case-message';
 export class CaseMessagesService {
   private readonly http = inject(HttpClient);
   private readonly base = `${environment.apiBaseUrl}/cases`;
+
+  private readonly _inbox = signal<CaseMessageInboxItem[]>([]);
+  readonly inboxItems = this._inbox.asReadonly();
+  readonly totalUnread = computed(() =>
+    this._inbox().reduce((sum, item) => sum + item.unreadCount, 0),
+  );
+
+  /** Analyst/referente only. Also feeds `inboxItems`/`totalUnread` for the sidebar badge. */
+  inbox(): Observable<CaseMessageInboxItem[]> {
+    return this.http
+      .get<CaseMessageInboxItem[]>(`${this.base}/messages/inbox`)
+      .pipe(tap((items) => this._inbox.set(items)));
+  }
 
   /** Reading does NOT mark as read: that is `markRead`, called when someone actually looks. */
   thread(caseId: number, insurer?: string | null): Observable<CaseMessageThread> {

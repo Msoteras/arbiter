@@ -2,8 +2,34 @@
   display: block;
 }
 
+:host.full-height {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+}
+
 app-card {
   height: 100%;
+}
+
+:host.full-height app-card {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+:host.full-height app-card ::ng-deep .card-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.thread.full-height {
+  flex: 1;
+  min-height: 0;
+  max-height: none;
 }
 
 .t-note {

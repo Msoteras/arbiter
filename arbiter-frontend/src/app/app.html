@@ -237,6 +237,12 @@
             <a routerLink="/inbox" routerLinkActive="active"
               ><span class="nav-dot"></span>Bandeja</a
             >
+            <a routerLink="/messages" routerLinkActive="active"
+              ><span class="nav-dot"></span>Mensajes
+              @if (messages.totalUnread() > 0) {
+                <span class="nav-badge">{{ messages.totalUnread() }}</span>
+              }</a
+            >
             <a routerLink="/insurer/dashboard" routerLinkActive="active"
               ><span class="nav-dot"></span>Dashboard</a
             >
@@ -247,6 +253,12 @@
           @if (showAdminNav()) {
             <a routerLink="/inbox" routerLinkActive="active"
               ><span class="nav-dot"></span>Expedientes</a
+            >
+            <a routerLink="/messages" routerLinkActive="active"
+              ><span class="nav-dot"></span>Mensajes
+              @if (messages.totalUnread() > 0) {
+                <span class="nav-badge">{{ messages.totalUnread() }}</span>
+              }</a
             >
             <a routerLink="/insurer/dashboard" routerLinkActive="active"
               ><span class="nav-dot"></span>Dashboard</a
