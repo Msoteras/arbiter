@@ -177,7 +177,7 @@
                   @if (alertasDecision().length > 0) {
                     <p class="brief-alerts">
                       @for (a of alertasDecision(); track a.tab) {
-                        <button type="button" class="brief-link" (click)="setTab(a.tab)">
+                        <button type="button" class="brief-link" (click)="onAlert(a)">
                           <span aria-hidden="true">▲</span> {{ a.label }}
                         </button>
                       }
@@ -405,18 +405,26 @@
             <div class="col-side">
               <app-card heading="Conversación con el asegurado">
                 @if (lastMessage(); as m) {
-                  <div class="chat-preview-bubble" [class.mine]="m.mine">
-                    <p class="meta t-note">
-                      <span class="who">{{ m.mine ? 'Vos' : (d.insuredName ?? 'Asegurado') }}</span>
-                      <span class="at tabular">{{ formatDateTime(m.createdAt) }}</span>
-                    </p>
-                    <p class="body">{{ m.body }}</p>
+                  <div class="chat-preview">
+                    <span class="chat-preview-avatar" aria-hidden="true">{{
+                      m.mine ? 'Vos' : insuredInitials()
+                    }}</span>
+                    <div class="chat-preview-text">
+                      <p class="chat-preview-head">
+                        <span class="who">{{ m.mine ? 'Vos' : (d.insuredName ?? 'Asegurado') }}</span>
+                        <span class="at tabular">{{ chatListStamp(m.createdAt) }}</span>
+                      </p>
+                      <p class="body">{{ m.body }}</p>
+                    </div>
                   </div>
                 } @else {
                   <p class="nodata">Todavía no hay mensajes.</p>
                 }
-                <app-button variant="secondary" [block]="true" [routerLink]="['/messages', d.id]">
+                <app-button variant="secondary" [block]="true" (click)="chatOpen.set(true)">
                   Abrir chat
+                  @if (unreadMessages() > 0) {
+                    · {{ unreadMessages() }} sin leer
+                  }
                 </app-button>
               </app-card>
 
@@ -1046,14 +1054,6 @@
             <p class="rcard-note error">{{ informeError() }}</p>
           }
         }
-        @case ('conversacion') {
-          <app-case-chat
-            [caseId]="d.id"
-            heading="Conversación con el asegurado"
-            [counterparty]="d.insuredName ?? 'Asegurado'"
-            (unreadChange)="unreadMessages.set($event)"
-          />
-        }
         @case ('historial') {
           @if (history().length > 0) {
             <app-card heading="Historial de estados">
@@ -1066,6 +1066,16 @@
       }
     </div>
   </main>
+
+  <app-case-chat-popup
+    [(open)]="chatOpen"
+    [caseId]="d.id"
+    [counterparty]="d.insuredName ?? 'Asegurado'"
+    [quickReplies]="quickReplies()"
+    [unread]="unreadMessages()"
+    (unreadChange)="unreadMessages.set($event)"
+    (latest)="lastMessage.set($event)"
+  />
 } @else if (loading()) {
   <div class="detail-loading">
     <app-inline-loading [size]="32" message="Cargando expediente…" />
