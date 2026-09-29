@@ -151,7 +151,7 @@ export class BandejaComponent {
     });
 
     // Supervisor-only endpoint.
-    if (this.isReferente()) {
+    if (this.isReferent()) {
       this.service.analystWorkload().subscribe({
         next: (team) =>
           this.analystOptions.set(team.map((a) => ({ value: String(a.analystId), label: a.name }))),
@@ -174,7 +174,7 @@ export class BandejaComponent {
   ];
 
   protected readonly ownershipTabs = computed<{ value: Ownership; label: string }[]>(() => [
-    this.isReferente()
+    this.isReferent()
       ? { value: 'assigned', label: 'Asignados' }
       : { value: 'mine', label: 'Mis asignados' },
     { value: 'unassigned', label: 'Sin asignar' },
@@ -665,7 +665,7 @@ export class BandejaComponent {
     () => this.session.session()?.rol === 'ANALISTA_SINIESTROS',
   );
 
-  protected readonly isReferente = computed(
+  protected readonly isReferent = computed(
     () => this.session.session()?.rol === 'REFERENTE_ASEGURADORA',
   );
 

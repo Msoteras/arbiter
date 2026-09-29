@@ -40,7 +40,7 @@
       <app-inline-loading [size]="30" message="Cargando expedientes…" />
     </div>
   } @else {
-    @if (canAssign() || isReferente()) {
+    @if (canAssign() || isReferent()) {
       <div class="lens">
         <div class="lens-group" role="tablist" aria-label="Ciclo de vida">
           @for (tab of lifecycleTabs; track tab.value) {
@@ -157,7 +157,7 @@
                 />
               </label>
 
-              @if (isReferente()) {
+              @if (isReferent()) {
                 <label class="filter-field">
                   <span class="t-field-label">Analista</span>
                   <app-select

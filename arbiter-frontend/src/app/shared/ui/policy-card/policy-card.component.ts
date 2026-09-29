@@ -50,7 +50,7 @@ import { BadgeComponent } from '../badge/badge.component';
         }
         <div>
           <dt>Vigencia</dt>
-          <dd class="tabular">{{ vigencia() }}</dd>
+          <dd class="tabular">{{ validityPeriod() }}</dd>
         </div>
       </dl>
 
@@ -261,7 +261,7 @@ export class PolicyCardComponent {
 
   protected readonly coverages = computed(() => this.policy().coverages ?? []);
 
-  protected readonly vigencia = computed(
+  protected readonly validityPeriod = computed(
     () => `${formatDate(this.policy().effectiveFrom)} – ${formatDate(this.policy().effectiveTo)}`,
   );
 
