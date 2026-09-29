@@ -256,7 +256,7 @@ const IDLE: SearchState = { items: [], loading: false, failed: false };
 export class GlobalSearchComponent {
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly router = inject(Router);
-  private readonly expedientes = inject(ExpedienteService);
+  private readonly caseService = inject(ExpedienteService);
 
   protected readonly query = signal('');
   protected readonly focused = signal(false);
@@ -270,7 +270,7 @@ export class GlobalSearchComponent {
         if (q.length < MIN_CHARS) {
           return of(IDLE);
         }
-        return this.expedientes.list({ q, size: MAX_RESULTS, sort: 'id,desc' }).pipe(
+        return this.caseService.list({ q, size: MAX_RESULTS, sort: 'id,desc' }).pipe(
           map((page) => ({ items: page.content, loading: false, failed: false })),
           catchError(() => of({ items: [], loading: false, failed: true })),
           // After the debounce, so "Buscando…" only shows once the request actually goes out.

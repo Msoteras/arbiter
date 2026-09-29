@@ -14,7 +14,7 @@ describe('conLabelesDeDocumento', () => {
   });
 
   it('leaves a reason that mentions no document untouched', () => {
-    const razon = 'El monto reclamado supera el promedio del ramo';
-    expect(conLabelesDeDocumento(razon)).toBe(razon);
+    const reason = 'El monto reclamado supera el promedio del ramo';
+    expect(conLabelesDeDocumento(reason)).toBe(reason);
   });
 });

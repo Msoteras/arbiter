@@ -77,8 +77,8 @@ describe('movimientoAseguradoLabel', () => {
   });
 
   it('no next step leaks the expert assessment or the classification', () => {
-    const prohibidas = ['perito', 'peritaje', 'informe', 'fraude', 'clasificac', 'riesgo', 'score'];
-    const estados: string[] = [
+    const forbidden = ['perito', 'peritaje', 'informe', 'fraude', 'clasificac', 'riesgo', 'score'];
+    const statuses: string[] = [
       'PENDING_CLASSIFICATION',
       'PENDING_ANALYST_REVIEW',
       'CLASSIFICATION_FAILED',
@@ -90,18 +90,18 @@ describe('movimientoAseguradoLabel', () => {
       'LAPSED',
     ];
 
-    for (const estado of estados) {
-      const texto = proximoPaso(estado).toLowerCase();
-      expect(texto.length).toBeGreaterThan(0);
-      for (const palabra of prohibidas) {
-        expect(texto).not.toContain(palabra);
+    for (const status of statuses) {
+      const text = proximoPaso(status).toLowerCase();
+      expect(text.length).toBeGreaterThan(0);
+      for (const word of forbidden) {
+        expect(text).not.toContain(word);
       }
     }
   });
 
   it('no label mentions fraud, classification or risk', () => {
-    const prohibidas = ['fraude', 'fraud', 'llm', 'riesgo', 'score', 'sospech', 'clasificac'];
-    const estados = [
+    const forbidden = ['fraude', 'fraud', 'llm', 'riesgo', 'score', 'sospech', 'clasificac'];
+    const statuses = [
       'PENDING_CLASSIFICATION',
       'AWAITING_DOCUMENTATION',
       'PENDING_ANALYST_REVIEW',
@@ -112,13 +112,13 @@ describe('movimientoAseguradoLabel', () => {
       'CLASSIFICATION_FAILED',
       'LAPSED',
     ];
-    const desde = [null, ...estados];
+    const fromStatuses = [null, ...statuses];
 
-    for (const to of estados) {
-      for (const from of desde) {
+    for (const to of statuses) {
+      for (const from of fromStatuses) {
         const label = (movimientoAseguradoLabel(to, from) ?? '').toLowerCase();
-        for (const palabra of prohibidas) {
-          expect(label).withContext(`${from} → ${to}`).not.toContain(palabra);
+        for (const word of forbidden) {
+          expect(label).withContext(`${from} → ${to}`).not.toContain(word);
         }
       }
     }

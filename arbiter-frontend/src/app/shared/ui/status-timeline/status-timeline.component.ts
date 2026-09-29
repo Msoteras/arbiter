@@ -18,7 +18,7 @@ const ACTOR_LABELS: Record<StatusTransition['actor'], string> = {
  * Analyst-facing wording. `proximoPaso()` in core/models/estado addresses the insured, whose portal
  * has its own timeline.
  */
-const PROXIMO_PASO_ANALISTA: Partial<Record<CaseStatus, string>> = {
+const ANALYST_NEXT_STEP: Partial<Record<CaseStatus, string>> = {
   PENDING_CLASSIFICATION: 'El motor de reglas y el modelo todavía están evaluando el caso.',
   AWAITING_DOCUMENTATION: 'Esperando que el asegurado suba la documentación que falta.',
   CLASSIFICATION_FAILED: 'Podés reintentar la clasificación desde la card de arriba.',
@@ -50,21 +50,21 @@ const PROXIMO_PASO_ANALISTA: Partial<Record<CaseStatus, string>> = {
                 <span class="from">Sin cambio de estado</span>
               } @else {
                 @if (h.fromStatus) {
-                  <span class="from">{{ estado(h.fromStatus) }}</span>
+                  <span class="from">{{ statusLabel(h.fromStatus) }}</span>
                   <span class="arrow" aria-hidden="true">→</span>
                 }
                 @if (last && !hasNextStep()) {
                   <app-badge variant="strong" [tone]="currentTone()">{{
-                    estado(h.toStatus)
+                    statusLabel(h.toStatus)
                   }}</app-badge>
                 } @else {
-                  <app-badge>{{ estado(h.toStatus) }}</app-badge>
+                  <app-badge>{{ statusLabel(h.toStatus) }}</app-badge>
                 }
               }
             </div>
             <div class="meta">
               <span class="actor">{{ actor(h.actor) }}</span>
-              <span class="reason">{{ nota(h.reason) }}</span>
+              <span class="reason">{{ reasonNote(h.reason) }}</span>
             </div>
             @if (h.observation) {
               <q class="observation">{{ h.observation }}</q>
@@ -215,7 +215,7 @@ export class StatusTimelineComponent {
   protected readonly nextStep = computed(() =>
     isEstadoFinal(this.currentStatus())
       ? ''
-      : (PROXIMO_PASO_ANALISTA[this.currentStatus() as CaseStatus] ?? ''),
+      : (ANALYST_NEXT_STEP[this.currentStatus() as CaseStatus] ?? ''),
   );
   protected readonly hasNextStep = computed(() => this.nextStep() !== '');
   protected readonly currentTone = computed<StatusTone>(() => estadoTone(this.currentStatus()));
@@ -225,12 +225,12 @@ export class StatusTimelineComponent {
     return h.fromStatus !== null && h.fromStatus === h.toStatus;
   }
 
-  protected estado(status: string): string {
+  protected statusLabel(status: string): string {
     return estadoLabel(status);
   }
 
   /** The backend reason embeds enum literals; this renders them as labels. */
-  protected nota(reason: string): string {
+  protected reasonNote(reason: string): string {
     return historialNota(reason);
   }
 
