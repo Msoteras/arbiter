@@ -1,45 +1,67 @@
 @if (loading()) {
   <app-inline-loading message="Cargando la conversación…" />
 } @else if (loadError()) {
-  <app-card>
+  <app-card [bare]="bare()">
     <p class="t-note">No se pudo cargar la conversación. Probá de nuevo en un momento.</p>
   </app-card>
 } @else {
   <app-card [heading]="bare() ? '' : heading()" [bare]="bare()" [class.full-height]="fullHeight()">
-    @if (messages().length === 0) {
-      <p class="t-note empty">
-        Todavía no hay mensajes en este expediente.
-        @if (canPost()) {
-          Escribí abajo para empezar.
-        }
-      </p>
-    } @else {
-      <ol class="thread" [class.full-height]="fullHeight()" #threadBox>
-        @for (m of messages(); track m.id) {
-          <li class="msg" [class.mine]="m.mine">
+    <ol class="thread" [class.full-height]="fullHeight()" #threadBox>
+      @for (row of rows(); track row.kind === 'day' ? 'day-' + row.label : row.message.id) {
+        @if (row.kind === 'day') {
+          <li class="day">{{ row.label }}</li>
+        } @else {
+          <li class="msg" [class.mine]="row.message.mine">
             <div class="bubble">
-              <p class="meta t-note">
-                <span class="who">{{ label(m) }}</span>
-                <span class="at tabular">{{ when(m) }}</span>
-              </p>
-              <p class="body">{{ m.body }}</p>
+              <span class="sr-only">{{ authorLabel(row.message) }}:</span>
+              <p class="body">{{ row.message.body }}</p>
             </div>
+            <p class="meta tabular">{{ meta(row.message) }}</p>
           </li>
         }
-      </ol>
-    }
+      } @empty {
+        <li class="empty t-note">
+          Todavía no hay mensajes.
+          @if (canPost()) {
+            Escribí abajo para empezar.
+          }
+        </li>
+      }
+    </ol>
 
     @if (canPost()) {
       <div class="composer">
-        <app-textarea [(value)]="draft" [rows]="3" placeholder="Escribí tu mensaje…" />
-        <div class="composer-foot">
-          <span class="t-note count tabular" [class.over]="draft().length > maxLength">
-            {{ draft().length }}/{{ maxLength }}
-          </span>
-          <app-button (click)="send()" [disabled]="!canSend() || draft().length > maxLength">
-            {{ sending() ? 'Enviando…' : 'Enviar' }}
+        @if (quickReplies().length > 0) {
+          <div class="quick-replies">
+            @for (reply of quickReplies(); track reply.label) {
+              <button type="button" class="chip" (click)="useQuickReply(reply)">
+                {{ reply.label }}
+              </button>
+            }
+          </div>
+        }
+        <div class="composer-box">
+          <app-textarea
+            [(value)]="draft"
+            [rows]="1"
+            [placeholder]="placeholder()"
+            (keydown.enter)="onEnter($event)"
+          />
+          <app-button [disabled]="!canSend()" [loading]="sending()" (click)="send()">
+            Enviar
           </app-button>
         </div>
+        <p class="hint">
+          @if (nearLimit()) {
+            <span class="count tabular" [class.over]="draft().length > maxLength">
+              {{ draft().length }}/{{ maxLength }} ·
+            </span>
+          }
+          Enter para enviar · Shift+Enter nueva línea
+          @if (notifiesByMail()) {
+            · El asegurado recibe aviso por email
+          }
+        </p>
         @if (sendError()) {
           <p class="t-note error">{{ sendError() }}</p>
         }

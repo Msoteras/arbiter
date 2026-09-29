@@ -26,11 +26,14 @@ import {
   CaseMessageThread,
   MESSAGE_MAX_LENGTH,
 } from '../../../core/models/case-message';
-import { formatDateTime } from '../../../core/util/datetime';
+import { chatDayLabel, formatTime } from '../../../core/util/datetime';
 import { CardComponent } from '../../../shared/ui/card/card.component';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { TextareaComponent } from '../../../shared/ui/textarea/textarea.component';
 import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
+import { QuickReply } from './quick-replies';
+
+type ThreadRow = { kind: 'day'; label: string } | { kind: 'msg'; message: CaseMessage };
 
 /**
  * Fallback only. Messages arrive over the socket; this covers the minutes after a deploy when the
@@ -39,7 +42,7 @@ import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline
 const POLL_MS = 60_000;
 
 /**
- * A case thread, for both sides: the analyst tab and the insured portal.
+ * A case thread, for both sides: the analyst's chat popup and Mensajes screen, and the insured portal.
  *
  * Messages arrive over a STOMP socket; the poll above is only a fallback. Sending stays on REST.
  * Marks incoming messages read on arrival: the component only exists while someone is looking.
@@ -57,6 +60,7 @@ export class CaseChatComponent {
   private readonly socket = inject(CaseMessagesSocketService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly injector = inject(Injector);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
 
   readonly caseId = input.required<number>();
   readonly insurer = input<string | null | undefined>(null);
@@ -67,9 +71,13 @@ export class CaseChatComponent {
   readonly bare = input(false);
   /** Stretches the thread to the container's height instead of a fixed `max-height`. */
   readonly fullHeight = input(false);
+  readonly placeholder = input('Escribí tu mensaje…');
+  readonly quickReplies = input<QuickReply[]>([]);
 
   /** Lets the containing screen clear its unread marker. */
   readonly unreadChange = output<number>();
+  /** The newest message, so a summary elsewhere on the screen stays in sync after a send. */
+  readonly latest = output<CaseMessage | null>();
 
   protected readonly thread = signal<CaseMessageThread | null>(null);
   protected readonly loading = signal(true);
@@ -87,8 +95,29 @@ export class CaseChatComponent {
   protected readonly canPost = computed(() => this.thread()?.canPost ?? false);
   protected readonly closedNotice = computed(() => this.thread()?.closedNotice ?? null);
   protected readonly canSend = computed(
-    () => this.canPost() && !this.sending() && this.draft().trim().length > 0,
+    () =>
+      this.canPost() &&
+      !this.sending() &&
+      this.draft().trim().length > 0 &&
+      this.draft().length <= this.maxLength,
   );
+  protected readonly nearLimit = computed(() => this.draft().length > this.maxLength * 0.9);
+  /** Only the analyst's messages trigger a mail; the insured's only notify in-app. */
+  protected readonly notifiesByMail = computed(() => this.thread()?.viewerSide === 'ANALYST');
+
+  protected readonly rows = computed<ThreadRow[]>(() => {
+    const rows: ThreadRow[] = [];
+    let lastDay = '';
+    for (const message of this.messages()) {
+      const day = chatDayLabel(message.createdAt);
+      if (day !== lastDay) {
+        rows.push({ kind: 'day', label: day });
+        lastDay = day;
+      }
+      rows.push({ kind: 'msg', message });
+    }
+    return rows;
+  });
 
   constructor() {
     // untracked: reload per case, not on every draft keystroke or reply.
@@ -101,8 +130,12 @@ export class CaseChatComponent {
     // already at the bottom: yanking the scroll out from under someone reading back is worse than
     // making them scroll.
     effect(() => {
-      const count = this.messages().length;
+      const messages = this.messages();
+      const count = messages.length;
       untracked(() => {
+        if (this.thread()) {
+          this.latest.emit(messages.at(-1) ?? null);
+        }
         if (count && (this.stickToBottom || this.atBottom())) {
           afterNextRender(() => this.scrollToBottom(), { injector: this.injector });
         }
@@ -135,9 +168,31 @@ export class CaseChatComponent {
     }
   }
 
+  /** Enter sends, Shift+Enter breaks the line. */
+  protected onEnter(event: Event): void {
+    const key = event as KeyboardEvent;
+    if (key.shiftKey || key.isComposing) {
+      return;
+    }
+    event.preventDefault();
+    this.send();
+  }
+
+  protected useQuickReply(reply: QuickReply): void {
+    this.draft.set(reply.text);
+    afterNextRender(
+      () => {
+        const field = this.host.nativeElement.querySelector('textarea');
+        field?.focus();
+        field?.setSelectionRange(field.value.length, field.value.length);
+      },
+      { injector: this.injector },
+    );
+  }
+
   protected send(): void {
     const body = this.draft().trim();
-    if (!body || this.sending()) {
+    if (!this.canSend()) {
       return;
     }
     this.sending.set(true);
@@ -162,12 +217,16 @@ export class CaseChatComponent {
     });
   }
 
-  protected label(message: CaseMessage): string {
-    return message.mine ? 'Vos' : this.counterparty();
+  protected meta(message: CaseMessage): string {
+    const time = formatTime(message.createdAt);
+    if (!message.mine) {
+      return time;
+    }
+    return message.readAt ? `Vos · ${time} · Leído` : `Vos · ${time}`;
   }
 
-  protected when(message: CaseMessage): string {
-    return formatDateTime(message.createdAt);
+  protected authorLabel(message: CaseMessage): string {
+    return message.mine ? 'Vos' : this.counterparty();
   }
 
   /** Opened after the first load: the destination comes with the thread, the client never builds it. */

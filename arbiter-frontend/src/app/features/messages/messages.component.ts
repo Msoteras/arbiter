@@ -6,7 +6,9 @@ import { map } from 'rxjs';
 import { CaseMessagesService } from '../expedientes/case-messages.service';
 import { ExpedienteService } from '../expedientes/expediente.service';
 import { CaseChatComponent } from '../expedientes/case-chat/case-chat.component';
-import { CaseMessageInboxItem } from '../../core/models/case-message';
+import { analystQuickReplies } from '../expedientes/case-chat/quick-replies';
+import { CaseMessage, CaseMessageInboxItem } from '../../core/models/case-message';
+import { chatListStamp } from '../../core/util/datetime';
 import { ExpedienteResponse } from '../../core/models/expediente';
 import { estadoLabel, estadoTone } from '../../core/models/estado';
 import { StatusTone } from '../../core/models/status-tone';
@@ -126,18 +128,34 @@ export class MessagesComponent {
     return `${parts[0]?.[0] ?? ''}${parts[1]?.[0] ?? ''}`.toUpperCase() || '—';
   }
 
-  /** Today's messages show the time; older ones show the date, like most chat apps. */
-  protected when(iso: string): string {
-    const date = new Date(iso);
-    const now = new Date();
-    const sameDay =
-      date.getFullYear() === now.getFullYear() &&
-      date.getMonth() === now.getMonth() &&
-      date.getDate() === now.getDate();
-    return sameDay
-      ? date.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', hour12: false })
-      : date.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' });
+  protected firstName(name: string): string {
+    return name.trim().split(/\s+/)[0] ?? '';
   }
+
+  protected readonly quickReplies = computed(() =>
+    analystQuickReplies(this.selected()?.insuredName ?? ''),
+  );
+
+  /** Keeps the row's preview and order in step with what was just sent or received. */
+  protected onLatest(caseId: number, message: CaseMessage | null): void {
+    if (!message) return;
+    this.items.update((items) =>
+      items
+        .map((item) =>
+          item.caseId === caseId
+            ? {
+                ...item,
+                lastMessageBody: message.body,
+                lastMessageSender: message.sender,
+                lastMessageAt: message.createdAt,
+              }
+            : item,
+        )
+        .sort((a, b) => b.lastMessageAt.localeCompare(a.lastMessageAt)),
+    );
+  }
+
+  protected readonly stamp = chatListStamp;
 
   protected readonly estadoLabel = estadoLabel;
 
