@@ -1,5 +1,6 @@
 package ar.edu.utn.frba.arbiter.cases.services;
 
+import ar.edu.utn.frba.arbiter.cases.dto.CaseMessageInboxItemResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseMessageResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseMessageThreadResponse;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CaseNotFoundException;
@@ -249,6 +250,74 @@ class CaseMessageServiceTest {
         assertThat(incoming.getReadAt()).isEqualTo(NOW);
         verify(messageRepository, never()).findByCaseIdAndSenderRoleAndReadAtIsNull(
                 CASE_ID, StatusChangeActor.ANALYST);
+    }
+
+    @Test
+    void inbox_oneRowPerCase_mostRecentFirst_withTheCallersUnreadCount() {
+        asAnalyst();
+        Case caseA = givenCase(7L, STATE_ID, CaseStatus.PENDING_ANALYST_REVIEW, "Celulares", "Robo en vía pública");
+        Case caseB = givenCase(9L, STATE_ID, CaseStatus.AWAITING_DOCUMENTATION, "Hogar", "Incendio");
+        when(messageRepository.findAllByOrderByCreatedAtAsc()).thenReturn(List.of(
+                message(7L, StatusChangeActor.INSURED, "Hola", NOW.minus(2, ChronoUnit.DAYS), NOW),
+                message(7L, StatusChangeActor.ANALYST, "¿Tenés la factura?", NOW.minus(1, ChronoUnit.DAYS), null),
+                message(9L, StatusChangeActor.INSURED, "¿Cómo viene?", NOW, null)));
+        when(caseRepository.findAllById(any())).thenReturn(List.of(caseA, caseB));
+
+        List<CaseMessageInboxItemResponse> inbox = service.inbox();
+
+        assertThat(inbox).extracting(CaseMessageInboxItemResponse::caseId).containsExactly(9L, 7L);
+        assertThat(inbox.get(0).lastMessageBody()).isEqualTo("¿Cómo viene?");
+        assertThat(inbox.get(0).unreadCount()).isEqualTo(1);
+        assertThat(inbox.get(1).unreadCount()).isZero();
+    }
+
+    @Test
+    void inbox_hidesConversationsTheCallerCannotRead() {
+        asInsured(OWNER_DNI);
+        Case mine = givenCase(7L, STATE_ID, CaseStatus.PENDING_ANALYST_REVIEW, "Celulares", "Robo en vía pública");
+        Case someoneElses = givenCase(9L, STATE_ID, CaseStatus.PENDING_ANALYST_REVIEW, "Hogar", "Incendio");
+        someoneElses.setInsured(CaseFixtures.insured("11.222.333", "Otra", "Persona"));
+        when(messageRepository.findAllByOrderByCreatedAtAsc()).thenReturn(List.of(
+                message(7L, StatusChangeActor.ANALYST, "Hola", NOW, null),
+                message(9L, StatusChangeActor.ANALYST, "Hola", NOW, null)));
+        when(caseRepository.findAllById(any())).thenReturn(List.of(mine, someoneElses));
+
+        assertThat(service.inbox()).extracting(CaseMessageInboxItemResponse::caseId).containsExactly(7L);
+    }
+
+    @Test
+    void inbox_referentSeesEveryConversationButNeverAnUnreadCount() {
+        authenticate("ROLE_REFERENTE_ASEGURADORA", "referente.arbiter@gmail.com", null);
+        Case caseRecord = givenCase(7L, STATE_ID, CaseStatus.PENDING_ANALYST_REVIEW, "Celulares", "Robo en vía pública");
+        when(messageRepository.findAllByOrderByCreatedAtAsc()).thenReturn(List.of(
+                message(7L, StatusChangeActor.INSURED, "Hola", NOW, null)));
+        when(caseRepository.findAllById(any())).thenReturn(List.of(caseRecord));
+
+        List<CaseMessageInboxItemResponse> inbox = service.inbox();
+
+        assertThat(inbox).singleElement().extracting(CaseMessageInboxItemResponse::unreadCount).isEqualTo(0);
+    }
+
+    private Case givenCase(Long id, Long stateId, CaseStatus status, String branch, String cause) {
+        CaseState state = CaseStates.of(status);
+        state.setId(stateId);
+        Case caseRecord = new Case();
+        caseRecord.setId(id);
+        caseRecord.setInsured(CaseFixtures.insured(OWNER_DNI, "Martina", "Soteras"));
+        caseRecord.setClaimCause(CaseFixtures.claimCause(branch, cause));
+        caseRecord.setCurrentStatus(state);
+        caseRecord.setUpdatedAt(NOW);
+        return caseRecord;
+    }
+
+    private CaseMessage message(Long caseId, StatusChangeActor sender, String body, Instant createdAt, Instant readAt) {
+        return CaseMessage.builder()
+                .caseId(caseId)
+                .senderRole(sender)
+                .body(body)
+                .createdAt(createdAt)
+                .readAt(readAt)
+                .build();
     }
 
     private Case givenCase(CaseStatus status) {

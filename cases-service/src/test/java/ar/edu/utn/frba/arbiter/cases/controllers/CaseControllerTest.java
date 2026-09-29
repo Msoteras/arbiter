@@ -1,6 +1,7 @@
 package ar.edu.utn.frba.arbiter.cases.controllers;
 
 import ar.edu.utn.frba.arbiter.cases.dto.CaseFollowUp;
+import ar.edu.utn.frba.arbiter.cases.dto.CaseMessageInboxItemResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseScope;
 import ar.edu.utn.frba.arbiter.cases.dto.DocumentAnalysisSummary;
@@ -10,6 +11,7 @@ import ar.edu.utn.frba.arbiter.cases.exceptions.CaseExceptionHandler;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CaseNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidStatusTransitionException;
 import ar.edu.utn.frba.arbiter.cases.models.entities.StatusChangeActor;
+import ar.edu.utn.frba.arbiter.cases.services.CaseMessageService;
 import ar.edu.utn.frba.arbiter.cases.services.CaseService;
 import ar.edu.utn.frba.arbiter.cases.services.ClaimCauseCorrectionService;
 import ar.edu.utn.frba.arbiter.cases.services.SettlementService;
@@ -60,6 +62,9 @@ class CaseControllerTest {
 
     @MockitoBean
     private ClaimCauseCorrectionService claimCauseCorrectionService;
+
+    @MockitoBean
+    private CaseMessageService messageService;
 
     @Test
     void createCase_returns202WithBody() throws Exception {
@@ -219,6 +224,21 @@ class CaseControllerTest {
                 .andExpect(jsonPath("$.open.total").value(3))
                 .andExpect(jsonPath("$.closed.total").value(0))
                 .andExpect(jsonPath("$.all.unassigned").value(1));
+    }
+
+    @Test
+    void messagesInbox_returns200WithTheServicesList() throws Exception {
+        CaseMessageInboxItemResponse item = new CaseMessageInboxItemResponse(
+                48L, "Camila Ferreyra", "Celulares", "Robo en vía pública",
+                CaseStatus.AWAITING_DOCUMENTATION, "¿La captura de Google sirve?", "INSURED",
+                Instant.parse("2026-09-25T09:12:00Z"), 1);
+        when(messageService.inbox()).thenReturn(List.of(item));
+
+        mockMvc.perform(get("/api/v1/cases/messages/inbox"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].caseId").value(48))
+                .andExpect(jsonPath("$[0].unreadCount").value(1));
     }
 
     @Test

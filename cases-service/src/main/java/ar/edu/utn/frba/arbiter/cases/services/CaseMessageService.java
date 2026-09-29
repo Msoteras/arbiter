@@ -2,6 +2,7 @@ package ar.edu.utn.frba.arbiter.cases.services;
 
 import ar.edu.utn.frba.arbiter.cases.config.tenant.TenantContext;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseMessageEvent;
+import ar.edu.utn.frba.arbiter.cases.dto.CaseMessageInboxItemResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseMessageResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseMessageThreadResponse;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CaseNotFoundException;
@@ -27,7 +28,10 @@ import org.springframework.stereotype.Service;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * The conversation between an analyst and an insured about one case.
@@ -79,6 +83,50 @@ public class CaseMessageService {
                     CaseTopic.of(TenantContext.get(), caseId),
                     isParty(party) ? party.name() : null);
         });
+    }
+
+    /**
+     * One row per case the caller can read and that has at least one message, most recent first —
+     * the "todas mis conversaciones" list. Runs in the caller's own tenant only: unlike a single
+     * thread, there is no {@code caseId} to resolve another insurer's schema from.
+     */
+    public List<CaseMessageInboxItemResponse> inbox() {
+        StatusChangeActor party = accessPolicy.currentParty();
+        if (party == null) {
+            return List.of();
+        }
+        Map<Long, List<CaseMessage>> byCase = messageRepository.findAllByOrderByCreatedAtAsc().stream()
+                .collect(Collectors.groupingBy(CaseMessage::getCaseId));
+        if (byCase.isEmpty()) {
+            return List.of();
+        }
+        Map<Long, Case> readableCases = caseRepository.findAllById(byCase.keySet()).stream()
+                .filter(accessPolicy::canRead)
+                .collect(Collectors.toMap(Case::getId, c -> c));
+
+        return byCase.entrySet().stream()
+                .filter(entry -> readableCases.containsKey(entry.getKey()))
+                .map(entry -> toInboxItem(readableCases.get(entry.getKey()), entry.getValue(), party))
+                .sorted(Comparator.comparing(CaseMessageInboxItemResponse::lastMessageAt).reversed())
+                .toList();
+    }
+
+    private CaseMessageInboxItemResponse toInboxItem(
+            Case caseRecord, List<CaseMessage> messages, StatusChangeActor party) {
+        CaseMessage last = messages.get(messages.size() - 1);
+        int unread = isParty(party)
+                ? (int) messages.stream().filter(m -> isIncomingUnread(m, party)).count()
+                : 0;
+        return new CaseMessageInboxItemResponse(
+                caseRecord.getId(),
+                caseRecord.getInsured().fullName(),
+                caseRecord.getClaimCause().getBranch().getName(),
+                caseRecord.getClaimCause().getName(),
+                caseRecord.getStatus(),
+                last.getBody(),
+                last.getSenderRole().name(),
+                last.getCreatedAt(),
+                unread);
     }
 
     public CaseMessageResponse post(Long caseId, String insurerSlug, String body) {
