@@ -31,7 +31,7 @@ const NAMED = 3;
  */
 @Injectable({ providedIn: 'root' })
 export class AttentionService {
-  private readonly expedientes = inject(ExpedienteService);
+  private readonly caseService = inject(ExpedienteService);
 
   load(): Observable<AttentionItem[]> {
     return forkJoin({
@@ -94,7 +94,7 @@ export class AttentionService {
   private probe(
     params: Parameters<ExpedienteService['list']>[0],
   ): Observable<{ total: number; ids: number[] }> {
-    return this.expedientes
+    return this.caseService
       .list({ ...params, size: NAMED, sort: 'updatedAt,asc' })
       .pipe(map((page) => ({ total: page.totalElements, ids: page.content.map((row) => row.id) })));
   }

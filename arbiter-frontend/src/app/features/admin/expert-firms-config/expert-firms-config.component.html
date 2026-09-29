@@ -1,0 +1,85 @@
+<app-card>
+  <div class="sc-section-head">
+    <span class="t-section-label">Peritos y servicios técnicos</span>
+    @if (!draft()) {
+      <app-button variant="secondary" (click)="add()">+ Agregar proveedor</app-button>
+    }
+  </div>
+
+  @if (loading()) {
+    <p class="t-note">Cargando…</p>
+  } @else if (firms().length === 0 && !draft()) {
+    <app-empty-state
+      message="Todavía no hay proveedores cargados"
+      sub="Sin proveedores, el analista no puede derivar ningún expediente."
+    />
+  } @else {
+    <ul class="firms">
+      @for (p of firms(); track p.id) {
+        <li class="firm" [class.inactive]="!p.active">
+          <div class="firm-data">
+            <span class="firm-name">
+              {{ p.name }}
+              <app-badge variant="solid" [tone]="p.active ? 'ok' : 'neutral'">
+                {{ p.active ? 'Activo' : 'Inactivo' }}
+              </app-badge>
+            </span>
+            <span class="t-note">
+              {{ providerTypeLabel(p.providerType) }} · {{ p.email }} · {{ branchLabel(p) }}
+              @if (p.zone) {
+                · {{ p.zone }}
+              }
+            </span>
+          </div>
+          <div class="firm-actions">
+            <app-button variant="secondary" (click)="edit(p)">Editar</app-button>
+            <button type="button" class="danger-btn" (click)="remove(p)">Borrar</button>
+          </div>
+        </li>
+      }
+    </ul>
+  }
+
+  @if (draft(); as d) {
+    <div class="firm-form">
+      <span class="t-field-label">{{
+        d.id == null ? 'Nuevo proveedor' : 'Editando proveedor'
+      }}</span>
+      <app-select
+        [options]="providerTypeOptions"
+        [value]="d.providerType"
+        (valueChange)="setProviderType($event)"
+      />
+      <app-input placeholder="Nombre" [value]="d.name" (valueChange)="setField('name', $event)" />
+      <app-input
+        type="email"
+        placeholder="Mail de contacto"
+        [value]="d.email"
+        (valueChange)="setField('email', $event)"
+      />
+      <app-select
+        [options]="branchOptions()"
+        [value]="branchValue(d)"
+        (valueChange)="setBranch($event)"
+      />
+      <app-input
+        placeholder="Zona (opcional)"
+        [value]="d.zone ?? ''"
+        (valueChange)="setField('zone', $event)"
+      />
+      <app-checkbox [checked]="d.active" (checkedChange)="setField('active', $event)">
+        Activo
+      </app-checkbox>
+      <div class="firm-form-actions">
+        <app-button variant="secondary" (click)="cancel()">Cancelar</app-button>
+        <app-button [disabled]="!canSave() || saving()" (click)="save()">
+          {{ saving() ? 'Guardando…' : 'Guardar' }}
+        </app-button>
+      </div>
+    </div>
+  }
+
+  @if (error()) {
+    <p class="t-note error">{{ error() }}</p>
+  }
+</app-card>

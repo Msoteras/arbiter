@@ -61,7 +61,7 @@ export class OnboardingComponent {
   protected readonly consentSummary = IMAGE_CONSENT_SUMMARY;
   protected readonly consentDetail = IMAGE_CONSENT_DETAIL;
 
-  protected readonly nombre = computed(() => this.session.session()?.nombre ?? '');
+  protected readonly firstName = computed(() => this.session.session()?.nombre ?? '');
 
   private readonly profileState = toSignal(
     this.profileService.get().pipe(

@@ -30,12 +30,12 @@
   @if (isCustom()) {
     <div class="range" role="group" aria-label="Período personalizado">
       <div class="range-field">
-        <label class="t-field-label" for="dash-desde">Desde</label>
-        <app-input id="dash-desde" type="date" [(value)]="customFrom" [max]="customTo()" />
+        <label class="t-field-label" for="dash-from">Desde</label>
+        <app-input id="dash-from" type="date" [(value)]="customFrom" [max]="customTo()" />
       </div>
       <div class="range-field">
-        <label class="t-field-label" for="dash-hasta">Hasta</label>
-        <app-input id="dash-hasta" type="date" [(value)]="customTo" [min]="customFrom()" />
+        <label class="t-field-label" for="dash-to">Hasta</label>
+        <app-input id="dash-to" type="date" [(value)]="customTo" [min]="customFrom()" />
       </div>
     </div>
   }
