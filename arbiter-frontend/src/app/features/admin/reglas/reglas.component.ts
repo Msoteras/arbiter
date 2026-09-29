@@ -1142,12 +1142,10 @@ export class ReglasComponent {
     return c.settlementFormula !== 'REPAIR';
   }
 
+  // Short enough to read in the select; the analyst's sheet spells out the cap at the sum insured.
   protected readonly settlementBasisOptions: SelectOption[] = [
-    { value: 'SUM_INSURED', label: 'La suma asegurada' },
-    {
-      value: 'LESSER_OF_SUM_AND_REPLACEMENT',
-      label: 'El menor entre la suma asegurada y el valor de reposición',
-    },
+    { value: 'SUM_INSURED', label: 'Suma asegurada' },
+    { value: 'LESSER_OF_SUM_AND_REPLACEMENT', label: 'Valor de reposición' },
   ];
 
   protected setCoverageSettlementBasis(id: string, value: string): void {
@@ -1155,8 +1153,8 @@ export class ReglasComponent {
   }
 
   protected readonly deductibleBasisOptions: SelectOption[] = [
-    { value: 'SUM_INSURED', label: 'La suma asegurada' },
-    { value: 'LOSS_AMOUNT', label: 'El monto del siniestro' },
+    { value: 'SUM_INSURED', label: 'Suma asegurada' },
+    { value: 'LOSS_AMOUNT', label: 'Monto del siniestro' },
   ];
 
   protected setCoverageDeductibleBasis(id: string, value: string): void {
