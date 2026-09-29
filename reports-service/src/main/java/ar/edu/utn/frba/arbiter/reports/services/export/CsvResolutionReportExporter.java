@@ -16,9 +16,10 @@ import java.util.List;
 @RequiredArgsConstructor
 public class CsvResolutionReportExporter implements ResolutionReportExporter {
 
+    // Durations worded as on the PDF: no decimal separator for a locale to read differently.
     private static final List<String> HEADER = List.of(
             "Nº expediente", "Asegurado", "DNI", "Ramo", "Hecho generador", "Fecha de denuncia",
-            "Fecha de resolución", "Tiempo total (horas)", "Tiempo esperando a terceros (horas)",
+            "Fecha de resolución", "Tiempo total", "Tiempo esperando a terceros",
             "Clasificación", "Decisión del analista",
             "Estado final", "Analista");
 
@@ -43,8 +44,8 @@ public class CsvResolutionReportExporter implements ResolutionReportExporter {
                     row.claimCause(),
                     dateTime.format(row.reportedAt()),
                     dateTime.format(row.resolvedAt()),
-                    ReportLabels.hours(row.totalMinutes()),
-                    ReportLabels.hours(row.waitingMinutes()),
+                    ReportLabels.duration(row.totalMinutes()),
+                    ReportLabels.duration(row.waitingMinutes()),
                     ReportLabels.classification(row.classification()),
                     ReportLabels.decision(row.analystDecision()),
                     ReportLabels.status(row.finalStatus()),

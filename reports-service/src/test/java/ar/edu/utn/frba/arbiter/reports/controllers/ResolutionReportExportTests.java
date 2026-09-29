@@ -4,6 +4,9 @@ import ar.edu.utn.frba.arbiter.common.security.JwtSupport;
 import ar.edu.utn.frba.arbiter.reports.support.AbstractPersistenceIT;
 import ar.edu.utn.frba.arbiter.reports.support.CaseTables;
 import io.jsonwebtoken.Jwts;
+import org.apache.pdfbox.Loader;
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.text.PDFTextStripper;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -103,11 +106,12 @@ class ResolutionReportExportTests extends AbstractPersistenceIT {
                 .andReturn();
 
         String csv = result.getResponse().getContentAsString(StandardCharsets.UTF_8);
-        assertThat(csv.charAt(0)).isEqualTo((char) 0xFEFF);
+        assertThat(csv).startsWith((char) 0xFEFF + "sep=;\r\n");
         assertThat(csv).contains("Nº expediente;Asegurado;DNI");
         // Labels, not enum literals: nobody translates this file downstream.
         assertThat(csv).contains("Ana Pérez;30.111.222;Celulares;Robo en vía pública")
                 .contains("Recomienda aprobar;Aprobó;Aprobado;Laura Gómez");
+        assertThat(csv).contains(";2 d 2 h;0 min;");
     }
 
     @Test
@@ -122,6 +126,32 @@ class ResolutionReportExportTests extends AbstractPersistenceIT {
 
         byte[] pdf = result.getResponse().getContentAsByteArray();
         assertThat(new String(pdf, 0, 5, StandardCharsets.ISO_8859_1)).isEqualTo("%PDF-");
+        try (PDDocument document = Loader.loadPDF(pdf)) {
+            String text = new PDFTextStripper().getText(document).replaceAll("\\s+", " ");
+            assertThat(text).contains(
+                    "Reporte de resolución de siniestros",
+                    "Período 01/08/2026 — 31/08/2026",
+                    "Resumen del período",
+                    "Detalle de expedientes cerrados",
+                    "Ana Pérez",
+                    "Documento confidencial",
+                    "Generado con Arbiter");
+        }
+    }
+
+    /** This container has no {@code arbiter_common}: the header falls back and the export survives. */
+    @Test
+    void pdfExport_withoutAnInsurerToName_stillProducesTheReport() throws Exception {
+        MvcResult result = mockMvc.perform(get(EXPORT)
+                        .param("from", "2026-08-01").param("to", "2026-08-31").param("format", "PDF")
+                        .header("Authorization", bearer("REFERENTE_ASEGURADORA", "public")))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        try (PDDocument document = Loader.loadPDF(result.getResponse().getContentAsByteArray())) {
+            assertThat(new PDFTextStripper().getText(document).replaceAll("\\s+", " "))
+                    .contains("Aseguradora", "Detalle de expedientes cerrados");
+        }
     }
 
     @Test
