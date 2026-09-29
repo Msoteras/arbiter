@@ -30,6 +30,7 @@ import {
 import { DocumentAgendaService } from '../document-agenda.service';
 import { CaseNavigationService } from '../case-navigation.service';
 import { CaseMessagesService } from '../case-messages.service';
+import { CaseMessage } from '../../../core/models/case-message';
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
 import { UserAdminService } from '../../../core/auth/user-admin.service';
 import { SettlementAuthoritiesService } from '../../admin/settlement-authorities.service';
@@ -216,15 +217,21 @@ export class ExpedienteDetailComponent {
       const id = this.loadedCaseId();
       untracked(() => {
         this.unreadMessages.set(0);
+        this.lastMessage.set(null);
         if (id) {
           this.messages.thread(id).subscribe({
-            next: (thread) => this.unreadMessages.set(thread.unread),
+            next: (thread) => {
+              this.unreadMessages.set(thread.unread);
+              this.lastMessage.set(thread.messages.at(-1) ?? null);
+            },
             error: () => undefined,
           });
         }
       });
     });
   }
+
+  protected readonly lastMessage = signal<CaseMessage | null>(null);
 
   /** Bumped after a decision is recorded, to refetch the case and reflect the real backend status. */
   private readonly reloadTrigger = signal(0);

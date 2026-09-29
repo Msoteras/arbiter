@@ -403,6 +403,23 @@
             </div>
 
             <div class="col-side">
+              <app-card heading="Conversación con el asegurado">
+                @if (lastMessage(); as m) {
+                  <div class="chat-preview-bubble" [class.mine]="m.mine">
+                    <p class="meta t-note">
+                      <span class="who">{{ m.mine ? 'Vos' : (d.insuredName ?? 'Asegurado') }}</span>
+                      <span class="at tabular">{{ formatDateTime(m.createdAt) }}</span>
+                    </p>
+                    <p class="body">{{ m.body }}</p>
+                  </div>
+                } @else {
+                  <p class="nodata">Todavía no hay mensajes.</p>
+                }
+                <app-button variant="secondary" [block]="true" [routerLink]="['/messages', d.id]">
+                  Abrir chat
+                </app-button>
+              </app-card>
+
               <!-- Kept apart from the decision on purpose: being assigned is not having resolved. -->
               <app-card heading="Analista asignado">
                 @if (isAssigned()) {
