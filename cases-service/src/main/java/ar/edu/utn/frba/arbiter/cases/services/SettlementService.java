@@ -543,7 +543,7 @@ public class SettlementService {
             lines.add(SettlementResponse.Line.deduction("Franquicia",
                     "%s%% %s (%s)".formatted(
                             trimPercentage(s.getDeductibleRate()),
-                            onLoss ? "del monto del siniestro" : "de la suma asegurada",
+                            onLoss ? "del monto a indemnizar" : "de la suma asegurada",
                             money(onLoss ? lossAmount : s.getSumInsured())),
                     s.getDeductibleAmount()));
         }
