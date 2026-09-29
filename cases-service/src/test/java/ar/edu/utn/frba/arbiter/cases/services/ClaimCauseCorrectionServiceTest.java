@@ -35,6 +35,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -191,9 +192,10 @@ class ClaimCauseCorrectionServiceTest {
     void offersOnlyTheCorrectionsThatChangeSomething() {
         when(claimCauseRepository.findByBranch_NameOrderByNameAsc("Celulares"))
                 .thenReturn(List.of(fall, theft, breakage));
-        when(policyCoverageResolver.coveringFor(5L, theft))
-                .thenReturn(Optional.of(PolicyCoverage.builder().coverage(theftCoverage).build()));
-        when(policyCoverageResolver.coveringFor(5L, breakage)).thenReturn(Optional.empty());
+        // Breakage absent: nothing covers it.
+        when(policyCoverageResolver.coveringByCause(5L, List.of(fall, theft, breakage))).thenReturn(Map.of(
+                4L, PolicyCoverage.builder().coverage(damageCoverage).build(),
+                2L, PolicyCoverage.builder().coverage(theftCoverage).build()));
 
         List<ClaimCauseOption> options = service.options(26L);
 
@@ -204,6 +206,8 @@ class ClaimCauseCorrectionServiceTest {
     void offersTheCurrentCauseWhenItNowBelongsToAnotherCoverage() {
         claim.setClaimCause(fall);
         when(claimCauseRepository.findByBranch_NameOrderByNameAsc("Celulares")).thenReturn(List.of(fall));
+        when(policyCoverageResolver.coveringByCause(5L, List.of(fall))).thenReturn(Map.of(
+                4L, PolicyCoverage.builder().coverage(damageCoverage).build()));
 
         assertThat(service.options(26L)).containsExactly(new ClaimCauseOption(4L, "Caída", "Daño accidental"));
     }

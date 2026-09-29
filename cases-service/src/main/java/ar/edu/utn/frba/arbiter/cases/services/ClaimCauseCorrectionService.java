@@ -27,6 +27,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * The analyst corrects the claim cause the insured declared, when the account says otherwise (e.g.
@@ -57,14 +58,15 @@ public class ClaimCauseCorrectionService {
     @Transactional(readOnly = true)
     public List<ClaimCauseOption> options(Long caseId) {
         Case caseRecord = findCase(caseId);
-        ClaimCause current = caseRecord.getClaimCause();
-        return claimCauseRepository.findByBranch_NameOrderByNameAsc(current.getBranch().getName()).stream()
-                .flatMap(cause -> policyCoverageResolver
-                        .coveringFor(caseRecord.getPolicy().getId(), cause)
-                        .filter(pc -> !changesNothing(caseRecord, cause, pc))
-                        .map(pc -> new ClaimCauseOption(cause.getId(), cause.getName(),
-                                pc.getCoverage().getName()))
-                        .stream())
+        List<ClaimCause> causes = claimCauseRepository
+                .findByBranch_NameOrderByNameAsc(caseRecord.getClaimCause().getBranch().getName());
+        Map<Long, PolicyCoverage> covering = policyCoverageResolver
+                .coveringByCause(caseRecord.getPolicy().getId(), causes);
+        return causes.stream()
+                .filter(cause -> covering.containsKey(cause.getId()))
+                .filter(cause -> !changesNothing(caseRecord, cause, covering.get(cause.getId())))
+                .map(cause -> new ClaimCauseOption(cause.getId(), cause.getName(),
+                        covering.get(cause.getId()).getCoverage().getName()))
                 .toList();
     }
 
