@@ -10,8 +10,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -94,11 +97,30 @@ public class PolicyCoverageResolver {
      * a coverage that excludes it.
      */
     public Optional<PolicyCoverage> coveringFor(Long policyId, ClaimCause claimCause) {
-        Long causeBranchId = claimCause.getBranch().getId();
-        return contractedCoverages(policyId).stream()
-                .filter(pc -> causeBranchId.equals(pc.getCoverage().getBranchId()))
-                .filter(pc -> !excludes(pc, claimCause.getId()))
-                .findFirst();
+        return Optional.ofNullable(coveringByCause(policyId, List.of(claimCause)).get(claimCause.getId()));
+    }
+
+    /**
+     * {@link #coveringFor} for several causes, reading each coverage's exclusions once: rules-service
+     * is a round trip per coverage, and asking per cause multiplies it.
+     *
+     * @return cause id → the coverage that answers for it; causes nothing covers are absent
+     */
+    public Map<Long, PolicyCoverage> coveringByCause(Long policyId, List<ClaimCause> claimCauses) {
+        List<PolicyCoverage> contracted = contractedCoverages(policyId);
+        Map<Long, List<Long>> exclusions = new HashMap<>();
+        Map<Long, PolicyCoverage> covering = new LinkedHashMap<>();
+        for (ClaimCause cause : claimCauses) {
+            Long causeBranchId = cause.getBranch().getId();
+            contracted.stream()
+                    .filter(pc -> causeBranchId.equals(pc.getCoverage().getBranchId()))
+                    .filter(pc -> !exclusions
+                            .computeIfAbsent(pc.getCoverage().getId(), rulesServiceClient::excludedClaimCauseIds)
+                            .contains(cause.getId()))
+                    .findFirst()
+                    .ifPresent(pc -> covering.put(cause.getId(), pc));
+        }
+        return covering;
     }
 
     /**
