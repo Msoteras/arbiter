@@ -7,6 +7,9 @@ export type SettlementBasis = 'SUM_INSURED' | 'LESSER_OF_SUM_AND_REPLACEMENT';
 
 export type SettlementFormula = 'TOTAL_LOSS' | 'REPAIR';
 
+/** What the deductible percentage applies to: the sum insured or what is actually indemnified. */
+export type DeductibleBasis = 'SUM_INSURED' | 'LOSS_AMOUNT';
+
 export interface Coverage {
   id: string;
   name: string;
@@ -16,6 +19,7 @@ export interface Coverage {
   insuredAmount: number | null;
   /** Fraction (0..1) of the amount. */
   deductibleRatio: number | null;
+  deductibleBasis: DeductibleBasis;
   reportingWindowDays: number | null;
   /** Per year and policy. */
   maxAnnualClaims: number | null;

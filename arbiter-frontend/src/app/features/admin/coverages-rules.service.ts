@@ -9,12 +9,16 @@ export type SettlementBasis = 'SUM_INSURED' | 'LESSER_OF_SUM_AND_REPLACEMENT';
 
 export type SettlementFormula = 'TOTAL_LOSS' | 'REPAIR';
 
+/** What the deductible percentage applies to. */
+export type DeductibleBasis = 'SUM_INSURED' | 'LOSS_AMOUNT';
+
 /** Mirrors cases-service CoverageDetailResponse. */
 export interface CoverageDetail {
   id: number;
   name: string;
   clause: string | null;
   deductibleRatio: number | null;
+  deductibleBasis: DeductibleBasis;
   reportingWindowDays: number | null;
   maxAnnualClaims: number | null;
   waitingPeriodDays: number | null;
@@ -39,6 +43,7 @@ export interface CoverageUpsertRequest {
   name: string;
   clause: string | null;
   deductibleRatio: number | null;
+  deductibleBasis: DeductibleBasis;
   reportingWindowDays: number | null;
   maxAnnualClaims: number | null;
   waitingPeriodDays: number | null;

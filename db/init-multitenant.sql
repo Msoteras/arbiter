@@ -306,8 +306,12 @@ BEGIN
             -- the insurer's catalog already splits losses from damage.
             settlement_formula              VARCHAR(20)   NOT NULL DEFAULT 'TOTAL_LOSS',
             -- TOTAL_LOSS only; a repair is capped by its quote. LESSER_OF_SUM_AND_REPLACEMENT is
-            -- what clause 340 art. 7 requires for Tecnología Portátil.
+            -- what annex 340 art. 7 requires, and both the phone and the Tecnología Portátil
+            -- policies carry it.
             settlement_basis                VARCHAR(30)   NOT NULL DEFAULT 'SUM_INSURED',
+            -- What the deductible percentage applies to: the sum insured (BBVA's phone policy)
+            -- or the amount actually indemnified. Each insurer's policy says which.
+            deductible_basis                VARCHAR(20)   NOT NULL DEFAULT 'SUM_INSURED',
             -- Share of the cap paid for the second and later events of the year.
             -- NULL = the event number reduces nothing.
             second_event_percentage         NUMERIC(5,2),
@@ -319,6 +323,8 @@ BEGIN
 
             CONSTRAINT coverage_settlement_basis_check
                 CHECK (settlement_basis IN ('SUM_INSURED', 'LESSER_OF_SUM_AND_REPLACEMENT')),
+            CONSTRAINT coverage_deductible_basis_check
+                CHECK (deductible_basis IN ('SUM_INSURED', 'LOSS_AMOUNT')),
             CONSTRAINT coverage_settlement_formula_check
                 CHECK (settlement_formula IN ('TOTAL_LOSS', 'REPAIR'))
         )$ddl$, p_schema);
@@ -892,7 +898,8 @@ BEGIN
             settlement_basis            VARCHAR(30)   NOT NULL,
             replacement_value           NUMERIC(15,2),
             deductible_rate             NUMERIC(5,2),            -- percentage points
-            event_ordinal               INTEGER       NOT NULL DEFAULT 1,
+            deductible_basis            VARCHAR(20)   NOT NULL DEFAULT 'SUM_INSURED',
+            event_ordinal              INTEGER       NOT NULL DEFAULT 1,
             event_percentage            NUMERIC(5,2)  NOT NULL DEFAULT 100,
             pending_installments        INTEGER       NOT NULL DEFAULT 0,
             installment_amount          NUMERIC(15,2),
@@ -931,7 +938,9 @@ BEGIN
             CONSTRAINT case_settlement_status_check
                 CHECK (status IN ('AUTHORIZED', 'PENDING_AUTHORIZATION', 'RETURNED')),
             CONSTRAINT case_settlement_basis_check
-                CHECK (settlement_basis IN ('SUM_INSURED', 'LESSER_OF_SUM_AND_REPLACEMENT'))
+                CHECK (settlement_basis IN ('SUM_INSURED', 'LESSER_OF_SUM_AND_REPLACEMENT')),
+            CONSTRAINT case_settlement_deductible_basis_check
+                CHECK (deductible_basis IN ('SUM_INSURED', 'LOSS_AMOUNT'))
         )$ddl$, p_schema, p_schema, p_schema, p_schema, p_schema);
 
     -- ─── notification ────────────────────────────────────────────────────────────
@@ -984,13 +993,14 @@ BEGIN
                                  claim_exhausts_coverage, is_individual, waiting_period_days, branch_id,
                                  settlement_formula, settlement_basis, second_event_percentage,
                                  deduct_pending_installments, deduct_overdue_balance) VALUES
-            -- Total loss: sum insured minus deductible minus the year's pending installments,
-            -- since the policy ends with the claim. Two events a year, the second at 50%%.
+            -- Total loss: the lesser of sum insured and replacement value (annex 340 art. 7) minus
+            -- deductible minus the year's pending installments, since the policy ends with the
+            -- claim. Two events a year, the second at 50%%.
             (1, 'Robo de celular', 'Cobertura por robo en vía pública', 72, 2, FALSE, 10.00, FALSE, TRUE, 30, 1,
-             'TOTAL_LOSS', 'SUM_INSURED', 50.00, TRUE, TRUE),
+             'TOTAL_LOSS', 'LESSER_OF_SUM_AND_REPLACEMENT', 50.00, TRUE, TRUE),
             -- One event a year, so no second-event percentage.
             (2, 'Hurto', 'Cobertura por hurto sin violencia', 72, 1, FALSE, 20.00, TRUE, TRUE, 30, 1,
-             'TOTAL_LOSS', 'SUM_INSURED', NULL, TRUE, TRUE)
+             'TOTAL_LOSS', 'LESSER_OF_SUM_AND_REPLACEMENT', NULL, TRUE, TRUE)
         $ddl$, p_schema);
 
     -- Per-branch caps sized to each branch's typical sum insured, so small claims stay with

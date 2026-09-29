@@ -88,6 +88,13 @@ public class CaseStatusService {
      */
     @Transactional
     public Case transition(Case caseRecord, CaseStatus to, StatusChangeActor actor, String reason) {
+        return transition(caseRecord, to, actor, reason, null);
+    }
+
+    /** @param observation what the person wrote, kept apart from the system's {@code reason} */
+    @Transactional
+    public Case transition(Case caseRecord, CaseStatus to, StatusChangeActor actor, String reason,
+                           String observation) {
         CaseStatus from = caseRecord.getStatus();
         Set<CaseStatus> allowed = VALID_TRANSITIONS.getOrDefault(from, Set.of());
         if (!allowed.contains(to)) {
@@ -95,7 +102,7 @@ public class CaseStatusService {
         }
 
         CaseState target = caseStateCatalog.resolve(to);
-        appendHistory(caseRecord.getId(), caseRecord.getCurrentStatus(), target, actor, reason);
+        appendHistory(caseRecord.getId(), caseRecord.getCurrentStatus(), target, actor, reason, observation);
         caseRecord.setCurrentStatus(target);
         resumeDeadlineIfInterrupted(caseRecord, from, to);
         Case saved = caseRepository.save(caseRecord);
@@ -177,12 +184,18 @@ public class CaseStatusService {
     }
 
     private void appendHistory(Long caseId, CaseState from, CaseState to, StatusChangeActor actor, String reason) {
+        appendHistory(caseId, from, to, actor, reason, null);
+    }
+
+    private void appendHistory(Long caseId, CaseState from, CaseState to, StatusChangeActor actor, String reason,
+                               String observation) {
         historyRepository.save(CaseStatusHistory.builder()
                 .caseId(caseId)
                 .initialStatus(from)
                 .finalStatus(to)
                 .actor(actor)
                 .reason(reason)
+                .observation(observation)
                 .build());
     }
 }

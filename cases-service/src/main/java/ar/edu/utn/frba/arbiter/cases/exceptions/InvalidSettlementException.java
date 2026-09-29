@@ -34,6 +34,12 @@ public class InvalidSettlementException extends RuntimeException {
                 "Para devolver la liquidación hay que indicar el motivo.");
     }
 
+    /** On a lesser-of total loss the replacement value is the base of the amount, not an extra. */
+    public static InvalidSettlementException missingReplacementValue() {
+        return new InvalidSettlementException(
+                "Para aprobar hay que cargar cuánto cuesta hoy reponer el bien.");
+    }
+
     /** The sum insured is the contractual ceiling per claim; no justification can exceed it. */
     public static InvalidSettlementException aboveSumInsured(BigDecimal amount, BigDecimal sumInsured) {
         return new InvalidSettlementException(

@@ -21,7 +21,12 @@ import {
   switchMap,
 } from 'rxjs';
 
-import { ExpedienteService, AnalystDecisionRequest, Settlement } from '../expediente.service';
+import {
+  ExpedienteService,
+  AnalystDecisionRequest,
+  ClaimCauseOption,
+  Settlement,
+} from '../expediente.service';
 import { DocumentAgendaService } from '../document-agenda.service';
 import { CaseNavigationService } from '../case-navigation.service';
 import { CaseMessagesService } from '../case-messages.service';
@@ -789,6 +794,9 @@ export class ExpedienteDetailComponent {
   cancelDecision(): void {
     this.showJustify.set(false);
     this.pendingDecision.set(null);
+    // A value tried in the dialog must not keep driving the page's amount and warnings.
+    this.replacementInput.set('');
+    this.replacementApplied.set(null);
   }
   confirmDecision(): void {
     const verb = this.pendingDecision();
@@ -885,6 +893,15 @@ export class ExpedienteDetailComponent {
     return s?.formula === 'REPAIR' || s?.settlementBasis === 'LESSER_OF_SUM_AND_REPLACEMENT';
   });
 
+  /**
+   * A total loss settled by the lesser of the two: today's replacement value is the base of the
+   * amount, so approval waits for it. Never defaulted to the sum insured.
+   */
+  protected readonly pideReposicion = computed(() => {
+    const s = this.settlement();
+    return s?.formula === 'TOTAL_LOSS' && s.settlementBasis === 'LESSER_OF_SUM_AND_REPLACEMENT';
+  });
+
   /** Offered only until the analyst enters a value; never applied automatically. */
   protected readonly sugerenciaDisponible = computed(() => {
     const s = this.settlement();
@@ -965,6 +982,9 @@ export class ExpedienteDetailComponent {
   protected readonly approvalBlockedReason = computed<string | null>(() => {
     if (!this.settlement()) {
       return 'No se pudo calcular el monto a pagar.';
+    }
+    if (this.pideReposicion() && this.replacementApplied() == null) {
+      return 'Cargá cuánto cuesta hoy reponer el bien y recalculá.';
     }
     if (this.amountToAuthorize() == null) {
       return 'El monto a pagar tiene que ser un número.';
@@ -1345,6 +1365,80 @@ export class ExpedienteDetailComponent {
       error: (err: HttpErrorResponse) => {
         this.derivarSaving.set(false);
         this.derivarError.set(err.error?.detail || 'No se pudo derivar el expediente');
+      },
+    });
+  }
+
+  /**
+   * Only while the owner reviews it: the backend refuses any other status and a settlement awaiting
+   * the referente, and this keeps the button from offering what it would refuse.
+   */
+  protected readonly puedeCorregirCausa = computed(
+    () => this.enManosDelAnalista() && this.data()?.status === 'PENDING_ANALYST_REVIEW',
+  );
+
+  protected readonly showCorregirCausa = signal(false);
+  protected readonly causaOpciones = signal<ClaimCauseOption[] | null>(null);
+  protected readonly causaElegida = signal('');
+  protected readonly motivoCorreccion = signal('');
+  protected readonly corregirSaving = signal(false);
+  protected readonly corregirError = signal<string | null>(null);
+
+  protected readonly causaSelectOptions = computed<SelectOption[]>(() =>
+    (this.causaOpciones() ?? []).map((o) => ({
+      value: String(o.id),
+      label: `${o.name} · ${o.coverageName}`,
+    })),
+  );
+
+  askCorregirCausa(): void {
+    const d = this.data();
+    if (!d) {
+      return;
+    }
+    this.causaOpciones.set(null);
+    this.causaElegida.set('');
+    this.motivoCorreccion.set('');
+    this.corregirError.set(null);
+    this.showCorregirCausa.set(true);
+    this.service.claimCauseOptions(d.id).subscribe({
+      next: (opciones) => {
+        this.causaOpciones.set(opciones);
+        // What the narrative suggests comes preselected; the analyst still confirms it.
+        const sugerida = opciones.find((o) => o.name === d.suggestedClaimCause);
+        if (sugerida) {
+          this.causaElegida.set(String(sugerida.id));
+        }
+      },
+      error: () => {
+        this.causaOpciones.set([]);
+        this.corregirError.set('No se pudieron cargar los hechos generadores.');
+      },
+    });
+  }
+
+  cancelCorregirCausa(): void {
+    this.showCorregirCausa.set(false);
+  }
+
+  confirmCorregirCausa(): void {
+    const d = this.data();
+    const causa = this.causaElegida();
+    const motivo = this.motivoCorreccion().trim();
+    if (!d || !causa || !motivo) {
+      return;
+    }
+    this.corregirSaving.set(true);
+    this.corregirError.set(null);
+    this.service.correctClaimCause(d.id, Number(causa), motivo).subscribe({
+      next: () => {
+        this.corregirSaving.set(false);
+        this.showCorregirCausa.set(false);
+        this.reloadTrigger.update((v) => v + 1);
+      },
+      error: (err: HttpErrorResponse) => {
+        this.corregirSaving.set(false);
+        this.corregirError.set(err.error?.detail || 'No se pudo corregir el hecho generador');
       },
     });
   }

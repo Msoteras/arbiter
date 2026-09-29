@@ -10,6 +10,8 @@ export interface StatusTransition {
   toStatus: string;
   actor: 'SYSTEM' | 'INSURED' | 'ANALYST' | 'REFERENT';
   reason: string;
+  /** What a person wrote alongside the move (e.g. why the claim cause was corrected). */
+  observation: string | null;
   changedAt: string;
 }
 

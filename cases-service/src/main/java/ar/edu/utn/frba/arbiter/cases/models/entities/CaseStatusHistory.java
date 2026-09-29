@@ -54,6 +54,10 @@ public class CaseStatusHistory {
     @Column(nullable = false)
     private String reason;
 
+    /** Free text a person wrote alongside the move, e.g. why the analyst corrected the claim cause. */
+    @Column(columnDefinition = "text")
+    private String observation;
+
     @CreationTimestamp
     @Column(name = "changed_at", nullable = false, updatable = false)
     private Instant changedAt;

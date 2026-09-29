@@ -12,6 +12,7 @@ public record StatusTransitionResponse(
         CaseStatus toStatus,
         StatusChangeActor actor,
         String reason,
+        String observation,
         Instant changedAt
 ) {
     public static StatusTransitionResponse from(CaseStatusHistory history) {
@@ -20,6 +21,7 @@ public record StatusTransitionResponse(
                 history.getToStatus(),
                 history.getActor(),
                 history.getReason(),
+                history.getObservation(),
                 history.getChangedAt()
         );
     }

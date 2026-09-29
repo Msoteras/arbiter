@@ -41,6 +41,11 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--space-3) var(--space-4);
 }
+.corregir-causa {
+  margin-top: var(--space-3);
+  display: flex;
+  justify-content: flex-end;
+}
 .relato {
   margin-top: var(--space-3);
   padding: var(--space-3);

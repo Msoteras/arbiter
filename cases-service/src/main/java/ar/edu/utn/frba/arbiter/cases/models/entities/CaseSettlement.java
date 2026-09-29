@@ -1,5 +1,6 @@
 package ar.edu.utn.frba.arbiter.cases.models.entities;
 
+import ar.edu.utn.frba.arbiter.common.enums.DeductibleBasis;
 import ar.edu.utn.frba.arbiter.common.enums.SettlementBasis;
 import ar.edu.utn.frba.arbiter.common.enums.SettlementFormula;
 import ar.edu.utn.frba.arbiter.common.enums.SettlementStatus;
@@ -66,6 +67,12 @@ public class CaseSettlement {
     /** Percentage points (10.00 = 10%). */
     @Column(name = "deductible_rate")
     private BigDecimal deductibleRate;
+
+    /** What {@link #deductibleRate} was applied to, frozen: the coverage's switch may change later. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "deductible_basis", nullable = false, length = 20)
+    @Builder.Default
+    private DeductibleBasis deductibleBasis = DeductibleBasis.SUM_INSURED;
 
     /** 1 is the first event of the year. */
     @Column(name = "event_ordinal", nullable = false)

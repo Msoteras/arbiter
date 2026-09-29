@@ -1,5 +1,6 @@
 package ar.edu.utn.frba.arbiter.cases.dto;
 
+import ar.edu.utn.frba.arbiter.common.enums.DeductibleBasis;
 import ar.edu.utn.frba.arbiter.common.enums.SettlementBasis;
 import ar.edu.utn.frba.arbiter.common.enums.SettlementFormula;
 
@@ -12,6 +13,7 @@ public record CoverageDetailResponse(
         String name,
         String clause,
         BigDecimal deductibleRatio,
+        DeductibleBasis deductibleBasis,
         Integer reportingWindowDays,
         Integer maxAnnualClaims,
         Integer waitingPeriodDays,
