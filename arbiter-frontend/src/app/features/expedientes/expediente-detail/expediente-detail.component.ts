@@ -794,6 +794,9 @@ export class ExpedienteDetailComponent {
   cancelDecision(): void {
     this.showJustify.set(false);
     this.pendingDecision.set(null);
+    // A value tried in the dialog must not keep driving the page's amount and warnings.
+    this.replacementInput.set('');
+    this.replacementApplied.set(null);
   }
   confirmDecision(): void {
     const verb = this.pendingDecision();
