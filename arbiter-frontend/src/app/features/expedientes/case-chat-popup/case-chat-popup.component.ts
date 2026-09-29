@@ -22,7 +22,7 @@ import { ButtonComponent } from '../../../shared/ui/button/button.component';
           <span class="avatar" aria-hidden="true">{{ initials() }}</span>
           <div class="title">
             <p class="name">{{ counterparty() }}</p>
-            <p class="sub">Exp. #{{ caseId() }} · Responde desde el portal del asegurado</p>
+            <p class="sub">Exp. #{{ caseId() }}</p>
           </div>
           <app-button
             variant="secondary"

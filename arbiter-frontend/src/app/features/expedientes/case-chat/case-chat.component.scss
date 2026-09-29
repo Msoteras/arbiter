@@ -19,6 +19,7 @@ app-card {
   min-height: 0;
 }
 
+:host.full-height app-card ::ng-deep .card,
 :host.full-height app-card ::ng-deep .card-body {
   display: flex;
   flex-direction: column;
