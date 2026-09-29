@@ -1129,8 +1129,8 @@ export class ReglasComponent {
   }
 
   protected readonly settlementFormulaOptions: SelectOption[] = [
-    { value: 'TOTAL_LOSS', label: 'Pérdida total — el bien no está' },
-    { value: 'REPAIR', label: 'Reparación — el bien quedó dañado' },
+    { value: 'TOTAL_LOSS', label: 'Pérdida total' },
+    { value: 'REPAIR', label: 'Reparación' },
   ];
 
   protected setCoverageSettlementFormula(id: string, value: string): void {
