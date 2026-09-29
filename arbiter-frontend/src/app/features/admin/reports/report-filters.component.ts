@@ -1,0 +1,56 @@
+import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+
+import { InputComponent } from '../../../shared/ui/input/input.component';
+import { SelectComponent } from '../../../shared/ui/select/select.component';
+import { ReportFiltersStore } from './report-filters.store';
+
+/**
+ * The host is `display: contents` on purpose: the fields must be items of the tab's own `.params`
+ * grid, next to the tab-specific filter.
+ */
+@Component({
+  selector: 'app-report-filters',
+  imports: [InputComponent, SelectComponent],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  host: { style: 'display: contents' },
+  template: `
+    <div class="field">
+      <label class="t-field-label" for="rep-from">Desde</label>
+      <app-input
+        id="rep-from"
+        type="date"
+        [max]="filters.today"
+        [value]="filters.from()"
+        (valueChange)="filters.from.set($event)"
+      />
+    </div>
+
+    <div class="field">
+      <label class="t-field-label" for="rep-to">Hasta</label>
+      <app-input
+        id="rep-to"
+        type="date"
+        [min]="filters.from()"
+        [max]="filters.today"
+        [value]="filters.to()"
+        (valueChange)="filters.to.set($event)"
+      />
+    </div>
+
+    <div class="field field-wide">
+      <label class="t-field-label" for="rep-branch">Ramo</label>
+      <app-select
+        id="rep-branch"
+        placeholder="Todos"
+        [searchable]="true"
+        [options]="filters.branchOptions()"
+        [value]="filters.branchValue()"
+        (valueChange)="filters.setBranch($event)"
+      />
+    </div>
+  `,
+  styleUrl: './report-params.scss',
+})
+export class ReportFiltersComponent {
+  protected readonly filters = inject(ReportFiltersStore);
+}

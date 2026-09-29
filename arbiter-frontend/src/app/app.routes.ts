@@ -3,7 +3,7 @@ import { Routes } from '@angular/router';
 import { guestGuard } from './core/auth/guest.guard';
 import { onboardingGuard, onboardingPendingGuard } from './core/auth/onboarding.guard';
 import { roleGuard } from './core/auth/role.guard';
-import { rememberedReportsTab } from './features/admin/reportes/reports-tab-memory';
+import { rememberedReportsTab } from './features/admin/reports/reports-tab-memory';
 
 export const routes: Routes = [
   { path: '', redirectTo: 'login', pathMatch: 'full' },
@@ -44,8 +44,8 @@ export const routes: Routes = [
     canActivate: [roleGuard],
     data: { roles: ['ANALISTA_SINIESTROS'] },
     loadComponent: () =>
-      import('./features/home/analista-inicio/analista-inicio.component').then(
-        (m) => m.AnalistaInicioComponent,
+      import('./features/home/analyst-home/analyst-home.component').then(
+        (m) => m.AnalystHomeComponent,
       ),
   },
   {
@@ -53,8 +53,8 @@ export const routes: Routes = [
     canActivate: [roleGuard],
     data: { roles: ['REFERENTE_ASEGURADORA'] },
     loadComponent: () =>
-      import('./features/home/referente-inicio/referente-inicio.component').then(
-        (m) => m.ReferenteInicioComponent,
+      import('./features/home/referent-home/referent-home.component').then(
+        (m) => m.ReferentHomeComponent,
       ),
   },
   {
@@ -62,8 +62,8 @@ export const routes: Routes = [
     canActivate: [roleGuard, onboardingGuard],
     data: { roles: ['ASEGURADO'] },
     loadComponent: () =>
-      import('./features/home/asegurado-inicio/asegurado-inicio.component').then(
-        (m) => m.AseguradoInicioComponent,
+      import('./features/home/insured-home/insured-home.component').then(
+        (m) => m.InsuredHomeComponent,
       ),
   },
 
@@ -119,15 +119,15 @@ export const routes: Routes = [
     canActivate: [roleGuard, onboardingGuard],
     data: { roles: ['ASEGURADO'] },
     loadComponent: () =>
-      import('./features/portal/perfil/perfil.component').then((m) => m.PerfilComponent),
+      import('./features/portal/profile/profile.component').then((m) => m.ProfileComponent),
   },
   {
     path: 'portal/policies',
     canActivate: [roleGuard, onboardingGuard],
     data: { roles: ['ASEGURADO'] },
     loadComponent: () =>
-      import('./features/portal/mis-polizas/mis-polizas.component').then(
-        (m) => m.MisPolizasComponent,
+      import('./features/portal/my-policies/my-policies.component').then(
+        (m) => m.MyPoliciesComponent,
       ),
   },
   {
@@ -135,9 +135,7 @@ export const routes: Routes = [
     canActivate: [roleGuard, onboardingGuard],
     data: { roles: ['ASEGURADO'] },
     loadComponent: () =>
-      import('./features/portal/mis-expedientes/mis-expedientes.component').then(
-        (m) => m.MisExpedientesComponent,
-      ),
+      import('./features/portal/my-cases/my-cases.component').then((m) => m.MyCasesComponent),
   },
   {
     path: 'portal/messages',
@@ -151,8 +149,8 @@ export const routes: Routes = [
     canActivate: [roleGuard, onboardingGuard],
     data: { roles: ['ASEGURADO'] },
     loadComponent: () =>
-      import('./features/portal/seguimiento/seguimiento.component').then(
-        (m) => m.SeguimientoComponent,
+      import('./features/portal/case-tracking/case-tracking.component').then(
+        (m) => m.CaseTrackingComponent,
       ),
   },
   {
@@ -160,8 +158,8 @@ export const routes: Routes = [
     canActivate: [roleGuard, onboardingGuard],
     data: { roles: ['ASEGURADO'] },
     loadComponent: () =>
-      import('./features/portal/documentacion/documentacion.component').then(
-        (m) => m.DocumentacionComponent,
+      import('./features/portal/case-upload/case-upload.component').then(
+        (m) => m.CaseUploadComponent,
       ),
   },
   {
@@ -180,14 +178,14 @@ export const routes: Routes = [
     canActivate: [roleGuard],
     data: { roles: ['REFERENTE_ASEGURADORA'] },
     loadComponent: () =>
-      import('./features/admin/usuarios/usuarios.component').then((m) => m.UsuariosComponent),
+      import('./features/admin/users/users.component').then((m) => m.UsersComponent),
   },
   {
     path: 'insurer/rules',
     canActivate: [roleGuard],
     data: { roles: ['REFERENTE_ASEGURADORA'] },
     loadComponent: () =>
-      import('./features/admin/reglas/reglas.component').then((m) => m.ReglasComponent),
+      import('./features/admin/rules/rules.component').then((m) => m.RulesComponent),
   },
   {
     // Settlements above the analyst's authority limit, awaiting the referente's sign-off.
@@ -195,8 +193,8 @@ export const routes: Routes = [
     canActivate: [roleGuard],
     data: { roles: ['REFERENTE_ASEGURADORA'] },
     loadComponent: () =>
-      import('./features/admin/autorizaciones/autorizaciones.component').then(
-        (m) => m.AutorizacionesComponent,
+      import('./features/admin/authorizations/authorizations.component').then(
+        (m) => m.AuthorizationsComponent,
       ),
   },
   {
@@ -214,21 +212,21 @@ export const routes: Routes = [
     // Tabs are routes rather than a signal so they can be bookmarked and survive navigating back
     // from a case.
     loadComponent: () =>
-      import('./features/admin/reportes/reports.component').then((m) => m.ReportsComponent),
+      import('./features/admin/reports/reports.component').then((m) => m.ReportsComponent),
     children: [
       // Reopens the last-used tab, not always the first.
       { path: '', pathMatch: 'full', redirectTo: () => rememberedReportsTab() },
       {
         path: 'resolutions',
         loadComponent: () =>
-          import('./features/admin/reportes/resolution-report.component').then(
+          import('./features/admin/reports/resolution-report.component').then(
             (m) => m.ResolutionReportComponent,
           ),
       },
       {
         path: 'fraud',
         loadComponent: () =>
-          import('./features/admin/reportes/fraud-report.component').then(
+          import('./features/admin/reports/fraud-report.component').then(
             (m) => m.FraudReportComponent,
           ),
       },

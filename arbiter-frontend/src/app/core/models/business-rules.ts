@@ -78,7 +78,7 @@ export interface ScoringConfig {
   bands: RiskBandCut[];
 }
 
-export interface RamoRules {
+export interface BranchRules {
   id: string;
   name: string;
   coverages: Coverage[];

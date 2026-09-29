@@ -118,7 +118,7 @@ export class DashboardComponent {
   private readonly claimMetrics = inject(ClaimMetricsService);
   private readonly attention = inject(AttentionService);
   private readonly branches = inject(BranchesService);
-  private readonly expedientes = inject(ExpedienteService);
+  private readonly caseService = inject(ExpedienteService);
   private readonly session = inject(AuthSessionService);
   private readonly locale = inject(LOCALE_ID);
   private readonly theme: ChartTheme = readChartTheme();
@@ -217,7 +217,7 @@ export class DashboardComponent {
       });
 
     if (this.canFilterByAnalyst()) {
-      this.expedientes
+      this.caseService
         .analystWorkload()
         .pipe(takeUntilDestroyed())
         .subscribe({
