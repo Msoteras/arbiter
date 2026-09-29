@@ -300,6 +300,10 @@
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: var(--space-3);
 }
+/* Settlement selects carry longer options; wider columns keep them readable whole. */
+.cov-fields.wide {
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
 
 .chips {
   display: flex;

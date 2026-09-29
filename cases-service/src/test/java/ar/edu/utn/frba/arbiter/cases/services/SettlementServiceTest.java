@@ -208,7 +208,7 @@ class SettlementServiceTest {
         assertThat(response.breakdown())
                 .filteredOn(line -> "Franquicia".equals(line.concept()))
                 .singleElement()
-                .satisfies(line -> assertThat(line.detail()).startsWith("10% del monto del siniestro ("));
+                .satisfies(line -> assertThat(line.detail()).startsWith("10% del monto a indemnizar ("));
     }
 
     @Test

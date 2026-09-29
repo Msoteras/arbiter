@@ -180,7 +180,7 @@ aserción vieja dejaba pasar.
 ## ~~La franquicia en una reparación deja casi todo en cero~~ — ✅ decidido: configurable por cobertura (28/09/2026)
 
 **Decisión:** cada cobertura dice si la franquicia se calcula sobre la **suma asegurada** o sobre el
-**monto del siniestro** (lo que efectivamente se indemniza: valor de reposición o presupuesto, con
+**monto a indemnizar** (lo que efectivamente se indemniza: valor de reposición o presupuesto, con
 su tope). Lo elige el referente en Reglas → Coberturas, y la liquidación guarda cuál se usó. Es
 decisión de cada aseguradora según su póliza: la de celulares de BBVA dice "10% de la suma
 asegurada"; buena parte del mercado lo toma "del siniestro". Configuración inicial: Robo y Hurto de

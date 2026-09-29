@@ -1034,7 +1034,7 @@ export class ReglasComponent {
     if (c.deductibleRatio != null) {
       chips.push(
         `Franquicia ${this.pctFromRatio(c.deductibleRatio)}%` +
-          (c.deductibleBasis === 'LOSS_AMOUNT' ? ' del siniestro' : ''),
+          (c.deductibleBasis === 'LOSS_AMOUNT' ? ' del monto a indemnizar' : ''),
       );
     }
     if (c.waitingPeriodDays != null) {
@@ -1142,10 +1142,10 @@ export class ReglasComponent {
     return c.settlementFormula !== 'REPAIR';
   }
 
-  // Short enough to read in the select; the analyst's sheet spells out the cap at the sum insured.
+  // Short enough to read whole in the select.
   protected readonly settlementBasisOptions: SelectOption[] = [
     { value: 'SUM_INSURED', label: 'Suma asegurada' },
-    { value: 'LESSER_OF_SUM_AND_REPLACEMENT', label: 'Valor de reposición' },
+    { value: 'LESSER_OF_SUM_AND_REPLACEMENT', label: 'Menor entre suma y reposición' },
   ];
 
   protected setCoverageSettlementBasis(id: string, value: string): void {
@@ -1154,7 +1154,7 @@ export class ReglasComponent {
 
   protected readonly deductibleBasisOptions: SelectOption[] = [
     { value: 'SUM_INSURED', label: 'Suma asegurada' },
-    { value: 'LOSS_AMOUNT', label: 'Monto del siniestro' },
+    { value: 'LOSS_AMOUNT', label: 'Monto a indemnizar' },
   ];
 
   protected setCoverageDeductibleBasis(id: string, value: string): void {
