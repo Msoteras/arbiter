@@ -141,6 +141,23 @@ regla, o el del primer referente de la aseguradora.
 
 ---
 
+## 8 · `cobertura.base_franquicia` y `liquidacion.base_franquicia` — columnas nuevas, faltan en el DER
+
+**Encontrado:** 28/09/2026. Las suma el PR #120 (Martina): cada cobertura dice sobre qué se calcula
+su franquicia. BBVA la toma de la suma asegurada ("10% de la suma asegurada"), y el mercado, del
+siniestro (SURA art. 6, Meridional cl. 6). `liquidacion` guarda la base que usó, igual que el resto
+de los datos de entrada. Implementadas en `db/init-multitenant.sql` y
+`db/migrations/2026-09-28-base-de-la-franquicia.sql`.
+
+| Tabla | Columna | Tipo de dato | Nulo | Restricciones |
+|---|---|---|---|---|
+| `cobertura` | `base_franquicia` (`deductible_basis`) | VARCHAR(20) | no | default `'SUM_INSURED'`; CHECK `IN ('SUM_INSURED', 'LOSS_AMOUNT')` |
+| `liquidacion` | `base_franquicia` (`deductible_basis`) | VARCHAR(20) | no | default `'SUM_INSURED'`; mismo CHECK |
+
+**Acción:** agregar la columna a `cobertura` y a `liquidacion` en el `.mdj`.
+
+---
+
 ## Plantilla para la próxima entrada
 
 ```
