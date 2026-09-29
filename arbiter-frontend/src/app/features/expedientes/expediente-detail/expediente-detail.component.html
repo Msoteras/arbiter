@@ -157,11 +157,16 @@
                         <span>{{ plazo }}</span>
                       }
                     }
+                    <!-- Hidden at zero: it means an input is missing, not that nothing is owed. -->
                     @if (settlement(); as s) {
-                      <span
-                        >Si aprobás
-                        <strong class="tabular">{{ montoExacto(s.calculatedAmount) }}</strong></span
-                      >
+                      @if (s.calculatedAmount > 0) {
+                        <span
+                          >Si aprobás
+                          <strong class="tabular">{{
+                            montoExacto(s.calculatedAmount)
+                          }}</strong></span
+                        >
+                      }
                     }
                     @for (p of derivacionesRespondidas(); track p.id) {
                       <app-badge variant="solid" [tone]="resultadoDerivacionTone(p)">
@@ -296,6 +301,11 @@
             @if (data()?.causeEvidence; as cita) {
               <q class="aviso-cita">{{ cita }}</q>
             }
+            @if (puedeCorregirCausa()) {
+              <app-button variant="secondary" (click)="askCorregirCausa()"
+                >Corregir hecho generador</app-button
+              >
+            }
           </p>
         }
         @if (canAct() && liquidacionDevuelta() && settlement(); as s) {
@@ -378,6 +388,14 @@
                           <p class="nodata">Sin datos</p>
                         }
                       </div>
+                      <!-- When the account contradicts the declared cause; the coverage follows from it. -->
+                      @if (puedeCorregirCausa()) {
+                        <div class="corregir-causa">
+                          <app-button variant="secondary" (click)="askCorregirCausa()"
+                            >Corregir hecho generador</app-button
+                          >
+                        </div>
+                      }
                     }
                   </section>
                 }
@@ -1105,9 +1123,7 @@
                     ? 'Presupuesto de reparación'
                     : 'Cuánto cuesta reponer el bien'
                 }}
-                @if (s.formula === 'REPAIR') {
-                  <span class="required" aria-hidden="true">*</span>
-                }
+                <span class="required" aria-hidden="true">*</span>
               </span>
               <div class="settlement-replacement">
                 <app-input
@@ -1115,7 +1131,7 @@
                   [min]="0"
                   [value]="replacementInput()"
                   (valueChange)="replacementInput.set($event)"
-                  placeholder="Sin acreditar"
+                  placeholder="Sin cargar"
                 />
                 <app-button variant="secondary" (click)="applyReplacementValue()"
                   >Recalcular</app-button
@@ -1126,8 +1142,7 @@
                   Del presupuesto del expediente. Es la base del cálculo, con tope en la suma
                   asegurada.
                 } @else {
-                  Según la factura o el presupuesto del expediente. Si es menor que la suma
-                  asegurada, se indemniza por este valor.
+                  Precio actual de un equipo idéntico. Si hubo peritaje, el del perito.
                 }
               </span>
 
@@ -1324,6 +1339,46 @@
       (click)="confirmDerivar()"
     >
       {{ derivarSaving() ? 'Derivando…' : 'Derivar' }}
+    </app-button>
+  </ng-container>
+</app-modal>
+
+<!-- The reason is mandatory: it is the only record of why the insured's own words were overridden. -->
+<app-modal
+  [open]="showCorregirCausa()"
+  heading="Corregir hecho generador"
+  (close)="cancelCorregirCausa()"
+>
+  <p class="t-note">
+    Declarado: <strong>{{ data()?.claimCause }}</strong
+    >. El expediente se vuelve a clasificar con la cobertura del hecho que elijas.
+  </p>
+  @if (causaOpciones() === null) {
+    <p class="t-note">Cargando…</p>
+  } @else if (causaOpciones()!.length === 0 && !corregirError()) {
+    <p class="t-note">Ninguna otra cobertura de la póliza cubre otro hecho de este ramo.</p>
+  } @else {
+    <app-select
+      [options]="causaSelectOptions()"
+      placeholder="Elegí el hecho generador…"
+      [(value)]="causaElegida"
+    />
+  }
+  <app-textarea
+    [rows]="3"
+    placeholder="Por qué lo corregís (obligatorio)…"
+    [(value)]="motivoCorreccion"
+  />
+  @if (corregirError()) {
+    <p class="rcard-note error">{{ corregirError() }}</p>
+  }
+  <ng-container modalActions>
+    <app-button variant="secondary" (click)="cancelCorregirCausa()">Cancelar</app-button>
+    <app-button
+      [disabled]="!causaElegida() || !motivoCorreccion().trim() || corregirSaving()"
+      (click)="confirmCorregirCausa()"
+    >
+      {{ corregirSaving() ? 'Corrigiendo…' : 'Corregir' }}
     </app-button>
   </ng-container>
 </app-modal>

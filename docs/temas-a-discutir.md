@@ -177,7 +177,17 @@ propósito: con el `claimCause` truncado el test falla, y la URI que produce es 
 aserción vieja dejaba pasar.
 ---
 
-## La franquicia en una reparación deja casi todo en cero
+## ~~La franquicia en una reparación deja casi todo en cero~~ — ✅ decidido: configurable por cobertura (28/09/2026)
+
+**Decisión:** cada cobertura dice si la franquicia se calcula sobre la **suma asegurada** o sobre el
+**monto a indemnizar** (lo que efectivamente se indemniza: valor de reposición o presupuesto, con
+su tope). Lo elige el referente en Reglas → Coberturas, y la liquidación guarda cuál se usó. Es
+decisión de cada aseguradora según su póliza: la de celulares de BBVA dice "10% de la suma
+asegurada"; buena parte del mercado lo toma "del siniestro". Configuración inicial: Robo y Hurto de
+BBVA sobre la suma asegurada; Daño accidental de las dos y Robo y Hurto de Provincia sobre el
+siniestro. Migración `2026-09-28-base-de-la-franquicia.sql`, aplicada en Railway.
+
+Lo que sigue es el registro original del problema.
 
 **Encontrado:** 06/09/2026, implementando la fórmula de reparación (bloque 3 de la determinación
 del monto a pagar).

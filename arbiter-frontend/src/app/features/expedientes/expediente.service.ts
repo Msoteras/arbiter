@@ -75,6 +75,13 @@ export interface SettlementDecisionRequest {
 
 export type SettlementBasis = 'SUM_INSURED' | 'LESSER_OF_SUM_AND_REPLACEMENT';
 
+/** Mirrors cases-service ClaimCauseOption. */
+export interface ClaimCauseOption {
+  id: number;
+  name: string;
+  coverageName: string;
+}
+
 /** Built entirely by the backend (amount and wording) so text and math can't drift apart. */
 export interface SettlementLine {
   kind: 'BASE' | 'DEDUCTION' | 'TOTAL';
@@ -324,6 +331,16 @@ export class ExpedienteService {
   /** Replaces any previous assignee. `analystId` comes from `GET /auth/users/analysts` (per tenant). */
   assign(caseId: number, analystId: number): Observable<ExpedienteResponse> {
     return this.http.post<ExpedienteResponse>(`${this.baseUrl}/${caseId}/assign`, { analystId });
+  }
+
+  /** Causes of the case's branch some coverage of the policy answers for, with that coverage. */
+  claimCauseOptions(caseId: number): Observable<ClaimCauseOption[]> {
+    return this.http.get<ClaimCauseOption[]>(`${this.baseUrl}/${caseId}/claim-cause/options`);
+  }
+
+  /** The coverage follows from the cause and the case goes back to classification. */
+  correctClaimCause(caseId: number, claimCauseId: number, reason: string): Observable<unknown> {
+    return this.http.post(`${this.baseUrl}/${caseId}/claim-cause`, { claimCauseId, reason });
   }
 
   /** Back to analyst review without reverting the previous decision. 409 from a non-terminal status. */
