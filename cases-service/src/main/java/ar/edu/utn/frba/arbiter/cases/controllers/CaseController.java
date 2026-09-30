@@ -311,13 +311,14 @@ public class CaseController {
     }
 
     @GetMapping("/messages/inbox")
-    @PreAuthorize("hasAnyRole('ANALISTA_SINIESTROS', 'REFERENTE_ASEGURADORA')")
-    @Operation(summary = "Todas las conversaciones del tenant",
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Todas las conversaciones de quien pregunta",
             description = """
-                    Una fila por expediente con al menos un mensaje, con el último mensaje y el
-                    conteo de no leídos del que pregunta, más recientes primero. Alimenta la lista
-                    de conversaciones tipo bandeja de mensajería; abrir un expediente puntual sigue
-                    yendo por GET /cases/{caseId}/messages, que trae el hilo completo.
+                    Analista y referente: una fila por expediente del tenant con al menos un mensaje.
+                    Asegurado: una fila por cada siniestro propio, de todas sus aseguradoras, tenga
+                    mensajes o no (con `insurerSlug`, porque los ids se repiten entre compañías).
+                    Cada fila trae el último mensaje y el conteo de no leídos del que pregunta, más
+                    recientes primero. El hilo completo sigue en GET /cases/{caseId}/messages.
 
                     "Sin leer" y "esperando respuesta" son lentes del frontend sobre estos mismos
                     campos (unreadCount y lastMessageSender), no parámetros de este endpoint.

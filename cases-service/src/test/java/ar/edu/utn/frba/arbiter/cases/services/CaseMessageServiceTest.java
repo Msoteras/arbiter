@@ -82,6 +82,8 @@ class CaseMessageServiceTest {
     private MessageNotificationService notificationService;
     @Mock
     private SimpMessagingTemplate messagingTemplate;
+    @Mock
+    private InsuredCaseAggregator insuredCases;
 
     private final CaseAccessPolicy accessPolicy = new CaseAccessPolicy();
     private final Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
@@ -91,7 +93,8 @@ class CaseMessageServiceTest {
     @BeforeEach
     void setUp() {
         service = new CaseMessageService(messageRepository, caseRepository, statusHistoryRepository,
-                userRepository, accessPolicy, tenantScope, notificationService, messagingTemplate, clock);
+                userRepository, accessPolicy, tenantScope, insuredCases, notificationService,
+                messagingTemplate, clock);
         ReflectionTestUtils.setField(service, "replyWindowDays", 7);
 
         when(tenantScope.forCase(any(), any(), any()))
@@ -271,18 +274,28 @@ class CaseMessageServiceTest {
         assertThat(inbox.get(1).unreadCount()).isZero();
     }
 
+    /** Each claim is a conversation, written on or not; messages are looked up in each insurer's schema. */
     @Test
-    void inbox_hidesConversationsTheCallerCannotRead() {
+    void insuredInbox_listsEveryOwnCase_perInsurer_withTheirOwnMessages() {
         asInsured(OWNER_DNI);
-        Case mine = givenCase(7L, STATE_ID, CaseStatus.PENDING_ANALYST_REVIEW, "Celulares", "Robo en vía pública");
-        Case someoneElses = givenCase(9L, STATE_ID, CaseStatus.PENDING_ANALYST_REVIEW, "Hogar", "Incendio");
-        someoneElses.setInsured(CaseFixtures.insured("11.222.333", "Otra", "Persona"));
-        when(messageRepository.findAllByOrderByCreatedAtAsc()).thenReturn(List.of(
-                message(7L, StatusChangeActor.ANALYST, "Hola", NOW, null),
-                message(9L, StatusChangeActor.ANALYST, "Hola", NOW, null)));
-        when(caseRepository.findAllById(any())).thenReturn(List.of(mine, someoneElses));
+        Case written = givenCase(7L, STATE_ID, CaseStatus.PENDING_EXPERT_REPORT, "Celulares", "Daño accidental");
+        Case untouched = givenCase(9L, STATE_ID, CaseStatus.PENDING_ANALYST_REVIEW, "Celulares", "Robo de celular");
+        when(insuredCases.allOwnCases()).thenReturn(List.of(
+                new InsuredCaseAggregator.InsuredCase(untouched, "la-segunda", "La Segunda"),
+                new InsuredCaseAggregator.InsuredCase(written, "provincia", "Provincia Seguros")));
+        when(messageRepository.findByCaseIdInOrderByCreatedAtAsc(List.of(7L))).thenReturn(List.of(
+                message(7L, StatusChangeActor.ANALYST, "¿Nos confirmás un horario?", NOW, null)));
+        when(messageRepository.findByCaseIdInOrderByCreatedAtAsc(List.of(9L))).thenReturn(List.of());
 
-        assertThat(service.inbox()).extracting(CaseMessageInboxItemResponse::caseId).containsExactly(7L);
+        List<CaseMessageInboxItemResponse> inbox = service.inbox();
+
+        verify(tenantScope).forCase(eq(7L), eq("provincia"), any());
+        verify(tenantScope).forCase(eq(9L), eq("la-segunda"), any());
+        assertThat(inbox).extracting(CaseMessageInboxItemResponse::insurerSlug)
+                .containsExactly("provincia", "la-segunda");
+        assertThat(inbox.get(0).unreadCount()).isEqualTo(1);
+        assertThat(inbox.get(1).lastMessageBody()).isNull();
+        assertThat(inbox.get(1).unreadCount()).isZero();
     }
 
     @Test

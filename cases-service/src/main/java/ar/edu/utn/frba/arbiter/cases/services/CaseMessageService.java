@@ -16,6 +16,7 @@ import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseStatusHistoryRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.UserRepository;
 import ar.edu.utn.frba.arbiter.common.models.entities.User;
+import ar.edu.utn.frba.arbiter.common.models.entities.tenant.ClaimsAnalyst;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -29,6 +30,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -55,6 +57,7 @@ public class CaseMessageService {
     private final UserRepository userRepository;
     private final CaseAccessPolicy accessPolicy;
     private final InsurerTenantScope tenantScope;
+    private final InsuredCaseAggregator insuredCases;
     private final MessageNotificationService notificationService;
     private final SimpMessagingTemplate messagingTemplate;
     private final Clock clock;
@@ -86,15 +89,43 @@ public class CaseMessageService {
     }
 
     /**
-     * One row per case the caller can read and that has at least one message, most recent first —
-     * the "todas mis conversaciones" list. Runs in the caller's own tenant only: unlike a single
-     * thread, there is no {@code caseId} to resolve another insurer's schema from.
+     * The "todas mis conversaciones" list, most recent activity first. For analyst and referente, one
+     * row per case of their tenant with at least one message. For the insured, every own case across
+     * all their insurers, written on or not: each claim is a conversation they can start.
      */
     public List<CaseMessageInboxItemResponse> inbox() {
         StatusChangeActor party = accessPolicy.currentParty();
         if (party == null) {
             return List.of();
         }
+        return party == StatusChangeActor.INSURED ? insuredInbox() : tenantInbox(party);
+    }
+
+    private List<CaseMessageInboxItemResponse> insuredInbox() {
+        List<InsuredCaseAggregator.InsuredCase> own = insuredCases.allOwnCases();
+        Map<String, List<Long>> idsByInsurer = own.stream().collect(Collectors.groupingBy(
+                InsuredCaseAggregator.InsuredCase::insurerSlug,
+                Collectors.mapping(it -> it.caseRecord().getId(), Collectors.toList())));
+
+        // Messages live in each insurer's schema, like the cases; ids only mean something within one.
+        Map<String, Map<Long, List<CaseMessage>>> messages = new HashMap<>();
+        idsByInsurer.forEach((slug, ids) -> messages.put(slug, tenantScope.forCase(ids.getFirst(), slug, () ->
+                messageRepository.findByCaseIdInOrderByCreatedAtAsc(ids).stream()
+                        .collect(Collectors.groupingBy(CaseMessage::getCaseId)))));
+
+        // Sorted by last message; the stable sort keeps unwritten cases in newest-report order.
+        return own.stream()
+                .map(it -> toInboxItem(it.caseRecord(),
+                        messages.get(it.insurerSlug()).getOrDefault(it.caseRecord().getId(), List.of()),
+                        StatusChangeActor.INSURED, it.insurerSlug(), it.insurerName()))
+                .sorted(Comparator.comparing(
+                        (CaseMessageInboxItemResponse row) ->
+                                row.lastMessageAt() == null ? Instant.MIN : row.lastMessageAt(),
+                        Comparator.reverseOrder()))
+                .toList();
+    }
+
+    private List<CaseMessageInboxItemResponse> tenantInbox(StatusChangeActor party) {
         Map<Long, List<CaseMessage>> byCase = messageRepository.findAllByOrderByCreatedAtAsc().stream()
                 .collect(Collectors.groupingBy(CaseMessage::getCaseId));
         if (byCase.isEmpty()) {
@@ -106,26 +137,31 @@ public class CaseMessageService {
 
         return byCase.entrySet().stream()
                 .filter(entry -> readableCases.containsKey(entry.getKey()))
-                .map(entry -> toInboxItem(readableCases.get(entry.getKey()), entry.getValue(), party))
+                .map(entry -> toInboxItem(readableCases.get(entry.getKey()), entry.getValue(), party, null, null))
                 .sorted(Comparator.comparing(CaseMessageInboxItemResponse::lastMessageAt).reversed())
                 .toList();
     }
 
-    private CaseMessageInboxItemResponse toInboxItem(
-            Case caseRecord, List<CaseMessage> messages, StatusChangeActor party) {
-        CaseMessage last = messages.get(messages.size() - 1);
+    private CaseMessageInboxItemResponse toInboxItem(Case caseRecord, List<CaseMessage> messages,
+                                                     StatusChangeActor party, String insurerSlug,
+                                                     String insurerName) {
+        CaseMessage last = messages.isEmpty() ? null : messages.getLast();
         int unread = isParty(party)
                 ? (int) messages.stream().filter(m -> isIncomingUnread(m, party)).count()
                 : 0;
+        ClaimsAnalyst analyst = caseRecord.getAnalyst();
         return new CaseMessageInboxItemResponse(
                 caseRecord.getId(),
+                insurerSlug,
+                insurerName,
                 caseRecord.getInsured().fullName(),
+                analyst == null ? null : analyst.getName() + " " + analyst.getSurname(),
                 caseRecord.getClaimCause().getBranch().getName(),
                 caseRecord.getClaimCause().getName(),
                 caseRecord.getStatus(),
-                last.getBody(),
-                last.getSenderRole().name(),
-                last.getCreatedAt(),
+                last == null ? null : last.getBody(),
+                last == null ? null : last.getSenderRole().name(),
+                last == null ? null : last.getCreatedAt(),
                 unread);
     }
 

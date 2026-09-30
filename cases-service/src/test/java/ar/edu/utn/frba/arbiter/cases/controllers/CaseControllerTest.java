@@ -229,7 +229,7 @@ class CaseControllerTest {
     @Test
     void messagesInbox_returns200WithTheServicesList() throws Exception {
         CaseMessageInboxItemResponse item = new CaseMessageInboxItemResponse(
-                48L, "Camila Ferreyra", "Celulares", "Robo en vía pública",
+                48L, null, null, "Camila Ferreyra", "Lucía Gómez", "Celulares", "Robo en vía pública",
                 CaseStatus.AWAITING_DOCUMENTATION, "¿La captura de Google sirve?", "INSURED",
                 Instant.parse("2026-09-25T09:12:00Z"), 1);
         when(messageService.inbox()).thenReturn(List.of(item));
