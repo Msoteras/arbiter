@@ -1842,6 +1842,9 @@ export class ExpedienteDetailComponent {
 
   protected readonly analystInitials = computed(() => initialsOf(this.assignedName()));
   protected readonly insuredInitials = computed(() => initialsOf(this.data()?.insuredName));
+  protected readonly insuredFirstName = computed(
+    () => (this.data()?.insuredName ?? '').trim().split(/\s+/)[0] || 'el asegurado',
+  );
 
   /**
    * Assignment date from the history: an assignment leaves an entry with fromStatus == toStatus and

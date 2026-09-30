@@ -65,6 +65,31 @@ app-card {
   color: var(--text-muted);
 }
 
+.event {
+  align-self: center;
+  max-width: 90%;
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-pill);
+  background: var(--surface-sunken);
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+  text-align: center;
+}
+
+.event.warning {
+  border-color: var(--status-warning);
+}
+
+.event a {
+  color: var(--accent-fg);
+  font-weight: var(--font-weight-medium);
+  text-decoration: none;
+}
+.event a:hover {
+  text-decoration: underline;
+}
+
 .empty {
   align-self: center;
   margin: auto 0;

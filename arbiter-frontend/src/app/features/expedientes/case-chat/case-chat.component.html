@@ -7,9 +7,19 @@
 } @else {
   <app-card [heading]="bare() ? '' : heading()" [bare]="bare()" [class.full-height]="fullHeight()">
     <ol class="thread" [class.full-height]="fullHeight()" #threadBox>
-      @for (row of rows(); track row.kind === 'day' ? 'day-' + row.label : row.message.id) {
+      @for (row of rows(); track rowKey(row)) {
         @if (row.kind === 'day') {
           <li class="day">{{ row.label }}</li>
+        } @else if (row.kind === 'event') {
+          <li class="event" [class.warning]="row.event.tone === 'warning'">
+            {{ row.event.label }}
+            @if (row.event.action; as action) {
+              ·
+              <a [routerLink]="action.link" [queryParams]="action.queryParams ?? {}">{{
+                action.label
+              }}</a>
+            }
+          </li>
         } @else {
           <li class="msg" [class.mine]="row.message.mine">
             <div class="bubble">

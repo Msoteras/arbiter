@@ -7,7 +7,6 @@ import { CaseMessagesService } from '../expedientes/case-messages.service';
 import { ExpedienteService } from '../expedientes/expediente.service';
 import { CaseChatComponent } from '../expedientes/case-chat/case-chat.component';
 import { analystQuickReplies } from '../expedientes/case-chat/quick-replies';
-import { CaseMessage, CaseMessageInboxItem } from '../../core/models/case-message';
 import { chatListStamp } from '../../core/util/datetime';
 import { ExpedienteResponse } from '../../core/models/expediente';
 import { estadoLabel, estadoTone } from '../../core/models/estado';
@@ -45,7 +44,11 @@ export class MessagesComponent {
 
   protected readonly loading = signal(true);
   protected readonly loadError = signal(false);
-  protected readonly items = signal<CaseMessageInboxItem[]>([]);
+  protected readonly items = computed(() =>
+    [...this.service.inboxItems()].sort((a, b) =>
+      (b.lastMessageAt ?? '').localeCompare(a.lastMessageAt ?? ''),
+    ),
+  );
   protected readonly search = signal('');
   protected readonly filtro = signal<Filtro>('TODOS');
 
@@ -100,8 +103,7 @@ export class MessagesComponent {
   private load(): void {
     this.loading.set(true);
     this.service.inbox().subscribe({
-      next: (items) => {
-        this.items.set(items);
+      next: () => {
         this.loading.set(false);
         this.loadError.set(false);
       },
@@ -116,13 +118,6 @@ export class MessagesComponent {
     this.router.navigate(['/messages', caseId]);
   }
 
-  /** The thread already fetched and marked read; only the row's own count needs to catch up. */
-  protected onUnreadChange(caseId: number, count: number): void {
-    this.items.update((items) =>
-      items.map((item) => (item.caseId === caseId ? { ...item, unreadCount: count } : item)),
-    );
-  }
-
   protected initials(name: string): string {
     const parts = name.trim().split(/\s+/);
     return `${parts[0]?.[0] ?? ''}${parts[1]?.[0] ?? ''}`.toUpperCase() || '—';
@@ -135,25 +130,6 @@ export class MessagesComponent {
   protected readonly quickReplies = computed(() =>
     analystQuickReplies(this.selected()?.insuredName ?? ''),
   );
-
-  /** Keeps the row's preview and order in step with what was just sent or received. */
-  protected onLatest(caseId: number, message: CaseMessage | null): void {
-    if (!message) return;
-    this.items.update((items) =>
-      items
-        .map((item) =>
-          item.caseId === caseId
-            ? {
-                ...item,
-                lastMessageBody: message.body,
-                lastMessageSender: message.sender,
-                lastMessageAt: message.createdAt,
-              }
-            : item,
-        )
-        .sort((a, b) => b.lastMessageAt.localeCompare(a.lastMessageAt)),
-    );
-  }
 
   protected readonly stamp = chatListStamp;
 

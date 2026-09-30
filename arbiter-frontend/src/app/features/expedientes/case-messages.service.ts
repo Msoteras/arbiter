@@ -21,11 +21,44 @@ export class CaseMessagesService {
     this._inbox().reduce((sum, item) => sum + item.unreadCount, 0),
   );
 
-  /** Analyst/referente only. Also feeds `inboxItems`/`totalUnread` for the sidebar badge. */
+  /** Also feeds `inboxItems`/`totalUnread`, which the nav badges and summary cards read. */
   inbox(): Observable<CaseMessageInboxItem[]> {
     return this.http
       .get<CaseMessageInboxItem[]>(`${this.base}/messages/inbox`)
       .pipe(tap((items) => this._inbox.set(items)));
+  }
+
+  inboxItem(caseId: number, insurer?: string | null): CaseMessageInboxItem | null {
+    return this._inbox().find((item) => this.matches(item, caseId, insurer)) ?? null;
+  }
+
+  /** Local update so badges drop as soon as a thread is read, without waiting for the next poll. */
+  clearUnread(caseId: number, insurer?: string | null): void {
+    this.updateItem(caseId, insurer, (item) => ({ ...item, unreadCount: 0 }));
+  }
+
+  recordLatest(caseId: number, insurer: string | null | undefined, message: CaseMessage): void {
+    this.updateItem(caseId, insurer, (item) => ({
+      ...item,
+      lastMessageBody: message.body,
+      lastMessageSender: message.sender,
+      lastMessageAt: message.createdAt,
+    }));
+  }
+
+  private updateItem(
+    caseId: number,
+    insurer: string | null | undefined,
+    change: (item: CaseMessageInboxItem) => CaseMessageInboxItem,
+  ): void {
+    this._inbox.update((items) =>
+      items.map((item) => (this.matches(item, caseId, insurer) ? change(item) : item)),
+    );
+  }
+
+  /** Analyst rows carry no slug; an insured's always do. */
+  private matches(item: CaseMessageInboxItem, caseId: number, insurer?: string | null): boolean {
+    return item.caseId === caseId && (!item.insurerSlug || !insurer || item.insurerSlug === insurer);
   }
 
   /** Reading does NOT mark as read: that is `markRead`, called when someone actually looks. */

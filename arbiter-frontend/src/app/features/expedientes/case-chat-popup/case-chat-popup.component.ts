@@ -1,14 +1,14 @@
 import { ChangeDetectionStrategy, Component, computed, input, model, output } from '@angular/core';
 import { RouterLink } from '@angular/router';
 
-import { CaseMessage } from '../../../core/models/case-message';
+import { CaseMessage, ChatEvent } from '../../../core/models/case-message';
 import { CaseChatComponent } from '../case-chat/case-chat.component';
 import { QuickReply } from '../case-chat/quick-replies';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
 
 /**
- * The case chat as a floating window over the expediente, with its launcher when closed. The thread
- * only mounts while open: mounting it is what marks the insured's messages as read.
+ * The case chat as a floating window, for both sides, with its launcher when closed. The thread only
+ * mounts while open: mounting it is what marks the other side's messages as read.
  */
 @Component({
   selector: 'app-case-chat-popup',
@@ -22,16 +22,15 @@ import { ButtonComponent } from '../../../shared/ui/button/button.component';
           <span class="avatar" aria-hidden="true">{{ initials() }}</span>
           <div class="title">
             <p class="name">{{ counterparty() }}</p>
-            <p class="sub">Exp. #{{ caseId() }}</p>
+            @if (subtitle()) {
+              <p class="sub">{{ subtitle() }}</p>
+            }
           </div>
-          <app-button
-            variant="secondary"
-            size="sm"
-            [routerLink]="['/messages', caseId()]"
-            (click)="open.set(false)"
-          >
-            Expandir
-          </app-button>
+          @if (expandLink(); as link) {
+            <app-button variant="secondary" size="sm" [routerLink]="link" (click)="open.set(false)">
+              Expandir
+            </app-button>
+          }
           <button type="button" class="close" aria-label="Cerrar chat" (click)="open.set(false)">
             ✕
           </button>
@@ -39,24 +38,33 @@ import { ButtonComponent } from '../../../shared/ui/button/button.component';
         <app-case-chat
           class="thread"
           [caseId]="caseId()"
+          [insurer]="insurer()"
           [counterparty]="counterparty()"
-          [placeholder]="'Escribí un mensaje a ' + firstName() + '…'"
+          [authorName]="authorName()"
+          [placeholder]="placeholder()"
           [quickReplies]="quickReplies()"
+          [events]="events()"
           [bare]="true"
           [fullHeight]="true"
           (unreadChange)="unreadChange.emit($event)"
           (latest)="latest.emit($event)"
         />
       </section>
-    } @else {
-      <button type="button" class="launcher" (click)="open.set(true)">
+    } @else if (launcher()) {
+      <button
+        type="button"
+        class="launcher"
+        [class.round]="!launcherLabel()"
+        [attr.aria-label]="launcherLabel() ? null : 'Abrir chat con ' + counterparty()"
+        (click)="open.set(true)"
+      >
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
           <path
             d="M21 12a8 8 0 0 1-11.6 7.1L4 20.5l1.4-4.9A8 8 0 1 1 21 12z"
             stroke-linejoin="round"
           />
         </svg>
-        Chat con {{ firstName() }}
+        {{ launcherLabel() }}
         @if (unread() > 0) {
           <span class="launcher-count">{{ unread() }}</span>
           <span class="sr-only">mensajes sin leer</span>
@@ -172,6 +180,23 @@ import { ButtonComponent } from '../../../shared/ui/button/button.component';
       width: 20px;
       height: 20px;
     }
+    .launcher.round {
+      position: relative;
+      justify-content: center;
+      width: 56px;
+      height: 56px;
+      padding: 0;
+    }
+    .launcher.round svg {
+      width: 24px;
+      height: 24px;
+    }
+    .launcher.round .launcher-count {
+      position: absolute;
+      top: 0;
+      right: 0;
+      border: 2px solid var(--action-accent-bg);
+    }
     .launcher-count {
       min-width: var(--space-4);
       padding: 0 var(--space-1);
@@ -216,14 +241,23 @@ import { ButtonComponent } from '../../../shared/ui/button/button.component';
 export class CaseChatPopupComponent {
   readonly open = model(false);
   readonly caseId = input.required<number>();
+  readonly insurer = input<string | null | undefined>(null);
   readonly counterparty = input('Asegurado');
+  readonly subtitle = input('');
+  /** Null hides "Expandir": the insured has no full-screen conversation view. */
+  readonly expandLink = input<(string | number)[] | null>(null);
+  readonly placeholder = input('Escribí tu mensaje…');
+  readonly authorName = input('');
   readonly quickReplies = input<QuickReply[]>([]);
+  readonly events = input<ChatEvent[]>([]);
   readonly unread = input(0);
+  /** Off when the page opens the popup from its own button and needs no floating launcher. */
+  readonly launcher = input(true);
+  /** Empty renders the round, icon-only launcher. */
+  readonly launcherLabel = input('');
 
   readonly unreadChange = output<number>();
   readonly latest = output<CaseMessage | null>();
-
-  protected readonly firstName = computed(() => this.counterparty().trim().split(/\s+/)[0] ?? '');
 
   protected readonly initials = computed(() => {
     const parts = this.counterparty().trim().split(/\s+/);

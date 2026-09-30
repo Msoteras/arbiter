@@ -111,10 +111,8 @@ export class App {
       });
   }
 
-  /** The messages inbox endpoint is analyst/referente only; asking as ASEGURADO would just 403. */
   private canSeeMessages(): boolean {
-    const rol = this.session.session()?.rol;
-    return rol === 'ANALISTA_SINIESTROS' || rol === 'REFERENTE_ASEGURADORA';
+    return this.session.session() !== null;
   }
 
   // NavigationEnd, not NavigationStart: the chrome must appear after the new screen is mounted,

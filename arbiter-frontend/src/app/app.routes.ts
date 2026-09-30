@@ -144,6 +144,13 @@ export const routes: Routes = [
       ),
   },
   {
+    path: 'portal/messages',
+    canActivate: [roleGuard, onboardingGuard],
+    data: { roles: ['ASEGURADO'] },
+    loadComponent: () =>
+      import('./features/portal/mensajes/mensajes.component').then((m) => m.MensajesComponent),
+  },
+  {
     path: 'portal/cases/:id',
     canActivate: [roleGuard, onboardingGuard],
     data: { roles: ['ASEGURADO'] },

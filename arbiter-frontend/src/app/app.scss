@@ -443,6 +443,21 @@
   font-weight: var(--font-weight-medium);
   border-bottom-color: var(--accent);
 }
+.topbar-badge {
+  display: inline-block;
+  min-width: var(--space-4);
+  margin-left: var(--space-1);
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-pill);
+  background: var(--action-accent-bg);
+  color: var(--action-accent-fg);
+  font-size: var(--font-size-2xs);
+  font-weight: var(--font-weight-bold);
+  line-height: var(--space-4);
+  text-align: center;
+  vertical-align: middle;
+  font-variant-numeric: tabular-nums;
+}
 .topbar-user {
   margin-left: auto;
   display: flex;

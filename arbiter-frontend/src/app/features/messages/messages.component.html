@@ -54,7 +54,9 @@
               <span class="conv-main">
                 <span class="conv-row">
                   <span class="conv-name">{{ item.insuredName }}</span>
-                  <span class="conv-time t-note tabular">{{ stamp(item.lastMessageAt) }}</span>
+                  @if (item.lastMessageAt) {
+                    <span class="conv-time t-note tabular">{{ stamp(item.lastMessageAt) }}</span>
+                  }
                 </span>
                 <span class="conv-meta t-note">#{{ item.caseId }} · {{ item.branch }}</span>
                 <span class="conv-preview t-note">{{ item.lastMessageBody }}</span>
@@ -88,8 +90,6 @@
           [quickReplies]="quickReplies()"
           [bare]="true"
           [fullHeight]="true"
-          (unreadChange)="onUnreadChange(item.caseId, $event)"
-          (latest)="onLatest(item.caseId, $event)"
         />
 
         <aside class="conv-info">

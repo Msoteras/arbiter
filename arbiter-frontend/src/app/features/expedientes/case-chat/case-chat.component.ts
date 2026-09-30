@@ -20,10 +20,12 @@ import { Subscription, interval } from 'rxjs';
 
 import { CaseMessagesService } from '../case-messages.service';
 import { CaseMessagesSocketService } from '../case-messages-socket.service';
+import { RouterLink } from '@angular/router';
 import {
   CaseMessage,
   CaseMessageEvent,
   CaseMessageThread,
+  ChatEvent,
   MESSAGE_MAX_LENGTH,
 } from '../../../core/models/case-message';
 import { chatDayLabel, formatTime } from '../../../core/util/datetime';
@@ -33,7 +35,10 @@ import { TextareaComponent } from '../../../shared/ui/textarea/textarea.componen
 import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
 import { QuickReply } from './quick-replies';
 
-type ThreadRow = { kind: 'day'; label: string } | { kind: 'msg'; message: CaseMessage };
+type ThreadRow =
+  | { kind: 'day'; label: string }
+  | { kind: 'msg'; message: CaseMessage }
+  | { kind: 'event'; event: ChatEvent };
 
 /**
  * Fallback only. Messages arrive over the socket; this covers the minutes after a deploy when the
@@ -50,7 +55,7 @@ const POLL_MS = 60_000;
 @Component({
   selector: 'app-case-chat',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CardComponent, ButtonComponent, TextareaComponent, InlineLoadingComponent],
+  imports: [RouterLink, CardComponent, ButtonComponent, TextareaComponent, InlineLoadingComponent],
   host: { '[class.full-height]': 'fullHeight()' },
   templateUrl: './case-chat.component.html',
   styleUrl: './case-chat.component.scss',
@@ -73,6 +78,9 @@ export class CaseChatComponent {
   readonly fullHeight = input(false);
   readonly placeholder = input('Escribí tu mensaje…');
   readonly quickReplies = input<QuickReply[]>([]);
+  readonly events = input<ChatEvent[]>([]);
+  /** Shown before the time on the other side's messages ("Lucía · 12:02"); only the time if empty. */
+  readonly authorName = input('');
 
   /** Lets the containing screen clear its unread marker. */
   readonly unreadChange = output<number>();
@@ -106,18 +114,37 @@ export class CaseChatComponent {
   protected readonly notifiesByMail = computed(() => this.thread()?.viewerSide === 'ANALYST');
 
   protected readonly rows = computed<ThreadRow[]>(() => {
+    const timeline = [
+      ...this.messages().map((message) => ({
+        at: message.createdAt,
+        row: { kind: 'msg', message } as ThreadRow,
+      })),
+      ...this.events().map((event) => ({ at: event.at, row: { kind: 'event', event } as ThreadRow })),
+    ].sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime());
+
     const rows: ThreadRow[] = [];
     let lastDay = '';
-    for (const message of this.messages()) {
-      const day = chatDayLabel(message.createdAt);
+    for (const { at, row } of timeline) {
+      const day = chatDayLabel(at);
       if (day !== lastDay) {
         rows.push({ kind: 'day', label: day });
         lastDay = day;
       }
-      rows.push({ kind: 'msg', message });
+      rows.push(row);
     }
     return rows;
   });
+
+  protected rowKey(row: ThreadRow): string {
+    switch (row.kind) {
+      case 'day':
+        return `day-${row.label}`;
+      case 'event':
+        return `event-${row.event.at}-${row.event.label}`;
+      default:
+        return `msg-${row.message.id}`;
+    }
+  }
 
   constructor() {
     // untracked: reload per case, not on every draft keystroke or reply.
@@ -134,7 +161,11 @@ export class CaseChatComponent {
       const count = messages.length;
       untracked(() => {
         if (this.thread()) {
-          this.latest.emit(messages.at(-1) ?? null);
+          const newest = messages.at(-1) ?? null;
+          this.latest.emit(newest);
+          if (newest) {
+            this.service.recordLatest(this.caseId(), this.insurer(), newest);
+          }
         }
         if (count && (this.stickToBottom || this.atBottom())) {
           afterNextRender(() => this.scrollToBottom(), { injector: this.injector });
@@ -220,7 +251,7 @@ export class CaseChatComponent {
   protected meta(message: CaseMessage): string {
     const time = formatTime(message.createdAt);
     if (!message.mine) {
-      return time;
+      return this.authorName() ? `${this.authorName()} · ${time}` : time;
     }
     return message.readAt ? `Vos · ${time} · Leído` : `Vos · ${time}`;
   }
@@ -295,6 +326,7 @@ export class CaseChatComponent {
     this.service.markRead(caseId, this.insurer()).subscribe({
       next: () => {
         this.thread.update((current) => (current ? { ...current, unread: 0 } : current));
+        this.service.clearUnread(caseId, this.insurer());
         this.unreadChange.emit(0);
       },
       // If marking read fails the thread still renders; the next poll fixes the count.

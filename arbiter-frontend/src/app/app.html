@@ -24,6 +24,13 @@
             [routerLinkActiveOptions]="{ exact: true }"
             >Mis siniestros</a
           >
+          <a routerLink="/portal/messages" routerLinkActive="active"
+            >Mensajes
+            @if (messages.totalUnread() > 0) {
+              <span class="topbar-badge">{{ messages.totalUnread() }}</span>
+              <span class="sr-only">sin leer</span>
+            }</a
+          >
         </nav>
 
         @if (session.session(); as s) {

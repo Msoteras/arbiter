@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
@@ -21,8 +21,13 @@ import { ExpedienteService } from '../../expedientes/expediente.service';
 import { CardComponent } from '../../../shared/ui/card/card.component';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { CaseDocumentsComponent } from '../../expedientes/case-documents/case-documents.component';
-import { CaseChatComponent } from '../../expedientes/case-chat/case-chat.component';
+import { CaseMessagesService } from '../../expedientes/case-messages.service';
 import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
+import {
+  InsuredChatComponent,
+  initialsOf,
+  insuredPreview,
+} from '../insured-chat/insured-chat.component';
 
 type LoadState =
   | { status: 'loading' }
@@ -43,7 +48,7 @@ interface Movimiento {
     CardComponent,
     ButtonComponent,
     CaseDocumentsComponent,
-    CaseChatComponent,
+    InsuredChatComponent,
     InlineLoadingComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -55,6 +60,9 @@ export class SeguimientoComponent {
   private readonly router = inject(Router);
   private readonly service = inject(ExpedienteService);
   private readonly session = inject(InsuredSessionService);
+  private readonly messages = inject(CaseMessagesService);
+
+  protected readonly chatOpen = signal(false);
 
   // Case ids repeat across insurers, so the `insurer` query param is needed to resolve the tenant.
   private readonly state = toSignal(
@@ -166,6 +174,14 @@ export class SeguimientoComponent {
       current: i === visibles.length - 1,
     }));
   });
+
+  protected readonly chatItem = computed(() => {
+    const d = this.data();
+    return d ? this.messages.inboxItem(d.id, d.insurerSlug) : null;
+  });
+  protected readonly chatPreview = computed(() => insuredPreview(this.chatItem()));
+  protected readonly chatUnread = computed(() => this.chatItem()?.unreadCount ?? 0);
+  protected readonly analystInitials = computed(() => initialsOf(this.data()?.assignedAnalystName));
 
   protected readonly fechaDenuncia = computed(() => formatDateTime(this.data()?.createdAt));
 
