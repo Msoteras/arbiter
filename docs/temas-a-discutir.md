@@ -9,7 +9,7 @@ una sección aparte con lo que quedó huérfano al borrar el backlog de historia
 
 ---
 
-## ~~H0007 — Extracción de datos de documentos, alcance final~~ — ✅ cerrado (07/09/2026)
+## ~~H0007 — Extracción de datos de documentos, alcance final~~ — ✅ cerrado (07/09/2026), salvo la edición
 
 **Qué se hizo.** El modelo devuelve ahora `brand` y `model` separados de `itemDescription`, más una
 lista genérica `details` (nombre/valor) para todo lo demás que el documento diga: nro. de factura,
@@ -25,13 +25,27 @@ así que una regla que buscara ahí dejaría de encontrarlo el día que lo redac
 fallaría en silencio** — en este motor, una regla que no evalúa se lee como "no hay nada mal".
 Cuando un detalle empiece a alimentar una regla, se promueve a columna.
 
-**La edición del analista quedó fuera de alcance, a propósito.** La HU original la pedía, pero
-choca de frente con la decisión #7: si el analista edita el dato extraído, el `document_analysis`
-que fundamentó la recomendación cambia bajo los pies del log de auditoría. Y se perdería sola —
-`document_analysis` se reemplaza en cada corrida, así que la próxima reclasificación se la lleva
-puesta. Sostenerla pediría versionar la tabla y decidir si un valor corregido dispara
-reclasificación, más caro que los otros dos puntos juntos. **Corresponde reescribir la HU** para
-que diga esto en vez de prometer la edición.
+La edición del analista no entró en este cierre: sigue en alcance y se trata en la entrada de abajo.
+
+---
+
+## Edición de los datos extraídos por el analista — en alcance, sin implementar
+
+**Corregido el 28/09/2026.** Esta entrada decía que la edición había quedado fuera de alcance y que
+había que reescribir la HU. No es así: el analista **sí** puede corregir un dato extraído si le
+parece que el modelo lo leyó mal. Lo que pasa es que todavía no está implementado.
+
+**Qué hay que resolver al implementarla.** Son los dos problemas que se habían usado para dejarla
+afuera; ahora son requisitos de diseño:
+
+- **Auditoría (decisión #7).** Si la corrección pisa `document_analysis`, cambia el dato que
+  fundamentó la recomendación y el log queda mintiendo. La corrección tiene que guardarse aparte
+  (quién, cuándo, valor anterior y nuevo) sin tocar lo que leyó el modelo.
+- **Reclasificación.** `document_analysis` se reemplaza en cada corrida, así que una corrección
+  guardada ahí se pierde en la próxima. Además hay que decidir si corregir un dato dispara una
+  reclasificación o solo queda como constancia para el analista.
+
+**Qué bloquea:** nada hoy. El analista ve el dato mal leído y lo tiene que tener en cuenta a mano.
 
 ---
 
