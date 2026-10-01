@@ -47,6 +47,12 @@
   --surface-ai: linear-gradient(180deg, var(--accent-wash), var(--surface) 62%);
   --border-ai: var(--accent-soft-border);
 
+  /* ===== Chat ===== */
+  --chat-own-bg: var(--accent-strong);
+  --chat-own-fg: var(--c-on-ink);
+  --chat-other-bg: var(--surface);
+  --chat-thread-bg: var(--surface-soft);
+
   /* ===== Brand panel (login / hero) ===== */
   --brand-panel-bg: linear-gradient(
     160deg,

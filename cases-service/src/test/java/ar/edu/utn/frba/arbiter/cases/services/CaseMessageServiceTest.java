@@ -1,5 +1,6 @@
 package ar.edu.utn.frba.arbiter.cases.services;
 
+import ar.edu.utn.frba.arbiter.cases.dto.CaseMessageInboxItemResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseMessageResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseMessageThreadResponse;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CaseNotFoundException;
@@ -81,6 +82,8 @@ class CaseMessageServiceTest {
     private MessageNotificationService notificationService;
     @Mock
     private SimpMessagingTemplate messagingTemplate;
+    @Mock
+    private InsuredCaseAggregator insuredCases;
 
     private final CaseAccessPolicy accessPolicy = new CaseAccessPolicy();
     private final Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
@@ -90,7 +93,8 @@ class CaseMessageServiceTest {
     @BeforeEach
     void setUp() {
         service = new CaseMessageService(messageRepository, caseRepository, statusHistoryRepository,
-                userRepository, accessPolicy, tenantScope, notificationService, messagingTemplate, clock);
+                userRepository, accessPolicy, tenantScope, insuredCases, notificationService,
+                messagingTemplate, clock);
         ReflectionTestUtils.setField(service, "replyWindowDays", 7);
 
         when(tenantScope.forCase(any(), any(), any()))
@@ -249,6 +253,84 @@ class CaseMessageServiceTest {
         assertThat(incoming.getReadAt()).isEqualTo(NOW);
         verify(messageRepository, never()).findByCaseIdAndSenderRoleAndReadAtIsNull(
                 CASE_ID, StatusChangeActor.ANALYST);
+    }
+
+    @Test
+    void inbox_oneRowPerCase_mostRecentFirst_withTheCallersUnreadCount() {
+        asAnalyst();
+        Case caseA = givenCase(7L, STATE_ID, CaseStatus.PENDING_ANALYST_REVIEW, "Celulares", "Robo en vía pública");
+        Case caseB = givenCase(9L, STATE_ID, CaseStatus.AWAITING_DOCUMENTATION, "Hogar", "Incendio");
+        when(messageRepository.findAllByOrderByCreatedAtAsc()).thenReturn(List.of(
+                message(7L, StatusChangeActor.INSURED, "Hola", NOW.minus(2, ChronoUnit.DAYS), NOW),
+                message(7L, StatusChangeActor.ANALYST, "¿Tenés la factura?", NOW.minus(1, ChronoUnit.DAYS), null),
+                message(9L, StatusChangeActor.INSURED, "¿Cómo viene?", NOW, null)));
+        when(caseRepository.findAllById(any())).thenReturn(List.of(caseA, caseB));
+
+        List<CaseMessageInboxItemResponse> inbox = service.inbox();
+
+        assertThat(inbox).extracting(CaseMessageInboxItemResponse::caseId).containsExactly(9L, 7L);
+        assertThat(inbox.get(0).lastMessageBody()).isEqualTo("¿Cómo viene?");
+        assertThat(inbox.get(0).unreadCount()).isEqualTo(1);
+        assertThat(inbox.get(1).unreadCount()).isZero();
+    }
+
+    /** Each claim is a conversation, written on or not; messages are looked up in each insurer's schema. */
+    @Test
+    void insuredInbox_listsEveryOwnCase_perInsurer_withTheirOwnMessages() {
+        asInsured(OWNER_DNI);
+        Case written = givenCase(7L, STATE_ID, CaseStatus.PENDING_EXPERT_REPORT, "Celulares", "Daño accidental");
+        Case untouched = givenCase(9L, STATE_ID, CaseStatus.PENDING_ANALYST_REVIEW, "Celulares", "Robo de celular");
+        when(insuredCases.allOwnCases()).thenReturn(List.of(
+                new InsuredCaseAggregator.InsuredCase(untouched, "la-segunda", "La Segunda"),
+                new InsuredCaseAggregator.InsuredCase(written, "provincia", "Provincia Seguros")));
+        when(messageRepository.findByCaseIdInOrderByCreatedAtAsc(List.of(7L))).thenReturn(List.of(
+                message(7L, StatusChangeActor.ANALYST, "¿Nos confirmás un horario?", NOW, null)));
+        when(messageRepository.findByCaseIdInOrderByCreatedAtAsc(List.of(9L))).thenReturn(List.of());
+
+        List<CaseMessageInboxItemResponse> inbox = service.inbox();
+
+        verify(tenantScope).forCase(eq(7L), eq("provincia"), any());
+        verify(tenantScope).forCase(eq(9L), eq("la-segunda"), any());
+        assertThat(inbox).extracting(CaseMessageInboxItemResponse::insurerSlug)
+                .containsExactly("provincia", "la-segunda");
+        assertThat(inbox.get(0).unreadCount()).isEqualTo(1);
+        assertThat(inbox.get(1).lastMessageBody()).isNull();
+        assertThat(inbox.get(1).unreadCount()).isZero();
+    }
+
+    @Test
+    void inbox_referentSeesEveryConversationButNeverAnUnreadCount() {
+        authenticate("ROLE_REFERENTE_ASEGURADORA", "referente.arbiter@gmail.com", null);
+        Case caseRecord = givenCase(7L, STATE_ID, CaseStatus.PENDING_ANALYST_REVIEW, "Celulares", "Robo en vía pública");
+        when(messageRepository.findAllByOrderByCreatedAtAsc()).thenReturn(List.of(
+                message(7L, StatusChangeActor.INSURED, "Hola", NOW, null)));
+        when(caseRepository.findAllById(any())).thenReturn(List.of(caseRecord));
+
+        List<CaseMessageInboxItemResponse> inbox = service.inbox();
+
+        assertThat(inbox).singleElement().extracting(CaseMessageInboxItemResponse::unreadCount).isEqualTo(0);
+    }
+
+    private Case givenCase(Long id, Long stateId, CaseStatus status, String branch, String cause) {
+        CaseState state = CaseStates.of(status);
+        state.setId(stateId);
+        Case caseRecord = new Case();
+        caseRecord.setId(id);
+        caseRecord.setInsured(CaseFixtures.insured(OWNER_DNI, "Martina", "Soteras"));
+        caseRecord.setClaimCause(CaseFixtures.claimCause(branch, cause));
+        caseRecord.setCurrentStatus(state);
+        caseRecord.setUpdatedAt(NOW);
+        return caseRecord;
+    }
+
+    private CaseMessage message(Long caseId, StatusChangeActor sender, String body, Instant createdAt, Instant readAt) {
+        return CaseMessage.builder()
+                .caseId(caseId)
+                .senderRole(sender)
+                .body(body)
+                .createdAt(createdAt)
+                .readAt(readAt)
+                .build();
     }
 
     private Case givenCase(CaseStatus status) {

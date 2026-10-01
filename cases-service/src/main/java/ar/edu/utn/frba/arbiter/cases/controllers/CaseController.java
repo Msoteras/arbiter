@@ -9,6 +9,7 @@ import ar.edu.utn.frba.arbiter.cases.dto.ClaimCauseCorrectionRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.ClaimCauseOption;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseDocumentResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseFollowUp;
+import ar.edu.utn.frba.arbiter.cases.dto.CaseMessageInboxItemResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseScope;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseResponse;
@@ -23,6 +24,7 @@ import ar.edu.utn.frba.arbiter.cases.dto.EligibilityCheckResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.LensSummaryResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.ReopenCaseRequest;
 import ar.edu.utn.frba.arbiter.cases.models.entities.CaseDocument;
+import ar.edu.utn.frba.arbiter.cases.services.CaseMessageService;
 import ar.edu.utn.frba.arbiter.cases.services.CaseService;
 import ar.edu.utn.frba.arbiter.cases.services.ClaimCauseCorrectionService;
 import ar.edu.utn.frba.arbiter.cases.services.SettlementService;
@@ -57,6 +59,7 @@ public class CaseController {
     private final CaseService caseService;
     private final SettlementService settlementService;
     private final ClaimCauseCorrectionService claimCauseCorrectionService;
+    private final CaseMessageService messageService;
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasRole('ASEGURADO')")
@@ -305,6 +308,23 @@ public class CaseController {
         return ResponseEntity.ok(caseService.lensSummary(
                 status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
                 analystId, followUp, staleDays));
+    }
+
+    @GetMapping("/messages/inbox")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Todas las conversaciones de quien pregunta",
+            description = """
+                    Analista y referente: una fila por expediente del tenant con al menos un mensaje.
+                    Asegurado: una fila por cada siniestro propio, de todas sus aseguradoras, tenga
+                    mensajes o no (con `insurerSlug`, porque los ids se repiten entre compañías).
+                    Cada fila trae el último mensaje y el conteo de no leídos del que pregunta, más
+                    recientes primero. El hilo completo sigue en GET /cases/{caseId}/messages.
+
+                    "Sin leer" y "esperando respuesta" son lentes del frontend sobre estos mismos
+                    campos (unreadCount y lastMessageSender), no parámetros de este endpoint.
+                    """)
+    public ResponseEntity<List<CaseMessageInboxItemResponse>> messagesInbox() {
+        return ResponseEntity.ok(messageService.inbox());
     }
 
     @GetMapping("/analysts/workload")

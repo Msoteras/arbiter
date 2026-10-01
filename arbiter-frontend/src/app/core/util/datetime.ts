@@ -76,6 +76,33 @@ export function formatDate(value: string | Date | null | undefined, fallback = '
   return parseLocal(value).toLocaleDateString('es-AR');
 }
 
+export function formatTime(value: string | Date): string {
+  return parseLocal(value).toLocaleTimeString('es-AR', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
+}
+
+/** Chat-style day marker: "Hoy", "Ayer" or "jue 25 sept". */
+export function chatDayLabel(value: string | Date, now: Date = new Date()): string {
+  const date = parseLocal(value);
+  const startOf = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const days = Math.round((startOf(now) - startOf(date)) / 86_400_000);
+  if (days === 0) return 'Hoy';
+  if (days === 1) return 'Ayer';
+  return date
+    .toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric', month: 'short' })
+    .replace(',', '');
+}
+
+/** List-row stamp: the time for today's messages, the date for older ones. */
+export function chatListStamp(value: string | Date, now: Date = new Date()): string {
+  return chatDayLabel(value, now) === 'Hoy'
+    ? formatTime(value)
+    : parseLocal(value).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' });
+}
+
 /** Greeting by time of day: morning 6–13, afternoon 13–20, night otherwise. */
 export function saludoSegunHora(now: Date = new Date()): string {
   const hora = now.getHours();

@@ -296,6 +296,52 @@
 .chat-section {
   display: block;
 }
+
+/* Only a floating popup: it must not take a grid cell or a gap. */
+app-insured-chat {
+  display: contents;
+}
+
+.chat-contact {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+.chat-avatar {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-pill);
+  background: var(--action-accent-bg);
+  color: var(--action-accent-fg);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+}
+.chat-contact-name {
+  margin: 0;
+  font-weight: var(--font-weight-medium);
+  color: var(--text-primary);
+}
+.chat-contact-sub {
+  margin: 0;
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+.chat-last {
+  margin: 0 0 var(--space-4);
+  color: var(--text-secondary);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.chat-last.empty {
+  color: var(--text-muted);
+}
 .docs-section {
   margin-top: var(--space-4);
 }

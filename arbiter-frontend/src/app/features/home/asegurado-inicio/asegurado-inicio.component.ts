@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
 import { catchError, map, of, startWith, switchMap } from 'rxjs';
@@ -19,6 +19,12 @@ import { StatusTone } from '../../../core/models/status-tone';
 import { fechaLarga, saludoSegunHora } from '../../../core/util/datetime';
 import { ExpedienteService } from '../../expedientes/expediente.service';
 import { NewClaimModalService } from '../../expedientes/new-claim-modal.service';
+import { CaseMessagesService } from '../../expedientes/case-messages.service';
+import {
+  InsuredChatComponent,
+  analystFirstName,
+  initialsOf,
+} from '../../portal/insured-chat/insured-chat.component';
 import { CardComponent } from '../../../shared/ui/card/card.component';
 import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
@@ -54,6 +60,7 @@ const ORDEN: EstadoSimplificado[] = ['DENUNCIADO', 'EN_TRAMITE', 'TERMINADO'];
     ButtonComponent,
     EmptyStateComponent,
     LoadingComponent,
+    InsuredChatComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   animations: [staggerReveal],
@@ -62,6 +69,7 @@ const ORDEN: EstadoSimplificado[] = ['DENUNCIADO', 'EN_TRAMITE', 'TERMINADO'];
 })
 export class AseguradoInicioComponent {
   private readonly service = inject(ExpedienteService);
+  private readonly messages = inject(CaseMessagesService);
   private readonly session = inject(AuthSessionService);
   protected readonly insured = inject(InsuredSessionService);
   protected readonly newClaim = inject(NewClaimModalService);
@@ -132,6 +140,22 @@ export class AseguradoInicioComponent {
         tone: resuelto ? (d.status === 'APPROVED' ? 'ok' : 'danger') : undefined,
       },
     ];
+  });
+
+  protected readonly chatOpen = signal(false);
+
+  /** Only while unread: once opened, the notice has done its job. */
+  protected readonly mensajeNuevo = computed(() => {
+    const d = this.destacado();
+    const item = d ? this.messages.inboxItem(d.id, d.insurerSlug) : null;
+    return item && item.unreadCount > 0 && item.lastMessageSender === 'ANALYST' ? item : null;
+  });
+  protected readonly nmInitials = computed(() => initialsOf(this.mensajeNuevo()?.analystName));
+  protected readonly nmTitle = computed(() => {
+    const analyst = analystFirstName(this.mensajeNuevo());
+    return analyst
+      ? `Nuevo mensaje de ${analyst}, tu analista`
+      : 'Nuevo mensaje del equipo de siniestros';
   });
 
   protected connectorDone(i: number): boolean {
