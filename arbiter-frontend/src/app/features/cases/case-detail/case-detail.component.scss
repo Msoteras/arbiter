@@ -72,24 +72,24 @@
 }
 /* Fraud record: color only on the border and badge dot; saturating it would read as a verdict on a person. */
 
-.fraude-item + .fraude-item {
+.fraud-item + .fraud-item {
   margin-top: var(--space-3);
 }
-.fraude-item-head {
+.fraud-item-head {
   display: flex;
   align-items: center;
   gap: var(--space-2);
   flex-wrap: wrap;
 }
-.fraude-item p {
+.fraud-item p {
   margin: var(--space-2) 0 0;
 }
-.fraude-item.propio {
+.fraud-item.propio {
   margin-top: var(--space-4);
   padding-top: var(--space-3);
   border-top: 1px solid var(--border-subtle);
 }
-.fraude-vacio {
+.fraud-empty {
   margin: 0;
   display: flex;
   justify-content: space-between;
@@ -97,7 +97,7 @@
   gap: var(--space-3);
   font-size: var(--font-size-sm);
 }
-.fraude-vacio-texto::before {
+.fraud-empty-text::before {
   content: '';
   display: inline-block;
   width: 6px;
@@ -107,7 +107,7 @@
   background: var(--status-ok);
   vertical-align: middle;
 }
-.fraude-registrar {
+.fraud-register {
   margin-top: var(--space-3);
 }
 
@@ -151,7 +151,7 @@
   line-height: 1.25;
 }
 .reco-value[data-tone],
-.fraude-item {
+.fraud-item {
   padding-left: var(--space-3);
   border-left: 3px solid var(--border-strong);
 }
@@ -264,31 +264,31 @@
 
 /* ===== Expert assessment ===== */
 /* Measure is capped on the card, not the text: `.measure` on paragraphs left a gap that looked like a bug. */
-.peritaje-card {
+.assessment-card {
   max-width: 72ch;
 }
-.peritaje-card + .peritaje-card {
+.assessment-card + .assessment-card {
   display: block;
   margin-top: var(--space-4);
 }
-.peritaje {
+.assessment {
   display: grid;
   gap: var(--space-1);
   margin: 0 0 var(--space-3);
 }
-.peritaje dt {
+.assessment dt {
   margin-top: var(--space-2);
 }
-.peritaje dt:first-child {
+.assessment dt:first-child {
   margin-top: 0;
 }
-.peritaje dd {
+.assessment dd {
   margin: 0;
   font-size: var(--font-size-body);
   color: var(--text-primary);
 }
 
-.peritaje-veredicto {
+.assessment-verdict {
   display: flex;
   align-items: center;
   gap: var(--space-2);
@@ -296,14 +296,14 @@
 }
 
 /* Native input hidden so the visible control is an app-button (the kit has no file picker). */
-.informe-file {
+.report-file {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
   margin: var(--space-3) 0;
 }
-.informe-file .t-field-label {
+.report-file .t-field-label {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

@@ -67,7 +67,9 @@
                     <app-badge [tone]="c.riskBand === 'CRITICAL' ? 'danger' : 'risk'">
                       {{ riskLabel(c.riskBand) }}
                     </app-badge>
-                    <app-badge [tone]="estadoTone(c.status)">{{ estadoLabel(c.status) }}</app-badge>
+                    <app-badge [tone]="caseStatusTone(c.status)">{{
+                      caseStatusLabel(c.status)
+                    }}</app-badge>
                   </div>
                   <span class="alert-chevron" aria-hidden="true">›</span>
                 </a>

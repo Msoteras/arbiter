@@ -162,11 +162,11 @@ export class ReferentHomeComponent {
     return Math.round((activeCases / this.maxLoad()) * 100);
   }
 
-  protected estadoLabel(status: string): string {
+  protected caseStatusLabel(status: string): string {
     return caseStatusLabel(status);
   }
 
-  protected estadoTone(status: string): StatusTone {
+  protected caseStatusTone(status: string): StatusTone {
     return caseStatusTone(status);
   }
 

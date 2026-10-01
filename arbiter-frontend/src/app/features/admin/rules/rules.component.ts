@@ -57,10 +57,10 @@ import { SelectComponent, SelectOption } from '../../../shared/ui/select/select.
 import { ToastService } from '../../../shared/ui/toast/toast.service';
 import { accordion, fadeInUp, listStagger, staggerReveal } from '../../../shared/animations';
 
-type TabId = 'coberturas' | 'exclusiones' | 'fastTrack' | 'documentacion' | 'reglas';
+type TabId = 'coverages' | 'exclusions' | 'fastTrack' | 'documents' | 'rules';
 
 /** Right-panel views that don't depend on the selected branch. */
-type GeneralView = 'hardStop' | 'scoring' | 'fraude' | 'atribuciones' | 'objetivo' | 'historial';
+type GeneralView = 'hardStop' | 'scoring' | 'fraud' | 'authorities' | 'target' | 'history';
 
 /**
  * Branch master-detail with per-tab drafts, each saved by its own button. Branches are a GLOBAL
@@ -149,11 +149,11 @@ export class RulesComponent {
   protected readonly showRenameConfirm = signal(false);
 
   protected readonly tabs: { id: TabId; label: string }[] = [
-    { id: 'coberturas', label: 'Coberturas' },
-    { id: 'exclusiones', label: 'Exclusiones comunes' },
+    { id: 'coverages', label: 'Coberturas' },
+    { id: 'exclusions', label: 'Exclusiones comunes' },
     { id: 'fastTrack', label: 'Fast Track' },
-    { id: 'documentacion', label: 'Documentación' },
-    { id: 'reglas', label: 'Reglas de negocio' },
+    { id: 'documents', label: 'Documentación' },
+    { id: 'rules', label: 'Reglas de negocio' },
   ];
   private static readonly LAST_TAB_KEY = 'arbiter.reglas.lastTab';
   protected readonly activeTab = signal<TabId>(this.loadLastTab());
@@ -354,11 +354,11 @@ export class RulesComponent {
   protected readonly generalSections: { id: GeneralView; label: string }[] = [
     { id: 'hardStop', label: 'Hard Stop' },
     { id: 'scoring', label: 'Puntaje de riesgo' },
-    { id: 'fraude', label: 'Gestión de fraude' },
+    { id: 'fraud', label: 'Gestión de fraude' },
     // Caps are per branch but listed together so they can be compared at a glance.
-    { id: 'atribuciones', label: 'Atribuciones de liquidación' },
-    { id: 'objetivo', label: 'Objetivo de resolución' },
-    // 'historial' is deliberately not here: it configures nothing and has its own Audit block.
+    { id: 'authorities', label: 'Atribuciones de liquidación' },
+    { id: 'target', label: 'Objetivo de resolución' },
+    // 'history' is deliberately not here: it configures nothing and has its own Audit block.
   ];
 
   protected selectGeneral(section: GeneralView): void {
@@ -377,7 +377,7 @@ export class RulesComponent {
     this.draft.set(structuredClone(r));
     this.persisted.set(structuredClone(r));
     this.expandedCoverageId.set(null);
-    this.activeTab.set('coberturas');
+    this.activeTab.set('coverages');
     this.ftError.set(null);
     this.ftCoverages.set([]);
     this.ftCoverageId.set(null);
@@ -691,7 +691,7 @@ export class RulesComponent {
   /** Falls back to Coberturas when nothing valid is stored. */
   private loadLastTab(): TabId {
     const saved = localStorage.getItem(RulesComponent.LAST_TAB_KEY);
-    return this.tabs.some((t) => t.id === saved) ? (saved as TabId) : 'coberturas';
+    return this.tabs.some((t) => t.id === saved) ? (saved as TabId) : 'coverages';
   }
 
   protected setName(name: string): void {

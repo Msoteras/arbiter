@@ -1,12 +1,12 @@
 /* "Análisis" and "Evaluación de reglas" tabs. Split out to stay under the `anyComponentStyle` budget. */
 
-.avisos {
+.notice-list {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
   margin: calc(-1 * var(--space-2)) 0 var(--space-4);
 }
-.aviso {
+.notice {
   margin: 0;
   display: flex;
   flex-wrap: wrap;
@@ -20,26 +20,26 @@
   font-size: var(--font-size-sm);
   color: var(--text-secondary);
 }
-/* Qualified with .aviso so it overrides the generic [data-tone] rules from the other stylesheet. */
-.aviso[data-tone='info'] {
+/* Qualified with .notice so it overrides the generic [data-tone] rules from the other stylesheet. */
+.notice[data-tone='info'] {
   border-left-color: var(--status-info);
 }
-.aviso[data-tone='risk'] {
+.notice[data-tone='risk'] {
   border-left-color: var(--status-risk);
 }
-.aviso[data-tone='warning'] {
+.notice[data-tone='warning'] {
   border-left-color: var(--status-warning);
 }
-.aviso[data-tone='danger'] {
+.notice[data-tone='danger'] {
   border-left-color: var(--status-danger);
 }
-.aviso strong {
+.notice strong {
   color: var(--text-primary);
 }
-.aviso .aviso-titulo {
+.notice .notice-title {
   font-weight: var(--font-weight-medium);
 }
-.aviso-cita {
+.notice-quote {
   font-style: italic;
 }
 
@@ -50,7 +50,7 @@
   font-variant-numeric: tabular-nums;
 }
 
-.analisis-grid {
+.analysis-grid {
   display: grid;
   /* The reasons are long prose; the score is a number and a short list. */
   grid-template-columns: minmax(0, 2.2fr) minmax(0, 1fr);
@@ -80,11 +80,11 @@
   padding-top: var(--space-1);
 }
 
-.score-valor {
+.score-value {
   margin: 0 0 var(--space-3);
   color: var(--text-primary);
 }
-.score-valor strong {
+.score-value strong {
   font-size: var(--font-size-xl);
   font-weight: var(--font-weight-bold);
 }
@@ -94,7 +94,7 @@
 }
 
 /* The full bar is 100; each segment is one factor's contribution, colored by risk band. */
-.score-barra {
+.score-bar {
   --score-tone: var(--text-tertiary);
   display: flex;
   gap: var(--space-1);
@@ -104,16 +104,16 @@
   overflow: hidden;
   margin-bottom: var(--space-3);
 }
-.score-barra[data-tone='ok'] {
+.score-bar[data-tone='ok'] {
   --score-tone: var(--status-ok);
 }
-.score-barra[data-tone='warning'] {
+.score-bar[data-tone='warning'] {
   --score-tone: var(--status-warning);
 }
-.score-barra[data-tone='risk'] {
+.score-bar[data-tone='risk'] {
   --score-tone: var(--status-risk);
 }
-.score-barra[data-tone='danger'] {
+.score-bar[data-tone='danger'] {
   --score-tone: var(--status-danger);
 }
 .score-seg {
@@ -140,7 +140,7 @@
   border-top: 1px solid var(--border-subtle);
   font-size: var(--font-size-sm);
 }
-.score-factor-texto {
+.score-factor-text {
   display: flex;
   flex-direction: column;
 }
@@ -148,25 +148,25 @@
   font-weight: var(--font-weight-bold);
   white-space: nowrap;
 }
-.score-factor.nulo .score-factor-nombre,
+.score-factor.nulo .score-factor-name,
 .score-factor.nulo .score-factor-aporte {
   color: var(--text-tertiary);
   font-weight: var(--font-weight-regular);
 }
 
-.reglas-meta {
+.rules-meta {
   display: block;
   margin: 0 0 var(--space-3);
 }
-.traza-table tr.fila-falla td {
+.traza-table tr.failing-row td {
   font-weight: var(--font-weight-medium);
 }
-.traza-table tr.fila-falla td:first-child {
+.traza-table tr.failing-row td:first-child {
   box-shadow: inset 2px 0 0 var(--status-danger);
   padding-left: var(--space-3);
 }
 
-.reglas-grid {
+.rules-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr));
   gap: var(--space-4);
@@ -186,18 +186,18 @@
   padding: var(--space-2) 0;
   border-top: 1px solid var(--border-subtle);
 }
-.criterio-texto {
+.criterion-text {
   display: flex;
   flex-direction: column;
   min-width: 0;
 }
-.criterio-nombre {
+.criterion-name {
   font-size: var(--font-size-sm);
   color: var(--text-primary);
 }
 
 @media (max-width: 820px) {
-  .analisis-grid {
+  .analysis-grid {
     grid-template-columns: 1fr;
   }
 }
