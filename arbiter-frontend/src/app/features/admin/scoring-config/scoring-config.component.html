@@ -102,17 +102,14 @@
             <span class="sc-band-range">{{ bandRangeLabel(band) }}</span>
             <label class="sc-band-cut">
               <span class="t-note">desde</span>
-              @if (band === 'LOW') {
-                <!-- The lowest band always starts at 0, or some scores would have no band. -->
-                <app-input type="number" [value]="'0'" [readonly]="true" />
-              } @else {
-                <app-input
-                  type="number"
-                  [min]="0"
-                  [value]="bandCutPct(band)"
-                  (valueChange)="setBandCut(band, $event)"
-                />
-              }
+              <!-- The lowest band always starts at 0, or some scores would have no band. -->
+              <app-input
+                type="number"
+                [min]="0"
+                [readonly]="band === 'LOW'"
+                [value]="band === 'LOW' ? '0' : bandCutPct(band)"
+                (valueChange)="setBandCut(band, $event)"
+              />
               <span class="t-note">%</span>
             </label>
           </li>

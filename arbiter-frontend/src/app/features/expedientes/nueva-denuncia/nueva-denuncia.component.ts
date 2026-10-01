@@ -34,6 +34,7 @@ import {
   isTypedDate,
   todayIso,
 } from '../../../core/util/datetime';
+import { amountInputDisplay, amountInputLabel, amountInputValue } from '../../../core/util/money';
 import {
   CASE_DOCUMENT_TYPES,
   CaseDocumentType,
@@ -454,6 +455,9 @@ export class NuevaDenunciaComponent {
   }
 
   protected readonly claimedAmount = signal<string>('');
+  protected readonly amountInputLabel = amountInputLabel;
+  protected readonly amountInputValue = amountInputValue;
+  protected readonly amountInputDisplay = amountInputDisplay;
   protected readonly contactEmail = signal('');
   protected readonly contactPhone = signal('');
 

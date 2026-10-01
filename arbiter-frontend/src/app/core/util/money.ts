@@ -21,10 +21,17 @@ export function amountInputLabel(value: string): string {
   return cents === undefined ? label : `${label},${cents}`;
 }
 
+/** The narrowest amount column is NUMERIC(14,2). */
+const MAX_WHOLE_DIGITS = 12;
+
 export function amountInputValue(typed: string): string {
   const [whole, ...cents] = typed.replace(/[^\d,]/g, '').split(',');
-  const digits = whole.replace(/^0+(?=\d)/, '');
+  const digits = whole.replace(/^0+(?=\d)/, '').slice(0, MAX_WHOLE_DIGITS);
   return cents.length === 0 ? digits : `${digits || '0'}.${cents.join('').slice(0, 2)}`;
+}
+
+export function amountInputDisplay(typed: string): string {
+  return amountInputLabel(amountInputValue(typed));
 }
 
 /** Shows both the absolute deductible and its contracted percentage when available. */

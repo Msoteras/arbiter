@@ -17,6 +17,11 @@ describe('money', () => {
     expect(amountInputValue(',5')).toBe('0.5');
   });
 
+  it('never yields a negative or an amount wider than the database column', () => {
+    expect(amountInputValue('-500')).toBe('500');
+    expect(amountInputValue('1234567890123,45')).toBe('123456789012.45');
+  });
+
   it('round-trips what the label shows', () => {
     for (const value of ['0', '1500', '612500.5', '1300000.25']) {
       expect(amountInputValue(amountInputLabel(value))).toBe(value);

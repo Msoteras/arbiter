@@ -1399,7 +1399,7 @@ export class StyleguideComponent {
   ];
   protected readonly sampleMenuChoice = signal('');
 
-  protected noop(): void {}
+  protected readonly noop = (): void => {};
 
   protected onSampleMenuSelect(value: string): void {
     this.sampleMenuChoice.set(value);

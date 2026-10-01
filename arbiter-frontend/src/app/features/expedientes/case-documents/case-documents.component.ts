@@ -11,7 +11,6 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
-import { HttpErrorResponse } from '@angular/common/http';
 import { catchError, combineLatest, map, of, startWith, switchMap } from 'rxjs';
 
 import { ExpedienteService } from '../expediente.service';
@@ -119,7 +118,7 @@ export class CaseDocumentsComponent {
         this.service.listDocuments(id, slug).pipe(
           map((data): ListState => ({ status: 'ok', data })),
           startWith<ListState>({ status: 'loading' }),
-          catchError((_err: HttpErrorResponse) => of<ListState>({ status: 'error' })),
+          catchError(() => of<ListState>({ status: 'error' })),
         ),
       ),
     ),

@@ -94,7 +94,13 @@ const IDLE: SearchState = { items: [], loading: false, failed: false };
             <ul class="gsearch-list">
               @for (c of state().items; track c.id) {
                 <li>
-                  <button type="button" role="option" class="gsearch-item" (click)="goToCase(c.id)">
+                  <button
+                    type="button"
+                    role="option"
+                    aria-selected="false"
+                    class="gsearch-item"
+                    (click)="goToCase(c.id)"
+                  >
                     <span class="gsearch-item-id mono">EXP-{{ c.id }}</span>
                     <span class="gsearch-item-meta">
                       {{ c.insuredName ?? c.insuredId }} · {{ c.claimCause }}
