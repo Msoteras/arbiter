@@ -49,6 +49,8 @@ describe('CaseChatComponent · messages over the socket', () => {
             thread: () => of(thread),
             markRead,
             post: () => posted.asObservable(),
+            recordLatest: () => undefined,
+            clearUnread: () => undefined,
           },
         },
         { provide: CaseMessagesSocketService, useValue: { watch: () => pushed.asObservable() } },
@@ -65,7 +67,8 @@ describe('CaseChatComponent · messages over the socket', () => {
     return Array.from(fixture.nativeElement.querySelectorAll('.msg')).map((el) => {
       const node = el as HTMLElement;
       return {
-        who: node.querySelector('.who')!.textContent!.trim(),
+        // The author is only announced to screen readers, as "Name:".
+        who: node.querySelector('.sr-only')!.textContent!.trim().replace(/:$/, ''),
         body: node.querySelector('.body')!.textContent!.trim(),
         mine: node.classList.contains('mine'),
       };
