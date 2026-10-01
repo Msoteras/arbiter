@@ -64,6 +64,13 @@ class AnalystDecisionTest {
                 });
     }
 
+    /** The real repository never returns null: a case the rules didn't settle has a null column. */
+    @BeforeEach
+    void theModelDecidedUnlessATestSaysOtherwise() {
+        lenient().when(caseOutcomeRepository.findOutcome(any()))
+                .thenReturn(new CaseOutcomeRepository.CaseOutcome(null, null, null));
+    }
+
     private static final Long PERSISTED_DECISION_ID = 7L;
 
     @Test
@@ -149,9 +156,8 @@ class AnalystDecisionTest {
     @Test
     void recordAnalystDecision_onAFastTrackedCase_savesWithoutAnAnalysis() {
         Long caseId = 5L;
-        when(llmAnalysisRepository.findLatestByCaseId(caseId)).thenReturn(Optional.empty());
         when(caseOutcomeRepository.findOutcome(caseId))
-                .thenReturn(new CaseOutcomeRepository.CaseOutcome(true, null, "Martina Soteras"));
+                .thenReturn(new CaseOutcomeRepository.CaseOutcome(Classification.FAST_TRACK, null, "Martina Soteras"));
 
         resultsService.recordAnalystDecision(caseId, new AnalystDecisionRequest(1L, "APROBAR", null, null));
 
@@ -166,7 +172,7 @@ class AnalystDecisionTest {
         Long caseId = 99L;
         when(llmAnalysisRepository.findLatestByCaseId(caseId)).thenReturn(Optional.empty());
         when(caseOutcomeRepository.findOutcome(caseId))
-                .thenReturn(new CaseOutcomeRepository.CaseOutcome(false, null, null));
+                .thenReturn(new CaseOutcomeRepository.CaseOutcome(null, null, null));
 
         assertThatThrownBy(() ->
                 resultsService.recordAnalystDecision(caseId, new AnalystDecisionRequest(1L, "APPROVE", null, null)))

@@ -284,7 +284,7 @@ export class DashboardComponent {
       {
         label: 'Analizados por el modelo',
         value: funnel.analyzed,
-        // Smaller than intake by design: the LLM never runs on Fast Track (enforced by a DB CHECK).
+        // Smaller than intake by design: the LLM never runs on an outcome the rules settled.
         note: share(funnel.analyzed),
         tone: 'info',
       },

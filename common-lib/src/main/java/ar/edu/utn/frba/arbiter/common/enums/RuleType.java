@@ -62,7 +62,13 @@ public enum RuleType {
     CLAIM_CAUSE_MATCH,
 
     /** Advisory · signs a document was altered. Never a PASS row: no signs doesn't prove authenticity. */
-    VISUAL_TAMPERING;
+    VISUAL_TAMPERING,
+
+    /**
+     * Art. 58 Ley 17.418, a constant in code rather than an {@code insurer_rule}. Only ever a FAIL row:
+     * it is written when the claim is time-barred, the one outcome that skips every other rule.
+     */
+    PRESCRIPTION;
 
     /** {@link #COVERAGE_EXCLUSION} is left out: it is configured per coverage with its own selector. */
     public static List<RuleType> temporalRules() {

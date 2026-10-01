@@ -343,7 +343,30 @@ en `document_analysis` y no en el score.
 
 ---
 
-## Fast Track negativo: las salidas por reglas se registran como si las hubiera dado el LLM
+## ~~Fast Track negativo: las salidas por reglas se registran como si las hubiera dado el LLM~~ — ✅ resuelto (29/09/2026)
+
+**Qué se hizo:** la opción 1 de abajo, sin tabla nueva y sin tocar el enum (decisión #6 intacta).
+
+- `cases.was_fast_track` pasó a ser `cases.rules_classification`: qué recomendó el motor cuando
+  decidió sin el modelo, nula si decidió el modelo. Las cuatro salidas por reglas (Fast Track,
+  exclusión, prescripción, falta de documentación) ya no escriben `llm_analysis`; el porqué queda
+  en `rule_result`, que ya tenía la exclusión y ahora suma `PRESCRIPTION` con las dos fechas.
+- La falta de documentación no tiene fila propia: la agenda es siempre la exigida y lo que se sube
+  después queda con su fecha en `case_document`.
+- El DTO lleva `resolvedByRules` hasta el frontend. La card dice "Resultado del motor de reglas" y
+  manda a «Evaluación de reglas».
+- La decisión del analista sobre una salida por reglas ya no se engancha a un `llm_analysis` de
+  una corrida anterior (le pasaba también a Fast Track).
+- Reportes: la tasa de Fast Track y la distribución por clasificación dan igual. La coincidencia
+  del modelo deja afuera lo que decidió el motor, y "Analizados por el modelo" también: ninguno de
+  los dos contaba antes a Fast Track.
+- La migración `2026-09-29-quien-decidio-la-clasificacion.sql` corrige los expedientes viejos sin
+  adivinar: `FALTA_DOCUMENTACION` no la puede devolver el modelo, y la exclusión y la prescripción
+  se reconocen por su motivo, que es un texto fijo del código. Sus filas de `llm_analysis` quedan
+  como historial. Va en dos pasos: antes del deploy agrega y llena la columna; después se corre de
+  nuevo y `2026-09-29-borrar-was-fast-track.sql` borra la vieja, que el código desplegado todavía usa.
+
+Lo que sigue queda como registro.
 
 **Encontrado:** 22/09/2026, discutiendo si un Fast Track tiene que llegarle al analista como "todo en
 regla". No tiene que: Fast Track quiere decir "lo resolvieron las reglas, sin pasar por el LLM", y eso

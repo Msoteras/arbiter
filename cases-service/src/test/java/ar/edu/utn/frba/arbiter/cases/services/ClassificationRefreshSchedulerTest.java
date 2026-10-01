@@ -9,6 +9,7 @@ import ar.edu.utn.frba.arbiter.cases.models.repositories.InsurerRepository;
 import ar.edu.utn.frba.arbiter.cases.support.CaseFixtures;
 import ar.edu.utn.frba.arbiter.cases.support.CaseStates;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
+import ar.edu.utn.frba.arbiter.common.enums.Classification;
 import ar.edu.utn.frba.arbiter.common.enums.ClassificationFailureReason;
 import ar.edu.utn.frba.arbiter.common.models.entities.Insurer;
 import org.junit.jupiter.api.BeforeEach;
@@ -281,7 +282,7 @@ class ClassificationRefreshSchedulerTest {
     void recoverInfrastructureFailures_infrastructureFailure_requeuesAndRetriggersClassification() {
         Case entity = failedCase(3, ClassificationFailureReason.INFRASTRUCTURE);
         entity.setRiskScore(0.8);
-        entity.setDeterministicFastTrack(true);
+        entity.setRulesClassification(Classification.FAST_TRACK);
         when(caseRepository.findFailedByReason(ClassificationFailureReason.INFRASTRUCTURE))
                 .thenReturn(List.of(entity));
         when(caseRepository.findById(entity.getId())).thenReturn(Optional.of(entity));
@@ -295,7 +296,7 @@ class ClassificationRefreshSchedulerTest {
                 eq(StatusChangeActor.SYSTEM), any());
         assertThat(entity.getClassificationAttempts()).isEqualTo(0);
         assertThat(entity.getRiskScore()).isNull();
-        assertThat(entity.getDeterministicFastTrack()).isFalse();
+        assertThat(entity.getRulesClassification()).isNull();
         verify(claimsAnalysisClient).analyzeAndPersistAsSystem(entity, List.of());
     }
 

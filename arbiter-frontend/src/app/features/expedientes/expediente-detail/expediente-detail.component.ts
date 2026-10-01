@@ -396,13 +396,10 @@ export class ExpedienteDetailComponent {
   }
 
   /**
-   * FAST_TRACK and FALTA_DOCUMENTACION come from the rules gate, not the LLM, so no model confidence
-   * is shown for them: the backend's 100% is a fixed value, not a measurement.
+   * Settled by the rules engine without the LLM, so no model confidence is shown: the backend's 100%
+   * is a fixed value, not a measurement.
    */
-  protected readonly isDeterministicOutcome = computed(() => {
-    const c = this.data()?.analysisClassification;
-    return c === 'FAST_TRACK' || c === 'FALTA_DOCUMENTACION';
-  });
+  protected readonly isDeterministicOutcome = computed(() => this.data()?.resolvedByRules === true);
 
   protected readonly resumenGroups = computed<{ heading: string; fields: FieldItem[] }[]>(() => {
     const d = this.data();

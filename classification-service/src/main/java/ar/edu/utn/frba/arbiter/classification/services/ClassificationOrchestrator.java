@@ -2,6 +2,7 @@ package ar.edu.utn.frba.arbiter.classification.services;
 
 import ar.edu.utn.frba.arbiter.common.enums.CauseConsistency;
 import ar.edu.utn.frba.arbiter.common.enums.Classification;
+import ar.edu.utn.frba.arbiter.common.enums.RuleType;
 import ar.edu.utn.frba.arbiter.classification.adapters.InsurerAdapter;
 import ar.edu.utn.frba.arbiter.classification.adapters.DocumentAnalyzer;
 import ar.edu.utn.frba.arbiter.classification.adapters.RulesAdapter;
@@ -574,7 +575,7 @@ public class ClassificationOrchestrator {
                         .map(doc -> "Falta documento requerido: " + doc)
                         .toList())
                 .confidence(1.0)
-                .deterministicFastTrack(false)
+                .resolvedByRules(true)
                 .build();
     }
 
@@ -583,7 +584,7 @@ public class ClassificationOrchestrator {
                 .classification(Classification.FAST_TRACK)
                 .factors(fastTrack.reasons())
                 .confidence(1.0)
-                .deterministicFastTrack(true)
+                .resolvedByRules(true)
                 .build();
     }
 
@@ -595,7 +596,7 @@ public class ClassificationOrchestrator {
                 .classification(Classification.LLM_SOLICITA_REVISION_MANUAL)
                 .factors(coverageRuleEvaluator.excludedReasons(exclusion, claim))
                 .confidence(1.0)
-                .deterministicFastTrack(false)
+                .resolvedByRules(true)
                 .build();
     }
 
@@ -620,7 +621,11 @@ public class ClassificationOrchestrator {
                                 + "prescripto (art. 58, Ley 17.418) y corresponde rechazar sin más análisis",
                         DISPLAY_DATE.format(claim.eventDate()), PRESCRIPTION_YEARS)))
                 .confidence(1.0)
-                .deterministicFastTrack(false)
+                .resolvedByRules(true)
+                // The audit's only trace of why: a rules outcome writes no llm_analysis row.
+                .ruleFindings(List.of(new RuleFinding(null, RuleType.PRESCRIPTION.name(), false,
+                        "eventDate=" + DISPLAY_DATE.format(claim.eventDate())
+                                + " reportedAt=" + DISPLAY_DATE.format(claim.reportedAt()))))
                 .build();
     }
 

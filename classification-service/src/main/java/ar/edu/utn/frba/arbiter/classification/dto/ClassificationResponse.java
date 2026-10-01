@@ -17,7 +17,11 @@ public record ClassificationResponse(
         Classification classification,
         List<String> factors,
         double confidence,
-        boolean deterministicFastTrack,
+        /**
+         * The engine settled it without the model: Fast Track, missing documentation, a coverage
+         * exclusion or prescription. Such a run writes no {@code llm_analysis} row.
+         */
+        boolean resolvedByRules,
         RiskScore riskScore,
         String insuredName,
         ImageForensicReport forensicReport,
@@ -30,8 +34,8 @@ public record ClassificationResponse(
         String causeEvidence
 ) {
 
-    public ClassificationResponse(Classification classification, List<String> factors, double confidence, boolean deterministicFastTrack) {
-        this(classification, factors, confidence, deterministicFastTrack,
+    public ClassificationResponse(Classification classification, List<String> factors, double confidence, boolean resolvedByRules) {
+        this(classification, factors, confidence, resolvedByRules,
                 null, null, null, null, null, null, null);
     }
 }

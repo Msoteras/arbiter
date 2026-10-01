@@ -158,6 +158,24 @@ de los datos de entrada. Implementadas en `db/init-multitenant.sql` y
 
 ---
 
+## 9 · `expediente.fue_fast_track` → `expediente.clasificacion_por_reglas` — cambia la columna
+
+**Encontrado:** 29/09/2026. Fast Track era una de las cuatro salidas que decide el motor de reglas sin
+el modelo. Las otras tres (exclusión de cobertura, prescripción y falta de documentación) se
+guardaban en `analisis_llm` como si las hubiera recomendado el modelo. Ahora ninguna escribe en
+`analisis_llm`: la recomendación del motor queda en el expediente y el porqué, en
+`resultado_regla`. Implementado en `db/init-multitenant.sql` y
+`db/migrations/2026-09-29-quien-decidio-la-clasificacion.sql`.
+
+| Tabla | Columna | Tipo de dato | Nulo | Restricciones |
+|---|---|---|---|---|
+| `expediente` | ~~`fue_fast_track`~~ (`was_fast_track`) | BOOLEAN | — | se dropea |
+| `expediente` | `clasificacion_por_reglas` (`rules_classification`) | VARCHAR(50) | sí | CHECK `IN ('FAST_TRACK', 'FALTA_DOCUMENTACION', 'LLM_SOLICITA_REVISION_MANUAL', 'LLM_NO_RECOMIENDA_APROBAR')`; nula cuando decidió el modelo |
+
+**Acción:** reemplazar `fue_fast_track` por `clasificacion_por_reglas` en `expediente` en el `.mdj`.
+
+---
+
 ## Plantilla para la próxima entrada
 
 ```

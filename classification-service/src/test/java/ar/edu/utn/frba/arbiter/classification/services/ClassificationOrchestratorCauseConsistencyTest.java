@@ -195,7 +195,7 @@ class ClassificationOrchestratorCauseConsistencyTest {
                 .classification(Classification.LLM_RECOMIENDA_APROBAR)
                 .factors(List.of("ok"))
                 .confidence(0.8)
-                .deterministicFastTrack(false)
+                .resolvedByRules(false)
                 .causeConsistency(verdict)
                 .suggestedClaimCause(suggested)
                 .causeEvidence(evidence)

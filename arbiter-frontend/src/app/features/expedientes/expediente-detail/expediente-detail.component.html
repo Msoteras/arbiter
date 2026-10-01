@@ -61,6 +61,9 @@
             }
           } @else if (needsDocs()) {
             <p class="note">Falta documentación obligatoria de la agenda del ramo.</p>
+          } @else if (!esFastTrack()) {
+            <!-- Coverage exclusion or prescription: the model never ran. -->
+            <p class="note">El detalle está en «Evaluación de reglas».</p>
           } @else {
             <p class="note">
               Cumplió los criterios objetivos de Fast Track.
@@ -616,7 +619,7 @@
               } @else {
                 <app-empty-state
                   message="El modelo no dejó razones"
-                  sub="En Fast Track no se consulta al modelo; el score sale de los datos."
+                  sub="Cuando decide una regla no se consulta al modelo; el score sale de los datos."
                 />
               }
               @if (classificationLabel() && !isDeterministicOutcome()) {
@@ -768,16 +771,9 @@
               <!-- Separate card: failing a Fast Track criterion is not a coverage exclusion. -->
               @if (fastTrackCriteria().length > 0) {
                 <app-card heading="Criterios de Fast Track">
-                  <p class="t-note traza-intro">
-                    @if (esFastTrack()) {
-                      Los cumplió todos, así que se resolvió sin pasar por el modelo. No es una
-                      recomendación de aprobar: la decisión sigue siendo del analista.
-                    } @else {
-                      No los cumplió todos, así que el expediente fue al modelo en vez del carril
-                      rápido. Un criterio no cumplido no dice que el siniestro no esté cubierto —
-                      eso lo dicen las reglas de arriba.
-                    }
-                  </p>
+                  <app-badge cardAside variant="strong" [tone]="esFastTrack() ? 'ok' : 'neutral'">
+                    {{ esFastTrack() ? 'Aplicó' : 'No aplicó' }}
+                  </app-badge>
                   <ul class="criterios">
                     @for (c of fastTrackCriteria(); track c.id) {
                       <li class="criterio">
@@ -793,10 +789,6 @@
                       </li>
                     }
                   </ul>
-                  <span class="t-note">
-                    Umbrales de la aseguradora al momento de clasificar, el
-                    {{ formatDateTime(fastTrackCriteria()[0].evaluatedAt) }}.
-                  </span>
                 </app-card>
               }
 

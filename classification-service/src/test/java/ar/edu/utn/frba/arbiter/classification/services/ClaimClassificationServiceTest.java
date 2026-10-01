@@ -97,7 +97,7 @@ class ClaimClassificationServiceTest {
                         .classification(Classification.FAST_TRACK)
                         .factors(List.of("ok"))
                         .confidence(1.0)
-                        .deterministicFastTrack(true)
+                        .resolvedByRules(true)
                         .build());
 
         service.processClaimClassification(7L, claim, List.of());

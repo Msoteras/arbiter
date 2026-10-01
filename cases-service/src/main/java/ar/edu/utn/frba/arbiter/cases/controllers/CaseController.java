@@ -101,10 +101,10 @@ public class CaseController {
     @GetMapping("/intake-documents")
     @PreAuthorize("hasRole('ASEGURADO')")
     @Operation(summary = "Documentación que se pide al registrar la denuncia",
-            description = "La primera tanda: lo que el carril rápido exige para la cobertura que responde "
+            description = "La primera tanda: lo que Fast Track exige para la cobertura que responde "
                     + "por ese hecho generador. Si la aseguradora no configuró ninguna, devuelve la agenda "
                     + "documental completa (`fastTrackOnly=false`). La agenda entera se le pide después, y "
-                    + "solo si el siniestro no entra al carril rápido. 503 si no se pudo leer el motor de "
+                    + "solo si el siniestro no entra en Fast Track. 503 si no se pudo leer el motor de "
                     + "reglas: una lista vacía se leería como \"no hace falta ningún documento\".")
     public ResponseEntity<IntakeDocumentsResponse> intakeDocuments(
             @RequestParam String policyNumber,

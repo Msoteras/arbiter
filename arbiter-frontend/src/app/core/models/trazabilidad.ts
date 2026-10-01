@@ -25,6 +25,7 @@ const RULE_TYPE_LABELS: Record<string, string> = {
   // Configured on the coverage itself, not in the hard rules tab, so there is no label to reuse.
   COVERS_FAMILY_GROUP: 'Alcance al grupo familiar',
   CLAIM_EXHAUSTS_COVERAGE: 'Cobertura consumida por un siniestro previo',
+  PRESCRIPTION: 'Prescripción (art. 58)',
   FRAUD_RECORD: 'Antecedente de fraude',
   // The engine writes the FT_* criteria below instead; only demo seed data uses this one.
   FAST_TRACK: 'Criterio de Fast Track',
@@ -151,6 +152,10 @@ export function ruleEvaluationText(ruleType: string, evaluatedValue: string | nu
     case 'COVERAGE_INCLUSION':
       return t['claimCause']
         ? `Hecho generador: ${t['claimCause'].replace(/\s*\(id=\d+\)$/, '')}`
+        : evaluatedValue;
+    case 'PRESCRIPTION':
+      return t['eventDate'] && t['reportedAt']
+        ? `Hecho del ${t['eventDate']} · denunciado el ${t['reportedAt']} · plazo de 1 año`
         : evaluatedValue;
     case 'COVERS_FAMILY_GROUP':
       return t['affectedParty']

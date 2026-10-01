@@ -98,8 +98,13 @@ export interface ExpedienteResponse {
   assignedAnalystId: number | null;
   assignedAnalystName: string | null;
   analysisClassification: Clasificacion | string;
+  /**
+   * The rules engine decided, not the model. The literal alone can't tell: a coverage exclusion or
+   * prescription shares it with a model recommendation.
+   */
+  resolvedByRules: boolean;
   analysisConfidence: number;
-  /** Empty on Fast Track or before classification. */
+  /** Empty on a rules outcome or before classification. */
   analysisReasons: string[];
   /** Null means "not evaluated" (the model did not run), never MATCHES. */
   causeConsistency: CauseConsistency | string | null;

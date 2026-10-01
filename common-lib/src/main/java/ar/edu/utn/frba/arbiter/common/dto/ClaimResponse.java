@@ -21,18 +21,20 @@ public record ClaimResponse(
         Classification classification,
         Double confidence,
         List<String> factors,
-        boolean deterministicFastTrack,
+        // Decided by the rules engine without the model: Fast Track, missing documentation, a
+        // coverage exclusion or prescription. The classification literal alone can't tell.
+        boolean resolvedByRules,
         ImageForensicReport forensicReport,
         Double riskScore,
         RiskBand riskBand,
         List<RiskBreakdownItem> riskBreakdown,
         String insuredName,
-        // Null on every path that skips the model (Fast Track, exclusion, missing docs): absent is not MATCHES.
+        // Null on every rules outcome: absent is not MATCHES.
         CauseConsistency causeConsistency,
         // Set only on CONTRADICTS; always a name from the branch's closed catalog.
         String suggestedClaimCause,
         String causeEvidence,
         // llm_analysis is append-only, so a reclassified case still has the older row on file; the
-        // poller compares this timestamp to tell a fresh answer from a stale one. Null for Fast Track.
+        // poller compares this timestamp to tell a fresh answer from a stale one. Null on a rules outcome.
         Instant analyzedAt
 ) {}

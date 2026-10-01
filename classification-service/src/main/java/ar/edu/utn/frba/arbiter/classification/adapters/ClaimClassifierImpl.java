@@ -128,7 +128,7 @@ public class ClaimClassifierImpl implements ClaimClassifier {
                 .classification(classification)
                 .factors(plainText(output.factors()))
                 .confidence(output.confidence())
-                .deterministicFastTrack(false)
+                .resolvedByRules(false)
                 .causeConsistency(consistency(output.causeConsistency()))
                 .suggestedClaimCause(blankToNull(output.suggestedClaimCause()))
                 .causeEvidence(blankToNull(output.causeEvidence()))
