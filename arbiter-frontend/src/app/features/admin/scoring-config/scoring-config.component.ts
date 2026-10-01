@@ -41,7 +41,7 @@ export class ScoringConfigComponent {
 
   protected readonly draft = signal<ScoringConfig>(this.skeleton());
 
-  // The component is recreated on every visit (`@if` in reglas.component.html), so `load()` reruns;
+  // The component is recreated on every visit (`@if` in rules.component.html), so `load()` reruns;
   // without this flag the empty skeleton would show until the response arrives.
   protected readonly loading = signal(true);
 

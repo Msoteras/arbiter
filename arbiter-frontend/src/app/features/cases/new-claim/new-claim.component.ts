@@ -124,10 +124,10 @@ type EligibilityState =
   | { status: 'unknown' };
 
 const SLOT_TIMES: Record<string, string> = {
-  madrugada: '03:00',
-  manana: '09:00',
-  tarde: '15:00',
-  noche: '21:00',
+  overnight: '03:00',
+  morning: '09:00',
+  afternoon: '15:00',
+  night: '21:00',
 };
 
 /** Boundaries follow everyday speech (afternoon starts at noon, night at dusk), not six-hour blocks. */
@@ -136,10 +136,10 @@ function slotOf(time: string): string {
     return '';
   }
   const hour = Number(time.slice(0, 2));
-  if (hour < 6) return 'madrugada';
-  if (hour < 12) return 'manana';
-  if (hour < 19) return 'tarde';
-  return 'noche';
+  if (hour < 6) return 'overnight';
+  if (hour < 12) return 'morning';
+  if (hour < 19) return 'afternoon';
+  return 'night';
 }
 
 @Component({
@@ -383,24 +383,24 @@ export class NewClaimComponent {
    * deadline counted in hours. The slot is derived from the time field, which remains the value.
    */
   protected readonly timeSlots: readonly ChipOption[] = [
-    { value: 'madrugada', label: 'Madrugada' },
-    { value: 'manana', label: 'Mañana' },
-    { value: 'tarde', label: 'Tarde' },
-    { value: 'noche', label: 'Noche' },
+    { value: 'overnight', label: 'Madrugada' },
+    { value: 'morning', label: 'Mañana' },
+    { value: 'afternoon', label: 'Tarde' },
+    { value: 'night', label: 'Noche' },
   ];
 
   /** Built once so the chips don't shift if the form is filled across midnight. */
   private readonly eventDateShortcuts: Record<string, string> = {
-    hoy: this.today,
-    ayer: addDays(this.today, -1),
-    anteayer: addDays(this.today, -2),
+    today: this.today,
+    yesterday: addDays(this.today, -1),
+    dayBeforeYesterday: addDays(this.today, -2),
   };
 
   /** The chip writes the date field, which remains the actual value. */
   protected readonly eventDateOptions: readonly ChipOption[] = [
-    { value: 'hoy', label: 'Hoy' },
-    { value: 'ayer', label: 'Ayer' },
-    { value: 'anteayer', label: 'Anteayer' },
+    { value: 'today', label: 'Hoy' },
+    { value: 'yesterday', label: 'Ayer' },
+    { value: 'dayBeforeYesterday', label: 'Anteayer' },
   ];
 
   /** Derived from the field, so typing a date by hand lights up the matching chip. */
@@ -417,10 +417,10 @@ export class NewClaimComponent {
 
   /** Relative to the event date, so no option can express a report filed before the event. */
   protected readonly policeDateOptions = computed<ChipOption[]>(() => {
-    const options: ChipOption[] = [{ value: 'mismo', label: 'El mismo día' }];
+    const options: ChipOption[] = [{ value: 'sameDay', label: 'El mismo día' }];
     // Offering "al día siguiente" for a claim that happened today would be offering tomorrow.
     if (this.eventDate() !== this.today) {
-      options.push({ value: 'siguiente', label: 'Al día siguiente' });
+      options.push({ value: 'nextDay', label: 'Al día siguiente' });
     }
     return options;
   });
@@ -435,14 +435,14 @@ export class NewClaimComponent {
       return '';
     }
     if (police === event) {
-      return 'mismo';
+      return 'sameDay';
     }
-    return police === addDays(event, 1) ? 'siguiente' : '';
+    return police === addDays(event, 1) ? 'nextDay' : '';
   });
 
   selectPoliceDateShortcut(key: string): void {
     const event = this.eventDate();
-    this.policeReportDate.set(key === 'siguiente' ? addDays(event, 1) : event);
+    this.policeReportDate.set(key === 'nextDay' ? addDays(event, 1) : event);
   }
 
   protected readonly eventTimeSlot = computed(() => slotOf(this.eventTime()));

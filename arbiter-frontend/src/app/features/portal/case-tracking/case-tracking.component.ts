@@ -120,7 +120,7 @@ export class CaseTrackingComponent {
     return d ? effectiveInsuredStatusTitle(d.status, this.pastStatuses()) : '';
   });
 
-  protected readonly simplifiedSteps = ['DENUNCIADO', 'EN_TRAMITE', 'TERMINADO'] as const;
+  protected readonly simplifiedSteps = ['REPORTED', 'IN_PROGRESS', 'FINISHED'] as const;
 
   protected readonly simplifiedIndex = computed(() => {
     const d = this.data();

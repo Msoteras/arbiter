@@ -540,8 +540,8 @@ export class CaseDetailComponent {
 
   protected readonly scoreSegments = computed(() =>
     this.riskBreakdown()
-      .map((item) => ({ factorId: item.factorId, aporte: this.scoreContribution(item) }))
-      .filter((s) => s.aporte > 0),
+      .map((item) => ({ factorId: item.factorId, contribution: this.scoreContribution(item) }))
+      .filter((s) => s.contribution > 0),
   );
 
   /** The summary card only answers "why this band": zero-contribution factors explain nothing. */
@@ -669,7 +669,7 @@ export class CaseDetailComponent {
   private readonly hasImageMatches = computed(() =>
     (this.data()?.forensicReport?.findings ?? []).some((f) => {
       const level = forensicAlertLevel(f);
-      return level === 'medio' || level === 'alto';
+      return level === 'medium' || level === 'high';
     }),
   );
 
@@ -1243,7 +1243,7 @@ export class CaseDetailComponent {
   );
 
   /**
-   * Owner only, like `puedeDerivar`. `eligible` is true only when the cause admits repair and there is a
+   * Owner only, like `canDerive`. `eligible` is true only when the cause admits repair and there is a
    * shop to send it to; null while loading or on error, so the button stays hidden.
    */
   protected readonly canDeriveToRepair = computed(
@@ -1411,7 +1411,7 @@ export class CaseDetailComponent {
     })),
   );
 
-  protected readonly showDerivar = signal(false);
+  protected readonly showDerive = signal(false);
   protected readonly proveedorElegido = signal('');
   protected readonly derivationReason = signal('');
   protected readonly deriveSaving = signal(false);
@@ -1422,11 +1422,11 @@ export class CaseDetailComponent {
     this.proveedorElegido.set('');
     this.derivationReason.set('');
     this.deriveError.set(null);
-    this.showDerivar.set(true);
+    this.showDerive.set(true);
   }
 
   cancelDerive(): void {
-    this.showDerivar.set(false);
+    this.showDerive.set(false);
   }
 
   confirmDerive(): void {
@@ -1441,7 +1441,7 @@ export class CaseDetailComponent {
     this.service.derive(d.id, Number(proveedor), reasonText, this.derivationType()).subscribe({
       next: (assessment) => {
         this.deriveSaving.set(false);
-        this.showDerivar.set(false);
+        this.showDerive.set(false);
         this.derivationDoneCaseId.set(d.id);
         this.derivationDone.set(assessment);
         this.reloadTrigger.update((v) => v + 1);
@@ -1702,7 +1702,7 @@ export class CaseDetailComponent {
     { value: 'ANALYST_DECLARED', label: fraudRecordOriginLabel('ANALYST_DECLARED') },
   ]);
 
-  protected readonly showAntecedente = signal(false);
+  protected readonly showFraudRecord = signal(false);
   protected readonly chosenOrigin = signal('');
   protected readonly fraudRecordReason = signal('');
   protected readonly fraudRecordSaving = signal(false);
@@ -1725,11 +1725,11 @@ export class CaseDetailComponent {
     this.chosenOrigin.set(this.assessmentConfirmsFraud() ? 'EXPERT_BACKED' : 'ANALYST_DECLARED');
     this.fraudRecordReason.set('');
     this.fraudRecordError.set(null);
-    this.showAntecedente.set(true);
+    this.showFraudRecord.set(true);
   }
 
   cancelFraudRecord(): void {
-    this.showAntecedente.set(false);
+    this.showFraudRecord.set(false);
   }
 
   confirmFraudRecord(): void {
@@ -1744,7 +1744,7 @@ export class CaseDetailComponent {
     this.service.registerFraudRecord(d.id, { source, reason }).subscribe({
       next: () => {
         this.fraudRecordSaving.set(false);
-        this.showAntecedente.set(false);
+        this.showFraudRecord.set(false);
         this.reloadTrigger.update((v) => v + 1);
       },
       error: (err: HttpErrorResponse) => {

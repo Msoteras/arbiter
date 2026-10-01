@@ -52,13 +52,13 @@
   display: flex;
   justify-content: flex-end;
 }
-.relato {
+.narrative {
   margin-top: var(--space-3);
   padding: var(--space-3);
   border-radius: var(--radius-ctl);
   background: var(--surface-sunken);
 }
-.relato p {
+.narrative p {
   margin: var(--space-1) 0 0;
 }
 .field.full {
@@ -112,33 +112,33 @@ app-textarea {
 
 /* ===== Traceability ===== */
 /* minmax(0, 1fr): a grid track defaults to min-width auto and would grow to the widest table,
-   scrolling the whole page instead of the table's own .traza-scroll. */
-.traza {
+   scrolling the whole page instead of the table's own .trace-scroll. */
+.trace {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: var(--space-4);
 }
-.traza-scroll {
+.trace-scroll {
   overflow-x: auto;
 }
-.traza-table {
+.trace-table {
   width: 100%;
   border-collapse: collapse;
   font-size: var(--font-size-sm);
 }
-.traza-table th {
+.trace-table th {
   text-align: left;
   padding-bottom: var(--space-2);
   color: var(--text-tertiary);
   font-weight: var(--font-weight-medium);
 }
-.traza-table td {
+.trace-table td {
   padding: var(--space-2) var(--space-4) var(--space-2) 0;
   border-top: 1px solid var(--border-subtle);
   vertical-align: top;
 }
-.traza-table th:last-child,
-.traza-table td:last-child {
+.trace-table th:last-child,
+.trace-table td:last-child {
   padding-right: 0;
 }
 .trace-value {
@@ -147,12 +147,12 @@ app-textarea {
 .trace-branch {
   display: block;
 }
-.traza-sub {
+.trace-sub {
   display: block;
   color: var(--text-tertiary);
   font-size: var(--font-size-xs);
 }
-.traza-num {
+.trace-num {
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
@@ -160,11 +160,11 @@ app-textarea {
 .trace-no-rules.error {
   color: var(--status-danger);
 }
-.traza-intro {
+.trace-intro {
   display: block;
   margin-bottom: var(--space-3);
 }
-.traza-subhead {
+.trace-subhead {
   margin: var(--space-4) 0 var(--space-2);
   color: var(--text-secondary);
 }
@@ -215,8 +215,8 @@ app-textarea {
   padding-top: 0;
   padding-bottom: var(--space-2);
 }
-/* Qualified with the table: .traza-table td sets padding-left:0 and wins on specificity. */
-.traza-table td.coverage-name {
+/* Qualified with the table: .trace-table td sets padding-left:0 and wins on specificity. */
+.trace-table td.coverage-name {
   padding-left: var(--space-6);
   color: var(--text-secondary);
 }

@@ -260,26 +260,26 @@ describe('FraudReportComponent', () => {
     preview();
 
     const host = fixture.nativeElement as HTMLElement;
-    const determinado = Array.from(host.querySelectorAll('app-stat-tile')).find((tile) =>
+    const determinedTile = Array.from(host.querySelectorAll('app-stat-tile')).find((tile) =>
       tile.textContent?.includes('Fraude determinado'),
     )!;
-    expect(determinado.querySelector('app-info-tip')).not.toBeNull();
+    expect(determinedTile.querySelector('app-info-tip')).not.toBeNull();
     // The alert tone is reserved for when something was determined.
-    expect(determinado.querySelector('.stat.danger')).toBeNull();
+    expect(determinedTile.querySelector('.stat.danger')).toBeNull();
 
-    determinado.querySelector<HTMLElement>('app-info-tip button')!.click();
+    determinedTile.querySelector<HTMLElement>('app-info-tip button')!.click();
     fixture.detectChanges();
-    expect(determinado.textContent).toContain('El sistema no determina fraude');
+    expect(determinedTile.textContent).toContain('El sistema no determina fraude');
   });
 
   it('paints the determination as an alert once there is one', () => {
     preview();
 
     const host = fixture.nativeElement as HTMLElement;
-    const determinado = Array.from(host.querySelectorAll('app-stat-tile')).find((tile) =>
+    const determinedTile = Array.from(host.querySelectorAll('app-stat-tile')).find((tile) =>
       tile.textContent?.includes('Fraude determinado'),
     )!;
-    expect(determinado.querySelector('.stat.danger')).not.toBeNull();
+    expect(determinedTile.querySelector('.stat.danger')).not.toBeNull();
   });
 
   it('shows an unscored case as unevaluated rather than as low risk', () => {

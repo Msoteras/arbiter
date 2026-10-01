@@ -21,9 +21,9 @@ function tokenLabel(token: string): string {
   if (classification !== token) {
     return classification;
   }
-  const veredicto = verdictLabel(token);
-  if (veredicto !== token) {
-    return veredicto;
+  const verdict = verdictLabel(token);
+  if (verdict !== token) {
+    return verdict;
   }
   return repairOutcomeLabel(token);
 }

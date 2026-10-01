@@ -5,7 +5,7 @@
   flex: 1 1 auto;
 }
 
-.bandeja {
+.inbox {
   flex: 1 1 auto;
   padding: var(--space-5) var(--space-6) var(--space-7);
   display: flex;
@@ -13,16 +13,16 @@
   gap: var(--space-4);
 }
 
-.bandeja-head {
+.inbox-head {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: var(--space-4);
 }
-.bandeja-head-text {
+.inbox-head-text {
   min-width: 0;
 }
-.bandeja-sub {
+.inbox-sub {
   margin: var(--space-1) 0 0;
   font-size: var(--font-size-body);
   color: var(--text-muted);

@@ -1,9 +1,9 @@
-<div class="bandeja" @staggerReveal>
-  <header class="bandeja-head">
-    <div class="bandeja-head-text">
+<div class="inbox" @staggerReveal>
+  <header class="inbox-head">
+    <div class="inbox-head-text">
       <h1 class="t-page-title">Bandeja de expedientes</h1>
       @if (!loading() && !hasError()) {
-        <p class="bandeja-sub">
+        <p class="inbox-sub">
           {{ totalElements() }} {{ totalElements() === 1 ? 'expediente' : 'expedientes' }}
           @if (hasActiveFilters()) {
             · filtrados

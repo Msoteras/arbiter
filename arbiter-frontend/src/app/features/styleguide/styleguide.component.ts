@@ -567,9 +567,9 @@ interface Swatch {
       <section class="sg-block">
         <h3 class="sg-h3">Severity label</h3>
         <div class="row">
-          <app-severity-label level="bajo" />
-          <app-severity-label level="medio" />
-          <app-severity-label level="alto" />
+          <app-severity-label level="low" />
+          <app-severity-label level="medium" />
+          <app-severity-label level="high" />
         </div>
       </section>
 
@@ -695,7 +695,7 @@ interface Swatch {
         <h3 class="sg-h3">Policy card</h3>
         <p class="sg-p">
           Una póliza del asegurado, en solo lectura. La comparten la bienvenida y "Mis pólizas" del
-          perfil. Los dos ejes son independientes: <span class="mono">vigencia</span> (si te está
+          perfil. Los dos ejes son independientes: <span class="mono">validity</span> (si te está
           cubriendo) y <span class="mono">upToDate</span> (si estás al día con los pagos) — una
           póliza puede estar vigente y con deuda. La vencida se distingue sin leer las fechas:
           pierde el filo teal y la tarjeta se apaga.
@@ -946,8 +946,8 @@ interface Swatch {
           cinco categorías en una tarjeta angosta: comparar largos es más fácil que comparar arcos.
           Cada ítem trae su <span class="mono">tone</span> ya resuelto por el dominio (<span
             class="mono"
-            >estadoTone</span
-          >, <span class="mono">clasificacionTone</span>); lo que no comunica estado —un ramo, un
+            >caseStatusTone</span
+          >, <span class="mono">classificationTone</span>); lo que no comunica estado —un ramo, un
           hecho generador— va en <span class="mono">neutral</span>, no en un color elegido a dedo.
           Si dos categorías caen en el mismo tono, la repetición se atenúa en vez de inventar un
           color que el sistema no tiene.
@@ -1348,20 +1348,20 @@ export class StyleguideComponent {
   };
 
   protected readonly timeSlotDemo: readonly ChipOption[] = [
-    { value: 'madrugada', label: 'Madrugada' },
-    { value: 'manana', label: 'Mañana' },
-    { value: 'tarde', label: 'Tarde' },
-    { value: 'noche', label: 'Noche' },
+    { value: 'overnight', label: 'Madrugada' },
+    { value: 'morning', label: 'Mañana' },
+    { value: 'afternoon', label: 'Tarde' },
+    { value: 'night', label: 'Noche' },
   ];
-  protected readonly timeSlotDemoValue = signal('tarde');
+  protected readonly timeSlotDemoValue = signal('afternoon');
 
   protected readonly claimTypeDemo: readonly ChipOption[] = [
-    { value: 'robo', label: 'Robo en vía pública' },
-    { value: 'hurto', label: 'Hurto' },
-    { value: 'rotura', label: 'Rotura accidental' },
-    { value: 'caida', label: 'Caída' },
+    { value: 'street-robbery', label: 'Robo en vía pública' },
+    { value: 'theft', label: 'Hurto' },
+    { value: 'breakage', label: 'Rotura accidental' },
+    { value: 'fall', label: 'Caída' },
   ];
-  protected readonly claimTypeDemoValue = signal('hurto');
+  protected readonly claimTypeDemoValue = signal('theft');
 
   private readonly doc = inject(DOCUMENT);
   protected readonly toastService = inject(ToastService);

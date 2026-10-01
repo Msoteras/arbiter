@@ -25,8 +25,8 @@ describe('traceability', () => {
     });
 
     it('does not mark a rule as failed when its literal is unknown', () => {
-      expect(ruleResultTone('LO_QUE_SEA')).toBe('neutral');
-      expect(ruleResultLabel('LO_QUE_SEA')).toBe('LO_QUE_SEA');
+      expect(ruleResultTone('WHATEVER')).toBe('neutral');
+      expect(ruleResultLabel('WHATEVER')).toBe('WHATEVER');
     });
   });
 
@@ -216,7 +216,7 @@ describe('traceability', () => {
       expect(ruleTypeLabel('POLICY_STANDING')).toBe('Mora de la póliza');
       expect(ruleTypeLabel('FRAUD_RECORD')).toBe('Antecedente de fraude');
       expect(ruleTypeLabel('FT_AMOUNT_RATIO')).toBe('Monto reclamado sobre la suma asegurada');
-      expect(ruleTypeLabel('REGLA_NUEVA')).toBe('REGLA_NUEVA');
+      expect(ruleTypeLabel('NEW_RULE')).toBe('NEW_RULE');
     });
   });
 });

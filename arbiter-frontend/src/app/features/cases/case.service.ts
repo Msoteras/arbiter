@@ -273,7 +273,7 @@ export class CaseService {
     return this.http.post<CaseResponse>(this.baseUrl, formData);
   }
 
-  /** `insurer`: see `getById`; pass `ExpedienteResponse.insurerSlug`. */
+  /** `insurer`: see `getById`; pass `CaseResponse.insurerSlug`. */
   uploadDocuments(
     caseId: number,
     documents: Map<string, File>,

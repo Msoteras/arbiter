@@ -408,7 +408,7 @@
                       }
                     </dl>
                     @if (first) {
-                      <div class="relato">
+                      <div class="narrative">
                         <span class="t-field-label">Relato del asegurado</span>
                         @if (d.description) {
                           <p class="t-body">{{ d.description }}</p>
@@ -523,11 +523,11 @@
               <!-- Answers "why this band" without leaving the tab where the analyst decides. -->
               @if (topRiskFactors().length > 0) {
                 <app-card heading="Factores principales de riesgo">
-                  <ul class="riesgo-factores">
+                  <ul class="risk-factors">
                     @for (f of topRiskFactors(); track f.factorId) {
                       <li>
                         <span>{{ factorLabel(f.factorId) }}</span>
-                        <span class="tabular">+{{ f.aporte }}</span>
+                        <span class="tabular">+{{ f.contribution }}</span>
                       </li>
                     }
                   </ul>
@@ -536,7 +536,7 @@
                   }
                   <button
                     type="button"
-                    class="brief-link riesgo-desglose"
+                    class="brief-link risk-breakdown"
                     (click)="viewAnalysis(tabsNav)"
                   >
                     Ver desglose completo
@@ -577,10 +577,7 @@
                   }
 
                   @if (ownFraudRecord(); as ownRecord) {
-                    <div
-                      class="fraud-item propio"
-                      [attr.data-tone]="fraudRecordStatusTone(ownRecord)"
-                    >
+                    <div class="fraud-item own" [attr.data-tone]="fraudRecordStatusTone(ownRecord)">
                       <div class="fraud-item-head">
                         <app-badge variant="strong" [tone]="fraudRecordStatusTone(ownRecord)">
                           Este expediente · {{ fraudRecordOriginLabel(ownRecord.source) }}
@@ -633,10 +630,10 @@
           <div class="analysis-grid">
             <app-card heading="Razones del modelo">
               @if (analysisReasons().length > 0) {
-                <ol class="razones">
+                <ol class="reason-list">
                   @for (reason of analysisReasons(); track $index) {
-                    <li class="razon">
-                      <span class="razon-num mono" aria-hidden="true">{{
+                    <li class="reason-item">
+                      <span class="reason-num mono" aria-hidden="true">{{
                         ($index + 1).toString().padStart(2, '0')
                       }}</span>
                       <span class="t-body">{{ reason }}</span>
@@ -670,7 +667,7 @@
                   [attr.data-tone]="scoreTone()"
                 >
                   @for (seg of scoreSegments(); track seg.factorId) {
-                    <span class="score-seg" [style.flex-basis.%]="seg.aporte"></span>
+                    <span class="score-seg" [style.flex-basis.%]="seg.contribution"></span>
                   }
                 </div>
                 @if (fastTrackScoreScope() === 'partial') {
@@ -685,16 +682,16 @@
                   </p>
                 }
                 @if (riskBreakdown().length > 0) {
-                  <ul class="score-factores">
+                  <ul class="score-factors">
                     @for (item of riskBreakdown(); track item.factorId) {
-                      <li class="score-factor" [class.nulo]="scoreContribution(item) === 0">
+                      <li class="score-factor" [class.zero]="scoreContribution(item) === 0">
                         <span class="score-factor-text">
                           <span class="score-factor-name">{{ factorLabel(item.factorId) }}</span>
                           @if (item.rationale) {
                             <span class="t-note">{{ item.rationale }}</span>
                           }
                         </span>
-                        <span class="score-factor-aporte tabular"
+                        <span class="score-factor-contribution tabular"
                           >+{{ scoreContribution(item) }}</span
                         >
                       </li>
@@ -713,10 +710,10 @@
 
         <!-- Nothing is fetched live here: everything was persisted at classification time. -->
         @case ('rules') {
-          <div class="traza">
+          <div class="trace">
             @if (advisoryChecks().length > 0) {
               <app-card heading="Para revisar antes de resolver">
-                <p class="t-note traza-intro">
+                <p class="t-note trace-intro">
                   @if (hasAdvisoryWarning()) {
                     @if (advisoryWarningTypes().has('CLAIM_CAUSE_MATCH')) {
                       La documentación narra otro hecho que el declarado.
@@ -728,8 +725,8 @@
                     La documentación narra el mismo hecho que declaró el asegurado.
                   }
                 </p>
-                <div class="traza-scroll">
-                  <table class="traza-table">
+                <div class="trace-scroll">
+                  <table class="trace-table">
                     <thead>
                       <tr>
                         <th>Control</th>
@@ -763,8 +760,8 @@
                   {{ passedRules() }} de {{ hardRuleResults().length }} cumplen · evaluadas el
                   {{ formatDateTime(hardRuleResults()[0].evaluatedAt) }}
                 </p>
-                <div class="traza-scroll">
-                  <table class="traza-table">
+                <div class="trace-scroll">
+                  <table class="trace-table">
                     <thead>
                       <tr>
                         <th>Regla</th>
@@ -803,9 +800,9 @@
                   <app-badge cardAside variant="strong" [tone]="isFastTrack() ? 'ok' : 'neutral'">
                     {{ isFastTrack() ? 'Aplicó' : 'No aplicó' }}
                   </app-badge>
-                  <ul class="criterios">
+                  <ul class="criteria">
                     @for (c of fastTrackCriteria(); track c.id) {
-                      <li class="criterio">
+                      <li class="criterion">
                         <span class="criterion-text">
                           <span class="criterion-name">{{ ruleTypeLabel(c.ruleType) }}</span>
                           <span class="t-note">{{
@@ -825,7 +822,7 @@
                 @if (policySnapshot(); as s) {
                   @for (g of snapshotGroups(); track $index) {
                     @if (g.heading) {
-                      <h4 class="t-section-label traza-subhead">{{ g.heading }}</h4>
+                      <h4 class="t-section-label trace-subhead">{{ g.heading }}</h4>
                     }
                     <dl class="fields">
                       @for (f of g.fields; track f.label) {
@@ -852,13 +849,13 @@
           </div>
         }
         @case ('insured') {
-          <div class="traza">
+          <div class="trace">
             <app-card heading="Sus pólizas vigentes con la compañía">
               @if (insuredPolicies().length > 0) {
                 @for (g of policyGroups(); track g.heading) {
-                  <h4 class="t-section-label traza-subhead">{{ g.heading }}</h4>
-                  <div class="traza-scroll">
-                    <table class="traza-table trace-policies">
+                  <h4 class="t-section-label trace-subhead">{{ g.heading }}</h4>
+                  <div class="trace-scroll">
+                    <table class="trace-table trace-policies">
                       <thead>
                         <tr>
                           <th>Póliza</th>
@@ -895,10 +892,10 @@
                             </td>
                             <td>
                               <span class="trace-branch">{{ p.branch }}</span>
-                              <span class="traza-sub">{{ p.product }}</span>
+                              <span class="trace-sub">{{ p.product }}</span>
                             </td>
                             <td>{{ validityPeriod(p) }}</td>
-                            <td class="traza-num">{{ moneyOrNull(p.insuredAmount) }}</td>
+                            <td class="trace-num">{{ moneyOrNull(p.insuredAmount) }}</td>
                             <td>
                               <app-badge variant="solid" [tone]="p.upToDate ? 'ok' : 'danger'">
                                 {{ p.upToDate ? 'Al día' : 'En mora' }}
@@ -909,9 +906,9 @@
                             @for (c of p.coverages; track c.code) {
                               <tr class="trace-coverage-row">
                                 <td colspan="3" class="coverage-name">{{ c.description }}</td>
-                                <td class="traza-num">
+                                <td class="trace-num">
                                   {{ moneyOrNull(c.insuredAmount) }}
-                                  <span class="traza-sub"
+                                  <span class="trace-sub"
                                     >franquicia {{ moneyOrNull(c.deductible) }}</span
                                   >
                                 </td>
@@ -956,10 +953,7 @@
                 }
 
                 @if (ownFraudRecord(); as ownRecord) {
-                  <div
-                    class="fraud-item propio"
-                    [attr.data-tone]="fraudRecordStatusTone(ownRecord)"
-                  >
+                  <div class="fraud-item own" [attr.data-tone]="fraudRecordStatusTone(ownRecord)">
                     <div class="fraud-item-head">
                       <app-badge variant="strong" [tone]="fraudRecordStatusTone(ownRecord)">
                         Este expediente · {{ fraudRecordOriginLabel(ownRecord.source) }}
@@ -1324,7 +1318,7 @@
 </app-modal>
 
 <app-modal
-  [open]="showDerivar()"
+  [open]="showDerive()"
   [heading]="isRepairReferral() ? 'Derivar a servicio técnico' : 'Derivar a peritaje'"
   (close)="cancelDerive()"
 >
@@ -1428,7 +1422,7 @@
 }
 
 <app-modal
-  [open]="showAntecedente()"
+  [open]="showFraudRecord()"
   heading="Registrar antecedente de fraude"
   (close)="cancelFraudRecord()"
 >

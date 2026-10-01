@@ -77,13 +77,13 @@ describe('RuleHistoryComponent', () => {
     await mount([
       entry({
         ruleType: 'SCORING',
-        changes: [{ field: 'factors[image_reuse].sinEtiqueta', previousValue: '1', newValue: '2' }],
+        changes: [{ field: 'factors[image_reuse].unlabeled', previousValue: '1', newValue: '2' }],
       }),
     ]);
 
-    expect(text()).toContain('sinEtiqueta');
+    expect(text()).toContain('unlabeled');
     expect(text()).toContain('Imagen reutilizada de otra denuncia');
-    expect(text()).not.toContain('factors[image_reuse].sinEtiqueta');
+    expect(text()).not.toContain('factors[image_reuse].unlabeled');
   });
 
   it('uses the scoring label and its qualifier when known', async () => {
