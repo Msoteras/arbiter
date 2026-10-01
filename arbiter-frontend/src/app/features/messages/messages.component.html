@@ -73,15 +73,15 @@
 
   <section class="conv-detail">
     @if (selected(); as item) {
-      <header class="conv-detail-head">
-        <span class="conv-avatar" aria-hidden="true">{{ initials(item.insuredName) }}</span>
-        <div class="conv-detail-title">
-          <h2 class="t-section-label">{{ item.insuredName }}</h2>
-          <p class="t-note">Exp. #{{ item.caseId }} · {{ item.branch }}</p>
-        </div>
-      </header>
+      <div class="conv-main-col">
+        <header class="conv-detail-head">
+          <span class="conv-avatar" aria-hidden="true">{{ initials(item.insuredName) }}</span>
+          <div class="conv-detail-title">
+            <h2 class="conv-detail-name">{{ item.insuredName }}</h2>
+            <p class="t-note">Exp. #{{ item.caseId }} · {{ item.branch }}</p>
+          </div>
+        </header>
 
-      <div class="conv-detail-body">
         <app-case-chat
           class="conv-thread"
           [caseId]="item.caseId"
@@ -91,8 +91,9 @@
           [bare]="true"
           [fullHeight]="true"
         />
+      </div>
 
-        <aside class="conv-info">
+      <aside class="conv-info">
           <app-card heading="Expediente">
             <dl class="conv-info-fields">
               <div class="field">
@@ -125,7 +126,6 @@
             </app-button>
           </app-card>
         </aside>
-      </div>
     } @else {
       <app-empty-state
         message="Elegí una conversación"

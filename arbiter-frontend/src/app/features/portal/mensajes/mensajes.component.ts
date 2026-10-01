@@ -29,7 +29,6 @@ import {
     <div class="portal">
       <header class="portal-head">
         <h1 class="t-hero-title">Mensajes</h1>
-        <p class="sub">Cada siniestro tiene su propia conversación con el analista que lo lleva.</p>
       </header>
 
       @if (loading()) {
@@ -102,10 +101,6 @@ import {
     }
     .portal-head h1 {
       margin: 0;
-    }
-    .sub {
-      margin: var(--space-1) 0 0;
-      color: var(--text-muted);
     }
     .rows {
       margin: 0;

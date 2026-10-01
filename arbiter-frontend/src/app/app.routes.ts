@@ -90,13 +90,9 @@ export const routes: Routes = [
     data: { roles: ['ANALISTA_SINIESTROS', 'REFERENTE_ASEGURADORA'] },
     loadComponent: () =>
       import('./features/messages/messages.component').then((m) => m.MessagesComponent),
-  },
-  {
-    path: 'messages/:caseId',
-    canActivate: [roleGuard],
-    data: { roles: ['ANALISTA_SINIESTROS', 'REFERENTE_ASEGURADORA'] },
-    loadComponent: () =>
-      import('./features/messages/messages.component').then((m) => m.MessagesComponent),
+    // A componentless child, not a sibling route: switching conversations must keep the screen (and
+    // its list) mounted instead of rebuilding it.
+    children: [{ path: ':caseId', children: [] }],
   },
   {
     // No roles in data: any authenticated session gets in, but it is not public in production.

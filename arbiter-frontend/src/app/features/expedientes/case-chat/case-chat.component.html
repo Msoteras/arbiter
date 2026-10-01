@@ -55,23 +55,18 @@
             [(value)]="draft"
             [rows]="1"
             [placeholder]="placeholder()"
+            [disabled]="sending()"
             (keydown.enter)="onEnter($event)"
           />
           <app-button [disabled]="!canSend()" [loading]="sending()" (click)="send()">
             Enviar
           </app-button>
         </div>
-        <p class="hint">
-          @if (nearLimit()) {
-            <span class="count tabular" [class.over]="draft().length > maxLength">
-              {{ draft().length }}/{{ maxLength }} ·
-            </span>
-          }
-          Enter para enviar · Shift+Enter nueva línea
-          @if (notifiesByMail()) {
-            · El asegurado recibe aviso por email
-          }
-        </p>
+        @if (nearLimit()) {
+          <p class="hint count tabular" [class.over]="draft().length > maxLength">
+            {{ draft().length }}/{{ maxLength }}
+          </p>
+        }
         @if (sendError()) {
           <p class="t-note error">{{ sendError() }}</p>
         }

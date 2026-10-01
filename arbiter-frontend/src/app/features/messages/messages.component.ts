@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { map } from 'rxjs';
+import { ActivatedRoute, NavigationEnd, Router, RouterLink } from '@angular/router';
+import { distinctUntilChanged, filter, map, startWith } from 'rxjs';
 
 import { CaseMessagesService } from '../expedientes/case-messages.service';
 import { ExpedienteService } from '../expedientes/expediente.service';
@@ -42,7 +42,8 @@ export class MessagesComponent {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
 
-  protected readonly loading = signal(true);
+  // Only the first load shows the spinner; later refreshes update the list in place.
+  protected readonly loading = signal(this.service.inboxItems().length === 0);
   protected readonly loadError = signal(false);
   protected readonly items = computed(() =>
     [...this.service.inboxItems()].sort((a, b) =>
@@ -52,8 +53,17 @@ export class MessagesComponent {
   protected readonly search = signal('');
   protected readonly filtro = signal<Filtro>('TODOS');
 
+  /** The conversation lives in a componentless child route, so it's read from there. */
   protected readonly selectedCaseId = toSignal(
-    this.route.paramMap.pipe(map((params) => (params.get('caseId') ? Number(params.get('caseId')) : null))),
+    this.router.events.pipe(
+      filter((event) => event instanceof NavigationEnd),
+      startWith(null),
+      map(() => {
+        const id = this.route.firstChild?.snapshot.paramMap.get('caseId');
+        return id ? Number(id) : null;
+      }),
+      distinctUntilChanged(),
+    ),
     { initialValue: null },
   );
 
@@ -101,7 +111,6 @@ export class MessagesComponent {
   }
 
   private load(): void {
-    this.loading.set(true);
     this.service.inbox().subscribe({
       next: () => {
         this.loading.set(false);
@@ -109,7 +118,8 @@ export class MessagesComponent {
       },
       error: () => {
         this.loading.set(false);
-        this.loadError.set(true);
+        // A failed refresh keeps the list already on screen.
+        this.loadError.set(this.service.inboxItems().length === 0);
       },
     });
   }

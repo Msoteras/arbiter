@@ -394,6 +394,7 @@ interface Swatch {
           <app-input type="password" [(value)]="samplePassword" placeholder="Contraseña" />
           <app-input type="date" [(value)]="sampleDate" />
           <app-textarea [(value)]="sampleArea" placeholder="Justificación…" [rows]="3" />
+          <app-textarea placeholder="Deshabilitado (ej. mientras se envía)" [rows]="2" [disabled]="true" />
         </div>
       </section>
 

@@ -26,8 +26,8 @@
           >
           <a routerLink="/portal/messages" routerLinkActive="active"
             >Mensajes
-            @if (messages.totalUnread() > 0) {
-              <span class="topbar-badge">{{ messages.totalUnread() }}</span>
+            @if (messages.unreadChats() > 0) {
+              <span class="topbar-badge">{{ messages.unreadChats() }}</span>
               <span class="sr-only">sin leer</span>
             }</a
           >
@@ -246,8 +246,8 @@
             >
             <a routerLink="/messages" routerLinkActive="active"
               ><span class="nav-dot"></span>Mensajes
-              @if (messages.totalUnread() > 0) {
-                <span class="nav-badge">{{ messages.totalUnread() }}</span>
+              @if (messages.unreadChats() > 0) {
+                <span class="nav-badge">{{ messages.unreadChats() }}</span>
               }</a
             >
             <a routerLink="/insurer/dashboard" routerLinkActive="active"
@@ -263,8 +263,8 @@
             >
             <a routerLink="/messages" routerLinkActive="active"
               ><span class="nav-dot"></span>Mensajes
-              @if (messages.totalUnread() > 0) {
-                <span class="nav-badge">{{ messages.totalUnread() }}</span>
+              @if (messages.unreadChats() > 0) {
+                <span class="nav-badge">{{ messages.unreadChats() }}</span>
               }</a
             >
             <a routerLink="/insurer/dashboard" routerLinkActive="active"

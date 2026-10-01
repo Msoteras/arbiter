@@ -17,11 +17,10 @@ export class CaseMessagesService {
 
   private readonly _inbox = signal<CaseMessageInboxItem[]>([]);
   readonly inboxItems = this._inbox.asReadonly();
-  readonly totalUnread = computed(() =>
-    this._inbox().reduce((sum, item) => sum + item.unreadCount, 0),
-  );
+  /** Conversations with something unread, not messages: what the nav badges count. */
+  readonly unreadChats = computed(() => this._inbox().filter((item) => item.unreadCount > 0).length);
 
-  /** Also feeds `inboxItems`/`totalUnread`, which the nav badges and summary cards read. */
+  /** Also feeds `inboxItems`/`unreadChats`, which the nav badges and summary cards read. */
   inbox(): Observable<CaseMessageInboxItem[]> {
     return this.http
       .get<CaseMessageInboxItem[]>(`${this.base}/messages/inbox`)
@@ -32,9 +31,13 @@ export class CaseMessagesService {
     return this._inbox().find((item) => this.matches(item, caseId, insurer)) ?? null;
   }
 
-  /** Local update so badges drop as soon as a thread is read, without waiting for the next poll. */
+  /**
+   * Drops the badge right away, then re-reads the inbox: a list request that left before the read
+   * was saved would otherwise land later and bring the old count back.
+   */
   clearUnread(caseId: number, insurer?: string | null): void {
     this.updateItem(caseId, insurer, (item) => ({ ...item, unreadCount: 0 }));
+    this.inbox().subscribe({ error: () => undefined });
   }
 
   recordLatest(caseId: number, insurer: string | null | undefined, message: CaseMessage): void {

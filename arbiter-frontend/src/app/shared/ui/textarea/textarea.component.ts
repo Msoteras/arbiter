@@ -9,6 +9,7 @@ import { ChangeDetectionStrategy, Component, computed, input, model } from '@ang
       [id]="resolvedId()"
       [rows]="rows()"
       [placeholder]="placeholder()"
+      [disabled]="disabled()"
       [value]="value()"
       (input)="value.set($any($event.target).value)"
     ></textarea>
@@ -42,6 +43,10 @@ import { ChangeDetectionStrategy, Component, computed, input, model } from '@ang
     .field::placeholder {
       color: var(--text-muted);
     }
+    .field:disabled {
+      color: var(--text-muted);
+      cursor: default;
+    }
   `,
 })
 export class TextareaComponent {
@@ -52,6 +57,7 @@ export class TextareaComponent {
   readonly rows = input(4);
   readonly placeholder = input('');
   readonly id = input<string | null>(null);
+  readonly disabled = input(false);
 
   protected readonly resolvedId = computed(() => this.id() ?? this.autoId);
 }

@@ -110,8 +110,6 @@ export class CaseChatComponent {
       this.draft().length <= this.maxLength,
   );
   protected readonly nearLimit = computed(() => this.draft().length > this.maxLength * 0.9);
-  /** Only the analyst's messages trigger a mail; the insured's only notify in-app. */
-  protected readonly notifiesByMail = computed(() => this.thread()?.viewerSide === 'ANALYST');
 
   protected readonly rows = computed<ThreadRow[]>(() => {
     const timeline = [
@@ -211,6 +209,10 @@ export class CaseChatComponent {
 
   protected useQuickReply(reply: QuickReply): void {
     this.draft.set(reply.text);
+    this.focusField();
+  }
+
+  private focusField(): void {
     afterNextRender(
       () => {
         const field = this.host.nativeElement.querySelector('textarea');
@@ -235,6 +237,7 @@ export class CaseChatComponent {
         this.append(message);
         this.draft.set('');
         this.sending.set(false);
+        this.focusField();
       },
       error: (error: HttpErrorResponse) => {
         // The closed-thread 409 carries its own text, already written for the reader.
@@ -242,6 +245,7 @@ export class CaseChatComponent {
           error.error?.detail ?? 'No se pudo enviar el mensaje. Probá de nuevo en un momento.',
         );
         this.sending.set(false);
+        this.focusField();
         // The window may have closed while they were typing.
         this.load(this.caseId(), false);
       },
