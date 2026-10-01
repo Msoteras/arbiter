@@ -73,15 +73,15 @@ export const routes: Routes = [
     canActivate: [roleGuard],
     data: { roles: ['ANALISTA_SINIESTROS', 'REFERENTE_ASEGURADORA'] },
     loadComponent: () =>
-      import('./features/expedientes/bandeja/bandeja.component').then((m) => m.BandejaComponent),
+      import('./features/cases/inbox/inbox.component').then((m) => m.InboxComponent),
   },
   {
     path: 'cases/:id',
     canActivate: [roleGuard],
     data: { roles: ['ANALISTA_SINIESTROS', 'REFERENTE_ASEGURADORA'] },
     loadComponent: () =>
-      import('./features/expedientes/expediente-detail/expediente-detail.component').then(
-        (m) => m.ExpedienteDetailComponent,
+      import('./features/cases/case-detail/case-detail.component').then(
+        (m) => m.CaseDetailComponent,
       ),
   },
   {
@@ -169,9 +169,7 @@ export const routes: Routes = [
     canActivate: [roleGuard, onboardingGuard],
     data: { roles: ['ASEGURADO'] },
     loadComponent: () =>
-      import('./features/expedientes/nueva-denuncia/nueva-denuncia.component').then(
-        (m) => m.NuevaDenunciaComponent,
-      ),
+      import('./features/cases/new-claim/new-claim.component').then((m) => m.NewClaimComponent),
   },
 
   // ----- Referente panel -----

@@ -158,10 +158,10 @@ export function ruleEvaluationText(ruleType: string, evaluatedValue: string | nu
         : evaluatedValue;
     case 'CLAIM_CAUSE_MATCH': {
       // Only documents that narrate an event take part.
-      const documentos = withDocumentLabels(listado(t['documents']));
+      const documentList = withDocumentLabels(listado(t['documents']));
       return t['declared'] === t['described']
-        ? `${documentos}: narra el hecho declarado (${t['declared']})`
-        : `${documentos}: narra ${t['described']} · se declaró ${t['declared']}`;
+        ? `${documentList}: narra el hecho declarado (${t['declared']})`
+        : `${documentList}: narra ${t['described']} · se declaró ${t['declared']}`;
     }
     case 'VISUAL_TAMPERING': {
       // Only written with signs present; the signs themselves are in each document's reading.

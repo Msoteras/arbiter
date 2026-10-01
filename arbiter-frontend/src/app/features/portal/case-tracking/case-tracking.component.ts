@@ -17,11 +17,11 @@ import {
 } from '../../../core/models/case-status';
 import { StatusTone } from '../../../core/models/status-tone';
 import { formatDateTime } from '../../../core/util/datetime';
-import { ExpedienteService } from '../../expedientes/expediente.service';
+import { CaseService } from '../../cases/case.service';
 import { CardComponent } from '../../../shared/ui/card/card.component';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
-import { CaseDocumentsComponent } from '../../expedientes/case-documents/case-documents.component';
-import { CaseMessagesService } from '../../expedientes/case-messages.service';
+import { CaseDocumentsComponent } from '../../cases/case-documents/case-documents.component';
+import { CaseMessagesService } from '../../cases/case-messages.service';
 import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
 import {
   InsuredChatComponent,
@@ -58,7 +58,7 @@ interface Movement {
 export class CaseTrackingComponent {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
-  private readonly service = inject(ExpedienteService);
+  private readonly service = inject(CaseService);
   private readonly session = inject(InsuredSessionService);
   private readonly messages = inject(CaseMessagesService);
 

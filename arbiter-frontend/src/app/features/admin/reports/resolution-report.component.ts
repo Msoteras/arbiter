@@ -25,7 +25,7 @@ import { PaginationComponent } from '../../../shared/ui/pagination/pagination.co
 import { SelectComponent, SelectOption } from '../../../shared/ui/select/select.component';
 import { StatTileComponent } from '../../../shared/ui/stat-tile/stat-tile.component';
 import { TableComponent } from '../../../shared/ui/table/table.component';
-import { ExpedienteService } from '../../expedientes/expediente.service';
+import { CaseService } from '../../cases/case.service';
 import { ReportActionsComponent } from './report-actions.component';
 import { ReportFile } from './report-download';
 import { ReportFiltersComponent } from './report-filters.component';
@@ -75,7 +75,7 @@ export class ResolutionReportComponent extends ReportTab<
   ResolutionReportParams
 > {
   private readonly reports = inject(ResolutionReportService);
-  private readonly caseService = inject(ExpedienteService);
+  private readonly caseService = inject(CaseService);
   /** Read once: ECharts doesn't understand `var(--status-ok)`. */
   private readonly theme: ChartTheme = readChartTheme();
 

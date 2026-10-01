@@ -7,14 +7,14 @@ import { of } from 'rxjs';
 import { MyCasesComponent } from './my-cases.component';
 import { InsuredSessionService } from '../../../core/auth/insured-session.service';
 import { Policy } from '../../../core/models/policy';
-import { ExpedienteListParams, ExpedienteService } from '../../expedientes/expediente.service';
-import { NewClaimModalService } from '../../expedientes/new-claim-modal.service';
-import { PolicyService } from '../../expedientes/policy.service';
+import { CaseListParams, CaseService } from '../../cases/case.service';
+import { NewClaimModalService } from '../../cases/new-claim-modal.service';
+import { PolicyService } from '../../cases/policy.service';
 
 /** Each simplified status bucket must expand to every `CaseStatus` it covers. */
 describe('MyCasesComponent · filters', () => {
   let fixture: ComponentFixture<MyCasesComponent>;
-  let listCalls: ExpedienteListParams[];
+  let listCalls: CaseListParams[];
 
   const emptyPage = { content: [], totalElements: 0, totalPages: 0, number: 0, size: 10 };
 
@@ -30,9 +30,9 @@ describe('MyCasesComponent · filters', () => {
         provideNoopAnimations(),
         provideRouter([]),
         {
-          provide: ExpedienteService,
+          provide: CaseService,
           useValue: {
-            list: (params: ExpedienteListParams) => {
+            list: (params: CaseListParams) => {
               listCalls.push(params);
               return of(emptyPage);
             },
@@ -56,7 +56,7 @@ describe('MyCasesComponent · filters', () => {
     )[name];
   }
 
-  function lastList(): ExpedienteListParams {
+  function lastList(): CaseListParams {
     return listCalls[listCalls.length - 1];
   }
 

@@ -21,12 +21,7 @@ import {
   switchMap,
 } from 'rxjs';
 
-import {
-  ExpedienteService,
-  AnalystDecisionRequest,
-  ClaimCauseOption,
-  Settlement,
-} from '../expediente.service';
+import { CaseService, AnalystDecisionRequest, ClaimCauseOption, Settlement } from '../case.service';
 import { DocumentAgendaService } from '../document-agenda.service';
 import { CaseNavigationService } from '../case-navigation.service';
 import { CaseMessagesService } from '../case-messages.service';
@@ -181,7 +176,7 @@ interface BriefAlert {
 }
 
 @Component({
-  selector: 'app-expediente-detail',
+  selector: 'app-case-detail',
   imports: [
     RouterLink,
     FraudGaugeComponent,
@@ -203,17 +198,17 @@ interface BriefAlert {
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   animations: [fadeInUp, staggerReveal, tabSwitch],
-  templateUrl: './expediente-detail.component.html',
+  templateUrl: './case-detail.component.html',
   // Order matters: both files are concatenated in this order and the cascade depends on it.
   styleUrls: [
-    './expediente-detail.component.scss',
-    './expediente-detail-paneles.scss',
-    './expediente-detail-analisis.scss',
+    './case-detail.component.scss',
+    './case-detail-panels.scss',
+    './case-detail-analysis.scss',
   ],
 })
-export class ExpedienteDetailComponent {
+export class CaseDetailComponent {
   private readonly route = inject(ActivatedRoute);
-  private readonly service = inject(ExpedienteService);
+  private readonly service = inject(CaseService);
   private readonly caseNav = inject(CaseNavigationService);
   private readonly session = inject(AuthSessionService);
   private readonly users = inject(UserAdminService);
@@ -314,7 +309,7 @@ export class ExpedienteDetailComponent {
 
   protected readonly riskGaugeBand = computed<1 | 2 | 3 | 4 | null>(() => {
     const band = this.data()?.riskBand;
-    return band ? ExpedienteDetailComponent.RISK_BAND_GAUGE[band] : null;
+    return band ? CaseDetailComponent.RISK_BAND_GAUGE[band] : null;
   });
 
   protected readonly riskGaugeEmptyLabel = computed(() => {
@@ -577,7 +572,7 @@ export class ExpedienteDetailComponent {
     ]).pipe(
       switchMap(([id]) =>
         this.service
-          .polizasDelAsegurado(id as unknown as number)
+          .insuredPolicies(id as unknown as number)
           .pipe(catchError(() => of<Policy[]>([]))),
       ),
     ),
@@ -1162,7 +1157,7 @@ export class ExpedienteDetailComponent {
     ]).pipe(
       switchMap(([id]) =>
         this.service
-          .derivaciones(id as unknown as number)
+          .derivations(id as unknown as number)
           .pipe(catchError(() => of<ExpertAssessment[]>([]))),
       ),
     ),
@@ -1380,7 +1375,7 @@ export class ExpedienteDetailComponent {
     }
     this.derivarSaving.set(true);
     this.derivarError.set(null);
-    this.service.derivarAPeritaje(d.id, Number(perito), motivo, this.tipoDerivacion()).subscribe({
+    this.service.deriveToExpert(d.id, Number(perito), motivo, this.tipoDerivacion()).subscribe({
       next: (peritaje) => {
         this.derivarSaving.set(false);
         this.showDerivar.set(false);
@@ -1575,14 +1570,8 @@ export class ExpedienteDetailComponent {
     const note = this.notaVeredicto().trim();
     const monto = this.montoInformeNumero();
     const request = this.informeEsReparacion()
-      ? this.service.cargarRespuestaServicioTecnico(
-          d.id,
-          result as RepairOutcome,
-          note,
-          monto,
-          file,
-        )
-      : this.service.cargarInformePericial(d.id, result as ExpertVerdict, note, monto, file);
+      ? this.service.uploadRepairResponse(d.id, result as RepairOutcome, note, monto, file)
+      : this.service.uploadExpertReport(d.id, result as ExpertVerdict, note, monto, file);
     request.subscribe({
       next: () => {
         this.informeSaving.set(false);
@@ -1605,7 +1594,7 @@ export class ExpedienteDetailComponent {
     ]).pipe(
       switchMap(([id]) =>
         this.service
-          .antecedentesFraude(id as unknown as number)
+          .fraudRecords(id as unknown as number)
           .pipe(catchError(() => of<FraudRecord[]>([]))),
       ),
     ),
@@ -1691,7 +1680,7 @@ export class ExpedienteDetailComponent {
     }
     this.antecedenteSaving.set(true);
     this.antecedenteError.set(null);
-    this.service.registrarAntecedente(d.id, { source, reason }).subscribe({
+    this.service.registerFraudRecord(d.id, { source, reason }).subscribe({
       next: () => {
         this.antecedenteSaving.set(false);
         this.showAntecedente.set(false);

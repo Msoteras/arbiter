@@ -23,7 +23,7 @@ import {
   switchMap,
 } from 'rxjs';
 
-import { ExpedienteService, CaseCreateRequest } from '../expediente.service';
+import { CaseService, CaseCreateRequest } from '../case.service';
 import { PolicyService } from '../policy.service';
 import { CaseResponse } from '../../../core/models/case';
 import { Policy } from '../../../core/models/policy';
@@ -143,7 +143,7 @@ function slotOf(time: string): string {
 }
 
 @Component({
-  selector: 'app-nueva-denuncia',
+  selector: 'app-new-claim',
   imports: [
     ChipGroupComponent,
     RouterLink,
@@ -157,12 +157,12 @@ function slotOf(time: string): string {
     SwitchComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  templateUrl: './nueva-denuncia.component.html',
-  styleUrl: './nueva-denuncia.component.scss',
+  templateUrl: './new-claim.component.html',
+  styleUrl: './new-claim.component.scss',
 })
-export class NuevaDenunciaComponent {
+export class NewClaimComponent {
   private readonly router = inject(Router);
-  private readonly service = inject(ExpedienteService);
+  private readonly service = inject(CaseService);
   private readonly policyService = inject(PolicyService);
   private readonly session = inject(InsuredSessionService);
   private readonly locations = inject(ArgentinaLocationsService);
@@ -328,35 +328,37 @@ export class NuevaDenunciaComponent {
   protected readonly description = signal('');
   protected readonly insuredItem = signal('');
   // Picked from a catalog, not typed: `cases.province`/`cases.locality` are used for grouping.
-  protected readonly provincia = signal('');
-  protected readonly localidad = signal('');
+  protected readonly selectedProvince = signal('');
+  protected readonly selectedLocality = signal('');
 
   private readonly provinceNames = toSignal(this.locations.provinces(), {
     initialValue: [] as string[],
   });
 
-  protected readonly provinciaOptions = computed<SelectOption[]>(() =>
+  protected readonly provinceOptions = computed<SelectOption[]>(() =>
     this.provinceNames().map((name) => ({ value: name, label: name })),
   );
 
   private readonly localityNames = toSignal(
-    toObservable(this.provincia).pipe(switchMap((province) => this.locations.localities(province))),
+    toObservable(this.selectedProvince).pipe(
+      switchMap((province) => this.locations.localities(province)),
+    ),
     { initialValue: [] as string[] },
   );
 
-  protected readonly localidadOptions = computed<SelectOption[]>(() =>
+  protected readonly localityOptions = computed<SelectOption[]>(() =>
     this.localityNames().map((name) => ({ value: name, label: name })),
   );
 
-  protected readonly localidadDisabled = computed(() => this.provincia() === '');
+  protected readonly localityDisabled = computed(() => this.selectedProvince() === '');
 
   /** A province change invalidates the selected locality. */
   private readonly resetLocalityEffect = effect(() => {
-    this.provincia();
-    untracked(() => this.localidad.set(''));
+    this.selectedProvince();
+    untracked(() => this.selectedLocality.set(''));
   });
-  protected readonly calleNumero = signal('');
-  protected readonly entreCalles = signal('');
+  protected readonly streetAddress = signal('');
+  protected readonly crossStreets = signal('');
   protected readonly eventDate = signal('');
   protected readonly eventTime = signal('');
   // Kept apart from eventDate: the gap between them is what `coverage.report_deadline_hours` evaluates.
@@ -602,10 +604,10 @@ export class NuevaDenunciaComponent {
       add('Fecha de la denuncia policial', this.policeReportDate());
       add('Hora de la denuncia policial', this.policeReportTime());
     }
-    add('Provincia', this.provincia());
-    add('Localidad', this.localidad());
+    add('Provincia', this.selectedProvince());
+    add('Localidad', this.selectedLocality());
     // eventLocation (street only) is @NotBlank in the backend.
-    add('Calle y número', this.calleNumero());
+    add('Calle y número', this.streetAddress());
     add('Descripción del hecho', this.description());
     add('Email de contacto', this.contactEmail());
     add('Teléfono de contacto', this.contactPhone());
@@ -780,8 +782,8 @@ export class NuevaDenunciaComponent {
 
   /** Street address only; locality and province travel in their own fields. */
   private buildEventAddress(): string {
-    const base = this.calleNumero().trim();
-    return this.entreCalles().trim() ? `${base} (entre ${this.entreCalles()})` : base;
+    const base = this.streetAddress().trim();
+    return this.crossStreets().trim() ? `${base} (entre ${this.crossStreets()})` : base;
   }
 
   submit(): void {
@@ -802,8 +804,8 @@ export class NuevaDenunciaComponent {
       description: this.description(),
       eventDate: this.eventDate() + 'T' + (this.eventTime() || '00:00') + ':00',
       eventLocation: this.buildEventAddress(),
-      province: this.provincia() || undefined,
-      locality: this.localidad() || undefined,
+      province: this.selectedProvince() || undefined,
+      locality: this.selectedLocality() || undefined,
       // Only when declared: an invented date would be evaluated by the deadline rule as real.
       policeReportAt: this.policeReportDate()
         ? this.policeReportDate() + 'T' + (this.policeReportTime() || '00:00') + ':00'

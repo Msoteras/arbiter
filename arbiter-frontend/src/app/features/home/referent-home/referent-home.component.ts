@@ -4,7 +4,7 @@ import { RouterLink } from '@angular/router';
 import { catchError, forkJoin, map, of, startWith } from 'rxjs';
 
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
-import { AnalystWorkload, ExpedienteService } from '../../expedientes/expediente.service';
+import { AnalystWorkload, CaseService } from '../../cases/case.service';
 import { CaseResponse } from '../../../core/models/case';
 import { caseStatusLabel, caseStatusTone } from '../../../core/models/case-status';
 import { StatusTone } from '../../../core/models/status-tone';
@@ -50,7 +50,7 @@ type WorkloadState =
   styleUrl: './referent-home.component.scss',
 })
 export class ReferentHomeComponent {
-  private readonly service = inject(ExpedienteService);
+  private readonly service = inject(CaseService);
   private readonly session = inject(AuthSessionService);
   private readonly appReady = inject(AppReadyService);
 
@@ -118,7 +118,7 @@ export class ReferentHomeComponent {
     () => this.alertState().status === 'ok' && this.alertItems().length === 0,
   );
 
-  private count(params: Parameters<ExpedienteService['list']>[0]) {
+  private count(params: Parameters<CaseService['list']>[0]) {
     return this.service.list({ ...params, page: 0, size: 1 }).pipe(map((p) => p.totalElements));
   }
 

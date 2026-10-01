@@ -11,8 +11,8 @@ import {
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { catchError, map, of, startWith, switchMap } from 'rxjs';
 
-import { ExpedienteService } from '../../../features/expedientes/expediente.service';
-import { DocumentAgendaService } from '../../../features/expedientes/document-agenda.service';
+import { CaseService } from '../../../features/cases/case.service';
+import { DocumentAgendaService } from '../../../features/cases/document-agenda.service';
 import { CASE_DOCUMENT_TYPES, CaseDocumentType } from '../../../core/models/case-document';
 import { ButtonComponent } from '../button/button.component';
 import { FilePreviewComponent } from '../file-preview/file-preview.component';
@@ -159,13 +159,13 @@ type FetchState<T> = { status: 'loading' } | { status: 'ok'; value: T };
   `,
 })
 export class DocUploadComponent {
-  private readonly service = inject(ExpedienteService);
+  private readonly service = inject(CaseService);
   private readonly agenda = inject(DocumentAgendaService);
 
   readonly caseId = input.required<number>();
   /**
    * An insured with policies in several insurers may be uploading to a case outside their session's
-   * default tenant (see `ExpedienteService.getById`). Null for analysts and referents.
+   * default tenant (see `CaseService.getById`). Null for analysts and referents.
    */
   readonly insurerSlug = input<string | null>(null);
   /** With branch and claim cause, slots come from the document agenda; otherwise, the full catalog. */

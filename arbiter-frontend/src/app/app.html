@@ -3,13 +3,13 @@
 <div
   class="app-frame"
   [class.app-shell]="showShell()"
-  [class.app-shell--top]="showShell() && showAseguradoNav()"
-  [class.app-shell--chrome]="showShell() && !showAseguradoNav()"
+  [class.app-shell--top]="showShell() && showInsuredNav()"
+  [class.app-shell--chrome]="showShell() && !showInsuredNav()"
   [class.nav-open]="navOpen()"
   [class.nav-overlay]="overlayNav()"
 >
   @if (showShell()) {
-    @if (showAseguradoNav()) {
+    @if (showInsuredNav()) {
       <header class="topbar">
         <div class="topbar-brand">
           <app-logo variant="symbol" class="topbar-logo" />
@@ -240,7 +240,7 @@
       <aside class="navpanel" id="app-nav" [attr.inert]="navOpen() ? null : ''">
         <nav class="navpanel-nav">
           <p class="navpanel-group">Operación</p>
-          @if (showAnalistaNav()) {
+          @if (showAnalystNav()) {
             <a routerLink="/inbox" routerLinkActive="active"
               ><span class="nav-dot"></span>Bandeja</a
             >
@@ -297,7 +297,7 @@
 
 @if (showShell()) {
   <!-- @defer keeps the wizard out of the insured's initial bundle. -->
-  @if (showAseguradoNav()) {
+  @if (showInsuredNav()) {
     <app-modal
       [open]="newClaim.isOpen()"
       heading="Nueva denuncia"
@@ -310,7 +310,7 @@
         <!-- @defer never tears down, so the @if destroys the wizard on close; otherwise reopening
              shows the previous confirmation instead of a blank first step. -->
         @if (newClaim.isOpen()) {
-          <app-nueva-denuncia [embedded]="true" (close)="newClaim.close()" />
+          <app-new-claim [embedded]="true" (close)="newClaim.close()" />
         }
       }
     </app-modal>

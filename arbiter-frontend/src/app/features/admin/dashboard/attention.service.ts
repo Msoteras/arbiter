@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { Observable, forkJoin, map } from 'rxjs';
 
-import { ExpedienteService } from '../../expedientes/expediente.service';
+import { CaseService } from '../../cases/case.service';
 
 export type AttentionSeverity = 'risk' | 'warning' | 'info';
 
@@ -31,7 +31,7 @@ const NAMED = 3;
  */
 @Injectable({ providedIn: 'root' })
 export class AttentionService {
-  private readonly caseService = inject(ExpedienteService);
+  private readonly caseService = inject(CaseService);
 
   load(): Observable<AttentionItem[]> {
     return forkJoin({
@@ -92,7 +92,7 @@ export class AttentionService {
 
   /** Fetches only the first rows: the count comes from `totalElements`, the rows only name cases. */
   private probe(
-    params: Parameters<ExpedienteService['list']>[0],
+    params: Parameters<CaseService['list']>[0],
   ): Observable<{ total: number; ids: number[] }> {
     return this.caseService
       .list({ ...params, size: NAMED, sort: 'updatedAt,asc' })

@@ -4,14 +4,10 @@
       <h1 class="t-page-title">Mensajes</h1>
       <app-input placeholder="Buscar asegurado o N° de expediente…" [(value)]="search" />
       <div class="conv-filters">
-        <button type="button" [class.active]="filter() === 'TODOS'" (click)="filter.set('TODOS')">
+        <button type="button" [class.active]="filter() === 'ALL'" (click)="filter.set('ALL')">
           Todos
         </button>
-        <button
-          type="button"
-          [class.active]="filter() === 'SIN_LEER'"
-          (click)="filter.set('SIN_LEER')"
-        >
+        <button type="button" [class.active]="filter() === 'UNREAD'" (click)="filter.set('UNREAD')">
           Sin leer
           @if (unreadTotal() > 0) {
             <span class="filter-count">{{ unreadTotal() }}</span>
@@ -19,12 +15,12 @@
         </button>
         <button
           type="button"
-          [class.active]="filter() === 'ESPERANDO'"
-          (click)="filter.set('ESPERANDO')"
+          [class.active]="filter() === 'WAITING'"
+          (click)="filter.set('WAITING')"
         >
           Esperando respuesta
-          @if (esperandoCount() > 0) {
-            <span class="filter-count">{{ esperandoCount() }}</span>
+          @if (waitingCount() > 0) {
+            <span class="filter-count">{{ waitingCount() }}</span>
           }
         </button>
       </div>

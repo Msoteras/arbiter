@@ -136,7 +136,7 @@ export interface PagedResponse<T> {
   size: number;
 }
 
-export interface ExpedienteListParams {
+export interface CaseListParams {
   status?: string | string[];
   claimCause?: string;
   policyNumber?: string;
@@ -203,7 +203,7 @@ export interface AssignedCaseSummary {
 }
 
 @Injectable({ providedIn: 'root' })
-export class ExpedienteService {
+export class CaseService {
   private readonly http = inject(HttpClient);
   private readonly baseUrl = `${environment.apiBaseUrl}/cases`;
 
@@ -220,7 +220,7 @@ export class ExpedienteService {
     return this.http.get<CaseResponse>(`${this.baseUrl}/${id}`, options);
   }
 
-  list(params: ExpedienteListParams = {}): Observable<PagedResponse<CaseResponse>> {
+  list(params: CaseListParams = {}): Observable<PagedResponse<CaseResponse>> {
     const query: Record<string, string | string[]> = {};
     if (params.status?.length) query['status'] = params.status;
     if (params.claimCause) query['claimCause'] = params.claimCause;
@@ -343,7 +343,7 @@ export class ExpedienteService {
   }
 
   /** All lens counts in one request, over the current filters. */
-  lensSummary(params: ExpedienteListParams = {}): Observable<LensSummary> {
+  lensSummary(params: CaseListParams = {}): Observable<LensSummary> {
     const query: Record<string, string | string[]> = {};
     if (params.status?.length) query['status'] = params.status;
     if (params.claimCause) query['claimCause'] = params.claimCause;
@@ -375,11 +375,11 @@ export class ExpedienteService {
   }
 
   /** Newest first. */
-  derivaciones(caseId: number): Observable<ExpertAssessment[]> {
+  derivations(caseId: number): Observable<ExpertAssessment[]> {
     return this.http.get<ExpertAssessment[]>(`${this.baseUrl}/${caseId}/expert-assessment/all`);
   }
 
-  derivarAPeritaje(
+  deriveToExpert(
     caseId: number,
     expertFirmId: number,
     reason: string,
@@ -392,7 +392,7 @@ export class ExpedienteService {
     );
   }
 
-  cargarRespuestaServicioTecnico(
+  uploadRepairResponse(
     caseId: number,
     outcome: RepairOutcome,
     note: string,
@@ -414,7 +414,7 @@ export class ExpedienteService {
   }
 
   /** Returns the case to review without reclassifying it. */
-  cargarInformePericial(
+  uploadExpertReport(
     caseId: number,
     verdict: ExpertVerdict,
     note: string,
@@ -438,17 +438,17 @@ export class ExpedienteService {
   }
 
   /** Current data, fetched lazily when the tab opens to spare an insurer-DB query on every detail load. */
-  polizasDelAsegurado(caseId: number): Observable<Policy[]> {
+  insuredPolicies(caseId: number): Observable<Policy[]> {
     return this.http.get<Policy[]>(`${this.baseUrl}/${caseId}/insured-policies`);
   }
 
   /** Includes expired records: "had one that no longer counts" differs from "never had one". */
-  antecedentesFraude(caseId: number): Observable<FraudRecord[]> {
+  fraudRecords(caseId: number): Observable<FraudRecord[]> {
     return this.http.get<FraudRecord[]>(`${this.baseUrl}/${caseId}/fraud-record/insured`);
   }
 
   /** `EXPERT_BACKED` requires a saved expert verdict confirming fraud (422 otherwise). */
-  registrarAntecedente(
+  registerFraudRecord(
     caseId: number,
     request: RegisterFraudRecordRequest,
   ): Observable<FraudRecord> {
