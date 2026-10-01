@@ -20,7 +20,7 @@ const ACTOR_LABELS: Record<StatusTransition['actor'], string> = {
 };
 
 /**
- * Analyst-facing wording. `proximoPaso()` in core/models/estado addresses the insured, whose portal
+ * Analyst-facing wording. `nextStepLabel()` in core/models/case-status addresses the insured, whose portal
  * has its own timeline.
  */
 const ANALYST_NEXT_STEP: Partial<Record<CaseStatus, string>> = {

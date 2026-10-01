@@ -37,25 +37,25 @@ export interface ImageForensicReport {
   findings: ImageForensicFinding[];
 }
 
-export type ForensicAlertLevel = 'bajo' | 'medio' | 'alto';
+export type ForensicAlertLevel = 'low' | 'medium' | 'high';
 
 /**
  * Display-only severity for `app-severity-label`; the authoritative signal is riskScore/riskBand.
  * Any internal match already passed the backend's similarity floor (0.90 by default), hence the
- * 0.95 cut for 'alto'. Returns null when there is nothing to flag.
+ * 0.95 cut for 'high'. Returns null when there is nothing to flag.
  */
 export function forensicAlertLevel(finding: ImageForensicFinding): ForensicAlertLevel | null {
   const maxInternalSimilarity = finding.internalMatches.reduce(
     (max, m) => Math.max(max, m.similarity),
     0,
   );
-  if (maxInternalSimilarity >= 0.95) return 'alto';
-  if (maxInternalSimilarity > 0) return 'medio';
+  if (maxInternalSimilarity >= 0.95) return 'high';
+  if (maxInternalSimilarity > 0) return 'medium';
 
   const web = finding.webFinding;
-  if (web?.fullMatches) return 'alto';
-  if (web?.partialMatches) return 'medio';
-  if (webFindingFound(web)) return 'bajo';
+  if (web?.fullMatches) return 'high';
+  if (web?.partialMatches) return 'medium';
+  if (webFindingFound(web)) return 'low';
 
   return null;
 }

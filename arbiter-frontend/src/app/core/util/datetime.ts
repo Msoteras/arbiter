@@ -105,11 +105,11 @@ export function chatListStamp(value: string | Date, now: Date = new Date()): str
 
 /** Greeting by time of day: morning 6–13, afternoon 13–20, night otherwise. */
 export function greetingForTimeOfDay(now: Date = new Date()): string {
-  const hora = now.getHours();
-  if (hora >= 6 && hora < 13) {
+  const hour = now.getHours();
+  if (hour >= 6 && hour < 13) {
     return 'Buenos días';
   }
-  if (hora >= 13 && hora < 20) {
+  if (hour >= 13 && hour < 20) {
     return 'Buenas tardes';
   }
   return 'Buenas noches';

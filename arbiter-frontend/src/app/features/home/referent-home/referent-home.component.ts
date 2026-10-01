@@ -95,12 +95,12 @@ export class ReferentHomeComponent {
 
   private readonly alertState = toSignal(
     forkJoin({
-      critico: this.service.list({ riskBand: 'CRITICAL', sort: 'id,desc', size: 5 }),
-      alto: this.service.list({ riskBand: 'HIGH', sort: 'id,desc', size: 5 }),
+      critical: this.service.list({ riskBand: 'CRITICAL', sort: 'id,desc', size: 5 }),
+      high: this.service.list({ riskBand: 'HIGH', sort: 'id,desc', size: 5 }),
     }).pipe(
-      map(({ critico, alto }): AlertState => ({
+      map(({ critical, high }): AlertState => ({
         status: 'ok',
-        data: [...critico.content, ...alto.content].slice(0, 5),
+        data: [...critical.content, ...high.content].slice(0, 5),
       })),
       startWith<AlertState>({ status: 'loading' }),
       catchError(() => of<AlertState>({ status: 'error' })),

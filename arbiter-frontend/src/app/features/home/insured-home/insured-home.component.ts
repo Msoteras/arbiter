@@ -48,7 +48,7 @@ interface Step {
   tone?: StatusTone;
 }
 
-const ORDER: SimplifiedStatus[] = ['DENUNCIADO', 'EN_TRAMITE', 'TERMINADO'];
+const ORDER: SimplifiedStatus[] = ['REPORTED', 'IN_PROGRESS', 'FINISHED'];
 
 /** Insured-facing copy: never mention the model's classification or the internal scoring. */
 @Component({
@@ -185,7 +185,7 @@ export class InsuredHomeComponent {
 
   protected statusTone(status: string): StatusTone {
     const simple = simplifiedStatus(status);
-    if (simple === 'TERMINADO') {
+    if (simple === 'FINISHED') {
       return status === 'APPROVED' ? 'ok' : 'danger';
     }
     return 'info';

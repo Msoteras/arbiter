@@ -166,7 +166,7 @@ export class RulesComponent {
   private detailToken: string | null = null;
   private pendingDetail = 0;
   protected readonly selectedId = signal<string | null>(null);
-  protected readonly view = signal<'ramo' | GeneralView>('ramo');
+  protected readonly view = signal<'branch' | GeneralView>('branch');
   protected readonly draft = signal<BranchRules | null>(null);
 
   /**
@@ -348,7 +348,7 @@ export class RulesComponent {
   }
 
   protected isSelected(r: BranchRules): boolean {
-    return this.view() === 'ramo' && this.selectedId() === r.id;
+    return this.view() === 'branch' && this.selectedId() === r.id;
   }
 
   protected readonly generalSections: { id: GeneralView; label: string }[] = [
@@ -372,7 +372,7 @@ export class RulesComponent {
   }
 
   protected select(r: BranchRules): void {
-    this.view.set('ramo');
+    this.view.set('branch');
     this.selectedId.set(r.id);
     this.draft.set(structuredClone(r));
     this.persisted.set(structuredClone(r));

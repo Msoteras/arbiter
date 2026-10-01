@@ -80,7 +80,7 @@ export function ruleResultTone(result: string): StatusTone {
   return result === 'FAIL' ? 'danger' : 'neutral';
 }
 
-const DAMNIFICADO: Record<string, string> = {
+const AFFECTED_PARTY_LABELS: Record<string, string> = {
   TITULAR: 'el titular',
   FAMILIAR: 'un familiar',
   TERCERO: 'un tercero',
@@ -98,24 +98,24 @@ export function ruleEvaluationText(ruleType: string, evaluatedValue: string | nu
   const t = tokens(evaluatedValue);
   switch (ruleType) {
     case 'POLICY_IN_FORCE': {
-      const [desde, hasta] = (t['coverageWindow'] ?? '').split('..');
-      return desde && hasta
-        ? `Hecho del ${t['eventDate']} · vigencia del ${desde} al ${hasta}`
+      const [start, end] = (t['coverageWindow'] ?? '').split('..');
+      return start && end
+        ? `Hecho del ${t['eventDate']} · vigencia del ${start} al ${end}`
         : evaluatedValue;
     }
     case 'WAITING_PERIOD': {
-      const carencia = /^(\d+)d from (.+)$/.exec(t['waitingPeriod'] ?? '');
-      return carencia
-        ? `Hecho del ${t['eventDate']} · carencia de ${carencia[1]} días desde el ${carencia[2]}`
+      const waitingPeriod = /^(\d+)d from (.+)$/.exec(t['waitingPeriod'] ?? '');
+      return waitingPeriod
+        ? `Hecho del ${t['eventDate']} · carencia de ${waitingPeriod[1]} días desde el ${waitingPeriod[2]}`
         : evaluatedValue;
     }
     case 'REPORT_DEADLINE':
       return t['reportedAt']
-        ? `Denunciado ${horas(t['reportedAt'])} después del hecho · máximo ${horas(t['max'])}`
+        ? `Denunciado ${hoursLabel(t['reportedAt'])} después del hecho · máximo ${hoursLabel(t['max'])}`
         : evaluatedValue;
     case 'POLICE_DEADLINE':
       return t['policeReportAt']
-        ? `Denuncia policial ${horas(t['policeReportAt'])} después del hecho · máximo ${horas(t['max'])}`
+        ? `Denuncia policial ${hoursLabel(t['policeReportAt'])} después del hecho · máximo ${hoursLabel(t['max'])}`
         : evaluatedValue;
     case 'MAX_EVENTS_YEAR': {
       const n = Number(t['events12m']);
@@ -132,12 +132,12 @@ export function ruleEvaluationText(ruleType: string, evaluatedValue: string | nu
         ? `Sin monto reclamado o sin suma asegurada · tope ${t['max']}`
         : `Reclama el ${t['ratio']} de la suma asegurada · tope ${t['max']}`;
     case 'FT_PRIOR_CLAIMS': {
-      const previos = Number(t['priorClaims']);
-      if (Number.isNaN(previos)) {
+      const priorCount = Number(t['priorClaims']);
+      if (Number.isNaN(priorCount)) {
         return evaluatedValue;
       }
-      const ventana = t['windowMonths'] ? ` en los últimos ${t['windowMonths']} meses` : '';
-      return `${previos} ${previos === 1 ? 'siniestro previo' : 'siniestros previos'}${ventana} · máximo ${t['max']}`;
+      const windowText = t['windowMonths'] ? ` en los últimos ${t['windowMonths']} meses` : '';
+      return `${priorCount} ${priorCount === 1 ? 'siniestro previo' : 'siniestros previos'}${windowText} · máximo ${t['max']}`;
     }
     case 'FT_POLICY_AGE':
       return t['policyAgeMonths'] === 'sin datos'
@@ -145,8 +145,8 @@ export function ruleEvaluationText(ruleType: string, evaluatedValue: string | nu
         : `Póliza de ${t['policyAgeMonths']} meses · mínimo ${t['min']}`;
     case 'FT_REQUIRED_DOCS':
       return t['missing'] === 'ninguno'
-        ? `Presente: ${withDocumentLabels(listado(t['required']))}`
-        : `Falta: ${withDocumentLabels(listado(t['missing']))}`;
+        ? `Presente: ${withDocumentLabels(commaList(t['required']))}`
+        : `Falta: ${withDocumentLabels(commaList(t['missing']))}`;
     case 'COVERAGE_EXCLUSION':
     case 'COVERAGE_INCLUSION':
       return t['claimCause']
@@ -154,11 +154,11 @@ export function ruleEvaluationText(ruleType: string, evaluatedValue: string | nu
         : evaluatedValue;
     case 'COVERS_FAMILY_GROUP':
       return t['affectedParty']
-        ? `Damnificado: ${DAMNIFICADO[t['affectedParty']] ?? t['affectedParty']} · la cobertura no alcanza al grupo familiar`
+        ? `Damnificado: ${AFFECTED_PARTY_LABELS[t['affectedParty']] ?? t['affectedParty']} · la cobertura no alcanza al grupo familiar`
         : evaluatedValue;
     case 'CLAIM_CAUSE_MATCH': {
       // Only documents that narrate an event take part.
-      const documentList = withDocumentLabels(listado(t['documents']));
+      const documentList = withDocumentLabels(commaList(t['documents']));
       return t['declared'] === t['described']
         ? `${documentList}: narra el hecho declarado (${t['declared']})`
         : `${documentList}: narra ${t['described']} · se declaró ${t['declared']}`;
@@ -167,17 +167,17 @@ export function ruleEvaluationText(ruleType: string, evaluatedValue: string | nu
       // Only written with signs present; the signs themselves are in each document's reading.
       const n = Number(t['signs']);
       return t['documents'] && !Number.isNaN(n)
-        ? `${withDocumentLabels(listado(t['documents']))}: ${n} ${n === 1 ? 'señal' : 'señales'} · ver Documentación`
+        ? `${withDocumentLabels(commaList(t['documents']))}: ${n} ${n === 1 ? 'señal' : 'señales'} · ver Documentación`
         : evaluatedValue;
     }
     case 'CLAIM_EXHAUSTS_COVERAGE': {
-      const previos = Number(t['settledClaimsOnPolicy']);
-      if (!t['settledClaimsOnPolicy'] || Number.isNaN(previos)) {
+      const priorCount = Number(t['settledClaimsOnPolicy']);
+      if (!t['settledClaimsOnPolicy'] || Number.isNaN(priorCount)) {
         return evaluatedValue;
       }
-      return previos === 0
+      return priorCount === 0
         ? 'Sin siniestros liquidados previos sobre esta póliza'
-        : `${previos} ${previos === 1 ? 'siniestro liquidado previo' : 'siniestros liquidados previos'} sobre esta póliza · un siniestro agota la cobertura`;
+        : `${priorCount} ${priorCount === 1 ? 'siniestro liquidado previo' : 'siniestros liquidados previos'} sobre esta póliza · un siniestro agota la cobertura`;
     }
     case 'FRAUD_RECORD': {
       // Prose from the engine, but with the window abbreviated as "(ventana 36m)".
@@ -191,7 +191,7 @@ export function ruleEvaluationText(ruleType: string, evaluatedValue: string | nu
 }
 
 /** `police_report,invoice` → `police_report, invoice`. */
-function listado(raw: string | undefined): string {
+function commaList(raw: string | undefined): string {
   return (raw ?? '').split(',').join(', ');
 }
 
@@ -204,7 +204,7 @@ function tokens(raw: string): Record<string, string> {
   return found;
 }
 
-function horas(value: string | undefined): string {
+function hoursLabel(value: string | undefined): string {
   const n = /(\d+)/.exec(value ?? '');
   return n ? `${n[1]} h` : (value ?? '');
 }

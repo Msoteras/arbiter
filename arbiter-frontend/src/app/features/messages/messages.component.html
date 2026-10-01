@@ -115,7 +115,9 @@
             <div class="field">
               <dt class="t-field-label">Estado</dt>
               <dd>
-                <app-badge [tone]="tono(item.status)">{{ caseStatusLabel(item.status) }}</app-badge>
+                <app-badge [tone]="statusTone(item.status)">{{
+                  caseStatusLabel(item.status)
+                }}</app-badge>
               </dd>
             </div>
           </dl>

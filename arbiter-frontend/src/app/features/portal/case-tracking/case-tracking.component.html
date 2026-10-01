@@ -16,7 +16,7 @@
           @if (i < simplifiedIndex()) {
             <span class="simple-check" aria-hidden="true">✓</span>
           }
-          {{ s === 'DENUNCIADO' ? 'Denunciado' : s === 'EN_TRAMITE' ? 'En trámite' : 'Terminado' }}
+          {{ s === 'REPORTED' ? 'Denunciado' : s === 'IN_PROGRESS' ? 'En trámite' : 'Terminado' }}
         </span>
         @if (!last) {
           <span class="simple-sep" [class.done]="i < simplifiedIndex()"></span>

@@ -58,23 +58,23 @@
   align-items: start;
 }
 
-.razones {
+.reason-list {
   list-style: none;
   margin: 0;
   padding: 0;
 }
-.razon {
+.reason-item {
   display: grid;
   grid-template-columns: var(--space-6) 1fr;
   gap: var(--space-3);
   padding: var(--space-3) 0;
   border-top: 1px solid var(--border-subtle);
 }
-.razon:first-child {
+.reason-item:first-child {
   border-top: none;
   padding-top: 0;
 }
-.razon-num {
+.reason-num {
   color: var(--text-tertiary);
   font-size: var(--font-size-xs);
   padding-top: var(--space-1);
@@ -126,7 +126,7 @@
   opacity: 0.6;
 }
 
-.score-factores {
+.score-factors {
   list-style: none;
   margin: 0;
   padding: 0;
@@ -144,12 +144,12 @@
   display: flex;
   flex-direction: column;
 }
-.score-factor-aporte {
+.score-factor-contribution {
   font-weight: var(--font-weight-bold);
   white-space: nowrap;
 }
-.score-factor.nulo .score-factor-name,
-.score-factor.nulo .score-factor-aporte {
+.score-factor.zero .score-factor-name,
+.score-factor.zero .score-factor-contribution {
   color: var(--text-tertiary);
   font-weight: var(--font-weight-regular);
 }
@@ -158,10 +158,10 @@
   display: block;
   margin: 0 0 var(--space-3);
 }
-.traza-table tr.failing-row td {
+.trace-table tr.failing-row td {
   font-weight: var(--font-weight-medium);
 }
-.traza-table tr.failing-row td:first-child {
+.trace-table tr.failing-row td:first-child {
   box-shadow: inset 2px 0 0 var(--status-danger);
   padding-left: var(--space-3);
 }
@@ -173,12 +173,12 @@
   align-items: start;
 }
 
-.criterios {
+.criteria {
   list-style: none;
   margin: 0 0 var(--space-3);
   padding: 0;
 }
-.criterio {
+.criterion {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;

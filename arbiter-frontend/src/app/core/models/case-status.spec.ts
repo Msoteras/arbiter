@@ -1,7 +1,7 @@
 import { effectiveSimplifiedStatus, insuredMovementLabel, nextStepLabel } from './case-status';
 
 // Tests the contract, not the wording: which movements the insured sees, and never the referral reason.
-describe('movimientoAseguradoLabel', () => {
+describe('insuredMovementLabel', () => {
   it('tells the filing apart from the return with documents', () => {
     expect(insuredMovementLabel('PENDING_CLASSIFICATION', null)).toBe('Denuncia recibida');
     expect(insuredMovementLabel('PENDING_CLASSIFICATION', 'AWAITING_DOCUMENTATION')).toBe(
@@ -126,20 +126,20 @@ describe('effectiveSimplifiedStatus', () => {
         'PENDING_CLASSIFICATION',
         'AWAITING_DOCUMENTATION',
       ]),
-    ).toBe('EN_TRAMITE');
+    ).toBe('IN_PROGRESS');
   });
 
   it('marks Terminado only while the case is closed', () => {
-    expect(effectiveSimplifiedStatus('APPROVED', ['PENDING_ANALYST_REVIEW'])).toBe('TERMINADO');
-    expect(effectiveSimplifiedStatus('LAPSED', ['AWAITING_DOCUMENTATION'])).toBe('TERMINADO');
+    expect(effectiveSimplifiedStatus('APPROVED', ['PENDING_ANALYST_REVIEW'])).toBe('FINISHED');
+    expect(effectiveSimplifiedStatus('LAPSED', ['AWAITING_DOCUMENTATION'])).toBe('FINISHED');
   });
 
   it('goes back to En trámite when a closed case reopens', () => {
     expect(
       effectiveSimplifiedStatus('PENDING_ANALYST_REVIEW', ['PENDING_ANALYST_REVIEW', 'REJECTED']),
-    ).toBe('EN_TRAMITE');
+    ).toBe('IN_PROGRESS');
     expect(
       effectiveSimplifiedStatus('PENDING_ANALYST_REVIEW', ['AWAITING_DOCUMENTATION', 'LAPSED']),
-    ).toBe('EN_TRAMITE');
+    ).toBe('IN_PROGRESS');
   });
 });

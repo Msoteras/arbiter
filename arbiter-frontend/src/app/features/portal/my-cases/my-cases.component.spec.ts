@@ -74,7 +74,7 @@ describe('MyCasesComponent · filters', () => {
   it('"En trámite" expands to the four statuses it groups', async () => {
     await mount([bbva]);
 
-    signalOf('statusFilter').set('EN_TRAMITE');
+    signalOf('statusFilter').set('IN_PROGRESS');
     fixture.detectChanges();
     await fixture.whenStable();
 
@@ -90,7 +90,7 @@ describe('MyCasesComponent · filters', () => {
   it('"Terminado" sends the three final statuses', async () => {
     await mount([bbva]);
 
-    signalOf('statusFilter').set('TERMINADO');
+    signalOf('statusFilter').set('FINISHED');
     fixture.detectChanges();
     await fixture.whenStable();
 
@@ -121,7 +121,7 @@ describe('MyCasesComponent · filters', () => {
     fixture.detectChanges();
     await fixture.whenStable();
 
-    signalOf('statusFilter').set('TERMINADO');
+    signalOf('statusFilter').set('FINISHED');
     (fixture.componentInstance as unknown as Record<string, () => void>)['onFilterChange']();
     fixture.detectChanges();
     await fixture.whenStable();

@@ -57,7 +57,7 @@ export function isFinalStatus(value: string): boolean {
 }
 
 // Read by the insured: never names the model's classification or the expert report itself.
-const PROXIMOS_PASOS: Record<CaseStatus, string> = {
+const NEXT_STEPS: Record<CaseStatus, string> = {
   PENDING_CLASSIFICATION:
     'En pocos minutos el caso pasa a revisión de un analista (o se pide documentación si falta algo).',
   PENDING_ANALYST_REVIEW:
@@ -76,7 +76,7 @@ const PROXIMOS_PASOS: Record<CaseStatus, string> = {
 };
 
 export function nextStepLabel(value: string): string {
-  return (PROXIMOS_PASOS as Record<string, string>)[value] ?? '';
+  return (NEXT_STEPS as Record<string, string>)[value] ?? '';
 }
 
 const TONES: Record<CaseStatus, StatusTone> = {
@@ -108,28 +108,28 @@ export function riskBandEmptyLabel(status: string, classification: string | null
 }
 
 // Three-level progress shown to the insured, free of internal jargon.
-export type SimplifiedStatus = 'DENUNCIADO' | 'EN_TRAMITE' | 'TERMINADO';
+export type SimplifiedStatus = 'REPORTED' | 'IN_PROGRESS' | 'FINISHED';
 
 const SIMPLIFIED: Record<CaseStatus, SimplifiedStatus> = {
-  PENDING_CLASSIFICATION: 'DENUNCIADO',
-  PENDING_ANALYST_REVIEW: 'EN_TRAMITE',
-  CLASSIFICATION_FAILED: 'EN_TRAMITE',
-  AWAITING_DOCUMENTATION: 'EN_TRAMITE',
-  PENDING_EXPERT_REPORT: 'EN_TRAMITE',
-  PENDING_REPAIR: 'EN_TRAMITE',
-  APPROVED: 'TERMINADO',
-  REJECTED: 'TERMINADO',
-  LAPSED: 'TERMINADO',
+  PENDING_CLASSIFICATION: 'REPORTED',
+  PENDING_ANALYST_REVIEW: 'IN_PROGRESS',
+  CLASSIFICATION_FAILED: 'IN_PROGRESS',
+  AWAITING_DOCUMENTATION: 'IN_PROGRESS',
+  PENDING_EXPERT_REPORT: 'IN_PROGRESS',
+  PENDING_REPAIR: 'IN_PROGRESS',
+  APPROVED: 'FINISHED',
+  REJECTED: 'FINISHED',
+  LAPSED: 'FINISHED',
 };
 
 const SIMPLIFIED_LABELS: Record<SimplifiedStatus, string> = {
-  DENUNCIADO: 'Denunciado',
-  EN_TRAMITE: 'En trámite',
-  TERMINADO: 'Terminado',
+  REPORTED: 'Denunciado',
+  IN_PROGRESS: 'En trámite',
+  FINISHED: 'Terminado',
 };
 
 export function simplifiedStatus(value: string): SimplifiedStatus {
-  return (SIMPLIFIED as Record<string, SimplifiedStatus>)[value] ?? 'EN_TRAMITE';
+  return (SIMPLIFIED as Record<string, SimplifiedStatus>)[value] ?? 'IN_PROGRESS';
 }
 
 export function simplifiedStatusLabel(value: string): string {
@@ -141,11 +141,13 @@ export const SIMPLIFIED_STATUSES = Object.entries(SIMPLIFIED_LABELS).map(([value
   label,
 }));
 
-export function statusesInBucket(cajon: SimplifiedStatus): CaseStatus[] {
-  return (Object.keys(SIMPLIFIED) as CaseStatus[]).filter((status) => SIMPLIFIED[status] === cajon);
+export function statusesInBucket(bucket: SimplifiedStatus): CaseStatus[] {
+  return (Object.keys(SIMPLIFIED) as CaseStatus[]).filter(
+    (status) => SIMPLIFIED[status] === bucket,
+  );
 }
 
-const SIMPLIFIED_ORDER: SimplifiedStatus[] = ['DENUNCIADO', 'EN_TRAMITE', 'TERMINADO'];
+const SIMPLIFIED_ORDER: SimplifiedStatus[] = ['REPORTED', 'IN_PROGRESS', 'FINISHED'];
 
 /**
  * Highest progress level reached across the status history, so the insured's stepper never goes

@@ -1,4 +1,4 @@
-/* Second half of the rules screen styles, split from reglas.component.scss to stay under Angular's
+/* Second half of the rules screen styles, split from rules.component.scss to stay under Angular's
    `anyComponentStyle` budget. Both are concatenated in `styleUrls` order, so the cascade is the same
    as a single file: moving a block between them can change which rule wins. */
 

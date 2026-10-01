@@ -8,7 +8,7 @@ import { EmptyStateComponent } from '../../shared/ui/empty-state/empty-state.com
 import { InlineLoadingComponent } from '../../shared/ui/inline-loading/inline-loading.component';
 
 /**
- * Headline per notification type. Deliberately not `estadoLabel` — that's the analyst's technical
+ * Headline per notification type. Deliberately not `caseStatusLabel` — that's the analyst's technical
  * vocabulary. These only fire for an insured, so they say "siniestro" like the rest of the portal.
  */
 const NOTIFICATION_TITLES: Record<string, string> = {

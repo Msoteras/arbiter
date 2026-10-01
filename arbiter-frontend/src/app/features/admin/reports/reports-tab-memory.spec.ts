@@ -30,7 +30,7 @@ describe('reports tab memory', () => {
   it('does not store something that is not a tab', () => {
     rememberReportsTab('fraud');
     rememberReportsTab(undefined);
-    rememberReportsTab('otra-cosa');
+    rememberReportsTab('something-else');
 
     expect(rememberedReportsTab()).toBe('fraud');
   });

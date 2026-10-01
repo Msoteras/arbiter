@@ -19,7 +19,7 @@ interface PublicKeyResponse {
 export interface LoginResponse {
   token: string;
   expiresAt: string;
-  /** Id of the logged-in user — the bandeja resolves which cases are "mine" with it. */
+  /** Id of the logged-in user — the inbox resolves which cases are "mine" with it. */
   id: number;
   email: string;
   rol: UserRole;

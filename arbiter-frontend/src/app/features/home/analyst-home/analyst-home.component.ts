@@ -140,7 +140,7 @@ export class AnalystHomeComponent {
   protected readonly distSegments = computed<DistSegment[]>(() => {
     const c = this.counts();
     if (!c) return [];
-    // Segments must be disjoint: `enTramite` already includes `pendientes`, and high-risk
+    // Segments must be disjoint: `inProgress` already includes `pending`, and high-risk
     // overlaps every category, so it's shown apart.
     return [
       { label: 'Pendientes', value: c.pending, tone: 'info' },

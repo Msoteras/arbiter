@@ -67,7 +67,7 @@ export class MessagesComponent {
       filter((event) => event instanceof NavigationEnd),
       startWith(null),
       map(() => {
-        const id = this.route.firstChild?.snapshot.paramMap.get('caseId');
+        const id = this.route.firstChild?.snapshot?.paramMap.get('caseId');
         return id ? Number(id) : null;
       }),
       distinctUntilChanged(),
@@ -155,7 +155,7 @@ export class MessagesComponent {
 
   protected readonly caseStatusLabel = caseStatusLabel;
 
-  protected tono(status: string): StatusTone {
+  protected statusTone(status: string): StatusTone {
     return caseStatusTone(status);
   }
 }
