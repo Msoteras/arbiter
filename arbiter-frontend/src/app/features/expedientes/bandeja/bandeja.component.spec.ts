@@ -30,7 +30,7 @@ describe('BandejaComponent · lifecycle scope', () => {
   async function mount(
     rol = 'ANALISTA_SINIESTROS',
     content: unknown[] = [],
-    query: Map<string, string> = new Map(),
+    query = new Map<string, string>(),
   ): Promise<void> {
     listCalls = [];
     lensCalls = [];

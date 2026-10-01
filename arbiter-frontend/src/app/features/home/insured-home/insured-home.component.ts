@@ -146,7 +146,7 @@ export class InsuredHomeComponent {
 
   /** Only while unread: once opened, the notice has done its job. */
   protected readonly mensajeNuevo = computed(() => {
-    const d = this.destacado();
+    const d = this.featured();
     const item = d ? this.messages.inboxItem(d.id, d.insurerSlug) : null;
     return item && item.unreadCount > 0 && item.lastMessageSender === 'ANALYST' ? item : null;
   });

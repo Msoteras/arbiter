@@ -88,7 +88,7 @@ export interface BranchRules {
    */
   coverageCount: number;
   commonExclusions: string[];
-  requiredDocumentsByClaimCause: { [claimCauseId: number]: string[] };
+  requiredDocumentsByClaimCause: Record<number, string[]>;
   businessRules: string[];
   fastTrack: FastTrackConfig;
 }

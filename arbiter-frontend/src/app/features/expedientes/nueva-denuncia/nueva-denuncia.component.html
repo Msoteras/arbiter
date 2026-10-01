@@ -83,8 +83,11 @@
               @if (policies().length === 0) {
                 <p class="step-hint">No encontramos pólizas asociadas a tu identificación.</p>
               } @else {
-                <label class="field-label">Elegí la póliza del siniestro *</label>
+                <label class="field-label" for="claim-policy"
+                  >Elegí la póliza del siniestro *</label
+                >
                 <app-select
+                  id="claim-policy"
                   [(value)]="selectedPolicyNumber"
                   [options]="policyOptions()"
                   placeholder="Seleccioná una póliza"
@@ -118,7 +121,7 @@
             }
           }
 
-          <label class="field-label">¿Qué te pasó? *</label>
+          <p class="field-label">¿Qué te pasó? *</p>
           @if (claimTypesLoading()) {
             <app-inline-loading [size]="20" message="Cargando hechos generadores…" />
           } @else {
@@ -136,14 +139,15 @@
         <section class="step-content">
           <h2 class="step-title">Contanos los detalles</h2>
 
-          <label class="field-label">Bien asegurado *</label>
+          <label class="field-label" for="claim-item">Bien asegurado *</label>
           <app-input
+            id="claim-item"
             placeholder="Ej: Samsung Galaxy A56"
             [(value)]="insuredItem"
             [readonly]="lockInsuredItem()"
           />
 
-          <label class="field-label">¿Cuándo pasó? *</label>
+          <p class="field-label">¿Cuándo pasó? *</p>
           <app-chip-group
             class="date-shortcuts"
             size="sm"
@@ -192,7 +196,7 @@
 
           <!-- Hidden only on a real policy block; a date-consistency error must keep this field editable. -->
           @if (requiresPoliceReport() && !policyBlocked()) {
-            <label class="field-label">¿Ya hiciste la denuncia policial?</label>
+            <p class="field-label">¿Ya hiciste la denuncia policial?</p>
             <div class="toggle-row">
               <app-switch
                 [checked]="policeReportFiled()"
@@ -218,7 +222,7 @@
           }
 
           @if (requiresPoliceReport() && !policyBlocked() && policeReportFiled()) {
-            <label class="field-label">¿Cuándo la hiciste? *</label>
+            <p class="field-label">¿Cuándo la hiciste? *</p>
             <!-- Relative to the event date so no option can precede the claim itself. -->
             @if (policeDateAnchored()) {
               <app-chip-group
@@ -260,7 +264,7 @@
           <!-- Hidden on a hard policy block. Deliberately `policyBlocked()`, not `eligibilityError()`:
                a date inconsistency is fixed in the fields above and must not collapse the form. -->
           @if (!policyBlocked()) {
-            <label class="field-label">¿Dónde pasó? *</label>
+            <p class="field-label">¿Dónde pasó? *</p>
             <div class="location-fields">
               <!-- Closed cascading catalog, not free text: province and locality are stored in
                    their own columns for grouping. -->
@@ -287,18 +291,26 @@
               <app-input placeholder="Entre calles (opcional)" [(value)]="entreCalles" />
             </div>
 
-            <label class="field-label">Monto reclamado (opcional)</label>
-            <!-- min=0 also makes app-input block the minus sign. -->
-            <app-input type="number" [min]="0" placeholder="$" [(value)]="claimedAmount" />
+            <label class="field-label" for="claim-amount">Monto reclamado (opcional)</label>
+            <app-input
+              id="claim-amount"
+              prefix="$"
+              align="end"
+              inputmode="decimal"
+              [normalize]="amountInputDisplay"
+              [value]="amountInputLabel(claimedAmount())"
+              (valueChange)="claimedAmount.set(amountInputValue($event))"
+            />
 
-            <label class="field-label">Descripción del hecho *</label>
+            <label class="field-label" for="claim-description">Descripción del hecho *</label>
             <app-textarea
+              id="claim-description"
               [rows]="5"
               placeholder="Describí lo que pasó con el mayor detalle posible"
               [(value)]="description"
             />
 
-            <label class="field-label">Datos de contacto *</label>
+            <p class="field-label">Datos de contacto *</p>
             <div class="location-grid">
               <app-input
                 type="email"

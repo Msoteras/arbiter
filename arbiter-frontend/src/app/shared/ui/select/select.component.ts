@@ -115,6 +115,7 @@ function normalize(text: string): string {
           [style.width.px]="panelPos().width"
         >
           @for (opt of visibleOptions(); track opt.value; let i = $index) {
+            <!-- eslint-disable-next-line @angular-eslint/template/click-events-have-key-events, @angular-eslint/template/interactive-supports-focus -- The combobox drives the options from the keyboard (aria-activedescendant). -->
             <li
               class="option"
               role="option"
