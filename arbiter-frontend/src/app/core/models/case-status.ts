@@ -174,7 +174,7 @@ export function isDocumentationRework(currentStatus: string, pastStatuses: strin
   );
 }
 
-const TITULOS_ASEGURADO: Record<CaseStatus, string> = {
+const INSURED_TITLES: Record<CaseStatus, string> = {
   PENDING_CLASSIFICATION: 'Recibimos tu denuncia',
   PENDING_ANALYST_REVIEW: 'Tu siniestro está en análisis',
   CLASSIFICATION_FAILED: 'Tu siniestro está en análisis',
@@ -187,21 +187,21 @@ const TITULOS_ASEGURADO: Record<CaseStatus, string> = {
 };
 
 export function insuredStatusTitle(value: string): string {
-  return (TITULOS_ASEGURADO as Record<string, string>)[value] ?? 'Seguimiento de tu siniestro';
+  return (INSURED_TITLES as Record<string, string>)[value] ?? 'Seguimiento de tu siniestro';
 }
 
-const TITULO_REPROCESO_DOCUMENTACION = 'Recibimos tu documentación';
-const DESCRIPCION_REPROCESO_DOCUMENTACION =
+const DOCUMENTATION_REWORK_TITLE = 'Recibimos tu documentación';
+const DOCUMENTATION_REWORK_DESCRIPTION =
   'Recibimos los documentos que subiste y estamos reevaluando tu caso. Te avisamos ni bien haya novedades.';
 
 export function effectiveInsuredStatusTitle(currentStatus: string, pastStatuses: string[]): string {
   return isDocumentationRework(currentStatus, pastStatuses)
-    ? TITULO_REPROCESO_DOCUMENTACION
+    ? DOCUMENTATION_REWORK_TITLE
     : insuredStatusTitle(currentStatus);
 }
 
 // Insured-safe copy: must NEVER mention the model's classification, fraud scoring or internal statuses.
-const DESCRIPCIONES_ASEGURADO: Record<CaseStatus, string> = {
+const INSURED_DESCRIPTIONS: Record<CaseStatus, string> = {
   PENDING_CLASSIFICATION:
     'Recibimos tu denuncia y la estamos procesando. En breve un analista la revisa.',
   PENDING_ANALYST_REVIEW: 'Un analista está revisando tu caso. Te avisamos ni bien haya novedades.',
@@ -219,7 +219,7 @@ const DESCRIPCIONES_ASEGURADO: Record<CaseStatus, string> = {
 };
 
 export function insuredStatusDescription(value: string): string {
-  return (DESCRIPCIONES_ASEGURADO as Record<string, string>)[value] ?? '';
+  return (INSURED_DESCRIPTIONS as Record<string, string>)[value] ?? '';
 }
 
 export function effectiveInsuredStatusDescription(
@@ -227,7 +227,7 @@ export function effectiveInsuredStatusDescription(
   pastStatuses: string[],
 ): string {
   return isDocumentationRework(currentStatus, pastStatuses)
-    ? DESCRIPCION_REPROCESO_DOCUMENTACION
+    ? DOCUMENTATION_REWORK_DESCRIPTION
     : insuredStatusDescription(currentStatus);
 }
 

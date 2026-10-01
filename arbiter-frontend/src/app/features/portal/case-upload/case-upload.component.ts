@@ -5,10 +5,10 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { catchError, map, of, startWith, switchMap } from 'rxjs';
 
 import { CaseResponse } from '../../../core/models/case';
-import { ExpedienteService } from '../../expedientes/expediente.service';
+import { CaseService } from '../../cases/case.service';
 import { CardComponent } from '../../../shared/ui/card/card.component';
 import { DocUploadComponent } from '../../../shared/ui/doc-upload/doc-upload.component';
-import { CaseDocumentsComponent } from '../../expedientes/case-documents/case-documents.component';
+import { CaseDocumentsComponent } from '../../cases/case-documents/case-documents.component';
 
 type LoadState =
   | { status: 'loading' }
@@ -25,7 +25,7 @@ type LoadState =
 export class CaseUploadComponent {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
-  private readonly service = inject(ExpedienteService);
+  private readonly service = inject(CaseService);
 
   protected readonly caseId = Number(this.route.snapshot.paramMap.get('id'));
   /** The case may live in a tenant other than the session's default (multi-insurer insureds). */

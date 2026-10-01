@@ -34,7 +34,7 @@ import {
 } from '../../../shared/ui/menu-button/menu-button.component';
 import { StatTileComponent } from '../../../shared/ui/stat-tile/stat-tile.component';
 import { BranchesService } from '../branches.service';
-import { ExpedienteService } from '../../expedientes/expediente.service';
+import { CaseService } from '../../cases/case.service';
 import { AttentionItem, AttentionService } from './attention.service';
 import {
   ClaimMetrics,
@@ -118,7 +118,7 @@ export class DashboardComponent {
   private readonly claimMetrics = inject(ClaimMetricsService);
   private readonly attention = inject(AttentionService);
   private readonly branches = inject(BranchesService);
-  private readonly caseService = inject(ExpedienteService);
+  private readonly caseService = inject(CaseService);
   private readonly session = inject(AuthSessionService);
   private readonly locale = inject(LOCALE_ID);
   private readonly theme: ChartTheme = readChartTheme();

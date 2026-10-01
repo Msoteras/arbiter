@@ -17,9 +17,9 @@ function tokenLabel(token: string): string {
     return decision;
   }
   // Label functions echo unknown values, so the first one that changes the token wins.
-  const clasificacion = classificationLabel(token);
-  if (clasificacion !== token) {
-    return clasificacion;
+  const classification = classificationLabel(token);
+  if (classification !== token) {
+    return classification;
   }
   const veredicto = verdictLabel(token);
   if (veredicto !== token) {

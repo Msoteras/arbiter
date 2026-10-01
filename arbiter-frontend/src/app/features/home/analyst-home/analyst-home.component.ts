@@ -4,7 +4,7 @@ import { RouterLink } from '@angular/router';
 import { catchError, map, of, startWith } from 'rxjs';
 
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
-import { ExpedienteService } from '../../expedientes/expediente.service';
+import { CaseService } from '../../cases/case.service';
 import { CaseResponse } from '../../../core/models/case';
 import { FINAL_STATUSES, caseStatusLabel, caseStatusTone } from '../../../core/models/case-status';
 import { StatusTone } from '../../../core/models/status-tone';
@@ -55,7 +55,7 @@ type ActionState =
   styleUrl: './analyst-home.component.scss',
 })
 export class AnalystHomeComponent {
-  private readonly service = inject(ExpedienteService);
+  private readonly service = inject(CaseService);
   private readonly session = inject(AuthSessionService);
   private readonly appReady = inject(AppReadyService);
 

@@ -19,7 +19,7 @@ import {
   switchMap,
 } from 'rxjs';
 
-import { ExpedienteService } from '../expediente.service';
+import { CaseService } from '../case.service';
 import { CaseResponse } from '../../../core/models/case';
 import { caseStatusLabel, caseStatusTone } from '../../../core/models/case-status';
 import { StatusTone } from '../../../core/models/status-tone';
@@ -262,7 +262,7 @@ const IDLE: SearchState = { items: [], loading: false, failed: false };
 export class GlobalSearchComponent {
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly router = inject(Router);
-  private readonly caseService = inject(ExpedienteService);
+  private readonly caseService = inject(CaseService);
 
   protected readonly query = signal('');
   protected readonly focused = signal(false);

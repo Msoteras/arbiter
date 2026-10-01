@@ -7,7 +7,7 @@ import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/route
 import { provideEchartsCore } from 'ngx-echarts';
 import { Subject, of } from 'rxjs';
 
-import { ExpedienteService } from '../../expedientes/expediente.service';
+import { CaseService } from '../../cases/case.service';
 import { BranchesService } from '../branches.service';
 import { ReportFiltersStore } from './report-filters.store';
 import { ResolutionReportComponent } from './resolution-report.component';
@@ -186,7 +186,7 @@ describe('ResolutionReportComponent', () => {
         provideEchartsCore({ echarts: () => import('../../../shared/ui/chart/echarts-core') }),
         ReportFiltersStore,
         { provide: ResolutionReportService, useValue: reportService },
-        { provide: ExpedienteService, useValue: { claimCauseNames: () => of(['Hurto']) } },
+        { provide: CaseService, useValue: { claimCauseNames: () => of(['Hurto']) } },
         { provide: BranchesService, useValue: { list: () => of([{ id: 1, name: 'Celulares' }]) } },
       ],
     }).compileComponents();
@@ -344,7 +344,7 @@ describe('ResolutionReportComponent opened from a link', () => {
         },
         ReportFiltersStore,
         { provide: ResolutionReportService, useValue: { preview, export: jasmine.createSpy() } },
-        { provide: ExpedienteService, useValue: { claimCauseNames: () => of(causes) } },
+        { provide: CaseService, useValue: { claimCauseNames: () => of(causes) } },
         { provide: BranchesService, useValue: { list: () => of([{ id: 1, name: 'Celulares' }]) } },
       ],
     });

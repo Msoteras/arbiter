@@ -278,7 +278,9 @@
                     >
                   </td>
                   <td>
-                    <app-badge [tone]="estadoTone(c.status)">{{ estadoLabel(c.status) }}</app-badge>
+                    <app-badge [tone]="caseStatusTone(c.status)">{{
+                      caseStatusLabel(c.status)
+                    }}</app-badge>
                   </td>
                   <td>
                     @if (deadlinePrioritized(c)) {
@@ -305,8 +307,8 @@
                   </td>
                   <td>
                     @if (c.analysisClassification) {
-                      <app-badge [tone]="clasificacionTone(c.analysisClassification)">
-                        {{ clasificacionLabel(c.analysisClassification) }}
+                      <app-badge [tone]="classificationTone(c.analysisClassification)">
+                        {{ classificationLabel(c.analysisClassification) }}
                       </app-badge>
                     } @else {
                       <span class="t-note">—</span>

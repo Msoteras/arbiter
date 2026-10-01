@@ -13,7 +13,7 @@ import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-i
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { catchError, combineLatest, map, of, startWith, switchMap } from 'rxjs';
 
-import { ExpedienteService } from '../expediente.service';
+import { CaseService } from '../case.service';
 import { DocumentAgendaService } from '../document-agenda.service';
 import { DocumentAnalysis, ExtractionStatus } from '../../../core/models/case';
 import { formatDate } from '../../../core/util/datetime';
@@ -72,13 +72,13 @@ type PreviewState =
   styleUrl: './case-documents.component.scss',
 })
 export class CaseDocumentsComponent {
-  private readonly service = inject(ExpedienteService);
+  private readonly service = inject(CaseService);
   private readonly agenda = inject(DocumentAgendaService);
   private readonly sanitizer = inject(DomSanitizer);
   private readonly destroyRef = inject(DestroyRef);
 
   readonly caseId = input.required<number>();
-  /** See `ExpedienteService.getById`. Null for analyst and supervisor. */
+  /** See `CaseService.getById`. Null for analyst and supervisor. */
   readonly insurerSlug = input<string | null | undefined>(null);
   /** Bumped by the parent after an upload to refresh the list. */
   readonly reloadToken = input(0);

@@ -9,7 +9,7 @@ import {
   effect,
 } from '@angular/core';
 
-import { ExpedienteService } from '../../expediente.service';
+import { CaseService } from '../../case.service';
 import {
   ImageForensicFinding,
   ImageForensicInternalMatch,
@@ -48,7 +48,7 @@ const DOC_TYPE_LABELS: Record<string, string> = {
   styleUrl: './forensic-analysis.component.scss',
 })
 export class ForensicAnalysisComponent implements OnDestroy {
-  private readonly service = inject(ExpedienteService);
+  private readonly service = inject(CaseService);
 
   readonly caseId = input.required<number>();
   readonly report = input.required<ImageForensicReport | null>();

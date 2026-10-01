@@ -7,7 +7,7 @@ import { Policy, isExpired } from '../../../core/models/policy';
 import { EmptyStateComponent } from '../../../shared/ui/empty-state/empty-state.component';
 import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
 import { PolicyCardComponent } from '../../../shared/ui/policy-card/policy-card.component';
-import { PolicyService } from '../../expedientes/policy.service';
+import { PolicyService } from '../../cases/policy.service';
 
 type PoliciesState =
   { status: 'loading' } | { status: 'ok'; policies: Policy[] } | { status: 'error' };

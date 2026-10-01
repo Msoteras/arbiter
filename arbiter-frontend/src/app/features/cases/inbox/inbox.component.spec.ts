@@ -3,20 +3,20 @@ import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { ActivatedRoute, Router, UrlTree } from '@angular/router';
 import { of } from 'rxjs';
 
-import { BandejaComponent } from './bandeja.component';
+import { InboxComponent } from './inbox.component';
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
 import { UserAdminService } from '../../../core/auth/user-admin.service';
 import { CaseNavigationService } from '../case-navigation.service';
-import { ExpedienteListParams, ExpedienteService } from '../expediente.service';
+import { CaseListParams, CaseService } from '../case.service';
 
 /**
  * The lifecycle scope must travel in the request params: filtering the fetched page client-side
  * would yield uneven pages and a wrong total.
  */
-describe('BandejaComponent · lifecycle scope', () => {
-  let fixture: ComponentFixture<BandejaComponent>;
-  let listCalls: ExpedienteListParams[];
-  let lensCalls: ExpedienteListParams[];
+describe('InboxComponent · lifecycle scope', () => {
+  let fixture: ComponentFixture<InboxComponent>;
+  let listCalls: CaseListParams[];
+  let lensCalls: CaseListParams[];
   let navigateCalls: unknown[][];
 
   const emptyPage = { content: [], totalElements: 0, totalPages: 0, number: 0, size: 10 };
@@ -37,13 +37,13 @@ describe('BandejaComponent · lifecycle scope', () => {
     navigateCalls = [];
 
     await TestBed.configureTestingModule({
-      imports: [BandejaComponent],
+      imports: [InboxComponent],
       providers: [
         provideNoopAnimations(),
         {
-          provide: ExpedienteService,
+          provide: CaseService,
           useValue: {
-            list: (params: ExpedienteListParams) => {
+            list: (params: CaseListParams) => {
               listCalls.push(params);
               return of({
                 ...emptyPage,
@@ -52,7 +52,7 @@ describe('BandejaComponent · lifecycle scope', () => {
                 totalPages: content.length ? 1 : 0,
               });
             },
-            lensSummary: (params: ExpedienteListParams) => {
+            lensSummary: (params: CaseListParams) => {
               lensCalls.push(params);
               return of(summary);
             },
@@ -82,7 +82,7 @@ describe('BandejaComponent · lifecycle scope', () => {
       ],
     }).compileComponents();
 
-    fixture = TestBed.createComponent(BandejaComponent);
+    fixture = TestBed.createComponent(InboxComponent);
     fixture.detectChanges();
     await fixture.whenStable();
     fixture.detectChanges();
@@ -107,7 +107,7 @@ describe('BandejaComponent · lifecycle scope', () => {
     fixture.detectChanges();
   }
 
-  function lastList(): ExpedienteListParams {
+  function lastList(): CaseListParams {
     return listCalls[listCalls.length - 1];
   }
 
@@ -264,7 +264,7 @@ describe('BandejaComponent · lifecycle scope', () => {
     it('exports exactly the combination on screen', async () => {
       await mount();
       const component = fixture.componentInstance as unknown as {
-        fetchAllPages: (params: ExpedienteListParams) => unknown;
+        fetchAllPages: (params: CaseListParams) => unknown;
         downloadCsv: () => void;
         exportAs: (format: string) => void;
       };

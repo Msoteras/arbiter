@@ -13,9 +13,9 @@ import {
 import { CaseMessageInboxItem, ChatEvent } from '../../../core/models/case-message';
 import { CaseResponse } from '../../../core/models/case';
 import { insuredMovementLabel } from '../../../core/models/case-status';
-import { CaseMessagesService } from '../../expedientes/case-messages.service';
-import { ExpedienteService } from '../../expedientes/expediente.service';
-import { CaseChatPopupComponent } from '../../expedientes/case-chat-popup/case-chat-popup.component';
+import { CaseMessagesService } from '../../cases/case-messages.service';
+import { CaseService } from '../../cases/case.service';
+import { CaseChatPopupComponent } from '../../cases/case-chat-popup/case-chat-popup.component';
 
 /**
  * The insured's side of the case chat: talks to the analyst who holds the case, and interleaves the
@@ -91,7 +91,7 @@ export function initialsOf(name: string | null | undefined): string {
 })
 export class InsuredChatComponent {
   private readonly messages = inject(CaseMessagesService);
-  private readonly caseService = inject(ExpedienteService);
+  private readonly caseService = inject(CaseService);
 
   readonly open = model(false);
   readonly caseId = input.required<number>();

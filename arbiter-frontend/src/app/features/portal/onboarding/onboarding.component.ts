@@ -26,7 +26,7 @@ import { InputComponent } from '../../../shared/ui/input/input.component';
 import { LoadingComponent } from '../../../shared/ui/loading/loading.component';
 import { LogoComponent } from '../../../shared/ui/logo/logo.component';
 import { PolicyCardComponent } from '../../../shared/ui/policy-card/policy-card.component';
-import { PolicyService } from '../../expedientes/policy.service';
+import { PolicyService } from '../../cases/policy.service';
 
 type ProfileState =
   { status: 'loading' } | { status: 'ok'; profile: InsuredProfile } | { status: 'error' };

@@ -117,12 +117,12 @@ export function greetingForTimeOfDay(now: Date = new Date()): string {
 
 /** e.g. "Martes 10 de agosto"; capitalized because es-AR returns the weekday in lowercase. */
 export function longDate(now: Date = new Date()): string {
-  const texto = now.toLocaleDateString('es-AR', {
+  const text = now.toLocaleDateString('es-AR', {
     weekday: 'long',
     day: 'numeric',
     month: 'long',
   });
-  return texto.charAt(0).toUpperCase() + texto.slice(1);
+  return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
 /**

@@ -270,25 +270,25 @@
                    their own columns for grouping. -->
               <div class="location-grid">
                 <app-select
-                  [(value)]="provincia"
-                  [options]="provinciaOptions()"
+                  [(value)]="selectedProvince"
+                  [options]="provinceOptions()"
                   placeholder="Provincia"
                   [searchable]="true"
                   [required]="true"
                   requiredMessage="Elegí la provincia donde pasó."
                 />
                 <app-select
-                  [(value)]="localidad"
-                  [options]="localidadOptions()"
-                  [placeholder]="localidadDisabled() ? 'Elegí primero la provincia' : 'Localidad'"
-                  [disabled]="localidadDisabled()"
+                  [(value)]="selectedLocality"
+                  [options]="localityOptions()"
+                  [placeholder]="localityDisabled() ? 'Elegí primero la provincia' : 'Localidad'"
+                  [disabled]="localityDisabled()"
                   [searchable]="true"
                   [required]="true"
                   requiredMessage="Elegí la localidad donde pasó."
                 />
               </div>
-              <app-input placeholder="Calle y número" [(value)]="calleNumero" />
-              <app-input placeholder="Entre calles (opcional)" [(value)]="entreCalles" />
+              <app-input placeholder="Calle y número" [(value)]="streetAddress" />
+              <app-input placeholder="Entre calles (opcional)" [(value)]="crossStreets" />
             </div>
 
             <label class="field-label" for="claim-amount">Monto reclamado (opcional)</label>

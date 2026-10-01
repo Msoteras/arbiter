@@ -11,10 +11,10 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, NavigationEnd, Router, RouterLink } from '@angular/router';
 import { distinctUntilChanged, filter, map, startWith } from 'rxjs';
 
-import { CaseMessagesService } from '../expedientes/case-messages.service';
-import { ExpedienteService } from '../expedientes/expediente.service';
-import { CaseChatComponent } from '../expedientes/case-chat/case-chat.component';
-import { analystQuickReplies } from '../expedientes/case-chat/quick-replies';
+import { CaseMessagesService } from '../cases/case-messages.service';
+import { CaseService } from '../cases/case.service';
+import { CaseChatComponent } from '../cases/case-chat/case-chat.component';
+import { analystQuickReplies } from '../cases/case-chat/quick-replies';
 import { chatListStamp } from '../../core/util/datetime';
 import { CaseResponse } from '../../core/models/case';
 import { caseStatusLabel, caseStatusTone } from '../../core/models/case-status';
@@ -26,7 +26,7 @@ import { InputComponent } from '../../shared/ui/input/input.component';
 import { EmptyStateComponent } from '../../shared/ui/empty-state/empty-state.component';
 import { InlineLoadingComponent } from '../../shared/ui/inline-loading/inline-loading.component';
 
-type InboxFilter = 'TODOS' | 'SIN_LEER' | 'ESPERANDO';
+type InboxFilter = 'ALL' | 'UNREAD' | 'WAITING';
 
 @Component({
   selector: 'app-messages',
@@ -46,7 +46,7 @@ type InboxFilter = 'TODOS' | 'SIN_LEER' | 'ESPERANDO';
 })
 export class MessagesComponent {
   private readonly service = inject(CaseMessagesService);
-  private readonly caseService = inject(ExpedienteService);
+  private readonly caseService = inject(CaseService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
 
@@ -59,7 +59,7 @@ export class MessagesComponent {
     ),
   );
   protected readonly search = signal('');
-  protected readonly filter = signal<InboxFilter>('TODOS');
+  protected readonly filter = signal<InboxFilter>('ALL');
 
   /** The conversation lives in a componentless child route, so it's read from there. */
   protected readonly selectedCaseId = toSignal(
@@ -84,15 +84,15 @@ export class MessagesComponent {
   protected readonly unreadTotal = computed(
     () => this.items().filter((i) => i.unreadCount > 0).length,
   );
-  protected readonly esperandoCount = computed(
+  protected readonly waitingCount = computed(
     () => this.items().filter((i) => i.lastMessageSender === 'INSURED').length,
   );
 
   protected readonly filtered = computed(() => {
     const q = this.search().trim().toLowerCase();
     return this.items().filter((item) => {
-      if (this.filter() === 'SIN_LEER' && item.unreadCount === 0) return false;
-      if (this.filter() === 'ESPERANDO' && item.lastMessageSender !== 'INSURED') return false;
+      if (this.filter() === 'UNREAD' && item.unreadCount === 0) return false;
+      if (this.filter() === 'WAITING' && item.lastMessageSender !== 'INSURED') return false;
       if (!q) return true;
       return (
         item.insuredName.toLowerCase().includes(q) ||

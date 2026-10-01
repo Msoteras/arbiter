@@ -17,9 +17,9 @@ import {
 } from '../../../core/models/case-status';
 import { StatusTone } from '../../../core/models/status-tone';
 import { longDate, greetingForTimeOfDay } from '../../../core/util/datetime';
-import { ExpedienteService } from '../../expedientes/expediente.service';
-import { NewClaimModalService } from '../../expedientes/new-claim-modal.service';
-import { CaseMessagesService } from '../../expedientes/case-messages.service';
+import { CaseService } from '../../cases/case.service';
+import { NewClaimModalService } from '../../cases/new-claim-modal.service';
+import { CaseMessagesService } from '../../cases/case-messages.service';
 import {
   InsuredChatComponent,
   analystFirstName,
@@ -68,7 +68,7 @@ const ORDER: SimplifiedStatus[] = ['DENUNCIADO', 'EN_TRAMITE', 'TERMINADO'];
   styleUrl: './insured-home.component.scss',
 })
 export class InsuredHomeComponent {
-  private readonly service = inject(ExpedienteService);
+  private readonly service = inject(CaseService);
   private readonly messages = inject(CaseMessagesService);
   private readonly session = inject(AuthSessionService);
   protected readonly insured = inject(InsuredSessionService);

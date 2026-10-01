@@ -24,9 +24,9 @@ import {
 } from '../../../core/models/case-status';
 import { Policy } from '../../../core/models/policy';
 import { StatusTone } from '../../../core/models/status-tone';
-import { ExpedienteService } from '../../expedientes/expediente.service';
-import { NewClaimModalService } from '../../expedientes/new-claim-modal.service';
-import { PolicyService } from '../../expedientes/policy.service';
+import { CaseService } from '../../cases/case.service';
+import { NewClaimModalService } from '../../cases/new-claim-modal.service';
+import { PolicyService } from '../../cases/policy.service';
 import { CardComponent } from '../../../shared/ui/card/card.component';
 import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
@@ -60,7 +60,7 @@ type LoadState =
   styleUrl: './my-cases.component.scss',
 })
 export class MyCasesComponent {
-  private readonly service = inject(ExpedienteService);
+  private readonly service = inject(CaseService);
   private readonly policyService = inject(PolicyService);
   private readonly newClaim = inject(NewClaimModalService);
   protected readonly session = inject(InsuredSessionService);

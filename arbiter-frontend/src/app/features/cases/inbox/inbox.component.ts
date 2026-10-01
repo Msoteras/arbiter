@@ -23,12 +23,7 @@ import {
 } from 'rxjs';
 import * as XLSX from 'xlsx';
 
-import {
-  ExpedienteService,
-  ExpedienteListParams,
-  LensCounts,
-  LensSummary,
-} from '../expediente.service';
+import { CaseService, CaseListParams, LensCounts, LensSummary } from '../case.service';
 import { CaseNavigationService } from '../case-navigation.service';
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
 import { UserAdminService } from '../../../core/auth/user-admin.service';
@@ -91,7 +86,7 @@ type Lifecycle = 'open' | 'closed' | 'all';
 
 type Ownership = 'mine' | 'assigned' | 'unassigned' | 'fraud';
 
-const SCOPE_OF: Record<Lifecycle, NonNullable<ExpedienteListParams['scope']>> = {
+const SCOPE_OF: Record<Lifecycle, NonNullable<CaseListParams['scope']>> = {
   open: 'OPEN',
   closed: 'CLOSED',
   all: 'ALL',
@@ -104,7 +99,7 @@ const NO_SUMMARY: LensSummary = { open: NO_COUNTS, closed: NO_COUNTS, all: NO_CO
 const LINK_PARAMS = ['scope', 'unassigned', 'fraudAlert', 'status', 'staleDays'];
 
 @Component({
-  selector: 'app-bandeja',
+  selector: 'app-inbox',
   imports: [
     RouterLink,
     CardComponent,
@@ -120,11 +115,11 @@ const LINK_PARAMS = ['scope', 'unassigned', 'fraudAlert', 'status', 'staleDays']
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   animations: [fadeStagger, staggerReveal],
-  templateUrl: './bandeja.component.html',
-  styleUrl: './bandeja.component.scss',
+  templateUrl: './inbox.component.html',
+  styleUrl: './inbox.component.scss',
 })
-export class BandejaComponent {
-  private readonly service = inject(ExpedienteService);
+export class InboxComponent {
+  private readonly service = inject(CaseService);
   private readonly router = inject(Router);
   private readonly document = inject(DOCUMENT);
   private readonly caseNav = inject(CaseNavigationService);
@@ -237,15 +232,15 @@ export class BandejaComponent {
   );
 
   // Filters without the active tab: the lens counts use this so each tab shows what it will contain.
-  private readonly activeFilters = computed<ExpedienteListParams>(() => ({
+  private readonly activeFilters = computed<CaseListParams>(() => ({
     status: this.statusFilter() || undefined,
     claimCause: this.claimCauseFilter() || undefined,
-    riskBand: (this.riskBandFilter() || undefined) as ExpedienteListParams['riskBand'],
+    riskBand: (this.riskBandFilter() || undefined) as CaseListParams['riskBand'],
     analystId: this.analystFilter() ? Number(this.analystFilter()) : undefined,
     eventDateFrom: this.eventDateFrom() || undefined,
     eventDateTo: this.eventDateTo() || undefined,
     q: this.qDebounced() || undefined,
-    followUp: (this.followUpFilter() || undefined) as ExpedienteListParams['followUp'],
+    followUp: (this.followUpFilter() || undefined) as CaseListParams['followUp'],
     staleDays: this.staleDaysFilter() ?? undefined,
   }));
 
@@ -263,7 +258,7 @@ export class BandejaComponent {
   private readonly reloadTrigger = signal(0);
 
   /** Filters + lens: single source for both the table and the export, so the file matches the screen. */
-  private readonly viewFilters = computed<ExpedienteListParams>(() => ({
+  private readonly viewFilters = computed<CaseListParams>(() => ({
     ...this.activeFilters(),
     sort: `${this.sortField()},${this.sortDir()}`,
     scope: SCOPE_OF[this.lifecycle()],
@@ -273,7 +268,7 @@ export class BandejaComponent {
     fraudAlert: this.ownership() === 'fraud',
   }));
 
-  private readonly requestParams = computed<ExpedienteListParams & { reload: number }>(() => ({
+  private readonly requestParams = computed<CaseListParams & { reload: number }>(() => ({
     ...this.viewFilters(),
     page: this.page(),
     size: this.size(),
@@ -411,7 +406,7 @@ export class BandejaComponent {
     'LAPSED',
   ];
 
-  protected readonly statusOptions: SelectOption[] = BandejaComponent.STATUS_VALUES.map((s) => ({
+  protected readonly statusOptions: SelectOption[] = InboxComponent.STATUS_VALUES.map((s) => ({
     value: s,
     label: caseStatusLabel(s),
   }));
@@ -690,12 +685,12 @@ export class BandejaComponent {
       (item) => item.value !== String(c.assignedAnalystId),
     );
     return c.assignedAnalystId
-      ? [...others, { value: BandejaComponent.RELEASE, label: 'Liberar', danger: true }]
+      ? [...others, { value: InboxComponent.RELEASE, label: 'Liberar', danger: true }]
       : others;
   }
 
   protected onAssignMenu(c: CaseResponse, value: string): void {
-    if (value === BandejaComponent.RELEASE) {
+    if (value === InboxComponent.RELEASE) {
       this.release(c.id);
     } else {
       this.assignTo(c.id, value);
@@ -736,19 +731,19 @@ export class BandejaComponent {
     });
   }
 
-  protected estadoLabel(status: string): string {
+  protected caseStatusLabel(status: string): string {
     return caseStatusLabel(status);
   }
 
-  protected estadoTone(status: string): StatusTone {
+  protected caseStatusTone(status: string): StatusTone {
     return caseStatusTone(status);
   }
 
-  protected clasificacionLabel(value: string): string {
+  protected classificationLabel(value: string): string {
     return classificationLabel(value);
   }
 
-  protected clasificacionTone(value: string): StatusTone {
+  protected classificationTone(value: string): StatusTone {
     return classificationTone(value);
   }
 
@@ -772,7 +767,7 @@ export class BandejaComponent {
   };
 
   protected riskGaugeBand(c: CaseResponse): 1 | 2 | 3 | 4 | null {
-    return c.riskBand ? BandejaComponent.RISK_BAND_GAUGE[c.riskBand] : null;
+    return c.riskBand ? InboxComponent.RISK_BAND_GAUGE[c.riskBand] : null;
   }
 
   protected riskGaugeEmptyLabel(c: CaseResponse): string {
@@ -824,7 +819,7 @@ export class BandejaComponent {
     }
     this.exporting.set(true);
 
-    const params: ExpedienteListParams = { ...this.viewFilters(), size: 200 };
+    const params: CaseListParams = { ...this.viewFilters(), size: 200 };
 
     this.fetchAllPages(params, 0, []).subscribe({
       next: (rows) => {
@@ -842,7 +837,7 @@ export class BandejaComponent {
   }
 
   private fetchAllPages(
-    params: ExpedienteListParams,
+    params: CaseListParams,
     page: number,
     acc: CaseResponse[],
   ): Observable<CaseResponse[]> {
@@ -858,7 +853,7 @@ export class BandejaComponent {
 
   private downloadCsv(rows: CaseResponse[]): void {
     const lines = [
-      BandejaComponent.EXPORT_HEADER.join(','),
+      InboxComponent.EXPORT_HEADER.join(','),
       ...rows.map((r) =>
         this.toRowCells(r)
           .map((v) => this.csvEscape(v))
@@ -871,7 +866,7 @@ export class BandejaComponent {
   }
 
   private downloadXlsx(rows: CaseResponse[]): void {
-    const aoa = [BandejaComponent.EXPORT_HEADER, ...rows.map((r) => this.toRowCells(r))];
+    const aoa = [InboxComponent.EXPORT_HEADER, ...rows.map((r) => this.toRowCells(r))];
     const sheet = XLSX.utils.aoa_to_sheet(aoa);
     const book = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(book, sheet, 'Expedientes');

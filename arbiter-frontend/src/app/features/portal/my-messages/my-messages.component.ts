@@ -3,7 +3,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { CaseMessageInboxItem } from '../../../core/models/case-message';
 import { isFinalStatus } from '../../../core/models/case-status';
 import { chatListStamp } from '../../../core/util/datetime';
-import { CaseMessagesService } from '../../expedientes/case-messages.service';
+import { CaseMessagesService } from '../../cases/case-messages.service';
 import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
 import { CardComponent } from '../../../shared/ui/card/card.component';
 import { EmptyStateComponent } from '../../../shared/ui/empty-state/empty-state.component';

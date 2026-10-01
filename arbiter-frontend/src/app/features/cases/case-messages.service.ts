@@ -11,7 +11,7 @@ import {
 
 /**
  * The case conversation between the insured and the analyst. `insurer` follows the same rule as
- * `ExpedienteService`: only the insured portal sends it, and only when they are a client of more
+ * `CaseService`: only the insured portal sends it, and only when they are a client of more
  * than one company — case ids repeat across schemas.
  */
 @Injectable({ providedIn: 'root' })
