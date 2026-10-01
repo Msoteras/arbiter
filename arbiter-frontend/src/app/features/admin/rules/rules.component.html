@@ -57,8 +57,8 @@
         <button
           type="button"
           class="audit-entry"
-          [class.active]="view() === 'historial'"
-          (click)="selectGeneral('historial'); revealEditor(menu, editor)"
+          [class.active]="view() === 'history'"
+          (click)="selectGeneral('history'); revealEditor(menu, editor)"
         >
           <svg
             class="audit-icon"
@@ -82,15 +82,15 @@
     <div #editor class="editor">
       @if (view() === 'scoring') {
         <app-scoring-config />
-      } @else if (view() === 'fraude') {
+      } @else if (view() === 'fraud') {
         <app-fraud-config />
-      } @else if (view() === 'proveedores') {
+      } @else if (view() === 'providers') {
         <app-proveedores-config />
-      } @else if (view() === 'atribuciones') {
+      } @else if (view() === 'authorities') {
         <app-settlement-authorities-config />
-      } @else if (view() === 'objetivo') {
+      } @else if (view() === 'target') {
         <app-resolution-target-config />
-      } @else if (view() === 'historial') {
+      } @else if (view() === 'history') {
         <app-rule-history />
       } @else if (view() === 'hardStop') {
         @if (hardStopLoading()) {
@@ -228,7 +228,7 @@
         @switch (activeTab()) {
           <!-- ============ COVERAGES ============ -->
           <!-- Accordion: one coverage open at a time. -->
-          @case ('coberturas') {
+          @case ('coverages') {
             @if (detailLoading()) {
               <app-inline-loading [size]="26" message="Cargando coberturas…" />
             } @else {
@@ -530,7 +530,7 @@
 
           <!-- ============ COMMON EXCLUSIONS ============ -->
           <!-- Branch-wide, not per coverage, and saved through their own rules-service endpoint. -->
-          @case ('exclusiones') {
+          @case ('exclusions') {
             <app-card heading="Exclusiones comunes del ramo">
               <p class="section-hint">
                 Situaciones NO cubiertas por ninguna cobertura del ramo. Condiciones objetivas que
@@ -820,7 +820,7 @@
 
           <!-- ============ DOCUMENTS ============ -->
           <!-- Document × claim cause matrix. -->
-          @case ('documentacion') {
+          @case ('documents') {
             @if (detailLoading()) {
               <app-inline-loading [size]="26" message="Cargando documentación…" />
             } @else {
@@ -893,7 +893,7 @@
           }
 
           <!-- ============ BUSINESS RULES ============ -->
-          @case ('reglas') {
+          @case ('rules') {
             @if (detailLoading()) {
               <app-inline-loading [size]="26" message="Cargando reglas de negocio…" />
             } @else {

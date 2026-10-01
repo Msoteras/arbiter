@@ -164,11 +164,11 @@ export class AnalystHomeComponent {
     return total > 0 ? Math.round((value / total) * 100) : 0;
   }
 
-  protected estadoLabel(status: string): string {
+  protected caseStatusLabel(status: string): string {
     return caseStatusLabel(status);
   }
 
-  protected estadoTone(status: string): StatusTone {
+  protected caseStatusTone(status: string): StatusTone {
     return caseStatusTone(status);
   }
 

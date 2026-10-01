@@ -58,10 +58,7 @@
           </div>
 
           <div class="case-body">
-            <ol
-              class="stepper"
-              [attr.aria-label]="'Progreso: ' + estadoSimplificadoLabel(d.status)"
-            >
+            <ol class="stepper" [attr.aria-label]="'Progreso: ' + simplifiedStatusLabel(d.status)">
               @for (s of steps(); track s.n; let i = $index; let last = $last) {
                 <li
                   class="node"

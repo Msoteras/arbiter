@@ -174,7 +174,7 @@ export class InsuredHomeComponent {
     return insuredStatusDescription(status);
   }
 
-  protected estadoSimplificadoLabel(status: string): string {
+  protected simplifiedStatusLabel(status: string): string {
     return simplifiedStatusLabel(status);
   }
 

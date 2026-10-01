@@ -131,15 +131,8 @@ type LoadState =
 type DocsState = { status: 'loading' } | { status: 'ok'; list: CaseDocument[] };
 
 type TabId =
-  | 'resumen'
-  | 'analisis'
-  | 'reglas'
-  | 'documentacion'
-  | 'imagenes'
-  | 'asegurado'
-  | 'peritaje'
-  | 'historial';
-type Verb = 'aprobar' | 'rechazar';
+  'summary' | 'analysis' | 'rules' | 'documents' | 'images' | 'insured' | 'assessment' | 'history';
+type Verb = 'approve' | 'reject';
 
 /** null renders as "Sin datos": the backend doesn't provide it. */
 interface FieldItem {
@@ -151,15 +144,15 @@ interface FieldItem {
 }
 
 /** Hours for the first couple of days, days afterwards. */
-function demoraDenuncia(eventDate: string, createdAt: string): string | undefined {
-  const horas = Math.round((Date.parse(createdAt) - Date.parse(eventDate)) / 3_600_000);
-  if (Number.isNaN(horas) || horas < 0) {
+function reportDelay(eventDate: string, createdAt: string): string | undefined {
+  const hours = Math.round((Date.parse(createdAt) - Date.parse(eventDate)) / 3_600_000);
+  if (Number.isNaN(hours) || hours < 0) {
     return undefined;
   }
-  if (horas < 48) {
-    return horas === 1 ? '1 h después del hecho' : `${horas} h después del hecho`;
+  if (hours < 48) {
+    return hours === 1 ? '1 h después del hecho' : `${hours} h después del hecho`;
   }
-  return `${Math.round(horas / 24)} días después del hecho`;
+  return `${Math.round(hours / 24)} días después del hecho`;
 }
 
 /** A signal worth reading before deciding, and the tab where its evidence lives. */
@@ -361,7 +354,7 @@ export class CaseDetailComponent {
    * Normalized to the displayed 0–100 scale (the backend stores rawScore × weight unnormalized),
    * so the column adds up exactly to the score.
    */
-  protected aporteAlScore(item: RiskBreakdownItem): number {
+  protected scoreContribution(item: RiskBreakdownItem): number {
     const total = this.weightedSum();
     const score = this.data()?.riskScore ?? 0;
     return total === 0 ? 0 : Math.round((item.weightedContribution / total) * score * 100);
@@ -417,7 +410,7 @@ export class CaseDetailComponent {
    */
   protected readonly isDeterministicOutcome = computed(() => this.data()?.resolvedByRules === true);
 
-  protected readonly resumenGroups = computed<{ heading: string; fields: FieldItem[] }[]>(() => {
+  protected readonly summaryGroups = computed<{ heading: string; fields: FieldItem[] }[]>(() => {
     const d = this.data();
     const sumInsured = this.policySnapshot()?.sumInsured;
     return [
@@ -438,7 +431,7 @@ export class CaseDetailComponent {
           { label: 'Bien asegurado', value: d?.insuredItem ?? null },
           {
             label: 'Importe reclamado',
-            value: d?.claimedAmount ? this.formatMonto(d.claimedAmount) : null,
+            value: d?.claimedAmount ? this.formatAmount(d.claimedAmount) : null,
             sub:
               d?.claimedAmount && sumInsured
                 ? `${Math.round((d.claimedAmount / sumInsured) * 100)}% de la suma asegurada`
@@ -447,7 +440,7 @@ export class CaseDetailComponent {
           {
             label: 'Fecha de denuncia',
             value: d?.createdAt ? formatDateTime(d.createdAt) : null,
-            sub: d?.createdAt && d.eventDate ? demoraDenuncia(d.eventDate, d.createdAt) : undefined,
+            sub: d?.createdAt && d.eventDate ? reportDelay(d.eventDate, d.createdAt) : undefined,
           },
         ],
       },
@@ -499,7 +492,7 @@ export class CaseDetailComponent {
     this.ruleResults().filter((r) => isFastTrackCriterion(r.ruleType)),
   );
 
-  protected readonly esFastTrack = computed(
+  protected readonly isFastTrack = computed(
     () => this.data()?.analysisClassification === 'FAST_TRACK',
   );
 
@@ -510,7 +503,7 @@ export class CaseDetailComponent {
    * Never Fast Track: the gate runs after the hard rules. Empty when the insurer has no active rules
    * or the claim stopped at the mandatory-documents check, which returns before the other evaluators.
    */
-  protected readonly sinReglasMotivo = computed(() => {
+  protected readonly noRulesReason = computed(() => {
     if (this.ruleResultsUnavailable()) {
       return 'No se pudieron leer las reglas evaluadas. Volvé a intentar en unos minutos.';
     }
@@ -524,12 +517,12 @@ export class CaseDetailComponent {
   });
 
   /** Hidden when there is neither a score nor model reasons (e.g. Fast Track without score). */
-  protected readonly hayAnalisis = computed(
+  protected readonly hasAnalysis = computed(
     () => this.data()?.riskScore != null || this.analysisReasons().length > 0,
   );
 
   /** Hidden before classification: "no active rules" would be false, they just haven't run yet. */
-  protected readonly hayReglas = computed(
+  protected readonly hasRules = computed(
     () =>
       this.ruleResults().length > 0 ||
       this.ruleResultsUnavailable() ||
@@ -537,17 +530,17 @@ export class CaseDetailComponent {
       !!this.data()?.analysisClassification,
   );
 
-  protected readonly reglasFallidas = computed(
+  protected readonly failedRules = computed(
     () => this.hardRuleResults().filter((r) => r.result === 'FAIL').length,
   );
 
-  protected readonly reglasCumplidas = computed(
+  protected readonly passedRules = computed(
     () => this.hardRuleResults().filter((r) => r.result === 'PASS').length,
   );
 
   protected readonly scoreSegments = computed(() =>
     this.riskBreakdown()
-      .map((item) => ({ factorId: item.factorId, aporte: this.aporteAlScore(item) }))
+      .map((item) => ({ factorId: item.factorId, aporte: this.scoreContribution(item) }))
       .filter((s) => s.aporte > 0),
   );
 
@@ -565,7 +558,7 @@ export class CaseDetailComponent {
   );
 
   // Lazy-loaded from their own endpoint: an insurer-DB query most case views never need.
-  private readonly polizas = toSignal(
+  private readonly policyItems = toSignal(
     combineLatest([
       this.route.paramMap.pipe(map((params) => params.get('id') ?? '')),
       toObservable(this.reloadTrigger),
@@ -580,33 +573,38 @@ export class CaseDetailComponent {
   );
 
   /** All of them, the claim's own policy included. */
-  protected readonly polizasDelAsegurado = computed<Policy[]>(() => this.polizas());
+  protected readonly insuredPolicies = computed<Policy[]>(() => this.policyItems());
 
   /**
    * Only current policies are listed, so the claim's policy is missing if it expired after the
    * claim; the title is omitted then.
    */
-  protected readonly gruposDePolizas = computed<{ heading: string; polizas: Policy[] }[]>(() => {
-    const numero = this.data()?.policyNumber;
-    const todas = this.polizasDelAsegurado();
-    const propia = todas.filter((p) => p.policyNumber === numero);
-    const otras = todas.filter((p) => p.policyNumber !== numero);
+  protected readonly policyGroups = computed<{ heading: string; policies: Policy[] }[]>(() => {
+    const amountValue = this.data()?.policyNumber;
+    const allPolicies = this.insuredPolicies();
+    const isOwn = allPolicies.filter((p) => p.policyNumber === amountValue);
+    const otherPolicies = allPolicies.filter((p) => p.policyNumber !== amountValue);
     return [
-      ...(propia.length > 0 ? [{ heading: 'Póliza del expediente', polizas: propia }] : []),
-      ...(otras.length > 0
-        ? [{ heading: propia.length > 0 ? 'Sus otras pólizas' : 'Sus pólizas', polizas: otras }]
+      ...(isOwn.length > 0 ? [{ heading: 'Póliza del expediente', policies: isOwn }] : []),
+      ...(otherPolicies.length > 0
+        ? [
+            {
+              heading: isOwn.length > 0 ? 'Sus otras pólizas' : 'Sus pólizas',
+              policies: otherPolicies,
+            },
+          ]
         : []),
     ];
   });
 
-  private readonly polizaAbierta = signal<string | null>(null);
+  private readonly openPolicy = signal<string | null>(null);
 
-  protected estaAbierta(p: Policy): boolean {
-    return this.polizaAbierta() === p.policyNumber;
+  protected isPolicyOpen(p: Policy): boolean {
+    return this.openPolicy() === p.policyNumber;
   }
 
-  protected togglePoliza(p: Policy): void {
-    this.polizaAbierta.update((abierta) => (abierta === p.policyNumber ? null : p.policyNumber));
+  protected togglePolicy(p: Policy): void {
+    this.openPolicy.update((isExpanded) => (isExpanded === p.policyNumber ? null : p.policyNumber));
   }
 
   /**
@@ -622,7 +620,7 @@ export class CaseDetailComponent {
           fields: [
             { label: 'N° de póliza', value: s?.externalPolicyNumber ?? null, mono: true },
             { label: 'Cobertura', value: this.data()?.coverage ?? null },
-            { label: 'Suma asegurada', value: s ? this.formatMonto(s.sumInsured) : null },
+            { label: 'Suma asegurada', value: s ? this.formatAmount(s.sumInsured) : null },
             {
               label: 'Vigencia al momento del hecho',
               value: s ? (s.inForce ? 'Vigente' : 'No vigente') : null,
@@ -640,7 +638,7 @@ export class CaseDetailComponent {
             {
               // Holds monto_indemnizado (what was paid, not what was claimed) despite the field name.
               label: 'Total indemnizado',
-              value: s?.totalAmountClaimed != null ? this.formatMonto(s.totalAmountClaimed) : null,
+              value: s?.totalAmountClaimed != null ? this.formatAmount(s.totalAmountClaimed) : null,
             },
           ],
         },
@@ -649,26 +647,26 @@ export class CaseDetailComponent {
   );
 
   /** Policies count even though they arrive later, from their own request. */
-  protected readonly hayDatosAsegurado = computed(
-    () => this.polizasDelAsegurado().length > 0 || this.antecedentes().length > 0,
+  protected readonly hasInsuredData = computed(
+    () => this.insuredPolicies().length > 0 || this.fraudRecords().length > 0,
   );
 
-  protected vigencia(p: Policy): string {
+  protected validityPeriod(p: Policy): string {
     return `${formatDate(p.effectiveFrom)} — ${formatDate(p.effectiveTo)}`;
   }
 
-  protected monto(value: number | null): string | null {
-    return value == null ? null : this.formatMonto(value);
+  protected moneyOrNull(value: number | null): string | null {
+    return value == null ? null : this.formatAmount(value);
   }
 
   protected readonly history = computed<StatusTransition[]>(() => this.data()?.statusHistory ?? []);
 
-  protected readonly hayAnalisisImagenes = computed(
+  protected readonly hasImageAnalysis = computed(
     () => (this.data()?.forensicReport?.findings?.length ?? 0) > 0,
   );
 
   /** Medium or high findings only; flagging "low" ones would turn the dot into noise. */
-  private readonly hayCoincidenciasImagen = computed(() =>
+  private readonly hasImageMatches = computed(() =>
     (this.data()?.forensicReport?.findings ?? []).some((f) => {
       const level = forensicAlertLevel(f);
       return level === 'medio' || level === 'alto';
@@ -685,34 +683,34 @@ export class CaseDetailComponent {
       count?: string;
     }[]
   >(() => [
-    { id: 'resumen' as TabId, label: 'Resumen' },
-    ...(this.hayAnalisis()
+    { id: 'summary' as TabId, label: 'Resumen' },
+    ...(this.hasAnalysis()
       ? [
           {
-            id: 'analisis' as TabId,
+            id: 'analysis' as TabId,
             label: 'Análisis',
             count:
               this.analysisReasons().length > 0 ? `${this.analysisReasons().length}` : undefined,
           },
         ]
       : []),
-    ...(this.hayReglas() ? [{ id: 'reglas' as TabId, label: 'Evaluación de reglas' }] : []),
-    { id: 'documentacion' as TabId, label: 'Documentación' },
-    ...(this.hayAnalisisImagenes()
+    ...(this.hasRules() ? [{ id: 'rules' as TabId, label: 'Evaluación de reglas' }] : []),
+    { id: 'documents' as TabId, label: 'Documentación' },
+    ...(this.hasImageAnalysis()
       ? [
           {
-            id: 'imagenes' as TabId,
+            id: 'images' as TabId,
             label: 'Imágenes',
-            dot: this.hayCoincidenciasImagen(),
+            dot: this.hasImageMatches(),
             dotLabel: 'con coincidencias de imagen',
           },
         ]
       : []),
-    ...(this.hayDatosAsegurado() ? [{ id: 'asegurado' as TabId, label: 'Asegurado' }] : []),
-    ...(this.derivaciones().length > 0
-      ? [{ id: 'peritaje' as TabId, label: this.derivacionesTabLabel() }]
+    ...(this.hasInsuredData() ? [{ id: 'insured' as TabId, label: 'Asegurado' }] : []),
+    ...(this.derivations().length > 0
+      ? [{ id: 'assessment' as TabId, label: this.derivationsTabLabel() }]
       : []),
-    { id: 'historial' as TabId, label: 'Historial' },
+    { id: 'history' as TabId, label: 'Historial' },
   ]);
 
   /** Fetched apart: counting per row in the shared `CaseResponse` would cost a query per inbox case. */
@@ -725,7 +723,7 @@ export class CaseDetailComponent {
       this.needsDocs() ? this.missingDocLabels() : [],
     ),
   );
-  private readonly selectedTab = signal<TabId>('resumen');
+  private readonly selectedTab = signal<TabId>('summary');
 
   /**
    * Falls back when the selected tab disappears with the data (e.g. a reclassification drops the
@@ -733,30 +731,30 @@ export class CaseDetailComponent {
    */
   protected readonly activeTab = computed<TabId>(() => {
     const selected = this.selectedTab();
-    return this.tabs().some((t) => t.id === selected) ? selected : 'resumen';
+    return this.tabs().some((t) => t.id === selected) ? selected : 'summary';
   });
 
   setTab(t: TabId): void {
     this.selectedTab.set(t);
   }
 
-  protected onAlert(alerta: BriefAlert): void {
-    if (alerta.tab === 'chat') {
+  protected onAlert(briefAlert: BriefAlert): void {
+    if (briefAlert.tab === 'chat') {
       this.chatOpen.set(true);
     } else {
-      this.setTab(alerta.tab);
+      this.setTab(briefAlert.tab);
     }
   }
 
   /** The tabs sit below the fold on mobile: without the scroll the click would look like a no-op. */
-  protected verAnalisis(tabs: HTMLElement): void {
-    this.setTab('analisis');
+  protected viewAnalysis(tabs: HTMLElement): void {
+    this.setTab('analysis');
     tabs.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   private readonly verbLabels: Record<Verb, string> = {
-    aprobar: 'Aprobar',
-    rechazar: 'Rechazar',
+    approve: 'Aprobar',
+    reject: 'Rechazar',
   };
 
   /** Derived from the backend status, not a local flag. */
@@ -789,7 +787,7 @@ export class CaseDetailComponent {
   }
 
   protected readonly decisionModalHeading = computed(() =>
-    this.pendingDecision() === 'aprobar'
+    this.pendingDecision() === 'approve'
       ? 'Aprobar y determinar el monto a pagar'
       : 'Justificar decisión: Rechazar',
   );
@@ -798,7 +796,7 @@ export class CaseDetailComponent {
     () =>
       this.decisionSaving() ||
       !this.justification().trim() ||
-      (this.pendingDecision() === 'aprobar' &&
+      (this.pendingDecision() === 'approve' &&
         (this.recalculoPendiente() || this.approvalBlockedReason() !== null)),
   );
 
@@ -811,7 +809,7 @@ export class CaseDetailComponent {
     this.replacementApplied.set(null);
     this.settledAmountInput.set('');
     this.adjustmentReason.set('');
-    if (v === 'aprobar') {
+    if (v === 'approve') {
       this.precargarMontoDeProveedor();
     }
     this.showJustify.set(true);
@@ -839,11 +837,11 @@ export class CaseDetailComponent {
     }
 
     const decisionPayload: AnalystDecisionRequest = {
-      decision: verb === 'aprobar' ? 'APPROVE' : 'REJECT',
+      decision: verb === 'approve' ? 'APPROVE' : 'REJECT',
       justification: this.justification().trim(),
       // The backend rejects a settlement on a rejection.
       settlement:
-        verb === 'aprobar'
+        verb === 'approve'
           ? {
               replacementValue: this.replacementApplied(),
               settledAmount: this.amountToAuthorize() as number,
@@ -914,14 +912,14 @@ export class CaseDetailComponent {
   });
 
   /** Signed by the analyst and awaiting the supervisor: the decision buttons give way to a notice. */
-  protected readonly esperandoAutorizacion = computed(
+  protected readonly awaitingAuthorization = computed(
     () => this.settlement()?.status === 'PENDING_AUTHORIZATION',
   );
 
-  protected readonly liquidacionDevuelta = computed(() => this.settlement()?.status === 'RETURNED');
+  protected readonly settlementReturned = computed(() => this.settlement()?.status === 'RETURNED');
 
   /** Computed on the proposal, so the analyst learns before confirming that it needs sign-off. */
-  protected readonly requiereReferente = computed(() => {
+  protected readonly needsReferent = computed(() => {
     const limit = this.settlement()?.authorityLimit;
     const amount = this.amountToAuthorize();
     return limit != null && amount != null && amount > limit;
@@ -931,7 +929,7 @@ export class CaseDetailComponent {
    * REPAIR: it is the calculation base. TOTAL_LOSS: only matters when the coverage settles by the
    * lesser of sum insured and replacement value.
    */
-  protected readonly pideMontoAcreditado = computed(() => {
+  protected readonly needsAccreditedAmount = computed(() => {
     const s = this.settlement();
     return s?.formula === 'REPAIR' || s?.settlementBasis === 'LESSER_OF_SUM_AND_REPLACEMENT';
   });
@@ -940,7 +938,7 @@ export class CaseDetailComponent {
    * A total loss settled by the lesser of the two: today's replacement value is the base of the
    * amount, so approval waits for it. Never defaulted to the sum insured.
    */
-  protected readonly pideReposicion = computed(() => {
+  protected readonly needsReplacementValue = computed(() => {
     const s = this.settlement();
     return s?.formula === 'TOTAL_LOSS' && s.settlementBasis === 'LESSER_OF_SUM_AND_REPLACEMENT';
   });
@@ -949,10 +947,10 @@ export class CaseDetailComponent {
    * Offered only until a value is entered. A document amount was read by the model, so it waits
    * for the click; a provider's is prefilled by `precargarMontoDeProveedor`.
    */
-  protected readonly sugerenciaDisponible = computed(() => {
+  protected readonly suggestionAvailable = computed(() => {
     const s = this.settlement();
     return (
-      this.pideMontoAcreditado() &&
+      this.needsAccreditedAmount() &&
       s?.suggestedFor === 'ACCREDITED_AMOUNT' &&
       s?.suggestedAmount != null &&
       this.replacementInput().trim() === '' &&
@@ -968,12 +966,12 @@ export class CaseDetailComponent {
     const s = this.settlement();
     const deProveedor =
       s?.suggestedFrom === 'repair_report' || s?.suggestedFrom === 'expert_report';
-    if (this.pideMontoAcreditado() && s?.suggestedFor === 'ACCREDITED_AMOUNT' && deProveedor) {
-      this.tomarSugerencia();
+    if (this.needsAccreditedAmount() && s?.suggestedFor === 'ACCREDITED_AMOUNT' && deProveedor) {
+      this.takeSuggestion();
     }
   }
 
-  protected tomarSugerencia(): void {
+  protected takeSuggestion(): void {
     const amount = this.settlement()?.suggestedAmount;
     if (amount == null) {
       return;
@@ -986,7 +984,7 @@ export class CaseDetailComponent {
    * The expert's payout for coverages that settle by sum insured (no accredited amount to fill in).
    * Hidden once the analyst types an amount.
    */
-  protected readonly sugerenciaDeMontoDisponible = computed(() => {
+  protected readonly amountSuggestionAvailable = computed(() => {
     const s = this.settlement();
     return (
       s?.suggestedFor === 'SETTLED_AMOUNT' &&
@@ -996,7 +994,7 @@ export class CaseDetailComponent {
   });
 
   /** Taking it fills the analyst's amount, so it counts as an adjustment and needs a justification. */
-  protected tomarSugerenciaDeMonto(): void {
+  protected takeAmountSuggestion(): void {
     const amount = this.settlement()?.suggestedAmount;
     if (amount == null) {
       return;
@@ -1059,7 +1057,7 @@ export class CaseDetailComponent {
     if (!this.settlement()) {
       return 'No se pudo calcular el monto a pagar.';
     }
-    if (this.pideReposicion() && this.replacementApplied() == null) {
+    if (this.needsReplacementValue() && this.replacementApplied() == null) {
       return 'Cargá cuánto cuesta hoy reponer el bien.';
     }
     if (this.amountToAuthorize() == null) {
@@ -1077,7 +1075,7 @@ export class CaseDetailComponent {
 
   // Same actions as the authorizations screen, so the supervisor can sign from the case itself.
   protected readonly canAuthorize = computed(
-    () => this.session.session()?.rol === 'REFERENTE_ASEGURADORA' && this.esperandoAutorizacion(),
+    () => this.session.session()?.rol === 'REFERENTE_ASEGURADORA' && this.awaitingAuthorization(),
   );
   protected readonly showAuthorize = signal(false);
   protected readonly showReturn = signal(false);
@@ -1144,8 +1142,8 @@ export class CaseDetailComponent {
   protected readonly reopening = signal(false);
   protected readonly reopenError = signal<string | null>(null);
 
-  protected readonly puedeReabrir = computed(
-    () => this.canGestionar() && isFinalStatus(this.data()?.status ?? ''),
+  protected readonly canReopen = computed(
+    () => this.canManage() && isFinalStatus(this.data()?.status ?? ''),
   );
 
   askReopen(): void {
@@ -1182,8 +1180,8 @@ export class CaseDetailComponent {
 
   // Not a verdict: it suspends the case to gather evidence, hence its own endpoint instead of
   // /decision.
-  protected readonly derivado = computed(() => this.data()?.status === 'PENDING_EXPERT_REPORT');
-  protected readonly enReparacion = computed(() => this.data()?.status === 'PENDING_REPAIR');
+  protected readonly derived = computed(() => this.data()?.status === 'PENDING_EXPERT_REPORT');
+  protected readonly inRepair = computed(() => this.data()?.status === 'PENDING_REPAIR');
 
   /** Fetched with the case: needed to know whether to offer the button and to whom. */
   private readonly derivationOptions = this.optionsFor('ESTUDIO_LIQUIDADOR');
@@ -1205,7 +1203,7 @@ export class CaseDetailComponent {
     );
   }
 
-  protected readonly derivaciones = toSignal(
+  protected readonly derivations = toSignal(
     combineLatest([
       this.route.paramMap.pipe(map((params) => params.get('id') ?? '')),
       toObservable(this.reloadTrigger),
@@ -1219,42 +1217,41 @@ export class CaseDetailComponent {
     { initialValue: [] as Derivacion[] },
   );
 
-  protected readonly peritaje = computed(
-    () => this.derivaciones().find((d) => d.providerType === 'ESTUDIO_LIQUIDADOR') ?? null,
+  protected readonly expertDerivation = computed(
+    () => this.derivations().find((d) => d.providerType === 'ESTUDIO_LIQUIDADOR') ?? null,
   );
-  private readonly reparacion = computed(
-    () => this.derivaciones().find((d) => d.providerType === 'SERVICIO_TECNICO') ?? null,
+  private readonly repairDerivation = computed(
+    () => this.derivations().find((d) => d.providerType === 'SERVICIO_TECNICO') ?? null,
   );
 
-  protected readonly derivacionesTabLabel = computed(() => {
-    if (this.peritaje() && this.reparacion()) {
+  protected readonly derivationsTabLabel = computed(() => {
+    if (this.expertDerivation() && this.repairDerivation()) {
       return 'Derivaciones';
     }
-    return this.peritaje() ? 'Peritaje' : 'Servicio técnico';
+    return this.expertDerivation() ? 'Peritaje' : 'Servicio técnico';
   });
 
   /** Owner only, like deciding; the backend enforces it (409 unassigned, 403 someone else's). */
-  protected readonly puedeDerivar = computed(() => this.enManosDelAnalista() && !this.peritaje());
+  protected readonly canDerive = computed(() => this.withAnalyst() && !this.expertDerivation());
 
   /**
    * Owner, pending, and not waiting on the referente: once the amount is sent for authorization
    * the analyst already decided, so deriving or reading "si aprobás" hints no longer applies.
    */
-  private readonly enManosDelAnalista = computed(
-    () => this.canDecide() && this.decisionState() === 'pending' && !this.esperandoAutorizacion(),
+  private readonly withAnalyst = computed(
+    () => this.canDecide() && this.decisionState() === 'pending' && !this.awaitingAuthorization(),
   );
 
   /**
    * Owner only, like `puedeDerivar`. `eligible` is true only when the cause admits repair and there is a
    * shop to send it to; null while loading or on error, so the button stays hidden.
    */
-  protected readonly puedeDerivarAReparacion = computed(
-    () =>
-      this.enManosDelAnalista() && !this.reparacion() && this.repairOptions()?.eligible === true,
+  protected readonly canDeriveToRepair = computed(
+    () => this.withAnalyst() && !this.repairDerivation() && this.repairOptions()?.eligible === true,
   );
 
   /** Enabled by the insurer's rule AND with experts to send it to. */
-  protected readonly derivacionHabilitada = computed(
+  protected readonly derivationEnabled = computed(
     () => this.derivationOptions()?.eligible === true,
   );
 
@@ -1262,113 +1259,111 @@ export class CaseDetailComponent {
    * Suggested for high or critical risk bands (deterministic, not a sixth classification); it only
    * highlights the button.
    */
-  protected readonly derivacionSugerida = computed(() => {
+  protected readonly suggestedDerivation = computed(() => {
     const band = this.data()?.riskBand;
-    return (band === 'HIGH' || band === 'CRITICAL') && this.derivacionHabilitada();
+    return (band === 'HIGH' || band === 'CRITICAL') && this.derivationEnabled();
   });
 
-  protected readonly sugerenciaDerivacion = computed<string | null>(() => {
-    if (!this.derivacionSugerida()) {
+  protected readonly derivationSuggestion = computed<string | null>(() => {
+    if (!this.suggestedDerivation()) {
       return null;
     }
     const band = this.data()?.riskBand as RiskBand;
     return `Riesgo ${riskBandLabel(band).toLowerCase()}: se sugiere derivar a peritaje antes de decidir.`;
   });
 
-  protected readonly opcionesDerivacion = computed<{ tipo: ProviderType; label: string }[]>(() => [
-    ...(this.puedeDerivar() && this.derivacionHabilitada()
-      ? [{ tipo: 'ESTUDIO_LIQUIDADOR' as ProviderType, label: 'Peritaje' }]
-      : []),
-    ...(this.puedeDerivarAReparacion()
-      ? [{ tipo: 'SERVICIO_TECNICO' as ProviderType, label: 'Servicio técnico' }]
-      : []),
-  ]);
+  protected readonly derivationChoices = computed<{ providerType: ProviderType; label: string }[]>(
+    () => [
+      ...(this.canDerive() && this.derivationEnabled()
+        ? [{ providerType: 'ESTUDIO_LIQUIDADOR' as ProviderType, label: 'Peritaje' }]
+        : []),
+      ...(this.canDeriveToRepair()
+        ? [{ providerType: 'SERVICIO_TECNICO' as ProviderType, label: 'Servicio técnico' }]
+        : []),
+    ],
+  );
 
   /** The calculated amount exceeds the branch limit: approving needs the supervisor's sign-off. */
-  protected readonly superaAtribucion = computed(() => {
+  protected readonly exceedsAuthority = computed(() => {
     const s = this.settlementEnPagina();
-    return (
-      this.enManosDelAnalista() &&
-      s?.authorityLimit != null &&
-      s.calculatedAmount > s.authorityLimit
-    );
+    return this.withAnalyst() && s?.authorityLimit != null && s.calculatedAmount > s.authorityLimit;
   });
 
-  protected readonly hayAvisos = computed(
+  protected readonly hasWarnings = computed(
     () =>
       this.showCauseConsistency() ||
-      (this.canAct() && this.liquidacionDevuelta() && this.settlement() != null) ||
-      this.superaAtribucion() ||
-      (this.puedeDerivar() && !!this.sugerenciaDerivacion()),
+      (this.canAct() && this.settlementReturned() && this.settlement() != null) ||
+      this.exceedsAuthority() ||
+      (this.canDerive() && !!this.derivationSuggestion()),
   );
 
   // Brings existing evidence next to the buttons; adds no criteria and suggests nothing.
 
-  protected readonly plazoTexto = computed(() => {
+  protected readonly deadlineText = computed(() => {
     const d = this.data();
     if (!d?.responseDeadline) {
       return null;
     }
-    const fecha = formatDate(d.responseDeadline);
+    const dateLabel = formatDate(d.responseDeadline);
     return isDeadlinePrioritized(d.deadlinePriority)
-      ? `${deadlinePriorityLabel(d.deadlinePriority, d.responseDeadline)} · ${fecha}`
-      : `Vence el ${fecha}`;
+      ? `${deadlinePriorityLabel(d.deadlinePriority, d.responseDeadline)} · ${dateLabel}`
+      : `Vence el ${dateLabel}`;
   });
 
-  protected readonly plazoTone = computed<StatusTone>(() => {
+  protected readonly deadlineTone = computed<StatusTone>(() => {
     const d = this.data();
     return d && isDeadlinePrioritized(d.deadlinePriority)
       ? deadlinePriorityTone(d.deadlinePriority)
       : 'neutral';
   });
 
-  protected readonly derivacionesRespondidas = computed(() =>
-    this.derivaciones().filter((p) => p.verdict || p.repairOutcome),
+  protected readonly answeredDerivations = computed(() =>
+    this.derivations().filter((p) => p.verdict || p.repairOutcome),
   );
 
-  protected resultadoDerivacion(p: Derivacion): string {
-    const esReparacion = p.providerType === 'SERVICIO_TECNICO';
-    const resultado = p.verdict
-      ? verdictLabel(p.verdict)
-      : repairOutcomeLabel(p.repairOutcome ?? '');
-    const monto = esReparacion ? p.repairCost : p.indemnifiableAmount;
+  protected derivationResult(p: Derivacion): string {
+    const isRepairDerivation = p.providerType === 'SERVICIO_TECNICO';
+    const outcome = p.verdict ? verdictLabel(p.verdict) : repairOutcomeLabel(p.repairOutcome ?? '');
+    const parsedAmount = isRepairDerivation ? p.repairCost : p.indemnifiableAmount;
     // A repair outcome already names its source; the prefix made the badge overflow the card.
-    const texto = esReparacion ? resultado : `Perito: ${resultado}`;
-    return monto != null ? `${texto} · ${this.formatMonto(monto)}` : texto;
+    const texto = isRepairDerivation ? outcome : `Perito: ${outcome}`;
+    return parsedAmount != null ? `${texto} · ${this.formatAmount(parsedAmount)}` : texto;
   }
 
-  protected resultadoDerivacionTone(p: Derivacion): StatusTone {
+  protected derivationResultTone(p: Derivacion): StatusTone {
     return p.verdict ? verdictTone(p.verdict) : 'neutral';
   }
 
   /** Signals that pull toward a closer look, each one pointing at the tab with its evidence. */
-  protected readonly alertasDecision = computed<BriefAlert[]>(() => {
-    const alertas: BriefAlert[] = [];
-    const fallidas = this.reglasFallidas();
-    if (fallidas > 0) {
-      alertas.push({
-        label: fallidas === 1 ? '1 regla no cumplida' : `${fallidas} reglas no cumplidas`,
-        tab: 'reglas',
+  protected readonly decisionAlerts = computed<BriefAlert[]>(() => {
+    const alertList: BriefAlert[] = [];
+    const failedFindings = this.failedRules();
+    if (failedFindings > 0) {
+      alertList.push({
+        label:
+          failedFindings === 1 ? '1 regla no cumplida' : `${failedFindings} reglas no cumplidas`,
+        tab: 'rules',
       });
     }
-    if (this.hayCoincidenciasImagen()) {
-      alertas.push({ label: 'Imágenes con coincidencias', tab: 'imagenes' });
+    if (this.hasImageMatches()) {
+      alertList.push({ label: 'Imágenes con coincidencias', tab: 'images' });
     }
-    const previos = this.antecedentesPrevios().length;
-    if (previos > 0) {
-      alertas.push({
-        label: previos === 1 ? '1 antecedente de fraude' : `${previos} antecedentes de fraude`,
-        tab: 'asegurado',
+    const priorCount = this.priorFraudRecords().length;
+    if (priorCount > 0) {
+      alertList.push({
+        label:
+          priorCount === 1 ? '1 antecedente de fraude' : `${priorCount} antecedentes de fraude`,
+        tab: 'insured',
       });
     }
     if (this.unreadMessages() > 0) {
-      alertas.push({ label: 'Mensajes sin leer del asegurado', tab: 'chat' });
+      alertList.push({ label: 'Mensajes sin leer del asegurado', tab: 'chat' });
     }
-    return alertas;
+    return alertList;
   });
 
   /** Tells the analyst whether it is company policy or missing providers. */
-  protected readonly motivoNoDerivable = computed<string | null>(() => {
+  protected readonly notDerivableReason = computed<string | null>(() => {
     const options = this.derivationOptions();
     if (!options || options.eligible) {
       return null;
@@ -1382,14 +1377,14 @@ export class CaseDetailComponent {
     // Names the expert assessment explicitly so it isn't read as blocking the repair shop too.
     return (
       `El monto reclamado no alcanza el mínimo para derivar a peritaje ` +
-      `(${this.formatMonto(options.minClaimedAmount)}).`
+      `(${this.formatAmount(options.minClaimedAmount)}).`
     );
   });
 
   /** Only the missing catalog entry: a claim cause that doesn't go to repair needs no notice. */
   protected readonly motivoSinServicioTecnico = computed<string | null>(() => {
     const options = this.repairOptions();
-    if (!this.enManosDelAnalista() || this.reparacion()) {
+    if (!this.withAnalyst() || this.repairDerivation()) {
       return null;
     }
     if (!options || options.eligible || !options.allowedByRule) {
@@ -1398,60 +1393,62 @@ export class CaseDetailComponent {
     return 'No hay servicios técnicos cargados para este ramo.';
   });
 
-  protected readonly tipoDerivacion = signal<ProviderType>('ESTUDIO_LIQUIDADOR');
-  protected readonly esReparacion = computed(() => this.tipoDerivacion() === 'SERVICIO_TECNICO');
+  protected readonly derivationType = signal<ProviderType>('ESTUDIO_LIQUIDADOR');
+  protected readonly isRepairReferral = computed(
+    () => this.derivationType() === 'SERVICIO_TECNICO',
+  );
 
   protected readonly proveedorOptions = computed<SelectOption[]>(() =>
-    ((this.esReparacion() ? this.repairOptions() : this.derivationOptions())?.providers ?? []).map(
-      (provider) => ({
-        value: String(provider.id),
-        // Branches tell specialist from generalist; area matters because the device must be
-        // inspected in person.
-        label: [provider.name, ramosLabel(provider.branches), provider.zone]
-          .filter(Boolean)
-          .join(' · '),
-      }),
-    ),
+    (
+      (this.isRepairReferral() ? this.repairOptions() : this.derivationOptions())?.providers ?? []
+    ).map((provider) => ({
+      value: String(provider.id),
+      // Branches tell specialist from generalist; area matters because the device must be
+      // inspected in person.
+      label: [provider.name, ramosLabel(provider.branches), provider.zone]
+        .filter(Boolean)
+        .join(' · '),
+    })),
   );
 
   protected readonly showDerivar = signal(false);
   protected readonly proveedorElegido = signal('');
-  protected readonly motivoDerivacion = signal('');
-  protected readonly derivarSaving = signal(false);
-  protected readonly derivarError = signal<string | null>(null);
+  protected readonly derivationReason = signal('');
+  protected readonly deriveSaving = signal(false);
+  protected readonly deriveError = signal<string | null>(null);
 
-  askDerivar(tipo: ProviderType = 'ESTUDIO_LIQUIDADOR'): void {
-    this.tipoDerivacion.set(tipo);
+  askDerive(providerKind: ProviderType = 'ESTUDIO_LIQUIDADOR'): void {
+    this.derivationType.set(providerKind);
     this.proveedorElegido.set('');
-    this.motivoDerivacion.set('');
-    this.derivarError.set(null);
+    this.derivationReason.set('');
+    this.deriveError.set(null);
     this.showDerivar.set(true);
   }
 
-  cancelDerivar(): void {
+  cancelDerive(): void {
     this.showDerivar.set(false);
   }
 
-  confirmDerivar(): void {
+  confirmDerive(): void {
     const d = this.data();
     const proveedor = this.proveedorElegido();
-    const motivo = this.motivoDerivacion().trim();
-    if (!d || !proveedor || !motivo) {
+    const reasonText = this.derivationReason().trim();
+    if (!d || !proveedor || !reasonText) {
       return;
     }
-    this.derivarSaving.set(true);
-    this.derivarError.set(null);
-    this.service.derive(d.id, Number(proveedor), motivo, this.tipoDerivacion()).subscribe({
-      next: (peritaje) => {
-        this.derivarSaving.set(false);
+    this.deriveSaving.set(true);
+    this.deriveError.set(null);
+    this.service.derive(d.id, Number(proveedor), reasonText, this.derivationType()).subscribe({
+      next: (assessment) => {
+        this.deriveSaving.set(false);
         this.showDerivar.set(false);
-        this.derivacionHechaCaseId.set(d.id);
-        this.derivacionHecha.set(peritaje);
+        this.derivationDoneCaseId.set(d.id);
+        this.derivationDone.set(assessment);
         this.reloadTrigger.update((v) => v + 1);
       },
       error: (err: HttpErrorResponse) => {
-        this.derivarSaving.set(false);
-        this.derivarError.set(err.error?.detail || 'No se pudo derivar el expediente');
+        this.deriveSaving.set(false);
+        this.deriveError.set(err.error?.detail || 'No se pudo derivar el expediente');
       },
     });
   }
@@ -1460,158 +1457,156 @@ export class CaseDetailComponent {
    * Only while the owner reviews it: the backend refuses any other status and a settlement awaiting
    * the referente, and this keeps the button from offering what it would refuse.
    */
-  protected readonly puedeCorregirCausa = computed(
-    () => this.enManosDelAnalista() && this.data()?.status === 'PENDING_ANALYST_REVIEW',
+  protected readonly canCorrectCause = computed(
+    () => this.withAnalyst() && this.data()?.status === 'PENDING_ANALYST_REVIEW',
   );
 
-  protected readonly showCorregirCausa = signal(false);
-  protected readonly causaOpciones = signal<ClaimCauseOption[] | null>(null);
-  protected readonly causaElegida = signal('');
-  protected readonly motivoCorreccion = signal('');
-  protected readonly corregirSaving = signal(false);
-  protected readonly corregirError = signal<string | null>(null);
+  protected readonly showCorrectCause = signal(false);
+  protected readonly causeOptions = signal<ClaimCauseOption[] | null>(null);
+  protected readonly chosenCause = signal('');
+  protected readonly correctionReason = signal('');
+  protected readonly correctSaving = signal(false);
+  protected readonly correctError = signal<string | null>(null);
 
-  protected readonly causaSelectOptions = computed<SelectOption[]>(() =>
-    (this.causaOpciones() ?? []).map((o) => ({
+  protected readonly causeSelectOptions = computed<SelectOption[]>(() =>
+    (this.causeOptions() ?? []).map((o) => ({
       value: String(o.id),
       label: `${o.name} · ${o.coverageName}`,
     })),
   );
 
-  askCorregirCausa(): void {
+  askCorrectCause(): void {
     const d = this.data();
     if (!d) {
       return;
     }
-    this.causaOpciones.set(null);
-    this.causaElegida.set('');
-    this.motivoCorreccion.set('');
-    this.corregirError.set(null);
-    this.showCorregirCausa.set(true);
+    this.causeOptions.set(null);
+    this.chosenCause.set('');
+    this.correctionReason.set('');
+    this.correctError.set(null);
+    this.showCorrectCause.set(true);
     this.service.claimCauseOptions(d.id).subscribe({
-      next: (opciones) => {
-        this.causaOpciones.set(opciones);
+      next: (choices) => {
+        this.causeOptions.set(choices);
         // What the narrative suggests comes preselected; the analyst still confirms it.
-        const sugerida = opciones.find((o) => o.name === d.suggestedClaimCause);
-        if (sugerida) {
-          this.causaElegida.set(String(sugerida.id));
+        const suggested = choices.find((o) => o.name === d.suggestedClaimCause);
+        if (suggested) {
+          this.chosenCause.set(String(suggested.id));
         }
       },
       error: () => {
-        this.causaOpciones.set([]);
-        this.corregirError.set('No se pudieron cargar los hechos generadores.');
+        this.causeOptions.set([]);
+        this.correctError.set('No se pudieron cargar los hechos generadores.');
       },
     });
   }
 
-  cancelCorregirCausa(): void {
-    this.showCorregirCausa.set(false);
+  cancelCorrectCause(): void {
+    this.showCorrectCause.set(false);
   }
 
-  confirmCorregirCausa(): void {
+  confirmCorrectCause(): void {
     const d = this.data();
-    const causa = this.causaElegida();
-    const motivo = this.motivoCorreccion().trim();
-    if (!d || !causa || !motivo) {
+    const chosenCauseOption = this.chosenCause();
+    const reasonText = this.correctionReason().trim();
+    if (!d || !chosenCauseOption || !reasonText) {
       return;
     }
-    this.corregirSaving.set(true);
-    this.corregirError.set(null);
-    this.service.correctClaimCause(d.id, Number(causa), motivo).subscribe({
+    this.correctSaving.set(true);
+    this.correctError.set(null);
+    this.service.correctClaimCause(d.id, Number(chosenCauseOption), reasonText).subscribe({
       next: () => {
-        this.corregirSaving.set(false);
-        this.showCorregirCausa.set(false);
+        this.correctSaving.set(false);
+        this.showCorrectCause.set(false);
         this.reloadTrigger.update((v) => v + 1);
       },
       error: (err: HttpErrorResponse) => {
-        this.corregirSaving.set(false);
-        this.corregirError.set(err.error?.detail || 'No se pudo corregir el hecho generador');
+        this.correctSaving.set(false);
+        this.correctError.set(err.error?.detail || 'No se pudo corregir el hecho generador');
       },
     });
   }
 
   /** Kept for the confirmation modal: the only signal that the email went out. */
-  protected readonly derivacionHecha = signal<Derivacion | null>(null);
+  protected readonly derivationDone = signal<Derivacion | null>(null);
   // Kept apart from data(), which is empty while the case reloads behind the modal.
-  protected readonly derivacionHechaCaseId = signal<number | null>(null);
+  protected readonly derivationDoneCaseId = signal<number | null>(null);
 
-  cerrarDerivacionHecha(): void {
-    this.derivacionHecha.set(null);
+  closeDerivationDone(): void {
+    this.derivationDone.set(null);
   }
 
-  protected readonly showInforme = signal(false);
-  protected readonly informeTipo = signal<ProviderType>('ESTUDIO_LIQUIDADOR');
-  protected readonly informeEsReparacion = computed(
-    () => this.informeTipo() === 'SERVICIO_TECNICO',
-  );
+  protected readonly showReport = signal(false);
+  protected readonly reportType = signal<ProviderType>('ESTUDIO_LIQUIDADOR');
+  protected readonly reportIsRepair = computed(() => this.reportType() === 'SERVICIO_TECNICO');
   protected readonly repairOutcomeOptions: SelectOption[] = REPAIR_OUTCOME_OPTIONS;
-  protected readonly veredicto = signal('');
-  protected readonly notaVeredicto = signal('');
-  protected readonly informeFile = signal<File | null>(null);
-  protected readonly informeSaving = signal(false);
-  protected readonly informeError = signal<string | null>(null);
+  protected readonly verdictInput = signal('');
+  protected readonly verdictNoteInput = signal('');
+  protected readonly reportFile = signal<File | null>(null);
+  protected readonly reportSaving = signal(false);
+  protected readonly reportError = signal<string | null>(null);
 
   /**
    * Saving "fraude confirmado" also records a fraud mark on the person, which can't be removed from
    * the app.
    */
-  protected readonly veredictoConfirmaFraude = computed(
-    () => !this.informeEsReparacion() && this.veredicto() === 'FRAUD_CONFIRMED',
+  protected readonly verdictConfirmsFraud = computed(
+    () => !this.reportIsRepair() && this.verdictInput() === 'FRAUD_CONFIRMED',
   );
 
-  protected readonly veredictoOptions: SelectOption[] = [
+  protected readonly verdictOptions: SelectOption[] = [
     { value: 'FRAUD_CONFIRMED', label: 'Fraude confirmado' },
     { value: 'FRAUD_DISCARDED', label: 'Fraude descartado' },
     { value: 'INCONCLUSIVE', label: 'No concluyente' },
   ];
 
-  askInforme(tipo: ProviderType = 'ESTUDIO_LIQUIDADOR'): void {
-    this.informeTipo.set(tipo);
-    this.veredicto.set('');
-    this.notaVeredicto.set('');
-    this.montoInforme.set('');
-    this.informeFile.set(null);
-    this.informeError.set(null);
-    this.showInforme.set(true);
+  askReport(providerKind: ProviderType = 'ESTUDIO_LIQUIDADOR'): void {
+    this.reportType.set(providerKind);
+    this.verdictInput.set('');
+    this.verdictNoteInput.set('');
+    this.reportAmount.set('');
+    this.reportFile.set(null);
+    this.reportError.set(null);
+    this.showReport.set(true);
   }
 
-  cancelInforme(): void {
-    this.showInforme.set(false);
+  cancelReport(): void {
+    this.showReport.set(false);
   }
 
   /**
    * Expert: the determined claim value; repair shop: the repair cost. Label, requiredness and target
    * column differ accordingly.
    */
-  protected readonly montoInforme = signal('');
+  protected readonly reportAmount = signal('');
 
   /** Not asked for IRREPARABLE (the backend rejects it); always offered to the expert. */
-  protected readonly pideMontoDelInforme = computed(
+  protected readonly needsReportAmount = computed(
     () =>
-      !this.informeEsReparacion() ||
-      this.veredicto() === 'QUOTE_SENT' ||
-      this.veredicto() === 'REPAIRED',
+      !this.reportIsRepair() ||
+      this.verdictInput() === 'QUOTE_SENT' ||
+      this.verdictInput() === 'REPAIRED',
   );
 
   /** Already repaired and billed: the amount is an invoice, not a quote. */
-  protected readonly informeEsFactura = computed(
-    () => this.informeEsReparacion() && this.veredicto() === 'REPAIRED',
+  protected readonly reportIsInvoice = computed(
+    () => this.reportIsRepair() && this.verdictInput() === 'REPAIRED',
   );
 
   /** A quote needs an amount; the invoice may come later and the expert's amount is optional. */
-  protected readonly montoDelInformeObligatorio = computed(
-    () => this.informeEsReparacion() && this.veredicto() === 'QUOTE_SENT',
+  protected readonly reportAmountRequired = computed(
+    () => this.reportIsRepair() && this.verdictInput() === 'QUOTE_SENT',
   );
 
-  protected readonly montoInformeFaltante = computed(
-    () => this.montoDelInformeObligatorio() && this.montoInformeNumero() == null,
+  protected readonly reportAmountMissing = computed(
+    () => this.reportAmountRequired() && this.reportAmountNumber() == null,
   );
 
-  private montoInformeNumero(): number | null {
-    if (!this.pideMontoDelInforme()) {
+  private reportAmountNumber(): number | null {
+    if (!this.needsReportAmount()) {
       return null;
     }
-    const raw = this.montoInforme().trim();
+    const raw = this.reportAmount().trim();
     if (raw === '') {
       return null;
     }
@@ -1619,41 +1614,41 @@ export class CaseDetailComponent {
     return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
   }
 
-  onInformeFile(event: Event): void {
+  onReportFile(event: Event): void {
     const input = event.target as HTMLInputElement;
-    this.informeFile.set(input.files?.[0] ?? null);
+    this.reportFile.set(input.files?.[0] ?? null);
   }
 
-  confirmInforme(): void {
+  confirmReport(): void {
     const d = this.data();
-    const file = this.informeFile();
-    const result = this.veredicto();
-    if (!d || !file || !result || this.montoInformeFaltante()) {
+    const file = this.reportFile();
+    const result = this.verdictInput();
+    if (!d || !file || !result || this.reportAmountMissing()) {
       return;
     }
-    this.informeSaving.set(true);
-    this.informeError.set(null);
-    const note = this.notaVeredicto().trim();
-    const monto = this.montoInformeNumero();
-    const request = this.informeEsReparacion()
-      ? this.service.uploadRepairResponse(d.id, result as RepairOutcome, note, monto, file)
-      : this.service.uploadExpertReport(d.id, result as ExpertVerdict, note, monto, file);
+    this.reportSaving.set(true);
+    this.reportError.set(null);
+    const note = this.verdictNoteInput().trim();
+    const parsedAmount = this.reportAmountNumber();
+    const request = this.reportIsRepair()
+      ? this.service.uploadRepairResponse(d.id, result as RepairOutcome, note, parsedAmount, file)
+      : this.service.uploadExpertReport(d.id, result as ExpertVerdict, note, parsedAmount, file);
     request.subscribe({
       next: () => {
-        this.informeSaving.set(false);
-        this.showInforme.set(false);
+        this.reportSaving.set(false);
+        this.showReport.set(false);
         this.reloadTrigger.update((v) => v + 1);
       },
       error: (err: HttpErrorResponse) => {
-        this.informeSaving.set(false);
-        this.informeError.set(err.error?.detail || 'No se pudo cargar el informe');
+        this.reportSaving.set(false);
+        this.reportError.set(err.error?.detail || 'No se pudo cargar el informe');
       },
     });
   }
 
   // Separate from the expert report: carrying a finding over to the person's future claims is the
   // analyst's act, recorded with their name and reason (Ley 25.326).
-  private readonly antecedentes = toSignal(
+  private readonly fraudRecords = toSignal(
     combineLatest([
       this.route.paramMap.pipe(map((params) => params.get('id') ?? '')),
       toObservable(this.reloadTrigger),
@@ -1668,104 +1663,104 @@ export class CaseDetailComponent {
   );
 
   /** From OTHER cases. */
-  protected readonly antecedentesPrevios = computed(() =>
-    this.antecedentes().filter((a) => a.caseId !== this.data()?.id),
+  protected readonly priorFraudRecords = computed(() =>
+    this.fraudRecords().filter((a) => a.caseId !== this.data()?.id),
   );
 
   /** A case yields at most one record. */
-  protected readonly antecedentePropio = computed(
-    () => this.antecedentes().find((a) => a.caseId === this.data()?.id) ?? null,
+  protected readonly ownFraudRecord = computed(
+    () => this.fraudRecords().find((a) => a.caseId === this.data()?.id) ?? null,
   );
 
   /** Analyst only, once, after classification; never on APPROVED. The backend enforces it too. */
-  protected readonly puedeRegistrarAntecedente = computed(() => {
+  protected readonly canRegisterFraudRecord = computed(() => {
     const status = this.data()?.status;
     return (
       this.canAct() &&
-      !this.antecedentePropio() &&
+      !this.ownFraudRecord() &&
       (status === 'PENDING_ANALYST_REVIEW' || status === 'REJECTED')
     );
   });
 
-  protected readonly mostrarAntecedente = computed(
+  protected readonly fraudRecordVisible = computed(
     () =>
-      this.antecedentesPrevios().length > 0 ||
-      this.antecedentePropio() != null ||
-      this.puedeRegistrarAntecedente(),
+      this.priorFraudRecords().length > 0 ||
+      this.ownFraudRecord() != null ||
+      this.canRegisterFraudRecord(),
   );
 
   /** Defaults to expert-backed when fraud was confirmed. */
-  private readonly peritajeConfirmaFraude = computed(
-    () => this.peritaje()?.verdict === 'FRAUD_CONFIRMED',
+  private readonly assessmentConfirmsFraud = computed(
+    () => this.expertDerivation()?.verdict === 'FRAUD_CONFIRMED',
   );
 
   /** Not offered without a confirmed expert verdict: the backend validates against the saved one. */
-  protected readonly origenOptions = computed<SelectOption[]>(() => [
-    ...(this.peritajeConfirmaFraude()
+  protected readonly originOptions = computed<SelectOption[]>(() => [
+    ...(this.assessmentConfirmsFraud()
       ? [{ value: 'EXPERT_BACKED', label: fraudRecordOriginLabel('EXPERT_BACKED') }]
       : []),
     { value: 'ANALYST_DECLARED', label: fraudRecordOriginLabel('ANALYST_DECLARED') },
   ]);
 
   protected readonly showAntecedente = signal(false);
-  protected readonly origenElegido = signal('');
-  protected readonly motivoAntecedente = signal('');
-  protected readonly antecedenteSaving = signal(false);
-  protected readonly antecedenteError = signal<string | null>(null);
+  protected readonly chosenOrigin = signal('');
+  protected readonly fraudRecordReason = signal('');
+  protected readonly fraudRecordSaving = signal(false);
+  protected readonly fraudRecordError = signal<string | null>(null);
 
-  protected readonly motivoAntecedenteMin = FRAUD_RECORD_REASON_MIN;
+  protected readonly fraudRecordReasonMin = FRAUD_RECORD_REASON_MIN;
 
   /** Warned while typing, not on the 400. */
-  protected readonly motivoAntecedenteCorto = computed(
-    () => this.motivoAntecedente().trim().length < FRAUD_RECORD_REASON_MIN,
+  protected readonly fraudRecordReasonTooShort = computed(
+    () => this.fraudRecordReason().trim().length < FRAUD_RECORD_REASON_MIN,
   );
 
-  protected readonly efectoOrigenElegido = computed(() =>
-    this.origenElegido() === 'EXPERT_BACKED'
+  protected readonly chosenOriginEffect = computed(() =>
+    this.chosenOrigin() === 'EXPERT_BACKED'
       ? 'Va a sumar al nivel de riesgo de sus próximas denuncias y, si la aseguradora lo configuró así, a impedirles la vía rápida.'
       : 'Va a aparecer como alerta en sus próximas denuncias, pero no suma al nivel de riesgo: sin peritaje detrás, una sospecha que mueve el score termina alimentándose sola.',
   );
 
-  askAntecedente(): void {
-    this.origenElegido.set(this.peritajeConfirmaFraude() ? 'EXPERT_BACKED' : 'ANALYST_DECLARED');
-    this.motivoAntecedente.set('');
-    this.antecedenteError.set(null);
+  askFraudRecord(): void {
+    this.chosenOrigin.set(this.assessmentConfirmsFraud() ? 'EXPERT_BACKED' : 'ANALYST_DECLARED');
+    this.fraudRecordReason.set('');
+    this.fraudRecordError.set(null);
     this.showAntecedente.set(true);
   }
 
-  cancelAntecedente(): void {
+  cancelFraudRecord(): void {
     this.showAntecedente.set(false);
   }
 
-  confirmAntecedente(): void {
+  confirmFraudRecord(): void {
     const d = this.data();
-    const source = this.origenElegido() as FraudRecordOrigin;
-    const reason = this.motivoAntecedente().trim();
-    if (!d || !source || this.motivoAntecedenteCorto()) {
+    const source = this.chosenOrigin() as FraudRecordOrigin;
+    const reason = this.fraudRecordReason().trim();
+    if (!d || !source || this.fraudRecordReasonTooShort()) {
       return;
     }
-    this.antecedenteSaving.set(true);
-    this.antecedenteError.set(null);
+    this.fraudRecordSaving.set(true);
+    this.fraudRecordError.set(null);
     this.service.registerFraudRecord(d.id, { source, reason }).subscribe({
       next: () => {
-        this.antecedenteSaving.set(false);
+        this.fraudRecordSaving.set(false);
         this.showAntecedente.set(false);
         this.reloadTrigger.update((v) => v + 1);
       },
       error: (err: HttpErrorResponse) => {
-        this.antecedenteSaving.set(false);
-        this.antecedenteError.set(err.error?.detail || 'No se pudo registrar el antecedente');
+        this.fraudRecordSaving.set(false);
+        this.fraudRecordError.set(err.error?.detail || 'No se pudo registrar el antecedente');
       },
     });
   }
 
-  estadoAntecedenteLabel = fraudRecordStatusLabel;
-  estadoAntecedenteTone = fraudRecordStatusTone;
-  efectoAntecedente = fraudRecordEffect;
-  origenAntecedenteLabel = fraudRecordOriginLabel;
+  fraudRecordStatusLabel = fraudRecordStatusLabel;
+  fraudRecordStatusTone = fraudRecordStatusTone;
+  fraudRecordEffect = fraudRecordEffect;
+  fraudRecordOriginLabel = fraudRecordOriginLabel;
 
-  veredictoLabel = verdictLabel;
-  veredictoTone = verdictTone;
+  verdictLabel = verdictLabel;
+  verdictTone = verdictTone;
   repairOutcomeLabel = repairOutcomeLabel;
   formatDateTime = formatDateTime;
   chatListStamp = chatListStamp;
@@ -1777,7 +1772,7 @@ export class CaseDetailComponent {
   advisoryResultTone = advisoryResultTone;
   ruleEvaluationText = ruleEvaluationText;
 
-  private formatMonto(amount: number): string {
+  private formatAmount(amount: number): string {
     return new Intl.NumberFormat('es-AR', {
       style: 'currency',
       currency: 'ARS',
@@ -1789,8 +1784,8 @@ export class CaseDetailComponent {
   protected readonly amountInputValue = amountInputValue;
   protected readonly amountInputDisplay = amountInputDisplay;
 
-  /** Like {@link formatMonto} but with cents: rounding would show a figure other than the one saved. */
-  protected montoExacto(amount: number | null): string {
+  /** Like {@link formatAmount} but with cents: rounding would show a figure other than the one saved. */
+  protected exactAmount(amount: number | null): string {
     if (amount == null) {
       return '—';
     }
@@ -1865,18 +1860,18 @@ export class CaseDetailComponent {
    * Moving the case without resolving it; shared with the supervisor since none of these is a
    * decision.
    */
-  protected readonly canGestionar = computed(() => {
-    const rol = this.session.session()?.rol;
-    return rol === 'ANALISTA_SINIESTROS' || rol === 'REFERENTE_ASEGURADORA';
+  protected readonly canManage = computed(() => {
+    const userRole = this.session.session()?.rol;
+    return userRole === 'ANALISTA_SINIESTROS' || userRole === 'REFERENTE_ASEGURADORA';
   });
 
   protected readonly assignedName = computed(() => this.data()?.assignedAnalystName ?? null);
   protected readonly isAssigned = computed(() => this.data()?.assignedAnalystId != null);
 
-  protected readonly esperaDecisionTexto = computed(() => {
-    const analista = this.assignedName();
-    return analista
-      ? `Espera la decisión de ${analista}. Podés reasignarlo si hace falta.`
+  protected readonly awaitingDecisionText = computed(() => {
+    const assignedAnalyst = this.assignedName();
+    return assignedAnalyst
+      ? `Espera la decisión de ${assignedAnalyst}. Podés reasignarlo si hace falta.`
       : 'Espera la decisión de un analista. Asignalo para que alguien lo tome.';
   });
 
@@ -1896,8 +1891,8 @@ export class CaseDetailComponent {
     if (!this.isAssigned()) {
       return 'Asignate el expediente para decidir o derivarlo.';
     }
-    const analista = this.assignedName();
-    return analista ? `Asignado a ${analista}` : 'Asignado a otro analista';
+    const assignedAnalyst = this.assignedName();
+    return assignedAnalyst ? `Asignado a ${assignedAnalyst}` : 'Asignado a otro analista';
   });
 
   protected readonly analystInitials = computed(() => initialsOf(this.assignedName()));
@@ -1929,12 +1924,12 @@ export class CaseDetailComponent {
     return parts.join(' · ');
   });
 
-  protected readonly reasignarMenuItems = computed<MenuItem[]>(() => [
+  protected readonly reassignMenuItems = computed<MenuItem[]>(() => [
     ...this.analystMenuItems(),
     { value: 'release', label: 'Liberar', danger: true },
   ]);
 
-  protected onReasignarMenu(value: string): void {
+  protected onReassignMenu(value: string): void {
     if (value === 'release') {
       this.release();
     } else {
@@ -1942,12 +1937,12 @@ export class CaseDetailComponent {
     }
   }
 
-  protected readonly derivarMenuItems = computed<MenuItem[]>(() =>
-    this.opcionesDerivacion().map((o) => ({ value: o.tipo, label: o.label })),
+  protected readonly deriveMenuItems = computed<MenuItem[]>(() =>
+    this.derivationChoices().map((o) => ({ value: o.providerType, label: o.label })),
   );
 
-  protected onDerivarMenu(value: string): void {
-    this.askDerivar(value as ProviderType);
+  protected onDeriveMenu(value: string): void {
+    this.askDerive(value as ProviderType);
   }
 
   protected take(): void {
@@ -1994,7 +1989,7 @@ export class CaseDetailComponent {
 
   /** "Resolución" only applies when there is or was something to decide. */
   protected readonly decisionCardHeading = computed(() =>
-    this.decisionState() === 'not-ready' && this.needsDocs() && !this.derivado() && !this.isFailed()
+    this.decisionState() === 'not-ready' && this.needsDocs() && !this.derived() && !this.isFailed()
       ? 'Estado del expediente'
       : 'Resolución',
   );
