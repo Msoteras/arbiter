@@ -174,7 +174,7 @@ export class ModalComponent {
   }
 
   protected onEscape(): void {
-    if (this.open()) {
+    if (this.open() && this.dismissable()) {
       this.close.emit();
     }
   }

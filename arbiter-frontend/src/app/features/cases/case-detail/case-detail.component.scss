@@ -189,6 +189,9 @@
 .brief strong {
   color: var(--text-primary);
 }
+.brief app-badge ::ng-deep .badge {
+  white-space: normal;
+}
 .brief-alerts {
   margin-top: var(--space-1);
 }

@@ -296,12 +296,12 @@
             <strong class="notice-title">{{ causeConsistencyLabel() }}</strong>
             <span
               >Declarado <strong>{{ data()?.claimCause }}</strong>
-              @if (data()?.suggestedClaimCause; as sugerido) {
-                → el relato sugiere <strong>{{ sugerido }}</strong>
+              @if (data()?.suggestedClaimCause; as suggestedCause) {
+                → el relato sugiere <strong>{{ suggestedCause }}</strong>
               }
             </span>
-            @if (data()?.causeEvidence; as cita) {
-              <q class="notice-quote">{{ cita }}</q>
+            @if (data()?.causeEvidence; as quote) {
+              <q class="notice-quote">{{ quote }}</q>
             }
             @if (canCorrectCause()) {
               <app-button variant="secondary" (click)="askCorrectCause()"
@@ -323,10 +323,10 @@
             <span>Si aprobás, el monto lo tiene que firmar el referente.</span>
           </p>
         }
-        @if (canDerive() && derivationSuggestion(); as sugerencia) {
+        @if (canDerive() && derivationSuggestion(); as suggestion) {
           <p class="notice" data-tone="risk">
             <strong class="notice-title">Se sugiere peritaje</strong>
-            <span>{{ sugerencia }}</span>
+            <span>{{ suggestion }}</span>
           </p>
         }
       </div>
@@ -575,16 +575,19 @@
                     }
                   }
 
-                  @if (ownFraudRecord(); as propio) {
-                    <div class="fraud-item propio" [attr.data-tone]="fraudRecordStatusTone(propio)">
+                  @if (ownFraudRecord(); as ownRecord) {
+                    <div
+                      class="fraud-item propio"
+                      [attr.data-tone]="fraudRecordStatusTone(ownRecord)"
+                    >
                       <div class="fraud-item-head">
-                        <app-badge variant="strong" [tone]="fraudRecordStatusTone(propio)">
-                          Este expediente · {{ fraudRecordOriginLabel(propio.source) }}
+                        <app-badge variant="strong" [tone]="fraudRecordStatusTone(ownRecord)">
+                          Este expediente · {{ fraudRecordOriginLabel(ownRecord.source) }}
                         </app-badge>
-                        <span class="t-note">{{ formatDateTime(propio.declaredAt) }}</span>
+                        <span class="t-note">{{ formatDateTime(ownRecord.declaredAt) }}</span>
                       </div>
-                      <p class="t-body">{{ propio.reason }}</p>
-                      <p class="t-note">Lo registró {{ propio.declaredByAnalystName }}.</p>
+                      <p class="t-body">{{ ownRecord.reason }}</p>
+                      <p class="t-note">Lo registró {{ ownRecord.declaredByAnalystName }}.</p>
                     </div>
                   } @else if (canRegisterFraudRecord() && priorFraudRecords().length > 0) {
                     <button
@@ -962,16 +965,19 @@
                   </div>
                 }
 
-                @if (ownFraudRecord(); as propio) {
-                  <div class="fraud-item propio" [attr.data-tone]="fraudRecordStatusTone(propio)">
+                @if (ownFraudRecord(); as ownRecord) {
+                  <div
+                    class="fraud-item propio"
+                    [attr.data-tone]="fraudRecordStatusTone(ownRecord)"
+                  >
                     <div class="fraud-item-head">
-                      <app-badge variant="strong" [tone]="fraudRecordStatusTone(propio)">
-                        Este expediente · {{ fraudRecordOriginLabel(propio.source) }}
+                      <app-badge variant="strong" [tone]="fraudRecordStatusTone(ownRecord)">
+                        Este expediente · {{ fraudRecordOriginLabel(ownRecord.source) }}
                       </app-badge>
-                      <span class="t-note">{{ formatDateTime(propio.declaredAt) }}</span>
+                      <span class="t-note">{{ formatDateTime(ownRecord.declaredAt) }}</span>
                     </div>
-                    <p class="t-body">{{ propio.reason }}</p>
-                    <p class="t-note">Lo registró {{ propio.declaredByAnalystName }}.</p>
+                    <p class="t-body">{{ ownRecord.reason }}</p>
+                    <p class="t-note">Lo registró {{ ownRecord.declaredByAnalystName }}.</p>
                   </div>
                 }
               </app-card>
