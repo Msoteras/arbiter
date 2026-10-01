@@ -32,8 +32,8 @@ import {
 import { CaseNavigationService } from '../case-navigation.service';
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
 import { UserAdminService } from '../../../core/auth/user-admin.service';
-import { ExpedienteResponse } from '../../../core/models/expediente';
-import { clasificacionLabel, clasificacionTone } from '../../../core/models/clasificacion';
+import { CaseResponse } from '../../../core/models/case';
+import { classificationLabel, classificationTone } from '../../../core/models/classification';
 import { formatDate as formatDateUtil } from '../../../core/util/datetime';
 import {
   DeadlinePriority,
@@ -43,10 +43,10 @@ import {
 } from '../../../core/models/deadline-priority';
 import {
   CaseStatus,
-  estadoLabel,
-  estadoTone,
+  caseStatusLabel,
+  caseStatusTone,
   riskBandEmptyLabel,
-} from '../../../core/models/estado';
+} from '../../../core/models/case-status';
 import { StatusTone } from '../../../core/models/status-tone';
 import { CardComponent } from '../../../shared/ui/card/card.component';
 import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
@@ -84,7 +84,7 @@ interface ColumnDef {
 
 type LoadState =
   | { status: 'loading' }
-  | { status: 'ok'; data: ExpedienteResponse[]; totalElements: number; totalPages: number }
+  | { status: 'ok'; data: CaseResponse[]; totalElements: number; totalPages: number }
   | { status: 'error' };
 
 type Lifecycle = 'open' | 'closed' | 'all';
@@ -310,7 +310,7 @@ export class BandejaComponent {
   });
   protected readonly firstLoad = computed(() => this.loading() && !this.hasLoaded());
 
-  protected readonly cases = computed<ExpedienteResponse[]>(() => {
+  protected readonly cases = computed<CaseResponse[]>(() => {
     const s = this.state();
     return s.status === 'ok' ? s.data : [];
   });
@@ -413,7 +413,7 @@ export class BandejaComponent {
 
   protected readonly statusOptions: SelectOption[] = BandejaComponent.STATUS_VALUES.map((s) => ({
     value: s,
-    label: estadoLabel(s),
+    label: caseStatusLabel(s),
   }));
 
   protected readonly claimCauseOptions = signal<SelectOption[]>([]);
@@ -543,7 +543,7 @@ export class BandejaComponent {
   protected readonly activeChips = computed<{ key: string; label: string }[]>(() => {
     const chips: { key: string; label: string }[] = [];
     if (this.statusFilter())
-      chips.push({ key: 'status', label: `Estado: ${estadoLabel(this.statusFilter())}` });
+      chips.push({ key: 'status', label: `Estado: ${caseStatusLabel(this.statusFilter())}` });
     if (this.claimCauseFilter())
       chips.push({ key: 'claimCause', label: `Tipo: ${this.claimCauseFilter()}` });
     if (this.riskBandFilter())
@@ -669,11 +669,11 @@ export class BandejaComponent {
     () => this.session.session()?.rol === 'REFERENTE_ASEGURADORA',
   );
 
-  protected isMine(c: ExpedienteResponse): boolean {
+  protected isMine(c: CaseResponse): boolean {
     return c.assignedAnalystId != null && c.assignedAnalystId === this.myAnalystId();
   }
 
-  protected analystInitials(c: ExpedienteResponse): string {
+  protected analystInitials(c: CaseResponse): string {
     return (c.assignedAnalystName ?? '')
       .split(/\s+/)
       .filter(Boolean)
@@ -685,7 +685,7 @@ export class BandejaComponent {
   /** Sentinel menu value, not an analyst id. */
   private static readonly RELEASE = '__release__';
 
-  protected assignMenuItems(c: ExpedienteResponse): MenuItem[] {
+  protected assignMenuItems(c: CaseResponse): MenuItem[] {
     const others = this.analystMenuItems().filter(
       (item) => item.value !== String(c.assignedAnalystId),
     );
@@ -694,7 +694,7 @@ export class BandejaComponent {
       : others;
   }
 
-  protected onAssignMenu(c: ExpedienteResponse, value: string): void {
+  protected onAssignMenu(c: CaseResponse, value: string): void {
     if (value === BandejaComponent.RELEASE) {
       this.release(c.id);
     } else {
@@ -702,7 +702,7 @@ export class BandejaComponent {
     }
   }
 
-  protected take(c: ExpedienteResponse): void {
+  protected take(c: CaseResponse): void {
     const me = this.myAnalystId();
     if (me != null) {
       this.runAssignment(c.id, this.service.assign(c.id, me));
@@ -717,7 +717,7 @@ export class BandejaComponent {
     this.runAssignment(caseId, this.service.unassign(caseId));
   }
 
-  private runAssignment(caseId: number, request: Observable<ExpedienteResponse>): void {
+  private runAssignment(caseId: number, request: Observable<CaseResponse>): void {
     if (this.assigning() !== null) {
       return;
     }
@@ -737,30 +737,30 @@ export class BandejaComponent {
   }
 
   protected estadoLabel(status: string): string {
-    return estadoLabel(status);
+    return caseStatusLabel(status);
   }
 
   protected estadoTone(status: string): StatusTone {
-    return estadoTone(status);
+    return caseStatusTone(status);
   }
 
   protected clasificacionLabel(value: string): string {
-    return clasificacionLabel(value);
+    return classificationLabel(value);
   }
 
   protected clasificacionTone(value: string): StatusTone {
-    return clasificacionTone(value);
+    return classificationTone(value);
   }
 
   protected deadlineTone(priority: DeadlinePriority): StatusTone {
     return deadlinePriorityTone(priority);
   }
 
-  protected deadlineLabel(c: ExpedienteResponse): string {
+  protected deadlineLabel(c: CaseResponse): string {
     return deadlinePriorityLabel(c.deadlinePriority, c.responseDeadline);
   }
 
-  protected deadlinePrioritized(c: ExpedienteResponse): boolean {
+  protected deadlinePrioritized(c: CaseResponse): boolean {
     return isDeadlinePrioritized(c.deadlinePriority);
   }
 
@@ -771,11 +771,11 @@ export class BandejaComponent {
     CRITICAL: 4,
   };
 
-  protected riskGaugeBand(c: ExpedienteResponse): 1 | 2 | 3 | 4 | null {
+  protected riskGaugeBand(c: CaseResponse): 1 | 2 | 3 | 4 | null {
     return c.riskBand ? BandejaComponent.RISK_BAND_GAUGE[c.riskBand] : null;
   }
 
-  protected riskGaugeEmptyLabel(c: ExpedienteResponse): string {
+  protected riskGaugeEmptyLabel(c: CaseResponse): string {
     return riskBandEmptyLabel(c.status, c.analysisClassification);
   }
 
@@ -789,11 +789,11 @@ export class BandejaComponent {
   }
 
   /** Never falls back to the DNI: shows a placeholder until classification resolves the name. */
-  protected displayInsured(c: ExpedienteResponse): string {
+  protected displayInsured(c: CaseResponse): string {
     return c.insuredName ?? 'Sin identificar';
   }
 
-  protected displayInsuredId(c: ExpedienteResponse): string {
+  protected displayInsuredId(c: CaseResponse): string {
     return c.insuredId;
   }
 
@@ -844,8 +844,8 @@ export class BandejaComponent {
   private fetchAllPages(
     params: ExpedienteListParams,
     page: number,
-    acc: ExpedienteResponse[],
-  ): Observable<ExpedienteResponse[]> {
+    acc: CaseResponse[],
+  ): Observable<CaseResponse[]> {
     return this.service.list({ ...params, page }).pipe(
       switchMap((result) => {
         const combined = [...acc, ...result.content];
@@ -856,7 +856,7 @@ export class BandejaComponent {
     );
   }
 
-  private downloadCsv(rows: ExpedienteResponse[]): void {
+  private downloadCsv(rows: CaseResponse[]): void {
     const lines = [
       BandejaComponent.EXPORT_HEADER.join(','),
       ...rows.map((r) =>
@@ -870,7 +870,7 @@ export class BandejaComponent {
     this.download(blob, 'csv');
   }
 
-  private downloadXlsx(rows: ExpedienteResponse[]): void {
+  private downloadXlsx(rows: CaseResponse[]): void {
     const aoa = [BandejaComponent.EXPORT_HEADER, ...rows.map((r) => this.toRowCells(r))];
     const sheet = XLSX.utils.aoa_to_sheet(aoa);
     const book = XLSX.utils.book_new();
@@ -893,17 +893,17 @@ export class BandejaComponent {
     URL.revokeObjectURL(url);
   }
 
-  private toRowCells(c: ExpedienteResponse): string[] {
+  private toRowCells(c: CaseResponse): string[] {
     return [
       String(c.id),
-      estadoLabel(c.status),
+      caseStatusLabel(c.status),
       this.displayInsured(c),
       c.policyNumber,
       c.claimCause,
       this.formatDate(c.eventDate),
       c.claimedAmount != null ? String(c.claimedAmount) : '',
       this.riskBandLabel(c.riskBand),
-      c.analysisClassification ? clasificacionLabel(c.analysisClassification) : '',
+      c.analysisClassification ? classificationLabel(c.analysisClassification) : '',
       c.assignedAnalystName ?? '',
     ];
   }

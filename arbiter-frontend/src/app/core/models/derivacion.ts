@@ -9,7 +9,7 @@ const VERDICT_LABELS: Record<ExpertVerdict, string> = {
   INCONCLUSIVE: 'No concluyente',
 };
 
-export function veredictoLabel(value: string): string {
+export function verdictLabel(value: string): string {
   return (VERDICT_LABELS as Record<string, string>)[value] ?? value;
 }
 
@@ -19,7 +19,7 @@ const VERDICT_TONES: Record<ExpertVerdict, StatusTone> = {
   INCONCLUSIVE: 'warning',
 };
 
-export function veredictoTone(value: string): StatusTone {
+export function verdictTone(value: string): StatusTone {
   return (VERDICT_TONES as Record<string, StatusTone>)[value] ?? 'neutral';
 }
 
@@ -80,7 +80,7 @@ export function ramosLabel(branches: RamoRef[]): string {
  * Mirrors DerivationOptionsResponse. `eligible` combines the insurer's minimum amount with provider
  * availability; both amounts come so the UI can explain a "no".
  */
-export interface OpcionesDerivacion {
+export interface DerivationOptions {
   eligible: boolean;
   /** The insurer's rule lets this case go to this kind of provider, whether or not there is one. */
   allowedByRule: boolean;

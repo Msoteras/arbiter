@@ -147,8 +147,8 @@
                 </td>
                 <td>
                   @if (row.classification) {
-                    <app-badge [tone]="clasificacionTone(row.classification)">
-                      {{ clasificacionLabel(row.classification) }}
+                    <app-badge [tone]="classificationTone(row.classification)">
+                      {{ classificationLabel(row.classification) }}
                     </app-badge>
                   } @else {
                     <span class="muted">Sin clasificación</span>
@@ -158,8 +158,8 @@
                   {{ decisionLabel(row.analystDecision) }}
                 </td>
                 <td>
-                  <app-badge [tone]="estadoTone(row.finalStatus)">
-                    {{ estadoLabel(row.finalStatus) }}
+                  <app-badge [tone]="caseStatusTone(row.finalStatus)">
+                    {{ caseStatusLabel(row.finalStatus) }}
                   </app-badge>
                 </td>
                 <td [class.muted]="!row.analystName">{{ row.analystName ?? '—' }}</td>

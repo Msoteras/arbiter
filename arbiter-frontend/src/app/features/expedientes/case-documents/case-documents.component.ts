@@ -15,7 +15,7 @@ import { catchError, combineLatest, map, of, startWith, switchMap } from 'rxjs';
 
 import { ExpedienteService } from '../expediente.service';
 import { DocumentAgendaService } from '../document-agenda.service';
-import { DocumentAnalysis, ExtractionStatus } from '../../../core/models/expediente';
+import { DocumentAnalysis, ExtractionStatus } from '../../../core/models/case';
 import { formatDate } from '../../../core/util/datetime';
 import {
   CASE_DOCUMENT_TYPES,

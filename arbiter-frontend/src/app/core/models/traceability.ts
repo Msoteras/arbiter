@@ -2,7 +2,7 @@ import {
   HARD_RULE_LABELS,
   INSURER_HARD_RULE_LABELS,
 } from '../../features/admin/hard-rules.service';
-import { conLabelesDeDocumento } from './business-rules';
+import { withDocumentLabels } from './business-rules';
 import { StatusTone } from './status-tone';
 
 /** Mirror of RuleResultResponse (common-lib). Passes travel too, not just the rejections. */
@@ -146,8 +146,8 @@ export function ruleEvaluationText(ruleType: string, evaluatedValue: string | nu
         : `Póliza de ${t['policyAgeMonths']} meses · mínimo ${t['min']}`;
     case 'FT_REQUIRED_DOCS':
       return t['missing'] === 'ninguno'
-        ? `Presente: ${conLabelesDeDocumento(listado(t['required']))}`
-        : `Falta: ${conLabelesDeDocumento(listado(t['missing']))}`;
+        ? `Presente: ${withDocumentLabels(listado(t['required']))}`
+        : `Falta: ${withDocumentLabels(listado(t['missing']))}`;
     case 'COVERAGE_EXCLUSION':
     case 'COVERAGE_INCLUSION':
       return t['claimCause']
@@ -163,7 +163,7 @@ export function ruleEvaluationText(ruleType: string, evaluatedValue: string | nu
         : evaluatedValue;
     case 'CLAIM_CAUSE_MATCH': {
       // Only documents that narrate an event take part.
-      const documentos = conLabelesDeDocumento(listado(t['documents']));
+      const documentos = withDocumentLabels(listado(t['documents']));
       return t['declared'] === t['described']
         ? `${documentos}: narra el hecho declarado (${t['declared']})`
         : `${documentos}: narra ${t['described']} · se declaró ${t['declared']}`;
@@ -172,7 +172,7 @@ export function ruleEvaluationText(ruleType: string, evaluatedValue: string | nu
       // Only written with signs present; the signs themselves are in each document's reading.
       const n = Number(t['signs']);
       return t['documents'] && !Number.isNaN(n)
-        ? `${conLabelesDeDocumento(listado(t['documents']))}: ${n} ${n === 1 ? 'señal' : 'señales'} · ver Documentación`
+        ? `${withDocumentLabels(listado(t['documents']))}: ${n} ${n === 1 ? 'señal' : 'señales'} · ver Documentación`
         : evaluatedValue;
     }
     case 'CLAIM_EXHAUSTS_COVERAGE': {

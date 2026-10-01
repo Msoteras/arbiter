@@ -5,10 +5,10 @@ import { catchError, forkJoin, map, of, startWith } from 'rxjs';
 
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
 import { AnalystWorkload, ExpedienteService } from '../../expedientes/expediente.service';
-import { ExpedienteResponse } from '../../../core/models/expediente';
-import { estadoLabel, estadoTone } from '../../../core/models/estado';
+import { CaseResponse } from '../../../core/models/case';
+import { caseStatusLabel, caseStatusTone } from '../../../core/models/case-status';
 import { StatusTone } from '../../../core/models/status-tone';
-import { fechaLarga, saludoSegunHora } from '../../../core/util/datetime';
+import { longDate, greetingForTimeOfDay } from '../../../core/util/datetime';
 import { CardComponent } from '../../../shared/ui/card/card.component';
 import { StatTileComponent } from '../../../shared/ui/stat-tile/stat-tile.component';
 import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
@@ -28,7 +28,7 @@ interface Counts {
 type CountsState = { status: 'loading' } | { status: 'ok'; counts: Counts } | { status: 'error' };
 
 type AlertState =
-  { status: 'loading' } | { status: 'ok'; data: ExpedienteResponse[] } | { status: 'error' };
+  { status: 'loading' } | { status: 'ok'; data: CaseResponse[] } | { status: 'error' };
 
 type WorkloadState =
   { status: 'loading' } | { status: 'ok'; data: AnalystWorkload[] } | { status: 'error' };
@@ -54,8 +54,8 @@ export class ReferentHomeComponent {
   private readonly session = inject(AuthSessionService);
   private readonly appReady = inject(AppReadyService);
 
-  protected readonly greeting = saludoSegunHora();
-  protected readonly today = fechaLarga();
+  protected readonly greeting = greetingForTimeOfDay();
+  protected readonly today = longDate();
   protected readonly firstName = computed(() => this.session.session()?.nombre ?? '');
 
   // No `assignedToMe`: the referente sees the whole insurer's operation.
@@ -110,7 +110,7 @@ export class ReferentHomeComponent {
 
   protected readonly alertLoading = computed(() => this.alertState().status === 'loading');
   protected readonly alertError = computed(() => this.alertState().status === 'error');
-  protected readonly alertItems = computed<ExpedienteResponse[]>(() => {
+  protected readonly alertItems = computed<CaseResponse[]>(() => {
     const s = this.alertState();
     return s.status === 'ok' ? s.data : [];
   });
@@ -163,18 +163,18 @@ export class ReferentHomeComponent {
   }
 
   protected estadoLabel(status: string): string {
-    return estadoLabel(status);
+    return caseStatusLabel(status);
   }
 
   protected estadoTone(status: string): StatusTone {
-    return estadoTone(status);
+    return caseStatusTone(status);
   }
 
   protected riskLabel(band: string | null): string {
     return band === 'CRITICAL' ? 'Crítico' : band === 'HIGH' ? 'Alto' : '—';
   }
 
-  protected displayInsured(c: ExpedienteResponse): string {
+  protected displayInsured(c: CaseResponse): string {
     return c.insuredName ?? 'Sin identificar';
   }
 }

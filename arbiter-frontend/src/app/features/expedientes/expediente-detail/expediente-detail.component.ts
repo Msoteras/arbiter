@@ -38,11 +38,11 @@ import { UserAdminService } from '../../../core/auth/user-admin.service';
 import { SettlementAuthoritiesService } from '../../admin/settlement-authorities.service';
 import {
   DocumentAnalysis,
-  ExpedienteResponse,
+  CaseResponse,
   RiskBreakdownItem,
   StatusTransition,
-} from '../../../core/models/expediente';
-import { conLabelesDeDocumento, riskFactorLabel } from '../../../core/models/business-rules';
+} from '../../../core/models/case';
+import { withDocumentLabels, riskFactorLabel } from '../../../core/models/business-rules';
 import { Policy } from '../../../core/models/policy';
 import {
   PolicySnapshot,
@@ -55,14 +55,14 @@ import {
   ruleResultLabel,
   ruleResultTone,
   ruleTypeLabel,
-} from '../../../core/models/trazabilidad';
+} from '../../../core/models/traceability';
 import {
   CASE_DOCUMENT_TYPES,
   CaseDocument,
   CaseDocumentType,
   documentTypeLabel,
 } from '../../../core/models/case-document';
-import { clasificacionLabel, clasificacionTone } from '../../../core/models/clasificacion';
+import { classificationLabel, classificationTone } from '../../../core/models/classification';
 import { forensicAlertLevel } from '../../../core/models/forensic';
 import {
   causeConsistencyLabel,
@@ -72,31 +72,31 @@ import {
 import {
   Derivacion,
   ExpertVerdict,
-  OpcionesDerivacion,
+  DerivationOptions,
   ProviderType,
   ramosLabel,
   REPAIR_OUTCOME_OPTIONS,
   RepairOutcome,
   repairOutcomeLabel,
-  veredictoLabel,
-  veredictoTone,
+  verdictLabel,
+  verdictTone,
 } from '../../../core/models/derivacion';
 import {
-  AntecedenteFraude,
-  MOTIVO_ANTECEDENTE_MIN,
-  OrigenAntecedente,
-  efectoAntecedente,
-  estadoAntecedenteLabel,
-  estadoAntecedenteTone,
-  origenAntecedenteLabel,
-} from '../../../core/models/antecedente-fraude';
+  FraudRecord,
+  FRAUD_RECORD_REASON_MIN,
+  FraudRecordOrigin,
+  fraudRecordEffect,
+  fraudRecordStatusLabel,
+  fraudRecordStatusTone,
+  fraudRecordOriginLabel,
+} from '../../../core/models/fraud-record';
 import {
-  estadoLabel,
-  estadoSimplificadoLabel,
-  estadoTone,
-  isEstadoFinal,
+  caseStatusLabel,
+  simplifiedStatusLabel,
+  caseStatusTone,
+  isFinalStatus,
   riskBandEmptyLabel,
-} from '../../../core/models/estado';
+} from '../../../core/models/case-status';
 import {
   deadlinePriorityLabel,
   deadlinePriorityTone,
@@ -130,7 +130,7 @@ import { fadeInUp, staggerReveal, tabSwitch } from '../../../shared/animations';
 
 type LoadState =
   | { status: 'loading' }
-  | { status: 'ok'; data: ExpedienteResponse }
+  | { status: 'ok'; data: CaseResponse }
   | { status: 'error'; httpStatus: number };
 
 type DocsState = { status: 'loading' } | { status: 'ok'; list: CaseDocument[] };
@@ -272,7 +272,7 @@ export class ExpedienteDetailComponent {
   protected readonly loading = computed(() => this.state().status === 'loading');
   protected readonly hasError = computed(() => this.state().status === 'error');
 
-  protected readonly data = computed<ExpedienteResponse | null>(() => {
+  protected readonly data = computed<CaseResponse | null>(() => {
     const s = this.state();
     return s.status === 'ok' ? s.data : null;
   });
@@ -295,17 +295,17 @@ export class ExpedienteDetailComponent {
 
   protected readonly statusLabel = computed(() => {
     const d = this.data();
-    return d ? estadoLabel(d.status) : '';
+    return d ? caseStatusLabel(d.status) : '';
   });
 
   protected readonly statusTone = computed<StatusTone>(() => {
     const d = this.data();
-    return d ? estadoTone(d.status) : 'neutral';
+    return d ? caseStatusTone(d.status) : 'neutral';
   });
 
   protected readonly simplifiedStatusLabel = computed(() => {
     const d = this.data();
-    return d ? estadoSimplificadoLabel(d.status) : '';
+    return d ? simplifiedStatusLabel(d.status) : '';
   });
 
   private static readonly RISK_BAND_GAUGE: Record<string, 1 | 2 | 3 | 4> = {
@@ -374,12 +374,12 @@ export class ExpedienteDetailComponent {
 
   protected readonly classificationLabel = computed(() => {
     const d = this.data();
-    return d ? clasificacionLabel(d.analysisClassification) : '';
+    return d ? classificationLabel(d.analysisClassification) : '';
   });
 
   protected readonly classificationTone = computed<StatusTone>(() => {
     const d = this.data();
-    return d ? clasificacionTone(d.analysisClassification) : 'neutral';
+    return d ? classificationTone(d.analysisClassification) : 'neutral';
   });
 
   /** Only with something to look at: MATCHES adds nothing and null means it didn't run. */
@@ -404,7 +404,7 @@ export class ExpedienteDetailComponent {
 
   /** Empty for Fast Track, missing documentation or before classification; the tab is hidden then. */
   protected readonly analysisReasons = computed<string[]>(() =>
-    (this.data()?.analysisReasons ?? []).map(conLabelesDeDocumento),
+    (this.data()?.analysisReasons ?? []).map(withDocumentLabels),
   );
 
   /** Empty until classified, or when no document was read. */
@@ -1150,7 +1150,7 @@ export class ExpedienteDetailComponent {
   protected readonly reopenError = signal<string | null>(null);
 
   protected readonly puedeReabrir = computed(
-    () => this.canGestionar() && isEstadoFinal(this.data()?.status ?? ''),
+    () => this.canGestionar() && isFinalStatus(this.data()?.status ?? ''),
   );
 
   askReopen(): void {
@@ -1203,10 +1203,10 @@ export class ExpedienteDetailComponent {
         switchMap(([id]) =>
           this.service
             .derivationOptions(id as unknown as number, providerType)
-            .pipe(catchError(() => of<OpcionesDerivacion | null>(null))),
+            .pipe(catchError(() => of<DerivationOptions | null>(null))),
         ),
       ),
-      { initialValue: null as OpcionesDerivacion | null },
+      { initialValue: null as DerivationOptions | null },
     );
   }
 
@@ -1334,7 +1334,7 @@ export class ExpedienteDetailComponent {
   protected resultadoDerivacion(p: Derivacion): string {
     const esReparacion = p.providerType === 'SERVICIO_TECNICO';
     const resultado = p.verdict
-      ? veredictoLabel(p.verdict)
+      ? verdictLabel(p.verdict)
       : repairOutcomeLabel(p.repairOutcome ?? '');
     const monto = esReparacion ? p.repairCost : p.indemnifiableAmount;
     // A repair outcome already names its source; the prefix made the badge overflow the card.
@@ -1343,7 +1343,7 @@ export class ExpedienteDetailComponent {
   }
 
   protected resultadoDerivacionTone(p: Derivacion): StatusTone {
-    return p.verdict ? veredictoTone(p.verdict) : 'neutral';
+    return p.verdict ? verdictTone(p.verdict) : 'neutral';
   }
 
   /** Signals that pull toward a closer look, each one pointing at the tab with its evidence. */
@@ -1672,10 +1672,10 @@ export class ExpedienteDetailComponent {
       switchMap(([id]) =>
         this.service
           .antecedentesFraude(id as unknown as number)
-          .pipe(catchError(() => of<AntecedenteFraude[]>([]))),
+          .pipe(catchError(() => of<FraudRecord[]>([]))),
       ),
     ),
-    { initialValue: [] as AntecedenteFraude[] },
+    { initialValue: [] as FraudRecord[] },
   );
 
   /** From OTHER cases. */
@@ -1713,9 +1713,9 @@ export class ExpedienteDetailComponent {
   /** Not offered without a confirmed expert verdict: the backend validates against the saved one. */
   protected readonly origenOptions = computed<SelectOption[]>(() => [
     ...(this.peritajeConfirmaFraude()
-      ? [{ value: 'EXPERT_BACKED', label: origenAntecedenteLabel('EXPERT_BACKED') }]
+      ? [{ value: 'EXPERT_BACKED', label: fraudRecordOriginLabel('EXPERT_BACKED') }]
       : []),
-    { value: 'ANALYST_DECLARED', label: origenAntecedenteLabel('ANALYST_DECLARED') },
+    { value: 'ANALYST_DECLARED', label: fraudRecordOriginLabel('ANALYST_DECLARED') },
   ]);
 
   protected readonly showAntecedente = signal(false);
@@ -1724,11 +1724,11 @@ export class ExpedienteDetailComponent {
   protected readonly antecedenteSaving = signal(false);
   protected readonly antecedenteError = signal<string | null>(null);
 
-  protected readonly motivoAntecedenteMin = MOTIVO_ANTECEDENTE_MIN;
+  protected readonly motivoAntecedenteMin = FRAUD_RECORD_REASON_MIN;
 
   /** Warned while typing, not on the 400. */
   protected readonly motivoAntecedenteCorto = computed(
-    () => this.motivoAntecedente().trim().length < MOTIVO_ANTECEDENTE_MIN,
+    () => this.motivoAntecedente().trim().length < FRAUD_RECORD_REASON_MIN,
   );
 
   protected readonly efectoOrigenElegido = computed(() =>
@@ -1750,7 +1750,7 @@ export class ExpedienteDetailComponent {
 
   confirmAntecedente(): void {
     const d = this.data();
-    const source = this.origenElegido() as OrigenAntecedente;
+    const source = this.origenElegido() as FraudRecordOrigin;
     const reason = this.motivoAntecedente().trim();
     if (!d || !source || this.motivoAntecedenteCorto()) {
       return;
@@ -1770,13 +1770,13 @@ export class ExpedienteDetailComponent {
     });
   }
 
-  estadoAntecedenteLabel = estadoAntecedenteLabel;
-  estadoAntecedenteTone = estadoAntecedenteTone;
-  efectoAntecedente = efectoAntecedente;
-  origenAntecedenteLabel = origenAntecedenteLabel;
+  estadoAntecedenteLabel = fraudRecordStatusLabel;
+  estadoAntecedenteTone = fraudRecordStatusTone;
+  efectoAntecedente = fraudRecordEffect;
+  origenAntecedenteLabel = fraudRecordOriginLabel;
 
-  veredictoLabel = veredictoLabel;
-  veredictoTone = veredictoTone;
+  veredictoLabel = verdictLabel;
+  veredictoTone = verdictTone;
   repairOutcomeLabel = repairOutcomeLabel;
   formatDateTime = formatDateTime;
   chatListStamp = chatListStamp;
@@ -1983,7 +1983,7 @@ export class ExpedienteDetailComponent {
     }
   }
 
-  private runAssignment(request: Observable<ExpedienteResponse>): void {
+  private runAssignment(request: Observable<CaseResponse>): void {
     this.assignSaving.set(true);
     this.assignError.set(null);
     request.subscribe({

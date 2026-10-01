@@ -4,23 +4,23 @@
       <h1 class="t-page-title">Mensajes</h1>
       <app-input placeholder="Buscar asegurado o N° de expediente…" [(value)]="search" />
       <div class="conv-filters">
-        <button type="button" [class.active]="filtro() === 'TODOS'" (click)="filtro.set('TODOS')">
+        <button type="button" [class.active]="filter() === 'TODOS'" (click)="filter.set('TODOS')">
           Todos
         </button>
         <button
           type="button"
-          [class.active]="filtro() === 'SIN_LEER'"
-          (click)="filtro.set('SIN_LEER')"
+          [class.active]="filter() === 'SIN_LEER'"
+          (click)="filter.set('SIN_LEER')"
         >
           Sin leer
-          @if (sinLeerCount() > 0) {
-            <span class="filter-count">{{ sinLeerCount() }}</span>
+          @if (unreadTotal() > 0) {
+            <span class="filter-count">{{ unreadTotal() }}</span>
           }
         </button>
         <button
           type="button"
-          [class.active]="filtro() === 'ESPERANDO'"
-          (click)="filtro.set('ESPERANDO')"
+          [class.active]="filter() === 'ESPERANDO'"
+          (click)="filter.set('ESPERANDO')"
         >
           Esperando respuesta
           @if (esperandoCount() > 0) {
@@ -119,7 +119,7 @@
             <div class="field">
               <dt class="t-field-label">Estado</dt>
               <dd>
-                <app-badge [tone]="tono(item.status)">{{ estadoLabel(item.status) }}</app-badge>
+                <app-badge [tone]="tono(item.status)">{{ caseStatusLabel(item.status) }}</app-badge>
               </dd>
             </div>
           </dl>

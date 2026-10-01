@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 
 import { CaseMessageInboxItem } from '../../../core/models/case-message';
-import { isEstadoFinal } from '../../../core/models/estado';
+import { isFinalStatus } from '../../../core/models/case-status';
 import { chatListStamp } from '../../../core/util/datetime';
 import { CaseMessagesService } from '../../expedientes/case-messages.service';
 import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
@@ -16,7 +16,7 @@ import {
 
 /** One conversation per claim; opening a row opens that claim's chat in place. */
 @Component({
-  selector: 'app-mensajes',
+  selector: 'app-my-messages',
   imports: [
     BadgeComponent,
     CardComponent,
@@ -208,7 +208,7 @@ import {
     }
   `,
 })
-export class MensajesComponent {
+export class MyMessagesComponent {
   private readonly messages = inject(CaseMessagesService);
 
   protected readonly loading = signal(true);
@@ -242,7 +242,7 @@ export class MensajesComponent {
   }
 
   protected isClosed(item: CaseMessageInboxItem): boolean {
-    return isEstadoFinal(item.status);
+    return isFinalStatus(item.status);
   }
 
   protected readonly preview = insuredPreview;

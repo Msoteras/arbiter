@@ -10,7 +10,7 @@ import {
 import { Params, RouterLink } from '@angular/router';
 import { Observable } from 'rxjs';
 
-import { estadoLabel, estadoTone } from '../../../core/models/estado';
+import { caseStatusLabel, caseStatusTone } from '../../../core/models/case-status';
 import { RiskBand, riskBandLabel } from '../../../core/models/risk-band';
 import { StatusTone } from '../../../core/models/status-tone';
 import { formatDate, formatDateTime } from '../../../core/util/datetime';
@@ -176,8 +176,8 @@ export class FraudReportComponent extends ReportTab<
   protected readonly formatDate = formatDate;
   protected readonly formatDateTime = formatDateTime;
   protected readonly riskBandLabel = riskBandLabel;
-  protected readonly estadoLabel = estadoLabel;
-  protected readonly estadoTone = estadoTone;
+  protected readonly caseStatusLabel = caseStatusLabel;
+  protected readonly caseStatusTone = caseStatusTone;
   protected readonly riskGaugeBand = riskGaugeBand;
   protected readonly alertEmptyLabel = alertEmptyLabel;
   protected readonly indicators = indicators;

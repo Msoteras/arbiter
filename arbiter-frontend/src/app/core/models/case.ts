@@ -1,8 +1,8 @@
 import { CauseConsistency } from './cause-consistency';
-import { Clasificacion } from './clasificacion';
+import { Classification } from './classification';
 import { DeadlinePriority } from './deadline-priority';
 import { ImageForensicReport } from './forensic';
-import { PolicySnapshot, RuleResult } from './trazabilidad';
+import { PolicySnapshot, RuleResult } from './traceability';
 
 // Mirrors cases-service's StatusTransitionResponse; `fromStatus` is null on the creation row.
 export interface StatusTransition {
@@ -66,7 +66,7 @@ export interface ExtractedDetail {
 export type SettlementStatus = 'AUTHORIZED' | 'PENDING_AUTHORIZATION' | 'RETURNED';
 
 // Mirrors cases-service's CaseResponse (GET /api/v1/cases/{id}).
-export interface ExpedienteResponse {
+export interface CaseResponse {
   id: number;
   /** Only in the insured's cross-insurer list, where `id` repeats across insurers. */
   insurerSlug?: string | null;
@@ -97,7 +97,7 @@ export interface ExpedienteResponse {
   /** Analyst id within the insurer (as in `GET /auth/users/analysts`), not the user id. Null = unassigned. */
   assignedAnalystId: number | null;
   assignedAnalystName: string | null;
-  analysisClassification: Clasificacion | string;
+  analysisClassification: Classification | string;
   /**
    * The rules engine decided, not the model. The literal alone can't tell: a coverage exclusion or
    * prescription shares it with a model recommendation.
