@@ -34,7 +34,7 @@ import {
 } from '../../shared/ui/distribution/distribution.component';
 import { StatTileComponent } from '../../shared/ui/stat-tile/stat-tile.component';
 import { ToastService } from '../../shared/ui/toast/toast.service';
-import { StatusTransition } from '../../core/models/expediente';
+import { StatusTransition } from '../../core/models/case';
 import { Policy } from '../../core/models/policy';
 
 interface Token {

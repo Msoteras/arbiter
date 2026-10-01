@@ -5,16 +5,16 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { catchError, combineLatest, map, of, startWith, switchMap } from 'rxjs';
 
 import { InsuredSessionService } from '../../../core/auth/insured-session.service';
-import { ExpedienteResponse } from '../../../core/models/expediente';
+import { CaseResponse } from '../../../core/models/case';
 import {
-  estadoBadgeLabelAsegurado,
-  estadoDescripcionAseguradoEfectivo,
-  estadoSimplificadoEfectivo,
-  estadoTituloAseguradoEfectivo,
-  estadoTone,
-  isEstadoFinal,
-  movimientoAseguradoLabel,
-} from '../../../core/models/estado';
+  insuredStatusBadgeLabel,
+  effectiveInsuredStatusDescription,
+  effectiveSimplifiedStatus,
+  effectiveInsuredStatusTitle,
+  caseStatusTone,
+  isFinalStatus,
+  insuredMovementLabel,
+} from '../../../core/models/case-status';
 import { StatusTone } from '../../../core/models/status-tone';
 import { formatDateTime } from '../../../core/util/datetime';
 import { ExpedienteService } from '../../expedientes/expediente.service';
@@ -31,7 +31,7 @@ import {
 
 type LoadState =
   | { status: 'loading' }
-  | { status: 'ok'; data: ExpedienteResponse }
+  | { status: 'ok'; data: CaseResponse }
   | { status: 'error'; httpStatus: number };
 
 interface Movement {
@@ -87,7 +87,7 @@ export class CaseTrackingComponent {
   protected readonly loading = computed(() => this.state().status === 'loading');
   protected readonly hasError = computed(() => this.state().status === 'error');
 
-  protected readonly data = computed<ExpedienteResponse | null>(() => {
+  protected readonly data = computed<CaseResponse | null>(() => {
     const s = this.state();
     if (s.status !== 'ok') {
       return null;
@@ -107,7 +107,7 @@ export class CaseTrackingComponent {
 
   protected readonly statusLabel = computed(() => {
     const d = this.data();
-    return d ? estadoBadgeLabelAsegurado(d.status) : '';
+    return d ? insuredStatusBadgeLabel(d.status) : '';
   });
 
   // Feeds the "effective" progress, so it never goes back to step 1 after re-uploading documents.
@@ -117,7 +117,7 @@ export class CaseTrackingComponent {
 
   protected readonly heroTitle = computed(() => {
     const d = this.data();
-    return d ? estadoTituloAseguradoEfectivo(d.status, this.pastStatuses()) : '';
+    return d ? effectiveInsuredStatusTitle(d.status, this.pastStatuses()) : '';
   });
 
   protected readonly simplifiedSteps = ['DENUNCIADO', 'EN_TRAMITE', 'TERMINADO'] as const;
@@ -125,23 +125,23 @@ export class CaseTrackingComponent {
   protected readonly simplifiedIndex = computed(() => {
     const d = this.data();
     return d
-      ? this.simplifiedSteps.indexOf(estadoSimplificadoEfectivo(d.status, this.pastStatuses()))
+      ? this.simplifiedSteps.indexOf(effectiveSimplifiedStatus(d.status, this.pastStatuses()))
       : 0;
   });
 
   protected readonly statusTone = computed<StatusTone>(() => {
     const d = this.data();
-    return d ? estadoTone(d.status) : 'neutral';
+    return d ? caseStatusTone(d.status) : 'neutral';
   });
 
   protected readonly statusDescription = computed(() => {
     const d = this.data();
-    return d ? estadoDescripcionAseguradoEfectivo(d.status, this.pastStatuses()) : '';
+    return d ? effectiveInsuredStatusDescription(d.status, this.pastStatuses()) : '';
   });
 
   protected readonly isResolved = computed(() => {
     const d = this.data();
-    return d ? isEstadoFinal(d.status) : false;
+    return d ? isFinalStatus(d.status) : false;
   });
 
   protected readonly needsDocs = computed(() => this.data()?.status === 'AWAITING_DOCUMENTATION');
@@ -160,7 +160,7 @@ export class CaseTrackingComponent {
   protected readonly movements = computed<Movement[]>(() => {
     const visible = (this.data()?.statusHistory ?? [])
       .map((h) => ({
-        label: movimientoAseguradoLabel(h.toStatus, h.fromStatus),
+        label: insuredMovementLabel(h.toStatus, h.fromStatus),
         changedAt: h.changedAt,
       }))
       .filter((m): m is { label: string; changedAt: string } => m.label !== null)

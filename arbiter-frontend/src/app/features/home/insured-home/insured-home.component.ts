@@ -5,18 +5,18 @@ import { catchError, map, of, startWith, switchMap } from 'rxjs';
 
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
 import { InsuredSessionService } from '../../../core/auth/insured-session.service';
-import { ExpedienteResponse } from '../../../core/models/expediente';
+import { CaseResponse } from '../../../core/models/case';
 import {
-  EstadoSimplificado,
-  estadoBadgeLabelAsegurado,
-  estadoDescripcionAsegurado,
-  estadoSimplificado,
-  estadoSimplificadoLabel,
-  estadoTituloAsegurado,
-  isEstadoFinal,
-} from '../../../core/models/estado';
+  SimplifiedStatus,
+  insuredStatusBadgeLabel,
+  insuredStatusDescription,
+  simplifiedStatus,
+  simplifiedStatusLabel,
+  insuredStatusTitle,
+  isFinalStatus,
+} from '../../../core/models/case-status';
 import { StatusTone } from '../../../core/models/status-tone';
-import { fechaLarga, saludoSegunHora } from '../../../core/util/datetime';
+import { longDate, greetingForTimeOfDay } from '../../../core/util/datetime';
 import { ExpedienteService } from '../../expedientes/expediente.service';
 import { NewClaimModalService } from '../../expedientes/new-claim-modal.service';
 import { CaseMessagesService } from '../../expedientes/case-messages.service';
@@ -35,7 +35,7 @@ import { staggerReveal } from '../../../shared/animations';
 type LoadState =
   | { status: 'idle' }
   | { status: 'loading' }
-  | { status: 'ok'; data: ExpedienteResponse[] }
+  | { status: 'ok'; data: CaseResponse[] }
   | { status: 'error' };
 
 type StepState = 'done' | 'active' | 'pending';
@@ -48,7 +48,7 @@ interface Step {
   tone?: StatusTone;
 }
 
-const ORDER: EstadoSimplificado[] = ['DENUNCIADO', 'EN_TRAMITE', 'TERMINADO'];
+const ORDER: SimplifiedStatus[] = ['DENUNCIADO', 'EN_TRAMITE', 'TERMINADO'];
 
 /** Insured-facing copy: never mention the model's classification or the internal scoring. */
 @Component({
@@ -74,8 +74,8 @@ export class InsuredHomeComponent {
   protected readonly insured = inject(InsuredSessionService);
   protected readonly newClaim = inject(NewClaimModalService);
 
-  protected readonly greeting = saludoSegunHora();
-  protected readonly today = fechaLarga();
+  protected readonly greeting = greetingForTimeOfDay();
+  protected readonly today = longDate();
   protected readonly firstName = computed(() => this.session.session()?.nombre ?? '');
 
   protected readonly needsIdentity = computed(() => this.insured.insuredId() === null);
@@ -99,7 +99,7 @@ export class InsuredHomeComponent {
   protected readonly loading = computed(() => this.state().status === 'loading');
   protected readonly hasError = computed(() => this.state().status === 'error');
 
-  protected readonly cases = computed<ExpedienteResponse[]>(() => {
+  protected readonly cases = computed<CaseResponse[]>(() => {
     const s = this.state();
     return s.status === 'ok' ? s.data : [];
   });
@@ -109,13 +109,13 @@ export class InsuredHomeComponent {
   );
 
   // The list comes newest first (default sort id,desc).
-  protected readonly featured = computed<ExpedienteResponse | null>(() => this.cases()[0] ?? null);
+  protected readonly featured = computed<CaseResponse | null>(() => this.cases()[0] ?? null);
 
   protected readonly inProgress = computed(
-    () => this.cases().filter((c) => !isEstadoFinal(c.status)).length,
+    () => this.cases().filter((c) => !isFinalStatus(c.status)).length,
   );
   protected readonly closed = computed(
-    () => this.cases().filter((c) => isEstadoFinal(c.status)).length,
+    () => this.cases().filter((c) => isFinalStatus(c.status)).length,
   );
 
   // "En trámite" rather than "En análisis": the phase also covers verification and repair.
@@ -124,7 +124,7 @@ export class InsuredHomeComponent {
     if (!d) {
       return [];
     }
-    const idx = ORDER.indexOf(estadoSimplificado(d.status));
+    const idx = ORDER.indexOf(simplifiedStatus(d.status));
     const stateFor = (threshold: number): StepState =>
       idx > threshold ? 'done' : idx === threshold ? 'active' : 'pending';
 
@@ -145,14 +145,14 @@ export class InsuredHomeComponent {
   protected readonly chatOpen = signal(false);
 
   /** Only while unread: once opened, the notice has done its job. */
-  protected readonly mensajeNuevo = computed(() => {
+  protected readonly newMessage = computed(() => {
     const d = this.featured();
     const item = d ? this.messages.inboxItem(d.id, d.insurerSlug) : null;
     return item && item.unreadCount > 0 && item.lastMessageSender === 'ANALYST' ? item : null;
   });
-  protected readonly nmInitials = computed(() => initialsOf(this.mensajeNuevo()?.analystName));
+  protected readonly nmInitials = computed(() => initialsOf(this.newMessage()?.analystName));
   protected readonly nmTitle = computed(() => {
-    const analyst = analystFirstName(this.mensajeNuevo());
+    const analyst = analystFirstName(this.newMessage());
     return analyst
       ? `Nuevo mensaje de ${analyst}, tu analista`
       : 'Nuevo mensaje del equipo de siniestros';
@@ -163,35 +163,35 @@ export class InsuredHomeComponent {
     if (!d) {
       return false;
     }
-    return ORDER.indexOf(estadoSimplificado(d.status)) > i;
+    return ORDER.indexOf(simplifiedStatus(d.status)) > i;
   }
 
   protected statusTitle(status: string): string {
-    return estadoTituloAsegurado(status);
+    return insuredStatusTitle(status);
   }
 
   protected description(status: string): string {
-    return estadoDescripcionAsegurado(status);
+    return insuredStatusDescription(status);
   }
 
   protected estadoSimplificadoLabel(status: string): string {
-    return estadoSimplificadoLabel(status);
+    return simplifiedStatusLabel(status);
   }
 
   // The badge shows the specific status, not the stepper's 3-step bucket.
   protected statusBadgeLabel(status: string): string {
-    return estadoBadgeLabelAsegurado(status);
+    return insuredStatusBadgeLabel(status);
   }
 
   protected statusTone(status: string): StatusTone {
-    const simple = estadoSimplificado(status);
+    const simple = simplifiedStatus(status);
     if (simple === 'TERMINADO') {
       return status === 'APPROVED' ? 'ok' : 'danger';
     }
     return 'info';
   }
 
-  protected reportedOn(c: ExpedienteResponse): string {
+  protected reportedOn(c: CaseResponse): string {
     return c.createdAt ? new Date(c.createdAt).toLocaleDateString('es-AR') : '—';
   }
 }

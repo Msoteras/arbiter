@@ -1,5 +1,5 @@
-import { clasificacionLabel } from './clasificacion';
-import { repairOutcomeLabel, veredictoLabel } from './peritaje';
+import { classificationLabel } from './classification';
+import { repairOutcomeLabel, verdictLabel } from './expert-assessment';
 
 // Both spellings exist in the immutable history, so all four are mapped.
 const DECISION_LABELS: Record<string, string> = {
@@ -17,11 +17,11 @@ function tokenLabel(token: string): string {
     return decision;
   }
   // Label functions echo unknown values, so the first one that changes the token wins.
-  const clasificacion = clasificacionLabel(token);
+  const clasificacion = classificationLabel(token);
   if (clasificacion !== token) {
     return clasificacion;
   }
-  const veredicto = veredictoLabel(token);
+  const veredicto = verdictLabel(token);
   if (veredicto !== token) {
     return veredicto;
   }
@@ -32,7 +32,7 @@ function tokenLabel(token: string): string {
  * Translates enum literals embedded in persisted status-transition reasons
  * ("informe de peritaje recibido: FRAUD_DISCARDED"). Token-based: unknown tokens are left as-is.
  */
-export function historialNota(reason: string | null | undefined): string {
+export function historyNote(reason: string | null | undefined): string {
   if (!reason) {
     return '';
   }

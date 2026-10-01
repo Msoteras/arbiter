@@ -4,7 +4,7 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import { catchError, map, of, startWith, switchMap } from 'rxjs';
 
-import { ExpedienteResponse } from '../../../core/models/expediente';
+import { CaseResponse } from '../../../core/models/case';
 import { ExpedienteService } from '../../expedientes/expediente.service';
 import { CardComponent } from '../../../shared/ui/card/card.component';
 import { DocUploadComponent } from '../../../shared/ui/doc-upload/doc-upload.component';
@@ -12,7 +12,7 @@ import { CaseDocumentsComponent } from '../../expedientes/case-documents/case-do
 
 type LoadState =
   | { status: 'loading' }
-  | { status: 'ok'; data: ExpedienteResponse }
+  | { status: 'ok'; data: CaseResponse }
   | { status: 'error'; httpStatus: number };
 
 @Component({
@@ -48,7 +48,7 @@ export class CaseUploadComponent {
   );
 
   protected readonly loading = computed(() => this.state().status === 'loading');
-  protected readonly data = computed<ExpedienteResponse | null>(() => {
+  protected readonly data = computed<CaseResponse | null>(() => {
     const s = this.state();
     return s.status === 'ok' ? s.data : null;
   });

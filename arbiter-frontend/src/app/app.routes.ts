@@ -142,7 +142,9 @@ export const routes: Routes = [
     canActivate: [roleGuard, onboardingGuard],
     data: { roles: ['ASEGURADO'] },
     loadComponent: () =>
-      import('./features/portal/mensajes/mensajes.component').then((m) => m.MensajesComponent),
+      import('./features/portal/my-messages/my-messages.component').then(
+        (m) => m.MyMessagesComponent,
+      ),
   },
   {
     path: 'portal/cases/:id',

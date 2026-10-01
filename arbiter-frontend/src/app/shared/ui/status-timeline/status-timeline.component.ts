@@ -1,8 +1,13 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 
-import { StatusTransition } from '../../../core/models/expediente';
-import { CaseStatus, estadoLabel, estadoTone, isEstadoFinal } from '../../../core/models/estado';
-import { historialNota } from '../../../core/models/historial-nota';
+import { StatusTransition } from '../../../core/models/case';
+import {
+  CaseStatus,
+  caseStatusLabel,
+  caseStatusTone,
+  isFinalStatus,
+} from '../../../core/models/case-status';
+import { historyNote } from '../../../core/models/history-note';
 import { StatusTone } from '../../../core/models/status-tone';
 import { formatDateTime } from '../../../core/util/datetime';
 import { BadgeComponent } from '../badge/badge.component';
@@ -213,12 +218,12 @@ export class StatusTimelineComponent {
   readonly currentStatus = input.required<string>();
 
   protected readonly nextStep = computed(() =>
-    isEstadoFinal(this.currentStatus())
+    isFinalStatus(this.currentStatus())
       ? ''
       : (ANALYST_NEXT_STEP[this.currentStatus() as CaseStatus] ?? ''),
   );
   protected readonly hasNextStep = computed(() => this.nextStep() !== '');
-  protected readonly currentTone = computed<StatusTone>(() => estadoTone(this.currentStatus()));
+  protected readonly currentTone = computed<StatusTone>(() => caseStatusTone(this.currentStatus()));
 
   /** The backend records `from === to` for events that leave a trace without a status change (e.g. assignments). */
   protected isSameStatus(h: StatusTransition): boolean {
@@ -226,12 +231,12 @@ export class StatusTimelineComponent {
   }
 
   protected statusLabel(status: string): string {
-    return estadoLabel(status);
+    return caseStatusLabel(status);
   }
 
   /** The backend reason embeds enum literals; this renders them as labels. */
   protected reasonNote(reason: string): string {
-    return historialNota(reason);
+    return historyNote(reason);
   }
 
   protected actor(actor: StatusTransition['actor']): string {

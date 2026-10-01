@@ -3,7 +3,7 @@ import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 
 import { environment } from '../../../environments/environment';
-import { ProviderType } from '../../core/models/peritaje';
+import { ProviderType } from '../../core/models/expert-assessment';
 
 /** Mirrors cases-service ExpertFirmResponse. */
 export interface ExpertFirmAdmin {

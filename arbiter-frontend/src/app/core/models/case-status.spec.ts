@@ -1,79 +1,73 @@
-import { estadoSimplificadoEfectivo, movimientoAseguradoLabel, proximoPaso } from './estado';
+import { effectiveSimplifiedStatus, insuredMovementLabel, nextStepLabel } from './case-status';
 
 // Tests the contract, not the wording: which movements the insured sees, and never the referral reason.
 describe('movimientoAseguradoLabel', () => {
   it('tells the filing apart from the return with documents', () => {
-    expect(movimientoAseguradoLabel('PENDING_CLASSIFICATION', null)).toBe('Denuncia recibida');
-    expect(movimientoAseguradoLabel('PENDING_CLASSIFICATION', 'AWAITING_DOCUMENTATION')).toBe(
+    expect(insuredMovementLabel('PENDING_CLASSIFICATION', null)).toBe('Denuncia recibida');
+    expect(insuredMovementLabel('PENDING_CLASSIFICATION', 'AWAITING_DOCUMENTATION')).toBe(
       'Recibimos tu documentación',
     );
     // Documents can also be uploaded while the case is under review.
-    expect(movimientoAseguradoLabel('PENDING_CLASSIFICATION', 'PENDING_ANALYST_REVIEW')).toBe(
+    expect(insuredMovementLabel('PENDING_CLASSIFICATION', 'PENDING_ANALYST_REVIEW')).toBe(
       'Recibimos tu documentación',
     );
   });
 
   it('does not show the manual retry as a document upload', () => {
-    expect(movimientoAseguradoLabel('PENDING_CLASSIFICATION', 'CLASSIFICATION_FAILED')).toBeNull();
+    expect(insuredMovementLabel('PENDING_CLASSIFICATION', 'CLASSIFICATION_FAILED')).toBeNull();
   });
 
   // Analyst-assignment rows are stored with from == to.
   it('does not show analyst assignments', () => {
-    expect(movimientoAseguradoLabel('PENDING_ANALYST_REVIEW', 'PENDING_ANALYST_REVIEW')).toBeNull();
-    expect(movimientoAseguradoLabel('CLASSIFICATION_FAILED', 'CLASSIFICATION_FAILED')).toBeNull();
-    expect(movimientoAseguradoLabel('AWAITING_DOCUMENTATION', 'AWAITING_DOCUMENTATION')).toBeNull();
+    expect(insuredMovementLabel('PENDING_ANALYST_REVIEW', 'PENDING_ANALYST_REVIEW')).toBeNull();
+    expect(insuredMovementLabel('CLASSIFICATION_FAILED', 'CLASSIFICATION_FAILED')).toBeNull();
+    expect(insuredMovementLabel('AWAITING_DOCUMENTATION', 'AWAITING_DOCUMENTATION')).toBeNull();
   });
 
   it('tells them the case was referred to an expert', () => {
-    expect(movimientoAseguradoLabel('PENDING_EXPERT_REPORT', 'PENDING_ANALYST_REVIEW')).toBe(
+    expect(insuredMovementLabel('PENDING_EXPERT_REPORT', 'PENDING_ANALYST_REVIEW')).toBe(
       'Enviado a verificación con un perito',
     );
   });
 
   it('names the reopening of a closed case', () => {
-    expect(movimientoAseguradoLabel('PENDING_ANALYST_REVIEW', 'APPROVED')).toBe(
+    expect(insuredMovementLabel('PENDING_ANALYST_REVIEW', 'APPROVED')).toBe(
       'Reabrimos tu siniestro',
     );
-    expect(movimientoAseguradoLabel('PENDING_ANALYST_REVIEW', 'REJECTED')).toBe(
+    expect(insuredMovementLabel('PENDING_ANALYST_REVIEW', 'REJECTED')).toBe(
       'Reabrimos tu siniestro',
     );
-    expect(movimientoAseguradoLabel('PENDING_ANALYST_REVIEW', 'LAPSED')).toBe(
-      'Reabrimos tu siniestro',
-    );
-    expect(movimientoAseguradoLabel('PENDING_ANALYST_REVIEW', 'PENDING_CLASSIFICATION')).toBe(
+    expect(insuredMovementLabel('PENDING_ANALYST_REVIEW', 'LAPSED')).toBe('Reabrimos tu siniestro');
+    expect(insuredMovementLabel('PENDING_ANALYST_REVIEW', 'PENDING_CLASSIFICATION')).toBe(
       'Un analista está revisando tu caso',
     );
   });
 
   it('tells a return from the expert apart from a first review', () => {
-    expect(movimientoAseguradoLabel('PENDING_ANALYST_REVIEW', 'PENDING_EXPERT_REPORT')).toBe(
+    expect(insuredMovementLabel('PENDING_ANALYST_REVIEW', 'PENDING_EXPERT_REPORT')).toBe(
       'Verificación finalizada',
     );
-    expect(movimientoAseguradoLabel('PENDING_ANALYST_REVIEW', 'PENDING_CLASSIFICATION')).toBe(
+    expect(insuredMovementLabel('PENDING_ANALYST_REVIEW', 'PENDING_CLASSIFICATION')).toBe(
       'Un analista está revisando tu caso',
     );
   });
 
   it('tells the trip to and back from the repair shop', () => {
-    expect(movimientoAseguradoLabel('PENDING_REPAIR', 'PENDING_ANALYST_REVIEW')).toBe(
+    expect(insuredMovementLabel('PENDING_REPAIR', 'PENDING_ANALYST_REVIEW')).toBe(
       'Enviado al servicio técnico',
     );
-    expect(movimientoAseguradoLabel('PENDING_ANALYST_REVIEW', 'PENDING_REPAIR')).toBe(
+    expect(insuredMovementLabel('PENDING_ANALYST_REVIEW', 'PENDING_REPAIR')).toBe(
       'Respuesta del servicio técnico recibida',
     );
   });
 
   it('does not show the classification failure', () => {
-    expect(movimientoAseguradoLabel('CLASSIFICATION_FAILED', 'PENDING_CLASSIFICATION')).toBeNull();
+    expect(insuredMovementLabel('CLASSIFICATION_FAILED', 'PENDING_CLASSIFICATION')).toBeNull();
   });
 
   it('shows the resolution', () => {
-    expect(movimientoAseguradoLabel('APPROVED', 'PENDING_ANALYST_REVIEW')).toBe(
-      'Siniestro aprobado',
-    );
-    expect(movimientoAseguradoLabel('REJECTED', 'PENDING_ANALYST_REVIEW')).toBe(
-      'Siniestro rechazado',
-    );
+    expect(insuredMovementLabel('APPROVED', 'PENDING_ANALYST_REVIEW')).toBe('Siniestro aprobado');
+    expect(insuredMovementLabel('REJECTED', 'PENDING_ANALYST_REVIEW')).toBe('Siniestro rechazado');
   });
 
   it('no next step leaks the expert assessment or the classification', () => {
@@ -91,7 +85,7 @@ describe('movimientoAseguradoLabel', () => {
     ];
 
     for (const status of statuses) {
-      const text = proximoPaso(status).toLowerCase();
+      const text = nextStepLabel(status).toLowerCase();
       expect(text.length).toBeGreaterThan(0);
       for (const word of forbidden) {
         expect(text).not.toContain(word);
@@ -116,7 +110,7 @@ describe('movimientoAseguradoLabel', () => {
 
     for (const to of statuses) {
       for (const from of fromStatuses) {
-        const label = (movimientoAseguradoLabel(to, from) ?? '').toLowerCase();
+        const label = (insuredMovementLabel(to, from) ?? '').toLowerCase();
         for (const word of forbidden) {
           expect(label).withContext(`${from} → ${to}`).not.toContain(word);
         }
@@ -125,10 +119,10 @@ describe('movimientoAseguradoLabel', () => {
   });
 });
 
-describe('estadoSimplificadoEfectivo', () => {
+describe('effectiveSimplifiedStatus', () => {
   it('does not step back when the insured uploads documents', () => {
     expect(
-      estadoSimplificadoEfectivo('PENDING_CLASSIFICATION', [
+      effectiveSimplifiedStatus('PENDING_CLASSIFICATION', [
         'PENDING_CLASSIFICATION',
         'AWAITING_DOCUMENTATION',
       ]),
@@ -136,16 +130,16 @@ describe('estadoSimplificadoEfectivo', () => {
   });
 
   it('marks Terminado only while the case is closed', () => {
-    expect(estadoSimplificadoEfectivo('APPROVED', ['PENDING_ANALYST_REVIEW'])).toBe('TERMINADO');
-    expect(estadoSimplificadoEfectivo('LAPSED', ['AWAITING_DOCUMENTATION'])).toBe('TERMINADO');
+    expect(effectiveSimplifiedStatus('APPROVED', ['PENDING_ANALYST_REVIEW'])).toBe('TERMINADO');
+    expect(effectiveSimplifiedStatus('LAPSED', ['AWAITING_DOCUMENTATION'])).toBe('TERMINADO');
   });
 
   it('goes back to En trámite when a closed case reopens', () => {
     expect(
-      estadoSimplificadoEfectivo('PENDING_ANALYST_REVIEW', ['PENDING_ANALYST_REVIEW', 'REJECTED']),
+      effectiveSimplifiedStatus('PENDING_ANALYST_REVIEW', ['PENDING_ANALYST_REVIEW', 'REJECTED']),
     ).toBe('EN_TRAMITE');
     expect(
-      estadoSimplificadoEfectivo('PENDING_ANALYST_REVIEW', ['AWAITING_DOCUMENTATION', 'LAPSED']),
+      effectiveSimplifiedStatus('PENDING_ANALYST_REVIEW', ['AWAITING_DOCUMENTATION', 'LAPSED']),
     ).toBe('EN_TRAMITE');
   });
 });

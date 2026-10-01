@@ -1,14 +1,14 @@
 import { StatusTone } from './status-tone';
 
 /** Mirrors common-lib's FraudRecordSource enum. */
-export type OrigenAntecedente = 'EXPERT_BACKED' | 'ANALYST_DECLARED';
+export type FraudRecordOrigin = 'EXPERT_BACKED' | 'ANALYST_DECLARED';
 
-const ORIGEN_LABELS: Record<OrigenAntecedente, string> = {
+const ORIGEN_LABELS: Record<FraudRecordOrigin, string> = {
   EXPERT_BACKED: 'Con respaldo pericial',
   ANALYST_DECLARED: 'Declarado por el analista',
 };
 
-export function origenAntecedenteLabel(value: string): string {
+export function fraudRecordOriginLabel(value: string): string {
   return (ORIGEN_LABELS as Record<string, string>)[value] ?? value;
 }
 
@@ -16,11 +16,11 @@ export function origenAntecedenteLabel(value: string): string {
  * Mirrors FraudRecordResponse. `inForce`: within the insurer's window. `scores`: also weighs in the
  * engine, which requires an expert report. Keep them apart in the UI.
  */
-export interface AntecedenteFraude {
+export interface FraudRecord {
   id: number;
   insuredDni: string;
   caseId: number;
-  source: OrigenAntecedente;
+  source: FraudRecordOrigin;
   reason: string;
   expertAssessmentId: number | null;
   declaredByAnalystName: string;
@@ -34,50 +34,50 @@ export interface AntecedenteFraude {
  * - `declarado`: in force without an expert report; shown, not counted.
  * - `vencido`: outside the window; still shown, since "there was one" differs from "none".
  */
-export type EstadoAntecedente = 'pericial' | 'declarado' | 'vencido';
+export type FraudRecordStatus = 'pericial' | 'declarado' | 'vencido';
 
-export function estadoAntecedente(a: AntecedenteFraude): EstadoAntecedente {
+export function fraudRecordStatus(a: FraudRecord): FraudRecordStatus {
   if (!a.inForce) {
     return 'vencido';
   }
   return a.scores ? 'pericial' : 'declarado';
 }
 
-const ESTADO_LABELS: Record<EstadoAntecedente, string> = {
+const STATUS_LABELS: Record<FraudRecordStatus, string> = {
   pericial: 'Vigente · con respaldo pericial',
   declarado: 'Vigente · sin respaldo pericial',
   vencido: 'Fuera de la ventana de vigencia',
 };
 
-export function estadoAntecedenteLabel(a: AntecedenteFraude): string {
-  return ESTADO_LABELS[estadoAntecedente(a)];
+export function fraudRecordStatusLabel(a: FraudRecord): string {
+  return STATUS_LABELS[fraudRecordStatus(a)];
 }
 
 // Tone follows actual weight: `danger` only when the record feeds the engine.
-const ESTADO_TONES: Record<EstadoAntecedente, StatusTone> = {
+const STATUS_TONES: Record<FraudRecordStatus, StatusTone> = {
   pericial: 'danger',
   declarado: 'warning',
   vencido: 'neutral',
 };
 
-export function estadoAntecedenteTone(a: AntecedenteFraude): StatusTone {
-  return ESTADO_TONES[estadoAntecedente(a)];
+export function fraudRecordStatusTone(a: FraudRecord): StatusTone {
+  return STATUS_TONES[fraudRecordStatus(a)];
 }
 
-const ESTADO_EFECTOS: Record<EstadoAntecedente, string> = {
+const STATUS_EFFECTS: Record<FraudRecordStatus, string> = {
   pericial: 'Suma al nivel de riesgo y puede impedir la vía rápida.',
   declarado: 'No suma al nivel de riesgo: se muestra como alerta porque no tuvo peritaje detrás.',
   vencido: 'Ya no pesa: pasó la ventana de vigencia que configuró la aseguradora.',
 };
 
-export function efectoAntecedente(a: AntecedenteFraude): string {
-  return ESTADO_EFECTOS[estadoAntecedente(a)];
+export function fraudRecordEffect(a: FraudRecord): string {
+  return STATUS_EFFECTS[fraudRecordStatus(a)];
 }
 
-export interface RegistrarAntecedenteRequest {
-  source: OrigenAntecedente;
+export interface RegisterFraudRecordRequest {
+  source: FraudRecordOrigin;
   reason: string;
 }
 
 /** Same minimum cases-service validates. */
-export const MOTIVO_ANTECEDENTE_MIN = 20;
+export const FRAUD_RECORD_REASON_MIN = 20;

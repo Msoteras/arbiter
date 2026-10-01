@@ -25,7 +25,7 @@ import {
 
 import { ExpedienteService, CaseCreateRequest } from '../expediente.service';
 import { PolicyService } from '../policy.service';
-import { ExpedienteResponse } from '../../../core/models/expediente';
+import { CaseResponse } from '../../../core/models/case';
 import { Policy } from '../../../core/models/policy';
 import { ChipGroupComponent, ChipOption } from '../../../shared/ui/chip-group/chip-group.component';
 import {
@@ -177,7 +177,7 @@ export class NuevaDenunciaComponent {
   protected readonly maxStepReached = signal<Step>(1);
   protected readonly submitting = signal(false);
   protected readonly submitError = signal<string | null>(null);
-  protected readonly submittedCase = signal<ExpedienteResponse | null>(null);
+  protected readonly submittedCase = signal<CaseResponse | null>(null);
 
   private readonly insuredId = this.session.insuredId();
 

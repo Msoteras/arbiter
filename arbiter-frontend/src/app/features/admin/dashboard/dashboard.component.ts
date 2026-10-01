@@ -13,8 +13,8 @@ import { EChartsCoreOption } from 'echarts/core';
 import { switchMap, tap } from 'rxjs';
 
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
-import { clasificacionLabel, clasificacionTone } from '../../../core/models/clasificacion';
-import { estadoLabel, estadoTone } from '../../../core/models/estado';
+import { classificationLabel, classificationTone } from '../../../core/models/classification';
+import { caseStatusLabel, caseStatusTone } from '../../../core/models/case-status';
 import { RiskBand, riskBandLabel } from '../../../core/models/risk-band';
 import { ruleTypeDescription, ruleTypeLabel } from '../../../core/models/rule-type';
 import { StatusTone } from '../../../core/models/status-tone';
@@ -517,17 +517,17 @@ export class DashboardComponent {
 
   protected readonly statusItems = computed<DistributionItem[]>(() =>
     (this.data()?.byStatus ?? []).map((count) => ({
-      label: labelOrEmpty(count, estadoLabel, 'Sin estado'),
+      label: labelOrEmpty(count, caseStatusLabel, 'Sin estado'),
       count: count.count,
-      tone: count.label === null ? 'neutral' : estadoTone(count.label),
+      tone: count.label === null ? 'neutral' : caseStatusTone(count.label),
     })),
   );
 
   protected readonly classificationItems = computed<DistributionItem[]>(() =>
     (this.data()?.byClassification ?? []).map((count) => ({
-      label: labelOrEmpty(count, clasificacionLabel, 'Sin clasificar'),
+      label: labelOrEmpty(count, classificationLabel, 'Sin clasificar'),
       count: count.count,
-      tone: count.label === null ? 'neutral' : clasificacionTone(count.label),
+      tone: count.label === null ? 'neutral' : classificationTone(count.label),
     })),
   );
 

@@ -24,13 +24,13 @@ const LABELS: Record<CaseStatus, string> = {
   LAPSED: 'Caducado',
 };
 
-export function estadoLabel(value: string): string {
+export function caseStatusLabel(value: string): string {
   return (LABELS as Record<string, string>)[value] ?? value;
 }
 
 // Insured-facing badge: analyst review and classification failure both read "En análisis" so no
 // internal jargon leaks. LAPSED stays distinct from REJECTED: it expired, nobody rejected it.
-const BADGE_ASEGURADO: Record<CaseStatus, string> = {
+const INSURED_BADGES: Record<CaseStatus, string> = {
   PENDING_CLASSIFICATION: 'Recibido',
   PENDING_ANALYST_REVIEW: 'En análisis',
   CLASSIFICATION_FAILED: 'En análisis',
@@ -42,18 +42,18 @@ const BADGE_ASEGURADO: Record<CaseStatus, string> = {
   LAPSED: 'Caducado',
 };
 
-export function estadoBadgeLabelAsegurado(value: string): string {
-  return (BADGE_ASEGURADO as Record<string, string>)[value] ?? estadoLabel(value);
+export function insuredStatusBadgeLabel(value: string): string {
+  return (INSURED_BADGES as Record<string, string>)[value] ?? caseStatusLabel(value);
 }
 
 /**
  * Mirrors `case_status.is_final` and the backend's `CaseServiceImpl.FINAL_STATUS_NAMES`.
  * Exported as a list because dashboards count "resolved" cases by summing these statuses.
  */
-export const ESTADOS_FINALES: readonly CaseStatus[] = ['APPROVED', 'REJECTED', 'LAPSED'];
+export const FINAL_STATUSES: readonly CaseStatus[] = ['APPROVED', 'REJECTED', 'LAPSED'];
 
-export function isEstadoFinal(value: string): boolean {
-  return (ESTADOS_FINALES as readonly string[]).includes(value);
+export function isFinalStatus(value: string): boolean {
+  return (FINAL_STATUSES as readonly string[]).includes(value);
 }
 
 // Read by the insured: never names the model's classification or the expert report itself.
@@ -75,7 +75,7 @@ const PROXIMOS_PASOS: Record<CaseStatus, string> = {
   LAPSED: 'No quedan pasos pendientes: el expediente se cerró por caducidad.',
 };
 
-export function proximoPaso(value: string): string {
+export function nextStepLabel(value: string): string {
   return (PROXIMOS_PASOS as Record<string, string>)[value] ?? '';
 }
 
@@ -92,7 +92,7 @@ const TONES: Record<CaseStatus, StatusTone> = {
   LAPSED: 'danger',
 };
 
-export function estadoTone(value: string): StatusTone {
+export function caseStatusTone(value: string): StatusTone {
   return (TONES as Record<string, StatusTone>)[value] ?? 'neutral';
 }
 
@@ -108,9 +108,9 @@ export function riskBandEmptyLabel(status: string, classification: string | null
 }
 
 // Three-level progress shown to the insured, free of internal jargon.
-export type EstadoSimplificado = 'DENUNCIADO' | 'EN_TRAMITE' | 'TERMINADO';
+export type SimplifiedStatus = 'DENUNCIADO' | 'EN_TRAMITE' | 'TERMINADO';
 
-const SIMPLIFICADO: Record<CaseStatus, EstadoSimplificado> = {
+const SIMPLIFIED: Record<CaseStatus, SimplifiedStatus> = {
   PENDING_CLASSIFICATION: 'DENUNCIADO',
   PENDING_ANALYST_REVIEW: 'EN_TRAMITE',
   CLASSIFICATION_FAILED: 'EN_TRAMITE',
@@ -122,58 +122,53 @@ const SIMPLIFICADO: Record<CaseStatus, EstadoSimplificado> = {
   LAPSED: 'TERMINADO',
 };
 
-const SIMPLIFICADO_LABELS: Record<EstadoSimplificado, string> = {
+const SIMPLIFIED_LABELS: Record<SimplifiedStatus, string> = {
   DENUNCIADO: 'Denunciado',
   EN_TRAMITE: 'En trámite',
   TERMINADO: 'Terminado',
 };
 
-export function estadoSimplificado(value: string): EstadoSimplificado {
-  return (SIMPLIFICADO as Record<string, EstadoSimplificado>)[value] ?? 'EN_TRAMITE';
+export function simplifiedStatus(value: string): SimplifiedStatus {
+  return (SIMPLIFIED as Record<string, SimplifiedStatus>)[value] ?? 'EN_TRAMITE';
 }
 
-export function estadoSimplificadoLabel(value: string): string {
-  return SIMPLIFICADO_LABELS[estadoSimplificado(value)];
+export function simplifiedStatusLabel(value: string): string {
+  return SIMPLIFIED_LABELS[simplifiedStatus(value)];
 }
 
-export const ESTADOS_SIMPLIFICADOS = Object.entries(SIMPLIFICADO_LABELS).map(([value, label]) => ({
-  value: value as EstadoSimplificado,
+export const SIMPLIFIED_STATUSES = Object.entries(SIMPLIFIED_LABELS).map(([value, label]) => ({
+  value: value as SimplifiedStatus,
   label,
 }));
 
-export function estadosDelCajon(cajon: EstadoSimplificado): CaseStatus[] {
-  return (Object.keys(SIMPLIFICADO) as CaseStatus[]).filter(
-    (status) => SIMPLIFICADO[status] === cajon,
-  );
+export function statusesInBucket(cajon: SimplifiedStatus): CaseStatus[] {
+  return (Object.keys(SIMPLIFIED) as CaseStatus[]).filter((status) => SIMPLIFIED[status] === cajon);
 }
 
-const SIMPLIFICADO_ORDER: EstadoSimplificado[] = ['DENUNCIADO', 'EN_TRAMITE', 'TERMINADO'];
+const SIMPLIFIED_ORDER: SimplifiedStatus[] = ['DENUNCIADO', 'EN_TRAMITE', 'TERMINADO'];
 
 /**
  * Highest progress level reached across the status history, so the insured's stepper never goes
  * back to "Denunciado" when uploading documents re-queues the case to PENDING_CLASSIFICATION.
  * `pastStatuses` are the `toStatus` values of `statusHistory`.
  */
-export function estadoSimplificadoEfectivo(
+export function effectiveSimplifiedStatus(
   currentStatus: string,
   pastStatuses: string[] = [],
-): EstadoSimplificado {
+): SimplifiedStatus {
   const maxIndex = [currentStatus, ...pastStatuses]
-    .map((s) => SIMPLIFICADO_ORDER.indexOf(estadoSimplificado(s)))
+    .map((s) => SIMPLIFIED_ORDER.indexOf(simplifiedStatus(s)))
     .reduce((max, i) => Math.max(max, i), 0);
   // "Terminado" only while final right now: a reopened case must step back to "En trámite".
-  const cap = isEstadoFinal(currentStatus) ? 2 : 1;
-  return SIMPLIFICADO_ORDER[Math.min(maxIndex, cap)];
+  const cap = isFinalStatus(currentStatus) ? 2 : 1;
+  return SIMPLIFIED_ORDER[Math.min(maxIndex, cap)];
 }
 
 /**
  * True when the case is back in PENDING_CLASSIFICATION because the insured uploaded missing
  * documents (it already went through AWAITING_DOCUMENTATION), not because it was just filed.
  */
-export function esReprocesoPorDocumentacion(
-  currentStatus: string,
-  pastStatuses: string[],
-): boolean {
+export function isDocumentationRework(currentStatus: string, pastStatuses: string[]): boolean {
   return (
     currentStatus === 'PENDING_CLASSIFICATION' && pastStatuses.includes('AWAITING_DOCUMENTATION')
   );
@@ -191,7 +186,7 @@ const TITULOS_ASEGURADO: Record<CaseStatus, string> = {
   LAPSED: 'Tu siniestro caducó',
 };
 
-export function estadoTituloAsegurado(value: string): string {
+export function insuredStatusTitle(value: string): string {
   return (TITULOS_ASEGURADO as Record<string, string>)[value] ?? 'Seguimiento de tu siniestro';
 }
 
@@ -199,13 +194,10 @@ const TITULO_REPROCESO_DOCUMENTACION = 'Recibimos tu documentación';
 const DESCRIPCION_REPROCESO_DOCUMENTACION =
   'Recibimos los documentos que subiste y estamos reevaluando tu caso. Te avisamos ni bien haya novedades.';
 
-export function estadoTituloAseguradoEfectivo(
-  currentStatus: string,
-  pastStatuses: string[],
-): string {
-  return esReprocesoPorDocumentacion(currentStatus, pastStatuses)
+export function effectiveInsuredStatusTitle(currentStatus: string, pastStatuses: string[]): string {
+  return isDocumentationRework(currentStatus, pastStatuses)
     ? TITULO_REPROCESO_DOCUMENTACION
-    : estadoTituloAsegurado(currentStatus);
+    : insuredStatusTitle(currentStatus);
 }
 
 // Insured-safe copy: must NEVER mention the model's classification, fraud scoring or internal statuses.
@@ -226,17 +218,17 @@ const DESCRIPCIONES_ASEGURADO: Record<CaseStatus, string> = {
     'Cerramos tu siniestro por falta de la documentación que te pedimos. Te enviamos el detalle por correo electrónico.',
 };
 
-export function estadoDescripcionAsegurado(value: string): string {
+export function insuredStatusDescription(value: string): string {
   return (DESCRIPCIONES_ASEGURADO as Record<string, string>)[value] ?? '';
 }
 
-export function estadoDescripcionAseguradoEfectivo(
+export function effectiveInsuredStatusDescription(
   currentStatus: string,
   pastStatuses: string[],
 ): string {
-  return esReprocesoPorDocumentacion(currentStatus, pastStatuses)
+  return isDocumentationRework(currentStatus, pastStatuses)
     ? DESCRIPCION_REPROCESO_DOCUMENTACION
-    : estadoDescripcionAsegurado(currentStatus);
+    : insuredStatusDescription(currentStatus);
 }
 
 /**
@@ -244,10 +236,7 @@ export function estadoDescripcionAseguradoEfectivo(
  * that text is internal and would leak the classification, verdict and referral motive.
  * Returns `null` for movements the insured must not see (e.g. CLASSIFICATION_FAILED).
  */
-export function movimientoAseguradoLabel(
-  toStatus: string,
-  fromStatus: string | null,
-): string | null {
+export function insuredMovementLabel(toStatus: string, fromStatus: string | null): string | null {
   // Analyst-assignment rows are stored with from == to; they are not case movements.
   if (fromStatus !== null && fromStatus === toStatus) {
     return null;
@@ -273,7 +262,7 @@ export function movimientoAseguradoLabel(
         return 'Respuesta del servicio técnico recibida';
       }
       // Reopening a resolved case: named as such, but the reason is never shown.
-      if (fromStatus !== null && isEstadoFinal(fromStatus)) {
+      if (fromStatus !== null && isFinalStatus(fromStatus)) {
         return 'Reabrimos tu siniestro';
       }
       return 'Un analista está revisando tu caso';

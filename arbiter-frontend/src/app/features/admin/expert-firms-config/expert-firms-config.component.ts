@@ -7,7 +7,7 @@ import {
   PROVIDER_TYPE_OPTIONS,
   ProviderType,
   providerTypeLabel,
-} from '../../../core/models/peritaje';
+} from '../../../core/models/expert-assessment';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { CardComponent } from '../../../shared/ui/card/card.component';
 import { CheckboxComponent } from '../../../shared/ui/checkbox/checkbox.component';

@@ -20,8 +20,8 @@ import {
 } from 'rxjs';
 
 import { ExpedienteService } from '../expediente.service';
-import { ExpedienteResponse } from '../../../core/models/expediente';
-import { estadoLabel, estadoTone } from '../../../core/models/estado';
+import { CaseResponse } from '../../../core/models/case';
+import { caseStatusLabel, caseStatusTone } from '../../../core/models/case-status';
 import { StatusTone } from '../../../core/models/status-tone';
 import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
 
@@ -30,7 +30,7 @@ const MIN_CHARS = 2;
 const MAX_RESULTS = 6;
 
 interface SearchState {
-  items: ExpedienteResponse[];
+  items: CaseResponse[];
   loading: boolean;
   failed: boolean;
 }
@@ -319,10 +319,10 @@ export class GlobalSearchComponent {
   }
 
   protected label(status: string): string {
-    return estadoLabel(status);
+    return caseStatusLabel(status);
   }
   protected tone(status: string): StatusTone {
-    return estadoTone(status);
+    return caseStatusTone(status);
   }
 
   @HostListener('document:click', ['$event'])

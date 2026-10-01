@@ -3,20 +3,17 @@ import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 
 import { environment } from '../../../environments/environment';
-import { ExpedienteResponse } from '../../core/models/expediente';
+import { CaseResponse } from '../../core/models/case';
 import { CaseDocument } from '../../core/models/case-document';
 import { Policy } from '../../core/models/policy';
 import {
   ExpertVerdict,
-  OpcionesDerivacion,
-  Peritaje,
+  DerivationOptions,
+  ExpertAssessment,
   ProviderType,
   RepairOutcome,
-} from '../../core/models/peritaje';
-import {
-  AntecedenteFraude,
-  RegistrarAntecedenteRequest,
-} from '../../core/models/antecedente-fraude';
+} from '../../core/models/expert-assessment';
+import { FraudRecord, RegisterFraudRecordRequest } from '../../core/models/fraud-record';
 
 export interface CaseCreateRequest {
   branch: string;
@@ -218,12 +215,12 @@ export class ExpedienteService {
    * `insurer` is sent only by the insured portal when the insured has several insurers: case ids
    * repeat across tenants. The backend validates it against the token.
    */
-  getById(id: string | number, insurer?: string | null): Observable<ExpedienteResponse> {
+  getById(id: string | number, insurer?: string | null): Observable<CaseResponse> {
     const options = insurer ? { params: new HttpParams().set('insurer', insurer) } : {};
-    return this.http.get<ExpedienteResponse>(`${this.baseUrl}/${id}`, options);
+    return this.http.get<CaseResponse>(`${this.baseUrl}/${id}`, options);
   }
 
-  list(params: ExpedienteListParams = {}): Observable<PagedResponse<ExpedienteResponse>> {
+  list(params: ExpedienteListParams = {}): Observable<PagedResponse<CaseResponse>> {
     const query: Record<string, string | string[]> = {};
     if (params.status?.length) query['status'] = params.status;
     if (params.claimCause) query['claimCause'] = params.claimCause;
@@ -245,7 +242,7 @@ export class ExpedienteService {
     if (params.scope) query['scope'] = params.scope;
     if (params.staleDays != null) query['staleDays'] = String(params.staleDays);
     if (params.insurerId != null) query['insurerId'] = String(params.insurerId);
-    return this.http.get<PagedResponse<ExpedienteResponse>>(this.baseUrl, { params: query });
+    return this.http.get<PagedResponse<CaseResponse>>(this.baseUrl, { params: query });
   }
 
   /** Same gate `create` runs (term, waiting period, arrears) without creating anything. */
@@ -267,16 +264,13 @@ export class ExpedienteService {
     });
   }
 
-  create(
-    request: CaseCreateRequest,
-    documents?: Map<string, File>,
-  ): Observable<ExpedienteResponse> {
+  create(request: CaseCreateRequest, documents?: Map<string, File>): Observable<CaseResponse> {
     const formData = new FormData();
     formData.append('case', new Blob([JSON.stringify(request)], { type: 'application/json' }));
     if (documents) {
       documents.forEach((file, type) => formData.append(type, file));
     }
-    return this.http.post<ExpedienteResponse>(this.baseUrl, formData);
+    return this.http.post<CaseResponse>(this.baseUrl, formData);
   }
 
   /** `insurer`: see `getById`; pass `ExpedienteResponse.insurerSlug`. */
@@ -284,15 +278,11 @@ export class ExpedienteService {
     caseId: number,
     documents: Map<string, File>,
     insurer?: string | null,
-  ): Observable<ExpedienteResponse> {
+  ): Observable<CaseResponse> {
     const formData = new FormData();
     documents.forEach((file, type) => formData.append(type, file));
     const options = insurer ? { params: new HttpParams().set('insurer', insurer) } : {};
-    return this.http.post<ExpedienteResponse>(
-      `${this.baseUrl}/${caseId}/documents`,
-      formData,
-      options,
-    );
+    return this.http.post<CaseResponse>(`${this.baseUrl}/${caseId}/documents`, formData, options);
   }
 
   listDocuments(caseId: number, insurer?: string | null): Observable<CaseDocument[]> {
@@ -324,13 +314,13 @@ export class ExpedienteService {
   }
 
   /** Only valid from CLASSIFICATION_FAILED (409 otherwise). */
-  retryClassification(caseId: number): Observable<ExpedienteResponse> {
-    return this.http.post<ExpedienteResponse>(`${this.baseUrl}/${caseId}/retry-classification`, {});
+  retryClassification(caseId: number): Observable<CaseResponse> {
+    return this.http.post<CaseResponse>(`${this.baseUrl}/${caseId}/retry-classification`, {});
   }
 
   /** Replaces any previous assignee. `analystId` comes from `GET /auth/users/analysts` (per tenant). */
-  assign(caseId: number, analystId: number): Observable<ExpedienteResponse> {
-    return this.http.post<ExpedienteResponse>(`${this.baseUrl}/${caseId}/assign`, { analystId });
+  assign(caseId: number, analystId: number): Observable<CaseResponse> {
+    return this.http.post<CaseResponse>(`${this.baseUrl}/${caseId}/assign`, { analystId });
   }
 
   /** Causes of the case's branch some coverage of the policy answers for, with that coverage. */
@@ -344,12 +334,12 @@ export class ExpedienteService {
   }
 
   /** Back to analyst review without reverting the previous decision. 409 from a non-terminal status. */
-  reopen(caseId: number, reason: string): Observable<ExpedienteResponse> {
-    return this.http.post<ExpedienteResponse>(`${this.baseUrl}/${caseId}/reopen`, { reason });
+  reopen(caseId: number, reason: string): Observable<CaseResponse> {
+    return this.http.post<CaseResponse>(`${this.baseUrl}/${caseId}/reopen`, { reason });
   }
 
-  unassign(caseId: number): Observable<ExpedienteResponse> {
-    return this.http.delete<ExpedienteResponse>(`${this.baseUrl}/${caseId}/assign`);
+  unassign(caseId: number): Observable<CaseResponse> {
+    return this.http.delete<CaseResponse>(`${this.baseUrl}/${caseId}/assign`);
   }
 
   /** All lens counts in one request, over the current filters. */
@@ -378,18 +368,15 @@ export class ExpedienteService {
   derivationOptions(
     caseId: number,
     providerType: ProviderType = 'ESTUDIO_LIQUIDADOR',
-  ): Observable<OpcionesDerivacion> {
-    return this.http.get<OpcionesDerivacion>(
-      `${this.baseUrl}/${caseId}/expert-assessment/options`,
-      {
-        params: { providerType },
-      },
-    );
+  ): Observable<DerivationOptions> {
+    return this.http.get<DerivationOptions>(`${this.baseUrl}/${caseId}/expert-assessment/options`, {
+      params: { providerType },
+    });
   }
 
   /** Newest first. */
-  derivaciones(caseId: number): Observable<Peritaje[]> {
-    return this.http.get<Peritaje[]>(`${this.baseUrl}/${caseId}/expert-assessment/all`);
+  derivaciones(caseId: number): Observable<ExpertAssessment[]> {
+    return this.http.get<ExpertAssessment[]>(`${this.baseUrl}/${caseId}/expert-assessment/all`);
   }
 
   derivarAPeritaje(
@@ -397,8 +384,8 @@ export class ExpedienteService {
     expertFirmId: number,
     reason: string,
     providerType: ProviderType = 'ESTUDIO_LIQUIDADOR',
-  ): Observable<Peritaje> {
-    return this.http.post<Peritaje>(
+  ): Observable<ExpertAssessment> {
+    return this.http.post<ExpertAssessment>(
       `${this.baseUrl}/${caseId}/expert-assessment`,
       { expertFirmId, reason },
       { params: { providerType } },
@@ -411,7 +398,7 @@ export class ExpedienteService {
     note: string,
     repairCost: number | null,
     report: File,
-  ): Observable<Peritaje> {
+  ): Observable<ExpertAssessment> {
     const formData = new FormData();
     formData.append('report', report);
     formData.append('outcome', outcome);
@@ -420,7 +407,7 @@ export class ExpedienteService {
     if (repairCost != null) {
       formData.append('repairCost', String(repairCost));
     }
-    return this.http.post<Peritaje>(
+    return this.http.post<ExpertAssessment>(
       `${this.baseUrl}/${caseId}/expert-assessment/repair-report`,
       formData,
     );
@@ -433,7 +420,7 @@ export class ExpedienteService {
     note: string,
     indemnifiableAmount: number | null,
     report: File,
-  ): Observable<Peritaje> {
+  ): Observable<ExpertAssessment> {
     // In the body, not the query string: the note may contain personal data that would end up in
     // proxy logs. @RequestParam reads multipart fields too.
     const formData = new FormData();
@@ -444,7 +431,10 @@ export class ExpedienteService {
     if (indemnifiableAmount != null) {
       formData.append('indemnifiableAmount', String(indemnifiableAmount));
     }
-    return this.http.post<Peritaje>(`${this.baseUrl}/${caseId}/expert-assessment/report`, formData);
+    return this.http.post<ExpertAssessment>(
+      `${this.baseUrl}/${caseId}/expert-assessment/report`,
+      formData,
+    );
   }
 
   /** Current data, fetched lazily when the tab opens to spare an insurer-DB query on every detail load. */
@@ -453,16 +443,16 @@ export class ExpedienteService {
   }
 
   /** Includes expired records: "had one that no longer counts" differs from "never had one". */
-  antecedentesFraude(caseId: number): Observable<AntecedenteFraude[]> {
-    return this.http.get<AntecedenteFraude[]>(`${this.baseUrl}/${caseId}/fraud-record/insured`);
+  antecedentesFraude(caseId: number): Observable<FraudRecord[]> {
+    return this.http.get<FraudRecord[]>(`${this.baseUrl}/${caseId}/fraud-record/insured`);
   }
 
   /** `EXPERT_BACKED` requires a saved expert verdict confirming fraud (422 otherwise). */
   registrarAntecedente(
     caseId: number,
-    request: RegistrarAntecedenteRequest,
-  ): Observable<AntecedenteFraude> {
-    return this.http.post<AntecedenteFraude>(`${this.baseUrl}/${caseId}/fraud-record`, request);
+    request: RegisterFraudRecordRequest,
+  ): Observable<FraudRecord> {
+    return this.http.post<FraudRecord>(`${this.baseUrl}/${caseId}/fraud-record`, request);
   }
 
   assignedSummary(): Observable<AssignedCaseSummary> {

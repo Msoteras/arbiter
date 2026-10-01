@@ -4,8 +4,8 @@ import { Params, RouterLink } from '@angular/router';
 import { EChartsCoreOption } from 'echarts/core';
 import { Observable } from 'rxjs';
 
-import { clasificacionLabel, clasificacionTone } from '../../../core/models/clasificacion';
-import { estadoLabel, estadoTone } from '../../../core/models/estado';
+import { classificationLabel, classificationTone } from '../../../core/models/classification';
+import { caseStatusLabel, caseStatusTone } from '../../../core/models/case-status';
 import { StatusTone } from '../../../core/models/status-tone';
 import { bucketLabel, formatDate, formatDateTime } from '../../../core/util/datetime';
 import { staggerReveal } from '../../../shared/animations';
@@ -95,9 +95,9 @@ export class ResolutionReportComponent extends ReportTab<
 
   protected readonly statusItems = computed<DistributionItem[]>(() =>
     (this.summary()?.byStatus ?? []).map((bucket) => ({
-      label: estadoLabel(bucket.label),
+      label: caseStatusLabel(bucket.label),
       count: bucket.count,
-      tone: estadoTone(bucket.label),
+      tone: caseStatusTone(bucket.label),
     })),
   );
 
@@ -254,10 +254,10 @@ export class ResolutionReportComponent extends ReportTab<
   protected readonly formatDuration = formatDuration;
   protected readonly decisionLabel = decisionLabel;
   protected readonly waitingBreakdown = waitingBreakdown;
-  protected readonly estadoLabel = estadoLabel;
-  protected readonly estadoTone = estadoTone;
-  protected readonly clasificacionLabel = clasificacionLabel;
-  protected readonly clasificacionTone = clasificacionTone;
+  protected readonly caseStatusLabel = caseStatusLabel;
+  protected readonly caseStatusTone = caseStatusTone;
+  protected readonly classificationLabel = classificationLabel;
+  protected readonly classificationTone = classificationTone;
 
   constructor() {
     super();

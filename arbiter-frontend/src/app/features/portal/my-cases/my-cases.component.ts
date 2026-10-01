@@ -12,16 +12,16 @@ import {
 } from 'rxjs';
 
 import { InsuredSessionService } from '../../../core/auth/insured-session.service';
-import { ExpedienteResponse } from '../../../core/models/expediente';
+import { CaseResponse } from '../../../core/models/case';
 import {
-  ESTADOS_SIMPLIFICADOS,
-  EstadoSimplificado,
-  estadoBadgeLabelAsegurado,
-  estadoTone,
-  estadosDelCajon,
-  isEstadoFinal,
-  proximoPaso,
-} from '../../../core/models/estado';
+  SIMPLIFIED_STATUSES,
+  SimplifiedStatus,
+  insuredStatusBadgeLabel,
+  caseStatusTone,
+  statusesInBucket,
+  isFinalStatus,
+  nextStepLabel,
+} from '../../../core/models/case-status';
 import { Policy } from '../../../core/models/policy';
 import { StatusTone } from '../../../core/models/status-tone';
 import { ExpedienteService } from '../../expedientes/expediente.service';
@@ -39,7 +39,7 @@ import { listStagger, staggerReveal } from '../../../shared/animations';
 type LoadState =
   | { status: 'idle' }
   | { status: 'loading' }
-  | { status: 'ok'; data: ExpedienteResponse[]; totalElements: number; totalPages: number }
+  | { status: 'ok'; data: CaseResponse[]; totalElements: number; totalPages: number }
   | { status: 'error' };
 
 @Component({
@@ -68,14 +68,14 @@ export class MyCasesComponent {
   protected readonly identityInput = signal('');
 
   protected readonly qDraft = signal('');
-  protected readonly statusFilter = signal<EstadoSimplificado | ''>('');
+  protected readonly statusFilter = signal<SimplifiedStatus | ''>('');
   protected readonly dateFrom = signal('');
   protected readonly dateTo = signal('');
   protected readonly insurerFilter = signal('');
   protected readonly page = signal(0);
   protected readonly size = signal(10);
 
-  protected readonly statusOptions: SelectOption[] = ESTADOS_SIMPLIFICADOS;
+  protected readonly statusOptions: SelectOption[] = SIMPLIFIED_STATUSES;
 
   private readonly qDebounced = toSignal(
     toObservable(this.qDraft).pipe(debounceTime(350), distinctUntilChanged()),
@@ -101,7 +101,7 @@ export class MyCasesComponent {
     insuredId: this.session.insuredId(),
     q: this.qDebounced() || undefined,
     status: this.statusFilter()
-      ? estadosDelCajon(this.statusFilter() as EstadoSimplificado)
+      ? statusesInBucket(this.statusFilter() as SimplifiedStatus)
       : undefined,
     eventDateFrom: this.dateFrom() || undefined,
     eventDateTo: this.dateTo() || undefined,
@@ -142,7 +142,7 @@ export class MyCasesComponent {
   protected readonly loading = computed(() => this.state().status === 'loading');
   protected readonly hasError = computed(() => this.state().status === 'error');
 
-  protected readonly cases = computed<ExpedienteResponse[]>(() => {
+  protected readonly cases = computed<CaseResponse[]>(() => {
     const s = this.state();
     return s.status === 'ok' ? s.data : [];
   });
@@ -203,26 +203,26 @@ export class MyCasesComponent {
   }
 
   protected statusLabel(status: string): string {
-    return estadoBadgeLabelAsegurado(status);
+    return insuredStatusBadgeLabel(status);
   }
 
   protected statusTone(status: string): StatusTone {
-    return estadoTone(status);
+    return caseStatusTone(status);
   }
 
   protected nextStep(status: string): string {
-    return proximoPaso(status);
+    return nextStepLabel(status);
   }
 
   protected isFinal(status: string): boolean {
-    return isEstadoFinal(status);
+    return isFinalStatus(status);
   }
 
-  protected reportedOn(c: ExpedienteResponse): string {
+  protected reportedOn(c: CaseResponse): string {
     return c.createdAt ? new Date(c.createdAt).toLocaleDateString('es-AR') : '—';
   }
 
-  protected occurredOn(c: ExpedienteResponse): string {
+  protected occurredOn(c: CaseResponse): string {
     return c.eventDate ? new Date(c.eventDate).toLocaleDateString('es-AR') : '—';
   }
 }

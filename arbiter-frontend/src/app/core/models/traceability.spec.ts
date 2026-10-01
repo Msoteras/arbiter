@@ -7,9 +7,9 @@ import {
   ruleResultLabel,
   ruleResultTone,
   ruleTypeLabel,
-} from './trazabilidad';
+} from './traceability';
 
-describe('trazabilidad', () => {
+describe('traceability', () => {
   describe('ruleResultTone / ruleResultLabel', () => {
     it('translates the engine vocabulary', () => {
       expect(ruleResultTone('PASS')).toBe('ok');
