@@ -30,6 +30,7 @@ import {
 import { DocumentAgendaService } from '../document-agenda.service';
 import { CaseNavigationService } from '../case-navigation.service';
 import { CaseMessagesService } from '../case-messages.service';
+import { CaseMessage } from '../../../core/models/case-message';
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
 import { UserAdminService } from '../../../core/auth/user-admin.service';
 import { SettlementAuthoritiesService } from '../../admin/settlement-authorities.service';
@@ -100,14 +101,15 @@ import {
 } from '../../../core/models/deadline-priority';
 import { RiskBand, riskBandLabel } from '../../../core/models/risk-band';
 import { StatusTone } from '../../../core/models/status-tone';
-import { formatDate, formatDateTime } from '../../../core/util/datetime';
+import { chatListStamp, formatDate, formatDateTime } from '../../../core/util/datetime';
 import { FraudGaugeComponent } from '../../../shared/ui/fraud-gauge/fraud-gauge.component';
 import { InfoTipComponent } from '../../../shared/ui/info-tip/info-tip.component';
 import { EmptyStateComponent } from '../../../shared/ui/empty-state/empty-state.component';
 import { StatusTimelineComponent } from '../../../shared/ui/status-timeline/status-timeline.component';
 import { ForensicAnalysisComponent } from './forensic-analysis/forensic-analysis.component';
 import { CaseDocumentsComponent } from '../case-documents/case-documents.component';
-import { CaseChatComponent } from '../case-chat/case-chat.component';
+import { CaseChatPopupComponent } from '../case-chat-popup/case-chat-popup.component';
+import { analystQuickReplies } from '../case-chat/quick-replies';
 import { CardComponent } from '../../../shared/ui/card/card.component';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
@@ -137,7 +139,6 @@ type TabId =
   | 'imagenes'
   | 'asegurado'
   | 'peritaje'
-  | 'conversacion'
   | 'historial';
 type Verb = 'aprobar' | 'rechazar';
 
@@ -163,9 +164,19 @@ function demoraDenuncia(eventDate: string, createdAt: string): string | undefine
 }
 
 /** A signal worth reading before deciding, and the tab where its evidence lives. */
+function initialsOf(name: string | null | undefined): string {
+  return (name ?? '')
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0]!.toUpperCase())
+    .join('');
+}
+
 interface BriefAlert {
   label: string;
-  tab: TabId;
+  /** 'chat' opens the chat popup instead of a tab. */
+  tab: TabId | 'chat';
 }
 
 @Component({
@@ -178,7 +189,7 @@ interface BriefAlert {
     StatusTimelineComponent,
     ForensicAnalysisComponent,
     CaseDocumentsComponent,
-    CaseChatComponent,
+    CaseChatPopupComponent,
     CardComponent,
     ButtonComponent,
     BadgeComponent,
@@ -216,15 +227,21 @@ export class ExpedienteDetailComponent {
       const id = this.loadedCaseId();
       untracked(() => {
         this.unreadMessages.set(0);
+        this.lastMessage.set(null);
         if (id) {
           this.messages.thread(id).subscribe({
-            next: (thread) => this.unreadMessages.set(thread.unread),
+            next: (thread) => {
+              this.unreadMessages.set(thread.unread);
+              this.lastMessage.set(thread.messages.at(-1) ?? null);
+            },
             error: () => undefined,
           });
         }
       });
     });
   }
+
+  protected readonly lastMessage = signal<CaseMessage | null>(null);
 
   /** Bumped after a decision is recorded, to refetch the case and reflect the real backend status. */
   private readonly reloadTrigger = signal(0);
@@ -660,8 +677,6 @@ export class ExpedienteDetailComponent {
   );
 
   // Conditional tabs appear only once something has run (referral, classification, forensics).
-  // 'conversacion' is always shown: an empty thread is where talking to the insured starts. It
-  // carries a dot when something is unread.
   protected readonly tabs = computed<
     {
       id: TabId;
@@ -698,17 +713,19 @@ export class ExpedienteDetailComponent {
     ...(this.derivaciones().length > 0
       ? [{ id: 'peritaje' as TabId, label: this.derivacionesTabLabel() }]
       : []),
-    {
-      id: 'conversacion' as TabId,
-      label: 'Conversación',
-      dot: this.unreadMessages() > 0,
-      dotLabel: 'con mensajes sin leer',
-    },
     { id: 'historial' as TabId, label: 'Historial' },
   ]);
 
   /** Fetched apart: counting per row in the shared `CaseResponse` would cost a query per inbox case. */
   protected readonly unreadMessages = signal(0);
+  protected readonly chatOpen = signal(false);
+
+  protected readonly quickReplies = computed(() =>
+    analystQuickReplies(
+      this.data()?.insuredName ?? '',
+      this.needsDocs() ? this.missingDocLabels() : [],
+    ),
+  );
   private readonly selectedTab = signal<TabId>('resumen');
 
   /**
@@ -722,6 +739,14 @@ export class ExpedienteDetailComponent {
 
   setTab(t: TabId): void {
     this.selectedTab.set(t);
+  }
+
+  protected onAlert(alerta: BriefAlert): void {
+    if (alerta.tab === 'chat') {
+      this.chatOpen.set(true);
+    } else {
+      this.setTab(alerta.tab);
+    }
   }
 
   /** The tabs sit below the fold on mobile: without the scroll the click would look like a no-op. */
@@ -1284,7 +1309,7 @@ export class ExpedienteDetailComponent {
       });
     }
     if (this.unreadMessages() > 0) {
-      alertas.push({ label: 'Mensajes sin leer del asegurado', tab: 'conversacion' });
+      alertas.push({ label: 'Mensajes sin leer del asegurado', tab: 'chat' });
     }
     return alertas;
   });
@@ -1684,6 +1709,7 @@ export class ExpedienteDetailComponent {
   veredictoTone = veredictoTone;
   repairOutcomeLabel = repairOutcomeLabel;
   formatDateTime = formatDateTime;
+  chatListStamp = chatListStamp;
 
   ruleTypeLabel = ruleTypeLabel;
   ruleResultLabel = ruleResultLabel;
@@ -1811,13 +1837,10 @@ export class ExpedienteDetailComponent {
     return analista ? `Asignado a ${analista}` : 'Asignado a otro analista';
   });
 
-  protected readonly analystInitials = computed(() =>
-    (this.assignedName() ?? '')
-      .split(/\s+/)
-      .filter(Boolean)
-      .slice(0, 2)
-      .map((w) => w[0]!.toUpperCase())
-      .join(''),
+  protected readonly analystInitials = computed(() => initialsOf(this.assignedName()));
+  protected readonly insuredInitials = computed(() => initialsOf(this.data()?.insuredName));
+  protected readonly insuredFirstName = computed(
+    () => (this.data()?.insuredName ?? '').trim().split(/\s+/)[0] || 'el asegurado',
   );
 
   /**

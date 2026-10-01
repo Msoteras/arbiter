@@ -136,12 +136,33 @@
     </ol>
   </app-card>
 
-  <app-case-chat
-    class="chat-section"
+  <app-card class="chat-section" heading="Consultas sobre tu siniestro">
+    <div class="chat-contact">
+      <span class="chat-avatar" aria-hidden="true">{{ analystInitials() || 'ES' }}</span>
+      <div class="chat-contact-text">
+        <p class="chat-contact-name">{{ d.assignedAnalystName ?? 'Equipo de siniestros' }}</p>
+        @if (d.insurerName) {
+          <p class="chat-contact-sub">
+            {{ d.assignedAnalystName ? 'Analista de ' + d.insurerName : d.insurerName }}
+          </p>
+        }
+      </div>
+    </div>
+    <p class="chat-last" [class.empty]="!chatItem()?.lastMessageBody">{{ chatPreview() }}</p>
+    <app-button variant="accent" (click)="chatOpen.set(true)">
+      Abrir conversación
+      @if (chatUnread() > 0) {
+        · {{ chatUnread() }} sin leer
+      }
+    </app-button>
+  </app-card>
+
+  <app-insured-chat
+    [(open)]="chatOpen"
     [caseId]="d.id"
     [insurer]="d.insurerSlug"
-    heading="Consultas sobre tu siniestro"
-    counterparty="Equipo de siniestros"
+    [caseData]="d"
+    [launcher]="true"
   />
 
   <app-card class="denuncia-card" heading="Tu denuncia">

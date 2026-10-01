@@ -24,6 +24,13 @@
             [routerLinkActiveOptions]="{ exact: true }"
             >Mis siniestros</a
           >
+          <a routerLink="/portal/messages" routerLinkActive="active"
+            >Mensajes
+            @if (messages.unreadChats() > 0) {
+              <span class="topbar-badge">{{ messages.unreadChats() }}</span>
+              <span class="sr-only">sin leer</span>
+            }
+          </a>
         </nav>
 
         @if (session.session(); as s) {
@@ -237,6 +244,12 @@
             <a routerLink="/inbox" routerLinkActive="active"
               ><span class="nav-dot"></span>Bandeja</a
             >
+            <a routerLink="/messages" routerLinkActive="active"
+              ><span class="nav-dot"></span>Mensajes
+              @if (messages.unreadChats() > 0) {
+                <span class="nav-badge">{{ messages.unreadChats() }}</span>
+              }
+            </a>
             <a routerLink="/insurer/dashboard" routerLinkActive="active"
               ><span class="nav-dot"></span>Dashboard</a
             >
@@ -248,6 +261,12 @@
             <a routerLink="/inbox" routerLinkActive="active"
               ><span class="nav-dot"></span>Expedientes</a
             >
+            <a routerLink="/messages" routerLinkActive="active"
+              ><span class="nav-dot"></span>Mensajes
+              @if (messages.unreadChats() > 0) {
+                <span class="nav-badge">{{ messages.unreadChats() }}</span>
+              }
+            </a>
             <a routerLink="/insurer/dashboard" routerLinkActive="active"
               ><span class="nav-dot"></span>Dashboard</a
             >

@@ -309,6 +309,53 @@
   white-space: nowrap;
 }
 
+/* ===== Conversation preview ===== */
+.chat-preview {
+  display: flex;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+.chat-preview-avatar {
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-pill);
+  background: var(--selected-bg);
+  color: var(--accent-fg);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--font-size-2xs);
+  font-weight: var(--font-weight-medium);
+}
+.chat-preview-text {
+  flex: 1;
+  min-width: 0;
+}
+.chat-preview-head {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-1);
+}
+.chat-preview-head .who {
+  font-weight: var(--font-weight-medium);
+  color: var(--text-primary);
+}
+.chat-preview-head .at {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+.chat-preview-text .body {
+  margin: 0;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+}
+
 /* ===== Assignment ===== */
 .assignee {
   display: flex;

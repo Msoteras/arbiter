@@ -1,0 +1,138 @@
+<div class="messages-page">
+  <aside class="conv-list">
+    <div class="conv-list-head">
+      <h1 class="t-page-title">Mensajes</h1>
+      <app-input placeholder="Buscar asegurado o N° de expediente…" [(value)]="search" />
+      <div class="conv-filters">
+        <button type="button" [class.active]="filtro() === 'TODOS'" (click)="filtro.set('TODOS')">
+          Todos
+        </button>
+        <button
+          type="button"
+          [class.active]="filtro() === 'SIN_LEER'"
+          (click)="filtro.set('SIN_LEER')"
+        >
+          Sin leer
+          @if (sinLeerCount() > 0) {
+            <span class="filter-count">{{ sinLeerCount() }}</span>
+          }
+        </button>
+        <button
+          type="button"
+          [class.active]="filtro() === 'ESPERANDO'"
+          (click)="filtro.set('ESPERANDO')"
+        >
+          Esperando respuesta
+          @if (esperandoCount() > 0) {
+            <span class="filter-count">{{ esperandoCount() }}</span>
+          }
+        </button>
+      </div>
+    </div>
+
+    @if (loading()) {
+      <app-inline-loading message="Cargando conversaciones…" />
+    } @else if (loadError()) {
+      <p class="t-note conv-error">No se pudieron cargar las conversaciones.</p>
+    } @else if (filtered().length === 0) {
+      <app-empty-state
+        message="No hay conversaciones"
+        sub="Los mensajes con los asegurados van a aparecer acá."
+      />
+    } @else {
+      <ul class="conv-items">
+        @for (item of filtered(); track item.caseId) {
+          <li>
+            <button
+              type="button"
+              class="conv-item"
+              [class.active]="item.caseId === selectedCaseId()"
+              [class.unread]="item.unreadCount > 0"
+              (click)="select(item.caseId)"
+            >
+              <span class="conv-avatar" aria-hidden="true">{{ initials(item.insuredName) }}</span>
+              <span class="conv-main">
+                <span class="conv-row">
+                  <span class="conv-name">{{ item.insuredName }}</span>
+                  @if (item.lastMessageAt) {
+                    <span class="conv-time t-note tabular">{{ stamp(item.lastMessageAt) }}</span>
+                  }
+                </span>
+                <span class="conv-meta t-note">#{{ item.caseId }} · {{ item.branch }}</span>
+                <span class="conv-preview t-note">{{ item.lastMessageBody }}</span>
+              </span>
+              @if (item.unreadCount > 0) {
+                <span class="conv-badge">{{ item.unreadCount }}</span>
+              }
+            </button>
+          </li>
+        }
+      </ul>
+    }
+  </aside>
+
+  <section class="conv-detail">
+    @if (selected(); as item) {
+      <div class="conv-main-col">
+        <header class="conv-detail-head">
+          <span class="conv-avatar" aria-hidden="true">{{ initials(item.insuredName) }}</span>
+          <div class="conv-detail-title">
+            <h2 class="conv-detail-name">{{ item.insuredName }}</h2>
+            <p class="t-note">Exp. #{{ item.caseId }} · {{ item.branch }}</p>
+          </div>
+        </header>
+
+        <app-case-chat
+          class="conv-thread"
+          [caseId]="item.caseId"
+          [counterparty]="item.insuredName"
+          [placeholder]="'Escribí un mensaje a ' + firstName(item.insuredName) + '…'"
+          [quickReplies]="quickReplies()"
+          [bare]="true"
+          [fullHeight]="true"
+        />
+      </div>
+
+      <aside class="conv-info">
+        <app-card heading="Expediente">
+          <dl class="conv-info-fields">
+            <div class="field">
+              <dt class="t-field-label">Causa</dt>
+              <dd>{{ item.claimCause }}</dd>
+            </div>
+            <div class="field">
+              <dt class="t-field-label">Ramo</dt>
+              <dd>{{ item.branch }}</dd>
+            </div>
+            @if (selectedDetail(); as d) {
+              @if (d.insuredItem) {
+                <div class="field">
+                  <dt class="t-field-label">Bien asegurado</dt>
+                  <dd>{{ d.insuredItem }}</dd>
+                </div>
+              }
+              <div class="field">
+                <dt class="t-field-label">Póliza</dt>
+                <dd class="mono">{{ d.policyNumber }}</dd>
+              </div>
+            }
+            <div class="field">
+              <dt class="t-field-label">Estado</dt>
+              <dd>
+                <app-badge [tone]="tono(item.status)">{{ estadoLabel(item.status) }}</app-badge>
+              </dd>
+            </div>
+          </dl>
+          <app-button variant="secondary" [block]="true" [routerLink]="['/cases', item.caseId]">
+            Abrir expediente
+          </app-button>
+        </app-card>
+      </aside>
+    } @else {
+      <app-empty-state
+        message="Elegí una conversación"
+        sub="Seleccioná un expediente de la lista para ver los mensajes."
+      />
+    }
+  </section>
+</div>

@@ -1,5 +1,6 @@
 package ar.edu.utn.frba.arbiter.reports.config.tenant;
 
+import ar.edu.utn.frba.arbiter.reports.config.RequesterContext;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
@@ -14,7 +15,7 @@ import javax.crypto.SecretKey;
 import java.io.IOException;
 
 /**
- * Sets {@link TenantContext} from the JWT's {@code tenantSchema} claim. Parses the token itself
+ * Sets {@link TenantContext} and {@link RequesterContext} from the JWT. Parses the token itself
  * because common-lib's JwtAuthenticationFilter only keeps the role, not the full claim set.
  */
 public class TenantResolvingFilter extends OncePerRequestFilter {
@@ -42,6 +43,8 @@ public class TenantResolvingFilter extends OncePerRequestFilter {
                     if (tenantSchema != null) {
                         TenantContext.set(tenantSchema);
                     }
+                    RequesterContext.set(new RequesterContext.Requester(
+                            fullName(claims), claims.get("rol", String.class)));
                 } catch (JwtException | IllegalArgumentException ex) {
                     // Invalid token: JwtAuthenticationFilter already left the request
                     // unauthenticated, so authorization rejects it downstream.
@@ -50,6 +53,18 @@ public class TenantResolvingFilter extends OncePerRequestFilter {
             filterChain.doFilter(request, response);
         } finally {
             TenantContext.clear();
+            RequesterContext.clear();
         }
     }
+
+    /** @return null when neither half is present, e.g. a service token issued by a job */
+    private static String fullName(Claims claims) {
+        String name = claims.get("nombre", String.class);
+        String surname = claims.get("apellido", String.class);
+        if (name == null && surname == null) {
+            return null;
+        }
+        return ((name == null ? "" : name) + " " + (surname == null ? "" : surname)).strip();
+    }
+
 }

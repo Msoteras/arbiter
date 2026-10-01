@@ -2,8 +2,29 @@
   display: block;
 }
 
+:host.full-height {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+}
+
 app-card {
   height: 100%;
+}
+
+:host.full-height app-card {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+:host.full-height app-card ::ng-deep .card,
+:host.full-height app-card ::ng-deep .card-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
 }
 
 .t-note {
@@ -12,53 +33,96 @@ app-card {
   color: var(--text-tertiary);
 }
 
-.empty {
-  padding: var(--space-2) 0;
-}
-
+/* ===== Thread ===== */
 .thread {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
-  margin: 0 0 var(--space-4);
-  padding: 0;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-3);
+  padding: var(--space-4);
   list-style: none;
   max-height: 420px;
   overflow-y: auto;
+  border-radius: var(--radius-card);
+  background: var(--chat-thread-bg);
+}
+
+.thread.full-height {
+  flex: 1;
+  min-height: 0;
+  max-height: none;
+  margin: 0;
+  border-radius: 0;
+}
+
+.day {
+  align-self: center;
+  margin: var(--space-2) 0;
+  font-size: var(--font-size-2xs);
+  font-weight: var(--font-weight-medium);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.event {
+  align-self: center;
+  max-width: 90%;
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-pill);
+  background: var(--surface-sunken);
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+  text-align: center;
+}
+
+.event.warning {
+  border-color: var(--status-warning);
+}
+
+.event a {
+  color: var(--accent-fg);
+  font-weight: var(--font-weight-medium);
+  text-decoration: none;
+}
+.event a:hover {
+  text-decoration: underline;
+}
+
+.empty {
+  align-self: center;
+  margin: auto 0;
+  text-align: center;
 }
 
 .msg {
   display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  max-width: 80%;
 }
 
 .msg.mine {
-  justify-content: flex-end;
+  align-self: flex-end;
+  align-items: flex-end;
 }
 
 .bubble {
-  max-width: 42rem;
   padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--border-subtle);
+  border: 1px solid var(--border-default);
   border-radius: var(--radius-card);
-  background: var(--surface-sunken);
+  border-bottom-left-radius: var(--space-1);
+  background: var(--chat-other-bg);
+  color: var(--text-primary);
 }
 
 .msg.mine .bubble {
-  border-color: var(--selected-border);
-  background: var(--selected-bg);
-}
-
-.meta {
-  display: flex;
-  gap: var(--space-2);
-  margin-bottom: var(--space-1);
-  font-size: var(--font-size-sm);
-  color: var(--text-muted);
-}
-
-.who {
-  font-weight: var(--font-weight-medium);
-  color: var(--text-secondary);
+  border-color: var(--chat-own-bg);
+  border-radius: var(--radius-card);
+  border-bottom-right-radius: var(--space-1);
+  background: var(--chat-own-bg);
+  color: var(--chat-own-fg);
 }
 
 .body {
@@ -67,23 +131,90 @@ app-card {
   overflow-wrap: anywhere;
 }
 
+.meta {
+  margin: var(--space-1) var(--space-1) 0;
+  font-size: var(--font-size-2xs);
+  color: var(--text-muted);
+}
+
+/* ===== Composer ===== */
 .composer {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
 }
 
-.composer-foot {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
+:host.full-height .composer {
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--border-subtle);
+  background: var(--surface);
 }
 
-.count {
-  font-size: var(--font-size-sm);
+.quick-replies {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.chip {
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--border-control);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--font-size-xs);
+  cursor: pointer;
+}
+.chip:hover {
+  border-color: var(--action-secondary-border-hover);
+  color: var(--text-primary);
+}
+.chip:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.composer-box {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-1) var(--space-1) var(--space-3);
+  border: 1px solid var(--border-control);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+}
+.composer-box:focus-within {
+  border-color: var(--border-focus);
+  box-shadow: var(--focus-ring);
+}
+
+.composer-box app-textarea {
+  flex: 1;
+  min-width: 0;
+}
+
+/* The pill box is the field's frame, so the textarea itself drops its own. */
+.composer-box app-textarea ::ng-deep .field {
+  field-sizing: content;
+  max-height: 8rem;
+  padding: var(--space-1) 0;
+  border: none;
+  background: transparent;
+  resize: none;
+  box-shadow: none;
+}
+
+.composer-box app-button ::ng-deep .btn {
+  border-radius: var(--radius-pill);
+}
+
+.hint {
+  margin: 0;
+  font-size: var(--font-size-2xs);
   color: var(--text-muted);
 }
+
 .count.over {
   color: var(--status-danger);
 }
@@ -99,10 +230,10 @@ app-card {
 }
 
 @media (max-width: 640px) {
-  .bubble {
-    max-width: 100%;
+  .msg {
+    max-width: 92%;
   }
-  .thread {
+  .thread:not(.full-height) {
     max-height: none;
     overflow-y: visible;
   }

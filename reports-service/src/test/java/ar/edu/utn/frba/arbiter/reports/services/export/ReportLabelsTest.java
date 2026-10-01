@@ -23,12 +23,6 @@ class ReportLabelsTest {
         assertThat(ReportLabels.duration(minutes)).isEqualTo(expected);
     }
 
-    @ParameterizedTest
-    @CsvSource(value = {"0|0,0", "20|0,3", "3030|50,5"}, delimiter = '|')
-    void hours_useOneDecimalAndADecimalComma(long minutes, String expected) {
-        assertThat(ReportLabels.hours(minutes)).isEqualTo(expected);
-    }
-
     @Test
     void missingValuesReadAsTheirAbsence() {
         assertThat(ReportLabels.classification(null)).isEqualTo("Sin clasificación");

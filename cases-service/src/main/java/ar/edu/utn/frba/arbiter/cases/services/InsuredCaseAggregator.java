@@ -75,6 +75,21 @@ public class InsuredCaseAggregator {
             return Page.empty(pageable);
         }
 
+        return page(collect(spec, insurerIds), pageable);
+    }
+
+    /** Every own case, newest report first, unpaged. */
+    public List<InsuredCase> allOwnCases() {
+        CallerContext.Caller caller = CallerContext.get();
+        if (caller.insuredId() == null || caller.insurerIds().isEmpty()) {
+            return List.of();
+        }
+        Specification<Case> spec = CaseSpecifications.withFilters(
+                null, null, null, caller.insuredId(), null, null, null, null, null);
+        return collect(spec, caller.insurerIds());
+    }
+
+    private List<InsuredCase> collect(Specification<Case> spec, List<Long> insurerIds) {
         String callerTenant = TenantContext.get();
         List<InsuredCase> merged = new ArrayList<>();
         try {
@@ -90,19 +105,14 @@ public class InsuredCaseAggregator {
             // The rest of the request, and the pooled connection, must keep seeing the caller's schema.
             TenantContext.set(callerTenant);
         }
-
-        return page(merged, pageable);
-    }
-
-    /**
-     * Ignores the pageable's {@code Sort}: the insured portal offers no sorting, so it is always
-     * newest report first. The id is only a tiebreaker, since ids repeat across schemas.
-     */
-    private Page<InsuredCase> page(List<InsuredCase> merged, Pageable pageable) {
+        // The insured portal offers no sorting. The id is only a tiebreaker: ids repeat across schemas.
         merged.sort(Comparator.comparing((InsuredCase it) -> it.caseRecord().getReportedAt(),
                         Comparator.reverseOrder())
                 .thenComparing(it -> it.caseRecord().getId(), Comparator.reverseOrder()));
+        return merged;
+    }
 
+    private Page<InsuredCase> page(List<InsuredCase> merged, Pageable pageable) {
         int from = (int) Math.min(pageable.getOffset(), merged.size());
         int to = Math.min(from + pageable.getPageSize(), merged.size());
         return new PageImpl<>(List.copyOf(merged.subList(from, to)), pageable, merged.size());

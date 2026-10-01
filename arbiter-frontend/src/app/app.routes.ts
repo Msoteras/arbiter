@@ -85,6 +85,16 @@ export const routes: Routes = [
       ),
   },
   {
+    path: 'messages',
+    canActivate: [roleGuard],
+    data: { roles: ['ANALISTA_SINIESTROS', 'REFERENTE_ASEGURADORA'] },
+    loadComponent: () =>
+      import('./features/messages/messages.component').then((m) => m.MessagesComponent),
+    // A componentless child, not a sibling route: switching conversations must keep the screen (and
+    // its list) mounted instead of rebuilding it.
+    children: [{ path: ':caseId', children: [] }],
+  },
+  {
     // No roles in data: any authenticated session gets in, but it is not public in production.
     path: 'styleguide',
     canActivate: [roleGuard],
@@ -128,6 +138,13 @@ export const routes: Routes = [
       import('./features/portal/mis-expedientes/mis-expedientes.component').then(
         (m) => m.MisExpedientesComponent,
       ),
+  },
+  {
+    path: 'portal/messages',
+    canActivate: [roleGuard, onboardingGuard],
+    data: { roles: ['ASEGURADO'] },
+    loadComponent: () =>
+      import('./features/portal/mensajes/mensajes.component').then((m) => m.MensajesComponent),
   },
   {
     path: 'portal/cases/:id',
