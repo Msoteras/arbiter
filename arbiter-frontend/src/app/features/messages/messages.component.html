@@ -94,38 +94,40 @@
       </div>
 
       <aside class="conv-info">
-          <app-card heading="Expediente">
-            <dl class="conv-info-fields">
-              <div class="field">
-                <dt class="t-field-label">Causa</dt>
-                <dd>{{ item.claimCause }}</dd>
-              </div>
-              <div class="field">
-                <dt class="t-field-label">Ramo</dt>
-                <dd>{{ item.branch }}</dd>
-              </div>
-              @if (selectedDetail(); as d) {
-                @if (d.insuredItem) {
-                  <div class="field">
-                    <dt class="t-field-label">Bien asegurado</dt>
-                    <dd>{{ d.insuredItem }}</dd>
-                  </div>
-                }
+        <app-card heading="Expediente">
+          <dl class="conv-info-fields">
+            <div class="field">
+              <dt class="t-field-label">Causa</dt>
+              <dd>{{ item.claimCause }}</dd>
+            </div>
+            <div class="field">
+              <dt class="t-field-label">Ramo</dt>
+              <dd>{{ item.branch }}</dd>
+            </div>
+            @if (selectedDetail(); as d) {
+              @if (d.insuredItem) {
                 <div class="field">
-                  <dt class="t-field-label">Póliza</dt>
-                  <dd class="mono">{{ d.policyNumber }}</dd>
+                  <dt class="t-field-label">Bien asegurado</dt>
+                  <dd>{{ d.insuredItem }}</dd>
                 </div>
               }
               <div class="field">
-                <dt class="t-field-label">Estado</dt>
-                <dd><app-badge [tone]="tono(item.status)">{{ estadoLabel(item.status) }}</app-badge></dd>
+                <dt class="t-field-label">Póliza</dt>
+                <dd class="mono">{{ d.policyNumber }}</dd>
               </div>
-            </dl>
-            <app-button variant="secondary" [block]="true" [routerLink]="['/cases', item.caseId]">
-              Abrir expediente
-            </app-button>
-          </app-card>
-        </aside>
+            }
+            <div class="field">
+              <dt class="t-field-label">Estado</dt>
+              <dd>
+                <app-badge [tone]="tono(item.status)">{{ estadoLabel(item.status) }}</app-badge>
+              </dd>
+            </div>
+          </dl>
+          <app-button variant="secondary" [block]="true" [routerLink]="['/cases', item.caseId]">
+            Abrir expediente
+          </app-button>
+        </app-card>
+      </aside>
     } @else {
       <app-empty-state
         message="Elegí una conversación"

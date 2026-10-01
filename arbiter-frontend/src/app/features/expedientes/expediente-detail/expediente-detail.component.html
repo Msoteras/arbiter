@@ -411,7 +411,9 @@
                     }}</span>
                     <div class="chat-preview-text">
                       <p class="chat-preview-head">
-                        <span class="who">{{ m.mine ? 'Vos' : (d.insuredName ?? 'Asegurado') }}</span>
+                        <span class="who">{{
+                          m.mine ? 'Vos' : (d.insuredName ?? 'Asegurado')
+                        }}</span>
                         <span class="at tabular">{{ chatListStamp(m.createdAt) }}</span>
                       </p>
                       <p class="body">{{ m.body }}</p>

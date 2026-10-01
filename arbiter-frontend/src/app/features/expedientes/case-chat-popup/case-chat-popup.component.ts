@@ -58,7 +58,13 @@ import { ButtonComponent } from '../../../shared/ui/button/button.component';
         [attr.aria-label]="launcherLabel() ? null : 'Abrir chat con ' + counterparty()"
         (click)="open.set(true)"
       >
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.8"
+          aria-hidden="true"
+        >
           <path
             d="M21 12a8 8 0 0 1-11.6 7.1L4 20.5l1.4-4.9A8 8 0 1 1 21 12z"
             stroke-linejoin="round"

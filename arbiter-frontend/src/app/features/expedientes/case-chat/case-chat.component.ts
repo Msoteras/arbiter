@@ -117,7 +117,10 @@ export class CaseChatComponent {
         at: message.createdAt,
         row: { kind: 'msg', message } as ThreadRow,
       })),
-      ...this.events().map((event) => ({ at: event.at, row: { kind: 'event', event } as ThreadRow })),
+      ...this.events().map((event) => ({
+        at: event.at,
+        row: { kind: 'event', event } as ThreadRow,
+      })),
     ].sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime());
 
     const rows: ThreadRow[] = [];

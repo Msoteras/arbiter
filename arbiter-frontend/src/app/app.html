@@ -29,8 +29,8 @@
             @if (messages.unreadChats() > 0) {
               <span class="topbar-badge">{{ messages.unreadChats() }}</span>
               <span class="sr-only">sin leer</span>
-            }</a
-          >
+            }
+          </a>
         </nav>
 
         @if (session.session(); as s) {
@@ -248,8 +248,8 @@
               ><span class="nav-dot"></span>Mensajes
               @if (messages.unreadChats() > 0) {
                 <span class="nav-badge">{{ messages.unreadChats() }}</span>
-              }</a
-            >
+              }
+            </a>
             <a routerLink="/insurer/dashboard" routerLinkActive="active"
               ><span class="nav-dot"></span>Dashboard</a
             >
@@ -265,8 +265,8 @@
               ><span class="nav-dot"></span>Mensajes
               @if (messages.unreadChats() > 0) {
                 <span class="nav-badge">{{ messages.unreadChats() }}</span>
-              }</a
-            >
+              }
+            </a>
             <a routerLink="/insurer/dashboard" routerLinkActive="active"
               ><span class="nav-dot"></span>Dashboard</a
             >

@@ -1,4 +1,12 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, untracked } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  effect,
+  inject,
+  signal,
+  untracked,
+} from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, NavigationEnd, Router, RouterLink } from '@angular/router';
 import { distinctUntilChanged, filter, map, startWith } from 'rxjs';
@@ -73,7 +81,9 @@ export class MessagesComponent {
 
   protected readonly selectedDetail = signal<ExpedienteResponse | null>(null);
 
-  protected readonly sinLeerCount = computed(() => this.items().filter((i) => i.unreadCount > 0).length);
+  protected readonly sinLeerCount = computed(
+    () => this.items().filter((i) => i.unreadCount > 0).length,
+  );
   protected readonly esperandoCount = computed(
     () => this.items().filter((i) => i.lastMessageSender === 'INSURED').length,
   );

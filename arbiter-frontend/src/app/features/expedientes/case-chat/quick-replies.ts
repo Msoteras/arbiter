@@ -7,9 +7,7 @@ export interface QuickReply {
 export function analystQuickReplies(insuredName: string, missingDocs: string[] = []): QuickReply[] {
   const firstName = insuredName.trim().split(/\s+/)[0] ?? '';
   const greeting = firstName ? `Hola ${firstName}` : 'Hola';
-  const docs = missingDocs.length
-    ? `: ${missingDocs.join(', ')}`
-    : ' que te indicamos';
+  const docs = missingDocs.length ? `: ${missingDocs.join(', ')}` : ' que te indicamos';
   return [
     {
       label: 'Solicitar documentación',

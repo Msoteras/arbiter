@@ -3,7 +3,11 @@ import { Injectable, computed, inject, signal } from '@angular/core';
 import { Observable, tap } from 'rxjs';
 
 import { environment } from '../../../environments/environment';
-import { CaseMessage, CaseMessageInboxItem, CaseMessageThread } from '../../core/models/case-message';
+import {
+  CaseMessage,
+  CaseMessageInboxItem,
+  CaseMessageThread,
+} from '../../core/models/case-message';
 
 /**
  * The case conversation between the insured and the analyst. `insurer` follows the same rule as
@@ -18,7 +22,9 @@ export class CaseMessagesService {
   private readonly _inbox = signal<CaseMessageInboxItem[]>([]);
   readonly inboxItems = this._inbox.asReadonly();
   /** Conversations with something unread, not messages: what the nav badges count. */
-  readonly unreadChats = computed(() => this._inbox().filter((item) => item.unreadCount > 0).length);
+  readonly unreadChats = computed(
+    () => this._inbox().filter((item) => item.unreadCount > 0).length,
+  );
 
   /** Also feeds `inboxItems`/`unreadChats`, which the nav badges and summary cards read. */
   inbox(): Observable<CaseMessageInboxItem[]> {
@@ -61,7 +67,9 @@ export class CaseMessagesService {
 
   /** Analyst rows carry no slug; an insured's always do. */
   private matches(item: CaseMessageInboxItem, caseId: number, insurer?: string | null): boolean {
-    return item.caseId === caseId && (!item.insurerSlug || !insurer || item.insurerSlug === insurer);
+    return (
+      item.caseId === caseId && (!item.insurerSlug || !insurer || item.insurerSlug === insurer)
+    );
   }
 
   /** Reading does NOT mark as read: that is `markRead`, called when someone actually looks. */
