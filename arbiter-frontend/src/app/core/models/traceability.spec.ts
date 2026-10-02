@@ -61,7 +61,7 @@ describe('traceability', () => {
       ).toBe('Denuncia policial: narra el hecho declarado (Hurto)');
     });
 
-    it('las señales de adulteración también son aviso, y dicen dónde está el detalle', () => {
+    it('treats tampering signs as advisory too, and says where the detail is', () => {
       expect(isAdvisoryCheck('VISUAL_TAMPERING')).toBe(true);
       expect(ruleTypeLabel('VISUAL_TAMPERING')).toBe('Señales de adulteración en la documentación');
       expect(ruleEvaluationText('VISUAL_TAMPERING', 'documents=police_report signs=1')).toBe(

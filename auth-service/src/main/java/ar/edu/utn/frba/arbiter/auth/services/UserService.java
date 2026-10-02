@@ -83,9 +83,9 @@ public class UserService {
         }
 
         User caller = userRepository.findByEmail(callerEmail)
-                .orElseThrow(() -> new IllegalStateException("Usuario autenticado no encontrado: " + callerEmail));
+                .orElseThrow(() -> new IllegalStateException("Authenticated user not found: " + callerEmail));
         Long insurerId = tenantResolver.insurerIdsFor(caller.getId()).stream().findFirst()
-                .orElseThrow(() -> new IllegalStateException("Referente sin aseguradora asignada: " + callerEmail));
+                .orElseThrow(() -> new IllegalStateException("Referent without an assigned insurer: " + callerEmail));
 
         String inviteToken = UUID.randomUUID().toString();
         User user = User.builder()
@@ -96,7 +96,7 @@ public class UserService {
                 .build();
 
         Role analystRole = roleRepository.findByCode(UserRole.ANALISTA_SINIESTROS.name())
-                .orElseThrow(() -> new IllegalStateException("Falta el rol ANALISTA_SINIESTROS en el catálogo"));
+                .orElseThrow(() -> new IllegalStateException("Role ANALISTA_SINIESTROS missing from the catalog"));
         user.setRoles(new HashSet<>(List.of(analystRole)));
 
         User saved = userRepository.save(user);
@@ -120,9 +120,9 @@ public class UserService {
      */
     public void provisionInsuredAccounts(String callerEmail) {
         User caller = userRepository.findByEmail(callerEmail)
-                .orElseThrow(() -> new IllegalStateException("Usuario autenticado no encontrado: " + callerEmail));
+                .orElseThrow(() -> new IllegalStateException("Authenticated user not found: " + callerEmail));
         Long insurerId = tenantResolver.insurerIdsFor(caller.getId()).stream().findFirst()
-                .orElseThrow(() -> new IllegalStateException("Referente sin aseguradora asignada: " + callerEmail));
+                .orElseThrow(() -> new IllegalStateException("Referent without an assigned insurer: " + callerEmail));
 
         insuredProvisioningService.provisionAsync(TenantContext.get(), insurerId);
     }
@@ -274,9 +274,9 @@ public class UserService {
     /** Narrowed to the caller's insurer: {@code users} is common to every tenant. */
     public List<UserResponse> listUsers(String callerEmail) {
         User caller = userRepository.findByEmail(callerEmail)
-                .orElseThrow(() -> new IllegalStateException("Usuario autenticado no encontrado: " + callerEmail));
+                .orElseThrow(() -> new IllegalStateException("Authenticated user not found: " + callerEmail));
         Long insurerId = tenantResolver.insurerIdsFor(caller.getId()).stream().findFirst()
-                .orElseThrow(() -> new IllegalStateException("Referente sin aseguradora asignada: " + callerEmail));
+                .orElseThrow(() -> new IllegalStateException("Referent without an assigned insurer: " + callerEmail));
 
         List<Long> userIds = userInsurerRepository.findByInsurerId(insurerId).stream()
                 .map(ui -> ui.getUser().getId())
@@ -304,7 +304,7 @@ public class UserService {
         }
 
         Role role = roleRepository.findByCode(newRole.name())
-                .orElseThrow(() -> new IllegalStateException("Rol no encontrado en el catálogo: " + newRole));
+                .orElseThrow(() -> new IllegalStateException("Role not found in the catalog: " + newRole));
         user.setRoles(new HashSet<>(List.of(role)));
         return toResponse(userRepository.save(user));
     }

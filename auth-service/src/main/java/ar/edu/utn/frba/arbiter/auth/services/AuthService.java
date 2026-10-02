@@ -45,7 +45,7 @@ public class AuthService {
                 .findFirst()
                 .map(Role::getCode)
                 .map(UserRole::valueOf)
-                .orElseThrow(() -> new IllegalStateException("Usuario sin rol asignado: " + user.getEmail()));
+                .orElseThrow(() -> new IllegalStateException("User without an assigned role: " + user.getEmail()));
 
         List<Long> insurerIds = tenantResolver.insurerIdsFor(user.getId());
         Optional<Insurer> primaryInsurer = tenantResolver.primaryInsurerFor(user.getId());

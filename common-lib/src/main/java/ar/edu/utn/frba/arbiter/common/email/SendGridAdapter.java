@@ -44,7 +44,7 @@ public class SendGridAdapter {
     /** SendGrid caps a message at 30 MB including base64 overhead; the caller decides what fits. */
     public boolean send(String to, String subject, String htmlBody, List<Attachment> attachments) {
         if (apiKey == null || apiKey.isBlank()) {
-            log.warn("SENDGRID_API_KEY no configurada — no se manda el mail a {} (asunto: {})", to, subject);
+            log.warn("SENDGRID_API_KEY not set — not sending the email to {} (subject: {})", to, subject);
             return false;
         }
 

@@ -25,8 +25,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 
 /**
- * Smoke test against real Postgres: a policy covering <b>theft and larceny</b> is imported whole,
- * and a larceny claim resolves against the larceny coverage, with its own sum insured.
+ * Smoke test against real Postgres: a policy covering <b>robbery and theft</b> is imported whole,
+ * and a theft claim resolves against the theft coverage, with its own sum insured.
  *
  * <p>{@link PolicyCoverageResolver}'s unit tests mock the repository and {@code CaseServiceImplTest}
  * mocks the resolver, so only this exercises the {@code policy_coverage} JPA mapping and its query.
@@ -38,8 +38,8 @@ class PolicyCoverageTests extends AbstractPersistenceIT {
 
     private static final String POLICY_NUMBER = "POL-CEL-2026-042";
 
-    private Long roboViaPublica;
-    private Long hurto;
+    private Long streetRobbery;
+    private Long theft;
 
     @MockitoBean private InsurerAdapter insurerAdapter;
     @MockitoBean private RulesServiceClient rulesServiceClient;
@@ -50,23 +50,23 @@ class PolicyCoverageTests extends AbstractPersistenceIT {
     @Autowired private PolicyCoverageRepository policyCoverageRepository;
     @Autowired private CoverageRepository coverageRepository;
 
-    private Coverage robo;
-    private Coverage hurtoCoverage;
+    private Coverage robberyCoverage;
+    private Coverage theftCoverage;
 
     @BeforeEach
     void seedCatalog() {
-        robo = coverage("Robo de celular");
-        hurtoCoverage = coverage("Hurto");
+        robberyCoverage = coverage("Robo de celular");
+        theftCoverage = coverage("Hurto");
         // Celulares claim cause ids in the real seed: 2 = Robo en vía pública, 3 = Hurto. No
         // claim_cause row is needed: they're only matched against exclusion lists, which come
         // over REST.
-        roboViaPublica = 2L;
-        hurto = 3L;
+        streetRobbery = 2L;
+        theft = 3L;
 
         // Each coverage covers a single claim cause of its branch, as in the seed.
-        when(rulesServiceClient.excludedClaimCauseIds(robo.getId())).thenReturn(List.of(hurto));
-        when(rulesServiceClient.excludedClaimCauseIds(hurtoCoverage.getId()))
-                .thenReturn(List.of(roboViaPublica));
+        when(rulesServiceClient.excludedClaimCauseIds(robberyCoverage.getId())).thenReturn(List.of(theft));
+        when(rulesServiceClient.excludedClaimCauseIds(theftCoverage.getId()))
+                .thenReturn(List.of(streetRobbery));
     }
 
     /** The insurer returns two coverages: both must be kept, each with ITS own sum insured. */
@@ -85,24 +85,24 @@ class PolicyCoverageTests extends AbstractPersistenceIT {
     }
 
     @Test
-    void aHurtoResolvesAgainstTheHurtoCoverage_withItsOwnSumInsured() {
+    void aTheftResolvesAgainstTheTheftCoverage_withItsOwnSumInsured() {
         givenTheCompanyHasThePolicy();
         Policy imported = synchronizer.importFromInsurer(POLICY_NUMBER, 1L);
 
-        PolicyCoverage answering = resolver.resolveFor(imported.getId(), hurto);
+        PolicyCoverage answering = resolver.resolveFor(imported.getId(), theft);
 
         assertThat(answering.getCoverage().getName()).isEqualTo("Hurto");
-        // The amount frozen on the case: the larceny one, half the theft one.
+        // The amount frozen on the case: the theft one, half the robbery one.
         assertThat(answering.getSumInsured()).isEqualByComparingTo("650000");
     }
 
     /** The counterpart, so the previous test can't pass by always picking the second one. */
     @Test
-    void aRoboResolvesAgainstTheRoboCoverage() {
+    void aRobberyResolvesAgainstTheRobberyCoverage() {
         givenTheCompanyHasThePolicy();
         Policy imported = synchronizer.importFromInsurer(POLICY_NUMBER, 1L);
 
-        PolicyCoverage answering = resolver.resolveFor(imported.getId(), roboViaPublica);
+        PolicyCoverage answering = resolver.resolveFor(imported.getId(), streetRobbery);
 
         assertThat(answering.getCoverage().getName()).isEqualTo("Robo de celular");
         assertThat(answering.getSumInsured()).isEqualByComparingTo("1300000");

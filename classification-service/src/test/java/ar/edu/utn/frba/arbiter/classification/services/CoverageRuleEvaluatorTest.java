@@ -14,7 +14,7 @@ class CoverageRuleEvaluatorTest {
 
     private final CoverageRuleEvaluator evaluator = new CoverageRuleEvaluator();
 
-    private static final BusinessRules.EvaluableRule EXCLUDE_HURTO = BusinessRules.EvaluableRule.builder()
+    private static final BusinessRules.EvaluableRule EXCLUDE_THEFT = BusinessRules.EvaluableRule.builder()
             .id(3L)
             .ruleType("COVERAGE_EXCLUSION")
             .effect("RECHAZAR")
@@ -49,7 +49,7 @@ class CoverageRuleEvaluatorTest {
     @Test
     void excludedCause_isExcluded_andRecordsFail() {
         CoverageRuleEvaluator.Result result =
-                evaluator.evaluate(claim("Hurto", 3L), rulesWith(List.of(EXCLUDE_HURTO)));
+                evaluator.evaluate(claim("Hurto", 3L), rulesWith(List.of(EXCLUDE_THEFT)));
 
         assertThat(result.excluded()).isTrue();
         assertThat(result.findings()).hasSize(1);
@@ -65,7 +65,7 @@ class CoverageRuleEvaluatorTest {
     void nonExcludedCause_isNotExcluded_andRecordsPass() {
         // A robbery (claim_cause 2) on the same coverage isn't excluded.
         CoverageRuleEvaluator.Result result =
-                evaluator.evaluate(claim("Robo en vía pública", 2L), rulesWith(List.of(EXCLUDE_HURTO)));
+                evaluator.evaluate(claim("Robo en vía pública", 2L), rulesWith(List.of(EXCLUDE_THEFT)));
 
         assertThat(result.excluded()).isFalse();
         assertThat(result.findings()).hasSize(1);
@@ -90,7 +90,7 @@ class CoverageRuleEvaluatorTest {
     void nullClaimCauseId_cannotMatch_recordsPass() {
         // Without a claim cause id it can't exclude blindly.
         CoverageRuleEvaluator.Result result =
-                evaluator.evaluate(claim("Hurto", null), rulesWith(List.of(EXCLUDE_HURTO)));
+                evaluator.evaluate(claim("Hurto", null), rulesWith(List.of(EXCLUDE_THEFT)));
 
         assertThat(result.excluded()).isFalse();
         assertThat(result.findings()).hasSize(1);

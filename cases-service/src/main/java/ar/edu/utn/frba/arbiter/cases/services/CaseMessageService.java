@@ -170,7 +170,7 @@ public class CaseMessageService {
             Case caseRecord = readableCase(caseId);
             StatusChangeActor party = accessPolicy.currentParty();
             if (!isParty(party)) {
-                throw new AccessDeniedException("Sólo el asegurado y el analista escriben en el expediente.");
+                throw new AccessDeniedException("Only the insured and the analyst write on the case.");
             }
             if (!acceptsMessages(caseRecord)) {
                 throw new ClosedConversationException(replyWindowDays);
@@ -262,10 +262,10 @@ public class CaseMessageService {
     private Long currentUserId() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null) {
-            throw new AccessDeniedException("No hay sesión para atribuir el mensaje.");
+            throw new AccessDeniedException("No session to attribute the message to.");
         }
         return userRepository.findByEmail(authentication.getName())
                 .map(User::getId)
-                .orElseThrow(() -> new AccessDeniedException("La sesión no corresponde a un usuario."));
+                .orElseThrow(() -> new AccessDeniedException("The session does not belong to a user."));
     }
 }
