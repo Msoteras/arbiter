@@ -23,8 +23,8 @@ class CoverageScopeEvaluatorTest {
     private static final String POLICY = "POL-CEL-2024-001";
 
     /** A cellphone policy's two coverages, each with its own sum insured. */
-    private static final String ROBO = "Robo de celular";
-    private static final String HURTO = "Hurto";
+    private static final String ROBBERY = "Robo de celular";
+    private static final String THEFT = "Hurto";
 
     private final CoverageScopeEvaluator evaluator = new CoverageScopeEvaluator();
 
@@ -43,7 +43,7 @@ class CoverageScopeEvaluatorTest {
         return ClaimReport.builder()
                 .branch("Celulares")
                 .claimCause("Robo en vía pública")
-                .coverageName(ROBO)
+                .coverageName(ROBBERY)
                 .insuredId("40.123.456")
                 .policyNumber(POLICY)
                 .description("...")
@@ -80,7 +80,7 @@ class CoverageScopeEvaluatorTest {
 
     private InsuredHistory.ClaimRecord priorClaim(
             String policyNumber, String status, BigDecimal amountSettled) {
-        return priorClaim(policyNumber, status, amountSettled, ROBO);
+        return priorClaim(policyNumber, status, amountSettled, ROBBERY);
     }
 
     private InsuredHistory.ClaimRecord priorClaim(
@@ -219,7 +219,7 @@ class CoverageScopeEvaluatorTest {
     void settledClaimsOnAnotherCoverage_doNotConsumeThisOne() {
         CoverageScopeEvaluator.Result result = evaluator.evaluate(
                 claim(new BigDecimal("60000")), policy(new BigDecimal("100000")),
-                history(priorClaim(POLICY, "LIQUIDADO", new BigDecimal("90000"), HURTO)),
+                history(priorClaim(POLICY, "LIQUIDADO", new BigDecimal("90000"), THEFT)),
                 rules(null, false), Map.of());
 
         assertThat(result.blocksFastTrack()).isFalse();

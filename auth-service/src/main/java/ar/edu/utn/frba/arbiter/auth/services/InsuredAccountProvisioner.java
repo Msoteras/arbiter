@@ -80,7 +80,7 @@ public class InsuredAccountProvisioner {
                 .build();
 
         Role insuredRole = roleRepository.findByCode(UserRole.ASEGURADO.name())
-                .orElseThrow(() -> new IllegalStateException("Falta el rol ASEGURADO en el catálogo"));
+                .orElseThrow(() -> new IllegalStateException("Role ASEGURADO missing from the catalog"));
         user.setRoles(new HashSet<>(List.of(insuredRole)));
 
         return userRepository.save(user);

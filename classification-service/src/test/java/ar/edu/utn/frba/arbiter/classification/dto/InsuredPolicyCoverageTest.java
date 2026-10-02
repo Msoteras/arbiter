@@ -14,14 +14,14 @@ class InsuredPolicyCoverageTest {
     void narrowsTheAmountsToTheCoverageThatAnswers() {
         InsuredPolicy policy = policyWithBothCoverages();
 
-        InsuredPolicy hurto = policy.forCoverage("Hurto");
+        InsuredPolicy theft = policy.forCoverage("Hurto");
 
-        assertThat(hurto.insuredAmount()).isEqualByComparingTo("650000");
-        assertThat(hurto.deductible()).isEqualByComparingTo("65000");
+        assertThat(theft.insuredAmount()).isEqualByComparingTo("650000");
+        assertThat(theft.deductible()).isEqualByComparingTo("65000");
         // Validity and arrears belong to the policy, not to the coverage.
-        assertThat(hurto.policyNumber()).isEqualTo(policy.policyNumber());
-        assertThat(hurto.upToDate()).isEqualTo(policy.upToDate());
-        assertThat(hurto.coverages()).isEqualTo(policy.coverages());
+        assertThat(theft.policyNumber()).isEqualTo(policy.policyNumber());
+        assertThat(theft.upToDate()).isEqualTo(policy.upToDate());
+        assertThat(theft.coverages()).isEqualTo(policy.coverages());
     }
 
     /** A theft claim on a robbery+theft policy must be measured against the theft coverage's sum. */
