@@ -1,6 +1,7 @@
 package ar.edu.utn.frba.arbiter.classification.models.repositories;
 
 import ar.edu.utn.frba.arbiter.classification.config.tenant.TenantContext;
+import ar.edu.utn.frba.arbiter.common.enums.Classification;
 import ar.edu.utn.frba.arbiter.common.enums.ClassificationFailureReason;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -10,7 +11,7 @@ import java.util.List;
 
 /**
  * The few {@code cases} columns this module writes and reads directly: outcomes with no table on this
- * side (e.g. {@code was_fast_track}, since a Fast Track writes no {@code llm_analysis} row). Plain
+ * side (e.g. {@code rules_classification}, since a rules outcome writes no {@code llm_analysis} row). Plain
  * JDBC on named columns so {@code cases} isn't mapped by two modules.
  */
 @Repository
@@ -24,9 +25,11 @@ public class CaseOutcomeRepository {
         return TenantContext.schemaForSql();
     }
 
-    public void markFastTracked(Long caseId) {
+    /** @param classification null when the model decided */
+    public void saveRulesClassification(Long caseId, Classification classification) {
         jdbcTemplate.update(
-                "UPDATE %s.cases SET was_fast_track = TRUE WHERE id = ?".formatted(schema()), caseId);
+                "UPDATE %s.cases SET rules_classification = ? WHERE id = ?".formatted(schema()),
+                classification == null ? null : classification.name(), caseId);
     }
 
     public void saveForensicReport(Long caseId, String reportJson) {
@@ -68,24 +71,31 @@ public class CaseOutcomeRepository {
 
     public CaseOutcome findOutcome(Long caseId) {
         List<CaseOutcome> rows = jdbcTemplate.query("""
-                        SELECT c.was_fast_track, c.forensic_report, i.name, i.surname
+                        SELECT c.rules_classification, c.forensic_report, i.name, i.surname
                           FROM %1$s.cases c
                           JOIN %1$s.insured i ON i.id = c.insured_id
                          WHERE c.id = ?
                         """.formatted(schema()),
                 (rs, rowNum) -> new CaseOutcome(
-                        rs.getBoolean("was_fast_track"),
+                        rulesClassification(rs.getString("rules_classification")),
                         rs.getString("forensic_report"),
                         rs.getString("name") + " " + rs.getString("surname")),
                 caseId);
         return rows.isEmpty() ? CaseOutcome.unknown() : rows.getFirst();
     }
 
-    /** @param insuredName null when the case isn't in this schema */
-    public record CaseOutcome(boolean wasFastTrack, String forensicReport, String insuredName) {
+    private static Classification rulesClassification(String value) {
+        return value == null ? null : Classification.valueOf(value);
+    }
+
+    /**
+     * @param rulesClassification null when the model decided, or the case isn't classified yet
+     * @param insuredName null when the case isn't in this schema
+     */
+    public record CaseOutcome(Classification rulesClassification, String forensicReport, String insuredName) {
 
         static CaseOutcome unknown() {
-            return new CaseOutcome(false, null, null);
+            return new CaseOutcome(null, null, null);
         }
     }
 }

@@ -16,6 +16,7 @@ import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseSettlementRepositor
 import ar.edu.utn.frba.arbiter.cases.models.repositories.ClaimCauseRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.ClaimsAnalystRepository;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
+import ar.edu.utn.frba.arbiter.common.enums.Classification;
 import ar.edu.utn.frba.arbiter.common.enums.SettlementStatus;
 import ar.edu.utn.frba.arbiter.common.models.entities.Branch;
 import ar.edu.utn.frba.arbiter.common.models.entities.CaseState;
@@ -85,7 +86,7 @@ class ClaimCauseCorrectionServiceTest {
                 .policy(Policy.builder().id(5L).build())
                 .analyst(analyst)
                 .currentStatus(CaseState.builder().name("PENDING_ANALYST_REVIEW").build())
-                .deterministicFastTrack(true)
+                .rulesClassification(Classification.FAST_TRACK)
                 .build();
 
         SecurityContextHolder.getContext().setAuthentication(
@@ -109,7 +110,7 @@ class ClaimCauseCorrectionServiceTest {
 
         assertThat(claim.getClaimCause()).isEqualTo(fall);
         assertThat(claim.getCoverage()).isEqualTo(damageCoverage);
-        assertThat(claim.getDeterministicFastTrack()).isFalse();
+        assertThat(claim.getRulesClassification()).isNull();
         verify(caseStatusService).transition(claim, CaseStatus.PENDING_CLASSIFICATION, StatusChangeActor.ANALYST,
                 "Lucas Gómez corrigió el hecho generador: Robo en vía pública → Caída (cobertura: Daño accidental)",
                 "El relato dice que se le cayó.");

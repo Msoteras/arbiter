@@ -374,6 +374,13 @@ interface Swatch {
               tabla).
             </p>
           </app-card>
+          <app-card heading="Con chip al costado">
+            <app-badge cardAside variant="strong" tone="ok">Aplicó</app-badge>
+            <p class="sg-p">
+              Un elemento con <span class="mono">cardAside</span> va a la derecha del título. No
+              en las plegables.
+            </p>
+          </app-card>
           <app-card heading="Plegable" [collapsible]="true">
             <p class="sg-p">
               Con <span class="mono">collapsible</span> la cabecera pliega el cuerpo. Para pantallas

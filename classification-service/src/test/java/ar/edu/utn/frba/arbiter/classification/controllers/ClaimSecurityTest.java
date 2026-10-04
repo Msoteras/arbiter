@@ -42,7 +42,7 @@ class ClaimSecurityTest extends AbstractPersistenceIT {
     @BeforeEach
     void stubCaseLookup() {
         when(caseOutcomeRepository.findOutcome(any()))
-                .thenReturn(new CaseOutcomeRepository.CaseOutcome(false, null, null));
+                .thenReturn(new CaseOutcomeRepository.CaseOutcome(null, null, null));
     }
 
     private String tokenFor(String rol) {

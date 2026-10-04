@@ -191,7 +191,7 @@ class ClassificationOrchestratorDocumentGateTest {
                 .classification(Classification.LLM_RECOMIENDA_APROBAR)
                 .factors(List.of("documentación consistente"))
                 .confidence(0.8)
-                .deterministicFastTrack(false)
+                .resolvedByRules(false)
                 .build());
         when(promptBuilder.renderRulesAndPolicy(any(), any())).thenReturn("");
         when(promptBuilder.renderHistory(any())).thenReturn("");

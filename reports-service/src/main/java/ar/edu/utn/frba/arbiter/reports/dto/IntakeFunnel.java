@@ -5,7 +5,8 @@ package ar.edu.utn.frba.arbiter.reports.dto;
  * as {@link MetricsSummary}'s {@code resolvedCases}, which counts claims <b>closed</b> in the period.
  *
  * @param reported  the denominator of every other step
- * @param analyzed  claims the model looked at; Fast Tracks never reach the model
+ * @param analyzed  claims the model looked at; no rules outcome reaches it (Fast Track, exclusion,
+ *                  prescription, missing documentation)
  * @param stillOpen not in a final status as of now, not as of the period's last day
  */
 public record IntakeFunnel(

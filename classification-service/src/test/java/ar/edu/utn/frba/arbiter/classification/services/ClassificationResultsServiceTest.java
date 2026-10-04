@@ -2,8 +2,10 @@ package ar.edu.utn.frba.arbiter.classification.services;
 
 import ar.edu.utn.frba.arbiter.classification.adapters.LlmClient;
 import ar.edu.utn.frba.arbiter.classification.config.LlmProperties;
+import ar.edu.utn.frba.arbiter.classification.dto.AnalystDecisionRequest;
 import ar.edu.utn.frba.arbiter.classification.dto.ClassificationResponse;
 import ar.edu.utn.frba.arbiter.classification.dto.RuleFinding;
+import ar.edu.utn.frba.arbiter.classification.models.entities.CaseClassification;
 import ar.edu.utn.frba.arbiter.classification.models.entities.LlmAnalysis;
 import ar.edu.utn.frba.arbiter.classification.models.entities.RiskAnalysis;
 import ar.edu.utn.frba.arbiter.classification.models.entities.RuleResult;
@@ -38,7 +40,7 @@ import static org.mockito.Mockito.when;
 
 /**
  * An unscored claim persists no risk_analysis row and exposes null risk, never a real LOW band.
- * A Fast Track writes no llm_analysis row, so its outcome is read from the case.
+ * A rules outcome writes no llm_analysis row, so it is read from the case.
  */
 @ExtendWith(MockitoExtension.class)
 class ClassificationResultsServiceTest {
@@ -58,13 +60,14 @@ class ClassificationResultsServiceTest {
                 .classification(Classification.FAST_TRACK)
                 .factors(List.of("ok"))
                 .confidence(1.0)
-                .deterministicFastTrack(true)   // avoids needing the LLM model/prompt fields
+                .resolvedByRules(true)   // avoids needing the LLM model/prompt fields
                 .riskScore(riskScore)
                 .build();
     }
 
-    private static CaseOutcomeRepository.CaseOutcome outcome(boolean fastTrack) {
-        return new CaseOutcomeRepository.CaseOutcome(fastTrack, null, "Martina Soteras");
+    /** @param rulesClassification null when the model decided */
+    private static CaseOutcomeRepository.CaseOutcome outcome(Classification rulesClassification) {
+        return new CaseOutcomeRepository.CaseOutcome(rulesClassification, null, "Martina Soteras");
     }
 
     @Test
@@ -115,8 +118,40 @@ class ClassificationResultsServiceTest {
         service.saveResult(7L, response(RiskScore.notScored()), null, 120);
 
         // The model never ran and llm_analysis rejects FAST_TRACK, so the outcome lives on the case.
-        verify(caseOutcomeRepository).markFastTracked(7L);
+        verify(caseOutcomeRepository).saveRulesClassification(7L, Classification.FAST_TRACK);
         verify(llmAnalysisRepository, never()).save(org.mockito.ArgumentMatchers.any());
+    }
+
+    /** Shares its literal with a model recommendation, which is why it can't go to llm_analysis. */
+    @Test
+    void coverageExclusion_isRecordedOnTheCaseAndNotAsAnLlmAnalysis() {
+        ClassificationResponse exclusion = ClassificationResponse.builder()
+                .classification(Classification.LLM_SOLICITA_REVISION_MANUAL)
+                .factors(List.of("La cobertura no cubre el hecho generador declarado"))
+                .confidence(1.0)
+                .resolvedByRules(true)
+                .build();
+
+        service.saveResult(7L, exclusion, null, 50);
+
+        verify(caseOutcomeRepository).saveRulesClassification(7L, Classification.LLM_SOLICITA_REVISION_MANUAL);
+        verify(llmAnalysisRepository, never()).save(org.mockito.ArgumentMatchers.any());
+    }
+
+    /** Otherwise a case that went from a rules outcome to the model would keep reading as the former. */
+    @Test
+    void modelOutcome_clearsTheRulesColumnAndLogsAnLlmAnalysis() {
+        ClassificationResponse model = ClassificationResponse.builder()
+                .classification(Classification.LLM_RECOMIENDA_APROBAR)
+                .factors(List.of("Relato consistente"))
+                .confidence(0.9)
+                .resolvedByRules(false)
+                .build();
+
+        service.saveResult(7L, model, null, 50);
+
+        verify(caseOutcomeRepository).saveRulesClassification(7L, null);
+        verify(llmAnalysisRepository).save(org.mockito.ArgumentMatchers.any());
     }
 
     @Test
@@ -125,7 +160,7 @@ class ClassificationResultsServiceTest {
                 .classification(Classification.LLM_SOLICITA_REVISION_MANUAL)
                 .factors(List.of("La cobertura no cubre el hecho generador declarado"))
                 .confidence(1.0)
-                .deterministicFastTrack(false)
+                .resolvedByRules(true)
                 .ruleFindings(List.of(new RuleFinding(3L, "COVERAGE_INCLUSION", false, "claimCause=Hurto (id=3)")))
                 .build();
 
@@ -148,7 +183,7 @@ class ClassificationResultsServiceTest {
                 .classification(Classification.FAST_TRACK)
                 .factors(List.of("ok"))
                 .confidence(1.0)
-                .deterministicFastTrack(true)
+                .resolvedByRules(true)
                 .ruleFindings(List.of(new RuleFinding(3L, "COVERAGE_INCLUSION", true, "claimCause=Robo (id=2)")))
                 .build();
 
@@ -162,7 +197,7 @@ class ClassificationResultsServiceTest {
         when(llmAnalysisRepository.findLatestByCaseId(7L))
                 .thenReturn(Optional.of(analysis(Classification.LLM_RECOMIENDA_APROBAR)));
         when(riskAnalysisRepository.findFirstByCaseIdOrderByIdDesc(7L)).thenReturn(Optional.empty());
-        when(caseOutcomeRepository.findOutcome(7L)).thenReturn(outcome(false));
+        when(caseOutcomeRepository.findOutcome(7L)).thenReturn(outcome(null));
 
         ClaimResponse exposed = service.getStatus(7L);
 
@@ -175,7 +210,7 @@ class ClassificationResultsServiceTest {
     void getStatus_scored_exposesBandAndScore() {
         when(llmAnalysisRepository.findLatestByCaseId(7L))
                 .thenReturn(Optional.of(analysis(Classification.LLM_NO_RECOMIENDA_APROBAR)));
-        when(caseOutcomeRepository.findOutcome(7L)).thenReturn(outcome(false));
+        when(caseOutcomeRepository.findOutcome(7L)).thenReturn(outcome(null));
 
         RiskAnalysis analysis = new RiskAnalysis();
         analysis.setCaseId(7L);
@@ -196,38 +231,71 @@ class ClassificationResultsServiceTest {
         when(llmAnalysisRepository.findLatestByCaseId(7L))
                 .thenReturn(Optional.of(analysis(Classification.LLM_NO_RECOMIENDA_APROBAR)));
         when(riskAnalysisRepository.findFirstByCaseIdOrderByIdDesc(7L)).thenReturn(Optional.empty());
-        when(caseOutcomeRepository.findOutcome(7L)).thenReturn(outcome(false));
+        when(caseOutcomeRepository.findOutcome(7L)).thenReturn(outcome(null));
 
         ClaimResponse exposed = service.getStatus(7L);
 
         assertThat(exposed.factors()).containsExactly("factor-1", "factor-2");
         assertThat(exposed.insuredName()).isEqualTo("Martina Soteras");
-        assertThat(exposed.deterministicFastTrack()).isFalse();
+        assertThat(exposed.resolvedByRules()).isFalse();
     }
 
     @Test
     void getStatus_fastTracked_reportsItWithoutAnAnalysisRow() {
         when(llmAnalysisRepository.findLatestByCaseId(7L)).thenReturn(Optional.empty());
         when(riskAnalysisRepository.findFirstByCaseIdOrderByIdDesc(7L)).thenReturn(Optional.empty());
-        when(caseOutcomeRepository.findOutcome(7L)).thenReturn(outcome(true));
+        when(caseOutcomeRepository.findOutcome(7L)).thenReturn(outcome(Classification.FAST_TRACK));
 
         ClaimResponse exposed = service.getStatus(7L);
 
-        assertThat(exposed.deterministicFastTrack()).isTrue();
+        assertThat(exposed.resolvedByRules()).isTrue();
         assertThat(exposed.classification()).isEqualTo(Classification.FAST_TRACK);
         assertThat(exposed.confidence()).isEqualTo(1.0);
+    }
+
+    /** The append-only table still holds an earlier model run: none of it may leak into this one. */
+    @Test
+    void getStatus_rulesOutcome_winsOverAnOlderModelRun() {
+        when(llmAnalysisRepository.findLatestByCaseId(7L))
+                .thenReturn(Optional.of(analysis(Classification.LLM_RECOMIENDA_APROBAR)));
+        when(riskAnalysisRepository.findFirstByCaseIdOrderByIdDesc(7L)).thenReturn(Optional.empty());
+        when(caseOutcomeRepository.findOutcome(7L))
+                .thenReturn(outcome(Classification.LLM_NO_RECOMIENDA_APROBAR));
+
+        ClaimResponse exposed = service.getStatus(7L);
+
+        assertThat(exposed.resolvedByRules()).isTrue();
+        assertThat(exposed.classification()).isEqualTo(Classification.LLM_NO_RECOMIENDA_APROBAR);
+        assertThat(exposed.factors()).isNull();
+        assertThat(exposed.analyzedAt()).isNull();
+    }
+
+    /** The audit row must not point at a model run that didn't produce what the analyst decided on. */
+    @Test
+    void analystDecisionOnARulesOutcome_linksNoModelAnalysis() {
+        when(caseOutcomeRepository.findOutcome(7L))
+                .thenReturn(outcome(Classification.LLM_NO_RECOMIENDA_APROBAR));
+        when(caseClassificationRepository.save(org.mockito.ArgumentMatchers.any()))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.recordAnalystDecision(7L, new AnalystDecisionRequest(1L, "REJECT", "Prescripto", 1));
+
+        ArgumentCaptor<CaseClassification> captor = ArgumentCaptor.forClass(CaseClassification.class);
+        verify(caseClassificationRepository).save(captor.capture());
+        assertThat(captor.getValue().getLlmAnalysis()).isNull();
+        verify(llmAnalysisRepository, never()).findLatestByCaseId(7L);
     }
 
     @Test
     void getStatus_notClassifiedYet_reportsNothing() {
         when(llmAnalysisRepository.findLatestByCaseId(7L)).thenReturn(Optional.empty());
         when(riskAnalysisRepository.findFirstByCaseIdOrderByIdDesc(7L)).thenReturn(Optional.empty());
-        when(caseOutcomeRepository.findOutcome(7L)).thenReturn(outcome(false));
+        when(caseOutcomeRepository.findOutcome(7L)).thenReturn(outcome(null));
 
         ClaimResponse exposed = service.getStatus(7L);
 
         assertThat(exposed.classification()).isNull();
-        assertThat(exposed.deterministicFastTrack()).isFalse();
+        assertThat(exposed.resolvedByRules()).isFalse();
     }
 
     private LlmAnalysis analysis(Classification recommendation) {

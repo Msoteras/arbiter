@@ -221,9 +221,9 @@ public class ClassificationServiceClient implements ClaimsAnalysisClient {
 
                 // Saved on the entity re-read after the CAS; saving the stale copy would rewrite the row.
                 Case resolved = claimed.get();
-                // The recommendation itself isn't copied: it is joined from llm_analysis on read.
+                // The model's recommendation isn't copied: it is joined from llm_analysis on read.
                 // Only what the inbox filters on, or has no other table, is cached here.
-                resolved.setDeterministicFastTrack(response.deterministicFastTrack());
+                resolved.setRulesClassification(response.resolvedByRules() ? response.classification() : null);
                 // Null when unscored; never coerced to a band.
                 resolved.setRiskScore(response.riskScore());
                 resolved.setRiskBand(response.riskBand());
@@ -240,8 +240,8 @@ public class ClassificationServiceClient implements ClaimsAnalysisClient {
 
     /**
      * {@code llm_analysis} is append-only, so while a new run is in flight classification-service
-     * still answers with the previous round's row. A null {@code analyzedAt} means Fast Track, whose
-     * result is rewritten on every run and so can't be stale.
+     * still answers with the previous round's row. A null {@code analyzedAt} means a rules outcome,
+     * whose result is rewritten on every run and so can't be stale.
      */
     private boolean isStale(Case caseRecord, ClaimResponse response) {
         if (response.analyzedAt() == null) {

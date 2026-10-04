@@ -74,7 +74,7 @@ public final class CaseTables {
                     id                 BIGINT PRIMARY KEY,
                     reported_at        TIMESTAMPTZ NOT NULL,
                     response_deadline  DATE        NOT NULL,
-                    was_fast_track     BOOLEAN     NOT NULL DEFAULT FALSE,
+                    rules_classification VARCHAR(50),
                     fraud_determined   BOOLEAN     NOT NULL DEFAULT FALSE,
                     claimed_amount     NUMERIC(38,2),
                     current_status_id  BIGINT      NOT NULL REFERENCES case_status(id),
@@ -171,12 +171,12 @@ public final class CaseTables {
     public void insertCase(long id, String reportedAt, long statusId, long claimCauseId, boolean fastTrack,
                            Long analystId, Long classificationId) {
         jdbcTemplate.update("""
-                INSERT INTO cases (id, reported_at, response_deadline, was_fast_track,
+                INSERT INTO cases (id, reported_at, response_deadline, rules_classification,
                                    current_status_id, analyst_id, insured_id, claim_cause_id,
                                    classification_id)
                 VALUES (?, ?, (? AT TIME ZONE 'UTC')::date + 30, ?, ?, ?, 1, ?, ?)
                 """, id, Timestamp.from(Instant.parse(reportedAt)),
-                Timestamp.from(Instant.parse(reportedAt)), fastTrack, statusId, analystId,
+                Timestamp.from(Instant.parse(reportedAt)), fastTrack ? "FAST_TRACK" : null, statusId, analystId,
                 claimCauseId, classificationId);
     }
 
@@ -269,6 +269,11 @@ public final class CaseTables {
         jdbcTemplate.update(
                 "INSERT INTO rule_result (rule_type, result, rule_id, case_id) VALUES (?, ?, ?, ?)",
                 ruleType, result, ruleId, caseId);
+    }
+
+    /** A rules outcome other than Fast Track, which {@link #insertCase} covers. */
+    public void rulesOutcome(long caseId, String classification) {
+        jdbcTemplate.update("UPDATE cases SET rules_classification = ? WHERE id = ?", classification, caseId);
     }
 
     public void recommendation(long caseId, String recommendation) {

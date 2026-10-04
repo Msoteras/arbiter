@@ -462,16 +462,31 @@ class CaseServiceImplTest {
 
     @Test
     void getCase_fastTracked_reportsFastTrackWithoutAnLlmRow() {
-        // Fast Track leaves no llm_analysis row, so the classification must come from was_fast_track.
+        // Fast Track leaves no llm_analysis row, so the classification must come from the case.
         Case entity = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
-        entity.setDeterministicFastTrack(true);
+        entity.setRulesClassification(Classification.FAST_TRACK);
         when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
 
         CaseResponse response = caseService.getCase(1L);
 
         assertThat(response.analysisClassification()).isEqualTo(Classification.FAST_TRACK);
+        assertThat(response.resolvedByRules()).isTrue();
         assertThat(response.analysisConfidence()).isEqualTo(1.0);
         // Any llm_reason rows belong to a previous run, not to the Fast Track.
+        assertThat(response.analysisReasons()).isEmpty();
+    }
+
+    /** Shares its literal with a model recommendation: only the flag tells the analyst who decided. */
+    @Test
+    void getCase_prescribed_isReportedAsARulesOutcome() {
+        Case entity = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
+        entity.setRulesClassification(Classification.LLM_NO_RECOMIENDA_APROBAR);
+        when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
+
+        CaseResponse response = caseService.getCase(1L);
+
+        assertThat(response.analysisClassification()).isEqualTo(Classification.LLM_NO_RECOMIENDA_APROBAR);
+        assertThat(response.resolvedByRules()).isTrue();
         assertThat(response.analysisReasons()).isEmpty();
     }
 
@@ -1136,7 +1151,7 @@ class CaseServiceImplTest {
     void addDocumentsAndReclassify_resetsClassificationAttempts() {
         Case entity = caseRecord(1L, CaseStatus.AWAITING_DOCUMENTATION);
         entity.setClassificationAttempts(115);
-        entity.setDeterministicFastTrack(Boolean.FALSE);
+        entity.setRulesClassification(Classification.FALTA_DOCUMENTACION);
         when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
         when(caseDocumentRepository.findByCaseId(1L)).thenReturn(List.of());
         when(claimsAnalysisClient.analyzeAndPersist(any(), any()))
@@ -1145,8 +1160,8 @@ class CaseServiceImplTest {
         caseService.addDocumentsAndReclassify(1L, Map.of());
 
         assertThat(entity.getClassificationAttempts()).isZero();
-        // false, not null: was_fast_track is NOT NULL in the real schema.
-        assertThat(entity.getDeterministicFastTrack()).isFalse();
+        // The new run decides again; a stale rules outcome would win over its result.
+        assertThat(entity.getRulesClassification()).isNull();
     }
 
     @Test

@@ -88,8 +88,14 @@ class ClassificationOrchestratorPrescriptionTest {
 
         assertThat(response.classification()).isEqualTo(Classification.LLM_NO_RECOMIENDA_APROBAR);
         assertThat(response.confidence()).isEqualTo(1.0);
-        assertThat(response.deterministicFastTrack()).isFalse();
+        assertThat(response.resolvedByRules()).isTrue();
         assertThat(response.factors()).anyMatch(f -> f.contains("prescripto"));
+        // The model never ran, so rule_result is the audit's only record of why.
+        assertThat(response.ruleFindings()).singleElement().satisfies(finding -> {
+            assertThat(finding.ruleType()).isEqualTo("PRESCRIPTION");
+            assertThat(finding.result()).isEqualTo("FAIL");
+            assertThat(finding.evaluatedValue()).isEqualTo("eventDate=13/06/2024 reportedAt=20/06/2026");
+        });
 
         // Context resolution (policy/history/rules) always runs, so it isn't verified here.
         verify(classifier, never()).classify(any());

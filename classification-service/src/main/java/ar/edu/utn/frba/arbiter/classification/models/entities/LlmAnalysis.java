@@ -23,7 +23,7 @@ import java.util.List;
 
 /**
  * The model's recommendation for a case; with its {@link LlmReason} rows, the immutable audit trail
- * (Disposición SSN 2/2023). A Fast Track writes no row here: that is {@code cases.was_fast_track}.
+ * (Disposición SSN 2/2023). A rules outcome writes no row here: that is {@code cases.rules_classification}.
  */
 @Entity
 @Table(name = "llm_analysis")

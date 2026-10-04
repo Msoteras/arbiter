@@ -511,7 +511,10 @@ BEGIN
             updated_at                  TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
             response_deadline           DATE          NOT NULL,
             description                 TEXT          NOT NULL,
-            was_fast_track              BOOLEAN       NOT NULL DEFAULT FALSE,
+            -- What the rules engine recommended when it settled the case without the model;
+            -- NULL when the model decided. A rules outcome writes no llm_analysis row: why the
+            -- engine decided is in rule_result.
+            rules_classification        VARCHAR(50),
             fraud_determined            BOOLEAN       NOT NULL DEFAULT FALSE,
             destination                 VARCHAR(40),
             -- What the insured claims, compared against policy_snapshot to surface gaps with
@@ -553,7 +556,14 @@ BEGIN
             policy_id                   BIGINT        NOT NULL REFERENCES %I.policy(id),
             policy_snapshot_id          BIGINT        REFERENCES %I.policy_snapshot(id),
             scoring_configuration_id    BIGINT        REFERENCES %I.scoring_configuration(id),
-            classification_id           BIGINT
+            classification_id           BIGINT,
+
+            -- The engine never recommends approval: its only positive outcome is FAST_TRACK.
+            CONSTRAINT cases_rules_classification_check CHECK (
+                rules_classification IS NULL
+                OR rules_classification IN ('FAST_TRACK', 'FALTA_DOCUMENTACION',
+                                            'LLM_SOLICITA_REVISION_MANUAL', 'LLM_NO_RECOMIENDA_APROBAR')
+            )
         )$ddl$, p_schema, p_schema, p_schema, p_schema, p_schema, p_schema, p_schema);
 
     EXECUTE format('CREATE INDEX idx_cases_status ON %I.cases (current_status_id)', p_schema);
@@ -1194,7 +1204,9 @@ BEGIN
             (6, 'fraud_history', 0.60, 1),
             -- Loaded from the referente panel on 25/09/2026 in both insurers, once its two false
             -- positives were fixed (amount vs. the wrong document, the purchase proof's date).
-            (7, 'document_inconsistency', 0.40, 1)
+            (7, 'document_inconsistency', 0.40, 1),
+            -- Weak signal on its own: plenty of honest buyers insure at the point of sale.
+            (8, 'purchase_to_report_time', 0.25, 1)
         $ddl$, p_schema);
 
     EXECUTE format($ddl$

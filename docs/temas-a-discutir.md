@@ -9,7 +9,7 @@ una sección aparte con lo que quedó huérfano al borrar el backlog de historia
 
 ---
 
-## ~~H0007 — Extracción de datos de documentos, alcance final~~ — ✅ cerrado (07/09/2026)
+## ~~H0007 — Extracción de datos de documentos, alcance final~~ — ✅ cerrado (07/09/2026), salvo la edición
 
 **Qué se hizo.** El modelo devuelve ahora `brand` y `model` separados de `itemDescription`, más una
 lista genérica `details` (nombre/valor) para todo lo demás que el documento diga: nro. de factura,
@@ -25,13 +25,27 @@ así que una regla que buscara ahí dejaría de encontrarlo el día que lo redac
 fallaría en silencio** — en este motor, una regla que no evalúa se lee como "no hay nada mal".
 Cuando un detalle empiece a alimentar una regla, se promueve a columna.
 
-**La edición del analista quedó fuera de alcance, a propósito.** La HU original la pedía, pero
-choca de frente con la decisión #7: si el analista edita el dato extraído, el `document_analysis`
-que fundamentó la recomendación cambia bajo los pies del log de auditoría. Y se perdería sola —
-`document_analysis` se reemplaza en cada corrida, así que la próxima reclasificación se la lleva
-puesta. Sostenerla pediría versionar la tabla y decidir si un valor corregido dispara
-reclasificación, más caro que los otros dos puntos juntos. **Corresponde reescribir la HU** para
-que diga esto en vez de prometer la edición.
+La edición del analista no entró en este cierre: sigue en alcance y se trata en la entrada de abajo.
+
+---
+
+## Edición de los datos extraídos por el analista — en alcance, sin implementar
+
+**Corregido el 28/09/2026.** Esta entrada decía que la edición había quedado fuera de alcance y que
+había que reescribir la HU. No es así: el analista **sí** puede corregir un dato extraído si le
+parece que el modelo lo leyó mal. Lo que pasa es que todavía no está implementado.
+
+**Qué hay que resolver al implementarla.** Son los dos problemas que se habían usado para dejarla
+afuera; ahora son requisitos de diseño:
+
+- **Auditoría (decisión #7).** Si la corrección pisa `document_analysis`, cambia el dato que
+  fundamentó la recomendación y el log queda mintiendo. La corrección tiene que guardarse aparte
+  (quién, cuándo, valor anterior y nuevo) sin tocar lo que leyó el modelo.
+- **Reclasificación.** `document_analysis` se reemplaza en cada corrida, así que una corrección
+  guardada ahí se pierde en la próxima. Además hay que decidir si corregir un dato dispara una
+  reclasificación o solo queda como constancia para el analista.
+
+**Qué bloquea:** nada hoy. El analista ve el dato mal leído y lo tiene que tener en cuenta a mano.
 
 ---
 
@@ -283,7 +297,9 @@ entra por el carril rápido.
 - Peso **0,40** en las dos aseguradoras: en Railway, cargado desde el panel del referente; en
   `init-multitenant.sql`, para las bases nuevas. `BaselineRulesAdapter` lo sigue dejando afuera a
   propósito: fuera de nuestras dos aseguradoras, activarlo es decisión de cada compañía.
-- `purchase_to_report_time` sigue sin peso.
+- `purchase_to_report_time` (27/09/2026): ahora toma la fecha de compra de la factura, no el alta de
+  la póliza, que ya cubren la carencia y `FT_POLICY_AGE`. Sin factura con fecha, no se evalúa. Peso
+  **0,25** en `init-multitenant.sql`; en Railway hay que cargarlo desde el panel del referente.
 
 Lo que sigue queda como registro.
 
@@ -327,7 +343,30 @@ en `document_analysis` y no en el score.
 
 ---
 
-## Fast Track negativo: las salidas por reglas se registran como si las hubiera dado el LLM
+## ~~Fast Track negativo: las salidas por reglas se registran como si las hubiera dado el LLM~~ — ✅ resuelto (29/09/2026)
+
+**Qué se hizo:** la opción 1 de abajo, sin tabla nueva y sin tocar el enum (decisión #6 intacta).
+
+- `cases.was_fast_track` pasó a ser `cases.rules_classification`: qué recomendó el motor cuando
+  decidió sin el modelo, nula si decidió el modelo. Las cuatro salidas por reglas (Fast Track,
+  exclusión, prescripción, falta de documentación) ya no escriben `llm_analysis`; el porqué queda
+  en `rule_result`, que ya tenía la exclusión y ahora suma `PRESCRIPTION` con las dos fechas.
+- La falta de documentación no tiene fila propia: la agenda es siempre la exigida y lo que se sube
+  después queda con su fecha en `case_document`.
+- El DTO lleva `resolvedByRules` hasta el frontend. La card dice "Resultado del motor de reglas" y
+  manda a «Evaluación de reglas».
+- La decisión del analista sobre una salida por reglas ya no se engancha a un `llm_analysis` de
+  una corrida anterior (le pasaba también a Fast Track).
+- Reportes: la tasa de Fast Track y la distribución por clasificación dan igual. La coincidencia
+  del modelo deja afuera lo que decidió el motor, y "Analizados por el modelo" también: ninguno de
+  los dos contaba antes a Fast Track.
+- La migración `2026-09-29-quien-decidio-la-clasificacion.sql` corrige los expedientes viejos sin
+  adivinar: `FALTA_DOCUMENTACION` no la puede devolver el modelo, y la exclusión y la prescripción
+  se reconocen por su motivo, que es un texto fijo del código. Sus filas de `llm_analysis` quedan
+  como historial. Va en dos pasos: antes del deploy agrega y llena la columna; después se corre de
+  nuevo y `2026-09-29-borrar-was-fast-track.sql` borra la vieja, que el código desplegado todavía usa.
+
+Lo que sigue queda como registro.
 
 **Encontrado:** 22/09/2026, discutiendo si un Fast Track tiene que llegarle al analista como "todo en
 regla". No tiene que: Fast Track quiere decir "lo resolvieron las reglas, sin pasar por el LLM", y eso

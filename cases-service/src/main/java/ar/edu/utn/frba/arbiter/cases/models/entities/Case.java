@@ -2,6 +2,7 @@ package ar.edu.utn.frba.arbiter.cases.models.entities;
 
 import ar.edu.utn.frba.arbiter.common.dto.ImageForensicReport;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
+import ar.edu.utn.frba.arbiter.common.enums.Classification;
 import ar.edu.utn.frba.arbiter.common.enums.ClassificationFailureReason;
 import ar.edu.utn.frba.arbiter.common.enums.RiskBand;
 import ar.edu.utn.frba.arbiter.common.models.entities.CaseState;
@@ -117,13 +118,12 @@ public class Case {
     private CaseState currentStatus;
 
     /**
-     * Written by classification-service; the only trace of a Fast Track, which leaves no
-     * {@code llm_analysis} row. Initialized because Hibernate always INSERTs the column, bypassing the
-     * schema default.
+     * Written by classification-service: what the rules engine recommended, null when the model
+     * decided. The only trace of a rules outcome, which leaves no {@code llm_analysis} row.
      */
-    @Builder.Default
-    @Column(name = "was_fast_track", nullable = false)
-    private Boolean deterministicFastTrack = false;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "rules_classification", length = 50)
+    private Classification rulesClassification;
 
     /**
      * The human verdict, unlike {@code riskBand}. Written only after the insured's fraud record
