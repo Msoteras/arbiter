@@ -21,6 +21,7 @@ import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseSettlementRepositor
 import ar.edu.utn.frba.arbiter.cases.models.repositories.ExpertAssessmentRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.InsurerReferentRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.PolicyCoverageRepository;
+import ar.edu.utn.frba.arbiter.common.enums.DeductibleBasis;
 import ar.edu.utn.frba.arbiter.common.enums.SettlementBasis;
 import ar.edu.utn.frba.arbiter.common.enums.SettlementFormula;
 import ar.edu.utn.frba.arbiter.common.enums.SettlementStatus;
@@ -44,10 +45,8 @@ import java.util.Locale;
 import java.util.Optional;
 
 /**
- * Determining the amount to pay. {@link #forCase} proposes: it recomputes from frozen inputs and
- * writes nothing, so the analyst can preview as often as they like. {@link #confirm} records: it
- * runs once, inside the approval. The calculation never settles anything on its own — what the
- * analyst signed is what gets stored.
+ * {@link #forCase} proposes: it recomputes from frozen inputs and writes nothing. {@link #confirm}
+ * records, once, inside the approval: what the analyst signed is what gets stored.
  */
 @Service
 @RequiredArgsConstructor
@@ -58,9 +57,8 @@ public class SettlementService {
 
     private static final BigDecimal FULL_PERCENTAGE = new BigDecimal("100.00");
 
-    /** Insured document types that carry an amount usable for settling. */
+    /** The insured document whose amount can back a repair. */
     private static final String REPAIR_QUOTE = "repair_quote";
-    private static final String PURCHASE_PROOF = "purchase_proof";
     /** Provider reports uploaded by the analyst, not insured attachments. */
     private static final String EXPERT_REPORT = "expert_report";
     private static final String REPAIR_REPORT = "repair_report";
@@ -85,21 +83,29 @@ public class SettlementService {
         Case caseRecord = caseRepository.findById(caseId)
                 .orElseThrow(() -> new CaseNotFoundException(caseId));
 
-        Optional<CaseSettlement> confirmed = settlementRepository.findByCaseId(caseId);
-        if (confirmed.isPresent()) {
-            return toResponse(confirmed.get(), true, List.of(), caseRecord.getCoverage(), null);
+        Optional<CaseSettlement> stored = settlementRepository.findByCaseId(caseId);
+        // A returned settlement is back in the analyst's hands: it is proposed again, from today's
+        // coverage terms, rather than frozen at what the referent sent back.
+        if (stored.isPresent() && stored.get().getStatus() != SettlementStatus.RETURNED) {
+            return toResponse(stored.get(), true, List.of(), caseRecord.getCoverage(), null);
         }
 
         PolicySnapshot snapshot = caseRepository.findPolicySnapshot(caseId).orElse(null);
         Coverage coverage = caseRecord.getCoverage();
+        SettlementFormula formula = formulaFor(caseId, coverage);
         CaseSettlement proposal = calculator.calculate(
-                caseRecord, coverage, policyCoverageOf(caseRecord), snapshot, replacementValue,
-                formulaFor(caseId, coverage));
+                caseRecord, coverage, policyCoverageOf(caseRecord), snapshot, replacementValue, formula);
         // So the analyst sees before signing that the amount will need the referent.
         proposal.setAuthorityLimit(authorityService.limitFor(branchIdOf(caseRecord)));
+        // Kept on the proposal so the analyst still sees why it came back.
+        stored.ifPresent(returned -> {
+            proposal.setStatus(SettlementStatus.RETURNED);
+            proposal.setReturnReason(returned.getReturnReason());
+        });
         return toResponse(proposal, false,
-                warnings(coverage, snapshot, replacementValue, proposal.getFormula()), coverage,
-                suggestionFor(caseId, coverage));
+                warnings(coverage, snapshot, replacementValue, proposal, caseRecord.getClaimedAmount()),
+                coverage,
+                suggestionFor(caseId, coverage, formula));
     }
 
     /**
@@ -121,6 +127,10 @@ public class SettlementService {
         CaseSettlement settlement = calculator.calculate(caseRecord, caseRecord.getCoverage(),
                 policyCoverageOf(caseRecord), snapshot, request.replacementValue(),
                 formulaFor(caseRecord.getId(), caseRecord.getCoverage()));
+
+        if (needsReplacementValue(settlement) && !isPositive(request.replacementValue())) {
+            throw InvalidSettlementException.missingReplacementValue();
+        }
 
         BigDecimal authorized = request.settledAmount();
         if (authorized.compareTo(settlement.getSumInsured()) > 0) {
@@ -160,18 +170,15 @@ public class SettlementService {
         settlement.setAuthorizedByUserId(null);
         settlement.setAuthorizedAt(null);
 
-        boolean needsReferente = limit != null && authorized.compareTo(limit) > 0;
-        settlement.setStatus(needsReferente
+        boolean needsReferent = limit != null && authorized.compareTo(limit) > 0;
+        settlement.setStatus(needsReferent
                 ? SettlementStatus.PENDING_AUTHORIZATION
                 : SettlementStatus.AUTHORIZED);
         // Held until the referent authorizes, when the decision is forwarded with the analyst's own justification.
-        settlement.setPendingJustification(needsReferente ? justification : null);
+        settlement.setPendingJustification(needsReferent ? justification : null);
     }
 
-    /**
-     * This policy's terms for the case's coverage; only a fallback for the snapshot. Null if the
-     * coverage isn't synced yet.
-     */
+    /** Only a fallback for the snapshot; null if the coverage isn't synced yet. */
     private PolicyCoverage policyCoverageOf(Case caseRecord) {
         if (caseRecord.getPolicy() == null || caseRecord.getCoverage() == null) {
             return null;
@@ -182,47 +189,56 @@ public class SettlementService {
     }
 
     /**
-     * An amount already on file, offered to the analyst as a suggestion only — never applied.
-     *
-     * <p>Provider valuations beat the insured's documents, and the latest received wins. Which
-     * document answers depends on the formula: the repair quote for a repair, the purchase proof
-     * for a total loss settled by the lesser value. With no accredited amount to fill in, only the
-     * expert's indemnifiable amount can be proposed, for the final amount.
+     * An amount on file, offered as a suggestion only; provider valuations beat the insured's
+     * documents and the latest wins. A repair takes the quote. A lesser-of total loss takes only the
+     * expert's valuation: the purchase proof is what the item cost back then, not what it is worth
+     * today, so without an expert the analyst determines it. With nothing to accredit, the expert's
+     * amount is proposed as the payout itself.
      */
-    private Suggestion suggestionFor(Long caseId, Coverage coverage) {
+    private Suggestion suggestionFor(Long caseId, Coverage coverage, SettlementFormula formula) {
         // Newest first: each new valuation supersedes the previous one.
         List<ExpertAssessment> valuations = expertAssessmentRepository
                 .findByCaseIdOrderByDerivedAtDesc(caseId).stream()
                 .filter(assessment -> assessment.getReportReceivedAt() != null)
-                .filter(assessment -> valuationOf(assessment) != null
-                        && valuationOf(assessment).signum() > 0)
+                .filter(assessment -> isPositive(valuationOf(assessment)))
                 .sorted(Comparator.comparing(ExpertAssessment::getReportReceivedAt).reversed())
                 .toList();
 
-        String wanted = accreditedDocumentFor(coverage);
-        if (wanted == null) {
-            // A repair cost is not an opinion on what to pay, so only the expert's amount applies.
-            return valuations.stream()
-                    .filter(assessment -> assessment.getProviderType() == ProviderType.ESTUDIO_LIQUIDADOR)
+        if (formula == SettlementFormula.REPAIR) {
+            if (!valuations.isEmpty()) {
+                ExpertAssessment latest = valuations.getFirst();
+                return new Suggestion(valuationOf(latest), sourceOf(latest),
+                        SettlementSuggestionTarget.ACCREDITED_AMOUNT);
+            }
+            return documentAnalysisRepository.findByCaseId(caseId).stream()
+                    .filter(doc -> REPAIR_QUOTE.equals(doc.documentType()))
+                    .filter(doc -> isPositive(doc.amount()))
                     .findFirst()
-                    .map(assessment -> new Suggestion(assessment.getIndemnifiableAmount(),
-                            EXPERT_REPORT, SettlementSuggestionTarget.SETTLED_AMOUNT))
+                    .map(doc -> new Suggestion(doc.amount(), doc.documentType(),
+                            SettlementSuggestionTarget.ACCREDITED_AMOUNT))
                     .orElse(null);
         }
 
-        if (!valuations.isEmpty()) {
-            ExpertAssessment latest = valuations.getFirst();
-            return new Suggestion(valuationOf(latest), sourceOf(latest),
-                    SettlementSuggestionTarget.ACCREDITED_AMOUNT);
-        }
-
-        return documentAnalysisRepository.findByCaseId(caseId).stream()
-                .filter(doc -> wanted.equals(doc.documentType()))
-                .filter(doc -> doc.amount() != null && doc.amount().signum() > 0)
+        // A repair cost is not an opinion on what the item is worth, so only the expert applies.
+        SettlementSuggestionTarget target =
+                coverage.getSettlementBasis() == SettlementBasis.LESSER_OF_SUM_AND_REPLACEMENT
+                        ? SettlementSuggestionTarget.ACCREDITED_AMOUNT
+                        : SettlementSuggestionTarget.SETTLED_AMOUNT;
+        return valuations.stream()
+                .filter(assessment -> assessment.getProviderType() == ProviderType.ESTUDIO_LIQUIDADOR)
                 .findFirst()
-                .map(doc -> new Suggestion(doc.amount(), doc.documentType(),
-                        SettlementSuggestionTarget.ACCREDITED_AMOUNT))
+                .map(assessment -> new Suggestion(assessment.getIndemnifiableAmount(), EXPERT_REPORT, target))
                 .orElse(null);
+    }
+
+    /** A total loss settled by the lesser of the two: the replacement value is the amount's base. */
+    private static boolean needsReplacementValue(CaseSettlement settlement) {
+        return settlement.getFormula() != SettlementFormula.REPAIR
+                && settlement.getSettlementBasis() == SettlementBasis.LESSER_OF_SUM_AND_REPLACEMENT;
+    }
+
+    private static boolean isPositive(BigDecimal amount) {
+        return amount != null && amount.signum() > 0;
     }
 
     /** One query for the whole inbox page. Cases without a settlement are absent from the map. */
@@ -268,21 +284,9 @@ public class SettlementService {
                 ? REPAIR_REPORT : EXPERT_REPORT;
     }
 
-    /** Null when the coverage doesn't ask for an accredited amount. */
-    private String accreditedDocumentFor(Coverage coverage) {
-        if (coverage.getSettlementFormula() == SettlementFormula.REPAIR) {
-            return REPAIR_QUOTE;
-        }
-        if (coverage.getSettlementBasis() == SettlementBasis.LESSER_OF_SUM_AND_REPLACEMENT) {
-            return PURCHASE_PROOF;
-        }
-        return null;
-    }
-
     private record Suggestion(BigDecimal amount, String documentType,
                               SettlementSuggestionTarget target) {}
 
-    /** The branch hangs off the claim cause — {@code cases} has no column of its own for it. */
     private Long branchIdOf(Case caseRecord) {
         if (caseRecord.getClaimCause() == null || caseRecord.getClaimCause().getBranch() == null) {
             return null;
@@ -290,10 +294,7 @@ public class SettlementService {
         return caseRecord.getClaimCause().getBranch().getId();
     }
 
-    /**
-     * Oldest first: a claim already decided by its analyst is burning the 30-day legal term while
-     * it waits.
-     */
+    /** Oldest first: a decided claim is burning the 30-day legal term while it waits. */
     @Transactional(readOnly = true)
     public List<PendingSettlementResponse> pendingAuthorization() {
         return settlementRepository
@@ -327,7 +328,7 @@ public class SettlementService {
 
     /** Most recent first. */
     @Transactional(readOnly = true)
-    public List<AuthorizedSettlementResponse> authorizedByReferente() {
+    public List<AuthorizedSettlementResponse> authorizedByReferent() {
         List<CaseSettlement> settlements = settlementRepository
                 .findTop50ByStatusAndAuthorizedAtIsNotNullOrderByAuthorizedAtDesc(
                         SettlementStatus.AUTHORIZED);
@@ -397,9 +398,7 @@ public class SettlementService {
                 .orElseThrow(() -> new SettlementNotFoundException(caseId));
     }
 
-    /**
-     * Only marks the settlement; resolving the case belongs to the case lifecycle.
-     */
+    /** Only marks the settlement; resolving the case belongs to the case lifecycle. */
     @Transactional
     public CaseSettlement markAuthorized(Long caseId, Long referentUserId) {
         CaseSettlement settlement = require(caseId);
@@ -414,9 +413,7 @@ public class SettlementService {
         return settlementRepository.save(settlement);
     }
 
-    /**
-     * Not a rejection of the claim: the analyst keeps the case and can settle it again.
-     */
+    /** Not a rejection of the claim: the analyst keeps the case and can settle it again. */
     @Transactional
     public CaseSettlement returnToAnalyst(Long caseId, Long referentUserId, String reason) {
         if (reason == null || reason.isBlank()) {
@@ -438,8 +435,10 @@ public class SettlementService {
      * its own line instead. None of them block: the analyst can still adjust and justify.
      */
     private List<String> warnings(Coverage coverage, PolicySnapshot snapshot,
-                                  BigDecimal replacementValue, SettlementFormula formula) {
+                                  BigDecimal replacementValue, CaseSettlement proposal,
+                                  BigDecimal claimedAmount) {
         List<String> warnings = new ArrayList<>();
+        SettlementFormula formula = proposal.getFormula();
 
         if (snapshot == null) {
             warnings.add("El expediente no tiene póliza consultada: la suma asegurada sale de la copia "
@@ -453,11 +452,15 @@ public class SettlementService {
             warnings.add("La cobertura liquida por reparación y no hay presupuesto acreditado: sin él "
                     + "no hay monto que pagar. Cargá el presupuesto del expediente y recalculá.");
         }
-        if (formula != SettlementFormula.REPAIR
-                && coverage.getSettlementBasis() == SettlementBasis.LESSER_OF_SUM_AND_REPLACEMENT
-                && !accredited) {
-            warnings.add("La cobertura liquida por el menor entre la suma asegurada y el valor de "
-                    + "reposición, pero no hay valor de reposición acreditado: se toma la suma asegurada.");
+        if (needsReplacementValue(proposal) && !accredited) {
+            warnings.add("Cargá cuánto cuesta hoy reponer el bien: sin ese valor no se puede aprobar.");
+        }
+        // A reference, not a cap: the claimed amount is the insured's own guess, and the policy
+        // pays the loss, not what was asked for. Paying more than asked is still worth a look.
+        if (claimedAmount != null && claimedAmount.signum() > 0
+                && proposal.getCalculatedAmount().compareTo(claimedAmount) > 0) {
+            warnings.add("La propuesta supera lo que reclamó el asegurado (%s)."
+                    .formatted(money(claimedAmount)));
         }
         return warnings;
     }
@@ -482,7 +485,7 @@ public class SettlementService {
                 s.getAdjustmentReason(),
                 confirmed,
                 s.getConfirmedAt(),
-                confirmed ? s.getStatus() : null,
+                confirmed || s.getStatus() == SettlementStatus.RETURNED ? s.getStatus() : null,
                 s.getAuthorityLimit(),
                 s.getReturnReason(),
                 suggestion == null ? null : suggestion.amount(),
@@ -492,9 +495,7 @@ public class SettlementService {
                 warnings);
     }
 
-    /**
-     * Built here rather than in the SPA so the wording and the arithmetic can't drift apart.
-     */
+    /** Built here rather than in the SPA so the wording and the arithmetic can't drift apart. */
     private List<SettlementResponse.Line> breakdown(CaseSettlement s, boolean confirmed,
                                                     Coverage coverage) {
         List<SettlementResponse.Line> lines = new ArrayList<>();
@@ -504,10 +505,7 @@ public class SettlementService {
         // and a silent formula change must be explained to the analyst.
         boolean irreparable = !repair && coverage != null
                 && coverage.getSettlementFormula() == SettlementFormula.REPAIR;
-        boolean cappedByReplacement = !repair
-                && s.getSettlementBasis() == SettlementBasis.LESSER_OF_SUM_AND_REPLACEMENT
-                && s.getReplacementValue() != null
-                && s.getReplacementValue().compareTo(s.getSumInsured()) < 0;
+        boolean byReplacement = needsReplacementValue(s);
 
         if (repair) {
             // The quote is the ceiling of a repair, so the sheet starts there, not at the sum insured.
@@ -516,7 +514,11 @@ public class SettlementService {
                             ? "sin presupuesto acreditado — no hay monto que pagar"
                             : "acreditado en el expediente · tope: la suma asegurada, %s"
                                     .formatted(money(s.getSumInsured())),
-                    repairCeiling(s)));
+                    accreditedCeiling(s)));
+        } else if (byReplacement) {
+            // The replacement value is the base; the sum insured only caps it.
+            lines.add(SettlementResponse.Line.base("Valor de reposición",
+                    replacementDetail(s, irreparable), accreditedCeiling(s)));
         } else {
             lines.add(SettlementResponse.Line.base("Suma asegurada",
                     irreparable
@@ -524,26 +526,25 @@ public class SettlementService {
                                     + "pérdida total, no como reparación"
                             : null,
                     s.getSumInsured()));
-            if (cappedByReplacement) {
-                lines.add(SettlementResponse.Line.base("Valor de reposición acreditado",
-                        "menor que la suma asegurada — se indemniza por éste (art. 7, Bases de Indemnización)",
-                        s.getReplacementValue()));
-            }
         }
 
+        BigDecimal ceiling = repair || byReplacement ? accreditedCeiling(s) : s.getSumInsured();
+        BigDecimal lossAmount = ceiling;
         if (s.getEventPercentage() != null && s.getEventPercentage().compareTo(FULL_PERCENTAGE) != 0) {
-            BigDecimal ceiling = repair ? repairCeiling(s)
-                    : cappedByReplacement ? s.getReplacementValue() : s.getSumInsured();
+            lossAmount = percentageOf(ceiling, s.getEventPercentage());
             lines.add(SettlementResponse.Line.base(
                     "Tope por ser el %d.º evento del año".formatted(s.getEventOrdinal()),
                     "%s%% del techo".formatted(trimPercentage(s.getEventPercentage())),
-                    percentageOf(ceiling, s.getEventPercentage())));
+                    lossAmount));
         }
 
         if (s.getDeductibleRate() != null && s.getDeductibleRate().signum() > 0) {
+            boolean onLoss = s.getDeductibleBasis() == DeductibleBasis.LOSS_AMOUNT;
             lines.add(SettlementResponse.Line.deduction("Franquicia",
-                    "%s%% de la suma asegurada (%s)".formatted(
-                            trimPercentage(s.getDeductibleRate()), money(s.getSumInsured())),
+                    "%s%% %s (%s)".formatted(
+                            trimPercentage(s.getDeductibleRate()),
+                            onLoss ? "del monto a indemnizar" : "de la suma asegurada",
+                            money(onLoss ? lossAmount : s.getSumInsured())),
                     s.getDeductibleAmount()));
         }
 
@@ -595,7 +596,18 @@ public class SettlementService {
                 .formatted(s.getPendingInstallments(), money(s.getInstallmentAmount()));
     }
 
-    private BigDecimal repairCeiling(CaseSettlement s) {
+    private String replacementDetail(CaseSettlement s, boolean irreparable) {
+        if (!isPositive(s.getReplacementValue())) {
+            return "sin cargar — no hay monto que pagar";
+        }
+        String cap = "tope: la suma asegurada, %s (art. 7, Bases de Indemnización)"
+                .formatted(money(s.getSumInsured()));
+        return irreparable
+                ? "el servicio técnico declaró el equipo irreparable: se paga lo que vale hoy · " + cap
+                : "cuánto cuesta hoy reponer el bien · " + cap;
+    }
+
+    private BigDecimal accreditedCeiling(CaseSettlement s) {
         if (s.getReplacementValue() == null || s.getReplacementValue().signum() <= 0) {
             return BigDecimal.ZERO;
         }

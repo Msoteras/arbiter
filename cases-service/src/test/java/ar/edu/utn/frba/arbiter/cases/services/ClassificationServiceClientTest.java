@@ -10,6 +10,7 @@ import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseStatusHistoryReposi
 import ar.edu.utn.frba.arbiter.cases.support.CaseFixtures;
 import ar.edu.utn.frba.arbiter.cases.support.CaseStates;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
+import ar.edu.utn.frba.arbiter.common.enums.Classification;
 import ar.edu.utn.frba.arbiter.common.security.JwtSupport;
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.BeforeEach;
@@ -87,7 +88,7 @@ class ClassificationServiceClientTest {
     }
 
     @Test
-    void faltaDocumentacion_transitionsToAwaitingDocumentation() {
+    void missingDocumentation_transitionsToAwaitingDocumentation() {
         Case entity = pendingCase(3L);
         winsTheTurn(entity, CaseStatus.AWAITING_DOCUMENTATION);
         expectPoll(3L, "FALTA_DOCUMENTACION", "1.0",
@@ -124,7 +125,7 @@ class ClassificationServiceClientTest {
         boolean resolved = client.refreshClassification(entity);
 
         assertThat(resolved).isTrue();
-        assertThat(entity.getDeterministicFastTrack()).isTrue();
+        assertThat(entity.getRulesClassification()).isEqualTo(Classification.FAST_TRACK);
         verify(caseStatusService).transitionIfStillIn(eq(entity), eq(CaseStatus.PENDING_CLASSIFICATION),
                 eq(CaseStatus.PENDING_ANALYST_REVIEW), eq(StatusChangeActor.SYSTEM), any());
     }
@@ -141,7 +142,7 @@ class ClassificationServiceClientTest {
                           "classification": "LLM_SOLICITA_REVISION_MANUAL",
                           "confidence": 0.6,
                           "factors": ["Imagen con posible reutilización"],
-                          "deterministicFastTrack": false,
+                          "resolvedByRules": false,
                           "forensicReport": {
                             "imagesAnalyzed": 1,
                             "webSearchesPerformed": 0,
@@ -199,7 +200,7 @@ class ClassificationServiceClientTest {
         assertThat(resolved).isTrue();
         // Not even the case cache is touched: the loser's copy is stale and saving it would
         // overwrite the whole row the winner left.
-        assertThat(entity.getDeterministicFastTrack()).isFalse();
+        assertThat(entity.getRulesClassification()).isNull();
         verifyNoInteractions(caseRepository);
     }
 
@@ -236,7 +237,7 @@ class ClassificationServiceClientTest {
                           "classification": "FALTA_DOCUMENTACION",
                           "confidence": 1.0,
                           "factors": ["Falta documento requerido: item_photo"],
-                          "deterministicFastTrack": false,
+                          "resolvedByRules": false,
                           "analyzedAt": "%s"
                         }
                         """.formatted(staleAnalyzedAt), MediaType.APPLICATION_JSON));
@@ -267,7 +268,7 @@ class ClassificationServiceClientTest {
                           "classification": "LLM_NO_RECOMIENDA_APROBAR",
                           "confidence": 0.95,
                           "factors": ["Monto reclamado supera la suma asegurada"],
-                          "deterministicFastTrack": false,
+                          "resolvedByRules": false,
                           "analyzedAt": "%s"
                         }
                         """.formatted(freshAnalyzedAt), MediaType.APPLICATION_JSON));
@@ -308,7 +309,7 @@ class ClassificationServiceClientTest {
                     assertThat(claims.getSubject()).isEqualTo("cases-service-scheduler");
                 })
                 .andRespond(withSuccess("""
-                        {"caseId": 7, "classification": null, "confidence": null, "factors": null, "deterministicFastTrack": false}
+                        {"caseId": 7, "classification": null, "confidence": null, "factors": null, "resolvedByRules": false}
                         """, MediaType.APPLICATION_JSON));
 
         client.refreshClassification(entity);
@@ -401,7 +402,7 @@ class ClassificationServiceClientTest {
     }
 
     private void expectPoll(long caseId, String classification, String confidence,
-                            String factors, boolean fastTrack) {
+                            String factors, boolean resolvedByRules) {
         server.expect(requestTo(BASE_URL + "/api/v1/claims/" + caseId))
                 .andExpect(method(GET))
                 .andRespond(withSuccess("""
@@ -410,10 +411,10 @@ class ClassificationServiceClientTest {
                           "classification": %s,
                           "confidence": %s,
                           "factors": %s,
-                          "deterministicFastTrack": %b
+                          "resolvedByRules": %b
                         }
                         """.formatted(caseId,
-                                quoteOrNull(classification), confidence, factors, fastTrack),
+                                quoteOrNull(classification), confidence, factors, resolvedByRules),
                         MediaType.APPLICATION_JSON));
     }
 

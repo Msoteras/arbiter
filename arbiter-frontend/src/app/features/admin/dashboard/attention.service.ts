@@ -9,15 +9,14 @@ export interface AttentionItem {
   key: string;
   /** Ready-made text with the count inside: "2 expedientes sin movimiento hace +15 días". */
   title: string;
-  /** Texto de contexto, sin números de expediente: esos van aparte en `namedIds`. */
+  /** Without case numbers: those go in `namedIds`. */
   detail: string;
   count: number;
   severity: AttentionSeverity;
   /** Inbox query params that show exactly these cases. */
   queryParams: Record<string, string>;
-  /** Hasta `NAMED` expedientes puntuales, para ir directo a cada uno sin pasar por la bandeja. */
+  /** Up to `NAMED` cases, each linked directly. */
   namedIds: number[];
-  /** Cuántos expedientes más hay además de los nombrados en `namedIds`. */
   remaining: number;
 }
 

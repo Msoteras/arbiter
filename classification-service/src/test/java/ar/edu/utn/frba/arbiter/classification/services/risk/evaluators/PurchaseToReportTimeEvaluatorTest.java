@@ -1,5 +1,6 @@
 package ar.edu.utn.frba.arbiter.classification.services.risk.evaluators;
 
+import ar.edu.utn.frba.arbiter.classification.dto.DocumentExtraction;
 import ar.edu.utn.frba.arbiter.classification.services.risk.RiskContext;
 import ar.edu.utn.frba.arbiter.classification.services.risk.RiskFactorEvaluator.Contribution;
 import ar.edu.utn.frba.arbiter.classification.services.risk.RiskFixtures;
@@ -7,35 +8,47 @@ import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.within;
 
 class PurchaseToReportTimeEvaluatorTest {
 
+    private static final LocalDate EVENT_DAY = RiskFixtures.EVENT_DATE.toLocalDate();
+
     private final PurchaseToReportTimeEvaluator evaluator = new PurchaseToReportTimeEvaluator();
 
-    /** Event date is fixed at {@link RiskFixtures#EVENT_DATE}; each test moves the policy start. */
-    private RiskContext contextWithPolicyStart(LocalDate effectiveFrom) {
+    private RiskContext context(Map<String, DocumentExtraction> documents) {
         return new RiskContext(
                 RiskFixtures.claim(new BigDecimal("100000")),
-                RiskFixtures.policy(true, new BigDecimal("400000"), effectiveFrom),
+                RiskFixtures.policy(true, new BigDecimal("400000"), EVENT_DAY.minusDays(3)),
                 RiskFixtures.history(0),
-                RiskFixtures.rules(null));
+                RiskFixtures.rules(null),
+                null,
+                documents);
+    }
+
+    private Map<String, DocumentExtraction> purchaseProofDated(LocalDate date) {
+        return Map.of("purchase_proof", dated(date));
+    }
+
+    private DocumentExtraction dated(LocalDate date) {
+        return new DocumentExtraction("texto de la factura", List.of(), new DocumentExtraction.Fields(
+                date, null, null, null, null, null, null, null, List.of()));
     }
 
     @Test
     void claimRightAfterPurchaseIsMaxRisk() {
-        // 3 days between policy start and the event (<= SUSPICIOUS_DAYS)
-        Contribution c = evaluator.evaluate(contextWithPolicyStart(RiskFixtures.EVENT_DATE.toLocalDate().minusDays(3)));
+        Contribution c = evaluator.evaluate(context(purchaseProofDated(EVENT_DAY.minusDays(3))));
 
         assertThat(c.score()).isEqualTo(1.0);
     }
 
     @Test
     void longTenureBeforeClaimHasNoRisk() {
-        // 163 days before the event (>= SAFE_DAYS)
-        Contribution c = evaluator.evaluate(contextWithPolicyStart(LocalDate.of(2026, 1, 1)));
+        Contribution c = evaluator.evaluate(context(purchaseProofDated(EVENT_DAY.minusDays(200))));
 
         assertThat(c.score()).isEqualTo(0.0);
     }
@@ -43,23 +56,39 @@ class PurchaseToReportTimeEvaluatorTest {
     @Test
     void decaysLinearlyBetweenSuspiciousAndSafe() {
         // 30 days before the event -> (90-30)/(90-7)
-        Contribution c = evaluator.evaluate(contextWithPolicyStart(RiskFixtures.EVENT_DATE.toLocalDate().minusDays(30)));
+        Contribution c = evaluator.evaluate(context(purchaseProofDated(EVENT_DAY.minusDays(30))));
 
         assertThat(c.score()).isCloseTo(60.0 / 83.0, within(1e-9));
     }
 
+    /** The policy in the context started 3 days before the event: it must not stand in for the purchase. */
     @Test
-    void eventBeforePolicyStartIsNotEvaluable() {
-        Contribution c = evaluator.evaluate(contextWithPolicyStart(RiskFixtures.EVENT_DATE.toLocalDate().plusDays(5)));
+    void withoutPurchaseProofIsNotEvaluableEvenWithARecentPolicy() {
+        Contribution c = evaluator.evaluate(context(Map.of()));
 
         assertThat(c.score()).isEqualTo(0.0);
         assertThat(c.rationale()).contains("no evaluable");
     }
 
     @Test
-    void missingDatesAreNotEvaluable() {
-        Contribution c = evaluator.evaluate(contextWithPolicyStart(null));
+    void onlyThePurchaseProofDateCounts() {
+        Contribution c = evaluator.evaluate(context(Map.of("police_report", dated(EVENT_DAY))));
+
+        assertThat(c.rationale()).contains("no evaluable");
+    }
+
+    @Test
+    void purchaseProofWithoutDateIsNotEvaluable() {
+        Contribution c = evaluator.evaluate(context(purchaseProofDated(null)));
+
+        assertThat(c.rationale()).contains("no evaluable");
+    }
+
+    @Test
+    void purchaseAfterTheEventIsNotEvaluable() {
+        Contribution c = evaluator.evaluate(context(purchaseProofDated(EVENT_DAY.plusDays(5))));
 
         assertThat(c.score()).isEqualTo(0.0);
+        assertThat(c.rationale()).contains("no evaluable");
     }
 }

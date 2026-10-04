@@ -58,7 +58,7 @@ class CaseSecurityTest extends AbstractPersistenceIT {
     }
 
     @Test
-    void createCase_asAnalista_returns403() throws Exception {
+    void createCase_asAnalyst_returns403() throws Exception {
         MockMultipartFile casePart = new MockMultipartFile(
                 "case", "", MediaType.APPLICATION_JSON_VALUE,
                 """
@@ -84,7 +84,7 @@ class CaseSecurityTest extends AbstractPersistenceIT {
     }
 
     @Test
-    void createCase_asReferente_returns403() throws Exception {
+    void createCase_asReferent_returns403() throws Exception {
         MockMultipartFile casePart = new MockMultipartFile(
                 "case", "", MediaType.APPLICATION_JSON_VALUE,
                 """
@@ -110,7 +110,7 @@ class CaseSecurityTest extends AbstractPersistenceIT {
     }
 
     @Test
-    void uploadDocuments_asReferente_returns403() throws Exception {
+    void uploadDocuments_asReferent_returns403() throws Exception {
         MockMultipartFile doc = new MockMultipartFile(
                 "police_report", "denuncia.pdf", MediaType.APPLICATION_PDF_VALUE, "contenido".getBytes());
 
@@ -120,7 +120,7 @@ class CaseSecurityTest extends AbstractPersistenceIT {
     }
 
     @Test
-    void uploadDocuments_asAnalista_returns403() throws Exception {
+    void uploadDocuments_asAnalyst_returns403() throws Exception {
         MockMultipartFile doc = new MockMultipartFile(
                 "police_report", "denuncia.pdf", MediaType.APPLICATION_PDF_VALUE, "contenido".getBytes());
 
@@ -134,7 +134,7 @@ class CaseSecurityTest extends AbstractPersistenceIT {
     // measuring the security gate.
 
     @Test
-    void recordDecision_asAsegurado_returns403() throws Exception {
+    void recordDecision_asInsured_returns403() throws Exception {
         mockMvc.perform(post("/api/v1/cases/1/decision")
                         .header("Authorization", "Bearer " + tokenFor("ASEGURADO"))
                         .contentType(MediaType.APPLICATION_JSON)
@@ -161,7 +161,7 @@ class CaseSecurityTest extends AbstractPersistenceIT {
     }
 
     @Test
-    void recordDecision_asAnalista_passesTheRoleGate() throws Exception {
+    void recordDecision_asAnalyst_passesTheRoleGate() throws Exception {
         // Non-existent case on purpose: once past @PreAuthorize, the business logic answers 404
         // (CaseNotFoundException) instead of 401/403.
         mockMvc.perform(post("/api/v1/cases/999999/decision")
@@ -175,7 +175,7 @@ class CaseSecurityTest extends AbstractPersistenceIT {
     }
 
     @Test
-    void assignAnalyst_asAsegurado_returns403() throws Exception {
+    void assignAnalyst_asInsured_returns403() throws Exception {
         mockMvc.perform(post("/api/v1/cases/1/assign")
                         .header("Authorization", "Bearer " + tokenFor("ASEGURADO"))
                         .contentType(MediaType.APPLICATION_JSON)
@@ -186,7 +186,7 @@ class CaseSecurityTest extends AbstractPersistenceIT {
     }
 
     @Test
-    void assignAnalyst_asAnalista_passesTheRoleGate() throws Exception {
+    void assignAnalyst_asAnalyst_passesTheRoleGate() throws Exception {
         // Both operational roles may assign: an analyst can take a case without waiting to be given
         // one. Same 404 trick as in decision.
         mockMvc.perform(post("/api/v1/cases/999999/assign")
@@ -199,7 +199,7 @@ class CaseSecurityTest extends AbstractPersistenceIT {
     }
 
     @Test
-    void assignAnalyst_asReferente_passesTheRoleGate() throws Exception {
+    void assignAnalyst_asReferent_passesTheRoleGate() throws Exception {
         mockMvc.perform(post("/api/v1/cases/999999/assign")
                         .header("Authorization", "Bearer " + tokenFor("REFERENTE_ASEGURADORA"))
                         .contentType(MediaType.APPLICATION_JSON)
@@ -210,7 +210,7 @@ class CaseSecurityTest extends AbstractPersistenceIT {
     }
 
     @Test
-    void unassignAnalyst_asAsegurado_returns403() throws Exception {
+    void unassignAnalyst_asInsured_returns403() throws Exception {
         mockMvc.perform(delete("/api/v1/cases/1/assign")
                         .header("Authorization", "Bearer " + tokenFor("ASEGURADO")))
                 .andExpect(status().isForbidden());
@@ -221,14 +221,14 @@ class CaseSecurityTest extends AbstractPersistenceIT {
      * Reading the expert assessment would reveal they're suspected, which the status hides.
      */
     @Test
-    void readExpertAssessment_asAsegurado_returns403() throws Exception {
+    void readExpertAssessment_asInsured_returns403() throws Exception {
         mockMvc.perform(get("/api/v1/cases/1/expert-assessment")
                         .header("Authorization", "Bearer " + tokenFor("ASEGURADO")))
                 .andExpect(status().isForbidden());
     }
 
     @Test
-    void deriveToExpert_asAsegurado_returns403() throws Exception {
+    void deriveToExpert_asInsured_returns403() throws Exception {
         mockMvc.perform(post("/api/v1/cases/1/expert-assessment")
                         .header("Authorization", "Bearer " + tokenFor("ASEGURADO"))
                         .contentType(MediaType.APPLICATION_JSON)
@@ -239,7 +239,7 @@ class CaseSecurityTest extends AbstractPersistenceIT {
     }
 
     @Test
-    void deriveToExpert_asAnalista_passesTheRoleGate() throws Exception {
+    void deriveToExpert_asAnalyst_passesTheRoleGate() throws Exception {
         mockMvc.perform(post("/api/v1/cases/999999/expert-assessment")
                         .header("Authorization", "Bearer " + tokenFor("ANALISTA_SINIESTROS"))
                         .contentType(MediaType.APPLICATION_JSON)

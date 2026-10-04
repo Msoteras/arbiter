@@ -48,6 +48,7 @@ class ClassificationOrchestratorScoringTest {
     @Mock private FraudRecordRuleEvaluator fraudRecordRuleEvaluator;
     @Mock private FastTrackValidator fastTrackValidator;
     @Spy private ClaimCauseConsistencyEvaluator claimCauseConsistencyEvaluator = new ClaimCauseConsistencyEvaluator();
+    @Spy private VisualFindingsEvaluator visualFindingsEvaluator = new VisualFindingsEvaluator();
     @Mock private DocumentAnalyzer documentAnalyzer;
     @Mock private PromptBuilder promptBuilder;
     @Mock private RiskScoringService riskScoringService;
@@ -100,7 +101,7 @@ class ClassificationOrchestratorScoringTest {
                 .classification(Classification.LLM_RECOMIENDA_APROBAR)
                 .factors(List.of("ok"))
                 .confidence(0.8)
-                .deterministicFastTrack(false)
+                .resolvedByRules(false)
                 .build());
         when(promptBuilder.renderRulesAndPolicy(any(), any())).thenReturn("");
         when(promptBuilder.renderHistory(any())).thenReturn("");

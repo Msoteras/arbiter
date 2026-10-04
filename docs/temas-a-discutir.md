@@ -9,7 +9,7 @@ una sección aparte con lo que quedó huérfano al borrar el backlog de historia
 
 ---
 
-## ~~H0007 — Extracción de datos de documentos, alcance final~~ — ✅ cerrado (07/09/2026)
+## ~~H0007 — Extracción de datos de documentos, alcance final~~ — ✅ cerrado (07/09/2026), salvo la edición
 
 **Qué se hizo.** El modelo devuelve ahora `brand` y `model` separados de `itemDescription`, más una
 lista genérica `details` (nombre/valor) para todo lo demás que el documento diga: nro. de factura,
@@ -25,13 +25,27 @@ así que una regla que buscara ahí dejaría de encontrarlo el día que lo redac
 fallaría en silencio** — en este motor, una regla que no evalúa se lee como "no hay nada mal".
 Cuando un detalle empiece a alimentar una regla, se promueve a columna.
 
-**La edición del analista quedó fuera de alcance, a propósito.** La HU original la pedía, pero
-choca de frente con la decisión #7: si el analista edita el dato extraído, el `document_analysis`
-que fundamentó la recomendación cambia bajo los pies del log de auditoría. Y se perdería sola —
-`document_analysis` se reemplaza en cada corrida, así que la próxima reclasificación se la lleva
-puesta. Sostenerla pediría versionar la tabla y decidir si un valor corregido dispara
-reclasificación, más caro que los otros dos puntos juntos. **Corresponde reescribir la HU** para
-que diga esto en vez de prometer la edición.
+La edición del analista no entró en este cierre: sigue en alcance y se trata en la entrada de abajo.
+
+---
+
+## Edición de los datos extraídos por el analista — en alcance, sin implementar
+
+**Corregido el 28/09/2026.** Esta entrada decía que la edición había quedado fuera de alcance y que
+había que reescribir la HU. No es así: el analista **sí** puede corregir un dato extraído si le
+parece que el modelo lo leyó mal. Lo que pasa es que todavía no está implementado.
+
+**Qué hay que resolver al implementarla.** Son los dos problemas que se habían usado para dejarla
+afuera; ahora son requisitos de diseño:
+
+- **Auditoría (decisión #7).** Si la corrección pisa `document_analysis`, cambia el dato que
+  fundamentó la recomendación y el log queda mintiendo. La corrección tiene que guardarse aparte
+  (quién, cuándo, valor anterior y nuevo) sin tocar lo que leyó el modelo.
+- **Reclasificación.** `document_analysis` se reemplaza en cada corrida, así que una corrección
+  guardada ahí se pierde en la próxima. Además hay que decidir si corregir un dato dispara una
+  reclasificación o solo queda como constancia para el analista.
+
+**Qué bloquea:** nada hoy. El analista ve el dato mal leído y lo tiene que tener en cuenta a mano.
 
 ---
 
@@ -75,10 +89,13 @@ Coberturas). Son dos operaciones distintas:
   Provincia ya las tiene contratadas en sus pólizas del ramo, así que apenas existan del lado de
   Arbiter `PolicyResyncScheduler` deja de saltearlas y arma solo las filas de `policy_coverage`. Eso
   apaga además el warning nocturno de abajo.
-- **Celulares → editar** las exclusiones de la cobertura *Daño accidental*, que ya existe, para que
-  deje de excluir *Rotura accidental* y *Caída*. Acá no hay cobertura que crear: la BD Aseguradora
-  no modela esos dos como coberturas separadas, son hechos generadores que responde *Daño
-  accidental*.
+- **Celulares → crear** la cobertura *Daño accidental*, sin excluir *Rotura accidental* ni *Caída*.
+  ~~Editar sus exclusiones, que ya existe~~: verificado en Railway el 25/09/2026, Provincia tiene en
+  Celulares solo *Robo de celular* y *Hurto*. La BD Aseguradora no modela esos dos hechos como
+  coberturas separadas: los responde *Daño accidental*.
+
+**Estado al 25/09/2026: sin hacer.** En Railway, Tecnología Portátil sigue solo con *Daño
+accidental* y Celulares sin él.
 
 **El fixture sigue con el agujero.** Lo hecho por UI vive en la base desplegada; `seed-demo.sql`
 nace igual que antes. Si alguien levanta de cero con `reset → init → seed` para una demo, vuelve.
@@ -174,7 +191,17 @@ propósito: con el `claimCause` truncado el test falla, y la URI que produce es 
 aserción vieja dejaba pasar.
 ---
 
-## La franquicia en una reparación deja casi todo en cero
+## ~~La franquicia en una reparación deja casi todo en cero~~ — ✅ decidido: configurable por cobertura (28/09/2026)
+
+**Decisión:** cada cobertura dice si la franquicia se calcula sobre la **suma asegurada** o sobre el
+**monto a indemnizar** (lo que efectivamente se indemniza: valor de reposición o presupuesto, con
+su tope). Lo elige el referente en Reglas → Coberturas, y la liquidación guarda cuál se usó. Es
+decisión de cada aseguradora según su póliza: la de celulares de BBVA dice "10% de la suma
+asegurada"; buena parte del mercado lo toma "del siniestro". Configuración inicial: Robo y Hurto de
+BBVA sobre la suma asegurada; Daño accidental de las dos y Robo y Hurto de Provincia sobre el
+siniestro. Migración `2026-09-28-base-de-la-franquicia.sql`, aplicada en Railway.
+
+Lo que sigue es el registro original del problema.
 
 **Encontrado:** 06/09/2026, implementando la fórmula de reparación (bloque 3 de la determinación
 del monto a pagar).
@@ -244,9 +271,37 @@ El analista igual decide (decisión #5), pero llega con la etiqueta de "todo en 
 **Qué bloquea:** nada del desarrollo. Mientras no se decida, un hecho mal declarado a propósito
 entra por el carril rápido.
 
+**Actualización 25/09/2026.**
+
+- **Criterio robo/hurto** (prompts `extraccion-documento-v7` y `classification-v6`): un tirón o
+  arrebato ya es robo, aunque no haya lesiones ni forcejeo narrado; hurto es sin contacto con la
+  persona, que se da cuenta después. El modelo solo elige un hecho cuando el relato es clarísimo;
+  ante la duda devuelve `null` y lo mira el analista. Con el v6, Gemini leía "Hurto" en un acta
+  caratulada ROBO (caso #46).
+- **Una lectura rota no sostiene un Fast Track.** Cada lectura guarda
+  `document_analysis.extraction_status`. Si un documento exigido por el gate queda `FAILED`, no
+  hay Fast Track; si queda `PARTIAL` (solo se rescató el texto), pasa con un factor que sugiere
+  revisión manual.
+
 ---
 
-## `document_inconsistency` no tiene peso, así que no corre
+## ~~`document_inconsistency` no tiene peso, así que no corre~~ — ✅ resuelto (25/09/2026)
+
+**Qué se hizo:**
+
+- Se arreglaron **dos** falsos positivos antes de darle peso. El del importe estaba anotado: ahora
+  se compara solo contra el documento que fija el monto (el presupuesto en daño, la factura en
+  robo o hurto). El otro no: la fecha marcaba la factura de compra, que siempre es anterior al
+  hecho, así que con peso subía el score de **todos** los robos. La factura quedó afuera de ese
+  chequeo.
+- Peso **0,40** en las dos aseguradoras: en Railway, cargado desde el panel del referente; en
+  `init-multitenant.sql`, para las bases nuevas. `BaselineRulesAdapter` lo sigue dejando afuera a
+  propósito: fuera de nuestras dos aseguradoras, activarlo es decisión de cada compañía.
+- `purchase_to_report_time` (27/09/2026): ahora toma la fecha de compra de la factura, no el alta de
+  la póliza, que ya cubren la carencia y `FT_POLICY_AGE`. Sin factura con fecha, no se evalúa. Peso
+  **0,25** en `init-multitenant.sql`; en Railway hay que cargarlo desde el panel del referente.
+
+Lo que sigue queda como registro.
 
 **Encontrado:** 22/09/2026, armando las mutaciones de `docs/postman/test-docs/mutaciones/`.
 
@@ -288,7 +343,30 @@ en `document_analysis` y no en el score.
 
 ---
 
-## Fast Track negativo: las salidas por reglas se registran como si las hubiera dado el LLM
+## ~~Fast Track negativo: las salidas por reglas se registran como si las hubiera dado el LLM~~ — ✅ resuelto (29/09/2026)
+
+**Qué se hizo:** la opción 1 de abajo, sin tabla nueva y sin tocar el enum (decisión #6 intacta).
+
+- `cases.was_fast_track` pasó a ser `cases.rules_classification`: qué recomendó el motor cuando
+  decidió sin el modelo, nula si decidió el modelo. Las cuatro salidas por reglas (Fast Track,
+  exclusión, prescripción, falta de documentación) ya no escriben `llm_analysis`; el porqué queda
+  en `rule_result`, que ya tenía la exclusión y ahora suma `PRESCRIPTION` con las dos fechas.
+- La falta de documentación no tiene fila propia: la agenda es siempre la exigida y lo que se sube
+  después queda con su fecha en `case_document`.
+- El DTO lleva `resolvedByRules` hasta el frontend. La card dice "Resultado del motor de reglas" y
+  manda a «Evaluación de reglas».
+- La decisión del analista sobre una salida por reglas ya no se engancha a un `llm_analysis` de
+  una corrida anterior (le pasaba también a Fast Track).
+- Reportes: la tasa de Fast Track y la distribución por clasificación dan igual. La coincidencia
+  del modelo deja afuera lo que decidió el motor, y "Analizados por el modelo" también: ninguno de
+  los dos contaba antes a Fast Track.
+- La migración `2026-09-29-quien-decidio-la-clasificacion.sql` corrige los expedientes viejos sin
+  adivinar: `FALTA_DOCUMENTACION` no la puede devolver el modelo, y la exclusión y la prescripción
+  se reconocen por su motivo, que es un texto fijo del código. Sus filas de `llm_analysis` quedan
+  como historial. Va en dos pasos: antes del deploy agrega y llena la columna; después se corre de
+  nuevo y `2026-09-29-borrar-was-fast-track.sql` borra la vieja, que el código desplegado todavía usa.
+
+Lo que sigue queda como registro.
 
 **Encontrado:** 22/09/2026, discutiendo si un Fast Track tiene que llegarle al analista como "todo en
 regla". No tiene que: Fast Track quiere decir "lo resolvieron las reglas, sin pasar por el LLM", y eso
@@ -329,11 +407,12 @@ recomendación que tomó el motor.
 
 **Relacionado — avisos en cualquier salida por reglas.** Los avisos para el analista no cambian la
 dirección del resultado: se suman en cualquiera de estas salidas. El de hecho generador ya existe
-(`CLAIM_CAUSE_MATCH`, ver la entrada de arriba). Queda por decidir si las **señales visuales de
-adulteración** (`document_visual_finding`) también avisan. Hoy se guardan, pero solo se ven abriendo
-documento por documento en la solapa Documentación: no suman un factor, no marcan la solapa y no
-aparecen en la tarjeta "Para revisar antes de resolver". Lo prueban las mutaciones
-`importe-pegado`, `fecha-pegada` y `tipografia-mezclada`, que hoy salen `FAST_TRACK` sin aviso.
+(`CLAIM_CAUSE_MATCH`, ver la entrada de arriba). ~~Queda por decidir si las **señales visuales de
+adulteración** también avisan~~ — **✅ hecho el 25/09/2026:** aviso `VISUAL_TAMPERING` en cualquier
+salida, Fast Track incluido. No bloquea: suma un factor y una fila FAIL en `rule_result`, aparece
+en la tarjeta "Para revisar antes de resolver" y el documento lleva el badge "Señales en la imagen".
+Sin señales no deja fila, porque un PASS se leería como "el documento es auténtico". Probado por
+la UI con la mutación `importe-pegado` (caso #48).
 
 **Qué bloquea:** nada del desarrollo. Mientras no se decida, el analista ve una exclusión o una
 prescripción como si las hubiera recomendado el modelo, y la auditoría dice lo mismo.

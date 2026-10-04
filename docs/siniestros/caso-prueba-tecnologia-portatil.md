@@ -108,11 +108,9 @@ Qué se puede mutar:
 - **Cambiarle el nº de serie** → no lo cruza ninguna regla (el único cruce de identificador que
   existe es por IMEI, y acá no aplica), pero **sí lo lee el LLM**. Sirve para probar si el modelo
   detecta la contradicción, no para disparar una regla.
-
-> Ojo con una expectativa que suena razonable y es falsa: el factor `purchase_to_report_time` **no
-> usa la fecha de esta factura**. Usa `policy.effectiveFrom` como proxy de la fecha de compra
-> ([evaluador](../../classification-service/src/main/java/ar/edu/utn/frba/arbiter/classification/services/risk/evaluators/PurchaseToReportTimeEvaluator.java#L30-L43)).
-> Mover la fecha de la factura no mueve ese factor.
+- **Acercar la fecha de la factura a la del hecho** → sube `purchase_to_report_time`: riesgo pleno
+  con 7 días o menos entre la compra y el hecho, cero desde los 90. Sin fecha en la factura, el
+  factor no se evalúa.
 
 ### `imei_deregistration` — Constancia de bloqueo del equipo · `bloqueo_equipo_tecnologia.pdf`
 

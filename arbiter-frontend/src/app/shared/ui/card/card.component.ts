@@ -4,7 +4,8 @@ type Variant = 'default' | 'soft' | 'ai';
 
 /**
  * `ai` is the teal wash for model output cards. With `collapsible` the body is hidden, not
- * destroyed, so whatever the user opened inside stays open when expanded again.
+ * destroyed, so whatever the user opened inside stays open when expanded again. An element marked
+ * `cardAside` (e.g. a badge) goes at the right end of the heading; not on collapsible cards.
  */
 @Component({
   selector: 'app-card',
@@ -40,6 +41,7 @@ type Variant = 'default' | 'soft' | 'ai';
               <span class="icon" aria-hidden="true">{{ icon() }}</span>
             }
             <h2 class="card-title">{{ heading() }}</h2>
+            <span class="card-aside"><ng-content select="[cardAside]" /></span>
           </div>
         }
       }
@@ -139,6 +141,12 @@ type Variant = 'default' | 'soft' | 'ai';
     }
     .card.ai .card-head .card-title {
       color: var(--accent-fg);
+    }
+    .card-aside {
+      margin-left: auto;
+    }
+    .card-aside:empty {
+      display: none;
     }
     .card-title {
       margin: 0;

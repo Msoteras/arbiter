@@ -213,7 +213,7 @@ class ClassificationOrchestratorIntegrationTest extends AbstractPersistenceIT {
         ClassificationResponse response = orchestrator.classify(claim);
 
         assertThat(response.classification()).isEqualTo(Classification.FAST_TRACK);
-        assertThat(response.deterministicFastTrack()).isTrue();
+        assertThat(response.resolvedByRules()).isTrue();
         assertThat(response.factors()).isNotEmpty();
         verifyNoInteractions(classifierMock);
     }
@@ -244,7 +244,7 @@ class ClassificationOrchestratorIntegrationTest extends AbstractPersistenceIT {
         ClassificationResponse response = orchestrator.classify(claim);
 
         assertThat(response.classification()).isEqualTo(Classification.LLM_SOLICITA_REVISION_MANUAL);
-        assertThat(response.deterministicFastTrack()).isFalse();
+        assertThat(response.resolvedByRules()).isFalse();
         verify(classifierMock).classify(any(ClassificationRequest.class));
     }
 
@@ -271,7 +271,7 @@ class ClassificationOrchestratorIntegrationTest extends AbstractPersistenceIT {
         ClassificationResponse response = orchestrator.classify(claim);
 
         assertThat(response.classification()).isEqualTo(Classification.LLM_SOLICITA_REVISION_MANUAL);
-        assertThat(response.deterministicFastTrack()).isFalse();
+        assertThat(response.resolvedByRules()).isTrue();
         assertThat(response.factors()).isNotEmpty();
         assertThat(response.ruleFindings())
                 .anyMatch(f -> f.ruleId().equals(3L) && "FAIL".equals(f.result()));

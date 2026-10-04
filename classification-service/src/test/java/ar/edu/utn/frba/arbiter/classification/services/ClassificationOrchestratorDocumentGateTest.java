@@ -61,6 +61,7 @@ class ClassificationOrchestratorDocumentGateTest {
     @Mock private FraudRecordRuleEvaluator fraudRecordRuleEvaluator;
     @Mock private FastTrackValidator fastTrackValidator;
     @Spy private ClaimCauseConsistencyEvaluator claimCauseConsistencyEvaluator = new ClaimCauseConsistencyEvaluator();
+    @Spy private VisualFindingsEvaluator visualFindingsEvaluator = new VisualFindingsEvaluator();
     @Mock private DocumentAnalyzer documentAnalyzer;
     @Mock private PromptBuilder promptBuilder;
     @Mock private RiskScoringService riskScoringService;
@@ -126,6 +127,40 @@ class ClassificationOrchestratorDocumentGateTest {
         verify(classifier, never()).classify(any());
     }
 
+    /** A pasted amount on the invoice: still FAST_TRACK, but the analyst is told and it's audited. */
+    @Test
+    void signsOfTamperingOnAFastTrack_staysFastTrackButWarns() {
+        when(fastTrackValidator.evaluate(any(), any(), any(), any(), any()))
+                .thenReturn(new FastTrackValidator.Result(true, List.of("Primer siniestro"), List.of()));
+        when(documentAnalyzer.extract(any(), any(), any())).thenReturn(new DocumentExtraction(
+                "FACTURA B", List.of("El importe tiene una tipografía distinta al resto"),
+                DocumentExtraction.Fields.none()));
+
+        ClassificationResponse response = orchestrator.classify(
+                RiskFixtures.claim(new BigDecimal("100000")), attachments(MINIMOS));
+
+        assertThat(response.classification()).isEqualTo(Classification.FAST_TRACK);
+        assertThat(response.factors())
+                .anyMatch(f -> f.contains("«El importe tiene una tipografía distinta al resto»"));
+        assertThat(response.ruleFindings())
+                .filteredOn(finding -> finding.ruleType().equals("VISUAL_TAMPERING"))
+                .singleElement()
+                .satisfies(finding -> assertThat(finding.passed()).isFalse());
+    }
+
+    /** No signs, no row: a PASS would read as "the documents are authentic". */
+    @Test
+    void noSignsOfTampering_leavesNoRow() {
+        when(fastTrackValidator.evaluate(any(), any(), any(), any(), any()))
+                .thenReturn(new FastTrackValidator.Result(true, List.of("Primer siniestro"), List.of()));
+
+        ClassificationResponse response = orchestrator.classify(
+                RiskFixtures.claim(new BigDecimal("100000")), attachments(MINIMOS));
+
+        assertThat(response.ruleFindings() == null ? List.<RuleFinding>of() : response.ruleFindings())
+                .noneMatch(finding -> finding.ruleType().equals("VISUAL_TAMPERING"));
+    }
+
     /** Without Fast Track, the full schedule applies and the missing documents are requested. */
     @Test
     void noFastTrackAndAnIncompleteSchedule_asksForTheRest() {
@@ -156,7 +191,7 @@ class ClassificationOrchestratorDocumentGateTest {
                 .classification(Classification.LLM_RECOMIENDA_APROBAR)
                 .factors(List.of("documentación consistente"))
                 .confidence(0.8)
-                .deterministicFastTrack(false)
+                .resolvedByRules(false)
                 .build());
         when(promptBuilder.renderRulesAndPolicy(any(), any())).thenReturn("");
         when(promptBuilder.renderHistory(any())).thenReturn("");

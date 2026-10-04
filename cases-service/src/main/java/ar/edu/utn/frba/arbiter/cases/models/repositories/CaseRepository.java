@@ -56,9 +56,8 @@ public interface CaseRepository extends JpaRepository<Case, Long>, JpaSpecificat
                                    @Param("finalStatuses") Collection<String> finalStatuses);
 
     /**
-     * The insured's other claims, sent as antecedents with the {@code ClaimReport}. No status filter on
-     * purpose: {@code InsurerDatabaseAdapter.getHistory} doesn't filter either, and both sources must
-     * answer the same rules by the same criteria; each rule filters by the status it cares about.
+     * The insured's other claims, sent as antecedents. No status filter, like
+     * {@code InsurerDatabaseAdapter.getHistory}: each rule filters by the status it cares about.
      */
     @EntityGraph(attributePaths = {"policy", "coverage", "claimCause", "claimCause.branch", "currentStatus"})
     @Query("""
@@ -152,7 +151,6 @@ public interface CaseRepository extends JpaRepository<Case, Long>, JpaSpecificat
                               @Param("expected") CaseState expected,
                               @Param("target") CaseState target);
 
-    /** Cases filed while their document schedule couldn't be read. */
     List<Case> findByDocumentsUnverifiedSinceIsNotNull();
 
     /**

@@ -52,7 +52,7 @@ public class CoverageRuleEvaluator {
         }
 
         if (excluded) {
-            log.info("[CoverageRuleEvaluator] Hecho generador '{}' (id={}) excluido por la cobertura {} — bloquea Fast Track",
+            log.info("[CoverageRuleEvaluator] Claim cause '{}' (id={}) excluded by coverage {}: blocks Fast Track",
                     claim.claimCause(), claim.claimCauseId(), claim.coverageId());
         }
         return new Result(excluded, findings);

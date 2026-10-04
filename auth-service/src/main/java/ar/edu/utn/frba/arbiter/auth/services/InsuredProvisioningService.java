@@ -55,7 +55,7 @@ public class InsuredProvisioningService {
                     summary.insurersLinked(), summary.profilesCreated(), summary.invited(),
                     summary.skipped().size());
         } catch (Exception e) {
-            log.error("[Provisioning] El alta masiva del tenant {} falló: {}", tenantSchema, e.getMessage(), e);
+            log.error("[Provisioning] Bulk provisioning for tenant {} failed: {}", tenantSchema, e.getMessage(), e);
         } finally {
             TenantContext.clear();
         }
@@ -64,7 +64,7 @@ public class InsuredProvisioningService {
     ProvisioningSummary provision(String tenantSchema, Long insurerId) {
         List<InsuredDirectoryEntry> directory =
                 insuredDirectoryAdapter.findWithPoliciesInForce(InsurerDbSchema.forTenant(tenantSchema));
-        log.info("[Provisioning] {} asegurado(s) con póliza vigente en {}", directory.size(), tenantSchema);
+        log.info("[Provisioning] {} insured with a policy in force in {}", directory.size(), tenantSchema);
 
         List<String> skipped = new ArrayList<>();
         int created = 0;
@@ -105,7 +105,7 @@ public class InsuredProvisioningService {
                 }
             } catch (Exception e) {
                 // provisionOne has its own transaction, so only this person's changes rolled back.
-                log.warn("[Provisioning] No se pudo dar de alta a {} ({}): {}",
+                log.warn("[Provisioning] Could not provision {} ({}): {}",
                         entry.email(), entry.dni(), e.getMessage());
                 skipped.add("%s (%s): %s".formatted(entry.email(), entry.dni(), e.getMessage()));
             }
@@ -126,7 +126,7 @@ public class InsuredProvisioningService {
             pauseBetweenInvites();
             return true;
         } catch (RuntimeException e) {
-            log.warn("[Provisioning] No salió la invitación a {}: {}", entry.email(), e.getMessage());
+            log.warn("[Provisioning] Invitation to {} not sent: {}", entry.email(), e.getMessage());
             return false;
         }
     }

@@ -258,7 +258,8 @@ curl -s "http://localhost:8083/api/v1/cases/$ID" -H "Authorization: Bearer $TOKE
 | `analysisConfidence` | `1.0` (el gate es determinístico) |
 | Factores | los motivos del validador, uno por umbral evaluado |
 | Fila en `llm_analysis` | **ninguna** — por diseño Fast Track no deja fila ahí (el `CHECK` de la tabla lo impide; el modelo nunca corre para este circuito) |
-| `cases.was_fast_track` | `true` — de acá sale la clasificación que se muestra |
+| `cases.rules_classification` | `FAST_TRACK` — de acá sale la clasificación que se muestra |
+| `resolvedByRules` | `true` — la card dice "Resultado del motor de reglas" |
 | `riskScore` | poblado; banda baja si **no** se adjuntó la foto |
 
 En los logs de `classification-service`, el gate se anuncia explícito y sin pasar por el modelo:

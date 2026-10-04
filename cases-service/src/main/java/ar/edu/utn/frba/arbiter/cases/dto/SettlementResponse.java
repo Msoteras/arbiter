@@ -9,15 +9,13 @@ import java.time.Instant;
 import java.util.List;
 
 /**
- * Either a proposal or the stored settlement. {@link #breakdown} is assembled server-side on purpose,
- * so the wording the analyst signs off on can't drift from the arithmetic.
+ * Either a proposal or the stored settlement. {@link #breakdown} is assembled server-side so the
+ * wording the analyst signs off on can't drift from the arithmetic.
  *
- * @param confirmed       false while this is only a proposal; nothing is persisted yet
- * @param status          null on an unconfirmed proposal
- * @param authorityLimit  the current ceiling on a proposal, the frozen one on a stored settlement.
- *                        Null means the branch has no ceiling
- * @param suggestedAmount read by the model off the file's paperwork. Never applied automatically:
- *                        the analyst has to take it deliberately
+ * @param confirmed       false on a proposal; nothing is persisted yet
+ * @param status          null on a proposal
+ * @param authorityLimit  current ceiling on a proposal, frozen one on a stored settlement; null if none
+ * @param suggestedAmount read by the model off the paperwork; the analyst has to take it deliberately
  * @param warnings        never blocking: the analyst can settle anyway and say why
  */
 public record SettlementResponse(

@@ -21,12 +21,8 @@ import org.hibernate.type.SqlTypes;
 import java.time.Instant;
 
 /**
- * A business rule as configured by one insurer. There's no rule common to every insurer, so this
- * is the only rule entity. {@code coverageId} points at cases-service's coverage:
- * same tenant schema, but another module owns it, so it stays a plain id and not a real FK.
- *
- * <p>It carries no insurer: the row already lives in one's schema, which is what identifies it. A
- * column with the id would be a second place saying who it belongs to, and the two could disagree.
+ * {@code coverageId} points at cases-service's coverage: same schema, another owner, so no foreign
+ * key. No insurer column: the schema already says whose rule it is.
  */
 @Entity
 @Table(name = "insurer_rule")
@@ -65,11 +61,7 @@ public class InsurerRule {
     @Column(name = "blocks_fast_track", nullable = false)
     private boolean blocksFastTrack;
 
-    /**
-     * Null together with {@code coverageId} scopes the rule to the whole insurer instead of one
-     * branch/coverage — used by {@code POLICY_IN_FORCE} and {@code POLICY_STANDING} (see
-     * {@code RuleType#insurerScoped()}).
-     */
+    /** Null together with {@code coverageId}: an insurer-wide rule (see {@code RuleType#insurerScoped()}). */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "branch_id")
     private Branch branch;
@@ -77,11 +69,7 @@ public class InsurerRule {
     @Column(name = "coverage_id")
     private Long coverageId;
 
-    /**
-     * The {@code arbiter_common.users} id of whoever created the rule: the user saving it from the
-     * app, or, for an insurer's default rules, the user who onboarded the insurer. A user and not a
-     * referente on purpose, so the author isn't tied to who may configure rules today.
-     */
+    /** A user, not a referente, so the author isn't tied to who may configure rules today. */
     @Column(name = "created_by", nullable = false)
     private Long createdBy;
 }

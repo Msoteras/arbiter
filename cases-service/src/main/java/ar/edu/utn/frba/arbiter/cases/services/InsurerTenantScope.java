@@ -11,11 +11,9 @@ import org.springframework.stereotype.Component;
 import java.util.function.Supplier;
 
 /**
- * Runs an operation against the tenant an {@code insurer} slug names, restoring the caller's own
- * afterwards.
- *
- * <p>Case ids are sequential per schema, so a case id alone is ambiguous for anyone with policies at
- * more than one insurer. A null or blank slug runs under the tenant already set.
+ * Runs an operation under the tenant an {@code insurer} slug names, then restores the caller's. Case
+ * ids are sequential per schema, so an id alone is ambiguous for someone insured at several insurers.
+ * A blank slug runs under the current tenant.
  */
 @Component
 @RequiredArgsConstructor

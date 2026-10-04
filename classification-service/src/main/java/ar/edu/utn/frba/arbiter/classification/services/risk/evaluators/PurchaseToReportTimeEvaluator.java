@@ -1,5 +1,6 @@
 package ar.edu.utn.frba.arbiter.classification.services.risk.evaluators;
 
+import ar.edu.utn.frba.arbiter.classification.dto.DocumentExtraction;
 import ar.edu.utn.frba.arbiter.classification.services.risk.RiskContext;
 import ar.edu.utn.frba.arbiter.classification.services.risk.RiskFactorEvaluator;
 import ar.edu.utn.frba.arbiter.classification.services.risk.RiskFactorIds;
@@ -8,14 +9,17 @@ import org.springframework.stereotype.Component;
 import java.time.temporal.ChronoUnit;
 
 /**
- * Full risk up to {@link #SUSPICIOUS_DAYS} after the policy starts, decaying linearly to zero at
- * {@link #SAFE_DAYS}. {@code effectiveFrom} is only a proxy for the purchase date.
+ * Full risk up to {@link #SUSPICIOUS_DAYS} between the purchase and the event, decaying linearly to
+ * zero at {@link #SAFE_DAYS}. The purchase date is the one on the purchase proof; the policy start is
+ * not a fallback, since a claim right after it is already covered by the waiting period rule.
  */
 @Component
 public class PurchaseToReportTimeEvaluator implements RiskFactorEvaluator {
 
     static final long SUSPICIOUS_DAYS = 7;
     static final long SAFE_DAYS = 90;
+
+    private static final String PURCHASE_PROOF_TYPE = "purchase_proof";
 
     @Override
     public String factorId() {
@@ -24,17 +28,18 @@ public class PurchaseToReportTimeEvaluator implements RiskFactorEvaluator {
 
     @Override
     public Contribution evaluate(RiskContext context) {
-        var effectiveFrom = context.policy().effectiveFrom();
-        var eventDate = context.claim().eventDate();
-        if (effectiveFrom == null || eventDate == null) {
+        DocumentExtraction purchaseProof = context.documents().get(PURCHASE_PROOF_TYPE);
+        var purchaseDate = purchaseProof == null ? null : purchaseProof.fields().documentDate();
+        var eventDate = context.claim() == null ? null : context.claim().eventDate();
+        if (purchaseDate == null || eventDate == null) {
             return Contribution.notEvaluable(factorId(),
-                    "Fechas de vigencia o del hecho no disponibles — factor no evaluable");
+                    "Sin fecha de compra en la factura o sin fecha del hecho — factor no evaluable");
         }
 
-        long days = ChronoUnit.DAYS.between(effectiveFrom.toLocalDate(), eventDate.toLocalDate());
+        long days = ChronoUnit.DAYS.between(purchaseDate, eventDate.toLocalDate());
         if (days < 0) {
             return Contribution.notEvaluable(factorId(),
-                    "Fecha del hecho anterior a la vigencia de la póliza — factor no evaluable");
+                    "La factura es posterior al hecho — factor no evaluable");
         }
 
         double score;
@@ -46,6 +51,6 @@ public class PurchaseToReportTimeEvaluator implements RiskFactorEvaluator {
             score = (double) (SAFE_DAYS - days) / (SAFE_DAYS - SUSPICIOUS_DAYS);
         }
         return new Contribution(factorId(), score,
-                String.format("Transcurrieron %d días entre el alta de la póliza y el hecho denunciado", days));
+                String.format("Transcurrieron %d días entre la compra y el hecho denunciado", days));
     }
 }

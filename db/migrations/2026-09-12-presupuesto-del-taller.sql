@@ -1,30 +1,5 @@
--- =============================================================================
--- 2026-09-12 · El presupuesto que informa el servicio técnico
---
--- Migración puntual y NO destructiva, para aplicar sobre una base que ya tiene
--- datos (Railway) sin pasar por el trío reset → init → seed.
---
--- Agrega:
---   · <tenant>.expert_assessment → quoted_amount, el precio que el taller puso a
---     la reparación.
---
--- Va en columna propia y NO en `indemnifiable_amount` por la misma razón por la
--- que el resultado de la reparación no va en `verdict`: los dos números contestan
--- preguntas distintas. El perito dice cuánto VALE el siniestro —una opinión sobre
--- la indemnización—; el taller dice cuánto CUESTA arreglarlo —un precio, que es
--- la base sobre la que liquida la fórmula de reparación—. Guardarlos juntos
--- obligaría a mirar provider_type para saber qué significa el número.
---
--- El CHECK de completitud se reescribe para incluirlo: un QUOTE_SENT sin importe
--- no es una respuesta, y un equipo reparado o irreparable no tiene presupuesto
--- que informar. Del lado del peritaje, quoted_amount siempre es NULL.
---
--- IMPORTANTE: los servicios corren con ddl-auto=validate. Aplicar ANTES de
--- desplegar el código que declara el campo, o cases-service no levanta.
--- `init-multitenant.sql` ya quedó actualizado para las bases nuevas.
---
--- Idempotente: se puede correr más de una vez sin romper nada.
--- =============================================================================
+-- 2026-09-12 · expert_assessment.quoted_amount, the repair shop's price. Apart from indemnifiable_amount:
+-- the expert says what the claim is worth, the shop what fixing it costs. Apply before deploying. Idempotent.
 
 BEGIN;
 
@@ -58,7 +33,7 @@ END $$;
 
 COMMIT;
 
--- Verificación: la columna nueva, una fila por aseguradora.
+-- Check: the new column, one row per insurer.
 SELECT table_schema, table_name, column_name, data_type, is_nullable
   FROM information_schema.columns
  WHERE column_name = 'quoted_amount' AND table_name = 'expert_assessment'

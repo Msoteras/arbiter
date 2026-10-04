@@ -1,33 +1,7 @@
--- =============================================================================
--- La primera tanda de documentos: lo mínimo que se le pide al asegurado
---
--- `insurer_rule.configuration -> requiredDocumentTypes` pasa a ser la lista que se
--- le pide en el alta y lo único que el gate mira para resolver el carril rápido.
--- La agenda documental completa (document_requirement) se exige recién si el caso
--- NO fast-trackea, y para eso el asegurado ya tiene la pantalla de Documentación.
---
--- Por cobertura, porque es donde vive la configuración del carril rápido:
---
---   Robo de celular / Hurto   police_report + purchase_proof
---                             acreditan el hecho y la titularidad; la baja de IMEI
---                             y la última conexión llegan en la segunda ronda.
---   Daño accidental           purchase_proof + repair_quote
---                             el presupuesto es lo que fija el monto.
---
--- Sin item_photo a propósito: el criterio compara el TEXTO EXTRAÍDO de cada
--- documento, y una foto no tiene texto — pedirla acá dejaría sin Fast Track a
--- todos los casos de daño.
---
--- De paso corrige Provincia, Daño accidental de Tecnología Portátil, que tenía
--- cargado ["police_report"]: su agenda no pide denuncia policial (un daño
--- accidental no tiene denuncia), así que ningún caso de esa cobertura podía entrar
--- al carril rápido.
---
--- Idempotente: reescribe la clave con el mismo valor.
---
--- Uso:
---   psql "$DATABASE_URL" -f db/migrations/2026-09-11-documentos-minimos-fast-track.sql
--- =============================================================================
+-- 2026-09-11 · FAST_TRACK requiredDocumentTypes becomes the first batch asked at filing and all the gate
+-- checks: Robo/Hurto police_report + purchase_proof; Daño accidental purchase_proof + repair_quote. No
+-- item_photo: the gate compares extracted text. Also fixes Provincia's Daño accidental, which asked for a
+-- police report. Idempotent.
 
 BEGIN;
 
@@ -77,16 +51,15 @@ END $$;
 
 COMMIT;
 
--- ─── Verificación ────────────────────────────────────────────────────────────
+-- ─── Verification ────────────────────────────────────────────────────────────
 --
--- 1. La primera tanda de cada cobertura, por tenant:
+-- 1. Each coverage's first batch, per tenant:
 --
 -- SELECT c.name, r.active, r.configuration->'requiredDocumentTypes'
 --   FROM arbiter_bbva.insurer_rule r JOIN arbiter_bbva.coverage c ON c.id = r.coverage_id
 --  WHERE r.rule_type = 'FAST_TRACK' ORDER BY c.id;
 --
--- 2. Que ninguna pida item_photo (no tiene texto que extraer) ni denuncia
---    policial en una cobertura de daño:
+-- 2. None asks for item_photo, nor for a police report on a damage coverage:
 --
 -- SELECT c.name, r.configuration->'requiredDocumentTypes'
 --   FROM arbiter_provincia.insurer_rule r JOIN arbiter_provincia.coverage c ON c.id = r.coverage_id

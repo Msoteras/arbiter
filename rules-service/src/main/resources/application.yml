@@ -12,6 +12,11 @@ spring:
     hikari:
       # Below Hikari's default of ten: several services share one Postgres and its connection limit.
       maximum-pool-size: ${DB_POOL_SIZE:5}
+      # An idle service must hold no connections and send no keepalive pings: Railway only puts a
+      # service to sleep after 10 minutes without outbound traffic, and Hikari 7 pings every 2.
+      minimum-idle: 0
+      idle-timeout: 60000
+      keepalive-time: 0
   jpa:
     # With multi-tenancy, an open-in-view session resolves its tenant on the first query and
     # stays pinned to it for the rest of the request.

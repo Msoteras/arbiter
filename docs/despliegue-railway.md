@@ -73,7 +73,7 @@ Valores por servicio (restart policy `ON_FAILURE` / 10 en los siete):
 | `reports-service` | `reports-service/Dockerfile` | `/actuator/health` | 300 |
 | `clip-embedding` | `embedding-service/Dockerfile` | `/health` | 600 |
 
-### Watch Paths: que un push no rebuildee los seis
+### Watch Paths: que un push no rebuildee los siete
 
 Los siete servicios apuntan al mismo repo, así que **por defecto cualquier push a `main` dispara
 siete builds** — cinco de ellos compilaciones de Maven completas. Settings → Build → *Watch Paths*
@@ -111,7 +111,7 @@ construyen con `context: .` + `dockerfile: embedding-service/Dockerfile`. No nec
 afuera de su carpeta —a diferencia de los backends Java, que sí precisan el POM padre y
 `common-lib`—, pero comparte la regla para que no haya excepciones que recordar:
 
-> **Root Directory `/` y `RAILWAY_DOCKERFILE_PATH=<servicio>/Dockerfile` en los seis.**
+> **Root Directory `/` y `RAILWAY_DOCKERFILE_PATH=<servicio>/Dockerfile` en los siete.**
 
 Si alguien "simplifica" ese Dockerfile sacándole el prefijo `embedding-service/` a los `COPY`, el
 build local con `context: .` va a fallar con `"/app.py": not found`.
@@ -188,7 +188,7 @@ declara módulo por módulo. En Railway se cargan las mismas, con estas diferenc
 
 | Variable | En Railway |
 |---|---|
-| `DB_URL` / `DB_USER` / `DB_PASSWORD` | Apuntan a Supabase, no a Railway |
+| `DB_URL` / `DB_USER` / `DB_PASSWORD` | La base vive en el Postgres de Railway. **`DB_URL` va por la red privada**: `jdbc:postgresql://${{Postgres.RAILWAY_PRIVATE_DOMAIN}}:5432/railway?sslmode=require`. El proxy público (`*.proxy.rlwy.net`) es solo para conectarse desde afuera (scripts, `psql`): usado desde los servicios, cada consulta sale a internet y vuelve, y se cobra como egress |
 | `RULES_SERVICE_URL` | `http://rules-service.railway.internal:8081` |
 | `CLASSIFICATION_SERVICE_URL` | `http://classification-service.railway.internal:8082` |
 | `EMBEDDING_SERVICE_URL` | `http://clip-embedding.railway.internal:8000` |
@@ -197,9 +197,10 @@ declara módulo por módulo. En Railway se cargan las mismas, con estas diferenc
 | `GOOGLE_APPLICATION_CREDENTIALS_B64` | Solo `classification-service`. La service-account key de Vertex en base64 — ver "La credencial de Vertex en Railway" abajo. **No** `GOOGLE_APPLICATION_CREDENTIALS`, que espera una ruta a un archivo que en Railway no existe |
 | `SPRING_PROFILES_ACTIVE` | **`insurer-db`** en `auth-service`, `classification-service` y `cases-service`. No es un perfil de entorno: activa los adapters que leen la BD Aseguradora (`InsurerDatabaseAdapter`, `InsuredDirectoryDatabaseAdapter`), que son `@Primary` sobre los mocks. **Sin él no falla nada**: los tres arrancan, pasan el healthcheck y sirven pólizas y asegurados **inventados** por `MockInsurerAdapter` / `MockInsuredDirectoryAdapter`. El único rastro es un `log.warn` al arrancar |
 | `JWT_SECRET` | **El mismo valor en los 5 backends.** Si difieren, los tokens de servicio entre módulos se rechazan y el síntoma es un 401 sin explicación |
+| `FRONTEND_BASE_URL` | **La URL pública del front (hoy `https://arbiter-prod.up.railway.app`) en `auth-service` y `cases-service`.** auth arma con ella los links de invitación; cases la usa como el único origen que puede abrir el WebSocket del chat. Si falta en cases, el chat no conecta (403 en `/api/v1/ws`) y los mensajes llegan recién con el refresco de 60 s |
 | `PASSWORD_ENCRYPTION_PRIVATE_KEY` | Ver abajo |
 | `PORT` | **Setearla a mano** en cada backend: `auth-service` 8080, `rules-service` 8081, `classification-service` 8082, `cases-service` 8083, `reports-service` 8084. Ver abajo |
-| `JAVA_TOOL_OPTIONS` | **`-XX:MaxRAMPercentage=75.0` en los 5 backends.** No está en los Dockerfiles (solo en `docker-compose.railway.yml`), así que en Railway hay que cargarla a mano. Sin ella la JVM toma como heap máximo el **25%** de la memoria del contenedor y Spring Boot con JPA se queda corto: GC constante y OOM bajo carga |
+| `JAVA_TOOL_OPTIONS` | **`-Xmx384m -XX:+UseSerialGC`** en auth, rules, cases y reports; **`-Xmx768m -XX:+UseSerialGC`** en classification, que rasteriza PDFs en memoria. No está en los Dockerfiles, así que en Railway hay que cargarla a mano. Sin techo explícito la JVM calcula el heap sobre los 8 GB que ve el contenedor, y Railway cobra la memoria usada. SerialGC es el recolector que menos memoria ocupa y, con un solo núcleo y poca carga, sus pausas no se notan |
 
 El frontend además necesita las cinco `*_SERVICE_URL` que consume su Nginx (ya vienen con default
 en su Dockerfile, apuntando a los nombres `.railway.internal` de la tabla de arriba).
@@ -208,16 +209,16 @@ en su Dockerfile, apuntando a los nombres `.railway.internal` de la tabla de arr
 
 Railway inyecta un `PORT` propio si no la definís, y los backends escuchan en `${PORT:<puerto de
 siempre>}`, así que obedecen. **Pero el frontend tiene los upstreams cableados a puertos fijos**
-(`:8080`, `:8081`, `:8082`, `:8083`, en `nginx.conf.template` vía los defaults del Dockerfile). Si
+(`:8080`, `:8081`, `:8082`, `:8083`, `:8084`, en `nginx.conf.template` vía los defaults del Dockerfile). Si
 Railway asigna otro, nginx sigue buscando en el de siempre y no encuentra nada.
 
 El modo de fallo es especialmente feo: si Railway asigna 8080 por defecto, **`auth-service` anda y
-los otros tres no**. Un 502 parcial en tres de cuatro backends parece un problema de esos servicios,
+los otros cuatro no**. Un 502 parcial en cuatro de cinco backends parece un problema de esos servicios,
 no de configuración de red.
 
 Fijando `PORT` por servicio, la red privada queda alineada con la tabla de puertos del `CLAUDE.md`,
 con `docker-compose` y con lo que ya espera el frontend. La alternativa —referenciar el puerto ajeno
-desde el frontend con `${{auth-service.PORT}}`— son cuatro variables más para el mismo resultado.
+desde el frontend con `${{auth-service.PORT}}`— son cinco variables más para el mismo resultado.
 
 **Los nombres de los servicios en Railway tienen que ser exactos**, porque los hostnames
 `*.railway.internal` se derivan de ellos: `auth-service`, `rules-service`, `classification-service`,
@@ -371,12 +372,13 @@ quien corresponda. No se agregó porque con 8 colaboradores y sin un mapa de pro
 El orden importa solo por las URLs internas: un servicio que arranca antes que su dependiente
 simplemente falla los primeros health checks y Railway lo reintenta.
 
-1. Base en Supabase: `init-multitenant.sql`, después `seed-demo.sql`.
+1. Base (Postgres en Railway): `init-multitenant.sql`, después `seed-demo.sql`.
 2. `clip-embedding` — es el más lento en buildear (se bakean los pesos de CLIP en la imagen).
 3. `rules-service`, `auth-service` — no dependen de nadie.
 4. `classification-service` — necesita `rules-service` y `clip-embedding`.
 5. `cases-service` — necesita `classification-service` y `rules-service`.
-6. `arbiter-frontend` — necesita a los cuatro. Es el que recibe el dominio público.
+6. `reports-service` — necesita `rules-service`; el resto lo lee directo de la base.
+7. `arbiter-frontend` — necesita a los cinco. Es el que recibe el dominio público.
 
 ---
 
@@ -388,6 +390,11 @@ simplemente falla los primeros health checks y Railway lo reintenta.
   Es el healthcheck que se carga en Settings → Deploy de cada servicio.
 - Pool de conexiones acotado a 5 por servicio (`DB_POOL_SIZE`), en vez de los 10 por defecto de
   Hikari.
+- El pool **se vacía cuando no hay tráfico** (`minimum-idle: 0`, `idle-timeout` 60 s,
+  `keepalive-time: 0`). Serverless solo duerme un servicio tras 10 min sin tráfico saliente, y con
+  los defaults de Hikari 7 (5 conexiones fijas, keepalive cada 2 min) ningún backend llegaba nunca,
+  ni la base con 25 conexiones abiertas. `cases-service` igual no duerme: sus schedulers consultan
+  la base cada 20 s.
 - Todas las imágenes corren con usuario sin privilegios.
 - Timezone fijada a `America/Argentina/Buenos_Aires` en las imágenes Java. **No es cosmético**: los
   contenedores corren en UTC, las máquinas del equipo en UTC-3, y hay `ZoneId.systemDefault()` en
@@ -399,7 +406,7 @@ simplemente falla los primeros health checks y Railway lo reintenta.
   detalle: con un `proxy_pass` a un hostname literal, nginx resuelve una sola vez al iniciar y
   **se niega a levantar** si el nombre no resuelve — o sea que el frontend entraba en crash-loop
   si arrancaba antes que los backends, o mientras alguno estuviera caído. Verificado: con los
-  cuatro backends ausentes, la SPA sirve 200 y solo las rutas `/api/v1/*` dan 502.
+  cinco backends ausentes, la SPA sirve 200 y solo las rutas `/api/v1/*` dan 502.
 - **No hay `railway.json`**: se borraron (30/08) al quedar Config as Code deprecado sin que
   pudiéramos habilitarlo. Toda la configuración de despliegue vive en el dashboard de Railway y
   está documentada acá — este archivo es la única fuente de verdad.

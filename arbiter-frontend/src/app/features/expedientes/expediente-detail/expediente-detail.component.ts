@@ -21,10 +21,16 @@ import {
   switchMap,
 } from 'rxjs';
 
-import { ExpedienteService, AnalystDecisionRequest, Settlement } from '../expediente.service';
+import {
+  ExpedienteService,
+  AnalystDecisionRequest,
+  ClaimCauseOption,
+  Settlement,
+} from '../expediente.service';
 import { DocumentAgendaService } from '../document-agenda.service';
 import { CaseNavigationService } from '../case-navigation.service';
 import { CaseMessagesService } from '../case-messages.service';
+import { CaseMessage } from '../../../core/models/case-message';
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
 import { UserAdminService } from '../../../core/auth/user-admin.service';
 import { SettlementAuthoritiesService } from '../../admin/settlement-authorities.service';
@@ -95,14 +101,15 @@ import {
 } from '../../../core/models/deadline-priority';
 import { RiskBand, riskBandLabel } from '../../../core/models/risk-band';
 import { StatusTone } from '../../../core/models/status-tone';
-import { formatDate, formatDateTime } from '../../../core/util/datetime';
+import { chatListStamp, formatDate, formatDateTime } from '../../../core/util/datetime';
 import { FraudGaugeComponent } from '../../../shared/ui/fraud-gauge/fraud-gauge.component';
 import { InfoTipComponent } from '../../../shared/ui/info-tip/info-tip.component';
 import { EmptyStateComponent } from '../../../shared/ui/empty-state/empty-state.component';
 import { StatusTimelineComponent } from '../../../shared/ui/status-timeline/status-timeline.component';
 import { ForensicAnalysisComponent } from './forensic-analysis/forensic-analysis.component';
 import { CaseDocumentsComponent } from '../case-documents/case-documents.component';
-import { CaseChatComponent } from '../case-chat/case-chat.component';
+import { CaseChatPopupComponent } from '../case-chat-popup/case-chat-popup.component';
+import { analystQuickReplies } from '../case-chat/quick-replies';
 import { CardComponent } from '../../../shared/ui/card/card.component';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
@@ -132,7 +139,6 @@ type TabId =
   | 'imagenes'
   | 'asegurado'
   | 'peritaje'
-  | 'conversacion'
   | 'historial';
 type Verb = 'aprobar' | 'rechazar';
 
@@ -158,9 +164,19 @@ function demoraDenuncia(eventDate: string, createdAt: string): string | undefine
 }
 
 /** A signal worth reading before deciding, and the tab where its evidence lives. */
+function initialsOf(name: string | null | undefined): string {
+  return (name ?? '')
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0]!.toUpperCase())
+    .join('');
+}
+
 interface BriefAlert {
   label: string;
-  tab: TabId;
+  /** 'chat' opens the chat popup instead of a tab. */
+  tab: TabId | 'chat';
 }
 
 @Component({
@@ -173,7 +189,7 @@ interface BriefAlert {
     StatusTimelineComponent,
     ForensicAnalysisComponent,
     CaseDocumentsComponent,
-    CaseChatComponent,
+    CaseChatPopupComponent,
     CardComponent,
     ButtonComponent,
     BadgeComponent,
@@ -211,15 +227,21 @@ export class ExpedienteDetailComponent {
       const id = this.loadedCaseId();
       untracked(() => {
         this.unreadMessages.set(0);
+        this.lastMessage.set(null);
         if (id) {
           this.messages.thread(id).subscribe({
-            next: (thread) => this.unreadMessages.set(thread.unread),
+            next: (thread) => {
+              this.unreadMessages.set(thread.unread);
+              this.lastMessage.set(thread.messages.at(-1) ?? null);
+            },
             error: () => undefined,
           });
         }
       });
     });
   }
+
+  protected readonly lastMessage = signal<CaseMessage | null>(null);
 
   /** Bumped after a decision is recorded, to refetch the case and reflect the real backend status. */
   private readonly reloadTrigger = signal(0);
@@ -356,10 +378,7 @@ export class ExpedienteDetailComponent {
     return d ? clasificacionTone(d.analysisClassification) : 'neutral';
   });
 
-  /**
-   * Only shown when there is something to look at: MATCHES adds nothing and null means the check
-   * didn't run.
-   */
+  /** Only with something to look at: MATCHES adds nothing and null means it didn't run. */
   protected readonly showCauseConsistency = computed(() =>
     shouldSurfaceCauseConsistency(this.data()?.causeConsistency),
   );
@@ -379,10 +398,7 @@ export class ExpedienteDetailComponent {
     return d ? Math.round(d.analysisConfidence * 100) : 0;
   });
 
-  /**
-   * Empty for Fast Track / missing documentation (rules gate, not the LLM) or before
-   * classification; the tab is hidden then.
-   */
+  /** Empty for Fast Track, missing documentation or before classification; the tab is hidden then. */
   protected readonly analysisReasons = computed<string[]>(() =>
     (this.data()?.analysisReasons ?? []).map(conLabelesDeDocumento),
   );
@@ -397,13 +413,10 @@ export class ExpedienteDetailComponent {
   }
 
   /**
-   * FAST_TRACK and FALTA_DOCUMENTACION come from the rules gate, not the LLM, so no model confidence
-   * is shown for them: the backend's 100% is a fixed value, not a measurement.
+   * Settled by the rules engine without the LLM, so no model confidence is shown: the backend's 100%
+   * is a fixed value, not a measurement.
    */
-  protected readonly isDeterministicOutcome = computed(() => {
-    const c = this.data()?.analysisClassification;
-    return c === 'FAST_TRACK' || c === 'FALTA_DOCUMENTACION';
-  });
+  protected readonly isDeterministicOutcome = computed(() => this.data()?.resolvedByRules === true);
 
   protected readonly resumenGroups = computed<{ heading: string; fields: FieldItem[] }[]>(() => {
     const d = this.data();
@@ -454,7 +467,6 @@ export class ExpedienteDetailComponent {
     ];
   });
 
-  // ----- traceability -----
   private readonly ruleResults = computed<RuleResult[]>(() => this.data()?.ruleResults ?? []);
 
   /** Kept apart from the Fast Track criteria: failing one means something different in each table. */
@@ -464,17 +476,23 @@ export class ExpedienteDetailComponent {
     ),
   );
 
-  /**
-   * Los avisos: no deciden cobertura ni carril rápido, marcan algo para mirar antes de resolver
-   * (hoy, que la documentación narre otro hecho que el declarado). Van aparte y arriba de las
-   * reglas porque un "No cumple" entre ellas se leería como una exclusión que el motor no dictó.
-   */
+  /** Kept above the rules: a failed advisory among them would read as an exclusion. */
   protected readonly advisoryChecks = computed<RuleResult[]>(() =>
     this.ruleResults().filter((r) => isAdvisoryCheck(r.ruleType)),
   );
 
   protected readonly hasAdvisoryWarning = computed(() =>
     this.advisoryChecks().some((r) => r.result === 'FAIL'),
+  );
+
+  /** Which advisories warn, so the card's intro only mentions those. */
+  protected readonly advisoryWarningTypes = computed(
+    () =>
+      new Set(
+        this.advisoryChecks()
+          .filter((r) => r.result === 'FAIL')
+          .map((r) => r.ruleType),
+      ),
   );
 
   /** Present both when the case took Fast Track (why) and when it didn't (which criterion failed). */
@@ -547,7 +565,6 @@ export class ExpedienteDetailComponent {
     () => this.data()?.policySnapshot ?? null,
   );
 
-  // ----- insured's policies (current data, not the classification snapshot) -----
   // Lazy-loaded from their own endpoint: an insurer-DB query most case views never need.
   private readonly polizas = toSignal(
     combineLatest([
@@ -645,10 +662,8 @@ export class ExpedienteDetailComponent {
     return value == null ? null : this.formatMonto(value);
   }
 
-  // ----- status history -----
   protected readonly history = computed<StatusTransition[]>(() => this.data()?.statusHistory ?? []);
 
-  /** Only when forensic analysis actually ran on some image. */
   protected readonly hayAnalisisImagenes = computed(
     () => (this.data()?.forensicReport?.findings?.length ?? 0) > 0,
   );
@@ -661,10 +676,7 @@ export class ExpedienteDetailComponent {
     }),
   );
 
-  // ----- tabs -----
   // Conditional tabs appear only once something has run (referral, classification, forensics).
-  // 'conversacion' is always shown: an empty thread is where talking to the insured starts. It
-  // carries a dot when something is unread.
   protected readonly tabs = computed<
     {
       id: TabId;
@@ -701,21 +713,19 @@ export class ExpedienteDetailComponent {
     ...(this.derivaciones().length > 0
       ? [{ id: 'peritaje' as TabId, label: this.derivacionesTabLabel() }]
       : []),
-    {
-      id: 'conversacion' as TabId,
-      label: 'Conversación',
-      dot: this.unreadMessages() > 0,
-      dotLabel: 'con mensajes sin leer',
-    },
     { id: 'historial' as TabId, label: 'Historial' },
   ]);
 
-  /**
-   * Unread messages from the insured. Fetched apart from the case and not as one more
-   * `CaseResponse` field: the same DTO builds the inbox, so counting per row would be one query
-   * per listed case.
-   */
+  /** Fetched apart: counting per row in the shared `CaseResponse` would cost a query per inbox case. */
   protected readonly unreadMessages = signal(0);
+  protected readonly chatOpen = signal(false);
+
+  protected readonly quickReplies = computed(() =>
+    analystQuickReplies(
+      this.data()?.insuredName ?? '',
+      this.needsDocs() ? this.missingDocLabels() : [],
+    ),
+  );
   private readonly selectedTab = signal<TabId>('resumen');
 
   /**
@@ -731,13 +741,20 @@ export class ExpedienteDetailComponent {
     this.selectedTab.set(t);
   }
 
+  protected onAlert(alerta: BriefAlert): void {
+    if (alerta.tab === 'chat') {
+      this.chatOpen.set(true);
+    } else {
+      this.setTab(alerta.tab);
+    }
+  }
+
   /** The tabs sit below the fold on mobile: without the scroll the click would look like a no-op. */
   protected verAnalisis(tabs: HTMLElement): void {
     this.setTab('analisis');
     tabs.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
-  // ----- analyst decision -----
   private readonly verbLabels: Record<Verb, string> = {
     aprobar: 'Aprobar',
     rechazar: 'Rechazar',
@@ -799,6 +816,9 @@ export class ExpedienteDetailComponent {
   cancelDecision(): void {
     this.showJustify.set(false);
     this.pendingDecision.set(null);
+    // A value tried in the dialog must not keep driving the page's amount and warnings.
+    this.replacementInput.set('');
+    this.replacementApplied.set(null);
   }
   confirmDecision(): void {
     const verb = this.pendingDecision();
@@ -846,7 +866,6 @@ export class ExpedienteDetailComponent {
     });
   }
 
-  // ----- settlement amount -----
   // The backend computes it and explains it line by line; the analyst confirms or adjusts it with a
   // justification.
 
@@ -878,7 +897,6 @@ export class ExpedienteDetailComponent {
     () => this.settlement()?.status === 'PENDING_AUTHORIZATION',
   );
 
-  /** Returned by the supervisor, with a reason to fix. */
   protected readonly liquidacionDevuelta = computed(() => this.settlement()?.status === 'RETURNED');
 
   /** Computed on the proposal, so the analyst learns before confirming that it needs sign-off. */
@@ -895,6 +913,15 @@ export class ExpedienteDetailComponent {
   protected readonly pideMontoAcreditado = computed(() => {
     const s = this.settlement();
     return s?.formula === 'REPAIR' || s?.settlementBasis === 'LESSER_OF_SUM_AND_REPLACEMENT';
+  });
+
+  /**
+   * A total loss settled by the lesser of the two: today's replacement value is the base of the
+   * amount, so approval waits for it. Never defaulted to the sum insured.
+   */
+  protected readonly pideReposicion = computed(() => {
+    const s = this.settlement();
+    return s?.formula === 'TOTAL_LOSS' && s.settlementBasis === 'LESSER_OF_SUM_AND_REPLACEMENT';
   });
 
   /** Offered only until the analyst enters a value; never applied automatically. */
@@ -978,6 +1005,9 @@ export class ExpedienteDetailComponent {
     if (!this.settlement()) {
       return 'No se pudo calcular el monto a pagar.';
     }
+    if (this.pideReposicion() && this.replacementApplied() == null) {
+      return 'Cargá cuánto cuesta hoy reponer el bien y recalculá.';
+    }
     if (this.amountToAuthorize() == null) {
       return 'El monto a pagar tiene que ser un número.';
     }
@@ -991,7 +1021,6 @@ export class ExpedienteDetailComponent {
     return null;
   });
 
-  // ----- supervisor sign-off on a settlement above the analyst's authority -----
   // Same actions as the authorizations screen, so the supervisor can sign from the case itself.
   protected readonly canAuthorize = computed(
     () => this.session.session()?.rol === 'REFERENTE_ASEGURADORA' && this.esperandoAutorizacion(),
@@ -1055,7 +1084,6 @@ export class ExpedienteDetailComponent {
     });
   }
 
-  // ----- reopening a closed case -----
   // Shared with the supervisor, like assigning: reopening resolves nothing.
   protected readonly showReopen = signal(false);
   protected readonly reopenReason = signal('');
@@ -1098,7 +1126,6 @@ export class ExpedienteDetailComponent {
     });
   }
 
-  // ----- referral to expert assessment -----
   // Not a verdict: it suspends the case to gather evidence, hence its own endpoint instead of
   // /decision.
   protected readonly derivado = computed(() => this.data()?.status === 'PENDING_EXPERT_REPORT');
@@ -1164,9 +1191,8 @@ export class ExpedienteDetailComponent {
   );
 
   /**
-   * Same owner rule as `puedeDerivar`: the backend refuses anyone but the assigned analyst. And
-   * `eligible` is only true when the claim cause admits repair and there is a repair shop to send
-   * it to; while loading or on error it is null, so the button stays hidden.
+   * Owner only, like `puedeDerivar`. `eligible` is true only when the cause admits repair and there is a
+   * shop to send it to; null while loading or on error, so the button stays hidden.
    */
   protected readonly puedeDerivarAReparacion = computed(
     () =>
@@ -1222,7 +1248,6 @@ export class ExpedienteDetailComponent {
       (this.puedeDerivar() && !!this.sugerenciaDerivacion()),
   );
 
-  // ----- "Antes de decidir" -----
   // Brings existing evidence next to the buttons; adds no criteria and suggests nothing.
 
   protected readonly plazoTexto = computed(() => {
@@ -1243,7 +1268,6 @@ export class ExpedienteDetailComponent {
       : 'neutral';
   });
 
-  /** Referrals that already came back. */
   protected readonly derivacionesRespondidas = computed(() =>
     this.derivaciones().filter((p) => p.verdict || p.repairOutcome),
   );
@@ -1285,7 +1309,7 @@ export class ExpedienteDetailComponent {
       });
     }
     if (this.unreadMessages() > 0) {
-      alertas.push({ label: 'Mensajes sin leer del asegurado', tab: 'conversacion' });
+      alertas.push({ label: 'Mensajes sin leer del asegurado', tab: 'chat' });
     }
     return alertas;
   });
@@ -1367,6 +1391,80 @@ export class ExpedienteDetailComponent {
     });
   }
 
+  /**
+   * Only while the owner reviews it: the backend refuses any other status and a settlement awaiting
+   * the referente, and this keeps the button from offering what it would refuse.
+   */
+  protected readonly puedeCorregirCausa = computed(
+    () => this.enManosDelAnalista() && this.data()?.status === 'PENDING_ANALYST_REVIEW',
+  );
+
+  protected readonly showCorregirCausa = signal(false);
+  protected readonly causaOpciones = signal<ClaimCauseOption[] | null>(null);
+  protected readonly causaElegida = signal('');
+  protected readonly motivoCorreccion = signal('');
+  protected readonly corregirSaving = signal(false);
+  protected readonly corregirError = signal<string | null>(null);
+
+  protected readonly causaSelectOptions = computed<SelectOption[]>(() =>
+    (this.causaOpciones() ?? []).map((o) => ({
+      value: String(o.id),
+      label: `${o.name} · ${o.coverageName}`,
+    })),
+  );
+
+  askCorregirCausa(): void {
+    const d = this.data();
+    if (!d) {
+      return;
+    }
+    this.causaOpciones.set(null);
+    this.causaElegida.set('');
+    this.motivoCorreccion.set('');
+    this.corregirError.set(null);
+    this.showCorregirCausa.set(true);
+    this.service.claimCauseOptions(d.id).subscribe({
+      next: (opciones) => {
+        this.causaOpciones.set(opciones);
+        // What the narrative suggests comes preselected; the analyst still confirms it.
+        const sugerida = opciones.find((o) => o.name === d.suggestedClaimCause);
+        if (sugerida) {
+          this.causaElegida.set(String(sugerida.id));
+        }
+      },
+      error: () => {
+        this.causaOpciones.set([]);
+        this.corregirError.set('No se pudieron cargar los hechos generadores.');
+      },
+    });
+  }
+
+  cancelCorregirCausa(): void {
+    this.showCorregirCausa.set(false);
+  }
+
+  confirmCorregirCausa(): void {
+    const d = this.data();
+    const causa = this.causaElegida();
+    const motivo = this.motivoCorreccion().trim();
+    if (!d || !causa || !motivo) {
+      return;
+    }
+    this.corregirSaving.set(true);
+    this.corregirError.set(null);
+    this.service.correctClaimCause(d.id, Number(causa), motivo).subscribe({
+      next: () => {
+        this.corregirSaving.set(false);
+        this.showCorregirCausa.set(false);
+        this.reloadTrigger.update((v) => v + 1);
+      },
+      error: (err: HttpErrorResponse) => {
+        this.corregirSaving.set(false);
+        this.corregirError.set(err.error?.detail || 'No se pudo corregir el hecho generador');
+      },
+    });
+  }
+
   /** Kept for the confirmation modal: the only signal that the email went out. */
   protected readonly derivacionHecha = signal<Peritaje | null>(null);
   // Kept apart from data(), which is empty while the case reloads behind the modal.
@@ -1376,7 +1474,6 @@ export class ExpedienteDetailComponent {
     this.derivacionHecha.set(null);
   }
 
-  // ----- expert report / repair shop response -----
   protected readonly showInforme = signal(false);
   protected readonly informeTipo = signal<ProviderType>('ESTUDIO_LIQUIDADOR');
   protected readonly informeEsReparacion = computed(
@@ -1495,7 +1592,6 @@ export class ExpedienteDetailComponent {
     });
   }
 
-  // ----- insured's fraud record -----
   // Separate from the expert report: carrying a finding over to the person's future claims is the
   // analyst's act, recorded with their name and reason (Ley 25.326).
   private readonly antecedentes = toSignal(
@@ -1613,6 +1709,7 @@ export class ExpedienteDetailComponent {
   veredictoTone = veredictoTone;
   repairOutcomeLabel = repairOutcomeLabel;
   formatDateTime = formatDateTime;
+  chatListStamp = chatListStamp;
 
   ruleTypeLabel = ruleTypeLabel;
   ruleResultLabel = ruleResultLabel;
@@ -1642,7 +1739,6 @@ export class ExpedienteDetailComponent {
     }).format(amount);
   }
 
-  // ----- manual classification retry (CLASSIFICATION_FAILED) -----
   // The scheduler only sweeps PENDING_CLASSIFICATION, so exhausted cases must be requeued by hand.
   protected readonly isFailed = computed(() => this.data()?.status === 'CLASSIFICATION_FAILED');
   protected readonly retrying = signal(false);
@@ -1667,7 +1763,6 @@ export class ExpedienteDetailComponent {
     });
   }
 
-  // ----- assignment -----
   // Both operational roles can assign; only the analyst can take a case for themselves.
   protected readonly assignSaving = signal(false);
   protected readonly assignError = signal<string | null>(null);
@@ -1684,17 +1779,13 @@ export class ExpedienteDetailComponent {
   );
 
   protected readonly analystMenuItems = computed<MenuItem[]>(() => {
-    // The current assignee is left out.
     const assignedId = this.data()?.assignedAnalystId;
     return this.analysts()
       .filter((a) => a.id !== assignedId)
       .map((a) => ({ value: String(a.id), label: `${a.nombre} ${a.apellido}` }));
   });
 
-  /**
-   * Per-tenant analyst id, found by email in the tenant-scoped analyst list (the session only has
-   * the user id). Null for the supervisor.
-   */
+  /** Per-tenant analyst id, found by email (the session only has the user id). Null for the supervisor. */
   private readonly myAnalystId = computed<number | null>(() => {
     const email = this.session.session()?.email;
     return this.analysts().find((a) => a.email === email)?.id ?? null;
@@ -1746,13 +1837,10 @@ export class ExpedienteDetailComponent {
     return analista ? `Asignado a ${analista}` : 'Asignado a otro analista';
   });
 
-  protected readonly analystInitials = computed(() =>
-    (this.assignedName() ?? '')
-      .split(/\s+/)
-      .filter(Boolean)
-      .slice(0, 2)
-      .map((w) => w[0]!.toUpperCase())
-      .join(''),
+  protected readonly analystInitials = computed(() => initialsOf(this.assignedName()));
+  protected readonly insuredInitials = computed(() => initialsOf(this.data()?.insuredName));
+  protected readonly insuredFirstName = computed(
+    () => (this.data()?.insuredName ?? '').trim().split(/\s+/)[0] || 'el asegurado',
   );
 
   /**
@@ -1837,7 +1925,6 @@ export class ExpedienteDetailComponent {
     });
   }
 
-  // ----- missing documentation (read-only for the analyst) -----
   protected readonly needsDocs = computed(
     () => this.data()?.analysisClassification === 'FALTA_DOCUMENTACION',
   );

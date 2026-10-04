@@ -3,7 +3,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { InputComponent } from './input.component';
 
 /** The native `min` covers the arrows and submit, but does not stop typing or pasting "-500". */
-describe('InputComponent · numérico sin negativos', () => {
+describe('InputComponent · numeric without negatives', () => {
   let fixture: ComponentFixture<InputComponent>;
 
   function field(): HTMLInputElement {
@@ -32,24 +32,24 @@ describe('InputComponent · numérico sin negativos', () => {
     fixture.detectChanges();
   });
 
-  it('bloquea el signo menos tipeado', () => {
+  it('blocks a typed minus sign', () => {
     expect(pressMinus()).toBeTrue();
   });
 
-  it('descarta el signo de un valor pegado y se queda con el número', () => {
+  it('drops the sign of a pasted value and keeps the number', () => {
     paste('-500');
 
     expect(fixture.componentInstance.value()).toBe('500');
     expect(field().value).toBe('500');
   });
 
-  it('no toca los valores positivos', () => {
+  it('leaves positive values alone', () => {
     paste('1500.50');
 
     expect(fixture.componentInstance.value()).toBe('1500.50');
   });
 
-  it('sin min, el campo numérico sigue admitiendo negativos (ej. un delta)', () => {
+  it('without min, a numeric field still accepts negatives (e.g. a delta)', () => {
     fixture.componentRef.setInput('min', null);
     fixture.detectChanges();
 
@@ -58,7 +58,7 @@ describe('InputComponent · numérico sin negativos', () => {
     expect(fixture.componentInstance.value()).toBe('-500');
   });
 
-  it('no se mete con los campos de texto', () => {
+  it('leaves text fields alone', () => {
     fixture.componentRef.setInput('type', 'text');
     fixture.componentRef.setInput('min', 0);
     fixture.detectChanges();

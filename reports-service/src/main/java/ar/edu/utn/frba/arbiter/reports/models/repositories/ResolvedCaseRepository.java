@@ -46,7 +46,7 @@ public class ResolvedCaseRepository {
                   FROM llm_analysis
                  ORDER BY case_id, id DESC
             )
-            SELECT c.id, c.reported_at, c.was_fast_track, r.resolved_at,
+            SELECT c.id, c.reported_at, c.rules_classification, r.resolved_at,
                    COALESCE(wt.waiting_seconds, 0) AS waiting_seconds,
                    i.name AS insured_name, i.surname AS insured_surname, i.dni,
                    b.name AS branch, cc.name AS claim_cause, s.name AS final_status,
@@ -126,18 +126,16 @@ public class ResolvedCaseRepository {
                 resolvedAt,
                 Duration.between(reportedAt, resolvedAt).toMinutes(),
                 Math.round(rs.getDouble("waiting_seconds")) / 60,
-                classification(rs.getBoolean("was_fast_track"), rs.getString("recommendation")),
+                classification(rs.getString("rules_classification"), rs.getString("recommendation")),
                 rs.getString("decision"),
                 CaseStatus.valueOf(rs.getString("final_status")),
                 fullName(rs.getString("analyst_name"), rs.getString("analyst_surname")));
     }
 
-    /** A Fast Track leaves no {@code llm_analysis} row, so the case flag wins over any older model run. */
-    private static Classification classification(boolean wasFastTrack, String recommendation) {
-        if (wasFastTrack) {
-            return Classification.FAST_TRACK;
-        }
-        return recommendation == null ? null : Classification.valueOf(recommendation);
+    /** A rules outcome leaves no {@code llm_analysis} row, so the case column wins over any older model run. */
+    private static Classification classification(String rulesClassification, String recommendation) {
+        String value = rulesClassification != null ? rulesClassification : recommendation;
+        return value == null ? null : Classification.valueOf(value);
     }
 
     private static String fullName(String name, String surname) {

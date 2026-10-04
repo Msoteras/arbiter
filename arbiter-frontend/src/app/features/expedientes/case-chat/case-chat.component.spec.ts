@@ -4,12 +4,17 @@ import { Subject, of } from 'rxjs';
 import { CaseChatComponent } from './case-chat.component';
 import { CaseMessagesService } from '../case-messages.service';
 import { CaseMessagesSocketService } from '../case-messages-socket.service';
-import { CaseMessageEvent, CaseMessageThread } from '../../../core/models/case-message';
+import {
+  CaseMessage,
+  CaseMessageEvent,
+  CaseMessageThread,
+} from '../../../core/models/case-message';
 
 /** The socket frame is shared by both sides and carries no `mine`: the component must place it. */
-describe('CaseChatComponent — mensajes que llegan por el socket', () => {
+describe('CaseChatComponent · messages over the socket', () => {
   let fixture: ComponentFixture<CaseChatComponent>;
   let pushed: Subject<CaseMessageEvent>;
+  let posted: Subject<CaseMessage>;
   let markRead: jasmine.Spy;
 
   const thread: CaseMessageThread = {
@@ -32,6 +37,7 @@ describe('CaseChatComponent — mensajes que llegan por el socket', () => {
 
   beforeEach(async () => {
     pushed = new Subject<CaseMessageEvent>();
+    posted = new Subject<CaseMessage>();
     markRead = jasmine.createSpy('markRead').and.returnValue(of(void 0));
 
     await TestBed.configureTestingModule({
@@ -42,7 +48,9 @@ describe('CaseChatComponent — mensajes que llegan por el socket', () => {
           useValue: {
             thread: () => of(thread),
             markRead,
-            post: () => of(null),
+            post: () => posted.asObservable(),
+            recordLatest: () => undefined,
+            clearUnread: () => undefined,
           },
         },
         { provide: CaseMessagesSocketService, useValue: { watch: () => pushed.asObservable() } },
@@ -59,14 +67,15 @@ describe('CaseChatComponent — mensajes que llegan por el socket', () => {
     return Array.from(fixture.nativeElement.querySelectorAll('.msg')).map((el) => {
       const node = el as HTMLElement;
       return {
-        who: node.querySelector('.who')!.textContent!.trim(),
+        // The author is only announced to screen readers, as "Name:".
+        who: node.querySelector('.sr-only')!.textContent!.trim().replace(/:$/, ''),
         body: node.querySelector('.body')!.textContent!.trim(),
         mine: node.classList.contains('mine'),
       };
     });
   }
 
-  it('ubica del lado del otro un mensaje del lado contrario', () => {
+  it('places a message from the other side on the other side', () => {
     pushed.next({
       id: 2,
       caseId: 29,
@@ -80,7 +89,7 @@ describe('CaseChatComponent — mensajes que llegan por el socket', () => {
     expect(bubbles()[1]).toEqual({ who: 'Equipo de siniestros', body: '¿La tenés?', mine: false });
   });
 
-  it('ubica como propio un mensaje del lado del que mira', () => {
+  it('places a message from the viewer side as their own', () => {
     pushed.next({
       id: 3,
       caseId: 29,
@@ -94,7 +103,7 @@ describe('CaseChatComponent — mensajes que llegan por el socket', () => {
   });
 
   /** The sender also receives its own message over the socket. */
-  it('ignora el eco de un mensaje que ya está en el hilo', () => {
+  it('ignores the echo of a message already in the thread', () => {
     pushed.next({
       id: 1,
       caseId: 29,
@@ -107,7 +116,37 @@ describe('CaseChatComponent — mensajes que llegan por el socket', () => {
     expect(bubbles().length).toBe(1);
   });
 
-  it('marca leído lo que entra, y no lo que sale', () => {
+  it('shows a sent message once when its echo arrives before the POST answers', () => {
+    const chat = fixture.componentInstance as unknown as {
+      draft: { set(value: string): void };
+      send(): void;
+    };
+    chat.draft.set('Ya la subí.');
+    chat.send();
+
+    pushed.next({
+      id: 6,
+      caseId: 29,
+      sender: 'INSURED',
+      body: 'Ya la subí.',
+      createdAt: '2026-08-30T12:10:00Z',
+    });
+    posted.next({
+      id: 6,
+      sender: 'INSURED',
+      mine: true,
+      body: 'Ya la subí.',
+      createdAt: '2026-08-30T12:10:00Z',
+      readAt: null,
+    });
+    fixture.detectChanges();
+
+    expect(bubbles().filter((b) => b.body === 'Ya la subí.')).toEqual([
+      { who: 'Vos', body: 'Ya la subí.', mine: true },
+    ]);
+  });
+
+  it('marks incoming messages as read, not outgoing ones', () => {
     markRead.calls.reset();
     pushed.next({
       id: 4,

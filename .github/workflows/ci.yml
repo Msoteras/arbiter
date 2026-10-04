@@ -1,18 +1,13 @@
 name: CI
 
-# Gate de calidad, no de despliegue: el deploy lo dispara Railway solo, al mergear a `main`.
-# Con "Wait for CI" activado en Railway (ver docs/despliegue-railway.md), este workflow es lo que
-# tiene que pasar en verde antes de que Railway construya nada.
-#
-# Corre en los PR hacia develop y hacia main, y además en el push a main — ese último es el que
-# Railway mira para decidir si despliega.
+# Quality gate, not a deploy: Railway deploys on merge to main and waits for this run to pass
+# (docs/despliegue-railway.md).
 on:
   pull_request:
     branches: [develop, main]
   push:
     branches: [main]
 
-# Un PR con varios pushes seguidos no necesita N corridas completas: la última manda.
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -31,9 +26,7 @@ jobs:
           distribution: temurin
           cache: maven
 
-      # Reactor completo y no módulo por módulo: common-lib es dependencia de los cinco, y un
-      # build parcial toma el jar viejo del repositorio local en vez del código del PR — el
-      # síntoma es un `cannot find symbol` sobre algo que sí está en la rama.
+      # The whole reactor: a partial build picks up a stale common-lib jar ("cannot find symbol").
       - name: Build + tests
         run: mvn -B -ntp verify
 
@@ -56,18 +49,14 @@ jobs:
       - name: Instalar dependencias
         run: npm ci
 
-      # Antes del build: es el chequeo más rápido del job y el que más rápido se desactualiza.
-      # Se arregla con `npm run format`, que es lo que corre este check al revés.
       - name: Formato (Prettier)
         run: npm run format:check
 
       - name: Build de producción
         run: npm run build -- --configuration production
 
-  # Las dos tablas de ruteo del frontend (proxy.conf.json para `ng serve`,
-  # nginx.conf.template para el despliegue) tienen que declarar las mismas rutas. Una ruta
-  # agregada solo en la primera anda todo el desarrollo y da 404 recién en producción, que es
-  # exactamente el tipo de error que nadie encuentra hasta la demo.
+  # proxy.conf.json (ng serve) and nginx.conf.template (deploy) must declare the same routes:
+  # a route missing from the latter only fails in production.
   routing-parity:
     name: Ruteo dev == ruteo prod
     runs-on: ubuntu-latest

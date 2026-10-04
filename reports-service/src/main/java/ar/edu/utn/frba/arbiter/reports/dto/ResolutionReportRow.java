@@ -11,7 +11,7 @@ import java.time.Instant;
  * @param resolvedAt      when the case last moved into its final status
  * @param waitingMinutes  the part of {@code totalMinutes} spent waiting on third parties, which
  *                        interrupts the legal term
- * @param classification  {@code FAST_TRACK} from the deterministic gate, else the model's latest
+ * @param classification  the rules engine's outcome when it settled the case, else the model's latest
  *                        recommendation; null when neither ran
  * @param analystDecision verbatim from {@code case_classification}: APPROVE/REJECT or the legacy
  *                        APROBAR/RECHAZAR some rows still carry; null for {@code LAPSED}

@@ -1,26 +1,6 @@
--- =============================================================================
--- 2026-09-12 · Derivación a reparación según el hecho generador
---
--- Migración de DATOS, sin cambio de esquema: insurer_rule.rule_type no tiene CHECK,
--- así que el tipo nuevo REPAIR_DERIVATION entra como filas. No hace falta rebuildear
--- nada para aplicarla, y el código viejo simplemente no la lee.
---
--- Hasta ahora el botón "Derivar a servicio técnico" aparecía en cualquier expediente
--- con un servicio técnico cargado para el ramo, incluso en un robo: no hay nada que
--- reparar en un equipo que no está. La regla dice, por ramo, qué hechos generadores
--- admiten reparación. Opt-in igual que el peritaje: sin regla, no se ofrece.
---
--- Carga inicial (a confirmar con el equipo, se cambia editando la fila):
---   · Celulares            → Rotura accidental, Caída
---   · Tecnología Portátil  → Daño accidental
---
--- Los hechos se buscan por NOMBRE y no por id, para no depender de la numeración de
--- cada base. Las tildes van con escapes Unicode (U&'...'): aplicada por un pipe de
--- PowerShell, un literal con tilde llegó una vez como '?'.
---
--- Idempotente: cada fila se inserta solo si no existe, y solo si el ramo tiene
--- alguno de esos hechos (una lista vacía sería una regla mal configurada).
--- =============================================================================
+-- 2026-09-12 · Data: REPAIR_DERIVATION rules saying which claim causes of a branch allow a repair referral
+-- (Celulares: Rotura accidental, Caída; Tec. Portátil: Daño accidental). Causes are matched by name, with
+-- U&'...' escapes because a PowerShell pipe once turned an accent into '?'. Idempotent.
 
 BEGIN;
 
@@ -69,7 +49,7 @@ END $$;
 
 COMMIT;
 
--- Verificación: una fila por aseguradora y ramo, con los ids de sus hechos.
+-- Check: one row per insurer and branch, with the ids of its causes.
 SELECT 'bbva' AS tenant, branch_id, name, configuration
   FROM arbiter_bbva.insurer_rule WHERE rule_type = 'REPAIR_DERIVATION'
 UNION ALL

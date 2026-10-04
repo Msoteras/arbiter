@@ -1,31 +1,6 @@
--- =============================================================================
--- 2026-08-25 · Camila Ferreyra — asegurada de BBVA SIN cuenta en la plataforma
---
--- Migración puntual y NO destructiva, para aplicar sobre una base con datos
--- (Railway) sin pasar por el trío reset → init → seed.
---
--- Para qué: probar el alta masiva ("Dar de alta asegurados") de punta a punta.
--- Hasta ahora no se podía: los 3 asegurados de BBVA con póliza vigente YA tienen
--- cuenta, así que una corrida no crea nada ni manda un solo mail — buen test de
--- idempotencia, inútil para ver el flujo completo.
---
--- Por eso esto toca SOLO la BD Aseguradora. Deliberadamente NO crea:
---   · arbiter_common.users / user_role / user_insurer
---   · arbiter_bbva.insured
--- Eso es exactamente lo que el botón tiene que crear. Insertarlo acá sería
--- escribir a mano lo que se quiere probar, y la corrida volvería a no hacer nada.
---
--- El mail es un alias con '+' de una casilla que el equipo ya usa: Gmail lo
--- entrega en el mismo inbox, pero como string es distinto de cualquier fila de
--- `users`, así que la invitación llega a algún lado y el de-dup por email no la
--- confunde con la cuenta de Roman.
---
--- Coberturas con los mismos nombres que el resto ('Robo de celular', 'Hurto'):
--- PolicySynchronizer las matchea por nombre contra arbiter_bbva.coverage, y una
--- que no exista ahí haría fallar el alta de la denuncia más adelante.
---
--- Idempotente: se puede correr más de una vez.
--- =============================================================================
+-- 2026-08-25 · Camila Ferreyra: a BBVA insured with NO platform account, to test bulk provisioning
+-- end to end. Only the insurer database is touched on purpose: the account is what the button has
+-- to create. Coverage names match arbiter_bbva.coverage, which PolicySynchronizer matches by name.
 
 BEGIN;
 
@@ -37,7 +12,7 @@ ON CONFLICT (id) DO NOTHING;
 SELECT setval(pg_get_serial_sequence('aseguradora_bbva.asegurado', 'id'),
               (SELECT MAX(id) FROM aseguradora_bbva.asegurado));
 
--- Vigente hoy: es lo único que el alta masiva mira (vigencia_hasta >= NOW()).
+-- In force today: bulk provisioning only looks at vigencia_hasta >= NOW().
 INSERT INTO aseguradora_bbva.poliza (id, numero, nro_certificado, titular_id, rama, producto,
                                      bien_asegurado, vigencia_desde, vigencia_hasta,
                                      estado_contrato, estado_pago, cuotas_pagas, cuotas_impagas,
@@ -57,8 +32,7 @@ ON CONFLICT DO NOTHING;
 
 COMMIT;
 
--- Verificación: tiene que aparecer con ya_tiene_cuenta = f. Si sale t, el alta
--- masiva la va a saltear por reusada y no se prueba nada.
+-- Check: ya_tiene_cuenta must be f, or bulk provisioning skips her.
 SELECT DISTINCT a.documento, a.nombre, a.apellido, a.email,
        (u.id IS NOT NULL) AS ya_tiene_cuenta
   FROM aseguradora_bbva.asegurado a

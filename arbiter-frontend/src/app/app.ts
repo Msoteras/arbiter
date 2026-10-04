@@ -14,6 +14,7 @@ import { filter, interval, map } from 'rxjs';
 import { AuthSessionService } from './core/auth/auth-session.service';
 import { AppReadyService } from './core/app-ready.service';
 import { NotificationsService } from './core/notifications/notifications.service';
+import { CaseMessagesService } from './features/expedientes/case-messages.service';
 import { NewClaimModalService } from './features/expedientes/new-claim-modal.service';
 import { userRoleLabel } from './core/models/user-role';
 import { LogoComponent } from './shared/ui/logo/logo.component';
@@ -57,6 +58,7 @@ export class App {
   private readonly router = inject(Router);
   protected readonly session = inject(AuthSessionService);
   protected readonly notifications = inject(NotificationsService);
+  protected readonly messages = inject(CaseMessagesService);
   protected readonly newClaim = inject(NewClaimModalService);
   private readonly appReady = inject(AppReadyService);
 
@@ -87,6 +89,9 @@ export class App {
       if (this.session.session()) {
         this.notifications.refreshUnreadCount();
       }
+      if (this.canSeeMessages()) {
+        this.messages.inbox().subscribe({ error: () => undefined });
+      }
     });
 
     // The effect above runs once per session; polling catches notices arriving with the screen
@@ -94,10 +99,20 @@ export class App {
     interval(UNREAD_POLL_MS)
       .pipe(takeUntilDestroyed())
       .subscribe(() => {
-        if (this.session.session() && document.visibilityState === 'visible') {
+        if (document.visibilityState !== 'visible') {
+          return;
+        }
+        if (this.session.session()) {
           this.notifications.refreshUnreadCount();
         }
+        if (this.canSeeMessages()) {
+          this.messages.inbox().subscribe({ error: () => undefined });
+        }
       });
+  }
+
+  private canSeeMessages(): boolean {
+    return this.session.session() !== null;
   }
 
   // NavigationEnd, not NavigationStart: the chrome must appear after the new screen is mounted,

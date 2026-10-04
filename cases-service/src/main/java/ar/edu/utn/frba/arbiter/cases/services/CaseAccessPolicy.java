@@ -10,11 +10,8 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 
 /**
- * Who is allowed to read a given case.
- *
- * <p>{@code @PreAuthorize} only checks the role; this checks ownership: an ASEGURADO sees only their
- * own cases. Analysts and referents are unrestricted within their tenant — the schema already
- * bounds them to one insurer.
+ * Case ownership, which {@code @PreAuthorize} doesn't check: an ASEGURADO sees only their own cases.
+ * Analysts and referents are bounded by their tenant schema.
  */
 @Component
 public class CaseAccessPolicy {
@@ -45,9 +42,7 @@ public class CaseAccessPolicy {
         return hasAuthority(INSURED_ROLE);
     }
 
-    /**
-     * Analysts and referents share the assignment endpoint; the audit trail needs to tell them apart.
-     */
+    /** Analysts and referents share the assignment endpoint; the audit trail tells them apart. */
     public StatusChangeActor currentAssignmentActor() {
         return hasAuthority(REFERENT_ROLE) ? StatusChangeActor.REFERENT : StatusChangeActor.ANALYST;
     }

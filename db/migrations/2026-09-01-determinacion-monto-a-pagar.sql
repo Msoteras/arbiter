@@ -1,45 +1,11 @@
--- =============================================================================
--- 2026-09-01 · Determinación del monto a pagar (bloque 1: pérdida total)
---
--- Migración puntual y NO destructiva, para aplicar sobre una base que ya tiene
--- datos (Railway) sin pasar por el trío reset → init → seed.
---
--- El analista determina cuánto se paga, no solo si se paga. Es un paso del
--- procedimiento de la compañía (NSIN001 §5.2.1.2, "Liquidación del Siniestro")
--- que el expediente no tenía: llegaba a APROBADO sin decir un monto.
---
--- La fórmula sale de los manuales de producto, no la inventamos:
---
---   Celulares:  suma asegurada − franquicia − cuotas pendientes de pago
---   Tec. Port.: además, el menor entre suma asegurada y valor de reposición
---               (art. 7, Bases de Indemnización), y el segundo evento del año
---               se paga al 50% ("dos eventos por año, primer evento hasta un
---               100% de la suma asegurada, segundo hasta un 50%").
---
---   Y de la cláusula 102 art. 5, en las dos: "aprobada la liquidación de un
---   siniestro el Asegurador podrá descontar de la indemnización cualquier saldo
---   o deuda vencida de este contrato".
---
--- Tres cambios:
---   1. coverage      — los parámetros que el referente configura por cobertura.
---   2. policy_snapshot — lo que la cuenta necesita congelado para ser
---                        reproducible meses después (D27 / Disposición 2/2023).
---   3. case_settlement — la liquidación en sí: entradas, deducciones y resultado.
---
--- Más `importe_cuota` en las BD Aseguradora, que es el único dato que faltaba
--- de origen: saldo_deuda cubre lo vencido, no lo que queda por vencer.
---
--- IMPORTANTE: los servicios corren con ddl-auto=validate. Aplicar ANTES de
--- desplegar el código, o cases-service no levanta.
--- =============================================================================
+-- 2026-09-01 · Amount to pay, total loss (NSIN001 §5.2.1.2): settlement parameters on coverage, the
+-- inputs frozen on policy_snapshot, case_settlement, and importe_cuota in the insurer databases.
+-- The formula comes from the product manuals and clause 102 art. 5. Apply before deploying the code.
 
 BEGIN;
 
--- ─── 1 · coverage: parámetros de liquidación ─────────────────────────────────
--- Los defaults reproducen el comportamiento del manual de Celulares, que es el
--- producto mayoritario: techo = suma asegurada, sin reducción por número de
--- evento. Las dos deducciones arrancan APAGADAS a propósito: prender una cambia
--- cuánto cobra el asegurado, y esa decisión es del referente, no de la migración.
+-- 1 · coverage: settlement parameters. Defaults follow the Celulares manual; both deductions start
+-- off because turning one on changes what the insured gets, and that is the referente's call.
 ALTER TABLE arbiter_bbva.coverage
     ADD COLUMN IF NOT EXISTS settlement_basis            VARCHAR(30)  NOT NULL DEFAULT 'SUM_INSURED',
     ADD COLUMN IF NOT EXISTS second_event_percentage     NUMERIC(5,2),
@@ -64,21 +30,8 @@ ALTER TABLE arbiter_provincia.coverage
     ADD CONSTRAINT coverage_settlement_basis_check
         CHECK (settlement_basis IN ('SUM_INSURED', 'LESSER_OF_SUM_AND_REPLACEMENT'));
 
--- Las coberturas semilla (ids 1 y 2, "Robo de celular" y "Hurto", que crea
--- db/init-multitenant.sql) sí se alinean con lo que ahora siembra ese script: si
--- no, una base migrada y una recién creada liquidarían distinto el mismo
--- siniestro, y ese desvío no lo detecta scripts/check-schema-consistency.py
--- porque compara estructura, no datos.
---
--- Robo y Hurto son pérdida total y liquidan como el manual de Celulares: suma
--- asegurada menos franquicia menos las cuotas que restan del año, porque la
--- póliza se extingue con el siniestro. El 50% del segundo evento sale de las
--- condiciones particulares ("dos eventos por año... segundo hasta un 50%"), y
--- Hurto no lo lleva porque admite un solo evento anual.
---
--- Solo esas dos, por id: una cobertura que el referente haya creado después no
--- la modeló nadie acá, y prenderle deducciones a ciegas le cambiaría el monto a
--- siniestros que no miramos.
+-- Seed coverages 1 and 2 (Robo, Hurto) are aligned with what init now seeds, so a migrated and a new
+-- database settle alike. Only those two: nobody modeled coverages created later.
 UPDATE arbiter_bbva.coverage
    SET deduct_pending_installments = TRUE,
        deduct_overdue_balance      = TRUE,
@@ -91,10 +44,8 @@ UPDATE arbiter_provincia.coverage
        second_event_percentage     = CASE WHEN id = 1 THEN 50.00 ELSE NULL END
  WHERE id IN (1, 2) AND name IN ('Robo de celular', 'Hurto');
 
--- "Daño accidental" (Tecnología Portátil) liquida por el menor entre suma
--- asegurada y valor de reposición: lo exige el art. 7, Bases de Indemnización,
--- de la cláusula 340. No descuenta cuotas a vencer — una reparación no extingue
--- la póliza.
+-- Daño accidental pays the lower of sum insured and replacement value (clause 340 art. 7); a repair
+-- doesn't end the policy, so no pending installments.
 UPDATE arbiter_provincia.coverage
    SET settlement_basis            = 'LESSER_OF_SUM_AND_REPLACEMENT',
        second_event_percentage     = 50.00,
@@ -102,11 +53,8 @@ UPDATE arbiter_provincia.coverage
        deduct_overdue_balance      = TRUE
  WHERE name = 'Daño accidental';
 
--- ─── 2 · policy_snapshot: lo que la cuenta necesita congelado ────────────────
--- Todo nullable: los snapshots que ya existen se tomaron antes de que estos
--- campos existieran y no hay forma honesta de completarlos hacia atrás. Un
--- expediente viejo se liquida con lo que haya, y lo que falte se ve en pantalla
--- como faltante en vez de aparecer como un cero que nadie midió.
+-- 2 · policy_snapshot: all nullable, older snapshots cannot be filled honestly; a gap shows as missing,
+-- not as a zero nobody measured.
 ALTER TABLE arbiter_bbva.policy_snapshot
     ADD COLUMN IF NOT EXISTS effective_to       TIMESTAMPTZ,
     ADD COLUMN IF NOT EXISTS installment_amount NUMERIC(15,2),
@@ -119,12 +67,8 @@ ALTER TABLE arbiter_provincia.policy_snapshot
     ADD COLUMN IF NOT EXISTS overdue_balance    NUMERIC(15,2),
     ADD COLUMN IF NOT EXISTS events_in_year     INTEGER;
 
--- ─── 3 · case_settlement: la liquidación ────────────────────────────────────
--- Ver el comentario largo en db/init-multitenant.sql. Lo que importa acá:
--- guarda las ENTRADAS además del resultado, así rehacer la cuenta meses después
--- da lo mismo aunque hayan cambiado la póliza o los parámetros del referente; y
--- calculated_amount / settled_amount separados dejan ver el ajuste manual en vez
--- de que el ajuste se coma la propuesta original.
+-- 3 · case_settlement: keeps the inputs next to the result, and calculated vs settled amount apart so a
+-- manual adjustment stays visible.
 CREATE TABLE IF NOT EXISTS arbiter_bbva.case_settlement (
     id                          BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
     case_id                     BIGINT        NOT NULL REFERENCES arbiter_bbva.cases(id),
@@ -185,17 +129,14 @@ CREATE TABLE IF NOT EXISTS arbiter_provincia.case_settlement (
         CHECK (settlement_basis IN ('SUM_INSURED', 'LESSER_OF_SUM_AND_REPLACEMENT'))
 );
 
--- ─── 4 · BD Aseguradora: importe de cada cuota del premio ───────────────────
+-- 4 · Insurer database: amount of each premium installment
 ALTER TABLE aseguradora_bbva.poliza
     ADD COLUMN IF NOT EXISTS importe_cuota NUMERIC(38,2);
 ALTER TABLE aseguradora_provincia.poliza
     ADD COLUMN IF NOT EXISTS importe_cuota NUMERIC(38,2);
 
--- Mismo criterio que db/seed-demo.sql: con cuotas impagas manda el saldo real,
--- para que la cuota y la deuda de una misma póliza no se contradigan; sin deuda,
--- el 2% mensual de la suma asegurada, que es lo que dan las dos pólizas BBVA de
--- referencia ($3.606,53 sobre $180.000 en Celulares, $1.872,11 sobre $86.500 en
--- Tecnología Portátil).
+-- Same as seed-demo.sql: with unpaid installments the real balance rules; otherwise 2% of the sum
+-- insured per month, as in the two reference BBVA policies.
 UPDATE aseguradora_bbva.poliza p
    SET importe_cuota = CASE
            WHEN p.cuotas_impagas > 0 AND p.saldo_deuda > 0
@@ -218,7 +159,7 @@ UPDATE aseguradora_provincia.poliza p
 
 COMMIT;
 
--- Verificación:
+-- Check:
 -- SELECT table_schema, column_name FROM information_schema.columns
 --  WHERE table_name = 'coverage' AND column_name LIKE '%settlement%' OR column_name LIKE 'deduct_%';
 -- SELECT table_schema FROM information_schema.tables WHERE table_name = 'case_settlement';

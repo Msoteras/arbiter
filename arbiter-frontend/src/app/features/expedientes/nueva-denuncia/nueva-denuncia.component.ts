@@ -84,10 +84,7 @@ interface RequiredDocsState {
 /** What is shown when there is no schedule to go by: offered, never demanded. */
 const OFFERED_DOCS: RequiredDocsState = { status: 'none', slots: CASE_DOCUMENT_TYPES };
 
-/**
- * Emitted as soon as the policy/branch/claimCause combination changes, so the previous
- * combination's slots don't linger on screen while the new request is in flight.
- */
+/** Emitted on every combination change, so the previous slots don't linger while loading. */
 const LOADING_DOCS: RequiredDocsState = { status: 'loading', slots: [] };
 
 // Must match cases-service's spring.servlet.multipart.max-file-size. The input's `accept` is only
@@ -365,9 +362,8 @@ export class NuevaDenunciaComponent {
   protected readonly policeReportDate = signal('');
   protected readonly policeReportTime = signal('');
   /**
-   * Explicit, because a blank date can't tell "not filed yet" from "skipped", and the reporting
-   * deadline rule reads that date. Starts ON: for causes that need a police report, having it is
-   * the norm and not having it must be declared.
+   * Explicit: a blank date can't tell "not filed yet" from "skipped", and the deadline rule reads it.
+   * Starts ON: where a police report is needed, not having it must be declared.
    */
   protected readonly policeReportFiled = signal(true);
 

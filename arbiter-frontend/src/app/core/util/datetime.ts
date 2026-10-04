@@ -1,10 +1,6 @@
 /**
- * Centralized date/time formatting for the SPA.
- *
- * `toLocaleString('es-AR')` without an explicit `hour12` can drop the AM/PM
- * marker on some ICU builds, rendering 19:30 as "07:30" (a 12h difference with
- * no meridiem). Forcing `hour12: false` keeps a 24h clock everywhere, which is
- * what the event time of a claim needs (it can matter for the analysis).
+ * `toLocaleString('es-AR')` without `hour12` can drop the AM/PM marker on some ICU builds, showing
+ * 19:30 as "07:30"; forcing `hour12: false` keeps a 24h clock everywhere.
  */
 
 const DATE_TIME_OPTIONS: Intl.DateTimeFormatOptions = {
@@ -73,12 +69,38 @@ export function formatDateTime(value: string | Date | null | undefined, fallback
   return parseLocal(value).toLocaleString('es-AR', DATE_TIME_OPTIONS);
 }
 
-/** Date only, no time. */
 export function formatDate(value: string | Date | null | undefined, fallback = '—'): string {
   if (!value) {
     return fallback;
   }
   return parseLocal(value).toLocaleDateString('es-AR');
+}
+
+export function formatTime(value: string | Date): string {
+  return parseLocal(value).toLocaleTimeString('es-AR', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
+}
+
+/** Chat-style day marker: "Hoy", "Ayer" or "jue 25 sept". */
+export function chatDayLabel(value: string | Date, now: Date = new Date()): string {
+  const date = parseLocal(value);
+  const startOf = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const days = Math.round((startOf(now) - startOf(date)) / 86_400_000);
+  if (days === 0) return 'Hoy';
+  if (days === 1) return 'Ayer';
+  return date
+    .toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric', month: 'short' })
+    .replace(',', '');
+}
+
+/** List-row stamp: the time for today's messages, the date for older ones. */
+export function chatListStamp(value: string | Date, now: Date = new Date()): string {
+  return chatDayLabel(value, now) === 'Hoy'
+    ? formatTime(value)
+    : parseLocal(value).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' });
 }
 
 /** Greeting by time of day: morning 6–13, afternoon 13–20, night otherwise. */
@@ -114,11 +136,9 @@ export function todayIso(now: Date = new Date()): string {
 }
 
 /**
- * Shifts a `yyyy-MM-dd` date by whole days, staying on the calendar.
- *
- * The arithmetic runs in UTC on purpose: shifting a local `Date` across a DST boundary lands on
- * 23:00 of the previous day and silently drops one. Returns '' for anything that is not a
- * complete date, so a half-typed input never yields a real-looking result.
+ * Shifts a `yyyy-MM-dd` date by whole days. In UTC on purpose: a local `Date` crossing a DST boundary
+ * lands on 23:00 of the previous day. Returns '' for an incomplete date, so a half-typed input never
+ * yields a real-looking result.
  */
 export function addDays(isoDate: string, days: number): string {
   if (!isTypedDate(isoDate)) {

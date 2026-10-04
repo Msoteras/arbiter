@@ -123,7 +123,7 @@ class CoverageScopeEvaluatorTest {
     }
 
     @Test
-    void theTitularIsNeverAFamilyGroupProblem() {
+    void thePolicyholderIsNeverAFamilyGroupProblem() {
         CoverageScopeEvaluator.Result result = evaluator.evaluate(
                 claim(), policy(null), history(), rules(false, null), documentSaying(AffectedParty.TITULAR));
 

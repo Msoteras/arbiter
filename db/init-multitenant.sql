@@ -306,8 +306,12 @@ BEGIN
             -- the insurer's catalog already splits losses from damage.
             settlement_formula              VARCHAR(20)   NOT NULL DEFAULT 'TOTAL_LOSS',
             -- TOTAL_LOSS only; a repair is capped by its quote. LESSER_OF_SUM_AND_REPLACEMENT is
-            -- what clause 340 art. 7 requires for Tecnología Portátil.
+            -- what annex 340 art. 7 requires, and both the phone and the Tecnología Portátil
+            -- policies carry it.
             settlement_basis                VARCHAR(30)   NOT NULL DEFAULT 'SUM_INSURED',
+            -- What the deductible percentage applies to: the sum insured (BBVA's phone policy)
+            -- or the amount actually indemnified. Each insurer's policy says which.
+            deductible_basis                VARCHAR(20)   NOT NULL DEFAULT 'SUM_INSURED',
             -- Share of the cap paid for the second and later events of the year.
             -- NULL = the event number reduces nothing.
             second_event_percentage         NUMERIC(5,2),
@@ -319,6 +323,8 @@ BEGIN
 
             CONSTRAINT coverage_settlement_basis_check
                 CHECK (settlement_basis IN ('SUM_INSURED', 'LESSER_OF_SUM_AND_REPLACEMENT')),
+            CONSTRAINT coverage_deductible_basis_check
+                CHECK (deductible_basis IN ('SUM_INSURED', 'LOSS_AMOUNT')),
             CONSTRAINT coverage_settlement_formula_check
                 CHECK (settlement_formula IN ('TOTAL_LOSS', 'REPAIR'))
         )$ddl$, p_schema);
@@ -505,7 +511,10 @@ BEGIN
             updated_at                  TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
             response_deadline           DATE          NOT NULL,
             description                 TEXT          NOT NULL,
-            was_fast_track              BOOLEAN       NOT NULL DEFAULT FALSE,
+            -- What the rules engine recommended when it settled the case without the model;
+            -- NULL when the model decided. A rules outcome writes no llm_analysis row: why the
+            -- engine decided is in rule_result.
+            rules_classification        VARCHAR(50),
             fraud_determined            BOOLEAN       NOT NULL DEFAULT FALSE,
             destination                 VARCHAR(40),
             -- What the insured claims, compared against policy_snapshot to surface gaps with
@@ -547,7 +556,14 @@ BEGIN
             policy_id                   BIGINT        NOT NULL REFERENCES %I.policy(id),
             policy_snapshot_id          BIGINT        REFERENCES %I.policy_snapshot(id),
             scoring_configuration_id    BIGINT        REFERENCES %I.scoring_configuration(id),
-            classification_id           BIGINT
+            classification_id           BIGINT,
+
+            -- The engine never recommends approval: its only positive outcome is FAST_TRACK.
+            CONSTRAINT cases_rules_classification_check CHECK (
+                rules_classification IS NULL
+                OR rules_classification IN ('FAST_TRACK', 'FALTA_DOCUMENTACION',
+                                            'LLM_SOLICITA_REVISION_MANUAL', 'LLM_NO_RECOMIENDA_APROBAR')
+            )
         )$ddl$, p_schema, p_schema, p_schema, p_schema, p_schema, p_schema, p_schema);
 
     EXECUTE format('CREATE INDEX idx_cases_status ON %I.cases (current_status_id)', p_schema);
@@ -892,7 +908,8 @@ BEGIN
             settlement_basis            VARCHAR(30)   NOT NULL,
             replacement_value           NUMERIC(15,2),
             deductible_rate             NUMERIC(5,2),            -- percentage points
-            event_ordinal               INTEGER       NOT NULL DEFAULT 1,
+            deductible_basis            VARCHAR(20)   NOT NULL DEFAULT 'SUM_INSURED',
+            event_ordinal              INTEGER       NOT NULL DEFAULT 1,
             event_percentage            NUMERIC(5,2)  NOT NULL DEFAULT 100,
             pending_installments        INTEGER       NOT NULL DEFAULT 0,
             installment_amount          NUMERIC(15,2),
@@ -931,7 +948,9 @@ BEGIN
             CONSTRAINT case_settlement_status_check
                 CHECK (status IN ('AUTHORIZED', 'PENDING_AUTHORIZATION', 'RETURNED')),
             CONSTRAINT case_settlement_basis_check
-                CHECK (settlement_basis IN ('SUM_INSURED', 'LESSER_OF_SUM_AND_REPLACEMENT'))
+                CHECK (settlement_basis IN ('SUM_INSURED', 'LESSER_OF_SUM_AND_REPLACEMENT')),
+            CONSTRAINT case_settlement_deductible_basis_check
+                CHECK (deductible_basis IN ('SUM_INSURED', 'LOSS_AMOUNT'))
         )$ddl$, p_schema, p_schema, p_schema, p_schema, p_schema);
 
     -- ─── notification ────────────────────────────────────────────────────────────
@@ -984,13 +1003,14 @@ BEGIN
                                  claim_exhausts_coverage, is_individual, waiting_period_days, branch_id,
                                  settlement_formula, settlement_basis, second_event_percentage,
                                  deduct_pending_installments, deduct_overdue_balance) VALUES
-            -- Total loss: sum insured minus deductible minus the year's pending installments,
-            -- since the policy ends with the claim. Two events a year, the second at 50%%.
+            -- Total loss: the lesser of sum insured and replacement value (annex 340 art. 7) minus
+            -- deductible minus the year's pending installments, since the policy ends with the
+            -- claim. Two events a year, the second at 50%%.
             (1, 'Robo de celular', 'Cobertura por robo en vía pública', 72, 2, FALSE, 10.00, FALSE, TRUE, 30, 1,
-             'TOTAL_LOSS', 'SUM_INSURED', 50.00, TRUE, TRUE),
+             'TOTAL_LOSS', 'LESSER_OF_SUM_AND_REPLACEMENT', 50.00, TRUE, TRUE),
             -- One event a year, so no second-event percentage.
             (2, 'Hurto', 'Cobertura por hurto sin violencia', 72, 1, FALSE, 20.00, TRUE, TRUE, 30, 1,
-             'TOTAL_LOSS', 'SUM_INSURED', NULL, TRUE, TRUE)
+             'TOTAL_LOSS', 'LESSER_OF_SUM_AND_REPLACEMENT', NULL, TRUE, TRUE)
         $ddl$, p_schema);
 
     -- Per-branch caps sized to each branch's typical sum insured, so small claims stay with
@@ -1165,7 +1185,8 @@ BEGIN
             (23, 'item_photo',          TRUE, NULL, 2, 8)
         $ddl$, p_schema);
 
-    -- Same values as MockRulesAdapter.DEFAULT_SCORING_CONFIG; each tenant diverges from here.
+    -- Starts from BaselineRulesAdapter.DEFAULT_SCORING_CONFIG and adds what both fixture insurers
+    -- decided on top of it (fraud_history, document_inconsistency); each tenant diverges from here.
     EXECUTE format($ddl$
         INSERT INTO %I.scoring_configuration (id, name, active, full_analysis_on_fast_track, valid_from) VALUES
             (1, 'Default (H0012 reference config)', TRUE, FALSE, '2026-01-01 00:00:00+00')
@@ -1180,7 +1201,12 @@ BEGIN
             (5, 'image_web_match', 0.40, 1),
             -- Heaviest factor, being the only one backed by a human-verified fact, but not
             -- enough alone to reach CRITICAL. Skipped without an active FRAUD_RECORD rule.
-            (6, 'fraud_history', 0.60, 1)
+            (6, 'fraud_history', 0.60, 1),
+            -- Loaded from the referente panel on 25/09/2026 in both insurers, once its two false
+            -- positives were fixed (amount vs. the wrong document, the purchase proof's date).
+            (7, 'document_inconsistency', 0.40, 1),
+            -- Weak signal on its own: plenty of honest buyers insure at the point of sale.
+            (8, 'purchase_to_report_time', 0.25, 1)
         $ddl$, p_schema);
 
     EXECUTE format($ddl$
@@ -1378,7 +1404,7 @@ COMMIT;
 -- Onboarding a third insurer needs no hand-written DDL:
 --   INSERT INTO arbiter_common.insurer (legal_name, name, tax_id, active, schema_name)
 --        VALUES ('La Segunda Seguros S.A.', 'La Segunda', '30-50001328-8', TRUE, 'arbiter_lasegunda');
---   SELECT arbiter_common.create_tenant_schema('arbiter_lasegunda', <users.id de quien la da de alta>);
+--   SELECT arbiter_common.create_tenant_schema('arbiter_lasegunda', <users.id of whoever registers it>);
 --   SELECT arbiter_common.create_insurer_db_schema(
 --       'aseguradora_lasegunda', 'La Segunda Seguros S.A.', '30-50001328-8', '0331');
 --

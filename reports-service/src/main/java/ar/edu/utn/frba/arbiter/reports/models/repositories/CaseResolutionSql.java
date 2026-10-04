@@ -2,17 +2,12 @@ package ar.edu.utn.frba.arbiter.reports.models.repositories;
 
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 
-/**
- * When a case closed and how long it waited on third parties, shared so the dashboard and the
- * resolution report compute the same averages. CTEs to concatenate: {@link #RESOLUTION_CTE} opens the
- * {@code WITH}, and what follows joins with {@code ",\n"}.
- */
+/** Shared so the dashboard and the resolution report agree. {@link #RESOLUTION_CTE} opens the WITH. */
 final class CaseResolutionSql {
 
     /**
-     * A case is resolved when its current status is final ({@code is_final}); the resolution date is
-     * the LAST transition into it. The latest transition is picked before any period filter, otherwise
-     * an earlier closing undone by a reopen would be picked up.
+     * Resolved means the current status is final; the date is the LAST transition into it, picked before
+     * any period filter so a closing undone by a reopen is not counted.
      */
     static final String RESOLUTION_CTE = """
             WITH resolution AS (
@@ -23,9 +18,8 @@ final class CaseResolutionSql {
             )""";
 
     /**
-     * Seconds each resolved case spent in a {@link CaseStatus#pausingTheTerm()} status (bound as
-     * {@code :pausing}). Each stretch is clipped to the case's own reported/resolved window, and
-     * {@code GREATEST(..., 0)} drops stretches entirely outside it, which would otherwise subtract.
+     * Seconds each resolved case spent in a {@link CaseStatus#pausingTheTerm()} status ({@code :pausing}),
+     * clipped to its reported/resolved window; {@code GREATEST(..., 0)} drops stretches outside it.
      */
     static final String WAITING_CTE = """
             ordered AS (

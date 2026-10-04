@@ -37,7 +37,7 @@ public class CaseAnalysisRepository {
 
     private static final RiskBreakdownJsonConverter BREAKDOWN_JSON = new RiskBreakdownJsonConverter();
 
-    /** @param classification null when the model never ran (Fast Track, or still classifying) */
+    /** @param classification null when the model never ran (a rules outcome, or still classifying) */
     public record CaseAnalysis(
             Classification classification,
             Double confidence,
