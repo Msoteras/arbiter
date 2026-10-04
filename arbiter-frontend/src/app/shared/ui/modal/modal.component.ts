@@ -21,6 +21,7 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
           class="modal"
           [class.side]="variant() === 'side'"
           [class.lg]="size() === 'lg'"
+          [class.no-actions]="hideActions()"
           role="dialog"
           aria-modal="true"
           (click)="$event.stopPropagation()"
@@ -33,7 +34,7 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
               ✕
             </button>
           </div>
-          <ng-content />
+          <div class="modal-body"><ng-content /></div>
           @if (!hideActions()) {
             <div class="modal-actions"><ng-content select="[modalActions]" /></div>
           }
@@ -42,6 +43,8 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
     }
   `,
   styles: `
+    @use 'media';
+
     .backdrop {
       position: fixed;
       inset: 0;
@@ -66,16 +69,34 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
       padding: 0;
     }
     .modal {
+      --modal-pad: var(--space-5);
+      display: flex;
+      flex-direction: column;
       background: var(--surface);
       border: 1px solid var(--border-control);
       border-radius: var(--radius-modal);
       box-shadow: var(--shadow-modal);
-      padding: var(--space-5);
       width: 100%;
       max-width: 440px;
       max-height: 90vh;
-      overflow-y: auto;
+      /* dvh tracks the mobile browser's collapsing toolbars; 90vh stays as the fallback. */
+      max-height: calc(100dvh - 2 * var(--space-4));
+      overflow: hidden;
       animation: modal-in var(--dur-3) var(--ease-out);
+    }
+    .modal-body {
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      /* The top padding leaves room for the focus ring of a field at the very top. */
+      padding: var(--space-1) var(--modal-pad) 0;
+    }
+    /* A spacer, not padding: padding would leave a gap under a sticky footer in the body. */
+    .modal.no-actions .modal-body::after {
+      content: '';
+      display: block;
+      height: var(--modal-pad);
     }
     @keyframes modal-in {
       from {
@@ -93,9 +114,9 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
     .modal.side {
       max-width: 420px;
       height: 100%;
+      max-height: none;
       border-radius: 0;
       border-width: 0 0 0 1px;
-      overflow-y: auto;
       animation: slide-in var(--dur-2) var(--ease-out);
     }
     @keyframes slide-in {
@@ -114,11 +135,12 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
       }
     }
     .modal-head {
+      flex: none;
       display: flex;
       align-items: flex-start;
       justify-content: space-between;
       gap: var(--space-3);
-      margin-bottom: var(--space-2);
+      padding: var(--modal-pad) var(--modal-pad) var(--space-1);
     }
     .modal-title {
       margin: 0;
@@ -145,10 +167,32 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
       outline-offset: 2px;
     }
     .modal-actions {
+      flex: none;
       display: flex;
+      flex-wrap: wrap;
       justify-content: flex-end;
       gap: var(--space-3);
-      margin-top: var(--space-4);
+      padding: var(--space-4) var(--modal-pad) var(--modal-pad);
+    }
+
+    @include media.touch {
+      .modal-close {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-width: var(--touch-target);
+        min-height: var(--touch-target);
+        margin: calc(var(--space-3) * -1);
+      }
+    }
+    @include media.phone {
+      .backdrop {
+        padding: var(--space-3);
+      }
+      .modal {
+        --modal-pad: var(--space-4);
+        max-height: calc(100dvh - 2 * var(--space-3));
+      }
     }
   `,
 })

@@ -1,3 +1,5 @@
+@use 'media';
+
 :host {
   display: flex;
   flex-direction: column;
@@ -298,4 +300,18 @@
 }
 .docs-section {
   margin-top: var(--space-4);
+}
+
+@include media.touch {
+  .breadcrumb {
+    align-self: flex-start;
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--touch-target);
+  }
+}
+@include media.phone {
+  :host {
+    padding: var(--space-4) var(--space-4) var(--space-6);
+  }
 }

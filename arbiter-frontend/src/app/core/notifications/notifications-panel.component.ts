@@ -72,6 +72,8 @@ const NOTIFICATION_TITLES: Record<string, string> = {
     </div>
   `,
   styles: `
+    @use 'media';
+
     :host {
       /* Positioned against the bell, which sets the containing block. */
       position: absolute;
@@ -80,6 +82,16 @@ const NOTIFICATION_TITLES: Record<string, string> = {
       z-index: 60;
       width: 380px;
       max-width: 88vw;
+    }
+    /* On a phone the containing block is the whole top bar (see app.scss). */
+    @include media.phone {
+      :host {
+        top: 100%;
+        left: var(--space-2);
+        right: var(--space-2);
+        width: auto;
+        max-width: none;
+      }
     }
 
     .notif-panel {
@@ -148,6 +160,14 @@ const NOTIFICATION_TITLES: Record<string, string> = {
     }
     .notif-item__link:hover {
       text-decoration: underline;
+    }
+    @include media.touch {
+      .notif-item__link {
+        display: inline-flex;
+        align-items: center;
+        min-height: var(--touch-target);
+        margin-top: 0;
+      }
     }
   `,
 })

@@ -119,7 +119,7 @@
               [routerLink]="['/portal/cases', d.id, 'documents']"
               [queryParams]="d.insurerSlug ? { insurer: d.insurerSlug } : {}"
             >
-              <app-button variant="secondary">Ver mis documentos</app-button>
+              <app-button variant="secondary" [block]="true">Ver mis documentos</app-button>
             </a>
           </div>
         </section>

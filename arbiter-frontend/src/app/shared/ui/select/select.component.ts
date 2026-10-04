@@ -147,6 +147,8 @@ function normalize(text: string): string {
     }
   `,
   styles: `
+    @use 'media';
+
     :host {
       display: block;
     }
@@ -161,7 +163,7 @@ function normalize(text: string): string {
       justify-content: space-between;
       gap: var(--space-2);
       font: inherit;
-      font-size: var(--font-size-lg);
+      font-size: var(--font-size-md);
       text-align: left;
       /* Room on the right for the overlaid chevron. */
       padding: var(--space-2) calc(var(--space-3) + 1.5em) var(--space-2) var(--space-3);
@@ -248,7 +250,7 @@ function normalize(text: string): string {
     .option {
       padding: var(--space-2) var(--space-3);
       border-radius: var(--radius-ctl);
-      font-size: var(--font-size-lg);
+      font-size: var(--font-size-md);
       color: var(--text-secondary);
       cursor: pointer;
       white-space: nowrap;
@@ -268,11 +270,19 @@ function normalize(text: string): string {
       color: var(--text-muted);
     }
 
-    /* 16px on mobile prevents iOS zoom on focus. */
-    @media (min-width: 640px) {
+    @include media.desktop {
       .trigger,
       .option {
         font-size: var(--font-size-body);
+      }
+    }
+    @include media.touch {
+      .trigger {
+        min-height: var(--touch-target);
+      }
+      /* Padding, not flex centering, which would drop the ellipsis; 1.5em is the line-height. */
+      .option {
+        padding-block: calc((var(--touch-target) - 1.5em) / 2);
       }
     }
   `,

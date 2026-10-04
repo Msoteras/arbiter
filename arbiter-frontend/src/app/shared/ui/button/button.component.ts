@@ -36,6 +36,8 @@ type Size = 'md' | 'sm';
     </button>
   `,
   styles: `
+    @use 'media';
+
     :host {
       display: inline-block;
     }
@@ -69,6 +71,12 @@ type Size = 'md' | 'sm';
     .btn.sm {
       font-size: var(--font-size-sm);
       padding: var(--space-1) var(--space-3);
+    }
+    @include media.touch {
+      .btn,
+      .btn.sm {
+        min-height: var(--touch-target);
+      }
     }
     .btn.primary {
       background: var(--action-primary-bg);

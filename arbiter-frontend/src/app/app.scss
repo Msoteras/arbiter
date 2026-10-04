@@ -1,3 +1,5 @@
+@use 'media';
+
 :host {
   display: block;
 }
@@ -509,4 +511,38 @@
 .topbar-notifs {
   position: relative;
   display: flex;
+}
+/* Anchored to the bell the panel would overflow the left edge; unanchored, it spans the bar. */
+@include media.phone {
+  .appbar-notifs,
+  .topbar-notifs {
+    position: static;
+  }
+}
+
+/* ===== Touch targets ===== */
+@include media.touch {
+  .topbar-nav a,
+  .topbar-bell,
+  .topbar-avatar-btn,
+  .appbar-burger,
+  .appbar-icon-btn,
+  .appbar-avatar-btn,
+  .profile-item {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: var(--touch-target);
+  }
+  .topbar-bell,
+  .appbar-burger,
+  .appbar-icon-btn {
+    min-width: var(--touch-target);
+  }
+  .profile-item {
+    justify-content: flex-start;
+  }
+  .topbar-nav {
+    gap: var(--space-4);
+  }
 }

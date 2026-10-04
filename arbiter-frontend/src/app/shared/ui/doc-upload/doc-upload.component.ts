@@ -82,6 +82,8 @@ type FetchState<T> = { status: 'loading' } | { status: 'ok'; value: T };
     }
   `,
   styles: `
+    @use 'media';
+
     :host {
       display: block;
     }
@@ -146,6 +148,23 @@ type FetchState<T> = { status: 'loading' } | { status: 'ok'; value: T };
     }
     .doc-row-upload:hover {
       background: var(--surface-sunken);
+    }
+    @include media.touch {
+      .doc-row-upload,
+      .doc-row-remove {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: var(--touch-target);
+        min-width: var(--touch-target);
+      }
+    }
+    @include media.phone {
+      .doc-row {
+        flex-direction: column;
+        align-items: stretch;
+        gap: var(--space-2);
+      }
     }
     .upload-error {
       color: var(--status-danger);
