@@ -4,15 +4,17 @@ import {
   computed,
   effect,
   inject,
+  linkedSignal,
   signal,
   untracked,
 } from '@angular/core';
-import { toObservable, toSignal } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import {
   catchError,
   combineLatest,
+  debounceTime,
   finalize,
   map,
   Observable,
@@ -800,7 +802,8 @@ export class ExpedienteDetailComponent {
     () =>
       this.decisionSaving() ||
       !this.justification().trim() ||
-      (this.pendingDecision() === 'aprobar' && this.approvalBlockedReason() !== null),
+      (this.pendingDecision() === 'aprobar' &&
+        (this.recalculoPendiente() || this.approvalBlockedReason() !== null)),
   );
 
   askDecision(v: Verb): void {
@@ -881,20 +884,38 @@ export class ExpedienteDetailComponent {
    * Always fetched, since resolved cases show it too. A 403 (insured) yields null and the card
    * hides it.
    */
-  protected readonly settlement = toSignal(
+  private readonly settlementFetch = toSignal(
     combineLatest([
       this.route.paramMap.pipe(map((params) => params.get('id') ?? '')),
       toObservable(this.reloadTrigger),
       toObservable(this.replacementApplied),
     ]).pipe(
       switchMap(([id, , replacementValue]) =>
-        this.service
-          .settlement(id as unknown as number, replacementValue)
-          .pipe(catchError(() => of<Settlement | null>(null))),
+        this.service.settlement(id as unknown as number, replacementValue).pipe(
+          catchError(() => of<Settlement | null>(null)),
+          // Tagged with what it was computed from: the signal keeps the previous answer while the
+          // next one loads, so the applied value alone can't tell a draft from the saved proposal.
+          map((settlement) => ({ settlement, draft: replacementValue != null })),
+        ),
       ),
     ),
-    { initialValue: null as Settlement | null },
+    { initialValue: { settlement: null as Settlement | null, draft: false } },
   );
+
+  /** What the approval dialog works on: it follows the amount being tried there. */
+  protected readonly settlement = computed(() => this.settlementFetch().settlement);
+
+  /**
+   * What the page shows. It ignores the amount tried in the dialog, which is nothing until
+   * confirmed: the card behind must not announce a payout the analyst is still working out.
+   */
+  protected readonly settlementEnPagina = linkedSignal<
+    { settlement: Settlement | null; draft: boolean },
+    Settlement | null
+  >({
+    source: this.settlementFetch,
+    computation: (fetch, previous) => (fetch.draft ? (previous?.value ?? null) : fetch.settlement),
+  });
 
   /** Signed by the analyst and awaiting the supervisor: the decision buttons give way to a notice. */
   protected readonly esperandoAutorizacion = computed(
@@ -987,10 +1008,27 @@ export class ExpedienteDetailComponent {
     this.settledAmountInput.set(String(amount));
   }
 
-  protected applyReplacementValue(): void {
-    const raw = this.replacementInput().trim();
-    this.replacementApplied.set(raw === '' ? null : Number(raw));
+  private applyReplacementValue(): void {
+    this.replacementApplied.set(this.replacementTyped());
   }
+
+  private readonly replacementTyped = computed<number | null>(() => {
+    const raw = this.replacementInput().trim();
+    return raw === '' ? null : Number(raw);
+  });
+
+  /**
+   * The breakdown still shows the previous value: what's typed hasn't reached the backend yet.
+   * Blocks confirming so nobody authorizes an amount computed from a figure they already changed.
+   */
+  protected readonly recalculoPendiente = computed(
+    () => this.replacementTyped() !== this.replacementApplied(),
+  );
+
+  /** Recalculates on its own once the analyst stops typing; a button was a step easy to forget. */
+  private readonly autoRecalculo = toObservable(this.replacementInput)
+    .pipe(debounceTime(500), takeUntilDestroyed())
+    .subscribe(() => this.applyReplacementValue());
 
   /** Empty = pay the calculated amount. */
   protected readonly settledAmountInput = signal('');
@@ -1026,7 +1064,7 @@ export class ExpedienteDetailComponent {
       return 'No se pudo calcular el monto a pagar.';
     }
     if (this.pideReposicion() && this.replacementApplied() == null) {
-      return 'Cargá cuánto cuesta hoy reponer el bien y recalculá.';
+      return 'Cargá cuánto cuesta hoy reponer el bien.';
     }
     if (this.amountToAuthorize() == null) {
       return 'El monto a pagar tiene que ser un número.';
@@ -1252,7 +1290,7 @@ export class ExpedienteDetailComponent {
 
   /** The calculated amount exceeds the branch limit: approving needs the supervisor's sign-off. */
   protected readonly superaAtribucion = computed(() => {
-    const s = this.settlement();
+    const s = this.settlementEnPagina();
     return (
       this.enManosDelAnalista() &&
       s?.authorityLimit != null &&

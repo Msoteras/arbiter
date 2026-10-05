@@ -450,7 +450,7 @@ public class SettlementService {
         // settles by repair.
         if (formula == SettlementFormula.REPAIR && !accredited) {
             warnings.add("La cobertura liquida por reparación y no hay presupuesto acreditado: sin él "
-                    + "no hay monto que pagar. Cargá el presupuesto del expediente y recalculá.");
+                    + "no hay monto que pagar. Cargá el presupuesto del expediente.");
         }
         if (needsReplacementValue(proposal) && !accredited) {
             warnings.add("Cargá cuánto cuesta hoy reponer el bien: sin ese valor no se puede aprobar.");

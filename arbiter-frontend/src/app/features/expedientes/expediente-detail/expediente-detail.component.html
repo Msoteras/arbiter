@@ -161,10 +161,10 @@
                       }
                     }
                     <!-- Hidden at zero: it means an input is missing, not that nothing is owed. -->
-                    @if (settlement(); as s) {
+                    @if (settlementEnPagina(); as s) {
                       @if (s.calculatedAmount > 0) {
                         <span
-                          >Si aprobás
+                          >Monto a pagar
                           <strong class="tabular">{{
                             montoExacto(s.calculatedAmount)
                           }}</strong></span
@@ -229,12 +229,17 @@
                   </app-button>
                 }
               </div>
-              <!-- Why a referral isn't offered: a fact about this claim, not an alert. -->
+              <!-- Why a referral isn't offered: a fact about this claim, not an alert, so the
+                   reason waits behind the tip. -->
               @if (puedeDerivar() && motivoNoDerivable(); as motivo) {
-                <p class="rcard-note">{{ motivo }}</p>
+                <p class="rcard-note">
+                  Peritaje no disponible <app-info-tip>{{ motivo }}</app-info-tip>
+                </p>
               }
               @if (motivoSinServicioTecnico(); as motivo) {
-                <p class="rcard-note">{{ motivo }}</p>
+                <p class="rcard-note">
+                  Servicio técnico no disponible <app-info-tip>{{ motivo }}</app-info-tip>
+                </p>
               }
               @if (!canDecide() && isAssigned()) {
                 <p class="rcard-note">{{ decisionBlockedReason() }}</p>
@@ -1143,26 +1148,16 @@
                 }}
                 <span class="required" aria-hidden="true">*</span>
               </span>
-              <div class="settlement-replacement">
-                <app-input
-                  type="number"
-                  [min]="0"
-                  [value]="replacementInput()"
-                  (valueChange)="replacementInput.set($event)"
-                  placeholder="Sin cargar"
-                />
-                <app-button variant="secondary" (click)="applyReplacementValue()"
-                  >Recalcular</app-button
-                >
-              </div>
-              <span class="justification-hint">
-                @if (s.formula === 'REPAIR') {
-                  Del presupuesto del expediente. Es la base del cálculo, con tope en la suma
-                  asegurada.
-                } @else {
-                  Precio actual de un equipo idéntico. Si hubo peritaje, el del perito.
-                }
-              </span>
+              <app-input
+                type="number"
+                [min]="0"
+                [value]="replacementInput()"
+                (valueChange)="replacementInput.set($event)"
+                placeholder="Sin cargar"
+              />
+              @if (s.formula !== 'REPAIR') {
+                <span class="justification-hint">Precio actual de un equipo idéntico.</span>
+              }
 
               <!-- A provider's amount comes prefilled, so this shows again only if the analyst clears
                    it. A document value was read by the model and is never applied without the click. -->
@@ -1215,11 +1210,6 @@
           </label>
         </div>
 
-        <p class="t-note">
-          Vacío se autoriza lo calculado ({{ montoExacto(s.calculatedAmount) }}). Tope: la suma
-          asegurada, {{ montoExacto(s.sumInsured) }}.
-        </p>
-
         @if (requiereReferente() && settlement(); as s) {
           <p class="settlement-callout">
             Este monto supera tu atribución para el ramo ({{ montoExacto(s.authorityLimit) }}). Al
@@ -1252,7 +1242,6 @@
       placeholder="Por qué se toma esta decisión…"
       [(value)]="justification"
     />
-    <span class="justification-hint">Obligatorio</span>
   </label>
   @if (pendingDecision() === 'aprobar' && approvalBlockedReason(); as motivo) {
     <p class="rcard-note error">{{ motivo }}</p>
@@ -1528,18 +1517,13 @@
         (valueChange)="montoInforme.set($event)"
         [placeholder]="informeEsReparacion() ? 'Cuánto sale el arreglo' : 'Sin monto'"
       />
-      <span class="justification-hint">
-        @if (informeEsFactura()) {
-          Opcional: dejalo vacío si la factura todavía no llegó. Va a ofrecerse al determinar el
-          monto a pagar, no se aplica solo.
-        } @else if (informeEsReparacion()) {
-          Obligatorio: es lo que el presupuesto dice. Va a ofrecerse al determinar el monto a pagar,
-          no se aplica solo.
-        } @else {
-          Opcional: dejalo vacío si el informe no puso un número. Va a ofrecerse al determinar el
-          monto a pagar, no se aplica solo.
-        }
-      </span>
+      @if (informeEsFactura()) {
+        <span class="justification-hint">Opcional: dejalo vacío si la factura todavía no llegó.</span>
+      } @else if (!informeEsReparacion()) {
+        <span class="justification-hint"
+          >Opcional: dejalo vacío si el informe no puso un número.</span
+        >
+      }
     </label>
   }
 
