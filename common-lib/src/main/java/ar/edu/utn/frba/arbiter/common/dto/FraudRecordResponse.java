@@ -18,7 +18,7 @@ public record FraudRecordResponse(
         Long caseId,
         FraudRecordSource source,
         String reason,
-        Long expertAssessmentId,
+        Long caseReferralId,
         String declaredByAnalystName,
         Instant declaredAt,
         boolean inForce,

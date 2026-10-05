@@ -3,7 +3,7 @@ package ar.edu.utn.frba.arbiter.cases.services;
 import ar.edu.utn.frba.arbiter.cases.dto.ProviderType;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
 import ar.edu.utn.frba.arbiter.cases.models.entities.CaseDocument;
-import ar.edu.utn.frba.arbiter.cases.models.entities.ExpertAssessment;
+import ar.edu.utn.frba.arbiter.cases.models.entities.CaseReferral;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.BranchRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseDocumentRepository;
 import ar.edu.utn.frba.arbiter.common.email.SendGridAdapter;
@@ -30,7 +30,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
-class ExpertNotificationServiceTest {
+class ReferralNotificationServiceTest {
 
     private static final String EXPERT_EMAIL = "perito@example.com";
 
@@ -44,13 +44,13 @@ class ExpertNotificationServiceTest {
     private BranchRepository branchRepository;
 
     @InjectMocks
-    private ExpertNotificationService service;
+    private ReferralNotificationService service;
 
     @Test
     void notifyDerivation_stampsWhenTheEmailWentOut() {
         when(sendGridAdapter.send(anyString(), anyString(), anyString(), anyList())).thenReturn(true);
 
-        Instant notifiedAt = service.notifyDerivation(caseRecord(), assessment());
+        Instant notifiedAt = service.notifyDerivation(caseRecord(), referral());
 
         assertThat(notifiedAt).isNotNull();
         verify(sendGridAdapter).send(eq(EXPERT_EMAIL), contains("#42"), anyString(), anyList());
@@ -64,7 +64,7 @@ class ExpertNotificationServiceTest {
     void notifyDerivation_doesNotStampWhenNothingWentOut() {
         when(sendGridAdapter.send(anyString(), anyString(), anyString(), anyList())).thenReturn(false);
 
-        assertThat(service.notifyDerivation(caseRecord(), assessment())).isNull();
+        assertThat(service.notifyDerivation(caseRecord(), referral())).isNull();
     }
 
     /**
@@ -78,7 +78,7 @@ class ExpertNotificationServiceTest {
                 document(2L, "foto-del-bien.jpg", "image/jpeg")));
         when(sendGridAdapter.send(anyString(), anyString(), anyString(), anyList())).thenReturn(true);
 
-        service.notifyDerivation(caseRecord(), assessment());
+        service.notifyDerivation(caseRecord(), referral());
 
         ArgumentCaptor<String> body = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<List<SendGridAdapter.Attachment>> attachments = ArgumentCaptor.forClass(List.class);
@@ -102,7 +102,7 @@ class ExpertNotificationServiceTest {
                 document(1L, "denuncia-policial.pdf", "application/pdf"), expertReport, repairReport));
         when(sendGridAdapter.send(anyString(), anyString(), anyString(), anyList())).thenReturn(true);
 
-        service.notifyDerivation(caseRecord(), assessment());
+        service.notifyDerivation(caseRecord(), referral());
 
         ArgumentCaptor<List<SendGridAdapter.Attachment>> attachments = ArgumentCaptor.forClass(List.class);
         verify(sendGridAdapter).send(eq(EXPERT_EMAIL), anyString(), anyString(), attachments.capture());
@@ -145,7 +145,7 @@ class ExpertNotificationServiceTest {
         when(sendGridAdapter.send(anyString(), anyString(), anyString(), anyList()))
                 .thenThrow(new RuntimeException("SendGrid caído"));
 
-        assertThatCode(() -> assertThat(service.notifyDerivation(caseRecord(), assessment())).isNull())
+        assertThatCode(() -> assertThat(service.notifyDerivation(caseRecord(), referral())).isNull())
                 .doesNotThrowAnyException();
     }
 
@@ -172,19 +172,19 @@ class ExpertNotificationServiceTest {
                 .build();
     }
 
-    private ExpertAssessment assessment() {
-        return ExpertAssessment.builder()
+    private CaseReferral referral() {
+        return CaseReferral.builder()
                 .caseId(42L)
-                .expertName("Estudio Verifica S.R.L.")
-                .expertEmail(EXPERT_EMAIL)
+                .providerName("Estudio Verifica S.R.L.")
+                .providerEmail(EXPERT_EMAIL)
                 .reason("Monto alto")
                 .build();
     }
 
-    private ExpertAssessment repairAssessment() {
-        ExpertAssessment assessment = assessment();
-        assessment.setExpertName("Service Celular Once");
-        assessment.setProviderType(ProviderType.SERVICIO_TECNICO);
-        return assessment;
+    private CaseReferral repairAssessment() {
+        CaseReferral referral = referral();
+        referral.setProviderName("Service Celular Once");
+        referral.setProviderType(ProviderType.SERVICIO_TECNICO);
+        return referral;
     }
 }

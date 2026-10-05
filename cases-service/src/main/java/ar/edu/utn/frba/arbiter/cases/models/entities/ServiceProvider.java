@@ -11,7 +11,8 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
+import jakarta.persistence.JoinTable;
+import jakarta.persistence.ManyToMany;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -19,15 +20,18 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-/** Deliberately not a {@code User}: the firm has no Arbiter login and is reached by email only. */
+import java.util.HashSet;
+import java.util.Set;
+
+/** Deliberately not a {@code User}: the provider has no Arbiter login and is reached by email only. */
 @Entity
-@Table(name = "expert_firm")
+@Table(name = "service_provider")
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class ExpertFirm {
+public class ServiceProvider {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -47,10 +51,16 @@ public class ExpertFirm {
     @Column(nullable = false)
     private boolean active = true;
 
-    /** Null means a generalist firm that covers every branch, not "unknown". */
-    @ManyToOne(fetch = FetchType.EAGER)
-    @JoinColumn(name = "branch_id")
-    private Branch branch;
+    /**
+     * Empty means a generalist that covers every branch, including the ones added later: a new
+     * branch is served by the generalists without editing them one by one.
+     */
+    @Builder.Default
+    @ManyToMany(fetch = FetchType.EAGER)
+    @JoinTable(name = "service_provider_branch",
+            joinColumns = @JoinColumn(name = "service_provider_id"),
+            inverseJoinColumns = @JoinColumn(name = "branch_id"))
+    private Set<Branch> branches = new HashSet<>();
 
     @Builder.Default
     @Enumerated(EnumType.STRING)

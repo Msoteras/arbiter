@@ -15,6 +15,12 @@
   gap: var(--space-3);
 }
 
+/* The summary card fills its column, so it ends level with the side stack instead of leaving a gap. */
+.col-main > .resumen-card {
+  flex: 1;
+  display: grid;
+}
+
 .fields {
   margin: 0;
   display: grid;
@@ -380,12 +386,3 @@ app-textarea {
 }
 
 /* Amount and recalculate button share a row so it's clear typing alone applies nothing. */
-.settlement-replacement {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-
-.settlement-replacement app-input {
-  flex: 1 1 auto;
-}

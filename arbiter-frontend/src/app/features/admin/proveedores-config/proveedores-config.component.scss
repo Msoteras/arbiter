@@ -31,7 +31,7 @@
   box-shadow: var(--focus-ring);
 }
 
-.peritos {
+.proveedores {
   list-style: none;
   margin: 0 0 var(--space-4);
   padding: 0;
@@ -39,7 +39,7 @@
   gap: var(--space-2);
 }
 
-.perito {
+.proveedor {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -50,17 +50,17 @@
   background: var(--surface-soft);
 }
 
-/* Inactive firms stay listed so they can be reactivated, but visually recede. */
-.perito.inactive {
+/* Inactive providers stay listed so they can be reactivated, but visually recede. */
+.proveedor.inactive {
   opacity: 0.6;
 }
 
-.perito-data {
+.proveedor-data {
   display: grid;
   gap: var(--space-1);
   min-width: 0;
 }
-.perito-name {
+.proveedor-name {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
@@ -68,13 +68,13 @@
   font-weight: var(--font-weight-medium);
   color: var(--text-primary);
 }
-.perito-actions {
+.proveedor-actions {
   display: flex;
   gap: var(--space-2);
   flex-shrink: 0;
 }
 
-.perito-form {
+.proveedor-form {
   display: grid;
   gap: var(--space-3);
   margin-bottom: var(--space-3);
@@ -83,7 +83,14 @@
   border-radius: var(--radius-card);
 }
 
-.perito-form-actions {
+.ramos {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.proveedor-form-actions {
   display: flex;
   justify-content: flex-end;
   gap: var(--space-2);
@@ -94,11 +101,11 @@
 }
 
 @media (max-width: 640px) {
-  .perito {
+  .proveedor {
     flex-direction: column;
     align-items: stretch;
   }
-  .perito-actions {
+  .proveedor-actions {
     justify-content: flex-end;
   }
 }

@@ -10,13 +10,13 @@ import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidSettlementException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.SettlementNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
 import ar.edu.utn.frba.arbiter.cases.models.entities.CaseSettlement;
-import ar.edu.utn.frba.arbiter.cases.models.entities.ExpertAssessment;
+import ar.edu.utn.frba.arbiter.cases.models.entities.CaseReferral;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Policy;
 import ar.edu.utn.frba.arbiter.cases.models.entities.PolicySnapshot;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseDocumentAnalysisRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseSettlementRepository;
-import ar.edu.utn.frba.arbiter.cases.models.repositories.ExpertAssessmentRepository;
+import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseReferralRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.InsurerReferentRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.PolicyCoverageRepository;
 import ar.edu.utn.frba.arbiter.common.enums.DeductibleBasis;
@@ -71,7 +71,7 @@ class SettlementServiceTest {
     private CaseDocumentAnalysisRepository documentAnalysisRepository;
 
     @Mock
-    private ExpertAssessmentRepository expertAssessmentRepository;
+    private CaseReferralRepository caseReferralRepository;
 
     @Mock
     private InsurerReferentRepository insurerReferentRepository;
@@ -225,8 +225,8 @@ class SettlementServiceTest {
     @Test
     void theExpertValuationIsSuggestedAsTheReplacementValue() {
         claim.setCoverage(coverage(SettlementBasis.LESSER_OF_SUM_AND_REPLACEMENT, "10.00", false));
-        when(expertAssessmentRepository.findByCaseIdOrderByDerivedAtDesc(1L)).thenReturn(List.of(
-                ExpertAssessment.builder().caseId(1L).providerType(ProviderType.ESTUDIO_LIQUIDADOR)
+        when(caseReferralRepository.findByCaseIdOrderByDerivedAtDesc(1L)).thenReturn(List.of(
+                CaseReferral.builder().caseId(1L).providerType(ProviderType.ESTUDIO_LIQUIDADOR)
                         .reportReceivedAt(Instant.now())
                         .indemnifiableAmount(new BigDecimal("540000.00")).build()));
 
@@ -431,8 +431,8 @@ class SettlementServiceTest {
         claim.setCoverage(repairCoverage());
         when(documentAnalysisRepository.findByCaseId(1L)).thenReturn(List.of(
                 document("repair_quote", new BigDecimal("95000.00"))));
-        when(expertAssessmentRepository.findByCaseIdOrderByDerivedAtDesc(1L)).thenReturn(List.of(
-                ExpertAssessment.builder().caseId(1L).reportReceivedAt(Instant.now())
+        when(caseReferralRepository.findByCaseIdOrderByDerivedAtDesc(1L)).thenReturn(List.of(
+                CaseReferral.builder().caseId(1L).reportReceivedAt(Instant.now())
                         .indemnifiableAmount(new BigDecimal("120000.00")).build()));
 
         SettlementResponse response = settlementService.forCase(1L, null);
@@ -448,8 +448,8 @@ class SettlementServiceTest {
         claim.setCoverage(repairCoverage());
         when(documentAnalysisRepository.findByCaseId(1L)).thenReturn(List.of(
                 document("repair_quote", new BigDecimal("95000.00"))));
-        when(expertAssessmentRepository.findByCaseIdOrderByDerivedAtDesc(1L)).thenReturn(List.of(
-                ExpertAssessment.builder().caseId(1L).providerType(ProviderType.SERVICIO_TECNICO)
+        when(caseReferralRepository.findByCaseIdOrderByDerivedAtDesc(1L)).thenReturn(List.of(
+                CaseReferral.builder().caseId(1L).providerType(ProviderType.SERVICIO_TECNICO)
                         .reportReceivedAt(Instant.now())
                         .repairCost(new BigDecimal("180000.00")).build()));
 
@@ -465,11 +465,11 @@ class SettlementServiceTest {
     void theLatestValuationReplacesTheEarlierOne() {
         claim.setCoverage(repairCoverage());
         Instant yesterday = Instant.now().minusSeconds(86_400);
-        when(expertAssessmentRepository.findByCaseIdOrderByDerivedAtDesc(1L)).thenReturn(List.of(
-                ExpertAssessment.builder().caseId(1L).providerType(ProviderType.ESTUDIO_LIQUIDADOR)
+        when(caseReferralRepository.findByCaseIdOrderByDerivedAtDesc(1L)).thenReturn(List.of(
+                CaseReferral.builder().caseId(1L).providerType(ProviderType.ESTUDIO_LIQUIDADOR)
                         .reportReceivedAt(yesterday)
                         .indemnifiableAmount(new BigDecimal("120000.00")).build(),
-                ExpertAssessment.builder().caseId(1L).providerType(ProviderType.SERVICIO_TECNICO)
+                CaseReferral.builder().caseId(1L).providerType(ProviderType.SERVICIO_TECNICO)
                         .reportReceivedAt(Instant.now())
                         .repairCost(new BigDecimal("180000.00")).build()));
 
@@ -482,8 +482,8 @@ class SettlementServiceTest {
     /** By sum insured only the expert speaks to the final amount; a repair cost isn't one. */
     @Test
     void theRepairShopQuoteIsNotOfferedAsTheAmountToPay() {
-        when(expertAssessmentRepository.findByCaseIdOrderByDerivedAtDesc(1L)).thenReturn(List.of(
-                ExpertAssessment.builder().caseId(1L).providerType(ProviderType.SERVICIO_TECNICO)
+        when(caseReferralRepository.findByCaseIdOrderByDerivedAtDesc(1L)).thenReturn(List.of(
+                CaseReferral.builder().caseId(1L).providerType(ProviderType.SERVICIO_TECNICO)
                         .reportReceivedAt(Instant.now())
                         .repairCost(new BigDecimal("180000.00")).build()));
 
@@ -496,8 +496,8 @@ class SettlementServiceTest {
     /** The expert's amount targets the final amount, so it applies even when settling by sum insured. */
     @Test
     void theExpertAmountIsSuggestedForTheAmountItselfWhenSettlingBySumInsured() {
-        when(expertAssessmentRepository.findByCaseIdOrderByDerivedAtDesc(1L)).thenReturn(List.of(
-                ExpertAssessment.builder().caseId(1L).reportReceivedAt(Instant.now())
+        when(caseReferralRepository.findByCaseIdOrderByDerivedAtDesc(1L)).thenReturn(List.of(
+                CaseReferral.builder().caseId(1L).reportReceivedAt(Instant.now())
                         .indemnifiableAmount(new BigDecimal("612500.00")).build()));
 
         SettlementResponse response = settlementService.forCase(1L, null);
@@ -512,8 +512,8 @@ class SettlementServiceTest {
     void aDocumentAmountIsStillNotSuggestedWhenSettlingBySumInsured() {
         when(documentAnalysisRepository.findByCaseId(1L)).thenReturn(List.of(
                 document("purchase_proof", new BigDecimal("620000.00"))));
-        when(expertAssessmentRepository.findByCaseIdOrderByDerivedAtDesc(1L)).thenReturn(List.of(
-                ExpertAssessment.builder().caseId(1L).reportReceivedAt(Instant.now()).indemnifiableAmount(null).build()));
+        when(caseReferralRepository.findByCaseIdOrderByDerivedAtDesc(1L)).thenReturn(List.of(
+                CaseReferral.builder().caseId(1L).reportReceivedAt(Instant.now()).indemnifiableAmount(null).build()));
 
         SettlementResponse response = settlementService.forCase(1L, null);
 
@@ -527,8 +527,8 @@ class SettlementServiceTest {
         claim.setCoverage(repairCoverage());
         when(documentAnalysisRepository.findByCaseId(1L)).thenReturn(List.of(
                 document("repair_quote", new BigDecimal("95000.00"))));
-        when(expertAssessmentRepository.findByCaseIdOrderByDerivedAtDesc(1L)).thenReturn(List.of(
-                ExpertAssessment.builder().caseId(1L).reportReceivedAt(Instant.now()).indemnifiableAmount(null).build()));
+        when(caseReferralRepository.findByCaseIdOrderByDerivedAtDesc(1L)).thenReturn(List.of(
+                CaseReferral.builder().caseId(1L).reportReceivedAt(Instant.now()).indemnifiableAmount(null).build()));
 
         SettlementResponse response = settlementService.forCase(1L, null);
 
@@ -555,8 +555,8 @@ class SettlementServiceTest {
     @Test
     void anIrreparableItemIsSettledAsATotalLoss() {
         claim.setCoverage(repairCoverage());
-        when(expertAssessmentRepository.findByCaseIdOrderByDerivedAtDesc(1L)).thenReturn(List.of(
-                ExpertAssessment.builder().caseId(1L).providerType(ProviderType.SERVICIO_TECNICO)
+        when(caseReferralRepository.findByCaseIdOrderByDerivedAtDesc(1L)).thenReturn(List.of(
+                CaseReferral.builder().caseId(1L).providerType(ProviderType.SERVICIO_TECNICO)
                         .reportReceivedAt(Instant.now())
                         .repairOutcome(RepairOutcome.IRREPARABLE).build()));
 
@@ -572,8 +572,8 @@ class SettlementServiceTest {
         Coverage coverage = repairCoverage();
         coverage.setSettlementBasis(SettlementBasis.LESSER_OF_SUM_AND_REPLACEMENT);
         claim.setCoverage(coverage);
-        when(expertAssessmentRepository.findByCaseIdOrderByDerivedAtDesc(1L)).thenReturn(List.of(
-                ExpertAssessment.builder().caseId(1L).providerType(ProviderType.SERVICIO_TECNICO)
+        when(caseReferralRepository.findByCaseIdOrderByDerivedAtDesc(1L)).thenReturn(List.of(
+                CaseReferral.builder().caseId(1L).providerType(ProviderType.SERVICIO_TECNICO)
                         .reportReceivedAt(Instant.now())
                         .repairOutcome(RepairOutcome.IRREPARABLE).build()));
 
@@ -590,8 +590,8 @@ class SettlementServiceTest {
     @Test
     void theSheetSaysWhyItStoppedBeingARepair() {
         claim.setCoverage(repairCoverage());
-        when(expertAssessmentRepository.findByCaseIdOrderByDerivedAtDesc(1L)).thenReturn(List.of(
-                ExpertAssessment.builder().caseId(1L).providerType(ProviderType.SERVICIO_TECNICO)
+        when(caseReferralRepository.findByCaseIdOrderByDerivedAtDesc(1L)).thenReturn(List.of(
+                CaseReferral.builder().caseId(1L).providerType(ProviderType.SERVICIO_TECNICO)
                         .reportReceivedAt(Instant.now())
                         .repairOutcome(RepairOutcome.IRREPARABLE).build()));
 
@@ -610,8 +610,8 @@ class SettlementServiceTest {
     @Test
     void anIrreparableItemIsNotAskedForARepairQuote() {
         claim.setCoverage(repairCoverage());
-        when(expertAssessmentRepository.findByCaseIdOrderByDerivedAtDesc(1L)).thenReturn(List.of(
-                ExpertAssessment.builder().caseId(1L).providerType(ProviderType.SERVICIO_TECNICO)
+        when(caseReferralRepository.findByCaseIdOrderByDerivedAtDesc(1L)).thenReturn(List.of(
+                CaseReferral.builder().caseId(1L).providerType(ProviderType.SERVICIO_TECNICO)
                         .reportReceivedAt(Instant.now())
                         .repairOutcome(RepairOutcome.IRREPARABLE).build()));
 
@@ -624,8 +624,8 @@ class SettlementServiceTest {
     @Test
     void aRepairedItemStillSettlesAsARepair() {
         claim.setCoverage(repairCoverage());
-        when(expertAssessmentRepository.findByCaseIdOrderByDerivedAtDesc(1L)).thenReturn(List.of(
-                ExpertAssessment.builder().caseId(1L).providerType(ProviderType.SERVICIO_TECNICO)
+        when(caseReferralRepository.findByCaseIdOrderByDerivedAtDesc(1L)).thenReturn(List.of(
+                CaseReferral.builder().caseId(1L).providerType(ProviderType.SERVICIO_TECNICO)
                         .reportReceivedAt(Instant.now())
                         .repairOutcome(RepairOutcome.QUOTE_SENT)
                         .repairCost(new BigDecimal("180000.00")).build()));

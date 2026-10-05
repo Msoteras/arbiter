@@ -43,6 +43,7 @@ import { ModalComponent } from '../../../shared/ui/modal/modal.component';
 import { AtribucionesConfigComponent } from '../atribuciones-config/atribuciones-config.component';
 import { ScoringConfigComponent } from '../scoring-config/scoring-config.component';
 import { FraudeConfigComponent } from '../fraude-config/fraude-config.component';
+import { ProveedoresConfigComponent } from '../proveedores-config/proveedores-config.component';
 import { ObjetivoConfigComponent } from '../objetivo-config/objetivo-config.component';
 import { HistorialReglasComponent } from '../historial-reglas/historial-reglas.component';
 import { SaveBarComponent } from '../../../shared/ui/save-bar/save-bar.component';
@@ -60,7 +61,8 @@ import { accordion, fadeInUp, listStagger, staggerReveal } from '../../../shared
 type TabId = 'coberturas' | 'exclusiones' | 'fastTrack' | 'documentacion' | 'reglas';
 
 /** Right-panel views that don't depend on the selected branch. */
-type GeneralView = 'hardStop' | 'scoring' | 'fraude' | 'atribuciones' | 'objetivo' | 'historial';
+type GeneralView =
+  'hardStop' | 'scoring' | 'fraude' | 'proveedores' | 'atribuciones' | 'objetivo' | 'historial';
 
 /**
  * Branch master-detail with per-tab drafts, each saved by its own button. Branches are a GLOBAL
@@ -77,6 +79,7 @@ type GeneralView = 'hardStop' | 'scoring' | 'fraude' | 'atribuciones' | 'objetiv
     ModalComponent,
     ScoringConfigComponent,
     FraudeConfigComponent,
+    ProveedoresConfigComponent,
     AtribucionesConfigComponent,
     ObjetivoConfigComponent,
     HistorialReglasComponent,
@@ -355,6 +358,8 @@ export class ReglasComponent {
     { id: 'hardStop', label: 'Hard Stop' },
     { id: 'scoring', label: 'Puntaje de riesgo' },
     { id: 'fraude', label: 'Gestión de fraude' },
+    // Its own entry: a repair shop has nothing to do with fraud.
+    { id: 'proveedores', label: 'Proveedores externos' },
     // Caps are per branch but listed together so they can be compared at a glance.
     { id: 'atribuciones', label: 'Atribuciones de liquidación' },
     { id: 'objetivo', label: 'Objetivo de resolución' },

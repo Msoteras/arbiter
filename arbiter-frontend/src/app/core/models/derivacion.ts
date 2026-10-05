@@ -56,32 +56,44 @@ export const REPAIR_OUTCOME_OPTIONS = Object.entries(REPAIR_LABELS).map(([value,
   label,
 }));
 
-/** Mirrors ExpertFirmResponse. */
-export interface Perito {
+/** Mirrors ServiceProviderResponse.BranchRef. */
+export interface RamoRef {
+  id: number;
+  name: string;
+}
+
+/** Mirrors ServiceProviderResponse. */
+export interface Proveedor {
   id: number;
   name: string;
   email: string;
   zone: string | null;
-  /** null = generalist (covers every branch). */
-  branchName: string | null;
+  /** Empty = generalist (covers every branch). */
+  branches: RamoRef[];
+}
+
+export function ramosLabel(branches: RamoRef[]): string {
+  return branches.length === 0 ? 'Todos los ramos' : branches.map((b) => b.name).join(', ');
 }
 
 /**
- * Mirrors DerivationOptionsResponse. `eligible` combines the insurer's minimum amount with expert
+ * Mirrors DerivationOptionsResponse. `eligible` combines the insurer's minimum amount with provider
  * availability; both amounts come so the UI can explain a "no".
  */
 export interface OpcionesDerivacion {
   eligible: boolean;
+  /** The insurer's rule lets this case go to this kind of provider, whether or not there is one. */
+  allowedByRule: boolean;
   minClaimedAmount: number | null;
   claimedAmount: number | null;
-  firms: Perito[];
+  providers: Proveedor[];
 }
 
-/** Mirrors ExpertAssessmentResponse. Before the report, `verdict` and `reportReceivedAt` are null. */
-export interface Peritaje {
+/** Mirrors CaseReferralResponse. Before the report, `verdict` and `reportReceivedAt` are null. */
+export interface Derivacion {
   id: number;
-  expertName: string;
-  expertEmail: string;
+  providerName: string;
+  providerEmail: string;
   zone: string | null;
   reason: string;
   derivedAt: string;

@@ -161,10 +161,10 @@
                       }
                     }
                     <!-- Hidden at zero: it means an input is missing, not that nothing is owed. -->
-                    @if (settlement(); as s) {
+                    @if (settlementEnPagina(); as s) {
                       @if (s.calculatedAmount > 0) {
                         <span
-                          >Si aprobás
+                          >Monto a pagar
                           <strong class="tabular">{{
                             montoExacto(s.calculatedAmount)
                           }}</strong></span
@@ -188,7 +188,6 @@
                   }
                 </div>
                 @if (canDecide()) {
-                  <!-- Referral is not a third decision (it suspends to gather evidence): it lives in the assignment card. -->
                   <div class="decision-side">
                     <app-button
                       variant="secondary"
@@ -206,6 +205,18 @@
                       (click)="askDecision('rechazar')"
                       >✕ Rechazar</app-button
                     >
+                    <!-- Referral is not a third decision (it suspends to gather evidence), hence
+                         no tone. Always a menu: the full target name doesn't fit this column. -->
+                    @if (opcionesDerivacion().length > 0) {
+                      <app-menu-button
+                        [block]="true"
+                        [items]="derivarMenuItems()"
+                        [disabled]="decisionSaving()"
+                        align="end"
+                        (itemSelected)="onDerivarMenu($event)"
+                        >Derivar a…</app-menu-button
+                      >
+                    }
                   </div>
                 } @else if (!isAssigned() && canTake()) {
                   <app-button
@@ -218,6 +229,18 @@
                   </app-button>
                 }
               </div>
+              <!-- Why a referral isn't offered: a fact about this claim, not an alert, so the
+                   reason waits behind the tip. -->
+              @if (puedeDerivar() && motivoNoDerivable(); as motivo) {
+                <p class="rcard-note">
+                  Peritaje no disponible <app-info-tip>{{ motivo }}</app-info-tip>
+                </p>
+              }
+              @if (motivoSinServicioTecnico(); as motivo) {
+                <p class="rcard-note">
+                  Servicio técnico no disponible <app-info-tip>{{ motivo }}</app-info-tip>
+                </p>
+              }
               @if (!canDecide() && isAssigned()) {
                 <p class="rcard-note">{{ decisionBlockedReason() }}</p>
               } @else if (assignError()) {
@@ -458,32 +481,7 @@
                         <span aria-hidden="true">⟳</span>
                         {{ analystsLoading() ? 'Cargando…' : 'Reasignar' }}
                       </app-menu-button>
-                      <!-- Referral belongs to the case owner. One target is a button; two, a menu. -->
-                      @if (opcionesDerivacion().length === 1) {
-                        <app-button
-                          class="grow"
-                          variant="secondary"
-                          [block]="true"
-                          [disabled]="decisionSaving()"
-                          (click)="askDerivar(opcionesDerivacion()[0].tipo)"
-                          >{{ opcionesDerivacion()[0].label }}</app-button
-                        >
-                      } @else if (opcionesDerivacion().length > 1) {
-                        <app-menu-button
-                          class="grow"
-                          [block]="true"
-                          [items]="derivarMenuItems()"
-                          [disabled]="decisionSaving()"
-                          align="end"
-                          (itemSelected)="onDerivarMenu($event)"
-                          >Derivar a…</app-menu-button
-                        >
-                      }
                     </div>
-                  }
-                  <!-- Why there is no "Derivar a peritaje": a fact about this claim, not an alert. -->
-                  @if (puedeDerivar() && motivoNoDerivable(); as motivo) {
-                    <p class="rcard-note">{{ motivo }}</p>
                   }
                 } @else {
                   <p class="nodata">Sin asignar</p>
@@ -993,7 +991,7 @@
               <dl class="peritaje">
                 <dt class="t-field-label">{{ reparacion ? 'Servicio técnico' : 'Perito' }}</dt>
                 <dd>
-                  {{ p.expertName }}
+                  {{ p.providerName }}
                   @if (p.zone) {
                     · {{ p.zone }}
                   }
@@ -1150,29 +1148,19 @@
                 }}
                 <span class="required" aria-hidden="true">*</span>
               </span>
-              <div class="settlement-replacement">
-                <app-input
-                  type="number"
-                  [min]="0"
-                  [value]="replacementInput()"
-                  (valueChange)="replacementInput.set($event)"
-                  placeholder="Sin cargar"
-                />
-                <app-button variant="secondary" (click)="applyReplacementValue()"
-                  >Recalcular</app-button
-                >
-              </div>
-              <span class="justification-hint">
-                @if (s.formula === 'REPAIR') {
-                  Del presupuesto del expediente. Es la base del cálculo, con tope en la suma
-                  asegurada.
-                } @else {
-                  Precio actual de un equipo idéntico. Si hubo peritaje, el del perito.
-                }
-              </span>
+              <app-input
+                type="number"
+                [min]="0"
+                [value]="replacementInput()"
+                (valueChange)="replacementInput.set($event)"
+                placeholder="Sin cargar"
+              />
+              @if (s.formula !== 'REPAIR') {
+                <span class="justification-hint">Precio actual de un equipo idéntico.</span>
+              }
 
-              <!-- Not applied until clicked. Wording differs by source: a document value was read by
-                   the model and must be checked; the others were typed in by an analyst. -->
+              <!-- A provider's amount comes prefilled, so this shows again only if the analyst clears
+                   it. A document value was read by the model and is never applied without the click. -->
               @if (sugerenciaDisponible()) {
                 <p class="settlement-suggestion">
                   <span>
@@ -1222,11 +1210,6 @@
           </label>
         </div>
 
-        <p class="t-note">
-          Vacío se autoriza lo calculado ({{ montoExacto(s.calculatedAmount) }}). Tope: la suma
-          asegurada, {{ montoExacto(s.sumInsured) }}.
-        </p>
-
         @if (requiereReferente() && settlement(); as s) {
           <p class="settlement-callout">
             Este monto supera tu atribución para el ramo ({{ montoExacto(s.authorityLimit) }}). Al
@@ -1259,7 +1242,6 @@
       placeholder="Por qué se toma esta decisión…"
       [(value)]="justification"
     />
-    <span class="justification-hint">Obligatorio</span>
   </label>
   @if (pendingDecision() === 'aprobar' && approvalBlockedReason(); as motivo) {
     <p class="rcard-note error">{{ motivo }}</p>
@@ -1345,9 +1327,9 @@
     }
   </p>
   <app-select
-    [options]="peritoOptions()"
+    [options]="proveedorOptions()"
     [placeholder]="esReparacion() ? 'Elegí un servicio técnico…' : 'Elegí un perito…'"
-    [(value)]="peritoElegido"
+    [(value)]="proveedorElegido"
   />
   <app-textarea
     [rows]="3"
@@ -1360,7 +1342,7 @@
   <ng-container modalActions>
     <app-button variant="secondary" (click)="cancelDerivar()">Cancelar</app-button>
     <app-button
-      [disabled]="!peritoElegido() || !motivoDerivacion().trim() || derivarSaving()"
+      [disabled]="!proveedorElegido() || !motivoDerivacion().trim() || derivarSaving()"
       (click)="confirmDerivar()"
     >
       {{ derivarSaving() ? 'Derivando…' : 'Derivar' }}
@@ -1412,7 +1394,7 @@
 @if (derivacionHecha(); as p) {
   <app-modal [open]="true" heading="Derivación enviada" (close)="cerrarDerivacionHecha()">
     <p class="t-body">
-      <strong>{{ p.expertName }}</strong> ya tiene el expediente
+      <strong>{{ p.providerName }}</strong> ya tiene el expediente
       <strong>#{{ derivacionHechaCaseId() }}</strong
       >.
     </p>
@@ -1535,18 +1517,13 @@
         (valueChange)="montoInforme.set($event)"
         [placeholder]="informeEsReparacion() ? 'Cuánto sale el arreglo' : 'Sin monto'"
       />
-      <span class="justification-hint">
-        @if (informeEsFactura()) {
-          Opcional: dejalo vacío si la factura todavía no llegó. Va a ofrecerse al determinar el
-          monto a pagar, no se aplica solo.
-        } @else if (informeEsReparacion()) {
-          Obligatorio: es lo que el presupuesto dice. Va a ofrecerse al determinar el monto a pagar,
-          no se aplica solo.
-        } @else {
-          Opcional: dejalo vacío si el informe no puso un número. Va a ofrecerse al determinar el
-          monto a pagar, no se aplica solo.
-        }
-      </span>
+      @if (informeEsFactura()) {
+        <span class="justification-hint">Opcional: dejalo vacío si la factura todavía no llegó.</span>
+      } @else if (!informeEsReparacion()) {
+        <span class="justification-hint"
+          >Opcional: dejalo vacío si el informe no puso un número.</span
+        >
+      }
     </label>
   }
 

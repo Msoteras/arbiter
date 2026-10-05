@@ -8,7 +8,7 @@ import ar.edu.utn.frba.arbiter.common.models.entities.tenant.ClaimsAnalyst;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Coverage;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Insured;
 import ar.edu.utn.frba.arbiter.cases.models.entities.CaseSettlement;
-import ar.edu.utn.frba.arbiter.cases.models.entities.ExpertAssessment;
+import ar.edu.utn.frba.arbiter.cases.models.entities.CaseReferral;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Policy;
 import ar.edu.utn.frba.arbiter.cases.support.AbstractPersistenceIT;
 import ar.edu.utn.frba.arbiter.cases.support.CaseFixtures;
@@ -80,7 +80,7 @@ class CaseRepositorySpecificationTests extends AbstractPersistenceIT {
     private ClaimsAnalystRepository claimsAnalystRepository;
 
     @Autowired
-    private ExpertAssessmentRepository expertAssessmentRepository;
+    private CaseReferralRepository caseReferralRepository;
 
     @Autowired
     private CaseSettlementRepository caseSettlementRepository;
@@ -504,12 +504,12 @@ class CaseRepositorySpecificationTests extends AbstractPersistenceIT {
                 "POL-CEL-2024-033", "40.123.483", "Dora", "Mena", LocalDate.of(2026, 9, 1), null));
         Case stillWithExpert = caseRepository.save(caseOf(CaseStatus.PENDING_EXPERT_REPORT, "Hurto",
                 "POL-CEL-2024-034", "40.123.484", "Eva", "Ruiz", LocalDate.of(2026, 9, 1), null));
-        assessment(fromExpert, ProviderType.ESTUDIO_LIQUIDADOR, answered, lucas);
-        assessment(fromRepairShop, ProviderType.SERVICIO_TECNICO, answered, lucas);
-        assessment(waitingAgain, ProviderType.ESTUDIO_LIQUIDADOR, answered, lucas);
-        assessment(waitingAgain, ProviderType.SERVICIO_TECNICO, null, lucas);
-        assessment(closed, ProviderType.ESTUDIO_LIQUIDADOR, answered, lucas);
-        assessment(stillWithExpert, ProviderType.ESTUDIO_LIQUIDADOR, null, lucas);
+        referral(fromExpert, ProviderType.ESTUDIO_LIQUIDADOR, answered, lucas);
+        referral(fromRepairShop, ProviderType.SERVICIO_TECNICO, answered, lucas);
+        referral(waitingAgain, ProviderType.ESTUDIO_LIQUIDADOR, answered, lucas);
+        referral(waitingAgain, ProviderType.SERVICIO_TECNICO, null, lucas);
+        referral(closed, ProviderType.ESTUDIO_LIQUIDADOR, answered, lucas);
+        referral(stillWithExpert, ProviderType.ESTUDIO_LIQUIDADOR, null, lucas);
 
         assertThat(caseRepository.findAll(CaseSpecifications.followUp(CaseFollowUp.EXPERT_REPORT_RECEIVED),
                 FIRST_PAGE).getContent()).extracting(Case::getId).containsExactly(fromExpert.getId());
@@ -553,12 +553,12 @@ class CaseRepositorySpecificationTests extends AbstractPersistenceIT {
                 .build());
     }
 
-    private void assessment(Case caseRecord, ProviderType providerType, Instant reportReceivedAt,
+    private void referral(Case caseRecord, ProviderType providerType, Instant reportReceivedAt,
                             ClaimsAnalyst analyst) {
-        expertAssessmentRepository.save(ExpertAssessment.builder()
+        caseReferralRepository.save(CaseReferral.builder()
                 .caseId(caseRecord.getId())
-                .expertName("North Assessors")
-                .expertEmail("assessors@arbiter.test")
+                .providerName("North Assessors")
+                .providerEmail("assessors@arbiter.test")
                 .reason("Signs to verify")
                 .derivedAt(Instant.parse("2026-09-05T12:00:00Z"))
                 .providerType(providerType)

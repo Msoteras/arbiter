@@ -34,7 +34,7 @@ import ar.edu.utn.frba.arbiter.cases.exceptions.UnresolvedCaseReferenceException
 import ar.edu.utn.frba.arbiter.cases.models.entities.CaseDocument;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
 import ar.edu.utn.frba.arbiter.cases.models.entities.CaseStatusHistory;
-import ar.edu.utn.frba.arbiter.cases.models.entities.ExpertAssessment;
+import ar.edu.utn.frba.arbiter.cases.models.entities.CaseReferral;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.ClaimsAnalyst;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Insured;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Policy;
@@ -45,7 +45,7 @@ import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseDocumentAnalysisRep
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseDocumentRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.ClaimsAnalystRepository;
-import ar.edu.utn.frba.arbiter.cases.models.repositories.ExpertAssessmentRepository;
+import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseReferralRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.InsurerRepository;
 import ar.edu.utn.frba.arbiter.cases.support.CaseFixtures;
 import ar.edu.utn.frba.arbiter.cases.support.CaseStates;
@@ -102,7 +102,7 @@ class CaseServiceImplTest {
     private CaseDocumentRepository caseDocumentRepository;
 
     @Mock
-    private ExpertAssessmentRepository expertAssessmentRepository;
+    private CaseReferralRepository caseReferralRepository;
 
     @Mock
     private CaseStatusService caseStatusService;
@@ -420,11 +420,11 @@ class CaseServiceImplTest {
     void getCase_inRepair_tellsWhoHasTheItem() {
         when(caseRepository.findById(1L))
                 .thenReturn(Optional.of(caseRecord(1L, CaseStatus.PENDING_REPAIR)));
-        when(expertAssessmentRepository.findByCaseIdAndProviderType(1L, ProviderType.SERVICIO_TECNICO))
-                .thenReturn(Optional.of(ExpertAssessment.builder()
+        when(caseReferralRepository.findByCaseIdAndProviderType(1L, ProviderType.SERVICIO_TECNICO))
+                .thenReturn(Optional.of(CaseReferral.builder()
                         .caseId(1L)
-                        .expertName("Service Celular Once")
-                        .expertEmail("service@example.com")
+                        .providerName("Service Celular Once")
+                        .providerEmail("service@example.com")
                         .build()));
 
         RepairProviderResponse provider = caseService.getCase(1L).repairProvider();

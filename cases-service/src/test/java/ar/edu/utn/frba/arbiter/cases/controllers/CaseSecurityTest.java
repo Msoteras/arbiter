@@ -221,7 +221,7 @@ class CaseSecurityTest extends AbstractPersistenceIT {
      * Reading the expert assessment would reveal they're suspected, which the status hides.
      */
     @Test
-    void readExpertAssessment_asInsured_returns403() throws Exception {
+    void readCaseReferral_asInsured_returns403() throws Exception {
         mockMvc.perform(get("/api/v1/cases/1/expert-assessment")
                         .header("Authorization", "Bearer " + tokenFor("ASEGURADO")))
                 .andExpect(status().isForbidden());
@@ -233,7 +233,7 @@ class CaseSecurityTest extends AbstractPersistenceIT {
                         .header("Authorization", "Bearer " + tokenFor("ASEGURADO"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"expertFirmId": 1, "reason": "sospecha"}
+                                {"providerId": 1, "reason": "sospecha"}
                                 """))
                 .andExpect(status().isForbidden());
     }
@@ -244,7 +244,7 @@ class CaseSecurityTest extends AbstractPersistenceIT {
                         .header("Authorization", "Bearer " + tokenFor("ANALISTA_SINIESTROS"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"expertFirmId": 1, "reason": "banda crítica"}
+                                {"providerId": 1, "reason": "banda crítica"}
                                 """))
                 .andExpect(status().isNotFound());
     }

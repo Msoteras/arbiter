@@ -41,7 +41,7 @@ public class InsuredFraudRecordController {
                     Deja asentado que un expediente terminó en fraude determinado. Un expediente
                     puede originar un solo antecedente.
 
-                    El `source` decide cuánto pesa: `EXPERT_BACKED` (exige `expertAssessmentId`)
+                    El `source` decide cuánto pesa: `EXPERT_BACKED` (exige `caseReferralId`)
                     puntúa en el scoring y puede vetar el Fast Track; `ANALYST_DECLARED` queda
                     visible para quien revise la próxima denuncia y no interviene en el motor.
                     """,

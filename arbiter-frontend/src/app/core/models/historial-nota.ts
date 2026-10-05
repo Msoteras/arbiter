@@ -1,5 +1,5 @@
 import { clasificacionLabel } from './clasificacion';
-import { repairOutcomeLabel, veredictoLabel } from './peritaje';
+import { repairOutcomeLabel, veredictoLabel } from './derivacion';
 
 // Both spellings exist in the immutable history, so all four are mapped.
 const DECISION_LABELS: Record<string, string> = {

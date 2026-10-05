@@ -3,10 +3,10 @@ package ar.edu.utn.frba.arbiter.cases.controllers;
 import ar.edu.utn.frba.arbiter.cases.dto.DerivationOptionsResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.ProviderType;
 import ar.edu.utn.frba.arbiter.cases.dto.RepairOutcome;
-import ar.edu.utn.frba.arbiter.cases.dto.DeriveToExpertRequest;
-import ar.edu.utn.frba.arbiter.cases.dto.ExpertAssessmentResponse;
-import ar.edu.utn.frba.arbiter.cases.exceptions.ExpertAssessmentNotFoundException;
-import ar.edu.utn.frba.arbiter.cases.services.ExpertAssessmentService;
+import ar.edu.utn.frba.arbiter.cases.dto.CaseReferralRequest;
+import ar.edu.utn.frba.arbiter.cases.dto.CaseReferralResponse;
+import ar.edu.utn.frba.arbiter.cases.exceptions.CaseReferralNotFoundException;
+import ar.edu.utn.frba.arbiter.cases.services.CaseReferralService;
 import ar.edu.utn.frba.arbiter.common.enums.ExpertVerdict;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -35,9 +35,9 @@ import java.math.BigDecimal;
 @RequestMapping("/api/v1/cases/{caseId}/expert-assessment")
 @RequiredArgsConstructor
 @Tag(name = "Expert assessment", description = "Derivación de un expediente a peritaje externo")
-public class ExpertAssessmentController {
+public class CaseReferralController {
 
-    private final ExpertAssessmentService expertAssessmentService;
+    private final CaseReferralService caseReferralService;
 
     @GetMapping("/options")
     @PreAuthorize("hasAnyRole('ANALISTA_SINIESTROS', 'REFERENTE_ASEGURADORA')")
@@ -47,7 +47,7 @@ public class ExpertAssessmentController {
                     configurado en rules-service) con que haya peritos disponibles: una política que
                     habilita sobre un catálogo vacío igual deja al analista sin a quién derivar.
 
-                    `firms` son los peritos activos del ramo del siniestro más los generalistas. El
+                    `providers` son los peritos activos del ramo del siniestro más los generalistas. El
                     analista elige de la lista y no escribe una dirección a mano, así queda registro
                     de con quién trabaja la aseguradora.
 
@@ -57,7 +57,7 @@ public class ExpertAssessmentController {
     public ResponseEntity<DerivationOptionsResponse> options(
             @PathVariable Long caseId,
             @RequestParam(defaultValue = "ESTUDIO_LIQUIDADOR") ProviderType providerType) {
-        return ResponseEntity.ok(expertAssessmentService.options(caseId, providerType));
+        return ResponseEntity.ok(caseReferralService.options(caseId, providerType));
     }
 
     @GetMapping
@@ -70,19 +70,19 @@ public class ExpertAssessmentController {
                     No se expone al ASEGURADO: para él el expediente sigue 'En análisis', y contarle
                     que se derivó filtraría la sospecha que motivó la derivación.
                     """)
-    public ResponseEntity<ExpertAssessmentResponse> get(
+    public ResponseEntity<CaseReferralResponse> get(
             @PathVariable Long caseId,
             @RequestParam(defaultValue = "ESTUDIO_LIQUIDADOR") ProviderType providerType) {
-        return ResponseEntity.ok(expertAssessmentService.find(caseId, providerType)
-                .orElseThrow(() -> new ExpertAssessmentNotFoundException(caseId)));
+        return ResponseEntity.ok(caseReferralService.find(caseId, providerType)
+                .orElseThrow(() -> new CaseReferralNotFoundException(caseId)));
     }
 
     @GetMapping("/all")
     @PreAuthorize("hasAnyRole('ANALISTA_SINIESTROS', 'REFERENTE_ASEGURADORA')")
     @Operation(summary = "Todas las derivaciones del expediente",
             description = "Peritaje y servicio técnico juntos, de la más reciente a la más vieja.")
-    public ResponseEntity<java.util.List<ExpertAssessmentResponse>> getAll(@PathVariable Long caseId) {
-        return ResponseEntity.ok(expertAssessmentService.findAll(caseId));
+    public ResponseEntity<java.util.List<CaseReferralResponse>> getAll(@PathVariable Long caseId) {
+        return ResponseEntity.ok(caseReferralService.findAll(caseId));
     }
 
     // Analyst only: the derivation is attributed to a ClaimsAnalyst, which a referente doesn't have.
@@ -98,13 +98,13 @@ public class ExpertAssessmentController {
                     expediente. No resuelve nada: el caso vuelve al analista, que sigue siendo
                     quien decide (decisión de arquitectura #5).
                     """)
-    public ResponseEntity<ExpertAssessmentResponse> derive(
+    public ResponseEntity<CaseReferralResponse> derive(
             @PathVariable Long caseId,
-            @RequestBody @Valid DeriveToExpertRequest request,
+            @RequestBody @Valid CaseReferralRequest request,
             @RequestParam(defaultValue = "ESTUDIO_LIQUIDADOR") ProviderType providerType
     ) {
         return ResponseEntity.accepted()
-                .body(expertAssessmentService.derive(caseId, request, providerType));
+                .body(caseReferralService.derive(caseId, request, providerType));
     }
 
     // The referente may also upload it: it only transcribes the verdict and hands the case back to the analyst.
@@ -123,14 +123,14 @@ public class ExpertAssessmentController {
                     nota es texto libre sobre un siniestro y en la URL terminaría en los logs del
                     reverse proxy.
                     """)
-    public ResponseEntity<ExpertAssessmentResponse> receiveReport(
+    public ResponseEntity<CaseReferralResponse> receiveReport(
             @PathVariable Long caseId,
             @RequestParam ExpertVerdict verdict,
             @RequestParam(required = false) String note,
             @RequestParam(required = false) BigDecimal indemnifiableAmount,
             @RequestPart("report") MultipartFile report
     ) {
-        return ResponseEntity.ok(expertAssessmentService.receiveReport(
+        return ResponseEntity.ok(caseReferralService.receiveReport(
                 caseId, verdict, note, indemnifiableAmount, report));
     }
 
@@ -146,14 +146,14 @@ public class ExpertAssessmentController {
                     resultado es `QUOTE_SENT`, opcional con `REPAIRED` —la factura puede llegar
                     después— y rechazado con `IRREPARABLE`, que no tuvo arreglo que cobrar.
                     """)
-    public ResponseEntity<ExpertAssessmentResponse> receiveRepairReport(
+    public ResponseEntity<CaseReferralResponse> receiveRepairReport(
             @PathVariable Long caseId,
             @RequestParam RepairOutcome outcome,
             @RequestParam(required = false) String note,
             @RequestParam(required = false) BigDecimal repairCost,
             @RequestPart("report") MultipartFile report
     ) {
-        return ResponseEntity.ok(expertAssessmentService.receiveRepairReport(
+        return ResponseEntity.ok(caseReferralService.receiveRepairReport(
                 caseId, outcome, note, repairCost, report));
     }
 }
