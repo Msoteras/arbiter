@@ -949,7 +949,8 @@ export class ExpedienteDetailComponent {
    */
   private precargarMontoDeProveedor(): void {
     const s = this.settlement();
-    const deProveedor = s?.suggestedFrom === 'repair_report' || s?.suggestedFrom === 'expert_report';
+    const deProveedor =
+      s?.suggestedFrom === 'repair_report' || s?.suggestedFrom === 'expert_report';
     if (this.pideMontoAcreditado() && s?.suggestedFor === 'ACCREDITED_AMOUNT' && deProveedor) {
       this.tomarSugerencia();
     }

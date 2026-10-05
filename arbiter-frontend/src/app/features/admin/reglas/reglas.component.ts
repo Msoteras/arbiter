@@ -62,13 +62,7 @@ type TabId = 'coberturas' | 'exclusiones' | 'fastTrack' | 'documentacion' | 'reg
 
 /** Right-panel views that don't depend on the selected branch. */
 type GeneralView =
-  | 'hardStop'
-  | 'scoring'
-  | 'fraude'
-  | 'proveedores'
-  | 'atribuciones'
-  | 'objetivo'
-  | 'historial';
+  'hardStop' | 'scoring' | 'fraude' | 'proveedores' | 'atribuciones' | 'objetivo' | 'historial';
 
 /**
  * Branch master-detail with per-tab drafts, each saved by its own button. Branches are a GLOBAL
