@@ -1518,7 +1518,9 @@
         [placeholder]="informeEsReparacion() ? 'Cuánto sale el arreglo' : 'Sin monto'"
       />
       @if (informeEsFactura()) {
-        <span class="justification-hint">Opcional: dejalo vacío si la factura todavía no llegó.</span>
+        <span class="justification-hint"
+          >Opcional: dejalo vacío si la factura todavía no llegó.</span
+        >
       } @else if (!informeEsReparacion()) {
         <span class="justification-hint"
           >Opcional: dejalo vacío si el informe no puso un número.</span
