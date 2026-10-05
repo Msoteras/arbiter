@@ -78,7 +78,7 @@ describe('Kit de UI · responsive', () => {
 
   for (const phone of PHONES) {
     describe(`${phone.name} (${phone.width}px)`, () => {
-      it('los controles miden al menos 44px de alto', async () => {
+      it('makes controls at least 44px tall', async () => {
         const doc = await mount(KitHost, phone.width, phone.height);
         // The checkbox's target is its label row, not the 18px native box.
         const controls = doc.querySelectorAll<HTMLElement>(
@@ -98,7 +98,7 @@ describe('Kit de UI · responsive', () => {
         expect(doc.documentElement.scrollWidth).toBeLessThanOrEqual(phone.width);
       });
 
-      it('un modal más alto que la pantalla scrollea por dentro y deja las acciones visibles', async () => {
+      it('scrolls a modal taller than the screen inside and keeps its actions visible', async () => {
         const doc = await mount(TallModalHost, phone.width, phone.height);
         const dialog = doc.querySelector('[role="dialog"]')!.getBoundingClientRect();
         const body = doc.querySelector('.modal-body')!;

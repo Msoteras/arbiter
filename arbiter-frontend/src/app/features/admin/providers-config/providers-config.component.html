@@ -8,30 +8,31 @@
 
   @if (loading()) {
     <p class="t-note">Cargando…</p>
-  } @else if (proveedores().length === 0 && !draft()) {
+  } @else if (providers().length === 0 && !draft()) {
     <app-empty-state
       message="Todavía no hay proveedores cargados"
       sub="Sin proveedores, el analista no puede derivar ningún expediente."
     />
   } @else {
-    <ul class="proveedores">
-      @for (p of proveedores(); track p.id) {
-        <li class="proveedor" [class.inactive]="!p.active">
-          <div class="proveedor-data">
-            <span class="proveedor-name">
+    <ul class="provider-list">
+      @for (p of providers(); track p.id) {
+        <li class="provider" [class.inactive]="!p.active">
+          <div class="provider-data">
+            <span class="provider-name">
               {{ p.name }}
               <app-badge variant="solid" [tone]="p.active ? 'ok' : 'neutral'">
                 {{ p.active ? 'Activo' : 'Inactivo' }}
               </app-badge>
             </span>
             <span class="t-note">
-              {{ providerTypeLabel(p.providerType) }} · {{ p.email }} · {{ ramosLabel(p.branches) }}
+              {{ providerTypeLabel(p.providerType) }} · {{ p.email }} ·
+              {{ branchesLabel(p.branches) }}
               @if (p.zone) {
                 · {{ p.zone }}
               }
             </span>
           </div>
-          <div class="proveedor-actions">
+          <div class="provider-actions">
             <app-button variant="secondary" (click)="edit(p)">Editar</app-button>
             <button type="button" class="danger-btn" (click)="remove(p)">Borrar</button>
           </div>
@@ -41,7 +42,7 @@
   }
 
   @if (draft(); as d) {
-    <div class="proveedor-form">
+    <div class="provider-form">
       <span class="t-field-label">{{
         d.id == null ? 'Nuevo proveedor' : 'Editando proveedor'
       }}</span>
@@ -57,7 +58,7 @@
         [value]="d.email"
         (valueChange)="setField('email', $event)"
       />
-      <fieldset class="ramos">
+      <fieldset class="branch-picker">
         <legend class="t-field-label">Ramos</legend>
         @for (b of branches(); track b.id) {
           <app-checkbox
@@ -77,7 +78,7 @@
       <app-checkbox [checked]="d.active" (checkedChange)="setField('active', $event)">
         Activo
       </app-checkbox>
-      <div class="proveedor-form-actions">
+      <div class="provider-form-actions">
         <app-button variant="secondary" (click)="cancel()">Cancelar</app-button>
         <app-button [disabled]="!canSave() || saving()" (click)="save()">
           {{ saving() ? 'Guardando…' : 'Guardar' }}

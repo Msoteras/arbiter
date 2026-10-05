@@ -43,7 +43,7 @@ import { ModalComponent } from '../../../shared/ui/modal/modal.component';
 import { SettlementAuthoritiesConfigComponent } from '../settlement-authorities-config/settlement-authorities-config.component';
 import { ScoringConfigComponent } from '../scoring-config/scoring-config.component';
 import { FraudConfigComponent } from '../fraud-config/fraud-config.component';
-import { ProveedoresConfigComponent } from '../proveedores-config/proveedores-config.component';
+import { ProvidersConfigComponent } from '../providers-config/providers-config.component';
 import { ResolutionTargetConfigComponent } from '../resolution-target-config/resolution-target-config.component';
 import { RuleHistoryComponent } from '../rule-history/rule-history.component';
 import { SaveBarComponent } from '../../../shared/ui/save-bar/save-bar.component';
@@ -79,7 +79,7 @@ type GeneralView =
     ModalComponent,
     ScoringConfigComponent,
     FraudConfigComponent,
-    ProveedoresConfigComponent,
+    ProvidersConfigComponent,
     SettlementAuthoritiesConfigComponent,
     ResolutionTargetConfigComponent,
     RuleHistoryComponent,

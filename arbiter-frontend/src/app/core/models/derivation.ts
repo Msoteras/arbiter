@@ -57,22 +57,22 @@ export const REPAIR_OUTCOME_OPTIONS = Object.entries(REPAIR_LABELS).map(([value,
 }));
 
 /** Mirrors ServiceProviderResponse.BranchRef. */
-export interface RamoRef {
+export interface BranchRef {
   id: number;
   name: string;
 }
 
 /** Mirrors ServiceProviderResponse. */
-export interface Proveedor {
+export interface Provider {
   id: number;
   name: string;
   email: string;
   zone: string | null;
   /** Empty = generalist (covers every branch). */
-  branches: RamoRef[];
+  branches: BranchRef[];
 }
 
-export function ramosLabel(branches: RamoRef[]): string {
+export function branchesLabel(branches: BranchRef[]): string {
   return branches.length === 0 ? 'Todos los ramos' : branches.map((b) => b.name).join(', ');
 }
 
@@ -86,11 +86,11 @@ export interface DerivationOptions {
   allowedByRule: boolean;
   minClaimedAmount: number | null;
   claimedAmount: number | null;
-  providers: Proveedor[];
+  providers: Provider[];
 }
 
 /** Mirrors CaseReferralResponse. Before the report, `verdict` and `reportReceivedAt` are null. */
-export interface Derivacion {
+export interface Derivation {
   id: number;
   providerName: string;
   providerEmail: string;

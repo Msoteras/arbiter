@@ -65,17 +65,17 @@ import {
   shouldSurfaceCauseConsistency,
 } from '../../../core/models/cause-consistency';
 import {
-  Derivacion,
+  Derivation,
   ExpertVerdict,
   DerivationOptions,
   ProviderType,
-  ramosLabel,
+  branchesLabel,
   REPAIR_OUTCOME_OPTIONS,
   RepairOutcome,
   repairOutcomeLabel,
   verdictLabel,
   verdictTone,
-} from '../../../core/models/derivacion';
+} from '../../../core/models/derivation';
 import {
   FraudRecord,
   FRAUD_RECORD_REASON_MIN,
@@ -797,7 +797,7 @@ export class CaseDetailComponent {
       this.decisionSaving() ||
       !this.justification().trim() ||
       (this.pendingDecision() === 'approve' &&
-        (this.recalculoPendiente() || this.approvalBlockedReason() !== null)),
+        (this.recalculationPending() || this.approvalBlockedReason() !== null)),
   );
 
   askDecision(v: Verb): void {
@@ -810,7 +810,7 @@ export class CaseDetailComponent {
     this.settledAmountInput.set('');
     this.adjustmentReason.set('');
     if (v === 'approve') {
-      this.precargarMontoDeProveedor();
+      this.prefillProviderAmount();
     }
     this.showJustify.set(true);
   }
@@ -903,7 +903,7 @@ export class CaseDetailComponent {
    * What the page shows. It ignores the amount tried in the dialog, which is nothing until
    * confirmed: the card behind must not announce a payout the analyst is still working out.
    */
-  protected readonly settlementEnPagina = linkedSignal<
+  protected readonly displayedSettlement = linkedSignal<
     { settlement: Settlement | null; draft: boolean },
     Settlement | null
   >({
@@ -945,7 +945,7 @@ export class CaseDetailComponent {
 
   /**
    * Offered only until a value is entered. A document amount was read by the model, so it waits
-   * for the click; a provider's is prefilled by `precargarMontoDeProveedor`.
+   * for the click; a provider's is prefilled by `prefillProviderAmount`.
    */
   protected readonly suggestionAvailable = computed(() => {
     const s = this.settlement();
@@ -962,11 +962,11 @@ export class CaseDetailComponent {
    * The repair shop's quote and the expert's valuation were typed in by an analyst when the report
    * came back, so asking to take them again is a click that checks nothing. Still editable.
    */
-  private precargarMontoDeProveedor(): void {
+  private prefillProviderAmount(): void {
     const s = this.settlement();
-    const deProveedor =
+    const fromProvider =
       s?.suggestedFrom === 'repair_report' || s?.suggestedFrom === 'expert_report';
-    if (this.needsAccreditedAmount() && s?.suggestedFor === 'ACCREDITED_AMOUNT' && deProveedor) {
+    if (this.needsAccreditedAmount() && s?.suggestedFor === 'ACCREDITED_AMOUNT' && fromProvider) {
       this.takeSuggestion();
     }
   }
@@ -1015,12 +1015,12 @@ export class CaseDetailComponent {
    * The breakdown still shows the previous value: what's typed hasn't reached the backend yet.
    * Blocks confirming so nobody authorizes an amount computed from a figure they already changed.
    */
-  protected readonly recalculoPendiente = computed(
+  protected readonly recalculationPending = computed(
     () => this.replacementTyped() !== this.replacementApplied(),
   );
 
   /** Recalculates on its own once the analyst stops typing; a button was a step easy to forget. */
-  private readonly autoRecalculo = toObservable(this.replacementInput)
+  private readonly autoRecalculation = toObservable(this.replacementInput)
     .pipe(debounceTime(500), takeUntilDestroyed())
     .subscribe(() => this.applyReplacementValue());
 
@@ -1211,10 +1211,10 @@ export class CaseDetailComponent {
       switchMap(([id]) =>
         this.service
           .derivations(id as unknown as number)
-          .pipe(catchError(() => of<Derivacion[]>([]))),
+          .pipe(catchError(() => of<Derivation[]>([]))),
       ),
     ),
-    { initialValue: [] as Derivacion[] },
+    { initialValue: [] as Derivation[] },
   );
 
   protected readonly expertDerivation = computed(
@@ -1285,7 +1285,7 @@ export class CaseDetailComponent {
 
   /** The calculated amount exceeds the branch limit: approving needs the supervisor's sign-off. */
   protected readonly exceedsAuthority = computed(() => {
-    const s = this.settlementEnPagina();
+    const s = this.displayedSettlement();
     return this.withAnalyst() && s?.authorityLimit != null && s.calculatedAmount > s.authorityLimit;
   });
 
@@ -1321,16 +1321,16 @@ export class CaseDetailComponent {
     this.derivations().filter((p) => p.verdict || p.repairOutcome),
   );
 
-  protected derivationResult(p: Derivacion): string {
+  protected derivationResult(p: Derivation): string {
     const isRepairDerivation = p.providerType === 'SERVICIO_TECNICO';
     const outcome = p.verdict ? verdictLabel(p.verdict) : repairOutcomeLabel(p.repairOutcome ?? '');
     const parsedAmount = isRepairDerivation ? p.repairCost : p.indemnifiableAmount;
     // A repair outcome already names its source; the prefix made the badge overflow the card.
-    const texto = isRepairDerivation ? outcome : `Perito: ${outcome}`;
-    return parsedAmount != null ? `${texto} · ${this.formatAmount(parsedAmount)}` : texto;
+    const badgeText = isRepairDerivation ? outcome : `Perito: ${outcome}`;
+    return parsedAmount != null ? `${badgeText} · ${this.formatAmount(parsedAmount)}` : badgeText;
   }
 
-  protected derivationResultTone(p: Derivacion): StatusTone {
+  protected derivationResultTone(p: Derivation): StatusTone {
     return p.verdict ? verdictTone(p.verdict) : 'neutral';
   }
 
@@ -1382,7 +1382,7 @@ export class CaseDetailComponent {
   });
 
   /** Only the missing catalog entry: a claim cause that doesn't go to repair needs no notice. */
-  protected readonly motivoSinServicioTecnico = computed<string | null>(() => {
+  protected readonly noRepairShopReason = computed<string | null>(() => {
     const options = this.repairOptions();
     if (!this.withAnalyst() || this.repairDerivation()) {
       return null;
@@ -1398,28 +1398,28 @@ export class CaseDetailComponent {
     () => this.derivationType() === 'SERVICIO_TECNICO',
   );
 
-  protected readonly proveedorOptions = computed<SelectOption[]>(() =>
+  protected readonly providerOptions = computed<SelectOption[]>(() =>
     (
       (this.isRepairReferral() ? this.repairOptions() : this.derivationOptions())?.providers ?? []
     ).map((provider) => ({
       value: String(provider.id),
       // Branches tell specialist from generalist; area matters because the device must be
       // inspected in person.
-      label: [provider.name, ramosLabel(provider.branches), provider.zone]
+      label: [provider.name, branchesLabel(provider.branches), provider.zone]
         .filter(Boolean)
         .join(' · '),
     })),
   );
 
   protected readonly showDerive = signal(false);
-  protected readonly proveedorElegido = signal('');
+  protected readonly chosenProvider = signal('');
   protected readonly derivationReason = signal('');
   protected readonly deriveSaving = signal(false);
   protected readonly deriveError = signal<string | null>(null);
 
   askDerive(providerKind: ProviderType = 'ESTUDIO_LIQUIDADOR'): void {
     this.derivationType.set(providerKind);
-    this.proveedorElegido.set('');
+    this.chosenProvider.set('');
     this.derivationReason.set('');
     this.deriveError.set(null);
     this.showDerive.set(true);
@@ -1431,14 +1431,14 @@ export class CaseDetailComponent {
 
   confirmDerive(): void {
     const d = this.data();
-    const proveedor = this.proveedorElegido();
+    const providerId = this.chosenProvider();
     const reasonText = this.derivationReason().trim();
-    if (!d || !proveedor || !reasonText) {
+    if (!d || !providerId || !reasonText) {
       return;
     }
     this.deriveSaving.set(true);
     this.deriveError.set(null);
-    this.service.derive(d.id, Number(proveedor), reasonText, this.derivationType()).subscribe({
+    this.service.derive(d.id, Number(providerId), reasonText, this.derivationType()).subscribe({
       next: (assessment) => {
         this.deriveSaving.set(false);
         this.showDerive.set(false);
@@ -1528,7 +1528,7 @@ export class CaseDetailComponent {
   }
 
   /** Kept for the confirmation modal: the only signal that the email went out. */
-  protected readonly derivationDone = signal<Derivacion | null>(null);
+  protected readonly derivationDone = signal<Derivation | null>(null);
   // Kept apart from data(), which is empty while the case reloads behind the modal.
   protected readonly derivationDoneCaseId = signal<number | null>(null);
 

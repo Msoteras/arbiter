@@ -163,7 +163,7 @@
                       }
                     }
                     <!-- Hidden at zero: it means an input is missing, not that nothing is owed. -->
-                    @if (settlementEnPagina(); as s) {
+                    @if (displayedSettlement(); as s) {
                       @if (s.calculatedAmount > 0) {
                         <span
                           >Monto a pagar
@@ -238,7 +238,7 @@
                   Peritaje no disponible <app-info-tip>{{ blockReason }}</app-info-tip>
                 </p>
               }
-              @if (motivoSinServicioTecnico(); as blockReason) {
+              @if (noRepairShopReason(); as blockReason) {
                 <p class="rcard-note">
                   Servicio técnico no disponible <app-info-tip>{{ blockReason }}</app-info-tip>
                 </p>
@@ -1332,9 +1332,9 @@
     }
   </p>
   <app-select
-    [options]="proveedorOptions()"
+    [options]="providerOptions()"
     [placeholder]="isRepairReferral() ? 'Elegí un servicio técnico…' : 'Elegí un perito…'"
-    [(value)]="proveedorElegido"
+    [(value)]="chosenProvider"
   />
   <app-textarea
     [rows]="3"
@@ -1347,7 +1347,7 @@
   <ng-container modalActions>
     <app-button variant="secondary" (click)="cancelDerive()">Cancelar</app-button>
     <app-button
-      [disabled]="!proveedorElegido() || !derivationReason().trim() || deriveSaving()"
+      [disabled]="!chosenProvider() || !derivationReason().trim() || deriveSaving()"
       (click)="confirmDerive()"
     >
       {{ deriveSaving() ? 'Derivando…' : 'Derivar' }}

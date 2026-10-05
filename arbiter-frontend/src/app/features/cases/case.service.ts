@@ -7,12 +7,12 @@ import { CaseResponse } from '../../core/models/case';
 import { CaseDocument } from '../../core/models/case-document';
 import { Policy } from '../../core/models/policy';
 import {
-  Derivacion,
+  Derivation,
   ExpertVerdict,
   DerivationOptions,
   ProviderType,
   RepairOutcome,
-} from '../../core/models/derivacion';
+} from '../../core/models/derivation';
 import { FraudRecord, RegisterFraudRecordRequest } from '../../core/models/fraud-record';
 
 export interface CaseCreateRequest {
@@ -375,8 +375,8 @@ export class CaseService {
   }
 
   /** Newest first. */
-  derivations(caseId: number): Observable<Derivacion[]> {
-    return this.http.get<Derivacion[]>(`${this.baseUrl}/${caseId}/expert-assessment/all`);
+  derivations(caseId: number): Observable<Derivation[]> {
+    return this.http.get<Derivation[]>(`${this.baseUrl}/${caseId}/expert-assessment/all`);
   }
 
   derive(
@@ -384,8 +384,8 @@ export class CaseService {
     providerId: number,
     reason: string,
     providerType: ProviderType = 'ESTUDIO_LIQUIDADOR',
-  ): Observable<Derivacion> {
-    return this.http.post<Derivacion>(
+  ): Observable<Derivation> {
+    return this.http.post<Derivation>(
       `${this.baseUrl}/${caseId}/expert-assessment`,
       { providerId, reason },
       { params: { providerType } },
@@ -398,7 +398,7 @@ export class CaseService {
     note: string,
     repairCost: number | null,
     report: File,
-  ): Observable<Derivacion> {
+  ): Observable<Derivation> {
     const formData = new FormData();
     formData.append('report', report);
     formData.append('outcome', outcome);
@@ -407,7 +407,7 @@ export class CaseService {
     if (repairCost != null) {
       formData.append('repairCost', String(repairCost));
     }
-    return this.http.post<Derivacion>(
+    return this.http.post<Derivation>(
       `${this.baseUrl}/${caseId}/expert-assessment/repair-report`,
       formData,
     );
@@ -420,7 +420,7 @@ export class CaseService {
     note: string,
     indemnifiableAmount: number | null,
     report: File,
-  ): Observable<Derivacion> {
+  ): Observable<Derivation> {
     // In the body, not the query string: the note may contain personal data that would end up in
     // proxy logs. @RequestParam reads multipart fields too.
     const formData = new FormData();
@@ -431,7 +431,7 @@ export class CaseService {
     if (indemnifiableAmount != null) {
       formData.append('indemnifiableAmount', String(indemnifiableAmount));
     }
-    return this.http.post<Derivacion>(
+    return this.http.post<Derivation>(
       `${this.baseUrl}/${caseId}/expert-assessment/report`,
       formData,
     );
