@@ -1,0 +1,334 @@
+/* Second half of the rules screen styles, split from rules.component.scss to stay under Angular's
+   `anyComponentStyle` budget. Both are concatenated in `styleUrls` order, so the cascade is the same
+   as a single file: moving a block between them can change which rule wins. */
+
+/* ───────── Hard Stop ───────── */
+/* Red, unlike Fast Track's: the only rules that can stop the insured from filing a claim. */
+.hs-banner {
+  display: flex;
+  gap: var(--space-3);
+  margin: 0 0 var(--space-4);
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--status-danger) 35%, transparent);
+  border-radius: var(--radius-ctl);
+  background: color-mix(in srgb, var(--status-danger) 7%, transparent);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+}
+.hs-banner-icon {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-pill);
+  background: var(--status-danger);
+  color: var(--text-on-emphasis);
+  font-size: var(--font-size-2xs);
+  font-weight: var(--font-weight-bold);
+}
+
+.hs-rules {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.hs-rule {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-card);
+}
+.hs-rule.on {
+  border-left: 3px solid var(--accent-fg);
+  background: var(--surface-soft);
+}
+.hs-rule-text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  align-items: flex-start;
+}
+.hs-rule-text .rule-hint {
+  margin: 0;
+}
+.hs-rule-switch {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.hs-arrears {
+  max-width: 260px;
+}
+
+/* Red only when it actually blocks. */
+.hs-effect {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border-control);
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: var(--font-size-xs);
+}
+.hs-effect::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--text-tertiary);
+}
+/* Accent, not red: it states the configured (active) state; the banner already warns. */
+.hs-effect.blocks {
+  border-color: var(--selected-border);
+  background: var(--selected-bg);
+  color: var(--accent-fg);
+}
+.hs-effect.blocks::before {
+  background: var(--accent-fg);
+}
+
+/* ───────── Document agenda: document × claim cause matrix ───────── */
+/* With `table-layout: fixed`, fixing the first column's width spreads the rest evenly. */
+.doc-col {
+  text-align: center !important;
+  vertical-align: bottom;
+}
+.doc-col,
+.doc-col-name {
+  white-space: normal !important;
+}
+/* table-layout: fixed takes widths from the first row, so it goes on the header th. */
+.doc-head-name {
+  width: 34%;
+}
+.doc-col-name {
+  display: block;
+  color: var(--text-secondary);
+}
+.doc-col-count {
+  display: block;
+  margin-top: var(--space-1);
+  font-size: var(--font-size-2xs);
+  color: var(--text-muted);
+  text-transform: none;
+  letter-spacing: 0;
+}
+/* Row content, not a column header: no header th styling. */
+.doc-row-name {
+  font-weight: var(--font-weight-regular);
+  color: var(--text-primary);
+  white-space: normal !important;
+}
+.doc-cell {
+  text-align: center !important;
+}
+/* Only the box, centered: the kit checkbox's height and label aren't needed (name is .sr-only). */
+.doc-cell app-checkbox {
+  display: inline-block;
+}
+/* No width: with width:100% the box centered on the cell but not the header (asymmetric padding). */
+.doc-cell ::ng-deep .cb {
+  min-height: 0;
+  justify-content: center;
+  gap: 0;
+}
+
+.doc-legend {
+  display: flex;
+  gap: var(--space-4);
+  margin: var(--space-3) 0 0;
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+}
+.doc-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.doc-legend-box {
+  width: 14px;
+  height: 14px;
+  border: 1px solid var(--border-control);
+  border-radius: 3px;
+  background: var(--surface);
+}
+.doc-legend-box.on {
+  background: var(--accent-strong);
+  border-color: var(--accent-strong);
+  position: relative;
+}
+.doc-legend-box.on::after {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 1px;
+  width: 4px;
+  height: 8px;
+  border: solid var(--text-on-emphasis);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+/* ───────── Fast Track ───────── */
+.ft-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-3);
+}
+.ft-head .card-title {
+  margin: 0;
+}
+.ft-sections {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+/* Picker of the coverage being edited: separated from the sections below like the banner is. */
+.ft-coverage {
+  margin-bottom: var(--space-4);
+}
+.ft-coverage .section-hint {
+  margin: var(--space-1) 0 0;
+}
+
+.ft-banner {
+  display: flex;
+  gap: var(--space-3);
+  margin: 0 0 var(--space-4);
+  padding: var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-ctl);
+  background: var(--surface-soft);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+}
+.ft-banner-icon {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--status-info);
+  color: var(--status-info);
+  font-size: var(--font-size-2xs);
+  font-weight: var(--font-weight-bold);
+}
+
+/* Replaces the threshold when the condition is off, instead of an empty-looking field. */
+.rule-off-note {
+  flex: 0 0 auto;
+  font-style: italic;
+}
+.rule-row.nested {
+  padding-left: calc(36px + var(--space-3));
+  background: var(--surface-soft);
+}
+
+/* ───────── Rule rows: switch, text and threshold on one line ───────── */
+.rule-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.rule-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+}
+.rule-row + .rule-row {
+  border-top: 1px solid var(--border-subtle);
+}
+.rule-text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.rule-hint {
+  margin: var(--space-1) 0 0;
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+}
+.rule-value {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: 0 0 auto;
+}
+.rule-value app-input {
+  width: 88px;
+}
+/* Dimmed, not hidden: the threshold stays editable before enabling the rule. */
+.rule-row.off .rule-text,
+.rule-row.off .rule-value {
+  opacity: 0.55;
+}
+
+@media (max-width: 640px) {
+  .rule-row {
+    flex-wrap: wrap;
+  }
+  .rule-value {
+    width: 100%;
+    padding-left: calc(36px + var(--space-3));
+  }
+}
+
+.remove-cov {
+  flex-shrink: 0;
+}
+
+.cov-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-3);
+}
+/* Settlement selects carry longer options; wider columns keep them readable whole. */
+.cov-fields.wide {
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.cov-warning {
+  margin-top: var(--space-3);
+}
+.chip {
+  font: inherit;
+  font-size: var(--font-size-sm);
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--border-control);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.chip:hover {
+  border-color: var(--border-strong);
+}
+.chip.active {
+  background: var(--selected-bg);
+  border-color: var(--selected-border);
+  color: var(--accent-fg);
+}

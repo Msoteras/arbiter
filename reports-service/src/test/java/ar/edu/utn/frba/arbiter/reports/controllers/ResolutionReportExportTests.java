@@ -26,7 +26,7 @@ import java.util.Date;
 import static ar.edu.utn.frba.arbiter.reports.support.CaseTables.APPROVED;
 import static ar.edu.utn.frba.arbiter.reports.support.CaseTables.LAURA;
 import static ar.edu.utn.frba.arbiter.reports.support.CaseTables.PENDING_REVIEW;
-import static ar.edu.utn.frba.arbiter.reports.support.CaseTables.ROBO_CELULARES;
+import static ar.edu.utn.frba.arbiter.reports.support.CaseTables.PHONES_ROBBERY;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -62,7 +62,7 @@ class ResolutionReportExportTests extends AbstractPersistenceIT {
     void seedResolvedCase() {
         tables.reset();
         tables.decision(1, "APPROVE", LAURA);
-        tables.insertCase(1, "2026-08-01T10:00:00Z", APPROVED, ROBO_CELULARES, false, LAURA, 1L);
+        tables.insertCase(1, "2026-08-01T10:00:00Z", APPROVED, PHONES_ROBBERY, false, LAURA, 1L);
         tables.transition(1, PENDING_REVIEW, APPROVED, "2026-08-03T12:30:00Z");
         tables.recommendation(1, "LLM_RECOMIENDA_APROBAR");
     }

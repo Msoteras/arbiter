@@ -172,36 +172,36 @@ class PolicySynchronizerTest {
     @Test
     void resyncBringsTheLocalCopyBackInLineWithTheCompany() {
         givenRemotePolicyWithCoverages(coverageResponse("Hurto", "360000"));
-        Coverage hurto = coverage(2L, "Hurto", 1L);
-        when(coverageRepository.findByName("Hurto")).thenReturn(Optional.of(hurto));
-        PolicyCoverage desactualizada = PolicyCoverage.builder()
-                .id(7L).policyId(1L).coverage(hurto).displayOrder(1)
+        Coverage theft = coverage(2L, "Hurto", 1L);
+        when(coverageRepository.findByName("Hurto")).thenReturn(Optional.of(theft));
+        PolicyCoverage stale = PolicyCoverage.builder()
+                .id(7L).policyId(1L).coverage(theft).displayOrder(1)
                 .sumInsured(new BigDecimal("450000")).deductiblePct(new BigDecimal("10.00"))
                 .build();
         when(policyCoverageRepository.findByPolicyIdAndCoverageId(1L, 2L))
-                .thenReturn(Optional.of(desactualizada));
+                .thenReturn(Optional.of(stale));
         when(policyCoverageRepository.findByPolicyIdOrderByDisplayOrderAsc(1L))
-                .thenReturn(List.of(desactualizada));
+                .thenReturn(List.of(stale));
         savesWhatItIsGiven();
 
-        int cambios = synchronizer.resync(local());
+        int changes = synchronizer.resync(local());
 
-        assertThat(cambios).isEqualTo(1);
-        assertThat(desactualizada.getSumInsured()).isEqualByComparingTo("360000");
+        assertThat(changes).isEqualTo(1);
+        assertThat(stale.getSumInsured()).isEqualByComparingTo("360000");
     }
 
     /** No differences, no writes. */
     @Test
     void resyncOfAnAlreadyAlignedPolicyChangesNothing() {
         givenRemotePolicyWithCoverages(coverageResponse("Hurto", "360000"));
-        Coverage hurto = coverage(2L, "Hurto", 1L);
-        when(coverageRepository.findByName("Hurto")).thenReturn(Optional.of(hurto));
-        PolicyCoverage alineada = PolicyCoverage.builder()
-                .id(7L).policyId(1L).coverage(hurto).displayOrder(1)
+        Coverage theft = coverage(2L, "Hurto", 1L);
+        when(coverageRepository.findByName("Hurto")).thenReturn(Optional.of(theft));
+        PolicyCoverage aligned = PolicyCoverage.builder()
+                .id(7L).policyId(1L).coverage(theft).displayOrder(1)
                 .sumInsured(new BigDecimal("360000.00")).deductiblePct(new BigDecimal("10.00"))
                 .build();
-        when(policyCoverageRepository.findByPolicyIdAndCoverageId(1L, 2L)).thenReturn(Optional.of(alineada));
-        when(policyCoverageRepository.findByPolicyIdOrderByDisplayOrderAsc(1L)).thenReturn(List.of(alineada));
+        when(policyCoverageRepository.findByPolicyIdAndCoverageId(1L, 2L)).thenReturn(Optional.of(aligned));
+        when(policyCoverageRepository.findByPolicyIdOrderByDisplayOrderAsc(1L)).thenReturn(List.of(aligned));
         savesWhatItIsGiven();
 
         assertThat(synchronizer.resync(local())).isZero();
@@ -212,16 +212,16 @@ class PolicySynchronizerTest {
     @Test
     void resyncNeverDeletesACoverageTheCompanyStoppedReturning() {
         givenRemotePolicyWithCoverages(coverageResponse("Robo de celular", "900000"));
-        Coverage robo = coverage(1L, "Robo de celular", 1L);
-        Coverage hurto = coverage(2L, "Hurto", 1L);
-        when(coverageRepository.findByName("Robo de celular")).thenReturn(Optional.of(robo));
-        PolicyCoverage laQueYaNoEsta = PolicyCoverage.builder()
-                .id(8L).policyId(1L).coverage(hurto).displayOrder(2)
+        Coverage robbery = coverage(1L, "Robo de celular", 1L);
+        Coverage theft = coverage(2L, "Hurto", 1L);
+        when(coverageRepository.findByName("Robo de celular")).thenReturn(Optional.of(robbery));
+        PolicyCoverage noLongerOffered = PolicyCoverage.builder()
+                .id(8L).policyId(1L).coverage(theft).displayOrder(2)
                 .sumInsured(new BigDecimal("450000")).deductiblePct(new BigDecimal("10.00"))
                 .build();
         when(policyCoverageRepository.findByPolicyIdAndCoverageId(1L, 1L)).thenReturn(Optional.empty());
         when(policyCoverageRepository.findByPolicyIdOrderByDisplayOrderAsc(1L))
-                .thenReturn(List.of(laQueYaNoEsta));
+                .thenReturn(List.of(noLongerOffered));
         savesWhatItIsGiven();
 
         synchronizer.resync(local());

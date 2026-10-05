@@ -45,8 +45,8 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class ClassificationOrchestratorCauseConsistencyTest {
 
-    private static final long ROBO_ID = 2L;
-    private static final long HURTO_ID = 3L;
+    private static final long ROBBERY_ID = 2L;
+    private static final long THEFT_ID = 3L;
 
     @Mock private ClaimClassifier classifier;
     @Mock private RulesAdapter rulesAdapter;
@@ -89,13 +89,13 @@ class ClassificationOrchestratorCauseConsistencyTest {
         // Broad default: the catalog asks this for every cause of the branch.
         lenient().when(coverageRuleEvaluator.isExcluded(any(), any())).thenReturn(false);
         when(claimCauseRepository.findByBranch_NameIgnoreCaseOrderByNameAsc("Celulares"))
-                .thenReturn(List.of(claimCause(ROBO_ID, "Robo en vía pública"),
-                        claimCause(HURTO_ID, "Hurto")));
+                .thenReturn(List.of(claimCause(ROBBERY_ID, "Robo en vía pública"),
+                        claimCause(THEFT_ID, "Hurto")));
     }
 
     @Test
     void contradicts_withAnExcludedCause_recommendsNotApproving() {
-        lenient().when(coverageRuleEvaluator.isExcluded(eq(HURTO_ID), any())).thenReturn(true);
+        lenient().when(coverageRuleEvaluator.isExcluded(eq(THEFT_ID), any())).thenReturn(true);
         stubModel(CauseConsistency.CONTRADICTS, "Hurto",
                 "Dejé el celular sobre la mesa y cuando volví no estaba");
 
@@ -154,7 +154,7 @@ class ClassificationOrchestratorCauseConsistencyTest {
 
     @Test
     void theCatalogTravelsToThePromptWithEachCausesCoverage() {
-        lenient().when(coverageRuleEvaluator.isExcluded(eq(HURTO_ID), any())).thenReturn(true);
+        lenient().when(coverageRuleEvaluator.isExcluded(eq(THEFT_ID), any())).thenReturn(true);
         stubModel(CauseConsistency.MATCHES, null, null);
 
         classify();
@@ -162,8 +162,8 @@ class ClassificationOrchestratorCauseConsistencyTest {
         ArgumentCaptor<ClassificationRequest> request = ArgumentCaptor.forClass(ClassificationRequest.class);
         verify(classifier).classify(request.capture());
         assertThat(request.getValue().claimCauseCatalog()).containsExactly(
-                new ClassificationRequest.ClaimCauseOption(ROBO_ID, "Robo en vía pública", true),
-                new ClassificationRequest.ClaimCauseOption(HURTO_ID, "Hurto", false));
+                new ClassificationRequest.ClaimCauseOption(ROBBERY_ID, "Robo en vía pública", true),
+                new ClassificationRequest.ClaimCauseOption(THEFT_ID, "Hurto", false));
     }
 
     private ClassificationResponse classify() {

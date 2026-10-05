@@ -50,7 +50,7 @@ class ClassificationOrchestratorDocumentGateTest {
             List.of("police_report", "purchase_proof", "imei_deregistration", "last_connection");
 
     /** The short list Fast Track requires, the only one asked for at intake. */
-    private static final List<String> MINIMOS = List.of("police_report", "purchase_proof");
+    private static final List<String> MINIMUM_DOCS = List.of("police_report", "purchase_proof");
 
     @Mock private ClaimClassifier classifier;
     @Mock private RulesAdapter rulesAdapter;
@@ -100,15 +100,15 @@ class ClassificationOrchestratorDocumentGateTest {
                 .thenReturn(new FastTrackValidator.Result(true, List.of("Primer siniestro"), List.of()));
 
         ClassificationResponse response = orchestrator.classify(
-                RiskFixtures.claim(new BigDecimal("100000")), attachments(MINIMOS));
+                RiskFixtures.claim(new BigDecimal("100000")), attachments(MINIMUM_DOCS));
 
         assertThat(response.classification()).isEqualTo(Classification.FAST_TRACK);
         verify(classifier, never()).classify(any());
     }
 
-    /** The acta narrates a hurto, a robo was declared: stays FAST_TRACK, with the warning and the audit row. */
+    /** The police report narrates a theft, a robbery was declared: stays FAST_TRACK, with the warning and the audit row. */
     @Test
-    void anActaNarratingAnotherCause_staysFastTrackButWarns() {
+    void aPoliceReportNarratingAnotherCause_staysFastTrackButWarns() {
         when(fastTrackValidator.evaluate(any(), any(), any(), any(), any()))
                 .thenReturn(new FastTrackValidator.Result(true, List.of("Primer siniestro"), List.of()));
         when(documentAnalyzer.extract(any(), any(), any())).thenReturn(new DocumentExtraction(
@@ -116,7 +116,7 @@ class ClassificationOrchestratorDocumentGateTest {
                 new DocumentExtraction.Fields(null, null, null, null, null, null, null, "Hurto", List.of())));
 
         ClassificationResponse response = orchestrator.classify(
-                RiskFixtures.claim(new BigDecimal("100000")), attachments(MINIMOS));
+                RiskFixtures.claim(new BigDecimal("100000")), attachments(MINIMUM_DOCS));
 
         assertThat(response.classification()).isEqualTo(Classification.FAST_TRACK);
         assertThat(response.factors()).anyMatch(f -> f.contains("describe «Hurto»"));
@@ -137,7 +137,7 @@ class ClassificationOrchestratorDocumentGateTest {
                 DocumentExtraction.Fields.none()));
 
         ClassificationResponse response = orchestrator.classify(
-                RiskFixtures.claim(new BigDecimal("100000")), attachments(MINIMOS));
+                RiskFixtures.claim(new BigDecimal("100000")), attachments(MINIMUM_DOCS));
 
         assertThat(response.classification()).isEqualTo(Classification.FAST_TRACK);
         assertThat(response.factors())
@@ -155,7 +155,7 @@ class ClassificationOrchestratorDocumentGateTest {
                 .thenReturn(new FastTrackValidator.Result(true, List.of("Primer siniestro"), List.of()));
 
         ClassificationResponse response = orchestrator.classify(
-                RiskFixtures.claim(new BigDecimal("100000")), attachments(MINIMOS));
+                RiskFixtures.claim(new BigDecimal("100000")), attachments(MINIMUM_DOCS));
 
         assertThat(response.ruleFindings() == null ? List.<RuleFinding>of() : response.ruleFindings())
                 .noneMatch(finding -> finding.ruleType().equals("VISUAL_TAMPERING"));
@@ -170,7 +170,7 @@ class ClassificationOrchestratorDocumentGateTest {
                         false, List.of("Monto reclamado supera el tope"), List.of(gateFinding)));
 
         ClassificationResponse response = orchestrator.classify(
-                RiskFixtures.claim(new BigDecimal("100000")), attachments(MINIMOS));
+                RiskFixtures.claim(new BigDecimal("100000")), attachments(MINIMUM_DOCS));
 
         assertThat(response.classification()).isEqualTo(Classification.FALTA_DOCUMENTACION);
         assertThat(response.factors())
@@ -207,7 +207,7 @@ class ClassificationOrchestratorDocumentGateTest {
         return RiskFixtures.rules(null).toBuilder()
                 .requiredDocumentTypes(AGENDA)
                 .fastTrackThresholds(new BusinessRules.FastTrackThresholds(
-                        0.5, 0, null, null, true, MINIMOS))
+                        0.5, 0, null, null, true, MINIMUM_DOCS))
                 .build();
     }
 

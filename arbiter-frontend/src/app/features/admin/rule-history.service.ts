@@ -3,7 +3,7 @@ import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 
 import { environment } from '../../../environments/environment';
-import { PagedResponse } from '../expedientes/expediente.service';
+import { PagedResponse } from '../cases/case.service';
 
 /** Audit table the entry came from: rules and scoring are versioned separately. */
 export type RuleChangeSource = 'INSURER_RULE' | 'SCORING';

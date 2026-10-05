@@ -28,17 +28,6 @@ class HostComponent {
   width = 200;
 }
 
-/** ResizeObserver delivers its callback before a paint, never synchronously. */
-async function settle(
-  fixture: ComponentFixture<HostComponent>,
-  until: () => boolean,
-): Promise<void> {
-  for (let frame = 0; frame < 20 && !until(); frame++) {
-    await new Promise((resolve) => requestAnimationFrame(resolve));
-    fixture.detectChanges();
-  }
-}
-
 describe('TableComponent', () => {
   let fixture: ComponentFixture<HostComponent>;
 
@@ -62,7 +51,8 @@ describe('TableComponent', () => {
 
   /** A scrollable region that can't be reached by keyboard is a chunk of the page nobody can read. */
   it('becomes a keyboard-reachable region only while it actually scrolls', async () => {
-    await settle(fixture, () => table().getAttribute('role') === 'region');
+    await fixture.whenStable();
+    fixture.detectChanges();
 
     expect(table().getAttribute('tabindex')).toBe('0');
     expect(table().getAttribute('role')).toBe('region');
@@ -70,7 +60,8 @@ describe('TableComponent', () => {
 
     fixture.componentInstance.width = 2000;
     fixture.detectChanges();
-    await settle(fixture, () => table().getAttribute('role') === null);
+    table().dispatchEvent(new Event('scroll'));
+    fixture.detectChanges();
 
     expect(table().getAttribute('tabindex')).toBeNull();
     expect(table().getAttribute('role')).toBeNull();

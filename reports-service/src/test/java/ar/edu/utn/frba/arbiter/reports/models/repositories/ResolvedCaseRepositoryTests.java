@@ -18,15 +18,15 @@ import java.util.List;
 
 import static ar.edu.utn.frba.arbiter.reports.support.CaseTables.APPROVED;
 import static ar.edu.utn.frba.arbiter.reports.support.CaseTables.AWAITING_DOCUMENTATION;
-import static ar.edu.utn.frba.arbiter.reports.support.CaseTables.CELULARES;
-import static ar.edu.utn.frba.arbiter.reports.support.CaseTables.HURTO_CELULARES;
-import static ar.edu.utn.frba.arbiter.reports.support.CaseTables.HURTO_TECNOLOGIA;
+import static ar.edu.utn.frba.arbiter.reports.support.CaseTables.PHONES_BRANCH;
+import static ar.edu.utn.frba.arbiter.reports.support.CaseTables.PHONES_THEFT;
+import static ar.edu.utn.frba.arbiter.reports.support.CaseTables.PORTABLE_TECH_THEFT;
 import static ar.edu.utn.frba.arbiter.reports.support.CaseTables.LAPSED;
 import static ar.edu.utn.frba.arbiter.reports.support.CaseTables.LAURA;
 import static ar.edu.utn.frba.arbiter.reports.support.CaseTables.JUAN;
 import static ar.edu.utn.frba.arbiter.reports.support.CaseTables.PENDING_REVIEW;
 import static ar.edu.utn.frba.arbiter.reports.support.CaseTables.REJECTED;
-import static ar.edu.utn.frba.arbiter.reports.support.CaseTables.ROBO_CELULARES;
+import static ar.edu.utn.frba.arbiter.reports.support.CaseTables.PHONES_ROBBERY;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
@@ -62,7 +62,7 @@ class ResolvedCaseRepositoryTests extends AbstractPersistenceIT {
     @Test
     void resolvedCase_carriesTimesClassificationAndDecision() {
         tables.decision(1, "APPROVE", LAURA);
-        tables.insertCase(1, "2026-08-01T10:00:00Z", APPROVED, ROBO_CELULARES, false, LAURA, 1L);
+        tables.insertCase(1, "2026-08-01T10:00:00Z", APPROVED, PHONES_ROBBERY, false, LAURA, 1L);
         tables.transition(1, null, PENDING_REVIEW, "2026-08-01T10:00:00Z");
         tables.transition(1, PENDING_REVIEW, APPROVED, "2026-08-03T12:30:00Z");
         // Append-only: the report reads the newest run, not the first one.
@@ -90,7 +90,7 @@ class ResolvedCaseRepositoryTests extends AbstractPersistenceIT {
     /** The time waiting on third parties, per {@code CaseResolutionSql.WAITING_CTE}. */
     @Test
     void waitingOnAThirdParty_isMeasuredApartFromTheTotal() {
-        tables.insertCase(1, "2026-08-01T10:00:00Z", APPROVED, ROBO_CELULARES, false, LAURA, null);
+        tables.insertCase(1, "2026-08-01T10:00:00Z", APPROVED, PHONES_ROBBERY, false, LAURA, null);
         tables.transition(1, null, PENDING_REVIEW, "2026-08-01T10:00:00Z");
         tables.transition(1, PENDING_REVIEW, AWAITING_DOCUMENTATION, "2026-08-02T10:00:00Z");
         tables.transition(1, AWAITING_DOCUMENTATION, PENDING_REVIEW, "2026-08-04T10:00:00Z");
@@ -106,7 +106,7 @@ class ResolvedCaseRepositoryTests extends AbstractPersistenceIT {
 
     @Test
     void aCaseThatNeverWaited_hasNoWaitingTime() {
-        tables.insertCase(1, "2026-08-01T10:00:00Z", APPROVED, ROBO_CELULARES, false, LAURA, null);
+        tables.insertCase(1, "2026-08-01T10:00:00Z", APPROVED, PHONES_ROBBERY, false, LAURA, null);
         tables.transition(1, null, PENDING_REVIEW, "2026-08-01T10:00:00Z");
         tables.transition(1, PENDING_REVIEW, APPROVED, "2026-08-03T10:00:00Z");
 
@@ -117,12 +117,12 @@ class ResolvedCaseRepositoryTests extends AbstractPersistenceIT {
 
     @Test
     void openCasesAndClosingsOutsideThePeriod_areLeftOut() {
-        tables.insertCase(1, "2026-08-01T10:00:00Z", PENDING_REVIEW, ROBO_CELULARES, false, null, null);
+        tables.insertCase(1, "2026-08-01T10:00:00Z", PENDING_REVIEW, PHONES_ROBBERY, false, null, null);
         tables.transition(1, null, PENDING_REVIEW, "2026-08-01T10:00:00Z");
-        tables.insertCase(2, "2026-07-01T10:00:00Z", REJECTED, ROBO_CELULARES, false, null, null);
+        tables.insertCase(2, "2026-07-01T10:00:00Z", REJECTED, PHONES_ROBBERY, false, null, null);
         tables.transition(2, PENDING_REVIEW, REJECTED, "2026-07-31T23:00:00Z");
         // 00:30 of 01/09 in Buenos Aires is still 31/08 local — inside August.
-        tables.insertCase(3, "2026-08-20T10:00:00Z", REJECTED, ROBO_CELULARES, false, null, null);
+        tables.insertCase(3, "2026-08-20T10:00:00Z", REJECTED, PHONES_ROBBERY, false, null, null);
         tables.transition(3, PENDING_REVIEW, REJECTED, "2026-09-01T02:30:00Z");
 
         List<ResolutionReportRow> rows = repository.findResolvedBetween(AUGUST_FROM, AUGUST_TO, null, null);
@@ -132,7 +132,7 @@ class ResolvedCaseRepositoryTests extends AbstractPersistenceIT {
 
     @Test
     void reopenedCase_countsOnTheDayItClosedForGood() {
-        tables.insertCase(1, "2026-07-01T10:00:00Z", REJECTED, ROBO_CELULARES, false, null, null);
+        tables.insertCase(1, "2026-07-01T10:00:00Z", REJECTED, PHONES_ROBBERY, false, null, null);
         tables.transition(1, PENDING_REVIEW, REJECTED, "2026-07-20T15:00:00Z");
         tables.transition(1, REJECTED, PENDING_REVIEW, "2026-07-25T15:00:00Z");
         tables.transition(1, PENDING_REVIEW, REJECTED, "2026-08-10T15:00:00Z");
@@ -150,10 +150,10 @@ class ResolvedCaseRepositoryTests extends AbstractPersistenceIT {
     @Test
     void fastTrackWinsOverAModelRun_andALapsedCaseFallsBackToItsOwner() {
         tables.decision(1, "APPROVE", LAURA);
-        tables.insertCase(1, "2026-08-01T10:00:00Z", APPROVED, ROBO_CELULARES, true, null, 1L);
+        tables.insertCase(1, "2026-08-01T10:00:00Z", APPROVED, PHONES_ROBBERY, true, null, 1L);
         tables.transition(1, PENDING_REVIEW, APPROVED, "2026-08-01T11:00:00Z");
         tables.recommendation(1, "LLM_SOLICITA_REVISION_MANUAL");
-        tables.insertCase(2, "2025-02-01T10:00:00Z", LAPSED, ROBO_CELULARES, false, JUAN, null);
+        tables.insertCase(2, "2025-02-01T10:00:00Z", LAPSED, PHONES_ROBBERY, false, JUAN, null);
         tables.transition(2, null, LAPSED, "2026-08-02T10:00:00Z");
 
         List<ResolutionReportRow> rows = repository.findResolvedBetween(AUGUST_FROM, AUGUST_TO, null, null);
@@ -169,11 +169,11 @@ class ResolvedCaseRepositoryTests extends AbstractPersistenceIT {
 
     @Test
     void claimCauseFilter_matchesByNameAcrossBranches() {
-        tables.insertCase(1, "2026-08-01T10:00:00Z", APPROVED, HURTO_TECNOLOGIA, false, null, null);
+        tables.insertCase(1, "2026-08-01T10:00:00Z", APPROVED, PORTABLE_TECH_THEFT, false, null, null);
         tables.transition(1, PENDING_REVIEW, APPROVED, "2026-08-05T10:00:00Z");
-        tables.insertCase(2, "2026-08-01T10:00:00Z", APPROVED, ROBO_CELULARES, false, null, null);
+        tables.insertCase(2, "2026-08-01T10:00:00Z", APPROVED, PHONES_ROBBERY, false, null, null);
         tables.transition(2, PENDING_REVIEW, APPROVED, "2026-08-04T10:00:00Z");
-        tables.insertCase(3, "2026-08-01T10:00:00Z", REJECTED, HURTO_CELULARES, false, null, null);
+        tables.insertCase(3, "2026-08-01T10:00:00Z", REJECTED, PHONES_THEFT, false, null, null);
         tables.transition(3, PENDING_REVIEW, REJECTED, "2026-08-03T10:00:00Z");
 
         List<ResolutionReportRow> rows = repository.findResolvedBetween(AUGUST_FROM, AUGUST_TO, null, "Hurto");
@@ -185,13 +185,13 @@ class ResolvedCaseRepositoryTests extends AbstractPersistenceIT {
 
     @Test
     void branchFilter_keepsOnlyThatBranchesCases() {
-        tables.insertCase(1, "2026-08-01T10:00:00Z", APPROVED, HURTO_TECNOLOGIA, false, null, null);
+        tables.insertCase(1, "2026-08-01T10:00:00Z", APPROVED, PORTABLE_TECH_THEFT, false, null, null);
         tables.transition(1, PENDING_REVIEW, APPROVED, "2026-08-05T10:00:00Z");
-        tables.insertCase(2, "2026-08-01T10:00:00Z", APPROVED, ROBO_CELULARES, false, null, null);
+        tables.insertCase(2, "2026-08-01T10:00:00Z", APPROVED, PHONES_ROBBERY, false, null, null);
         tables.transition(2, PENDING_REVIEW, APPROVED, "2026-08-04T10:00:00Z");
 
         List<ResolutionReportRow> rows =
-                repository.findResolvedBetween(AUGUST_FROM, AUGUST_TO, CELULARES, null);
+                repository.findResolvedBetween(AUGUST_FROM, AUGUST_TO, PHONES_BRANCH, null);
 
         assertThat(rows).extracting(ResolutionReportRow::caseId).containsExactly(2L);
     }
@@ -199,22 +199,22 @@ class ResolvedCaseRepositoryTests extends AbstractPersistenceIT {
     /** The two filters narrow together: "Hurto" exists in both branches, this asks for one of them. */
     @Test
     void branchAndClaimCause_narrowTogether() {
-        tables.insertCase(1, "2026-08-01T10:00:00Z", APPROVED, HURTO_TECNOLOGIA, false, null, null);
+        tables.insertCase(1, "2026-08-01T10:00:00Z", APPROVED, PORTABLE_TECH_THEFT, false, null, null);
         tables.transition(1, PENDING_REVIEW, APPROVED, "2026-08-05T10:00:00Z");
-        tables.insertCase(2, "2026-08-01T10:00:00Z", APPROVED, HURTO_CELULARES, false, null, null);
+        tables.insertCase(2, "2026-08-01T10:00:00Z", APPROVED, PHONES_THEFT, false, null, null);
         tables.transition(2, PENDING_REVIEW, APPROVED, "2026-08-04T10:00:00Z");
-        tables.insertCase(3, "2026-08-01T10:00:00Z", APPROVED, ROBO_CELULARES, false, null, null);
+        tables.insertCase(3, "2026-08-01T10:00:00Z", APPROVED, PHONES_ROBBERY, false, null, null);
         tables.transition(3, PENDING_REVIEW, APPROVED, "2026-08-03T10:00:00Z");
 
         List<ResolutionReportRow> rows =
-                repository.findResolvedBetween(AUGUST_FROM, AUGUST_TO, CELULARES, "Hurto");
+                repository.findResolvedBetween(AUGUST_FROM, AUGUST_TO, PHONES_BRANCH, "Hurto");
 
         assertThat(rows).extracting(ResolutionReportRow::caseId).containsExactly(2L);
     }
 
     @Test
     void branchName_comesFromTheCatalog_andIsNullWhenThereIsNoSuchBranch() {
-        assertThat(repository.findBranchName(CELULARES)).isEqualTo("Celulares");
+        assertThat(repository.findBranchName(PHONES_BRANCH)).isEqualTo("Celulares");
         assertThat(repository.findBranchName(999L)).isNull();
     }
 }

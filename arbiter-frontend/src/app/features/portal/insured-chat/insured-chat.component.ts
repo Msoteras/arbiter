@@ -11,17 +11,17 @@ import {
 } from '@angular/core';
 
 import { CaseMessageInboxItem, ChatEvent } from '../../../core/models/case-message';
-import { ExpedienteResponse } from '../../../core/models/expediente';
-import { movimientoAseguradoLabel } from '../../../core/models/estado';
-import { CaseMessagesService } from '../../expedientes/case-messages.service';
-import { ExpedienteService } from '../../expedientes/expediente.service';
-import { CaseChatPopupComponent } from '../../expedientes/case-chat-popup/case-chat-popup.component';
+import { CaseResponse } from '../../../core/models/case';
+import { insuredMovementLabel } from '../../../core/models/case-status';
+import { CaseMessagesService } from '../../cases/case-messages.service';
+import { CaseService } from '../../cases/case.service';
+import { CaseChatPopupComponent } from '../../cases/case-chat-popup/case-chat-popup.component';
 
 /**
  * The insured's side of the case chat: talks to the analyst who holds the case, and interleaves the
  * claim's milestones. Built from the status, never the history `reason`, which is internal.
  */
-export function insuredChatEvents(c: ExpedienteResponse): ChatEvent[] {
+export function insuredChatEvents(c: CaseResponse): ChatEvent[] {
   const docsAction = {
     label: 'Ir a Mis documentos',
     link: ['/portal/cases', c.id, 'documents'],
@@ -32,7 +32,7 @@ export function insuredChatEvents(c: ExpedienteResponse): ChatEvent[] {
       .map((h) => ({
         at: h.changedAt,
         toStatus: h.toStatus,
-        label: movimientoAseguradoLabel(h.toStatus, h.fromStatus),
+        label: insuredMovementLabel(h.toStatus, h.fromStatus),
       }))
       .filter((e): e is { at: string; toStatus: string; label: string } => e.label !== null)
       // Consecutive repeats (e.g. classification retries) are one milestone.
@@ -91,16 +91,16 @@ export function initialsOf(name: string | null | undefined): string {
 })
 export class InsuredChatComponent {
   private readonly messages = inject(CaseMessagesService);
-  private readonly expedientes = inject(ExpedienteService);
+  private readonly caseService = inject(CaseService);
 
   readonly open = model(false);
   readonly caseId = input.required<number>();
   readonly insurer = input<string | null | undefined>(null);
   /** Pass it when the page already has the case; otherwise it's fetched on open. */
-  readonly caseData = input<ExpedienteResponse | null>(null);
+  readonly caseData = input<CaseResponse | null>(null);
   readonly launcher = input(false);
 
-  private readonly fetched = signal<ExpedienteResponse | null>(null);
+  private readonly fetched = signal<CaseResponse | null>(null);
   private readonly detail = computed(() => this.caseData() ?? this.fetched());
   private readonly inboxItem = computed(() =>
     this.messages.inboxItem(this.caseId(), this.insurer()),
@@ -138,7 +138,7 @@ export class InsuredChatComponent {
         const stale = current?.id !== id || current?.insurerSlug !== this.insurer();
         if (open && !this.caseData() && stale) {
           this.fetched.set(null);
-          this.expedientes.getById(id, this.insurer()).subscribe({
+          this.caseService.getById(id, this.insurer()).subscribe({
             next: (data) => this.fetched.set(data),
             error: () => undefined,
           });

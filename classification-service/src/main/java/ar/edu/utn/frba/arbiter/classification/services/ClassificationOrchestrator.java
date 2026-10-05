@@ -546,8 +546,8 @@ public class ClassificationOrchestrator {
         Classification rerouted = suggestedExcluded
                 ? Classification.LLM_NO_RECOMIENDA_APROBAR
                 : Classification.LLM_SOLICITA_REVISION_MANUAL;
-        log.info("[Orchestrator] Relato inconsistente — declarado='{}' sugerido='{}' (id={}, excluido={}) "
-                        + "⇒ {} (el modelo había devuelto {})",
+        log.info("[Orchestrator] Inconsistent narrative — declared='{}' suggested='{}' (id={}, excluded={}) "
+                        + "⇒ {} (the model had returned {})",
                 claim.claimCause(), suggested, suggestedId, suggestedExcluded,
                 rerouted, response.classification());
 

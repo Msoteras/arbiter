@@ -104,25 +104,25 @@ export function chatListStamp(value: string | Date, now: Date = new Date()): str
 }
 
 /** Greeting by time of day: morning 6–13, afternoon 13–20, night otherwise. */
-export function saludoSegunHora(now: Date = new Date()): string {
-  const hora = now.getHours();
-  if (hora >= 6 && hora < 13) {
+export function greetingForTimeOfDay(now: Date = new Date()): string {
+  const hour = now.getHours();
+  if (hour >= 6 && hour < 13) {
     return 'Buenos días';
   }
-  if (hora >= 13 && hora < 20) {
+  if (hour >= 13 && hour < 20) {
     return 'Buenas tardes';
   }
   return 'Buenas noches';
 }
 
 /** e.g. "Martes 10 de agosto"; capitalized because es-AR returns the weekday in lowercase. */
-export function fechaLarga(now: Date = new Date()): string {
-  const texto = now.toLocaleDateString('es-AR', {
+export function longDate(now: Date = new Date()): string {
+  const text = now.toLocaleDateString('es-AR', {
     weekday: 'long',
     day: 'numeric',
     month: 'long',
   });
-  return texto.charAt(0).toUpperCase() + texto.slice(1);
+  return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
 /**

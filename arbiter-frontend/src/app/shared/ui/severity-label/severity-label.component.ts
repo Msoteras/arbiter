@@ -1,14 +1,14 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 
-type Severity = 'bajo' | 'medio' | 'alto';
+type Severity = 'low' | 'medium' | 'high';
 
 /** Severity is conveyed by font weight and a triangle glyph, never by color (design rule). */
 @Component({
   selector: 'app-severity-label',
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <span class="sev" [class.medio]="level() === 'medio'" [class.alto]="level() === 'alto'">
-      @if (level() !== 'bajo') {
+    <span class="sev" [class.medium]="level() === 'medium'" [class.high]="level() === 'high'">
+      @if (level() !== 'low') {
         <span class="tri" aria-hidden="true">▲</span>
       }
       {{ text() }}
@@ -22,11 +22,11 @@ type Severity = 'bajo' | 'medio' | 'alto';
       gap: 3px;
       align-items: center;
     }
-    .sev.medio {
+    .sev.medium {
       color: var(--text-tertiary);
       font-weight: var(--font-weight-medium);
     }
-    .sev.alto {
+    .sev.high {
       color: var(--text-primary);
       font-weight: var(--font-weight-bold);
     }
@@ -38,6 +38,6 @@ type Severity = 'bajo' | 'medio' | 'alto';
 export class SeverityLabelComponent {
   readonly level = input.required<Severity>();
   protected readonly text = computed(
-    () => ({ bajo: 'Bajo', medio: 'Medio', alto: 'Alto' })[this.level()],
+    () => ({ low: 'Bajo', medium: 'Medio', high: 'Alto' })[this.level()],
   );
 }
