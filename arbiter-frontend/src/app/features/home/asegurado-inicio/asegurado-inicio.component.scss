@@ -1,3 +1,5 @@
+@use 'media';
+
 :host {
   display: block;
 }
@@ -342,5 +344,13 @@ button.tile:hover {
   }
   .case-actions {
     flex-direction: column;
+  }
+}
+
+@include media.touch {
+  .link-cta {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--touch-target);
   }
 }

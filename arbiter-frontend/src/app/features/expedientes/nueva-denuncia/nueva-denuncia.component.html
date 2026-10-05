@@ -412,6 +412,8 @@
               </p>
             }
             <app-button
+              class="wizard-primary"
+              [block]="true"
               [disabled]="(step() === 1 && !step1Valid()) || (step() === 2 && !step2Valid())"
               (click)="next()"
             >
@@ -419,7 +421,12 @@
             </app-button>
           </div>
         } @else {
-          <app-button [disabled]="!canSubmit()" (click)="submit()">
+          <app-button
+            class="wizard-primary"
+            [block]="true"
+            [disabled]="!canSubmit()"
+            (click)="submit()"
+          >
             {{ submitting() ? 'Enviando…' : 'Enviar denuncia →' }}
           </app-button>
         }

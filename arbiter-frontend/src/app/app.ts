@@ -208,18 +208,30 @@ export class App {
     // Otherwise the click reaches document and the listener below closes it in the same tick.
     event.stopPropagation();
     this.showNotifications.set(false);
+    this.portalNavOpen.set(false);
     this.profileOpen.update((open) => !open);
+  }
+
+  protected readonly portalNavOpen = signal(false);
+
+  protected togglePortalNav(event: MouseEvent): void {
+    event.stopPropagation();
+    this.profileOpen.set(false);
+    this.showNotifications.set(false);
+    this.portalNavOpen.update((open) => !open);
   }
 
   @HostListener('document:click')
   protected onDocumentClick(): void {
     this.profileOpen.set(false);
+    this.portalNavOpen.set(false);
     this.showNotifications.set(false);
   }
 
   @HostListener('document:keydown.escape')
   protected onEscape(): void {
     this.profileOpen.set(false);
+    this.portalNavOpen.set(false);
     this.showNotifications.set(false);
     if (this.overlayNav() && this.navOpen()) this.navOpen.set(false);
   }
@@ -234,6 +246,7 @@ export class App {
       return;
     }
     this.profileOpen.set(false);
+    this.portalNavOpen.set(false);
     this.showNotifications.set(true);
     // Opening the panel marks the notifications as read.
     this.notifications.openPanel();

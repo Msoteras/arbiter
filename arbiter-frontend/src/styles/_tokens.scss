@@ -83,11 +83,16 @@
      Global because any sticky header on an internal screen must anchor below the fixed topbar. */
   --appbar-h: 56px;
 
+  /* Minimum height of a tappable control on touch layouts (WCAG 2.5.5). */
+  --touch-target: 44px;
+
   /* Dashboard chart heights; the tall one gives the timeline room to separate its two series. */
   --chart-h: 240px;
   --chart-h-tall: 300px;
   /* app-distribution shape="ring" is square: this is both width and height. */
   --ring-size: 168px;
+  /* Numbered circle of a stepper; the connectors between steps are sized from it. */
+  --step-dot: 28px;
 
   /* ===== Radii ===== */
   --radius-ctl: 8px; /* controls: buttons, inputs */

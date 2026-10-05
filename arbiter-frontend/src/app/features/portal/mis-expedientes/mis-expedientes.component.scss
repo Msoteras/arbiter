@@ -1,3 +1,5 @@
+@use 'media';
+
 :host {
   display: block;
 }
@@ -158,4 +160,13 @@
   flex-direction: column;
   gap: var(--space-1);
   flex: 0 1 11rem;
+}
+
+@include media.phone {
+  .portal {
+    padding: var(--space-4) var(--space-4) var(--space-6);
+  }
+  .filtro {
+    flex: 1 1 10rem;
+  }
 }
