@@ -55,6 +55,8 @@ import { ChangeDetectionStrategy, Component, computed, input, output } from '@an
     </div>
   `,
   styles: `
+    @use 'media';
+
     :host {
       display: block;
       margin-top: var(--space-4);
@@ -105,6 +107,31 @@ import { ChangeDetectionStrategy, Component, computed, input, output } from '@an
     }
     .page-indicator {
       white-space: nowrap;
+    }
+
+    @include media.touch {
+      .nav-btn,
+      .size-select {
+        min-height: var(--touch-target);
+      }
+    }
+    @include media.phone {
+      .pager,
+      .controls {
+        width: 100%;
+      }
+      .controls {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+      }
+      .size-picker,
+      .page-indicator {
+        grid-column: 1 / -1;
+      }
+      .page-indicator {
+        text-align: center;
+        order: -1;
+      }
     }
   `,
 })

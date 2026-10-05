@@ -28,7 +28,7 @@ import { ChangeDetectionStrategy, Component, input, model } from '@angular/core'
       align-items: center;
       gap: var(--space-2);
       /* The 18px box alone is too small a touch target. */
-      min-height: 40px;
+      min-height: var(--touch-target);
       font-size: var(--font-size-body);
       color: var(--text-primary);
       cursor: pointer;

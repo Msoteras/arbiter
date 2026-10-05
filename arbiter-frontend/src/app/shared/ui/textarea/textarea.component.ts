@@ -15,14 +15,16 @@ import { ChangeDetectionStrategy, Component, computed, input, model } from '@ang
     ></textarea>
   `,
   styles: `
+    @use 'media';
+
     :host {
       display: block;
     }
     .field {
       width: 100%;
       font: inherit;
-      /* 16px on mobile prevents iOS Safari from zooming on focus. */
-      font-size: var(--font-size-lg);
+      /* Below 16px iOS would zoom on focus; core/util/ios-focus-zoom.ts turns that off. */
+      font-size: var(--font-size-md);
       padding: var(--space-2) var(--space-3);
       border: 1px solid var(--border-control);
       border-radius: var(--radius-ctl);
@@ -30,7 +32,7 @@ import { ChangeDetectionStrategy, Component, computed, input, model } from '@ang
       color: var(--text-primary);
       resize: vertical;
     }
-    @media (min-width: 640px) {
+    @include media.desktop {
       .field {
         font-size: var(--font-size-body);
       }

@@ -71,6 +71,8 @@ import { ChangeDetectionStrategy, Component, computed, input, model, signal } fr
     </div>
   `,
   styles: `
+    @use 'media';
+
     :host {
       display: block;
     }
@@ -85,8 +87,8 @@ import { ChangeDetectionStrategy, Component, computed, input, model, signal } fr
     .field {
       width: 100%;
       font: inherit;
-      /* 16px on mobile prevents iOS Safari from zooming on focus. */
-      font-size: var(--font-size-lg);
+      /* Below 16px iOS would zoom on focus; core/util/ios-focus-zoom.ts turns that off. */
+      font-size: var(--font-size-md);
       padding: var(--space-2) var(--space-3);
       border: 1px solid var(--border-control);
       border-radius: var(--radius-ctl);
@@ -101,9 +103,14 @@ import { ChangeDetectionStrategy, Component, computed, input, model, signal } fr
     .field.has-reveal::-ms-clear {
       display: none;
     }
-    @media (min-width: 640px) {
+    @include media.desktop {
       .field {
         font-size: var(--font-size-body);
+      }
+    }
+    @include media.touch {
+      .field {
+        min-height: var(--touch-target);
       }
     }
     .field:focus {

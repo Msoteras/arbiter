@@ -1,0 +1,22 @@
+/* Import with `@use 'media';` (src/styles is on the Sass include path). */
+
+$phone-max: 639.98px;
+
+@mixin phone {
+  @media (max-width: $phone-max) {
+    @content;
+  }
+}
+
+/* A tablet is wide enough for the desktop layout but still finger-operated: the pointer catches it. */
+@mixin touch {
+  @media (max-width: $phone-max), (pointer: coarse) {
+    @content;
+  }
+}
+
+@mixin desktop {
+  @media (min-width: 640px) and (pointer: fine) {
+    @content;
+  }
+}
