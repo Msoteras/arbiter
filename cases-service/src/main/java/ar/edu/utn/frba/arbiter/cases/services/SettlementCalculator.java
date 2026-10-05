@@ -4,6 +4,7 @@ import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
 import ar.edu.utn.frba.arbiter.cases.models.entities.CaseSettlement;
 import ar.edu.utn.frba.arbiter.cases.models.entities.PolicyCoverage;
 import ar.edu.utn.frba.arbiter.cases.models.entities.PolicySnapshot;
+import ar.edu.utn.frba.arbiter.common.enums.DeductibleBasis;
 import ar.edu.utn.frba.arbiter.common.enums.SettlementBasis;
 import ar.edu.utn.frba.arbiter.common.enums.SettlementFormula;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Coverage;
@@ -22,9 +23,10 @@ import java.time.temporal.ChronoUnit;
  *
  * <pre>
  *   TOTAL LOSS — the item is gone
- *   ceiling               = sum insured (or the lesser of it and the replacement value)
+ *   ceiling               = sum insured, or the lesser of it and the replacement value (0 until
+ *                           the analyst records one)
  *   event cap             = ceiling × event %          (2nd event of the year → 50%)
- *   − deductible          = sum insured × deductible %
+ *   − deductible          = (sum insured or event cap) × deductible %
  *   − pending instalments = instalments left × instalment amount
  *   − overdue balance     = unpaid balance of the contract
  *   = amount payable      (never negative)
@@ -32,13 +34,14 @@ import java.time.temporal.ChronoUnit;
  *   REPAIR — the item was damaged
  *   ceiling               = accredited quote, capped at the sum insured
  *   event cap             = ceiling × event %
- *   − deductible          = sum insured × deductible %
+ *   − deductible          = (sum insured or event cap) × deductible %
  *   − overdue balance     = unpaid balance of the contract
  *   = amount payable      (never negative)
  * </pre>
  *
- * <p>Pending instalments only on a total loss, which extinguishes the contract. The deductible is a
- * percentage of the sum insured, so it doesn't shrink on a second event. This only proposes, and the
+ * <p>Pending instalments only on a total loss, which extinguishes the contract. The deductible applies
+ * to the sum insured or to the loss, as the coverage says: on the sum insured it doesn't shrink on a
+ * second event or a cheap repair, on the loss it does. This only proposes, and the
  * risk score plays no part: a suspicious claim is rejected or referred, not quietly paid less.
  */
 @Service
@@ -71,7 +74,12 @@ public class SettlementCalculator {
         BigDecimal eventPercentage = eventPercentage(coverage, eventOrdinal);
         BigDecimal cappedAmount = percentageOf(ceiling, eventPercentage);
 
-        BigDecimal deductibleAmount = percentageOf(sumInsured, deductibleRate(coverage, policyCoverage));
+        DeductibleBasis deductibleBasis = coverage.getDeductibleBasis() == null
+                ? DeductibleBasis.SUM_INSURED
+                : coverage.getDeductibleBasis();
+        BigDecimal deductibleAmount = percentageOf(
+                deductibleBasis == DeductibleBasis.LOSS_AMOUNT ? cappedAmount : sumInsured,
+                deductibleRate(coverage, policyCoverage));
 
         // Total loss only, whatever the coverage switch says: a repair doesn't extinguish the policy.
         int pendingInstallments = formula == SettlementFormula.TOTAL_LOSS
@@ -102,6 +110,7 @@ public class SettlementCalculator {
                 .settlementBasis(basis)
                 .replacementValue(replacementValue)
                 .deductibleRate(deductibleRate(coverage, policyCoverage))
+                .deductibleBasis(deductibleBasis)
                 .eventOrdinal(eventOrdinal)
                 .eventPercentage(eventPercentage)
                 .pendingInstallments(pendingInstallments)
@@ -139,21 +148,17 @@ public class SettlementCalculator {
     }
 
     /**
-     * On a repair it is the accredited quote capped by the sum insured, and zero with no quote —
-     * falling back to the sum insured would pay a whole phone for an uncosted broken screen. On a
-     * total loss with nothing accredited it stays the sum insured the contract fixed.
+     * The accredited amount capped by the sum insured, and zero with none: on a repair it is the
+     * quote, on a lesser-of total loss what the item is worth today. Falling back to the sum insured
+     * would pay a whole new phone for one worth half of it. Only a flat sum-insured basis pays it as is.
      */
     private BigDecimal ceiling(SettlementFormula formula, SettlementBasis basis,
                                BigDecimal sumInsured, BigDecimal accreditedAmount) {
-        boolean accredited = accreditedAmount != null && accreditedAmount.signum() > 0;
-
-        if (formula == SettlementFormula.REPAIR) {
-            return accredited ? sumInsured.min(money(accreditedAmount)) : BigDecimal.ZERO;
-        }
-        if (basis != SettlementBasis.LESSER_OF_SUM_AND_REPLACEMENT || !accredited) {
+        if (formula != SettlementFormula.REPAIR && basis != SettlementBasis.LESSER_OF_SUM_AND_REPLACEMENT) {
             return sumInsured;
         }
-        return sumInsured.min(money(accreditedAmount));
+        boolean accredited = accreditedAmount != null && accreditedAmount.signum() > 0;
+        return accredited ? sumInsured.min(money(accreditedAmount)) : BigDecimal.ZERO;
     }
 
     /** Frozen by classification-service; 1 when the snapshot predates the column. */

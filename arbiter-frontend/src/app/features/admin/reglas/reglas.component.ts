@@ -4,6 +4,7 @@ import { Observable, finalize, forkJoin, of } from 'rxjs';
 
 import {
   Coverage,
+  DeductibleBasis,
   DOCUMENT_TYPES,
   FastTrackConfig,
   RamoRules,
@@ -42,6 +43,7 @@ import { ModalComponent } from '../../../shared/ui/modal/modal.component';
 import { AtribucionesConfigComponent } from '../atribuciones-config/atribuciones-config.component';
 import { ScoringConfigComponent } from '../scoring-config/scoring-config.component';
 import { FraudeConfigComponent } from '../fraude-config/fraude-config.component';
+import { ProveedoresConfigComponent } from '../proveedores-config/proveedores-config.component';
 import { ObjetivoConfigComponent } from '../objetivo-config/objetivo-config.component';
 import { HistorialReglasComponent } from '../historial-reglas/historial-reglas.component';
 import { SaveBarComponent } from '../../../shared/ui/save-bar/save-bar.component';
@@ -59,7 +61,8 @@ import { accordion, fadeInUp, listStagger, staggerReveal } from '../../../shared
 type TabId = 'coberturas' | 'exclusiones' | 'fastTrack' | 'documentacion' | 'reglas';
 
 /** Right-panel views that don't depend on the selected branch. */
-type GeneralView = 'hardStop' | 'scoring' | 'fraude' | 'atribuciones' | 'objetivo' | 'historial';
+type GeneralView =
+  'hardStop' | 'scoring' | 'fraude' | 'proveedores' | 'atribuciones' | 'objetivo' | 'historial';
 
 /**
  * Branch master-detail with per-tab drafts, each saved by its own button. Branches are a GLOBAL
@@ -76,6 +79,7 @@ type GeneralView = 'hardStop' | 'scoring' | 'fraude' | 'atribuciones' | 'objetiv
     ModalComponent,
     ScoringConfigComponent,
     FraudeConfigComponent,
+    ProveedoresConfigComponent,
     AtribucionesConfigComponent,
     ObjetivoConfigComponent,
     HistorialReglasComponent,
@@ -354,6 +358,8 @@ export class ReglasComponent {
     { id: 'hardStop', label: 'Hard Stop' },
     { id: 'scoring', label: 'Puntaje de riesgo' },
     { id: 'fraude', label: 'Gestión de fraude' },
+    // Its own entry: a repair shop has nothing to do with fraud.
+    { id: 'proveedores', label: 'Proveedores externos' },
     // Caps are per branch but listed together so they can be compared at a glance.
     { id: 'atribuciones', label: 'Atribuciones de liquidación' },
     { id: 'objetivo', label: 'Objetivo de resolución' },
@@ -542,6 +548,7 @@ export class ReglasComponent {
       clause: c.clause ?? '',
       insuredAmount: null,
       deductibleRatio: c.deductibleRatio,
+      deductibleBasis: c.deductibleBasis ?? 'SUM_INSURED',
       reportingWindowDays: c.reportingWindowDays,
       maxAnnualClaims: c.maxAnnualClaims,
       waitingPeriodDays: c.waitingPeriodDays,
@@ -760,6 +767,7 @@ export class ReglasComponent {
       clause: '',
       insuredAmount: null,
       deductibleRatio: null,
+      deductibleBasis: 'SUM_INSURED',
       reportingWindowDays: null,
       maxAnnualClaims: null,
       waitingPeriodDays: null,
@@ -1029,7 +1037,10 @@ export class ReglasComponent {
   protected coverageSummary(c: Coverage): string[] {
     const chips: string[] = [];
     if (c.deductibleRatio != null) {
-      chips.push(`Franquicia ${this.pctFromRatio(c.deductibleRatio)}%`);
+      chips.push(
+        `Franquicia ${this.pctFromRatio(c.deductibleRatio)}%` +
+          (c.deductibleBasis === 'LOSS_AMOUNT' ? ' del monto a indemnizar' : ''),
+      );
     }
     if (c.waitingPeriodDays != null) {
       chips.push(`Carencia ${c.waitingPeriodDays} d`);
@@ -1123,8 +1134,8 @@ export class ReglasComponent {
   }
 
   protected readonly settlementFormulaOptions: SelectOption[] = [
-    { value: 'TOTAL_LOSS', label: 'Pérdida total — el bien no está' },
-    { value: 'REPAIR', label: 'Reparación — el bien quedó dañado' },
+    { value: 'TOTAL_LOSS', label: 'Pérdida total' },
+    { value: 'REPAIR', label: 'Reparación' },
   ];
 
   protected setCoverageSettlementFormula(id: string, value: string): void {
@@ -1136,16 +1147,23 @@ export class ReglasComponent {
     return c.settlementFormula !== 'REPAIR';
   }
 
+  // Short enough to read whole in the select.
   protected readonly settlementBasisOptions: SelectOption[] = [
-    { value: 'SUM_INSURED', label: 'La suma asegurada' },
-    {
-      value: 'LESSER_OF_SUM_AND_REPLACEMENT',
-      label: 'El menor entre la suma asegurada y el valor de reposición',
-    },
+    { value: 'SUM_INSURED', label: 'Suma asegurada' },
+    { value: 'LESSER_OF_SUM_AND_REPLACEMENT', label: 'Menor entre suma y reposición' },
   ];
 
   protected setCoverageSettlementBasis(id: string, value: string): void {
     this.setCoverageField(id, { settlementBasis: value as SettlementBasis });
+  }
+
+  protected readonly deductibleBasisOptions: SelectOption[] = [
+    { value: 'SUM_INSURED', label: 'Suma asegurada' },
+    { value: 'LOSS_AMOUNT', label: 'Monto a indemnizar' },
+  ];
+
+  protected setCoverageDeductibleBasis(id: string, value: string): void {
+    this.setCoverageField(id, { deductibleBasis: value as DeductibleBasis });
   }
 
   protected coverageSecondEventPct(c: Coverage): string {
@@ -1394,6 +1412,7 @@ export class ReglasComponent {
       name: c.name,
       clause: c.clause || null,
       deductibleRatio: c.deductibleRatio,
+      deductibleBasis: c.deductibleBasis,
       reportingWindowDays: c.reportingWindowDays,
       maxAnnualClaims: c.maxAnnualClaims,
       waitingPeriodDays: c.waitingPeriodDays,

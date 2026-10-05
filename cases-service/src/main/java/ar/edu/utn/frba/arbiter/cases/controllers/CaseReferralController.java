@@ -1,0 +1,159 @@
+package ar.edu.utn.frba.arbiter.cases.controllers;
+
+import ar.edu.utn.frba.arbiter.cases.dto.DerivationOptionsResponse;
+import ar.edu.utn.frba.arbiter.cases.dto.ProviderType;
+import ar.edu.utn.frba.arbiter.cases.dto.RepairOutcome;
+import ar.edu.utn.frba.arbiter.cases.dto.CaseReferralRequest;
+import ar.edu.utn.frba.arbiter.cases.dto.CaseReferralResponse;
+import ar.edu.utn.frba.arbiter.cases.exceptions.CaseReferralNotFoundException;
+import ar.edu.utn.frba.arbiter.cases.services.CaseReferralService;
+import ar.edu.utn.frba.arbiter.common.enums.ExpertVerdict;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestPart;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.math.BigDecimal;
+
+/**
+ * Kept apart from {@code POST /cases/{id}/decision} on purpose: deriving is not a verdict, and the
+ * decision endpoint writes the immutable audit record required by SSN Disposition 2/2023.
+ */
+@RestController
+@RequestMapping("/api/v1/cases/{caseId}/expert-assessment")
+@RequiredArgsConstructor
+@Tag(name = "Expert assessment", description = "Derivación de un expediente a peritaje externo")
+public class CaseReferralController {
+
+    private final CaseReferralService caseReferralService;
+
+    @GetMapping("/options")
+    @PreAuthorize("hasAnyRole('ANALISTA_SINIESTROS', 'REFERENTE_ASEGURADORA')")
+    @Operation(summary = "Si este expediente se puede derivar, y a quién",
+            description = """
+                    `eligible` combina la regla de la aseguradora (monto reclamado contra el mínimo
+                    configurado en rules-service) con que haya peritos disponibles: una política que
+                    habilita sobre un catálogo vacío igual deja al analista sin a quién derivar.
+
+                    `providers` son los peritos activos del ramo del siniestro más los generalistas. El
+                    analista elige de la lista y no escribe una dirección a mano, así queda registro
+                    de con quién trabaja la aseguradora.
+
+                    Devuelve los dos montos y no solo el veredicto, para que la pantalla pueda
+                    explicar por qué no se puede en vez de mostrar un botón apagado sin motivo.
+                    """)
+    public ResponseEntity<DerivationOptionsResponse> options(
+            @PathVariable Long caseId,
+            @RequestParam(defaultValue = "ESTUDIO_LIQUIDADOR") ProviderType providerType) {
+        return ResponseEntity.ok(caseReferralService.options(caseId, providerType));
+    }
+
+    @GetMapping
+    @PreAuthorize("hasAnyRole('ANALISTA_SINIESTROS', 'REFERENTE_ASEGURADORA')")
+    @Operation(summary = "El peritaje del expediente",
+            description = """
+                    404 si el expediente nunca se derivó. Mientras no vuelva el informe,
+                    `reportReceivedAt` y `verdict` son null.
+
+                    No se expone al ASEGURADO: para él el expediente sigue 'En análisis', y contarle
+                    que se derivó filtraría la sospecha que motivó la derivación.
+                    """)
+    public ResponseEntity<CaseReferralResponse> get(
+            @PathVariable Long caseId,
+            @RequestParam(defaultValue = "ESTUDIO_LIQUIDADOR") ProviderType providerType) {
+        return ResponseEntity.ok(caseReferralService.find(caseId, providerType)
+                .orElseThrow(() -> new CaseReferralNotFoundException(caseId)));
+    }
+
+    @GetMapping("/all")
+    @PreAuthorize("hasAnyRole('ANALISTA_SINIESTROS', 'REFERENTE_ASEGURADORA')")
+    @Operation(summary = "Todas las derivaciones del expediente",
+            description = "Peritaje y servicio técnico juntos, de la más reciente a la más vieja.")
+    public ResponseEntity<java.util.List<CaseReferralResponse>> getAll(@PathVariable Long caseId) {
+        return ResponseEntity.ok(caseReferralService.findAll(caseId));
+    }
+
+    // Analyst only: the derivation is attributed to a ClaimsAnalyst, which a referente doesn't have.
+    @PostMapping
+    @PreAuthorize("hasRole('ANALISTA_SINIESTROS')")
+    @Operation(summary = "Derivar el expediente a un perito",
+            description = """
+                    Pasa el expediente a PENDING_EXPERT_REPORT y le manda al perito, por mail, los
+                    datos del siniestro a verificar (sin la clasificación ni el score: se le pide
+                    verificar hechos, no confirmar una sospecha).
+
+                    Solo desde PENDING_ANALYST_REVIEW (otro estado → 409), y una sola vez por
+                    expediente. No resuelve nada: el caso vuelve al analista, que sigue siendo
+                    quien decide (decisión de arquitectura #5).
+                    """)
+    public ResponseEntity<CaseReferralResponse> derive(
+            @PathVariable Long caseId,
+            @RequestBody @Valid CaseReferralRequest request,
+            @RequestParam(defaultValue = "ESTUDIO_LIQUIDADOR") ProviderType providerType
+    ) {
+        return ResponseEntity.accepted()
+                .body(caseReferralService.derive(caseId, request, providerType));
+    }
+
+    // The referente may also upload it: it only transcribes the verdict and hands the case back to the analyst.
+    @PostMapping(value = "/report", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasAnyRole('ANALISTA_SINIESTROS', 'REFERENTE_ASEGURADORA')")
+    @Operation(summary = "Cargar el informe del perito",
+            description = """
+                    El analista sube el informe que recibió y registra su conclusión. El expediente
+                    vuelve a PENDING_ANALYST_REVIEW con el veredicto al lado de la clasificación.
+
+                    **No se reclasifica.** El informe es evidencia de una persona que inspeccionó el
+                    caso; volver a pasarlo por el modelo solo lograría que lo repita o que lo
+                    contradiga. 409 si el informe ya había llegado.
+
+                    `verdict` y `note` viajan como campos del multipart, no en la query string: la
+                    nota es texto libre sobre un siniestro y en la URL terminaría en los logs del
+                    reverse proxy.
+                    """)
+    public ResponseEntity<CaseReferralResponse> receiveReport(
+            @PathVariable Long caseId,
+            @RequestParam ExpertVerdict verdict,
+            @RequestParam(required = false) String note,
+            @RequestParam(required = false) BigDecimal indemnifiableAmount,
+            @RequestPart("report") MultipartFile report
+    ) {
+        return ResponseEntity.ok(caseReferralService.receiveReport(
+                caseId, verdict, note, indemnifiableAmount, report));
+    }
+
+    @PostMapping(value = "/repair-report", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasAnyRole('ANALISTA_SINIESTROS', 'REFERENTE_ASEGURADORA')")
+    @Operation(summary = "Registrar la respuesta del servicio técnico",
+            description = """
+                    Devuelve el expediente a la cola del analista, que sigue siendo quien decide.
+                    No deja antecedente de fraude: una reparación no investiga la causa, así que su
+                    resultado va en su propio campo y no en el veredicto pericial.
+
+                    `repairCost` es lo que el taller cobra por el trabajo: obligatorio cuando el
+                    resultado es `QUOTE_SENT`, opcional con `REPAIRED` —la factura puede llegar
+                    después— y rechazado con `IRREPARABLE`, que no tuvo arreglo que cobrar.
+                    """)
+    public ResponseEntity<CaseReferralResponse> receiveRepairReport(
+            @PathVariable Long caseId,
+            @RequestParam RepairOutcome outcome,
+            @RequestParam(required = false) String note,
+            @RequestParam(required = false) BigDecimal repairCost,
+            @RequestPart("report") MultipartFile report
+    ) {
+        return ResponseEntity.ok(caseReferralService.receiveRepairReport(
+                caseId, outcome, note, repairCost, report));
+    }
+}

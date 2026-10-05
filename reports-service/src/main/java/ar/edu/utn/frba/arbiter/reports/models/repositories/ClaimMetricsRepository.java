@@ -70,14 +70,14 @@ public class ClaimMetricsRepository {
 
     private final EntityManager entityManager;
 
-    /** @param fastTrack the case flag is the only trace: a Fast Track leaves no analysis row */
+    /** @param fastTrack the case column is the only trace: a Fast Track leaves no analysis row */
     public record IntakeTotals(long reported, long fastTrack) {}
 
     public record ResolvedTotals(String status, long count, Double averageSeconds) {}
 
     @Transactional(readOnly = true)
     public IntakeTotals intakeTotals(Instant from, Instant to, MetricsFilter filter) {
-        String sql = "SELECT count(*) AS reported, count(*) FILTER (WHERE c.was_fast_track) AS fast_track"
+        String sql = "SELECT count(*) AS reported, count(*) FILTER (WHERE c.rules_classification = 'FAST_TRACK') AS fast_track"
                 + FROM_CASES + REPORTED_WINDOW + filters(filter);
         return query(template -> template.queryForObject(sql, period(from, to, filter),
                 (rs, rowNum) -> new IntakeTotals(rs.getLong("reported"), rs.getLong("fast_track"))));
@@ -90,7 +90,7 @@ public class ClaimMetricsRepository {
                 SELECT count(*) AS reported,
                        count(*) FILTER (WHERE l.case_id IS NOT NULL) AS analyzed,
                        count(*) FILTER (WHERE c.classification_id IS NOT NULL) AS decided,
-                       count(*) FILTER (WHERE c.was_fast_track) AS fast_track,
+                       count(*) FILTER (WHERE c.rules_classification = 'FAST_TRACK') AS fast_track,
                        count(*) FILTER (WHERE NOT s.is_final) AS still_open"""
                 + FROM_CASES + """
 
@@ -125,6 +125,7 @@ public class ClaimMetricsRepository {
                   JOIN resolution r  ON r.case_id = c.id
                   JOIN latest_llm l  ON l.case_id = c.id
                  WHERE r.resolved_at >= :from AND r.resolved_at < :to
+                   AND c.rules_classification IS NULL
                    AND l.recommendation IN (:recommendApprove, :recommendReject)
                    AND s.name IN (:approved, :rejected)"""
                 + filters(filter);
@@ -154,12 +155,12 @@ public class ClaimMetricsRepository {
         return query(template -> template.query(sql, period(from, to, filter), COUNT_ROW));
     }
 
-    /** Fast Track flag first, else the newest model run; a claim still classifying gives null. */
+    /** The rules outcome first, else the newest model run; a claim still classifying gives null. */
     @Transactional(readOnly = true)
     public List<MetricCount> countByClassification(Instant from, Instant to, MetricsFilter filter) {
         String sql = "WITH " + LATEST_LLM_CTE + """
 
-                SELECT CASE WHEN c.was_fast_track THEN 'FAST_TRACK' ELSE l.recommendation END AS label,
+                SELECT COALESCE(c.rules_classification, l.recommendation) AS label,
                        count(*) AS total"""
                 + FROM_CASES + "\n  LEFT JOIN latest_llm l ON l.case_id = c.id"
                 + REPORTED_WINDOW + filters(filter) + " GROUP BY 1 ORDER BY total DESC, label";
@@ -334,7 +335,7 @@ public class ClaimMetricsRepository {
                 SELECT count(*) AS decided,
                        count(*) FILTER (WHERE c.fraud_determined) AS fraud_determined,
                        count(*) FILTER (WHERE c.fraud_determined AND EXISTS (
-                           SELECT 1 FROM expert_assessment ea
+                           SELECT 1 FROM case_referral ea
                             WHERE ea.case_id = c.id AND ea.verdict = :fraudConfirmed
                        )) AS backed_by_expert,
                        COALESCE(sum(c.claimed_amount) FILTER (
@@ -362,12 +363,14 @@ public class ClaimMetricsRepository {
     public FastTrackImpact fastTrackImpact(Instant from, Instant to, MetricsFilter filter) {
         String sql = CaseResolutionSql.RESOLUTION_CTE + """
 
-                SELECT count(*) FILTER (WHERE c.was_fast_track) AS fast_track_decided,
+                SELECT count(*) FILTER (WHERE c.rules_classification = 'FAST_TRACK') AS fast_track_decided,
                        avg(EXTRACT(EPOCH FROM (r.resolved_at - c.reported_at)))
-                           FILTER (WHERE c.was_fast_track) AS fast_track_seconds,
-                       count(*) FILTER (WHERE NOT c.was_fast_track) AS standard_decided,
+                           FILTER (WHERE c.rules_classification = 'FAST_TRACK') AS fast_track_seconds,
+                       count(*) FILTER (WHERE c.rules_classification IS DISTINCT FROM 'FAST_TRACK')
+                           AS standard_decided,
                        avg(EXTRACT(EPOCH FROM (r.resolved_at - c.reported_at)))
-                           FILTER (WHERE NOT c.was_fast_track) AS standard_seconds"""
+                           FILTER (WHERE c.rules_classification IS DISTINCT FROM 'FAST_TRACK')
+                           AS standard_seconds"""
                 + FROM_CASES + """
 
                   JOIN case_status s ON s.id = c.current_status_id AND s.is_final
@@ -401,7 +404,7 @@ public class ClaimMetricsRepository {
                        avg(EXTRACT(EPOCH FROM (ea.report_received_at - ea.derived_at))) AS average_seconds"""
                 + FROM_CASES + """
 
-                  JOIN expert_assessment ea ON ea.case_id = c.id
+                  JOIN case_referral ea ON ea.case_id = c.id
                  WHERE ea.derived_at >= :from AND ea.derived_at < :to"""
                 + filters(filter) + " GROUP BY ea.provider_type ORDER BY derived DESC, provider_type";
         return query(template -> template.query(sql, period(from, to, filter), (rs, rowNum) ->

@@ -106,13 +106,13 @@ public class CaseExceptionHandler extends ResponseEntityExceptionHandler {
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(403), ex.getMessage());
     }
 
-    @ExceptionHandler(ExpertAssessmentNotFoundException.class)
-    public ProblemDetail handleExpertAssessmentNotFound(ExpertAssessmentNotFoundException ex) {
+    @ExceptionHandler(CaseReferralNotFoundException.class)
+    public ProblemDetail handleCaseReferralNotFound(CaseReferralNotFoundException ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(404), ex.getMessage());
     }
 
-    @ExceptionHandler(ExpertFirmNotFoundException.class)
-    public ProblemDetail handleExpertFirmNotFound(ExpertFirmNotFoundException ex) {
+    @ExceptionHandler(ServiceProviderNotFoundException.class)
+    public ProblemDetail handleServiceProviderNotFound(ServiceProviderNotFoundException ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(404), ex.getMessage());
     }
 
@@ -123,6 +123,11 @@ public class CaseExceptionHandler extends ResponseEntityExceptionHandler {
 
     @ExceptionHandler(FraudRecordNotAllowedException.class)
     public ProblemDetail handleFraudRecordNotAllowed(FraudRecordNotAllowedException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(422), ex.getMessage());
+    }
+
+    @ExceptionHandler(ClaimCauseCorrectionNotAllowedException.class)
+    public ProblemDetail handleClaimCauseCorrectionNotAllowed(ClaimCauseCorrectionNotAllowedException ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(422), ex.getMessage());
     }
 
@@ -137,13 +142,13 @@ public class CaseExceptionHandler extends ResponseEntityExceptionHandler {
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(503), ex.getMessage());
     }
 
-    @ExceptionHandler(ExpertFirmInUseException.class)
-    public ProblemDetail handleExpertFirmInUse(ExpertFirmInUseException ex) {
+    @ExceptionHandler(ServiceProviderInUseException.class)
+    public ProblemDetail handleServiceProviderInUse(ServiceProviderInUseException ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(409), ex.getMessage());
     }
 
-    @ExceptionHandler(ExpertReportAlreadyReceivedException.class)
-    public ProblemDetail handleExpertReportAlreadyReceived(ExpertReportAlreadyReceivedException ex) {
+    @ExceptionHandler(ReferralReportAlreadyReceivedException.class)
+    public ProblemDetail handleReferralReportAlreadyReceived(ReferralReportAlreadyReceivedException ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(409), ex.getMessage());
     }
 

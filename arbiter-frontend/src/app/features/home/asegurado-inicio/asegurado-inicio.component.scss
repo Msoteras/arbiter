@@ -1,3 +1,5 @@
+@use 'media';
+
 :host {
   display: block;
 }
@@ -201,6 +203,52 @@
   line-height: 1.5;
 }
 
+.new-message {
+  margin-top: var(--space-3);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--selected-bg);
+  border: 1px solid var(--selected-border);
+  border-radius: var(--radius-card);
+}
+.nm-avatar {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-pill);
+  background: var(--action-accent-bg);
+  color: var(--action-accent-fg);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+}
+.nm-text {
+  flex: 1;
+  min-width: 0;
+}
+.nm-title {
+  margin: 0;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--accent-fg);
+}
+.nm-body {
+  margin: 0;
+  overflow: hidden;
+  color: var(--text-primary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Only a floating popup: it must not take space in the card. */
+app-insured-chat {
+  display: contents;
+}
+
 .case-actions {
   display: flex;
   gap: var(--space-3);
@@ -296,5 +344,13 @@ button.tile:hover {
   }
   .case-actions {
     flex-direction: column;
+  }
+}
+
+@include media.touch {
+  .link-cta {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--touch-target);
   }
 }

@@ -7,7 +7,7 @@ package ar.edu.utn.frba.arbiter.common.enums;
  */
 public enum FraudRecordSource {
 
-    /** The originating case has an {@code expert_assessment} with {@link ExpertVerdict#FRAUD_CONFIRMED}. */
+    /** The originating case has a {@code case_referral} with {@link ExpertVerdict#FRAUD_CONFIRMED}. */
     EXPERT_BACKED,
 
     /** Determined by the analyst without an expert report. Visible to the next analyst, never scored. */

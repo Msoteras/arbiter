@@ -4,10 +4,10 @@ import ar.edu.utn.frba.arbiter.cases.dto.ProviderType;
 import ar.edu.utn.frba.arbiter.cases.dto.RegisterFraudRecordRequest;
 import ar.edu.utn.frba.arbiter.cases.exceptions.FraudRecordNotAllowedException;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
-import ar.edu.utn.frba.arbiter.cases.models.entities.ExpertAssessment;
+import ar.edu.utn.frba.arbiter.cases.models.entities.CaseReferral;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.ClaimsAnalystRepository;
-import ar.edu.utn.frba.arbiter.cases.models.repositories.ExpertAssessmentRepository;
+import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseReferralRepository;
 import ar.edu.utn.frba.arbiter.cases.support.CaseFixtures;
 import ar.edu.utn.frba.arbiter.cases.support.CaseStates;
 import ar.edu.utn.frba.arbiter.common.dto.FraudRecordRequest;
@@ -50,7 +50,7 @@ class FraudRecordServiceTest {
     private CaseRepository caseRepository;
 
     @Mock
-    private ExpertAssessmentRepository expertAssessmentRepository;
+    private CaseReferralRepository caseReferralRepository;
 
     @Mock
     private ClaimsAnalystRepository claimsAnalystRepository;
@@ -73,10 +73,10 @@ class FraudRecordServiceTest {
     }
 
     @Test
-    void expertBackedRecord_flagsTheCase_andSendsTheExpertAssessmentAlong() {
+    void expertBackedRecord_flagsTheCase_andSendsTheCaseReferralAlong() {
         Case caseRecord = caseInStatus(CaseStatus.PENDING_ANALYST_REVIEW);
         givenCaseAndAnalyst(caseRecord);
-        when(expertAssessmentRepository.findByCaseIdAndProviderType(CASE_ID, ProviderType.ESTUDIO_LIQUIDADOR))
+        when(caseReferralRepository.findByCaseIdAndProviderType(CASE_ID, ProviderType.ESTUDIO_LIQUIDADOR))
                 .thenReturn(Optional.of(assessmentWith(ExpertVerdict.FRAUD_CONFIRMED)));
         when(classificationClient.registerFraudRecord(any())).thenReturn(response());
 
@@ -86,7 +86,7 @@ class FraudRecordServiceTest {
         ArgumentCaptor<FraudRecordRequest> sent = ArgumentCaptor.forClass(FraudRecordRequest.class);
         verify(classificationClient).registerFraudRecord(sent.capture());
         assertThat(sent.getValue().insuredDni()).isEqualTo(DNI);
-        assertThat(sent.getValue().expertAssessmentId()).isEqualTo(9L);
+        assertThat(sent.getValue().caseReferralId()).isEqualTo(9L);
         // The analyst comes from the token, never the body: otherwise anyone could pin a fraud
         // record on someone else.
         assertThat(sent.getValue().declaredByAnalystId()).isEqualTo(1L);
@@ -104,7 +104,7 @@ class FraudRecordServiceTest {
     void expertBackedRecord_isRefusedWhenTheReportDidNotConfirmTheFraud() {
         Case caseRecord = caseInStatus(CaseStatus.PENDING_ANALYST_REVIEW);
         when(caseRepository.findById(CASE_ID)).thenReturn(Optional.of(caseRecord));
-        when(expertAssessmentRepository.findByCaseIdAndProviderType(CASE_ID, ProviderType.ESTUDIO_LIQUIDADOR))
+        when(caseReferralRepository.findByCaseIdAndProviderType(CASE_ID, ProviderType.ESTUDIO_LIQUIDADOR))
                 .thenReturn(Optional.of(assessmentWith(ExpertVerdict.INCONCLUSIVE)));
 
         assertThatThrownBy(() -> fraudRecordService.register(CASE_ID,
@@ -119,7 +119,7 @@ class FraudRecordServiceTest {
     void expertBackedRecord_isRefusedWhenTheCaseWasNeverDerived() {
         Case caseRecord = caseInStatus(CaseStatus.PENDING_ANALYST_REVIEW);
         when(caseRepository.findById(CASE_ID)).thenReturn(Optional.of(caseRecord));
-        when(expertAssessmentRepository.findByCaseIdAndProviderType(CASE_ID, ProviderType.ESTUDIO_LIQUIDADOR)).thenReturn(Optional.empty());
+        when(caseReferralRepository.findByCaseIdAndProviderType(CASE_ID, ProviderType.ESTUDIO_LIQUIDADOR)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> fraudRecordService.register(CASE_ID,
                 new RegisterFraudRecordRequest(FraudRecordSource.EXPERT_BACKED, REASON)))
@@ -130,7 +130,7 @@ class FraudRecordServiceTest {
 
     /** The blacklist: no expert assessment, no reference to one, and the rules engine ignores it. */
     @Test
-    void analystDeclaredRecord_needsNoExpertAssessment() {
+    void analystDeclaredRecord_needsNoCaseReferral() {
         Case caseRecord = caseInStatus(CaseStatus.REJECTED);
         givenCaseAndAnalyst(caseRecord);
         when(classificationClient.registerFraudRecord(any())).thenReturn(response());
@@ -140,8 +140,8 @@ class FraudRecordServiceTest {
 
         ArgumentCaptor<FraudRecordRequest> sent = ArgumentCaptor.forClass(FraudRecordRequest.class);
         verify(classificationClient).registerFraudRecord(sent.capture());
-        assertThat(sent.getValue().expertAssessmentId()).isNull();
-        verify(expertAssessmentRepository, never()).findByCaseIdAndProviderType(any(), any());
+        assertThat(sent.getValue().caseReferralId()).isNull();
+        verify(caseReferralRepository, never()).findByCaseIdAndProviderType(any(), any());
     }
 
     /** Paying the claim and recording it as fraud contradict each other. */
@@ -194,12 +194,12 @@ class FraudRecordServiceTest {
                 .build();
     }
 
-    private ExpertAssessment assessmentWith(ExpertVerdict verdict) {
-        return ExpertAssessment.builder()
+    private CaseReferral assessmentWith(ExpertVerdict verdict) {
+        return CaseReferral.builder()
                 .id(9L)
                 .caseId(CASE_ID)
-                .expertName("Estudio Verifica S.R.L.")
-                .expertEmail("verifica@example.com")
+                .providerName("Estudio Verifica S.R.L.")
+                .providerEmail("verifica@example.com")
                 .reason("Banda CRÍTICA")
                 .derivedBy(analyst())
                 .derivedAt(Instant.parse("2026-08-15T09:00:00Z"))

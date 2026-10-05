@@ -54,7 +54,7 @@ import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseLensCountRepository
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseSpecifications;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.ClaimsAnalystRepository;
-import ar.edu.utn.frba.arbiter.cases.models.repositories.ExpertAssessmentRepository;
+import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseReferralRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.UserRepository;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.ClaimsAnalyst;
 import ar.edu.utn.frba.arbiter.common.dto.RuleResultResponse;
@@ -95,7 +95,7 @@ public class CaseServiceImpl implements CaseService {
 
     private final CaseRepository caseRepository;
     private final CaseDocumentRepository caseDocumentRepository;
-    private final ExpertAssessmentRepository expertAssessmentRepository;
+    private final CaseReferralRepository caseReferralRepository;
     private final CaseStatusService caseStatusService;
     private final ClaimsAnalysisClient claimsAnalysisClient;
     private final ClaimsAnalystRepository claimsAnalystRepository;
@@ -327,7 +327,7 @@ public class CaseServiceImpl implements CaseService {
             // Clear the cached risk so the recalculation window never shows a stale band.
             entity.setRiskScore(null);
             entity.setRiskBand(null);
-            entity.setDeterministicFastTrack(false);
+            entity.setRulesClassification(null);
             // Fresh cycle: earlier attempts would otherwise fail the case prematurely.
             entity.setClassificationAttempts(0);
             caseStatusService.transition(entity, CaseStatus.PENDING_CLASSIFICATION,
@@ -346,7 +346,7 @@ public class CaseServiceImpl implements CaseService {
         // Same reset as addDocumentsAndReclassify: attempts are already at the maximum.
         entity.setRiskScore(null);
         entity.setRiskBand(null);
-        entity.setDeterministicFastTrack(false);
+        entity.setRulesClassification(null);
         entity.setClassificationAttempts(0);
         // A stale INFRASTRUCTURE reason would make the recovery sweep requeue a later, unrelated failure.
         entity.setClassificationFailureReason(null);
@@ -820,11 +820,12 @@ public class CaseServiceImpl implements CaseService {
                 entity.getEventAddress(),
                 entity.getClaimedAmount(),
                 classificationOf(entity, current),
+                resolvedByRules(entity),
                 confidenceOf(entity, current),
                 reasonsOf(entity, current),
                 consistencyOf(entity, current),
-                wasFastTracked(entity) ? null : current.suggestedClaimCause(),
-                wasFastTracked(entity) ? null : current.causeEvidence(),
+                resolvedByRules(entity) ? null : current.suggestedClaimCause(),
+                resolvedByRules(entity) ? null : current.causeEvidence(),
                 entity.getRiskScore(),
                 entity.getRiskBand(),
                 current.riskBreakdown(),
@@ -849,7 +850,7 @@ public class CaseServiceImpl implements CaseService {
         if (entity.getStatus() != CaseStatus.PENDING_REPAIR) {
             return null;
         }
-        return expertAssessmentRepository
+        return caseReferralRepository
                 .findByCaseIdAndProviderType(entity.getId(), ProviderType.SERVICIO_TECNICO)
                 .map(RepairProviderResponse::from)
                 .orElse(null);
@@ -892,39 +893,39 @@ public class CaseServiceImpl implements CaseService {
     }
 
     /**
-     * Fast Track leaves no {@code llm_analysis} row, so it is checked first: that table is
-     * append-only and would otherwise surface the previous run. The flag is rewritten on every run.
+     * A rules outcome leaves no {@code llm_analysis} row, so it is checked first: that table is
+     * append-only and would otherwise surface the previous run. The column is rewritten on every run.
      */
     private Classification classificationOf(Case entity, CaseAnalysis analysis) {
-        if (wasFastTracked(entity)) {
-            return Classification.FAST_TRACK;
+        if (resolvedByRules(entity)) {
+            return entity.getRulesClassification();
         }
         return analysis.classification();
     }
 
     private double confidenceOf(Case entity, CaseAnalysis analysis) {
-        if (wasFastTracked(entity)) {
+        if (resolvedByRules(entity)) {
             return 1.0;
         }
         return analysis.confidence() != null ? analysis.confidence() : 0.0;
     }
 
     private List<String> reasonsOf(Case entity, CaseAnalysis analysis) {
-        // After a Fast Track, llm_reason belongs to a previous run.
-        if (wasFastTracked(entity)) {
+        // After a rules outcome, llm_reason belongs to a previous run.
+        if (resolvedByRules(entity)) {
             return List.of();
         }
         return analysis.factors();
     }
 
     private CauseConsistency consistencyOf(Case entity, CaseAnalysis analysis) {
-        if (wasFastTracked(entity)) {
+        if (resolvedByRules(entity)) {
             return null;
         }
         return analysis.causeConsistency();
     }
 
-    private boolean wasFastTracked(Case entity) {
-        return Boolean.TRUE.equals(entity.getDeterministicFastTrack());
+    private boolean resolvedByRules(Case entity) {
+        return entity.getRulesClassification() != null;
     }
 }

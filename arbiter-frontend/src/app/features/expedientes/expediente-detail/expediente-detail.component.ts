@@ -4,15 +4,17 @@ import {
   computed,
   effect,
   inject,
+  linkedSignal,
   signal,
   untracked,
 } from '@angular/core';
-import { toObservable, toSignal } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import {
   catchError,
   combineLatest,
+  debounceTime,
   finalize,
   map,
   Observable,
@@ -21,10 +23,16 @@ import {
   switchMap,
 } from 'rxjs';
 
-import { ExpedienteService, AnalystDecisionRequest, Settlement } from '../expediente.service';
+import {
+  ExpedienteService,
+  AnalystDecisionRequest,
+  ClaimCauseOption,
+  Settlement,
+} from '../expediente.service';
 import { DocumentAgendaService } from '../document-agenda.service';
 import { CaseNavigationService } from '../case-navigation.service';
 import { CaseMessagesService } from '../case-messages.service';
+import { CaseMessage } from '../../../core/models/case-message';
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
 import { UserAdminService } from '../../../core/auth/user-admin.service';
 import { SettlementAuthoritiesService } from '../../admin/settlement-authorities.service';
@@ -62,16 +70,17 @@ import {
   shouldSurfaceCauseConsistency,
 } from '../../../core/models/cause-consistency';
 import {
+  Derivacion,
   ExpertVerdict,
   OpcionesDerivacion,
-  Peritaje,
   ProviderType,
+  ramosLabel,
   REPAIR_OUTCOME_OPTIONS,
   RepairOutcome,
   repairOutcomeLabel,
   veredictoLabel,
   veredictoTone,
-} from '../../../core/models/peritaje';
+} from '../../../core/models/derivacion';
 import {
   AntecedenteFraude,
   MOTIVO_ANTECEDENTE_MIN,
@@ -95,14 +104,15 @@ import {
 } from '../../../core/models/deadline-priority';
 import { RiskBand, riskBandLabel } from '../../../core/models/risk-band';
 import { StatusTone } from '../../../core/models/status-tone';
-import { formatDate, formatDateTime } from '../../../core/util/datetime';
+import { chatListStamp, formatDate, formatDateTime } from '../../../core/util/datetime';
 import { FraudGaugeComponent } from '../../../shared/ui/fraud-gauge/fraud-gauge.component';
 import { InfoTipComponent } from '../../../shared/ui/info-tip/info-tip.component';
 import { EmptyStateComponent } from '../../../shared/ui/empty-state/empty-state.component';
 import { StatusTimelineComponent } from '../../../shared/ui/status-timeline/status-timeline.component';
 import { ForensicAnalysisComponent } from './forensic-analysis/forensic-analysis.component';
 import { CaseDocumentsComponent } from '../case-documents/case-documents.component';
-import { CaseChatComponent } from '../case-chat/case-chat.component';
+import { CaseChatPopupComponent } from '../case-chat-popup/case-chat-popup.component';
+import { analystQuickReplies } from '../case-chat/quick-replies';
 import { CardComponent } from '../../../shared/ui/card/card.component';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
@@ -132,7 +142,6 @@ type TabId =
   | 'imagenes'
   | 'asegurado'
   | 'peritaje'
-  | 'conversacion'
   | 'historial';
 type Verb = 'aprobar' | 'rechazar';
 
@@ -158,9 +167,19 @@ function demoraDenuncia(eventDate: string, createdAt: string): string | undefine
 }
 
 /** A signal worth reading before deciding, and the tab where its evidence lives. */
+function initialsOf(name: string | null | undefined): string {
+  return (name ?? '')
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0]!.toUpperCase())
+    .join('');
+}
+
 interface BriefAlert {
   label: string;
-  tab: TabId;
+  /** 'chat' opens the chat popup instead of a tab. */
+  tab: TabId | 'chat';
 }
 
 @Component({
@@ -173,7 +192,7 @@ interface BriefAlert {
     StatusTimelineComponent,
     ForensicAnalysisComponent,
     CaseDocumentsComponent,
-    CaseChatComponent,
+    CaseChatPopupComponent,
     CardComponent,
     ButtonComponent,
     BadgeComponent,
@@ -211,15 +230,21 @@ export class ExpedienteDetailComponent {
       const id = this.loadedCaseId();
       untracked(() => {
         this.unreadMessages.set(0);
+        this.lastMessage.set(null);
         if (id) {
           this.messages.thread(id).subscribe({
-            next: (thread) => this.unreadMessages.set(thread.unread),
+            next: (thread) => {
+              this.unreadMessages.set(thread.unread);
+              this.lastMessage.set(thread.messages.at(-1) ?? null);
+            },
             error: () => undefined,
           });
         }
       });
     });
   }
+
+  protected readonly lastMessage = signal<CaseMessage | null>(null);
 
   /** Bumped after a decision is recorded, to refetch the case and reflect the real backend status. */
   private readonly reloadTrigger = signal(0);
@@ -391,13 +416,10 @@ export class ExpedienteDetailComponent {
   }
 
   /**
-   * FAST_TRACK and FALTA_DOCUMENTACION come from the rules gate, not the LLM, so no model confidence
-   * is shown for them: the backend's 100% is a fixed value, not a measurement.
+   * Settled by the rules engine without the LLM, so no model confidence is shown: the backend's 100%
+   * is a fixed value, not a measurement.
    */
-  protected readonly isDeterministicOutcome = computed(() => {
-    const c = this.data()?.analysisClassification;
-    return c === 'FAST_TRACK' || c === 'FALTA_DOCUMENTACION';
-  });
+  protected readonly isDeterministicOutcome = computed(() => this.data()?.resolvedByRules === true);
 
   protected readonly resumenGroups = computed<{ heading: string; fields: FieldItem[] }[]>(() => {
     const d = this.data();
@@ -658,8 +680,6 @@ export class ExpedienteDetailComponent {
   );
 
   // Conditional tabs appear only once something has run (referral, classification, forensics).
-  // 'conversacion' is always shown: an empty thread is where talking to the insured starts. It
-  // carries a dot when something is unread.
   protected readonly tabs = computed<
     {
       id: TabId;
@@ -696,17 +716,19 @@ export class ExpedienteDetailComponent {
     ...(this.derivaciones().length > 0
       ? [{ id: 'peritaje' as TabId, label: this.derivacionesTabLabel() }]
       : []),
-    {
-      id: 'conversacion' as TabId,
-      label: 'Conversación',
-      dot: this.unreadMessages() > 0,
-      dotLabel: 'con mensajes sin leer',
-    },
     { id: 'historial' as TabId, label: 'Historial' },
   ]);
 
   /** Fetched apart: counting per row in the shared `CaseResponse` would cost a query per inbox case. */
   protected readonly unreadMessages = signal(0);
+  protected readonly chatOpen = signal(false);
+
+  protected readonly quickReplies = computed(() =>
+    analystQuickReplies(
+      this.data()?.insuredName ?? '',
+      this.needsDocs() ? this.missingDocLabels() : [],
+    ),
+  );
   private readonly selectedTab = signal<TabId>('resumen');
 
   /**
@@ -720,6 +742,14 @@ export class ExpedienteDetailComponent {
 
   setTab(t: TabId): void {
     this.selectedTab.set(t);
+  }
+
+  protected onAlert(alerta: BriefAlert): void {
+    if (alerta.tab === 'chat') {
+      this.chatOpen.set(true);
+    } else {
+      this.setTab(alerta.tab);
+    }
   }
 
   /** The tabs sit below the fold on mobile: without the scroll the click would look like a no-op. */
@@ -772,7 +802,8 @@ export class ExpedienteDetailComponent {
     () =>
       this.decisionSaving() ||
       !this.justification().trim() ||
-      (this.pendingDecision() === 'aprobar' && this.approvalBlockedReason() !== null),
+      (this.pendingDecision() === 'aprobar' &&
+        (this.recalculoPendiente() || this.approvalBlockedReason() !== null)),
   );
 
   askDecision(v: Verb): void {
@@ -784,11 +815,17 @@ export class ExpedienteDetailComponent {
     this.replacementApplied.set(null);
     this.settledAmountInput.set('');
     this.adjustmentReason.set('');
+    if (v === 'aprobar') {
+      this.precargarMontoDeProveedor();
+    }
     this.showJustify.set(true);
   }
   cancelDecision(): void {
     this.showJustify.set(false);
     this.pendingDecision.set(null);
+    // A value tried in the dialog must not keep driving the page's amount and warnings.
+    this.replacementInput.set('');
+    this.replacementApplied.set(null);
   }
   confirmDecision(): void {
     const verb = this.pendingDecision();
@@ -847,20 +884,38 @@ export class ExpedienteDetailComponent {
    * Always fetched, since resolved cases show it too. A 403 (insured) yields null and the card
    * hides it.
    */
-  protected readonly settlement = toSignal(
+  private readonly settlementFetch = toSignal(
     combineLatest([
       this.route.paramMap.pipe(map((params) => params.get('id') ?? '')),
       toObservable(this.reloadTrigger),
       toObservable(this.replacementApplied),
     ]).pipe(
       switchMap(([id, , replacementValue]) =>
-        this.service
-          .settlement(id as unknown as number, replacementValue)
-          .pipe(catchError(() => of<Settlement | null>(null))),
+        this.service.settlement(id as unknown as number, replacementValue).pipe(
+          catchError(() => of<Settlement | null>(null)),
+          // Tagged with what it was computed from: the signal keeps the previous answer while the
+          // next one loads, so the applied value alone can't tell a draft from the saved proposal.
+          map((settlement) => ({ settlement, draft: replacementValue != null })),
+        ),
       ),
     ),
-    { initialValue: null as Settlement | null },
+    { initialValue: { settlement: null as Settlement | null, draft: false } },
   );
+
+  /** What the approval dialog works on: it follows the amount being tried there. */
+  protected readonly settlement = computed(() => this.settlementFetch().settlement);
+
+  /**
+   * What the page shows. It ignores the amount tried in the dialog, which is nothing until
+   * confirmed: the card behind must not announce a payout the analyst is still working out.
+   */
+  protected readonly settlementEnPagina = linkedSignal<
+    { settlement: Settlement | null; draft: boolean },
+    Settlement | null
+  >({
+    source: this.settlementFetch,
+    computation: (fetch, previous) => (fetch.draft ? (previous?.value ?? null) : fetch.settlement),
+  });
 
   /** Signed by the analyst and awaiting the supervisor: the decision buttons give way to a notice. */
   protected readonly esperandoAutorizacion = computed(
@@ -885,7 +940,19 @@ export class ExpedienteDetailComponent {
     return s?.formula === 'REPAIR' || s?.settlementBasis === 'LESSER_OF_SUM_AND_REPLACEMENT';
   });
 
-  /** Offered only until the analyst enters a value; never applied automatically. */
+  /**
+   * A total loss settled by the lesser of the two: today's replacement value is the base of the
+   * amount, so approval waits for it. Never defaulted to the sum insured.
+   */
+  protected readonly pideReposicion = computed(() => {
+    const s = this.settlement();
+    return s?.formula === 'TOTAL_LOSS' && s.settlementBasis === 'LESSER_OF_SUM_AND_REPLACEMENT';
+  });
+
+  /**
+   * Offered only until a value is entered. A document amount was read by the model, so it waits
+   * for the click; a provider's is prefilled by `precargarMontoDeProveedor`.
+   */
   protected readonly sugerenciaDisponible = computed(() => {
     const s = this.settlement();
     return (
@@ -896,6 +963,19 @@ export class ExpedienteDetailComponent {
       this.replacementApplied() == null
     );
   });
+
+  /**
+   * The repair shop's quote and the expert's valuation were typed in by an analyst when the report
+   * came back, so asking to take them again is a click that checks nothing. Still editable.
+   */
+  private precargarMontoDeProveedor(): void {
+    const s = this.settlement();
+    const deProveedor =
+      s?.suggestedFrom === 'repair_report' || s?.suggestedFrom === 'expert_report';
+    if (this.pideMontoAcreditado() && s?.suggestedFor === 'ACCREDITED_AMOUNT' && deProveedor) {
+      this.tomarSugerencia();
+    }
+  }
 
   protected tomarSugerencia(): void {
     const amount = this.settlement()?.suggestedAmount;
@@ -928,10 +1008,27 @@ export class ExpedienteDetailComponent {
     this.settledAmountInput.set(String(amount));
   }
 
-  protected applyReplacementValue(): void {
-    const raw = this.replacementInput().trim();
-    this.replacementApplied.set(raw === '' ? null : Number(raw));
+  private applyReplacementValue(): void {
+    this.replacementApplied.set(this.replacementTyped());
   }
+
+  private readonly replacementTyped = computed<number | null>(() => {
+    const raw = this.replacementInput().trim();
+    return raw === '' ? null : Number(raw);
+  });
+
+  /**
+   * The breakdown still shows the previous value: what's typed hasn't reached the backend yet.
+   * Blocks confirming so nobody authorizes an amount computed from a figure they already changed.
+   */
+  protected readonly recalculoPendiente = computed(
+    () => this.replacementTyped() !== this.replacementApplied(),
+  );
+
+  /** Recalculates on its own once the analyst stops typing; a button was a step easy to forget. */
+  private readonly autoRecalculo = toObservable(this.replacementInput)
+    .pipe(debounceTime(500), takeUntilDestroyed())
+    .subscribe(() => this.applyReplacementValue());
 
   /** Empty = pay the calculated amount. */
   protected readonly settledAmountInput = signal('');
@@ -965,6 +1062,9 @@ export class ExpedienteDetailComponent {
   protected readonly approvalBlockedReason = computed<string | null>(() => {
     if (!this.settlement()) {
       return 'No se pudo calcular el monto a pagar.';
+    }
+    if (this.pideReposicion() && this.replacementApplied() == null) {
+      return 'Cargá cuánto cuesta hoy reponer el bien.';
     }
     if (this.amountToAuthorize() == null) {
       return 'El monto a pagar tiene que ser un número.';
@@ -1117,10 +1217,10 @@ export class ExpedienteDetailComponent {
       switchMap(([id]) =>
         this.service
           .derivaciones(id as unknown as number)
-          .pipe(catchError(() => of<Peritaje[]>([]))),
+          .pipe(catchError(() => of<Derivacion[]>([]))),
       ),
     ),
-    { initialValue: [] as Peritaje[] },
+    { initialValue: [] as Derivacion[] },
   );
 
   protected readonly peritaje = computed(
@@ -1181,16 +1281,16 @@ export class ExpedienteDetailComponent {
 
   protected readonly opcionesDerivacion = computed<{ tipo: ProviderType; label: string }[]>(() => [
     ...(this.puedeDerivar() && this.derivacionHabilitada()
-      ? [{ tipo: 'ESTUDIO_LIQUIDADOR' as ProviderType, label: 'Derivar a peritaje' }]
+      ? [{ tipo: 'ESTUDIO_LIQUIDADOR' as ProviderType, label: 'Peritaje' }]
       : []),
     ...(this.puedeDerivarAReparacion()
-      ? [{ tipo: 'SERVICIO_TECNICO' as ProviderType, label: 'Derivar a servicio técnico' }]
+      ? [{ tipo: 'SERVICIO_TECNICO' as ProviderType, label: 'Servicio técnico' }]
       : []),
   ]);
 
   /** The calculated amount exceeds the branch limit: approving needs the supervisor's sign-off. */
   protected readonly superaAtribucion = computed(() => {
-    const s = this.settlement();
+    const s = this.settlementEnPagina();
     return (
       this.enManosDelAnalista() &&
       s?.authorityLimit != null &&
@@ -1230,19 +1330,18 @@ export class ExpedienteDetailComponent {
     this.derivaciones().filter((p) => p.verdict || p.repairOutcome),
   );
 
-  protected resultadoDerivacion(p: Peritaje): string {
+  protected resultadoDerivacion(p: Derivacion): string {
     const esReparacion = p.providerType === 'SERVICIO_TECNICO';
     const resultado = p.verdict
       ? veredictoLabel(p.verdict)
       : repairOutcomeLabel(p.repairOutcome ?? '');
     const monto = esReparacion ? p.repairCost : p.indemnifiableAmount;
-    const quien = esReparacion ? 'Servicio técnico' : 'Perito';
-    return monto != null
-      ? `${quien}: ${resultado} · ${this.formatMonto(monto)}`
-      : `${quien}: ${resultado}`;
+    // A repair outcome already names its source; the prefix made the badge overflow the card.
+    const texto = esReparacion ? resultado : `Perito: ${resultado}`;
+    return monto != null ? `${texto} · ${this.formatMonto(monto)}` : texto;
   }
 
-  protected resultadoDerivacionTone(p: Peritaje): StatusTone {
+  protected resultadoDerivacionTone(p: Derivacion): StatusTone {
     return p.verdict ? veredictoTone(p.verdict) : 'neutral';
   }
 
@@ -1267,12 +1366,12 @@ export class ExpedienteDetailComponent {
       });
     }
     if (this.unreadMessages() > 0) {
-      alertas.push({ label: 'Mensajes sin leer del asegurado', tab: 'conversacion' });
+      alertas.push({ label: 'Mensajes sin leer del asegurado', tab: 'chat' });
     }
     return alertas;
   });
 
-  /** Tells the analyst whether it is company policy or missing expert firms. */
+  /** Tells the analyst whether it is company policy or missing providers. */
   protected readonly motivoNoDerivable = computed<string | null>(() => {
     const options = this.derivationOptions();
     if (!options || options.eligible) {
@@ -1281,7 +1380,7 @@ export class ExpedienteDetailComponent {
     if (options.minClaimedAmount == null) {
       return 'Esta aseguradora no deriva a peritaje los siniestros de este ramo.';
     }
-    if (options.firms.length === 0) {
+    if (options.providers.length === 0) {
       return 'No hay peritos cargados para este ramo.';
     }
     // Names the expert assessment explicitly so it isn't read as blocking the repair shop too.
@@ -1291,16 +1390,28 @@ export class ExpedienteDetailComponent {
     );
   });
 
+  /** Only the missing catalog entry: a claim cause that doesn't go to repair needs no notice. */
+  protected readonly motivoSinServicioTecnico = computed<string | null>(() => {
+    const options = this.repairOptions();
+    if (!this.enManosDelAnalista() || this.reparacion()) {
+      return null;
+    }
+    if (!options || options.eligible || !options.allowedByRule) {
+      return null;
+    }
+    return 'No hay servicios técnicos cargados para este ramo.';
+  });
+
   protected readonly tipoDerivacion = signal<ProviderType>('ESTUDIO_LIQUIDADOR');
   protected readonly esReparacion = computed(() => this.tipoDerivacion() === 'SERVICIO_TECNICO');
 
-  protected readonly peritoOptions = computed<SelectOption[]>(() =>
-    ((this.esReparacion() ? this.repairOptions() : this.derivationOptions())?.firms ?? []).map(
-      (firm) => ({
-        value: String(firm.id),
-        // Branch tells specialist from generalist; area matters because the device must be inspected in
-        // person.
-        label: [firm.name, firm.branchName ?? 'todos los ramos', firm.zone]
+  protected readonly proveedorOptions = computed<SelectOption[]>(() =>
+    ((this.esReparacion() ? this.repairOptions() : this.derivationOptions())?.providers ?? []).map(
+      (provider) => ({
+        value: String(provider.id),
+        // Branches tell specialist from generalist; area matters because the device must be
+        // inspected in person.
+        label: [provider.name, ramosLabel(provider.branches), provider.zone]
           .filter(Boolean)
           .join(' · '),
       }),
@@ -1308,14 +1419,14 @@ export class ExpedienteDetailComponent {
   );
 
   protected readonly showDerivar = signal(false);
-  protected readonly peritoElegido = signal('');
+  protected readonly proveedorElegido = signal('');
   protected readonly motivoDerivacion = signal('');
   protected readonly derivarSaving = signal(false);
   protected readonly derivarError = signal<string | null>(null);
 
   askDerivar(tipo: ProviderType = 'ESTUDIO_LIQUIDADOR'): void {
     this.tipoDerivacion.set(tipo);
-    this.peritoElegido.set('');
+    this.proveedorElegido.set('');
     this.motivoDerivacion.set('');
     this.derivarError.set(null);
     this.showDerivar.set(true);
@@ -1327,14 +1438,14 @@ export class ExpedienteDetailComponent {
 
   confirmDerivar(): void {
     const d = this.data();
-    const perito = this.peritoElegido();
+    const proveedor = this.proveedorElegido();
     const motivo = this.motivoDerivacion().trim();
-    if (!d || !perito || !motivo) {
+    if (!d || !proveedor || !motivo) {
       return;
     }
     this.derivarSaving.set(true);
     this.derivarError.set(null);
-    this.service.derivarAPeritaje(d.id, Number(perito), motivo, this.tipoDerivacion()).subscribe({
+    this.service.derivar(d.id, Number(proveedor), motivo, this.tipoDerivacion()).subscribe({
       next: (peritaje) => {
         this.derivarSaving.set(false);
         this.showDerivar.set(false);
@@ -1349,8 +1460,82 @@ export class ExpedienteDetailComponent {
     });
   }
 
+  /**
+   * Only while the owner reviews it: the backend refuses any other status and a settlement awaiting
+   * the referente, and this keeps the button from offering what it would refuse.
+   */
+  protected readonly puedeCorregirCausa = computed(
+    () => this.enManosDelAnalista() && this.data()?.status === 'PENDING_ANALYST_REVIEW',
+  );
+
+  protected readonly showCorregirCausa = signal(false);
+  protected readonly causaOpciones = signal<ClaimCauseOption[] | null>(null);
+  protected readonly causaElegida = signal('');
+  protected readonly motivoCorreccion = signal('');
+  protected readonly corregirSaving = signal(false);
+  protected readonly corregirError = signal<string | null>(null);
+
+  protected readonly causaSelectOptions = computed<SelectOption[]>(() =>
+    (this.causaOpciones() ?? []).map((o) => ({
+      value: String(o.id),
+      label: `${o.name} · ${o.coverageName}`,
+    })),
+  );
+
+  askCorregirCausa(): void {
+    const d = this.data();
+    if (!d) {
+      return;
+    }
+    this.causaOpciones.set(null);
+    this.causaElegida.set('');
+    this.motivoCorreccion.set('');
+    this.corregirError.set(null);
+    this.showCorregirCausa.set(true);
+    this.service.claimCauseOptions(d.id).subscribe({
+      next: (opciones) => {
+        this.causaOpciones.set(opciones);
+        // What the narrative suggests comes preselected; the analyst still confirms it.
+        const sugerida = opciones.find((o) => o.name === d.suggestedClaimCause);
+        if (sugerida) {
+          this.causaElegida.set(String(sugerida.id));
+        }
+      },
+      error: () => {
+        this.causaOpciones.set([]);
+        this.corregirError.set('No se pudieron cargar los hechos generadores.');
+      },
+    });
+  }
+
+  cancelCorregirCausa(): void {
+    this.showCorregirCausa.set(false);
+  }
+
+  confirmCorregirCausa(): void {
+    const d = this.data();
+    const causa = this.causaElegida();
+    const motivo = this.motivoCorreccion().trim();
+    if (!d || !causa || !motivo) {
+      return;
+    }
+    this.corregirSaving.set(true);
+    this.corregirError.set(null);
+    this.service.correctClaimCause(d.id, Number(causa), motivo).subscribe({
+      next: () => {
+        this.corregirSaving.set(false);
+        this.showCorregirCausa.set(false);
+        this.reloadTrigger.update((v) => v + 1);
+      },
+      error: (err: HttpErrorResponse) => {
+        this.corregirSaving.set(false);
+        this.corregirError.set(err.error?.detail || 'No se pudo corregir el hecho generador');
+      },
+    });
+  }
+
   /** Kept for the confirmation modal: the only signal that the email went out. */
-  protected readonly derivacionHecha = signal<Peritaje | null>(null);
+  protected readonly derivacionHecha = signal<Derivacion | null>(null);
   // Kept apart from data(), which is empty while the case reloads behind the modal.
   protected readonly derivacionHechaCaseId = signal<number | null>(null);
 
@@ -1593,6 +1778,7 @@ export class ExpedienteDetailComponent {
   veredictoTone = veredictoTone;
   repairOutcomeLabel = repairOutcomeLabel;
   formatDateTime = formatDateTime;
+  chatListStamp = chatListStamp;
 
   ruleTypeLabel = ruleTypeLabel;
   ruleResultLabel = ruleResultLabel;
@@ -1720,13 +1906,10 @@ export class ExpedienteDetailComponent {
     return analista ? `Asignado a ${analista}` : 'Asignado a otro analista';
   });
 
-  protected readonly analystInitials = computed(() =>
-    (this.assignedName() ?? '')
-      .split(/\s+/)
-      .filter(Boolean)
-      .slice(0, 2)
-      .map((w) => w[0]!.toUpperCase())
-      .join(''),
+  protected readonly analystInitials = computed(() => initialsOf(this.assignedName()));
+  protected readonly insuredInitials = computed(() => initialsOf(this.data()?.insuredName));
+  protected readonly insuredFirstName = computed(
+    () => (this.data()?.insuredName ?? '').trim().split(/\s+/)[0] || 'el asegurado',
   );
 
   /**

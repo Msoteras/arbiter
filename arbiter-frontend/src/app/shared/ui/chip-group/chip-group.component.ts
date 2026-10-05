@@ -31,6 +31,8 @@ export interface ChipOption {
     </div>
   `,
   styles: `
+    @use 'media';
+
     :host {
       display: block;
     }
@@ -53,6 +55,12 @@ export interface ChipOption {
     .chip.sm {
       font-size: var(--font-size-sm);
       padding: var(--space-2) var(--space-3);
+    }
+    @include media.touch {
+      .chip,
+      .chip.sm {
+        min-height: var(--touch-target);
+      }
     }
     .chip:hover:not(:disabled) {
       border-color: var(--action-secondary-border-hover);

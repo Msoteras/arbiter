@@ -21,6 +21,8 @@ import { ChangeDetectionStrategy, Component, input, model } from '@angular/core'
     </button>
   `,
   styles: `
+    @use 'media';
+
     :host {
       display: inline-block;
     }
@@ -60,6 +62,22 @@ import { ChangeDetectionStrategy, Component, input, model } from '@angular/core'
     .track:focus-visible {
       outline: none;
       box-shadow: var(--focus-ring);
+    }
+
+    /* The track keeps its visual size; an invisible layer grows the tappable area around it. */
+    @include media.touch {
+      .track {
+        position: relative;
+      }
+      .track::before {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: max(100%, var(--touch-target));
+        height: var(--touch-target);
+        transform: translate(-50%, -50%);
+      }
     }
 
     @media (prefers-reduced-motion: reduce) {

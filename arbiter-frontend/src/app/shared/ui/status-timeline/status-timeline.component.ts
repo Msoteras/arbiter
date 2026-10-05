@@ -66,6 +66,9 @@ const PROXIMO_PASO_ANALISTA: Partial<Record<CaseStatus, string>> = {
               <span class="actor">{{ actor(h.actor) }}</span>
               <span class="reason">{{ nota(h.reason) }}</span>
             </div>
+            @if (h.observation) {
+              <q class="observation">{{ h.observation }}</q>
+            }
           </div>
         </li>
       }
@@ -178,6 +181,13 @@ const PROXIMO_PASO_ANALISTA: Partial<Record<CaseStatus, string>> = {
     .reason {
       font-size: var(--font-size-sm);
       color: var(--text-secondary);
+    }
+    .observation {
+      display: block;
+      margin-top: var(--space-1);
+      font-size: var(--font-size-sm);
+      color: var(--text-secondary);
+      font-style: italic;
     }
     .step.next .when {
       text-transform: uppercase;

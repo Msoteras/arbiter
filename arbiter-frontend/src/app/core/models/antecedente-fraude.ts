@@ -22,7 +22,7 @@ export interface AntecedenteFraude {
   caseId: number;
   source: OrigenAntecedente;
   reason: string;
-  expertAssessmentId: number | null;
+  caseReferralId: number | null;
   declaredByAnalystName: string;
   declaredAt: string;
   inForce: boolean;

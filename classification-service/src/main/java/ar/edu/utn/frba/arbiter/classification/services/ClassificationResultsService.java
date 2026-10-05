@@ -65,11 +65,13 @@ public class ClassificationResultsService {
         // otherwise a case that self-healed on a later retry would still read as failed.
         caseOutcomeRepository.clearClassificationFailure(caseId);
 
-        if (response.deterministicFastTrack()) {
-            // No llm_analysis row: the model never ran. The outcome is recorded on the case,
-            // which is the only place that can tell "fast tracked" from "not classified yet".
-            caseOutcomeRepository.markFastTracked(caseId);
-            log.info("[ResultsService] Fast Track recorded for case {}", caseId);
+        // Rewritten every run, null included: it is what tells this run's outcome from a previous one.
+        caseOutcomeRepository.saveRulesClassification(
+                caseId, response.resolvedByRules() ? response.classification() : null);
+
+        if (response.resolvedByRules()) {
+            // No llm_analysis row: the model never ran. Why the engine decided is in rule_result.
+            log.info("[ResultsService] Rules outcome recorded for case {} ({})", caseId, response.classification());
         } else {
             LlmAnalysis analysis = new LlmAnalysis();
             analysis.setCaseId(caseId);
@@ -171,37 +173,39 @@ public class ClassificationResultsService {
         Optional<RiskAnalysis> risk = riskAnalysisRepository.findFirstByCaseIdOrderByIdDesc(caseId);
         CaseOutcomeRepository.CaseOutcome outcome = caseOutcomeRepository.findOutcome(caseId);
 
+        Classification byRules = outcome.rulesClassification();
+        boolean resolvedByRules = byRules != null;
         return ClaimResponse.builder()
                 .caseId(caseId)
-                // Fast Track first: it writes no llm_analysis row, so on reclassification the
-                // append-only table would still return the previous run. The flag is rewritten every run.
-                .classification(outcome.wasFastTrack()
-                        ? Classification.FAST_TRACK
+                // Rules first: they write no llm_analysis row, so on reclassification the append-only
+                // table would still return the previous run. The column is rewritten every run.
+                .classification(resolvedByRules
+                        ? byRules
                         : analysis.map(LlmAnalysis::getRecommendation).orElse(null))
                 // Double.valueOf, not 1.0: a primitive literal would unbox the null branch (NPE).
-                .confidence(outcome.wasFastTrack()
+                .confidence(resolvedByRules
                         ? Double.valueOf(1.0)
                         : analysis.map(a -> a.getConfidence() != null ? a.getConfidence().doubleValue() : null)
                                 .orElse(null))
-                // On Fast Track, the previous run's model fields would describe a different classification.
-                .factors(outcome.wasFastTrack()
+                // On a rules outcome, the previous run's model fields would describe a different classification.
+                .factors(resolvedByRules
                         ? null
                         : analysis.map(a -> a.getReasons().stream().map(LlmReason::getReason).toList())
                                 .orElse(null))
-                .deterministicFastTrack(outcome.wasFastTrack())
+                .resolvedByRules(resolvedByRules)
                 .forensicReport(FORENSIC_JSON.convertToEntityAttribute(outcome.forensicReport()))
                 .riskScore(risk.map(r -> r.getRiskScore().doubleValue()).orElse(null))
                 .riskBand(risk.map(RiskAnalysis::getRiskBand).orElse(null))
                 .riskBreakdown(risk.map(RiskAnalysis::getRiskBreakdown).orElse(null))
                 .insuredName(outcome.insuredName())
-                .causeConsistency(outcome.wasFastTrack()
+                .causeConsistency(resolvedByRules
                         ? null : analysis.map(LlmAnalysis::getCauseConsistency).orElse(null))
-                .suggestedClaimCause(outcome.wasFastTrack()
+                .suggestedClaimCause(resolvedByRules
                         ? null : analysis.map(LlmAnalysis::getSuggestedClaimCause).orElse(null))
-                .causeEvidence(outcome.wasFastTrack()
+                .causeEvidence(resolvedByRules
                         ? null : analysis.map(LlmAnalysis::getCauseEvidence).orElse(null))
                 // cases-service's poller uses it to tell this row from one a previous run left behind.
-                .analyzedAt(outcome.wasFastTrack()
+                .analyzedAt(resolvedByRules
                         ? null : analysis.map(LlmAnalysis::getAnalyzedAt).orElse(null))
                 .build();
     }
@@ -209,9 +213,12 @@ public class ClassificationResultsService {
     /** Returns the {@code case_classification} id, which cases-service stores on {@code cases.classification_id}. */
     @Transactional
     public Long recordAnalystDecision(Long caseId, AnalystDecisionRequest request) {
-        // A Fast Track has no analysis to point at but still needs an analyst's decision.
-        Optional<LlmAnalysis> analysis = llmAnalysisRepository.findLatestByCaseId(caseId);
-        if (analysis.isEmpty() && !caseOutcomeRepository.findOutcome(caseId).wasFastTrack()) {
+        // A rules outcome has no model analysis to point at but still needs an analyst's decision.
+        boolean resolvedByRules = caseOutcomeRepository.findOutcome(caseId).rulesClassification() != null;
+        Optional<LlmAnalysis> analysis = resolvedByRules
+                ? Optional.empty()
+                : llmAnalysisRepository.findLatestByCaseId(caseId);
+        if (analysis.isEmpty() && !resolvedByRules) {
             throw new InvalidClassificationException("No classification found for case " + caseId);
         }
 

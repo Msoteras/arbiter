@@ -374,6 +374,13 @@ interface Swatch {
               tabla).
             </p>
           </app-card>
+          <app-card heading="Con chip al costado">
+            <app-badge cardAside variant="strong" tone="ok">Aplicó</app-badge>
+            <p class="sg-p">
+              Un elemento con <span class="mono">cardAside</span> va a la derecha del título. No en
+              las plegables.
+            </p>
+          </app-card>
           <app-card heading="Plegable" [collapsible]="true">
             <p class="sg-p">
               Con <span class="mono">collapsible</span> la cabecera pliega el cuerpo. Para pantallas
@@ -394,6 +401,11 @@ interface Swatch {
           <app-input type="password" [(value)]="samplePassword" placeholder="Contraseña" />
           <app-input type="date" [(value)]="sampleDate" />
           <app-textarea [(value)]="sampleArea" placeholder="Justificación…" [rows]="3" />
+          <app-textarea
+            placeholder="Deshabilitado (ej. mientras se envía)"
+            [rows]="2"
+            [disabled]="true"
+          />
         </div>
       </section>
 
@@ -1493,6 +1505,7 @@ export class StyleguideComponent {
       toStatus: 'PENDING_CLASSIFICATION',
       actor: 'INSURED',
       reason: 'denuncia registrada',
+      observation: null,
       changedAt: '2026-06-29T00:27:10Z',
     },
     {
@@ -1500,7 +1513,17 @@ export class StyleguideComponent {
       toStatus: 'PENDING_ANALYST_REVIEW',
       actor: 'SYSTEM',
       reason: 'clasificación: PROCEDENTE',
+      observation: null,
       changedAt: '2026-06-29T00:27:41Z',
+    },
+    {
+      fromStatus: 'PENDING_ANALYST_REVIEW',
+      toStatus: 'PENDING_CLASSIFICATION',
+      actor: 'ANALYST',
+      reason:
+        'Lucas Gómez corrigió el hecho generador: Robo en vía pública → Caída (cobertura: Daño accidental)',
+      observation: 'El relato dice que se le cayó del bolsillo.',
+      changedAt: '2026-06-29T10:02:00Z',
     },
   ];
 

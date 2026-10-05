@@ -1,5 +1,6 @@
 package ar.edu.utn.frba.arbiter.common.models.entities.tenant;
 
+import ar.edu.utn.frba.arbiter.common.enums.DeductibleBasis;
 import ar.edu.utn.frba.arbiter.common.enums.SettlementBasis;
 import ar.edu.utn.frba.arbiter.common.enums.SettlementFormula;
 import jakarta.persistence.Column;
@@ -87,6 +88,11 @@ public class Coverage {
     @Column(name = "settlement_basis", nullable = false, length = 30)
     @Builder.Default
     private SettlementBasis settlementBasis = SettlementBasis.SUM_INSURED;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "deductible_basis", nullable = false, length = 20)
+    @Builder.Default
+    private DeductibleBasis deductibleBasis = DeductibleBasis.SUM_INSURED;
 
     /**
      * Percentage of the ceiling payable from the second event of the year on, in percentage points

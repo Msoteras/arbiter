@@ -236,6 +236,31 @@ class ClaimMetricsRepositoryTests extends AbstractPersistenceIT {
                 .isEqualTo(new RecommendationAgreement(2, 1, 0.5));
     }
 
+    /**
+     * A prescription recommends rejection with the model's literal. Rows written before the rules
+     * column existed still carry an llm_analysis row, which must not count as the model agreeing.
+     */
+    @Test
+    void agreement_leavesOutWhatTheRulesDecided() {
+        resolvedWithRecommendation(1, "LLM_RECOMIENDA_APROBAR", APPROVED);
+        resolvedWithRecommendation(2, "LLM_NO_RECOMIENDA_APROBAR", REJECTED);
+        tables.rulesOutcome(2, "LLM_NO_RECOMIENDA_APROBAR");
+
+        assertThat(repository.recommendationAgreement(AUGUST_FROM, AUGUST_TO, NONE))
+                .isEqualTo(new RecommendationAgreement(1, 1, 1.0));
+    }
+
+    /** Only its label: an old llm_analysis row of the same case must not win over it. */
+    @Test
+    void classification_ofARulesOutcomeIsTheEngines() {
+        tables.insertCase(1, "2026-08-02T10:00:00Z", PENDING_REVIEW, ROBO_CELULARES, false, null, null);
+        tables.recommendation(1, "LLM_RECOMIENDA_APROBAR");
+        tables.rulesOutcome(1, "LLM_SOLICITA_REVISION_MANUAL");
+
+        assertThat(repository.countByClassification(AUGUST_FROM, AUGUST_TO, NONE))
+                .containsExactly(new MetricCount("LLM_SOLICITA_REVISION_MANUAL", 1));
+    }
+
     @Test
     void agreement_isUnknownRatherThanZero_whenNothingDecidedCarriedARecommendation() {
         tables.insertCase(1, "2026-08-01T10:00:00Z", APPROVED, ROBO_CELULARES, true, LAURA, null);

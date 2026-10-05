@@ -55,8 +55,8 @@ public class InsuredFraudRecord {
     private String reason;
 
     /** Only for {@code EXPERT_BACKED} records. */
-    @Column(name = "expert_assessment_id")
-    private Long expertAssessmentId;
+    @Column(name = "case_referral_id")
+    private Long caseReferralId;
 
     @Column(name = "declared_by_analyst_id", nullable = false)
     private Long declaredByAnalystId;

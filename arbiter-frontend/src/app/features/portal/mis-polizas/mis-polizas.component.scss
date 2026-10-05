@@ -1,3 +1,5 @@
+@use 'media';
+
 :host {
   display: block;
 }
@@ -103,4 +105,10 @@
 }
 .chev.is-open {
   transform: rotate(90deg);
+}
+
+@include media.touch {
+  .expired-toggle {
+    min-height: var(--touch-target);
+  }
 }

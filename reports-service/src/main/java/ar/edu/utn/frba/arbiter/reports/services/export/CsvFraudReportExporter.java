@@ -16,11 +16,9 @@ import java.util.List;
 @RequiredArgsConstructor
 public class CsvFraudReportExporter implements FraudReportExporter {
 
-    /** The two counts get their own columns besides "Señales" so the spreadsheet can sort by them. */
     private static final List<String> HEADER = List.of(
             "Nº expediente", "Asegurado", "DNI", "Ramo", "Hecho generador", "Fecha de denuncia",
-            "Score de riesgo", "Señales", "Denuncias en 12 meses", "Imágenes con coincidencia",
-            "Estado", "Fraude determinado");
+            "Score de riesgo", "Estado", "Fraude determinado");
 
     private final Clock clock;
 
@@ -43,9 +41,6 @@ public class CsvFraudReportExporter implements FraudReportExporter {
                     row.claimCause(),
                     dateTime.format(row.reportedAt()),
                     ReportLabels.alertLevel(row.riskBand()),
-                    ReportLabels.signals(row),
-                    String.valueOf(row.claimsInWindow()),
-                    String.valueOf(row.suspiciousImages()),
                     ReportLabels.status(row.status()),
                     ReportLabels.fraudDetermination(row)));
         }

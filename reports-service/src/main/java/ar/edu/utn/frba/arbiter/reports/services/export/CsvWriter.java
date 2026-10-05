@@ -4,21 +4,19 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.stream.Collectors;
 
-/**
- * No preamble, one header line and one line per row, so the file stays machine-readable. The dialect is
- * Excel in es-AR, which is what the referent opens these with.
- */
+/** One header line and one line per row, for the spreadsheet the referent opens these with. */
 final class CsvWriter {
 
-    // Excel in es-AR uses the comma as decimal separator and expects ';' between fields.
     private static final String SEPARATOR = ";";
     private static final String LINE_END = "\r\n";
     // Without the BOM Excel reads the file as ANSI and mangles every accent and ñ.
     private static final String BOM = String.valueOf((char) 0xFEFF);
+    // Excel takes the delimiter from the machine's locale, not the file; this is the only override.
+    private static final String SEPARATOR_DECLARATION = "sep=" + SEPARATOR + LINE_END;
     // A cell starting with one of these is a formula to a spreadsheet (CSV injection).
     private static final String FORMULA_TRIGGERS = "=+-@\t\r";
 
-    private final StringBuilder csv = new StringBuilder(BOM);
+    private final StringBuilder csv = new StringBuilder(BOM).append(SEPARATOR_DECLARATION);
 
     void appendLine(List<String> fields) {
         csv.append(fields.stream().map(CsvWriter::escape).collect(Collectors.joining(SEPARATOR)))

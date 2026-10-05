@@ -1,6 +1,7 @@
 package ar.edu.utn.frba.arbiter.cases.controllers;
 
 import ar.edu.utn.frba.arbiter.cases.dto.CaseFollowUp;
+import ar.edu.utn.frba.arbiter.cases.dto.CaseMessageInboxItemResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseScope;
 import ar.edu.utn.frba.arbiter.cases.dto.DocumentAnalysisSummary;
@@ -10,7 +11,9 @@ import ar.edu.utn.frba.arbiter.cases.exceptions.CaseExceptionHandler;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CaseNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidStatusTransitionException;
 import ar.edu.utn.frba.arbiter.cases.models.entities.StatusChangeActor;
+import ar.edu.utn.frba.arbiter.cases.services.CaseMessageService;
 import ar.edu.utn.frba.arbiter.cases.services.CaseService;
+import ar.edu.utn.frba.arbiter.cases.services.ClaimCauseCorrectionService;
 import ar.edu.utn.frba.arbiter.cases.services.SettlementService;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 import ar.edu.utn.frba.arbiter.common.enums.Classification;
@@ -56,6 +59,12 @@ class CaseControllerTest {
 
     @MockitoBean
     private SettlementService settlementService;
+
+    @MockitoBean
+    private ClaimCauseCorrectionService claimCauseCorrectionService;
+
+    @MockitoBean
+    private CaseMessageService messageService;
 
     @Test
     void createCase_returns202WithBody() throws Exception {
@@ -218,6 +227,21 @@ class CaseControllerTest {
     }
 
     @Test
+    void messagesInbox_returns200WithTheServicesList() throws Exception {
+        CaseMessageInboxItemResponse item = new CaseMessageInboxItemResponse(
+                48L, null, null, "Camila Ferreyra", "Lucía Gómez", "Celulares", "Robo en vía pública",
+                CaseStatus.AWAITING_DOCUMENTATION, "¿La captura de Google sirve?", "INSURED",
+                Instant.parse("2026-09-25T09:12:00Z"), 1);
+        when(messageService.inbox()).thenReturn(List.of(item));
+
+        mockMvc.perform(get("/api/v1/cases/messages/inbox"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].caseId").value(48))
+                .andExpect(jsonPath("$[0].unreadCount").value(1));
+    }
+
+    @Test
     void listCases_withFreeTextSearch_passesQThrough() throws Exception {
         CaseResponse response = caseResponse(1L, CaseStatus.PENDING_ANALYST_REVIEW);
         when(caseService.listCases(isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), eq("POL-CEL"), isNull(), isNull(), eq(false), eq(false), eq(false), eq(false), eq(false), isNull(), isNull(), eq(CaseScope.ALL), isNull(), eq(DEFAULT_PAGEABLE)))
@@ -303,7 +327,7 @@ class CaseControllerTest {
                 "Me robaron el celular",
                 LocalDateTime.of(2026, 6, 13, 19, 45), "CABA",
                 new BigDecimal("150000"),
-                Classification.FAST_TRACK, 1.0,
+                Classification.FAST_TRACK, true, 1.0,
                 List.of("Low amount", "first claim", "policy up to date"),
                 null, null, null,
                 null, null, null, null, null, null,
@@ -313,11 +337,11 @@ class CaseControllerTest {
                 null,
                 List.of(
                         new StatusTransitionResponse(null, CaseStatus.PENDING_CLASSIFICATION,
-                                StatusChangeActor.INSURED, "denuncia registrada",
+                                StatusChangeActor.INSURED, "denuncia registrada", null,
                                 Instant.parse("2026-06-13T22:50:00Z")),
                         new StatusTransitionResponse(CaseStatus.PENDING_CLASSIFICATION,
                                 CaseStatus.PENDING_ANALYST_REVIEW,
-                                StatusChangeActor.SYSTEM, "clasificación: FAST_TRACK",
+                                StatusChangeActor.SYSTEM, "clasificación: FAST_TRACK", null,
                                 Instant.parse("2026-06-13T22:55:00Z"))
                 ),
                 // One field read (amount) and one the document doesn't carry (IMEI): the null must
@@ -457,7 +481,7 @@ class CaseControllerTest {
                 "Me robaron el celular",
                 LocalDateTime.of(2026, 6, 13, 19, 45), "CABA",
                 new BigDecimal("150000"),
-                null, 0.0, null,
+                null, false, 0.0, null,
                 null, null, null,
                 null, null, null, null, null, null,
                 Instant.parse("2026-06-13T22:50:00Z"),

@@ -141,6 +141,70 @@ regla, o el del primer referente de la aseguradora.
 
 ---
 
+## 8 · `cobertura.base_franquicia` y `liquidacion.base_franquicia` — columnas nuevas, faltan en el DER
+
+**Encontrado:** 28/09/2026. Las suma el PR #120 (Martina): cada cobertura dice sobre qué se calcula
+su franquicia. BBVA la toma de la suma asegurada ("10% de la suma asegurada"), y el mercado, del
+siniestro (SURA art. 6, Meridional cl. 6). `liquidacion` guarda la base que usó, igual que el resto
+de los datos de entrada. Implementadas en `db/init-multitenant.sql` y
+`db/migrations/2026-09-28-base-de-la-franquicia.sql`.
+
+| Tabla | Columna | Tipo de dato | Nulo | Restricciones |
+|---|---|---|---|---|
+| `cobertura` | `base_franquicia` (`deductible_basis`) | VARCHAR(20) | no | default `'SUM_INSURED'`; CHECK `IN ('SUM_INSURED', 'LOSS_AMOUNT')` |
+| `liquidacion` | `base_franquicia` (`deductible_basis`) | VARCHAR(20) | no | default `'SUM_INSURED'`; mismo CHECK |
+
+**Acción:** agregar la columna a `cobertura` y a `liquidacion` en el `.mdj`.
+
+---
+
+## 9 · `expediente.fue_fast_track` → `expediente.clasificacion_por_reglas` — cambia la columna
+
+**Encontrado:** 29/09/2026. Fast Track era una de las cuatro salidas que decide el motor de reglas sin
+el modelo. Las otras tres (exclusión de cobertura, prescripción y falta de documentación) se
+guardaban en `analisis_llm` como si las hubiera recomendado el modelo. Ahora ninguna escribe en
+`analisis_llm`: la recomendación del motor queda en el expediente y el porqué, en
+`resultado_regla`. Implementado en `db/init-multitenant.sql` y
+`db/migrations/2026-09-29-quien-decidio-la-clasificacion.sql`.
+
+| Tabla | Columna | Tipo de dato | Nulo | Restricciones |
+|---|---|---|---|---|
+| `expediente` | ~~`fue_fast_track`~~ (`was_fast_track`) | BOOLEAN | — | se dropea |
+| `expediente` | `clasificacion_por_reglas` (`rules_classification`) | VARCHAR(50) | sí | CHECK `IN ('FAST_TRACK', 'FALTA_DOCUMENTACION', 'LLM_SOLICITA_REVISION_MANUAL', 'LLM_NO_RECOMIENDA_APROBAR')`; nula cuando decidió el modelo |
+
+**Acción:** reemplazar `fue_fast_track` por `clasificacion_por_reglas` en `expediente` en el `.mdj`.
+
+---
+
+## 10 · `perito` y `peritaje` — renombre a nombres neutrales y ramos N:M
+
+**Encontrado:** 01/10/2026. El catálogo sirve a estudios liquidadores y a servicios técnicos
+(`tipo_proveedor`), pero las dos tablas estaban nombradas como si solo hubiera peritos, y cada
+proveedor cubría un solo ramo o todos. Implementado en `db/init-multitenant.sql` y
+`db/migrations/2026-10-01-proveedor-externo.sql`. **Todavía no aplicado en Railway.**
+
+| Antes | Después | Tipo de dato | Nulo | Restricciones |
+|---|---|---|---|---|
+| `perito` | `proveedor_externo` (`service_provider`) | — | — | tabla renombrada |
+| `perito.rama_id` | — | — | — | se dropea: pasa a `proveedor_externo_rama` |
+| — | `proveedor_externo_rama.proveedor_externo_id` (`service_provider_id`) | BIGINT | no | PK compuesta; FK → `proveedor_externo.id`, ON DELETE CASCADE |
+| — | `proveedor_externo_rama.rama_id` (`branch_id`) | BIGINT | no | PK compuesta; FK → `rama.id` |
+| `peritaje` | `derivacion_expediente` (`case_referral`) | — | — | tabla renombrada |
+| `peritaje.nombre_perito` | `derivacion_expediente.nombre_proveedor` (`provider_name`) | VARCHAR(120) | no | — |
+| `peritaje.email_perito` | `derivacion_expediente.email_proveedor` (`provider_email`) | VARCHAR(150) | no | — |
+| `peritaje.perito_id` | `derivacion_expediente.proveedor_id` (`provider_id`) | BIGINT | sí | FK → `proveedor_externo.id`, ON DELETE SET NULL |
+| `antecedente_fraude.peritaje_id` | `antecedente_fraude.derivacion_expediente_id` (`case_referral_id`) | BIGINT | sí | FK → `derivacion_expediente.id` |
+
+Un proveedor sin filas en `proveedor_externo_rama` es generalista: cubre todos los ramos, también
+los que se den de alta después. La migración pasa cada `rama_id` no nulo a una fila de la tabla
+nueva; los que tenían NULL quedan sin filas. `veredicto`, `monto_indemnizable`,
+`resultado_reparacion` y `costo_reparacion` no cambian: ya son propios de un tipo de proveedor.
+
+**Acción:** en el `.mdj`, renombrar las dos entidades y sus columnas, sacar `rama_id` de
+`proveedor_externo` y agregar `proveedor_externo_rama` como N:M entre `proveedor_externo` y `rama`.
+
+---
+
 ## Plantilla para la próxima entrada
 
 ```

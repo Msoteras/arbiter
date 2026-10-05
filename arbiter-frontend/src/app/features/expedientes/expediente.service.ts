@@ -7,12 +7,12 @@ import { ExpedienteResponse } from '../../core/models/expediente';
 import { CaseDocument } from '../../core/models/case-document';
 import { Policy } from '../../core/models/policy';
 import {
+  Derivacion,
   ExpertVerdict,
   OpcionesDerivacion,
-  Peritaje,
   ProviderType,
   RepairOutcome,
-} from '../../core/models/peritaje';
+} from '../../core/models/derivacion';
 import {
   AntecedenteFraude,
   RegistrarAntecedenteRequest,
@@ -74,6 +74,13 @@ export interface SettlementDecisionRequest {
 }
 
 export type SettlementBasis = 'SUM_INSURED' | 'LESSER_OF_SUM_AND_REPLACEMENT';
+
+/** Mirrors cases-service ClaimCauseOption. */
+export interface ClaimCauseOption {
+  id: number;
+  name: string;
+  coverageName: string;
+}
 
 /** Built entirely by the backend (amount and wording) so text and math can't drift apart. */
 export interface SettlementLine {
@@ -326,6 +333,16 @@ export class ExpedienteService {
     return this.http.post<ExpedienteResponse>(`${this.baseUrl}/${caseId}/assign`, { analystId });
   }
 
+  /** Causes of the case's branch some coverage of the policy answers for, with that coverage. */
+  claimCauseOptions(caseId: number): Observable<ClaimCauseOption[]> {
+    return this.http.get<ClaimCauseOption[]>(`${this.baseUrl}/${caseId}/claim-cause/options`);
+  }
+
+  /** The coverage follows from the cause and the case goes back to classification. */
+  correctClaimCause(caseId: number, claimCauseId: number, reason: string): Observable<unknown> {
+    return this.http.post(`${this.baseUrl}/${caseId}/claim-cause`, { claimCauseId, reason });
+  }
+
   /** Back to analyst review without reverting the previous decision. 409 from a non-terminal status. */
   reopen(caseId: number, reason: string): Observable<ExpedienteResponse> {
     return this.http.post<ExpedienteResponse>(`${this.baseUrl}/${caseId}/reopen`, { reason });
@@ -371,19 +388,19 @@ export class ExpedienteService {
   }
 
   /** Newest first. */
-  derivaciones(caseId: number): Observable<Peritaje[]> {
-    return this.http.get<Peritaje[]>(`${this.baseUrl}/${caseId}/expert-assessment/all`);
+  derivaciones(caseId: number): Observable<Derivacion[]> {
+    return this.http.get<Derivacion[]>(`${this.baseUrl}/${caseId}/expert-assessment/all`);
   }
 
-  derivarAPeritaje(
+  derivar(
     caseId: number,
-    expertFirmId: number,
+    providerId: number,
     reason: string,
     providerType: ProviderType = 'ESTUDIO_LIQUIDADOR',
-  ): Observable<Peritaje> {
-    return this.http.post<Peritaje>(
+  ): Observable<Derivacion> {
+    return this.http.post<Derivacion>(
       `${this.baseUrl}/${caseId}/expert-assessment`,
-      { expertFirmId, reason },
+      { providerId, reason },
       { params: { providerType } },
     );
   }
@@ -394,7 +411,7 @@ export class ExpedienteService {
     note: string,
     repairCost: number | null,
     report: File,
-  ): Observable<Peritaje> {
+  ): Observable<Derivacion> {
     const formData = new FormData();
     formData.append('report', report);
     formData.append('outcome', outcome);
@@ -403,7 +420,7 @@ export class ExpedienteService {
     if (repairCost != null) {
       formData.append('repairCost', String(repairCost));
     }
-    return this.http.post<Peritaje>(
+    return this.http.post<Derivacion>(
       `${this.baseUrl}/${caseId}/expert-assessment/repair-report`,
       formData,
     );
@@ -416,7 +433,7 @@ export class ExpedienteService {
     note: string,
     indemnifiableAmount: number | null,
     report: File,
-  ): Observable<Peritaje> {
+  ): Observable<Derivacion> {
     // In the body, not the query string: the note may contain personal data that would end up in
     // proxy logs. @RequestParam reads multipart fields too.
     const formData = new FormData();
@@ -427,7 +444,10 @@ export class ExpedienteService {
     if (indemnifiableAmount != null) {
       formData.append('indemnifiableAmount', String(indemnifiableAmount));
     }
-    return this.http.post<Peritaje>(`${this.baseUrl}/${caseId}/expert-assessment/report`, formData);
+    return this.http.post<Derivacion>(
+      `${this.baseUrl}/${caseId}/expert-assessment/report`,
+      formData,
+    );
   }
 
   /** Current data, fetched lazily when the tab opens to spare an insurer-DB query on every detail load. */

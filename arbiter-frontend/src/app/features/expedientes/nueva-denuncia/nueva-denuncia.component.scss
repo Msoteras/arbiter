@@ -1,3 +1,5 @@
+@use 'media';
+
 :host {
   display: block;
 }
@@ -37,6 +39,9 @@
 .wizard-card {
   padding: var(--space-6);
 }
+.wizard.embedded .wizard-card {
+  padding: 0;
+}
 
 .stepper {
   display: flex;
@@ -63,8 +68,8 @@
   color: var(--text-primary);
 }
 .step-number {
-  width: 28px;
-  height: 28px;
+  width: var(--step-dot);
+  height: var(--step-dot);
   border-radius: var(--radius-pill);
   display: flex;
   align-items: center;
@@ -330,14 +335,19 @@ app-textarea {
   font-size: var(--font-size-md);
 }
 
+// Sticky: step 2 is long and the navigation must stay reachable.
 .wizard-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
   margin-top: var(--space-6);
-  padding-top: var(--space-4);
+  padding: var(--space-4) 0 var(--space-3);
   border-top: 1px solid var(--border-subtle);
+  background: var(--surface);
 }
 .wizard-actions-left {
   display: flex;
@@ -364,14 +374,24 @@ app-textarea {
   font-weight: var(--font-weight-medium);
   color: var(--text-primary);
 }
-@media (max-width: 640px) {
-  .wizard-actions-right {
-    flex-direction: column;
-    align-items: stretch;
+@include media.phone {
+  .wizard-actions {
+    flex-wrap: wrap;
     gap: var(--space-2);
   }
+  .wizard-actions-left {
+    gap: var(--space-2);
+  }
+  .wizard-actions-right {
+    display: contents;
+  }
   .missing-hint {
+    order: -1;
+    flex-basis: 100%;
     text-align: left;
+  }
+  .wizard-primary {
+    flex: 1 1 auto;
   }
 }
 
@@ -406,4 +426,50 @@ app-textarea {
 }
 .legal-note {
   margin: 0 0 var(--space-5);
+}
+
+@include media.touch {
+  .doc-upload-btn,
+  .doc-remove {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: var(--touch-target);
+    min-width: var(--touch-target);
+  }
+}
+
+@include media.phone {
+  .wizard {
+    padding: var(--space-4) var(--space-4) var(--space-6);
+  }
+  .wizard:not(.embedded) .wizard-card {
+    padding: var(--space-4);
+  }
+  // Equal columns keep the dots evenly spaced; the connectors' negative margins cancel their width.
+  .stepper {
+    gap: 0;
+    margin-bottom: var(--space-5);
+  }
+  .step-indicator {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+  .step-line {
+    --line-w: calc(100% / 3 - var(--step-dot) - 2 * var(--space-2));
+    flex: none;
+    width: var(--line-w);
+    margin-inline: calc(var(--line-w) / -2);
+  }
+  .doc-file {
+    flex-basis: 100%;
+    min-width: 0;
+  }
+  .doc-file app-file-preview {
+    flex: 1;
+    min-width: 0;
+  }
+  .success-card {
+    padding: var(--space-6) var(--space-4);
+  }
 }

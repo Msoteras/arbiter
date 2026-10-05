@@ -42,8 +42,13 @@ public record CaseResponse(
         String eventLocation,
         BigDecimal claimedAmount,
         Classification analysisClassification,
+        /**
+         * The rules engine decided, not the model. Needed because a coverage exclusion or prescription
+         * shares its literal with a model recommendation.
+         */
+        boolean resolvedByRules,
         double analysisConfidence,
-        /** Empty on Fast Track or before classification. */
+        /** Empty on a rules outcome or before classification. */
         List<String> analysisReasons,
         /** Null means "not evaluated", never {@code MATCHES}. */
         CauseConsistency causeConsistency,

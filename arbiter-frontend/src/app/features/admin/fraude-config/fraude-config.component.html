@@ -1,24 +1,17 @@
 @if (loading()) {
   <app-inline-loading [size]="26" message="Cargando gestión de fraude…" />
 } @else if (rule(); as r) {
-  <!-- Header outside the cards: expert firms save instantly and the fraud record rule uses the save
-       bar, so they can't share one card. -->
   <header class="gf-head" @fadeInUp>
     <h2 class="t-section-label">Gestión de fraude</h2>
-    <p class="section-hint">
-      Cómo tratás a quien ya defraudó y a qué peritos o servicios técnicos externos podés derivar un
-      siniestro.
-    </p>
+    <p class="section-hint">Cómo tratás a quien ya cometió fraude.</p>
   </header>
-
-  <app-peritos-config @fadeInUp />
 
   <app-card class="gf-card" @fadeInUp>
     <div class="sc-section-head">
       <span class="t-section-label">Antecedente de reincidencia</span>
     </div>
     <p class="section-hint">
-      Qué pasa cuando alguien que ya defraudó vuelve a denunciar.
+      Qué pasa cuando alguien que ya cometió fraude vuelve a denunciar.
       <app-info-tip>
         Lo registra un analista sobre el asegurado, desde el expediente donde se determinó el
         fraude. Solo pesa el que tiene peritaje detrás. Al modelo no se le cuenta: pesa en el nivel

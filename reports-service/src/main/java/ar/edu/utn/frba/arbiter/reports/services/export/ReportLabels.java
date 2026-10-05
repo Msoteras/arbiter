@@ -77,6 +77,16 @@ final class ReportLabels {
         return filter == null ? "Todos" : filter;
     }
 
+    /** The caller's role, for the "Solicitado por" line of an exported report. */
+    static String role(String literal) {
+        return switch (literal) {
+            case "REFERENTE_ASEGURADORA" -> "Referente de la aseguradora";
+            case "ANALISTA_SINIESTROS" -> "Analista de siniestros";
+            case "ASEGURADO" -> "Asegurado";
+            default -> literal;
+        };
+    }
+
     /**
      * Whether the score flagged the case, not what it scored: LOW/MEDIUM read "No alertó" rather than
      * their band, since the case is listed for another signal.
@@ -157,14 +167,6 @@ final class ReportLabels {
         long days = minutes / MINUTES_PER_DAY;
         long hours = (minutes % MINUTES_PER_DAY) / MINUTES_PER_HOUR;
         return hours == 0 ? days + " d" : days + " d " + hours + " h";
-    }
-
-    /** Hours with one decimal and a decimal comma, so Excel in es-AR reads it as a number. */
-    static String hours(long minutes) {
-        return BigDecimal.valueOf(minutes)
-                .divide(BigDecimal.valueOf(MINUTES_PER_HOUR), 1, RoundingMode.HALF_UP)
-                .toPlainString()
-                .replace('.', ',');
     }
 
     /** "(+2)", "(-1)", "(=)", or "" below {@link #MIN_COMPARISON_BASE}. */

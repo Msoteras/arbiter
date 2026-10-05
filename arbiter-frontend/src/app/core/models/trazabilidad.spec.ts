@@ -100,6 +100,15 @@ describe('trazabilidad', () => {
     });
   });
 
+  describe('prescription', () => {
+    it('is named in Spanish and shows both dates the engine compared', () => {
+      expect(ruleTypeLabel('PRESCRIPTION')).toBe('Prescripción (art. 58)');
+      expect(ruleEvaluationText('PRESCRIPTION', 'eventDate=13/06/2024 reportedAt=20/06/2026')).toBe(
+        'Hecho del 13/06/2024 · denunciado el 20/06/2026 · plazo de 1 año',
+      );
+    });
+  });
+
   describe('ruleEvaluationText', () => {
     it('builds each rule type sentence with the numbers of the literal', () => {
       expect(

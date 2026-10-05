@@ -189,7 +189,7 @@ public class ClassificationRefreshScheduler {
     private void doRequeueAfterInfrastructureFailure(Case caseRecord) {
         caseRecord.setRiskScore(null);
         caseRecord.setRiskBand(null);
-        caseRecord.setDeterministicFastTrack(false);
+        caseRecord.setRulesClassification(null);
         caseRecord.setClassificationAttempts(0);
         caseStatusService.transition(caseRecord, CaseStatus.PENDING_CLASSIFICATION,
                 StatusChangeActor.SYSTEM,

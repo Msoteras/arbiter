@@ -6,10 +6,10 @@ import ar.edu.utn.frba.arbiter.cases.exceptions.CaseNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.FraudRecordNotAllowedException;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
 import ar.edu.utn.frba.arbiter.cases.dto.ProviderType;
-import ar.edu.utn.frba.arbiter.cases.models.entities.ExpertAssessment;
+import ar.edu.utn.frba.arbiter.cases.models.entities.CaseReferral;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.ClaimsAnalystRepository;
-import ar.edu.utn.frba.arbiter.cases.models.repositories.ExpertAssessmentRepository;
+import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseReferralRepository;
 import ar.edu.utn.frba.arbiter.common.dto.FraudRecordRequest;
 import ar.edu.utn.frba.arbiter.common.dto.FraudRecordResponse;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
@@ -49,7 +49,7 @@ public class FraudRecordService {
             Set.of(CaseStatus.PENDING_ANALYST_REVIEW, CaseStatus.REJECTED);
 
     private final CaseRepository caseRepository;
-    private final ExpertAssessmentRepository expertAssessmentRepository;
+    private final CaseReferralRepository caseReferralRepository;
     private final ClaimsAnalystRepository claimsAnalystRepository;
     private final ClaimsAnalysisClient classificationClient;
 
@@ -77,7 +77,7 @@ public class FraudRecordService {
             throw new FraudRecordNotAllowedException(caseId, caseRecord.getStatus());
         }
 
-        Long expertAssessmentId = resolveExpertBacking(caseRecord, request.source());
+        Long caseReferralId = resolveExpertBacking(caseRecord, request.source());
         ClaimsAnalyst analyst = callerAnalyst();
 
         FraudRecordResponse registered = classificationClient.registerFraudRecord(new FraudRecordRequest(
@@ -85,7 +85,7 @@ public class FraudRecordService {
                 caseId,
                 request.source(),
                 request.reason(),
-                expertAssessmentId,
+                caseReferralId,
                 analyst.getId(),
                 analyst.getName() + " " + analyst.getSurname()));
 
@@ -113,11 +113,11 @@ public class FraudRecordService {
             return null;
         }
         // Only an assessment can back a record; a repair investigates nothing.
-        Optional<ExpertAssessment> assessment = expertAssessmentRepository
+        Optional<CaseReferral> referral = caseReferralRepository
                 .findByCaseIdAndProviderType(caseRecord.getId(), ProviderType.ESTUDIO_LIQUIDADOR);
-        return assessment
+        return referral
                 .filter(found -> found.getVerdict() == ExpertVerdict.FRAUD_CONFIRMED)
-                .map(ExpertAssessment::getId)
+                .map(CaseReferral::getId)
                 .orElseThrow(() -> new FraudRecordNotAllowedException(caseRecord.getId()));
     }
 

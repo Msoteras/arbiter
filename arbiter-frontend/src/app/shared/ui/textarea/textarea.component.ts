@@ -9,19 +9,22 @@ import { ChangeDetectionStrategy, Component, computed, input, model } from '@ang
       [id]="resolvedId()"
       [rows]="rows()"
       [placeholder]="placeholder()"
+      [disabled]="disabled()"
       [value]="value()"
       (input)="value.set($any($event.target).value)"
     ></textarea>
   `,
   styles: `
+    @use 'media';
+
     :host {
       display: block;
     }
     .field {
       width: 100%;
       font: inherit;
-      /* 16px on mobile prevents iOS Safari from zooming on focus. */
-      font-size: var(--font-size-lg);
+      /* Below 16px iOS would zoom on focus; core/util/ios-focus-zoom.ts turns that off. */
+      font-size: var(--font-size-md);
       padding: var(--space-2) var(--space-3);
       border: 1px solid var(--border-control);
       border-radius: var(--radius-ctl);
@@ -29,7 +32,7 @@ import { ChangeDetectionStrategy, Component, computed, input, model } from '@ang
       color: var(--text-primary);
       resize: vertical;
     }
-    @media (min-width: 640px) {
+    @include media.desktop {
       .field {
         font-size: var(--font-size-body);
       }
@@ -42,6 +45,10 @@ import { ChangeDetectionStrategy, Component, computed, input, model } from '@ang
     .field::placeholder {
       color: var(--text-muted);
     }
+    .field:disabled {
+      color: var(--text-muted);
+      cursor: default;
+    }
   `,
 })
 export class TextareaComponent {
@@ -52,6 +59,7 @@ export class TextareaComponent {
   readonly rows = input(4);
   readonly placeholder = input('');
   readonly id = input<string | null>(null);
+  readonly disabled = input(false);
 
   protected readonly resolvedId = computed(() => this.id() ?? this.autoId);
 }

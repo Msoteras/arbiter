@@ -98,6 +98,8 @@ import { BadgeComponent } from '../badge/badge.component';
     </article>
   `,
   styles: `
+    @use 'media';
+
     :host {
       display: block;
     }
@@ -183,6 +185,12 @@ import { BadgeComponent } from '../badge/badge.component';
     }
     .coverages-toggle:hover {
       text-decoration: underline;
+    }
+    @include media.touch {
+      .coverages-toggle {
+        min-height: var(--touch-target);
+        margin-top: var(--space-1);
+      }
     }
     .coverages-toggle:focus-visible {
       outline: 2px solid var(--border-focus);

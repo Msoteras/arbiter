@@ -105,7 +105,20 @@
                 <div class="info-desc">{{ descripcion(d.status) }}</div>
               </div>
             </div>
+
+            @if (mensajeNuevo(); as m) {
+              <div class="new-message">
+                <span class="nm-avatar" aria-hidden="true">{{ nmInitials() || 'ES' }}</span>
+                <div class="nm-text">
+                  <p class="nm-title">{{ nmTitle() }}</p>
+                  <p class="nm-body">{{ m.lastMessageBody }}</p>
+                </div>
+                <app-button variant="accent" (click)="chatOpen.set(true)">Responder</app-button>
+              </div>
+            }
           </div>
+
+          <app-insured-chat [(open)]="chatOpen" [caseId]="d.id" [insurer]="d.insurerSlug" />
 
           <div class="case-actions">
             <a
@@ -119,7 +132,7 @@
               [routerLink]="['/portal/cases', d.id, 'documents']"
               [queryParams]="d.insurerSlug ? { insurer: d.insurerSlug } : {}"
             >
-              <app-button variant="secondary">Ver mis documentos</app-button>
+              <app-button variant="secondary" [block]="true">Ver mis documentos</app-button>
             </a>
           </div>
         </section>

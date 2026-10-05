@@ -14,7 +14,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class CsvResolutionReportExporterTest {
 
     private static final String HEADER = "Nº expediente;Asegurado;DNI;Ramo;Hecho generador;Fecha de denuncia;"
-            + "Fecha de resolución;Tiempo total (horas);Tiempo esperando a terceros (horas);"
+            + "Fecha de resolución;Tiempo total;Tiempo esperando a terceros;"
             + "Clasificación;Decisión del analista;Estado final;Analista";
 
     private final CsvResolutionReportExporter exporter = new CsvResolutionReportExporter(CLOCK);
@@ -27,19 +27,26 @@ class CsvResolutionReportExporterTest {
         assertThat(lines(csv)).containsExactly(
                 HEADER,
                 "42;Ana Pérez;30.111.222;Celulares;Robo en vía pública;01/08/2026 07:00;03/08/2026 09:30;"
-                        + "50,5;8,0;Recomienda aprobar;Aprobó;Aprobado;Laura Gómez",
+                        + "2 d 2 h;8 h;Recomienda aprobar;Aprobó;Aprobado;Laura Gómez",
                 "43;Julián Díaz;28.333.444;Tecnología Portátil;Hurto;01/02/2025 10:00;02/08/2026 10:00;"
-                        + "18960,0;18720,0;Sin clasificación;Sin decisión;Caducado;");
+                        + "790 d;780 d;Sin clasificación;Sin decisión;Caducado;");
     }
 
-    /** The wait on third parties gets its own column. */
+    /** Excel takes the delimiter from the machine locale, not the file, unless the file says so. */
     @Test
-    void writesTheWaitingTimeNextToTheTotal() {
+    void declaresItsSeparator_soExcelDoesNotGuessItFromTheLocale() {
         String csv = export(List.of(approvedRow(42)));
 
-        assertThat(csv).contains("Tiempo esperando a terceros (horas)");
-        // 2 d 2 h 30 min in total, of which 8 h were spent waiting on the insured.
-        assertThat(csv).contains(";50,5;8,0;");
+        assertThat(csv).startsWith((char) 0xFEFF + "sep=;\r\n");
+    }
+
+    @Test
+    void writesDurationsAsTheyReadOnThePdf() {
+        String csv = export(List.of(approvedRow(42)));
+
+        assertThat(csv).contains("Tiempo esperando a terceros");
+        assertThat(csv).contains(";2 d 2 h;8 h;");
+        assertThat(lines(csv).get(1)).doesNotContain(",");
     }
 
     @Test
@@ -65,6 +72,7 @@ class CsvResolutionReportExporterTest {
     }
 
     private static List<String> lines(String csv) {
-        return List.of(csv.substring(1).split("\r\n"));
+        List<String> all = List.of(csv.substring(1).split("\r\n"));
+        return all.subList(1, all.size());
     }
 }

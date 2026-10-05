@@ -23,6 +23,9 @@
 --
 -- PART 6 adds volume so the inbox and dashboards look populated.
 --
+-- The dates of the live cases are not the ones you read below: PART 9 moves them forward
+-- to the day the seed runs.
+--
 -- Usage:  psql "$DATABASE_URL" -f db/seed-demo.sql
 -- =============================================================================
 
@@ -154,12 +157,15 @@ SELECT setval(pg_get_serial_sequence('arbiter_bbva.insured','id'),
 
 -- ─── Daño accidental coverage for Celulares ──────────────────────────────────
 -- Covers the causes the robbery and theft coverages exclude (1 Rotura accidental,
--- 4 Caída); without it no coverage answers for them. Settles as a repair.
+-- 4 Caída); without it no coverage answers for them. Settles as a repair; an irreparable item
+-- becomes a total loss and pays the lesser of sum insured and replacement value, like a theft.
+-- The deductible applies to the loss: on the sum insured a broken screen would pay nothing.
 INSERT INTO arbiter_bbva.coverage (id, name, description, report_deadline_hours, max_events_per_year,
                                    covers_family_group, deductible, claim_exhausts_coverage,
-                                   is_individual, waiting_period_days, branch_id, settlement_formula) VALUES
+                                   is_individual, waiting_period_days, branch_id, settlement_formula,
+                                   settlement_basis, deductible_basis) VALUES
     (3, 'Daño accidental', 'Cobertura por rotura o caída accidental del equipo', 72, 2, FALSE,
-     20.00, FALSE, TRUE, 30, 1, 'REPAIR');
+     20.00, FALSE, TRUE, 30, 1, 'REPAIR', 'LESSER_OF_SUM_AND_REPLACEMENT', 'LOSS_AMOUNT');
 SELECT setval(pg_get_serial_sequence('arbiter_bbva.coverage','id'),
               (SELECT MAX(id) FROM arbiter_bbva.coverage));
 
@@ -220,38 +226,38 @@ SELECT setval(pg_get_serial_sequence('arbiter_bbva.policy_snapshot','id'),
 -- Cases. claim_cause 1 = 'Rotura accidental', 2 = 'Robo en vía pública'.
 INSERT INTO arbiter_bbva.cases
     (id, occurred_at, reported_at, police_report_at, response_deadline, description,
-     was_fast_track, claimed_amount, declared_item, event_address, locality, province,
+     rules_classification, claimed_amount, declared_item, event_address, locality, province,
      current_status_id, analyst_id, insured_id, claim_cause_id, coverage_id, policy_id,
      policy_snapshot_id, scoring_configuration_id) VALUES
     -- 1 · deterministic Fast Track: accidental breakage, low amount, first claim → LOW.
     --     No llm_analysis row: FAST_TRACK is decided by FastTrackValidator, never by the model.
     (1, '2026-06-14 08:30:00+00', '2026-06-14 08:34:00+00', NULL, '2026-07-14',
      'Se me cayó el celular de las manos en mi casa. Se rompió la pantalla pero el equipo funciona normalmente',
-     TRUE, 285000.00, 'Samsung Galaxy S25 Ultra', 'Casa', 'CABA', 'Buenos Aires',
+     'FAST_TRACK', 285000.00, 'Samsung Galaxy S25 Ultra', 'Casa', 'CABA', 'Buenos Aires',
      2, 1, 1, 1, 3, 1, 1, 1),
 
     -- 2 · repeat claimant, high amount, vague narrative → HIGH.
     (2, '2026-06-10 23:00:00+00', '2026-06-11 09:05:00+00', '2026-06-11 08:00:00+00', '2026-07-11',
      'Me robaron el celular pero no me acuerdo bien dónde ni cuándo. Fue el martes o miércoles pasado, creo que cerca de Palermo',
-     FALSE, 950000.00, 'iPhone 16 Pro Max', 'Palermo o Belgrano (no precisa)', 'CABA', 'Buenos Aires',
+     NULL, 950000.00, 'iPhone 16 Pro Max', 'Palermo o Belgrano (no precisa)', 'CABA', 'Buenos Aires',
      2, 1, 2, 2, 1, 2, 2, 1),
 
     -- 3 · missing documentation, never scored (risk stays absent, not LOW).
     (3, '2026-06-30 00:00:00+00', '2026-06-30 10:00:00+00', NULL, '2026-07-30',
      'Estaba saliendo de la facultad y me robaron desde una moto.',
-     FALSE, 120000.00, 'Samsung Galaxy A50', 'Medrano 951', 'CABA', 'Buenos Aires',
+     'FALTA_DOCUMENTACION', 120000.00, 'Samsung Galaxy A50', 'Medrano 951', 'CABA', 'Buenos Aires',
      3, NULL, 2, 2, 1, 3, 3, NULL),
 
     -- 4 · missing item photo, very high amount → MEDIUM.
     (4, '2026-06-12 18:30:00+00', '2026-06-12 18:55:00+00', NULL, '2026-07-12',
      'El celular desapareció pero no sé si me lo robaron o lo perdí. No estoy seguro qué pasó exactamente',
-     FALSE, 1200000.00, 'iPhone 16 Pro', 'Colectivo línea 159', 'CABA', 'Buenos Aires',
+     'FALTA_DOCUMENTACION', 1200000.00, 'iPhone 16 Pro', 'Colectivo línea 159', 'CABA', 'Buenos Aires',
      3, NULL, 1, 2, 1, 1, 4, 1),
 
     -- 5 · just submitted: no classification, no score, no snapshot yet.
     (5, '2026-06-12 18:30:00+00', '2026-07-31 12:00:00+00', NULL, '2026-08-30',
      'El celular desapareció pero no sé si me lo robaron o lo perdí. No estoy seguro qué pasó exactamente',
-     FALSE, 1200000.00, 'iPhone 16 Pro', 'Colectivo línea 159', 'CABA', 'Buenos Aires',
+     NULL, 1200000.00, 'iPhone 16 Pro', 'Colectivo línea 159', 'CABA', 'Buenos Aires',
      1, NULL, 1, 2, 1, 1, NULL, NULL);
 
 SELECT setval(pg_get_serial_sequence('arbiter_bbva.cases','id'),
@@ -259,9 +265,7 @@ SELECT setval(pg_get_serial_sequence('arbiter_bbva.cases','id'),
 
 INSERT INTO arbiter_bbva.llm_analysis (id, recommendation, model, prompt_version, confidence,
                                        latency_ms, analyzed_at, case_id) VALUES
-    (1, 'LLM_NO_RECOMIENDA_APROBAR', 'qwen3-vl', 'classification-v1', 0.950, 5120, '2026-06-11 09:12:00+00', 2),
-    (2, 'FALTA_DOCUMENTACION',       'qwen3-vl', 'classification-v1', 1.000, 3480, '2026-06-30 10:08:00+00', 3),
-    (3, 'FALTA_DOCUMENTACION',       'qwen3-vl', 'classification-v1', 1.000, 3610, '2026-06-12 19:02:00+00', 4);
+    (1, 'LLM_NO_RECOMIENDA_APROBAR', 'qwen3-vl', 'classification-v1', 0.950, 5120, '2026-06-11 09:12:00+00', 2);
 
 SELECT setval(pg_get_serial_sequence('arbiter_bbva.llm_analysis','id'),
               (SELECT MAX(id) FROM arbiter_bbva.llm_analysis));
@@ -270,10 +274,7 @@ SELECT setval(pg_get_serial_sequence('arbiter_bbva.llm_analysis','id'),
 INSERT INTO arbiter_bbva.llm_reason (reason, analysis_id) VALUES
     ('Más de 2 siniestros en los últimos 12 meses: el asegurado tiene 3 previos (Nov 2025, Feb 2026 y Abr 2026)', 1),
     ('La descripción del incidente presenta inconsistencias con el reporte policial', 1),
-    ('El asegurado no precisa lugar ni fecha del hecho', 1),
-    ('Falta documento requerido: DENUNCIA_POLICIAL', 2),
-    ('Falta documento requerido: FOTO_BIEN', 2),
-    ('Falta documento requerido: FOTO_BIEN', 3);
+    ('El asegurado no precisa lugar ni fecha del hecho', 1);
 
 -- Risk analyses. Weights come from the seeded scoring config: amount_ratio 0.45,
 -- claim_frequency 0.35, policy_standing 0.20.
@@ -320,12 +321,18 @@ INSERT INTO arbiter_bbva.case_status_history (reason, observation, actor, change
     ('Denuncia registrada', NULL, 'INSURED', '2026-07-31 12:00:00+00', 1, NULL, 1, 5);
 
 -- Real team inboxes: the derivation email is actually sent through SendGrid.
-INSERT INTO arbiter_bbva.expert_firm (id, name, email, zone, active, branch_id) VALUES
-    (1, 'Estudio Verifica S.R.L.',   'perito.arbiter@gmail.com', 'CABA y GBA',      TRUE, NULL),
-    (2, 'Peritajes Tecnológicos SA', 'perito.arbiter@gmail.com', 'CABA',            TRUE, 1);
+-- The repair shop is what a Daño accidental case is derived to (PENDING_REPAIR).
+INSERT INTO arbiter_bbva.service_provider (id, name, email, zone, active, provider_type) VALUES
+    (1, 'Estudio Verifica S.R.L.',    'perito.arbiter@gmail.com', 'CABA y GBA', TRUE, 'ESTUDIO_LIQUIDADOR'),
+    (2, 'Peritajes Tecnológicos SA',  'perito.arbiter@gmail.com', 'CABA',       TRUE, 'ESTUDIO_LIQUIDADOR'),
+    (3, 'TecnoFix Servicio Técnico',  'perito.arbiter@gmail.com', 'CABA',       TRUE, 'SERVICIO_TECNICO');
 
-SELECT setval(pg_get_serial_sequence('arbiter_bbva.expert_firm','id'),
-              (SELECT MAX(id) FROM arbiter_bbva.expert_firm));
+-- Estudio Verifica has no rows: a generalist.
+INSERT INTO arbiter_bbva.service_provider_branch (service_provider_id, branch_id) VALUES
+    (2, 1), (3, 1);
+
+SELECT setval(pg_get_serial_sequence('arbiter_bbva.service_provider','id'),
+              (SELECT MAX(id) FROM arbiter_bbva.service_provider));
 
 -- =============================================================================
 -- PART 5 — Arbiter tenant: Provincia
@@ -337,10 +344,16 @@ SELECT setval(pg_get_serial_sequence('arbiter_bbva.expert_firm','id'),
 INSERT INTO arbiter_provincia.coverage (id, name, description, report_deadline_hours, max_events_per_year,
                                         covers_family_group, deductible, claim_exhausts_coverage,
                                         is_individual, waiting_period_days, branch_id,
-                                        settlement_formula, settlement_basis, second_event_percentage,
-                                        deduct_pending_installments, deduct_overdue_balance) VALUES
+                                        settlement_formula, settlement_basis, deductible_basis,
+                                        second_event_percentage, deduct_pending_installments,
+                                        deduct_overdue_balance) VALUES
     (3, 'Daño accidental', 'Cobertura por daño accidental de equipo portátil', 96, 2, FALSE, 10.00, FALSE, TRUE, 30, 2,
-     'REPAIR', 'LESSER_OF_SUM_AND_REPLACEMENT', 50.00, FALSE, TRUE);
+     'REPAIR', 'LESSER_OF_SUM_AND_REPLACEMENT', 'LOSS_AMOUNT', 50.00, FALSE, TRUE);
+
+-- Provincia's policy says "Franquicia 10%" without saying of what, so its theft coverages take it
+-- from the loss. BBVA's keep the sum insured, as their phone policy states.
+UPDATE arbiter_provincia.coverage SET deductible_basis = 'LOSS_AMOUNT'
+ WHERE name IN ('Robo de celular', 'Hurto');
 
 SELECT setval(pg_get_serial_sequence('arbiter_provincia.coverage','id'),
               (SELECT MAX(id) FROM arbiter_provincia.coverage));
@@ -403,20 +416,20 @@ SELECT setval(pg_get_serial_sequence('arbiter_provincia.policy_snapshot','id'),
 -- claim_cause 6 = 'Daño accidental' (Tecnología Portátil), 2 = 'Robo en vía pública'.
 INSERT INTO arbiter_provincia.cases
     (id, occurred_at, reported_at, police_report_at, response_deadline, description,
-     was_fast_track, claimed_amount, declared_item, event_address, locality, province,
+     rules_classification, claimed_amount, declared_item, event_address, locality, province,
      current_status_id, analyst_id, insured_id, claim_cause_id, coverage_id, policy_id,
      policy_snapshot_id, scoring_configuration_id) VALUES
     -- 1 · resolved: the analyst approved it. The only closed case in the fixtures —
     --     it is what makes the full human-in-the-loop lifecycle visible in the UI.
     (1, '2026-05-19 20:15:00+00', '2026-05-20 14:00:00+00', NULL, '2026-06-19',
      'Se me cayó la notebook del escritorio y se rompió la pantalla. Enciende pero no se ve nada',
-     FALSE, 38000.00, 'MacBook Air M3 15"', 'Av. Rivadavia 4820', 'CABA', 'Buenos Aires',
+     NULL, 38000.00, 'MacBook Air M3 15"', 'Av. Rivadavia 4820', 'CABA', 'Buenos Aires',
      5, 1, 1, 6, 3, 1, 1, 1),
 
     -- 2 · in arrears + repeat claimant → CRITICAL, waiting for the analyst.
     (2, '2026-07-04 22:40:00+00', '2026-07-05 11:15:00+00', '2026-07-05 09:30:00+00', '2026-08-04',
      'Me arrebataron el celular en la parada del colectivo, dos personas en moto',
-     FALSE, 760000.00, 'Samsung Galaxy S23', 'Av. San Martín 2100', 'San Martín', 'Buenos Aires',
+     NULL, 760000.00, 'Samsung Galaxy S23', 'Av. San Martín 2100', 'San Martín', 'Buenos Aires',
      2, 1, 1, 2, 1, 2, 2, 1);
 
 SELECT setval(pg_get_serial_sequence('arbiter_provincia.cases','id'),
@@ -500,12 +513,14 @@ INSERT INTO arbiter_provincia.case_status_history (reason, observation, actor, c
     ('Denuncia registrada', NULL, 'INSURED', '2026-07-05 11:15:00+00', 1, NULL, 1, 2),
     ('Clasificación disponible', 'Riesgo CRÍTICO: mora + reincidencia', 'SYSTEM', '2026-07-05 11:22:00+00', NULL, 1, 2, 2);
 
--- The expert catalog is per tenant.
-INSERT INTO arbiter_provincia.expert_firm (id, name, email, zone, active, branch_id) VALUES
-    (1, 'Peritos del Sur S.A.', 'perito.arbiter@gmail.com', 'La Plata', TRUE, NULL);
+-- The provider catalog is per tenant.
+-- The repair shop has no branch rows: it takes phones and laptops alike.
+INSERT INTO arbiter_provincia.service_provider (id, name, email, zone, active, provider_type) VALUES
+    (1, 'Peritos del Sur S.A.',     'perito.arbiter@gmail.com', 'La Plata', TRUE, 'ESTUDIO_LIQUIDADOR'),
+    (2, 'Reparaciones del Plata',   'perito.arbiter@gmail.com', 'La Plata', TRUE, 'SERVICIO_TECNICO');
 
-SELECT setval(pg_get_serial_sequence('arbiter_provincia.expert_firm','id'),
-              (SELECT MAX(id) FROM arbiter_provincia.expert_firm));
+SELECT setval(pg_get_serial_sequence('arbiter_provincia.service_provider','id'),
+              (SELECT MAX(id) FROM arbiter_provincia.service_provider));
 
 -- Notification sent to Martina when her case was approved.
 INSERT INTO arbiter_provincia.notification (type, channel, content, sent, read, sent_at, read_at,
@@ -647,69 +662,69 @@ SELECT setval(pg_get_serial_sequence('arbiter_bbva.policy_snapshot','id'), (SELE
 
 INSERT INTO arbiter_bbva.cases
     (id, occurred_at, reported_at, police_report_at, response_deadline, description,
-     was_fast_track, claimed_amount, declared_item, event_address, locality, province,
+     rules_classification, claimed_amount, declared_item, event_address, locality, province,
      current_status_id, analyst_id, insured_id, claim_cause_id, coverage_id, policy_id,
      policy_snapshot_id, scoring_configuration_id) VALUES
     (6, '2024-04-10 21:00:00+00', '2024-04-11 09:00:00+00', '2024-04-11 08:00:00+00', '2024-05-11',
      'Me robaron el celular a la salida del subte, dos personas me rodearon y me lo sacaron de la mano.',
-     FALSE, 380000.00, 'iPhone 13', 'Av. Corrientes 3200', 'CABA', 'Buenos Aires',
+     NULL, 380000.00, 'iPhone 13', 'Av. Corrientes 3200', 'CABA', 'Buenos Aires',
      5, 1, 1, 2, 1, 6, 5, 1),
     (7, '2024-08-02 19:30:00+00', '2024-08-02 20:10:00+00', '2024-08-02 21:00:00+00', '2024-09-01',
      'Arrebato en la parada del colectivo, me empujaron y se llevaron el teléfono.',
-     FALSE, 250000.00, 'Xiaomi Redmi Note 12', 'Av. Rivadavia 8800', 'CABA', 'Buenos Aires',
+     NULL, 250000.00, 'Xiaomi Redmi Note 12', 'Av. Rivadavia 8800', 'CABA', 'Buenos Aires',
      5, 2, 2, 2, 1, 7, 6, 1),
     (8, '2025-06-15 14:00:00+00', '2025-06-16 10:00:00+00', NULL, '2025-07-16',
      'Dejé el celular sobre la mesa de un bar y cuando volví no estaba.',
-     FALSE, 700000.00, 'Samsung Galaxy S23 Ultra', 'Palermo', 'CABA', 'Buenos Aires',
+     NULL, 700000.00, 'Samsung Galaxy S23 Ultra', 'Palermo', 'CABA', 'Buenos Aires',
      6, 1, 1, 3, 1, 8, 7, 1),
     (9, '2026-07-20 23:15:00+00', '2026-07-21 08:30:00+00', '2026-07-21 07:00:00+00', '2026-08-20',
      'Me robaron el celular cerca de la cancha, había mucha gente y no vi bien a quién fue.',
-     FALSE, 980000.00, 'iPhone 14 Pro', 'Av. Juan B. Justo 200', 'CABA', 'Buenos Aires',
+     NULL, 980000.00, 'iPhone 14 Pro', 'Av. Juan B. Justo 200', 'CABA', 'Buenos Aires',
      2, 1, 2, 2, 1, 9, 8, 1),
     (10, '2026-07-28 20:00:00+00', '2026-07-29 09:00:00+00', '2026-07-29 08:15:00+00', '2026-08-28',
      'Salía del trabajo y me robaron el celular con un arma, en la esquina de la oficina.',
-     FALSE, 1300000.00, 'Samsung Galaxy S23 Ultra', 'Microcentro', 'CABA', 'Buenos Aires',
+     NULL, 1300000.00, 'Samsung Galaxy S23 Ultra', 'Microcentro', 'CABA', 'Buenos Aires',
      2, 2, 1, 2, 1, 8, 9, 1),
     -- Fast Track: 240.000 of a 500.000 sum insured (48%), under the coverage's 50% cap.
     (11, '2026-08-01 18:00:00+00', '2026-08-01 18:20:00+00', NULL, '2026-08-31',
      'Me sacaron el celular de la mochila en el tren, me di cuenta al bajar.',
-     TRUE, 240000.00, 'Motorola Edge 40', 'Estación Once', 'CABA', 'Buenos Aires',
+     'FAST_TRACK', 240000.00, 'Motorola Edge 40', 'Estación Once', 'CABA', 'Buenos Aires',
      2, NULL, 1, 2, 1, 10, 10, 1),
     (12, '2026-08-03 12:00:00+00', '2026-08-03 12:15:00+00', NULL, '2026-09-02',
      'Se me cayó el celular y se rompió la pantalla, funciona pero no se ve bien.',
-     TRUE, 180000.00, 'iPhone 13', 'Casa', 'CABA', 'Buenos Aires',
+     'FAST_TRACK', 180000.00, 'iPhone 13', 'Casa', 'CABA', 'Buenos Aires',
      2, NULL, 1, 1, 3, 6, 11, 1),
     (13, '2026-08-05 09:00:00+00', '2026-08-05 10:00:00+00', NULL, '2026-09-04',
      'Me robaron el celular en el barrio, todavía tengo que hacer la denuncia policial.',
-     FALSE, 290000.00, 'Xiaomi Redmi Note 12', 'Flores', 'CABA', 'Buenos Aires',
+     'FALTA_DOCUMENTACION', 290000.00, 'Xiaomi Redmi Note 12', 'Flores', 'CABA', 'Buenos Aires',
      3, NULL, 2, 2, 1, 7, NULL, NULL),
     (14, '2026-08-06 21:00:00+00', '2026-08-07 08:00:00+00', NULL, '2026-09-06',
      'Robo en la vía pública, adjunto fotos pero me falta el comprobante de compra.',
-     FALSE, 1050000.00, 'iPhone 14 Pro', 'Belgrano', 'CABA', 'Buenos Aires',
+     'FALTA_DOCUMENTACION', 1050000.00, 'iPhone 14 Pro', 'Belgrano', 'CABA', 'Buenos Aires',
      3, NULL, 2, 2, 1, 9, NULL, NULL),
     (15, '2026-08-04 22:00:00+00', '2026-08-05 08:45:00+00', '2026-08-05 08:00:00+00', '2026-09-04',
      'Me robaron el celular mientras esperaba un Uber, se subieron a una moto y salieron.',
-     FALSE, 620000.00, 'Samsung Galaxy A56', 'Villa Crespo', 'CABA', 'Buenos Aires',
+     NULL, 620000.00, 'Samsung Galaxy A56', 'Villa Crespo', 'CABA', 'Buenos Aires',
      2, 1, 1, 2, 1, 1, 12, 1),
     (16, '2026-07-10 03:00:00+00', '2026-07-11 11:00:00+00', NULL, '2026-08-10',
      'Me robaron el celular en una fiesta, no recuerdo bien la hora ni el lugar exacto.',
-     FALSE, 1150000.00, 'iPhone 15 Pro Max', 'Costanera', 'CABA', 'Buenos Aires',
+     NULL, 1150000.00, 'iPhone 15 Pro Max', 'Costanera', 'CABA', 'Buenos Aires',
      6, 2, 2, 2, 1, 2, 13, 1),
     (17, '2026-08-02 15:00:00+00', '2026-08-02 16:00:00+00', NULL, '2026-09-01',
      'Dejé el celular cargando en un local y desapareció, no vi quién lo agarró.',
-     FALSE, 480000.00, 'Motorola Edge 40', 'Caballito', 'CABA', 'Buenos Aires',
+     NULL, 480000.00, 'Motorola Edge 40', 'Caballito', 'CABA', 'Buenos Aires',
      6, 1, 1, 3, 1, 10, 14, 1),
     (18, '2026-08-08 20:30:00+00', '2026-08-09 09:00:00+00', '2026-08-09 08:30:00+00', '2026-09-08',
      'Me robaron el celular en la puerta de mi casa al llegar, dos personas en moto.',
-     FALSE, 750000.00, 'Samsung Galaxy S24', 'Devoto', 'CABA', 'Buenos Aires',
+     NULL, 750000.00, 'Samsung Galaxy S24', 'Devoto', 'CABA', 'Buenos Aires',
      2, 2, 1, 2, 1, 4, 15, 1),
     (19, '2026-08-10 21:00:00+00', '2026-08-11 08:00:00+00', NULL, '2026-09-10',
      'Me robaron el celular saliendo del gimnasio, recién hago la denuncia.',
-     FALSE, 1400000.00, 'iPhone 15', 'Núñez', 'CABA', 'Buenos Aires',
+     NULL, 1400000.00, 'iPhone 15', 'Núñez', 'CABA', 'Buenos Aires',
      1, NULL, 1, 2, 1, 5, NULL, NULL),
     (20, '2026-07-25 19:00:00+00', '2026-07-26 09:00:00+00', NULL, '2026-08-25',
      'Robo en la vía pública, el sistema no pudo procesar la clasificación.',
-     FALSE, 190000.00, 'Motorola Moto G54', 'Once', 'CABA', 'Buenos Aires',
+     NULL, 190000.00, 'Motorola Moto G54', 'Once', 'CABA', 'Buenos Aires',
      4, NULL, 2, 2, 1, 3, NULL, NULL);
 SELECT setval(pg_get_serial_sequence('arbiter_bbva.cases','id'), (SELECT MAX(id) FROM arbiter_bbva.cases));
 
@@ -720,8 +735,6 @@ INSERT INTO arbiter_bbva.llm_analysis (id, recommendation, model, prompt_version
     (6, 'LLM_NO_RECOMIENDA_APROBAR', 'qwen3-vl', 'classification-v1', 0.940, 4800, '2025-06-16 10:07:00+00', 8),
     (7, 'LLM_SOLICITA_REVISION_MANUAL', 'qwen3-vl', 'classification-v1', 0.620, 4800, '2026-07-21 08:37:00+00', 9),
     (8, 'LLM_RECOMIENDA_APROBAR', 'qwen3-vl', 'classification-v1', 0.900, 4800, '2026-07-29 09:07:00+00', 10),
-    (9, 'FALTA_DOCUMENTACION', 'qwen3-vl', 'classification-v1', 1.000, 3200, '2026-08-05 10:07:00+00', 13),
-    (10, 'FALTA_DOCUMENTACION', 'qwen3-vl', 'classification-v1', 1.000, 3200, '2026-08-07 08:07:00+00', 14),
     (11, 'LLM_RECOMIENDA_APROBAR', 'qwen3-vl', 'classification-v1', 0.900, 4800, '2026-08-05 08:52:00+00', 15),
     (12, 'LLM_NO_RECOMIENDA_APROBAR', 'qwen3-vl', 'classification-v1', 0.940, 4800, '2026-07-11 11:07:00+00', 16),
     (13, 'LLM_NO_RECOMIENDA_APROBAR', 'qwen3-vl', 'classification-v1', 0.940, 4800, '2026-08-02 16:07:00+00', 17),
@@ -744,9 +757,6 @@ INSERT INTO arbiter_bbva.llm_reason (reason, analysis_id) VALUES
     ('Denuncia policial presente y consistente', 8),
     ('Monto alto pero dentro de la suma asegurada', 8),
     ('Un siniestro previo, sin patrón de reincidencia', 8),
-    ('Falta documento requerido: police_report', 9),
-    ('Falta documento requerido: imei_deregistration', 9),
-    ('Falta documento requerido: purchase_proof', 10),
     ('Relato consistente con la denuncia policial', 11),
     ('Sin siniestros previos', 11),
     ('Monto dentro de lo esperable', 11),
@@ -882,56 +892,56 @@ SELECT setval(pg_get_serial_sequence('arbiter_provincia.policy_snapshot','id'), 
 
 INSERT INTO arbiter_provincia.cases
     (id, occurred_at, reported_at, police_report_at, response_deadline, description,
-     was_fast_track, claimed_amount, declared_item, event_address, locality, province,
+     rules_classification, claimed_amount, declared_item, event_address, locality, province,
      current_status_id, analyst_id, insured_id, claim_cause_id, coverage_id, policy_id,
      policy_snapshot_id, scoring_configuration_id) VALUES
     (3, '2025-08-14 20:00:00+00', '2025-08-15 09:30:00+00', '2025-08-15 08:00:00+00', '2025-09-14',
      'Me robaron el celular en la estación, forcejeo incluido, hice la denuncia enseguida.',
-     FALSE, 300000.00, 'iPhone 13 Mini', 'Estación San Martín', 'San Martín', 'Buenos Aires',
+     NULL, 300000.00, 'iPhone 13 Mini', 'Estación San Martín', 'San Martín', 'Buenos Aires',
      5, 1, 2, 2, 1, 4, 3, 1),
     (4, '2026-08-01 22:30:00+00', '2026-08-02 09:00:00+00', '2026-08-02 08:30:00+00', '2026-09-01',
      'Segundo robo del año, esta vez cerca de casa, dos en moto.',
-     FALSE, 640000.00, 'iPhone 13 Mini', 'Villa Ballester', 'San Martín', 'Buenos Aires',
+     NULL, 640000.00, 'iPhone 13 Mini', 'Villa Ballester', 'San Martín', 'Buenos Aires',
      2, 2, 2, 2, 1, 4, 4, 1),
     (5, '2026-08-05 21:00:00+00', '2026-08-06 08:30:00+00', NULL, '2026-09-05',
      'Me arrebataron el celular en la parada, la póliza la tengo con una cuota atrasada.',
-     FALSE, 430000.00, 'Samsung Galaxy A34', 'San Andrés', 'San Martín', 'Buenos Aires',
+     NULL, 430000.00, 'Samsung Galaxy A34', 'San Andrés', 'San Martín', 'Buenos Aires',
      2, 1, 2, 2, 1, 5, 5, 1),
     (6, '2026-08-07 10:00:00+00', '2026-08-07 11:00:00+00', NULL, '2026-09-06',
      'Hurto del celular en el trabajo, me falta subir la denuncia policial.',
-     FALSE, 200000.00, 'Samsung Galaxy A34', 'Chacarita', 'CABA', 'Buenos Aires',
+     'FALTA_DOCUMENTACION', 200000.00, 'Samsung Galaxy A34', 'Chacarita', 'CABA', 'Buenos Aires',
      3, NULL, 2, 3, 2, 5, NULL, NULL),
     (7, '2026-08-11 20:00:00+00', '2026-08-12 08:00:00+00', NULL, '2026-09-11',
      'Me robaron el celular volviendo del trabajo, recién cargo la denuncia.',
-     FALSE, 780000.00, 'iPhone 13 Mini', 'Saavedra', 'CABA', 'Buenos Aires',
+     NULL, 780000.00, 'iPhone 13 Mini', 'Saavedra', 'CABA', 'Buenos Aires',
      1, NULL, 2, 2, 1, 4, NULL, NULL),
     (8, '2025-09-10 18:00:00+00', '2025-09-11 09:00:00+00', NULL, '2025-10-11',
      'Se me cayó la notebook y se rompió la pantalla, enciende pero no muestra imagen.',
-     FALSE, 55000.00, 'Dell XPS 13', 'Av. Rivadavia 4820', 'CABA', 'Buenos Aires',
+     NULL, 55000.00, 'Dell XPS 13', 'Av. Rivadavia 4820', 'CABA', 'Buenos Aires',
      5, 1, 1, 6, 3, 6, 6, 1),
     (9, '2026-08-09 23:00:00+00', '2026-08-10 08:30:00+00', '2026-08-10 08:00:00+00', '2026-09-09',
      'Robo del celular con intimidación cerca de un cajero, monto alto porque es el tope de gama.',
-     FALSE, 1500000.00, 'iPhone 15 Pro Max', 'Recoleta', 'CABA', 'Buenos Aires',
+     NULL, 1500000.00, 'iPhone 15 Pro Max', 'Recoleta', 'CABA', 'Buenos Aires',
      2, 2, 1, 2, 1, 7, 7, 1),
     (10, '2026-07-15 02:00:00+00', '2026-07-16 12:00:00+00', NULL, '2026-08-15',
      'Me robaron el celular de madrugada, no recuerdo bien dónde fue.',
-     FALSE, 880000.00, 'Samsung Galaxy S23', 'Palermo', 'CABA', 'Buenos Aires',
+     NULL, 880000.00, 'Samsung Galaxy S23', 'Palermo', 'CABA', 'Buenos Aires',
      6, 1, 1, 2, 1, 2, 8, 1),
     (11, '2026-08-06 21:30:00+00', '2026-08-07 09:00:00+00', '2026-08-07 08:15:00+00', '2026-09-06',
      'Robo del celular en la vía pública, tengo la denuncia y las fotos.',
-     FALSE, 690000.00, 'Samsung Galaxy A56', 'Once', 'CABA', 'Buenos Aires',
+     NULL, 690000.00, 'Samsung Galaxy A56', 'Once', 'CABA', 'Buenos Aires',
      2, 2, 1, 2, 1, 3, 9, 1),
     (12, '2026-08-08 13:00:00+00', '2026-08-08 14:00:00+00', NULL, '2026-09-07',
      'Se mojó la notebook y no enciende, me falta el comprobante de compra.',
-     FALSE, 90000.00, 'Dell XPS 13', 'Belgrano', 'CABA', 'Buenos Aires',
+     'FALTA_DOCUMENTACION', 90000.00, 'Dell XPS 13', 'Belgrano', 'CABA', 'Buenos Aires',
      3, NULL, 1, 6, 3, 6, NULL, NULL),
     (13, '2026-08-04 11:00:00+00', '2026-08-04 11:20:00+00', NULL, '2026-09-03',
      'Golpe accidental en la notebook, se rajó la pantalla pero funciona.',
-     TRUE, 70000.00, 'Dell XPS 13', 'Caballito', 'CABA', 'Buenos Aires',
+     'FAST_TRACK', 70000.00, 'Dell XPS 13', 'Caballito', 'CABA', 'Buenos Aires',
      2, NULL, 1, 6, 3, 6, 10, 1),
     (14, '2026-07-30 19:00:00+00', '2026-07-31 09:00:00+00', NULL, '2026-08-30',
      'Robo en la vía pública, la clasificación falló por un error del sistema.',
-     FALSE, 260000.00, 'iPhone 13 Mini', 'Villa Urquiza', 'CABA', 'Buenos Aires',
+     NULL, 260000.00, 'iPhone 13 Mini', 'Villa Urquiza', 'CABA', 'Buenos Aires',
      4, NULL, 2, 2, 1, 4, NULL, NULL);
 SELECT setval(pg_get_serial_sequence('arbiter_provincia.cases','id'), (SELECT MAX(id) FROM arbiter_provincia.cases));
 
@@ -940,12 +950,10 @@ INSERT INTO arbiter_provincia.llm_analysis (id, recommendation, model, prompt_ve
     (3, 'LLM_RECOMIENDA_APROBAR', 'qwen3-vl', 'classification-v1', 0.900, 4800, '2025-08-15 09:37:00+00', 3),
     (4, 'LLM_SOLICITA_REVISION_MANUAL', 'qwen3-vl', 'classification-v1', 0.620, 4800, '2026-08-02 09:07:00+00', 4),
     (5, 'LLM_NO_RECOMIENDA_APROBAR', 'qwen3-vl', 'classification-v1', 0.940, 4800, '2026-08-06 08:37:00+00', 5),
-    (6, 'FALTA_DOCUMENTACION', 'qwen3-vl', 'classification-v1', 1.000, 3200, '2026-08-07 11:07:00+00', 6),
     (7, 'LLM_RECOMIENDA_APROBAR', 'qwen3-vl', 'classification-v1', 0.900, 4800, '2025-09-11 09:07:00+00', 8),
     (8, 'LLM_RECOMIENDA_APROBAR', 'qwen3-vl', 'classification-v1', 0.900, 4800, '2026-08-10 08:37:00+00', 9),
     (9, 'LLM_NO_RECOMIENDA_APROBAR', 'qwen3-vl', 'classification-v1', 0.940, 4800, '2026-07-16 12:07:00+00', 10),
-    (10, 'LLM_RECOMIENDA_APROBAR', 'qwen3-vl', 'classification-v1', 0.900, 4800, '2026-08-07 09:07:00+00', 11),
-    (11, 'FALTA_DOCUMENTACION', 'qwen3-vl', 'classification-v1', 1.000, 3200, '2026-08-08 14:07:00+00', 12);
+    (10, 'LLM_RECOMIENDA_APROBAR', 'qwen3-vl', 'classification-v1', 0.900, 4800, '2026-08-07 09:07:00+00', 11);
 SELECT setval(pg_get_serial_sequence('arbiter_provincia.llm_analysis','id'), (SELECT MAX(id) FROM arbiter_provincia.llm_analysis));
 
 INSERT INTO arbiter_provincia.llm_reason (reason, analysis_id) VALUES
@@ -958,8 +966,6 @@ INSERT INTO arbiter_provincia.llm_reason (reason, analysis_id) VALUES
     ('La póliza registra cuotas impagas', 5),
     ('El asegurado tiene un siniestro previo', 5),
     ('El monto es alto respecto de la suma asegurada', 5),
-    ('Falta documento requerido: police_report', 6),
-    ('Falta documento requerido: purchase_proof', 6),
     ('Daño consistente con las fotos adjuntas', 7),
     ('Monto acorde al daño', 7),
     ('Sin siniestros previos', 7),
@@ -971,8 +977,7 @@ INSERT INTO arbiter_provincia.llm_reason (reason, analysis_id) VALUES
     ('Perfil de riesgo crítico', 9),
     ('Documentación completa', 10),
     ('Sin siniestros previos', 10),
-    ('Monto acorde', 10),
-    ('Falta documento requerido: purchase_proof', 11);
+    ('Monto acorde', 10);
 
 INSERT INTO arbiter_provincia.risk_analysis (id, risk_score, risk_band, risk_breakdown, analyzed_at, case_id) VALUES
     (3, 0.169, 'LOW',
@@ -1180,5 +1185,79 @@ UPDATE aseguradora_provincia.poliza p
   FROM (SELECT poliza_id, MAX(suma_asegurada) AS suma_asegurada
           FROM aseguradora_provincia.cobertura GROUP BY poliza_id) c
  WHERE c.poliza_id = p.id;
+
+-- =============================================================================
+-- PART 9 — Re-date the live cases to the day the seed runs
+-- =============================================================================
+-- The dates above are literals, so every open case would be past its response_deadline
+-- a month after they were written. Each case and its whole trail move forward by the same
+-- number of days, which keeps the gaps between events — and so the days left — intact.
+--
+-- Two anchors because the fixtures were written in two rounds: PARTS 4-5 as of 2026-07-06,
+-- PART 6 as of 2026-08-13. Run on the anchor day, nothing moves. Cases reported before
+-- 2026-06 are closed history and stay put, and so does the insurer DB: the test documents
+-- carry its policy dates in print.
+DO $$
+DECLARE
+    tenant TEXT;
+BEGIN
+    FOREACH tenant IN ARRAY ARRAY['arbiter_bbva', 'arbiter_provincia'] LOOP
+        EXECUTE format($sql$
+            CREATE TEMP TABLE seed_shift AS
+            SELECT c.id AS case_id,
+                   CURRENT_DATE - CASE WHEN c.reported_at < '2026-07-10' THEN DATE '2026-07-06'
+                                       ELSE DATE '2026-08-13' END
+                                - COALESCE(aged.days, 0) AS days
+              FROM %1$I.cases c
+              -- Left further back so the deadline traffic light has something to show:
+              -- BBVA 2 lands 1 day from its deadline (CRITICAL), BBVA 9 3 days past it (OVERDUE).
+              LEFT JOIN (VALUES ('arbiter_bbva', 2, 4), ('arbiter_bbva', 9, 10))
+                        AS aged(tenant, case_id, days)
+                     ON aged.tenant = %1$L AND aged.case_id = c.id
+             WHERE c.reported_at >= '2026-06-01';
+
+            UPDATE %1$I.cases c
+               SET occurred_at       = c.occurred_at       + s.days * INTERVAL '1 day',
+                   reported_at       = c.reported_at       + s.days * INTERVAL '1 day',
+                   police_report_at  = c.police_report_at  + s.days * INTERVAL '1 day',
+                   response_deadline = c.response_deadline + s.days
+              FROM seed_shift s WHERE s.case_id = c.id;
+
+            UPDATE %1$I.policy_snapshot ps
+               SET queried_at = ps.queried_at + s.days * INTERVAL '1 day'
+              FROM %1$I.cases c JOIN seed_shift s ON s.case_id = c.id
+             WHERE c.policy_snapshot_id = ps.id;
+
+            -- Before llm_analysis, which it joins through.
+            UPDATE %1$I.case_classification cc
+               SET decided_at = cc.decided_at + s.days * INTERVAL '1 day'
+              FROM %1$I.llm_analysis la JOIN seed_shift s ON s.case_id = la.case_id
+             WHERE cc.llm_analysis_id = la.id;
+
+            UPDATE %1$I.llm_analysis t
+               SET analyzed_at = t.analyzed_at + s.days * INTERVAL '1 day'
+              FROM seed_shift s WHERE s.case_id = t.case_id;
+
+            UPDATE %1$I.risk_analysis t
+               SET analyzed_at = t.analyzed_at + s.days * INTERVAL '1 day'
+              FROM seed_shift s WHERE s.case_id = t.case_id;
+
+            UPDATE %1$I.rule_result t
+               SET evaluated_at = t.evaluated_at + s.days * INTERVAL '1 day'
+              FROM seed_shift s WHERE s.case_id = t.case_id;
+
+            UPDATE %1$I.case_status_history t
+               SET changed_at = t.changed_at + s.days * INTERVAL '1 day'
+              FROM seed_shift s WHERE s.case_id = t.case_id;
+
+            UPDATE %1$I.notification t
+               SET sent_at = t.sent_at + s.days * INTERVAL '1 day',
+                   read_at = t.read_at + s.days * INTERVAL '1 day'
+              FROM seed_shift s WHERE s.case_id = t.case_id;
+
+            DROP TABLE seed_shift;
+        $sql$, tenant);
+    END LOOP;
+END $$;
 
 COMMIT;

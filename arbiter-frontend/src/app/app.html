@@ -11,12 +11,34 @@
   @if (showShell()) {
     @if (showAseguradoNav()) {
       <header class="topbar">
+        <!-- Phone only: there the nav is a dropdown under the bar instead of a row of links. -->
+        <button
+          type="button"
+          class="topbar-menu-btn"
+          [attr.aria-expanded]="portalNavOpen()"
+          aria-controls="portal-nav"
+          [attr.aria-label]="portalNavOpen() ? 'Cerrar menú' : 'Abrir menú'"
+          (click)="togglePortalNav($event)"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
+            <path
+              d="M4 7h16M4 12h16M4 17h16"
+              stroke="currentColor"
+              stroke-width="1.7"
+              stroke-linecap="round"
+            />
+          </svg>
+          @if (messages.unreadChats() > 0) {
+            <span class="topbar-menu-dot" aria-hidden="true"></span>
+          }
+        </button>
+
         <div class="topbar-brand">
           <app-logo variant="symbol" class="topbar-logo" />
           <span class="topbar-brand-name">Arbiter</span>
         </div>
 
-        <nav class="topbar-nav">
+        <nav class="topbar-nav" id="portal-nav" [class.is-open]="portalNavOpen()">
           <a routerLink="/portal/home" routerLinkActive="active">Inicio</a>
           <a
             routerLink="/portal"
@@ -24,6 +46,13 @@
             [routerLinkActiveOptions]="{ exact: true }"
             >Mis siniestros</a
           >
+          <a routerLink="/portal/messages" routerLinkActive="active"
+            >Mensajes
+            @if (messages.unreadChats() > 0) {
+              <span class="topbar-badge">{{ messages.unreadChats() }}</span>
+              <span class="sr-only">sin leer</span>
+            }
+          </a>
         </nav>
 
         @if (session.session(); as s) {
@@ -237,6 +266,12 @@
             <a routerLink="/inbox" routerLinkActive="active"
               ><span class="nav-dot"></span>Bandeja</a
             >
+            <a routerLink="/messages" routerLinkActive="active"
+              ><span class="nav-dot"></span>Mensajes
+              @if (messages.unreadChats() > 0) {
+                <span class="nav-badge">{{ messages.unreadChats() }}</span>
+              }
+            </a>
             <a routerLink="/insurer/dashboard" routerLinkActive="active"
               ><span class="nav-dot"></span>Dashboard</a
             >
@@ -248,6 +283,12 @@
             <a routerLink="/inbox" routerLinkActive="active"
               ><span class="nav-dot"></span>Expedientes</a
             >
+            <a routerLink="/messages" routerLinkActive="active"
+              ><span class="nav-dot"></span>Mensajes
+              @if (messages.unreadChats() > 0) {
+                <span class="nav-badge">{{ messages.unreadChats() }}</span>
+              }
+            </a>
             <a routerLink="/insurer/dashboard" routerLinkActive="active"
               ><span class="nav-dot"></span>Dashboard</a
             >

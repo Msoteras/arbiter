@@ -5,7 +5,7 @@ import ar.edu.utn.frba.arbiter.cases.dto.CaseScope;
 import ar.edu.utn.frba.arbiter.cases.dto.ProviderType;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
 import ar.edu.utn.frba.arbiter.cases.models.entities.CaseSettlement;
-import ar.edu.utn.frba.arbiter.cases.models.entities.ExpertAssessment;
+import ar.edu.utn.frba.arbiter.cases.models.entities.CaseReferral;
 import ar.edu.utn.frba.arbiter.cases.services.CaseStatusService;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 import ar.edu.utn.frba.arbiter.common.enums.RiskBand;
@@ -107,11 +107,11 @@ public final class CaseSpecifications {
                 Stream.of(CaseStatus.PENDING_EXPERT_REPORT, CaseStatus.PENDING_REPAIR)));
         return (root, query, cb) -> {
             Subquery<Long> responded = query.subquery(Long.class);
-            Root<ExpertAssessment> assessment = responded.from(ExpertAssessment.class);
-            responded.select(assessment.get("id")).where(
-                    cb.equal(assessment.get("caseId"), root.get("id")),
-                    cb.equal(assessment.get("providerType"), providerType),
-                    cb.isNotNull(assessment.get("reportReceivedAt")));
+            Root<CaseReferral> referral = responded.from(CaseReferral.class);
+            responded.select(referral.get("id")).where(
+                    cb.equal(referral.get("caseId"), root.get("id")),
+                    cb.equal(referral.get("providerType"), providerType),
+                    cb.isNotNull(referral.get("reportReceivedAt")));
             return cb.and(cb.exists(responded),
                     cb.not(root.get("currentStatus").get("name").in(excluded)));
         };

@@ -13,12 +13,10 @@ import { InfoTipComponent } from '../../../shared/ui/info-tip/info-tip.component
 import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
 import { SaveBarComponent } from '../../../shared/ui/save-bar/save-bar.component';
 import { SwitchComponent } from '../../../shared/ui/switch/switch.component';
-import { PeritosConfigComponent } from '../peritos-config/peritos-config.component';
 import { fadeInUp } from '../../../shared/animations';
 
 /**
- * Fraud record policy plus the expert firms catalog. The save bar only covers the policy: the catalog
- * persists instantly. Whether a record adds to the risk level is configured in scoring, not here.
+ * Fraud record policy. Whether a record adds to the risk level is configured in scoring, not here.
  */
 @Component({
   selector: 'app-fraude-config',
@@ -29,7 +27,6 @@ import { fadeInUp } from '../../../shared/animations';
     InlineLoadingComponent,
     SaveBarComponent,
     SwitchComponent,
-    PeritosConfigComponent,
   ],
   animations: [fadeInUp],
   changeDetection: ChangeDetectionStrategy.OnPush,

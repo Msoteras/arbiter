@@ -16,6 +16,8 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -128,6 +130,24 @@ class PolicyCoverageResolverTest {
         when(rulesServiceClient.excludedClaimCauseIds(2L)).thenReturn(List.of(ROBO_VIA_PUBLICA, 99L));
 
         assertThat(resolver.excludedClaimCauseIds(POLICY_ID)).containsExactly(99L);
+    }
+
+    /** Unlike resolveFor, a correction never falls back to a coverage that excludes the cause. */
+    @Test
+    void coveringByCause_leavesOutWhatNothingCoversAndAsksEachCoverageOnce() {
+        givenContracted(coverage(1L, "Robo de celular", CELULARES_BRANCH), coverage(2L, "Hurto", CELULARES_BRANCH));
+        when(rulesServiceClient.excludedClaimCauseIds(1L)).thenReturn(List.of(HURTO, 4L));
+        when(rulesServiceClient.excludedClaimCauseIds(2L)).thenReturn(List.of(ROBO_VIA_PUBLICA, 4L));
+
+        var covering = resolver.coveringByCause(POLICY_ID, List.of(
+                claimCause(ROBO_VIA_PUBLICA, CELULARES_BRANCH),
+                claimCause(HURTO, CELULARES_BRANCH),
+                claimCause(4L, CELULARES_BRANCH)));
+
+        assertThat(covering).containsOnlyKeys(ROBO_VIA_PUBLICA, HURTO);
+        assertThat(covering.get(HURTO).getCoverage().getName()).isEqualTo("Hurto");
+        verify(rulesServiceClient, times(1)).excludedClaimCauseIds(1L);
+        verify(rulesServiceClient, times(1)).excludedClaimCauseIds(2L);
     }
 
     private void givenContracted(PolicyCoverage... contracted) {
