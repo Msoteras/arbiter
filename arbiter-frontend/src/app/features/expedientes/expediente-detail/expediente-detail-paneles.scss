@@ -15,6 +15,12 @@
   gap: var(--space-3);
 }
 
+/* The summary card fills its column, so it ends level with the side stack instead of leaving a gap. */
+.col-main > .resumen-card {
+  flex: 1;
+  display: grid;
+}
+
 .fields {
   margin: 0;
   display: grid;

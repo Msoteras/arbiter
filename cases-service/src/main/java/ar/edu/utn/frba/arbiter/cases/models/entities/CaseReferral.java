@@ -31,14 +31,14 @@ import java.time.Instant;
  * returns to the analyst. One row per case and provider type, since a case may go to both in turn.
  */
 @Entity
-@Table(name = "expert_assessment",
+@Table(name = "case_referral",
         uniqueConstraints = @UniqueConstraint(columnNames = {"case_id", "provider_type"}))
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class ExpertAssessment {
+public class CaseReferral {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -47,12 +47,12 @@ public class ExpertAssessment {
     @Column(name = "case_id", nullable = false)
     private Long caseId;
 
-    /** Copied off the catalog: renaming the firm later must not change who verified this claim. */
-    @Column(name = "expert_name", nullable = false, length = 120)
-    private String expertName;
+    /** Copied off the catalog: renaming the provider later must not change who verified this claim. */
+    @Column(name = "provider_name", nullable = false, length = 120)
+    private String providerName;
 
-    @Column(name = "expert_email", nullable = false, length = 150)
-    private String expertEmail;
+    @Column(name = "provider_email", nullable = false, length = 150)
+    private String providerEmail;
 
     @Column(nullable = false, columnDefinition = "TEXT")
     private String reason;
@@ -101,10 +101,10 @@ public class ExpertAssessment {
     @JoinColumn(name = "derived_by", nullable = false)
     private ClaimsAnalyst derivedBy;
 
-    /** Nullable on purpose: the assessment outlives the catalog row it came from. */
+    /** Nullable on purpose: the referral outlives the catalog row it came from. */
     @ManyToOne(fetch = FetchType.EAGER)
-    @JoinColumn(name = "expert_firm_id")
-    private ExpertFirm expertFirm;
+    @JoinColumn(name = "provider_id")
+    private ServiceProvider provider;
 
     @Column(name = "report_document_id")
     private Long reportDocumentId;

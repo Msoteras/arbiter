@@ -12,13 +12,13 @@ import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidSettlementException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.SettlementNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
 import ar.edu.utn.frba.arbiter.cases.models.entities.CaseSettlement;
-import ar.edu.utn.frba.arbiter.cases.models.entities.ExpertAssessment;
+import ar.edu.utn.frba.arbiter.cases.models.entities.CaseReferral;
 import ar.edu.utn.frba.arbiter.cases.models.entities.PolicyCoverage;
 import ar.edu.utn.frba.arbiter.cases.models.entities.PolicySnapshot;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseDocumentAnalysisRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseSettlementRepository;
-import ar.edu.utn.frba.arbiter.cases.models.repositories.ExpertAssessmentRepository;
+import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseReferralRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.InsurerReferentRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.PolicyCoverageRepository;
 import ar.edu.utn.frba.arbiter.common.enums.DeductibleBasis;
@@ -69,7 +69,7 @@ public class SettlementService {
     private final SettlementAuthorityService authorityService;
     private final PolicyCoverageRepository policyCoverageRepository;
     private final CaseDocumentAnalysisRepository documentAnalysisRepository;
-    private final ExpertAssessmentRepository expertAssessmentRepository;
+    private final CaseReferralRepository caseReferralRepository;
     private final InsurerReferentRepository insurerReferentRepository;
 
     /**
@@ -197,16 +197,16 @@ public class SettlementService {
      */
     private Suggestion suggestionFor(Long caseId, Coverage coverage, SettlementFormula formula) {
         // Newest first: each new valuation supersedes the previous one.
-        List<ExpertAssessment> valuations = expertAssessmentRepository
+        List<CaseReferral> valuations = caseReferralRepository
                 .findByCaseIdOrderByDerivedAtDesc(caseId).stream()
-                .filter(assessment -> assessment.getReportReceivedAt() != null)
-                .filter(assessment -> isPositive(valuationOf(assessment)))
-                .sorted(Comparator.comparing(ExpertAssessment::getReportReceivedAt).reversed())
+                .filter(referral -> referral.getReportReceivedAt() != null)
+                .filter(referral -> isPositive(valuationOf(referral)))
+                .sorted(Comparator.comparing(CaseReferral::getReportReceivedAt).reversed())
                 .toList();
 
         if (formula == SettlementFormula.REPAIR) {
             if (!valuations.isEmpty()) {
-                ExpertAssessment latest = valuations.getFirst();
+                CaseReferral latest = valuations.getFirst();
                 return new Suggestion(valuationOf(latest), sourceOf(latest),
                         SettlementSuggestionTarget.ACCREDITED_AMOUNT);
             }
@@ -225,9 +225,9 @@ public class SettlementService {
                         ? SettlementSuggestionTarget.ACCREDITED_AMOUNT
                         : SettlementSuggestionTarget.SETTLED_AMOUNT;
         return valuations.stream()
-                .filter(assessment -> assessment.getProviderType() == ProviderType.ESTUDIO_LIQUIDADOR)
+                .filter(referral -> referral.getProviderType() == ProviderType.ESTUDIO_LIQUIDADOR)
                 .findFirst()
-                .map(assessment -> new Suggestion(assessment.getIndemnifiableAmount(), EXPERT_REPORT, target))
+                .map(referral -> new Suggestion(referral.getIndemnifiableAmount(), EXPERT_REPORT, target))
                 .orElse(null);
     }
 
@@ -267,20 +267,20 @@ public class SettlementService {
 
     /** From the returned repair report, not an analyst assumption. */
     private boolean declaredIrreparable(Long caseId) {
-        return expertAssessmentRepository.findByCaseIdOrderByDerivedAtDesc(caseId).stream()
-                .filter(assessment -> assessment.getProviderType() == ProviderType.SERVICIO_TECNICO)
-                .filter(assessment -> assessment.getReportReceivedAt() != null)
-                .anyMatch(assessment -> assessment.getRepairOutcome() == RepairOutcome.IRREPARABLE);
+        return caseReferralRepository.findByCaseIdOrderByDerivedAtDesc(caseId).stream()
+                .filter(referral -> referral.getProviderType() == ProviderType.SERVICIO_TECNICO)
+                .filter(referral -> referral.getReportReceivedAt() != null)
+                .anyMatch(referral -> referral.getRepairOutcome() == RepairOutcome.IRREPARABLE);
     }
 
     /** The expert values the claim; the repair shop quotes the fix. Different columns. */
-    private static BigDecimal valuationOf(ExpertAssessment assessment) {
-        return assessment.getProviderType() == ProviderType.SERVICIO_TECNICO
-                ? assessment.getRepairCost() : assessment.getIndemnifiableAmount();
+    private static BigDecimal valuationOf(CaseReferral referral) {
+        return referral.getProviderType() == ProviderType.SERVICIO_TECNICO
+                ? referral.getRepairCost() : referral.getIndemnifiableAmount();
     }
 
-    private static String sourceOf(ExpertAssessment assessment) {
-        return assessment.getProviderType() == ProviderType.SERVICIO_TECNICO
+    private static String sourceOf(CaseReferral referral) {
+        return referral.getProviderType() == ProviderType.SERVICIO_TECNICO
                 ? REPAIR_REPORT : EXPERT_REPORT;
     }
 

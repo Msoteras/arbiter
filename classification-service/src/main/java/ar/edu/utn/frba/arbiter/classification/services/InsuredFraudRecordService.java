@@ -36,7 +36,7 @@ public class InsuredFraudRecordService {
         repository.findByCaseId(request.caseId()).ifPresent(existing -> {
             throw new FraudRecordAlreadyExistsException(request.caseId());
         });
-        if (request.source() == FraudRecordSource.EXPERT_BACKED && request.expertAssessmentId() == null) {
+        if (request.source() == FraudRecordSource.EXPERT_BACKED && request.caseReferralId() == null) {
             throw new UnsupportedFraudRecordException(request.caseId());
         }
 
@@ -45,7 +45,7 @@ public class InsuredFraudRecordService {
                 .caseId(request.caseId())
                 .source(request.source())
                 .reason(request.reason())
-                .expertAssessmentId(request.expertAssessmentId())
+                .caseReferralId(request.caseReferralId())
                 .declaredByAnalystId(request.declaredByAnalystId())
                 .declaredByAnalystName(request.declaredByAnalystName())
                 .build());
@@ -76,7 +76,7 @@ public class InsuredFraudRecordService {
                 record.getCaseId(),
                 record.getSource(),
                 record.getReason(),
-                record.getExpertAssessmentId(),
+                record.getCaseReferralId(),
                 record.getDeclaredByAnalystName(),
                 record.getDeclaredAt(),
                 inForce,

@@ -189,6 +189,12 @@
 .brief strong {
   color: var(--text-primary);
 }
+/* A badge never wraps: clipped at the column edge so a long one can't run under the buttons. */
+.brief app-badge {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+}
 .brief-alerts {
   margin-top: var(--space-1);
 }
@@ -246,6 +252,8 @@
   .decision-side {
     width: auto;
     flex-direction: row;
+    /* The referral button drops to its own line instead of squeezing the two decisions. */
+    flex-wrap: wrap;
     margin-top: var(--space-3);
   }
   .decision-side > * {

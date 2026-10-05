@@ -7,12 +7,12 @@ import { ExpedienteResponse } from '../../core/models/expediente';
 import { CaseDocument } from '../../core/models/case-document';
 import { Policy } from '../../core/models/policy';
 import {
+  Derivacion,
   ExpertVerdict,
   OpcionesDerivacion,
-  Peritaje,
   ProviderType,
   RepairOutcome,
-} from '../../core/models/peritaje';
+} from '../../core/models/derivacion';
 import {
   AntecedenteFraude,
   RegistrarAntecedenteRequest,
@@ -388,19 +388,19 @@ export class ExpedienteService {
   }
 
   /** Newest first. */
-  derivaciones(caseId: number): Observable<Peritaje[]> {
-    return this.http.get<Peritaje[]>(`${this.baseUrl}/${caseId}/expert-assessment/all`);
+  derivaciones(caseId: number): Observable<Derivacion[]> {
+    return this.http.get<Derivacion[]>(`${this.baseUrl}/${caseId}/expert-assessment/all`);
   }
 
-  derivarAPeritaje(
+  derivar(
     caseId: number,
-    expertFirmId: number,
+    providerId: number,
     reason: string,
     providerType: ProviderType = 'ESTUDIO_LIQUIDADOR',
-  ): Observable<Peritaje> {
-    return this.http.post<Peritaje>(
+  ): Observable<Derivacion> {
+    return this.http.post<Derivacion>(
       `${this.baseUrl}/${caseId}/expert-assessment`,
-      { expertFirmId, reason },
+      { providerId, reason },
       { params: { providerType } },
     );
   }
@@ -411,7 +411,7 @@ export class ExpedienteService {
     note: string,
     repairCost: number | null,
     report: File,
-  ): Observable<Peritaje> {
+  ): Observable<Derivacion> {
     const formData = new FormData();
     formData.append('report', report);
     formData.append('outcome', outcome);
@@ -420,7 +420,7 @@ export class ExpedienteService {
     if (repairCost != null) {
       formData.append('repairCost', String(repairCost));
     }
-    return this.http.post<Peritaje>(
+    return this.http.post<Derivacion>(
       `${this.baseUrl}/${caseId}/expert-assessment/repair-report`,
       formData,
     );
@@ -433,7 +433,7 @@ export class ExpedienteService {
     note: string,
     indemnifiableAmount: number | null,
     report: File,
-  ): Observable<Peritaje> {
+  ): Observable<Derivacion> {
     // In the body, not the query string: the note may contain personal data that would end up in
     // proxy logs. @RequestParam reads multipart fields too.
     const formData = new FormData();
@@ -444,7 +444,7 @@ export class ExpedienteService {
     if (indemnifiableAmount != null) {
       formData.append('indemnifiableAmount', String(indemnifiableAmount));
     }
-    return this.http.post<Peritaje>(`${this.baseUrl}/${caseId}/expert-assessment/report`, formData);
+    return this.http.post<Derivacion>(`${this.baseUrl}/${caseId}/expert-assessment/report`, formData);
   }
 
   /** Current data, fetched lazily when the tab opens to spare an insurer-DB query on every detail load. */

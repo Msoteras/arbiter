@@ -3,9 +3,9 @@ package ar.edu.utn.frba.arbiter.cases.services;
 import ar.edu.utn.frba.arbiter.cases.dto.DerivationOptionsResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.ProviderType;
 import ar.edu.utn.frba.arbiter.cases.dto.RepairOutcome;
-import ar.edu.utn.frba.arbiter.cases.dto.DeriveToExpertRequest;
-import ar.edu.utn.frba.arbiter.cases.dto.ExpertAssessmentResponse;
-import ar.edu.utn.frba.arbiter.cases.dto.ExpertFirmResponse;
+import ar.edu.utn.frba.arbiter.cases.dto.CaseReferralRequest;
+import ar.edu.utn.frba.arbiter.cases.dto.CaseReferralResponse;
+import ar.edu.utn.frba.arbiter.cases.dto.ServiceProviderResponse;
 import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidRepairReportException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.AnalystProfileNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CaseAssignedToAnotherAnalystException;
@@ -13,19 +13,19 @@ import ar.edu.utn.frba.arbiter.cases.exceptions.CaseNotAssignedException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CaseNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.DerivationNotAllowedException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.DocumentReadException;
-import ar.edu.utn.frba.arbiter.cases.exceptions.ExpertAssessmentNotFoundException;
-import ar.edu.utn.frba.arbiter.cases.exceptions.ExpertFirmNotFoundException;
-import ar.edu.utn.frba.arbiter.cases.exceptions.ExpertReportAlreadyReceivedException;
+import ar.edu.utn.frba.arbiter.cases.exceptions.CaseReferralNotFoundException;
+import ar.edu.utn.frba.arbiter.cases.exceptions.ServiceProviderNotFoundException;
+import ar.edu.utn.frba.arbiter.cases.exceptions.ReferralReportAlreadyReceivedException;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
 import ar.edu.utn.frba.arbiter.cases.models.entities.CaseDocument;
-import ar.edu.utn.frba.arbiter.cases.models.entities.ExpertAssessment;
-import ar.edu.utn.frba.arbiter.cases.models.entities.ExpertFirm;
+import ar.edu.utn.frba.arbiter.cases.models.entities.CaseReferral;
+import ar.edu.utn.frba.arbiter.cases.models.entities.ServiceProvider;
 import ar.edu.utn.frba.arbiter.cases.models.entities.StatusChangeActor;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseDocumentRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.ClaimsAnalystRepository;
-import ar.edu.utn.frba.arbiter.cases.models.repositories.ExpertAssessmentRepository;
-import ar.edu.utn.frba.arbiter.cases.models.repositories.ExpertFirmRepository;
+import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseReferralRepository;
+import ar.edu.utn.frba.arbiter.cases.models.repositories.ServiceProviderRepository;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 import ar.edu.utn.frba.arbiter.common.enums.ExpertVerdict;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.ClaimsAnalyst;
@@ -48,7 +48,7 @@ import java.util.Optional;
  */
 @Service
 @RequiredArgsConstructor
-public class ExpertAssessmentService {
+public class CaseReferralService {
 
     /** Unique per (case_id, type), so each provider kind needs its own type or one overwrites the other. */
     static final String REPORT_DOCUMENT_TYPE = "expert_report";
@@ -56,11 +56,11 @@ public class ExpertAssessmentService {
 
     private final CaseRepository caseRepository;
     private final CaseDocumentRepository caseDocumentRepository;
-    private final ExpertAssessmentRepository expertAssessmentRepository;
-    private final ExpertFirmRepository expertFirmRepository;
+    private final CaseReferralRepository caseReferralRepository;
+    private final ServiceProviderRepository serviceProviderRepository;
     private final ClaimsAnalystRepository claimsAnalystRepository;
     private final CaseStatusService caseStatusService;
-    private final ExpertNotificationService expertNotificationService;
+    private final ReferralNotificationService referralNotificationService;
     private final RulesServiceClient rulesServiceClient;
     private final FraudRecordService fraudRecordService;
 
@@ -69,47 +69,49 @@ public class ExpertAssessmentService {
     public DerivationOptionsResponse options(Long caseId, ProviderType providerType) {
         Case caseRecord = findCase(caseId);
         if (providerType == ProviderType.SERVICIO_TECNICO && !repairAllowed(caseRecord)) {
-            return new DerivationOptionsResponse(false, null, caseRecord.getClaimedAmount(), List.of());
+            return new DerivationOptionsResponse(false, false, null, caseRecord.getClaimedAmount(), List.of());
         }
-        List<ExpertFirmResponse> firms = availableFirms(caseRecord, providerType).stream()
-                .map(ExpertFirmResponse::from)
+        List<ServiceProviderResponse> providers = availableProviders(caseRecord, providerType).stream()
+                .map(ServiceProviderResponse::from)
                 .toList();
         // The amount threshold is the insurer's rule for peritaje; a repair isn't gated by it.
         if (providerType == ProviderType.SERVICIO_TECNICO) {
             return new DerivationOptionsResponse(
-                    !firms.isEmpty(), null, caseRecord.getClaimedAmount(), firms);
+                    !providers.isEmpty(), true, null, caseRecord.getClaimedAmount(), providers);
         }
         RulesServiceClient.ExpertDerivationPolicy policy =
                 rulesServiceClient.expertDerivationPolicy(branchIdOf(caseRecord));
 
+        boolean allowed = policy.allows(caseRecord.getClaimedAmount());
         return new DerivationOptionsResponse(
-                policy.allows(caseRecord.getClaimedAmount()) && !firms.isEmpty(),
+                allowed && !providers.isEmpty(),
+                allowed,
                 policy.minClaimedAmount(),
                 caseRecord.getClaimedAmount(),
-                firms);
+                providers);
     }
 
     @Transactional(readOnly = true)
-    public Optional<ExpertAssessmentResponse> find(Long caseId, ProviderType providerType) {
-        return expertAssessmentRepository.findByCaseIdAndProviderType(caseId, providerType)
-                .map(ExpertAssessmentResponse::from);
+    public Optional<CaseReferralResponse> find(Long caseId, ProviderType providerType) {
+        return caseReferralRepository.findByCaseIdAndProviderType(caseId, providerType)
+                .map(CaseReferralResponse::from);
     }
 
     /** Newest first. */
     @Transactional(readOnly = true)
-    public List<ExpertAssessmentResponse> findAll(Long caseId) {
-        return expertAssessmentRepository.findByCaseIdOrderByDerivedAtDesc(caseId).stream()
-                .map(ExpertAssessmentResponse::from)
+    public List<CaseReferralResponse> findAll(Long caseId) {
+        return caseReferralRepository.findByCaseIdOrderByDerivedAtDesc(caseId).stream()
+                .map(CaseReferralResponse::from)
                 .toList();
     }
 
     /**
      * The state machine guards against a second referral or one on a closed case (409). Only the
-     * assigned analyst may refer: it emails an outside firm and parks the case where its owner can
+     * assigned analyst may refer: it emails an outside provider and parks the case where its owner can
      * no longer decide, so the role check alone isn't enough.
      */
     @Transactional
-    public ExpertAssessmentResponse derive(Long caseId, DeriveToExpertRequest request,
+    public CaseReferralResponse derive(Long caseId, CaseReferralRequest request,
                                            ProviderType providerType) {
         Case caseRecord = findCase(caseId);
         ClaimsAnalyst caller = assertCallerOwns(caseRecord);
@@ -119,14 +121,14 @@ public class ExpertAssessmentService {
         } else if (!repairAllowed(caseRecord)) {
             throw new DerivationNotAllowedException(caseRecord.getId(), caseRecord.getClaimCause().getName());
         }
-        ExpertFirm firm = availableFirm(caseRecord, request.expertFirmId(), providerType);
+        ServiceProvider provider = availableProvider(caseRecord, request.providerId(), providerType);
 
-        ExpertAssessment assessment = expertAssessmentRepository.save(ExpertAssessment.builder()
+        CaseReferral referral = caseReferralRepository.save(CaseReferral.builder()
                 .caseId(caseId)
                 // Copied, not read through the association: see the entity's javadoc.
-                .expertName(firm.getName())
-                .expertEmail(firm.getEmail())
-                .expertFirm(firm)
+                .providerName(provider.getName())
+                .providerEmail(provider.getEmail())
+                .provider(provider)
                 .providerType(providerType)
                 .reason(request.reason())
                 .derivedBy(caller)
@@ -134,11 +136,11 @@ public class ExpertAssessmentService {
 
         String what = providerType == ProviderType.SERVICIO_TECNICO ? "servicio técnico" : "peritaje";
         caseStatusService.transition(caseRecord, waitingStateFor(providerType),
-                StatusChangeActor.ANALYST, "derivado a " + what + ": " + firm.getName());
+                StatusChangeActor.ANALYST, "derivado a " + what + ": " + provider.getName());
 
-        // After the transition, so an expert is never asked about a referral that failed to persist.
-        assessment.setNotifiedAt(expertNotificationService.notifyDerivation(caseRecord, assessment));
-        return ExpertAssessmentResponse.from(expertAssessmentRepository.save(assessment));
+        // After the transition, so a provider is never asked about a referral that failed to persist.
+        referral.setNotifiedAt(referralNotificationService.notifyDerivation(caseRecord, referral));
+        return CaseReferralResponse.from(caseReferralRepository.save(referral));
     }
 
     /**
@@ -146,19 +148,19 @@ public class ExpertAssessmentService {
      * {@code indemnifiableAmount} only reaches the settlement as a suggestion.
      */
     @Transactional
-    public ExpertAssessmentResponse receiveReport(Long caseId, ExpertVerdict verdict, String note,
+    public CaseReferralResponse receiveReport(Long caseId, ExpertVerdict verdict, String note,
                                                   BigDecimal indemnifiableAmount, MultipartFile report) {
         Case caseRecord = findCase(caseId);
-        ExpertAssessment assessment = awaitingAssessment(caseId, ProviderType.ESTUDIO_LIQUIDADOR);
-        assessment.setVerdict(verdict);
-        assessment.setIndemnifiableAmount(indemnifiableAmount);
-        finishRound(caseRecord, assessment, note, report,
+        CaseReferral referral = awaitingAssessment(caseId, ProviderType.ESTUDIO_LIQUIDADOR);
+        referral.setVerdict(verdict);
+        referral.setIndemnifiableAmount(indemnifiableAmount);
+        finishRound(caseRecord, referral, note, report,
                 "informe de peritaje recibido: " + verdict);
 
         if (verdict == ExpertVerdict.FRAUD_CONFIRMED) {
-            fraudRecordService.registerFromExpertReport(caseId, fraudRecordReason(assessment, note));
+            fraudRecordService.registerFromExpertReport(caseId, fraudRecordReason(referral, note));
         }
-        return ExpertAssessmentResponse.from(assessment);
+        return CaseReferralResponse.from(referral);
     }
 
     /**
@@ -167,7 +169,7 @@ public class ExpertAssessmentService {
      * later, and not allowed for {@code IRREPARABLE}. It becomes the repair formula's accredited amount.
      */
     @Transactional
-    public ExpertAssessmentResponse receiveRepairReport(Long caseId, RepairOutcome outcome, String note,
+    public CaseReferralResponse receiveRepairReport(Long caseId, RepairOutcome outcome, String note,
                                                         BigDecimal repairCost, MultipartFile report) {
         Case caseRecord = findCase(caseId);
         boolean charged = repairCost != null && repairCost.signum() > 0;
@@ -177,44 +179,44 @@ public class ExpertAssessmentService {
         if (outcome == RepairOutcome.IRREPARABLE && charged) {
             throw InvalidRepairReportException.costOnAnIrreparableItem(caseId);
         }
-        ExpertAssessment assessment = awaitingAssessment(caseId, ProviderType.SERVICIO_TECNICO);
-        assessment.setRepairOutcome(outcome);
-        assessment.setRepairCost(charged ? repairCost : null);
-        finishRound(caseRecord, assessment, note, report,
+        CaseReferral referral = awaitingAssessment(caseId, ProviderType.SERVICIO_TECNICO);
+        referral.setRepairOutcome(outcome);
+        referral.setRepairCost(charged ? repairCost : null);
+        finishRound(caseRecord, referral, note, report,
                 "respuesta del servicio técnico: " + outcome);
-        return ExpertAssessmentResponse.from(assessment);
+        return CaseReferralResponse.from(referral);
     }
 
-    private ExpertAssessment awaitingAssessment(Long caseId, ProviderType providerType) {
-        ExpertAssessment assessment = expertAssessmentRepository
+    private CaseReferral awaitingAssessment(Long caseId, ProviderType providerType) {
+        CaseReferral referral = caseReferralRepository
                 .findByCaseIdAndProviderType(caseId, providerType)
-                .orElseThrow(() -> new ExpertAssessmentNotFoundException(caseId));
+                .orElseThrow(() -> new CaseReferralNotFoundException(caseId));
         // Not the case status: a case already back in PENDING_ANALYST_REVIEW has its report, and
         // the status alone can't tell that from one that was never derived.
-        if (!assessment.isAwaitingReport()) {
-            throw new ExpertReportAlreadyReceivedException(caseId);
+        if (!referral.isAwaitingReport()) {
+            throw new ReferralReportAlreadyReceivedException(caseId);
         }
-        return assessment;
+        return referral;
     }
 
     /** Only what both provider kinds share; each flow sets its own outcome fields first. */
-    private void finishRound(Case caseRecord, ExpertAssessment assessment, String note,
+    private void finishRound(Case caseRecord, CaseReferral referral, String note,
                              MultipartFile report, String transitionNote) {
         Long caseId = caseRecord.getId();
-        String documentType = assessment.getProviderType() == ProviderType.SERVICIO_TECNICO
+        String documentType = referral.getProviderType() == ProviderType.SERVICIO_TECNICO
                 ? REPAIR_DOCUMENT_TYPE : REPORT_DOCUMENT_TYPE;
-        assessment.setReportDocumentId(storeReport(caseId, documentType, report).getId());
-        assessment.setReportReceivedAt(Instant.now());
-        assessment.setVerdictNote(note);
-        expertAssessmentRepository.save(assessment);
+        referral.setReportDocumentId(storeReport(caseId, documentType, report).getId());
+        referral.setReportReceivedAt(Instant.now());
+        referral.setVerdictNote(note);
+        caseReferralRepository.save(referral);
 
         caseStatusService.transition(caseRecord, CaseStatus.PENDING_ANALYST_REVIEW,
                 StatusChangeActor.ANALYST, transitionNote);
     }
 
     /** The expert's note goes in whole: it is the evidence, not a summary of it. */
-    private String fraudRecordReason(ExpertAssessment assessment, String note) {
-        String header = "Peritaje de " + assessment.getExpertName() + ": fraude confirmado.";
+    private String fraudRecordReason(CaseReferral referral, String note) {
+        String header = "Peritaje de " + referral.getProviderName() + ": fraude confirmado.";
         return note == null || note.isBlank() ? header : header + " " + note.trim();
     }
 
@@ -255,16 +257,16 @@ public class ExpertAssessmentService {
                 .allows(caseRecord.getClaimCause().getId());
     }
 
-    /** An inactive firm, or one specialised in another branch, is a 404, not a silent referral. */
-    private ExpertFirm availableFirm(Case caseRecord, Long expertFirmId, ProviderType providerType) {
-        return availableFirms(caseRecord, providerType).stream()
-                .filter(firm -> firm.getId().equals(expertFirmId))
+    /** An inactive provider, or one specialised in another branch, is a 404, not a silent referral. */
+    private ServiceProvider availableProvider(Case caseRecord, Long providerId, ProviderType providerType) {
+        return availableProviders(caseRecord, providerType).stream()
+                .filter(provider -> provider.getId().equals(providerId))
                 .findFirst()
-                .orElseThrow(() -> new ExpertFirmNotFoundException(expertFirmId));
+                .orElseThrow(() -> new ServiceProviderNotFoundException(providerId));
     }
 
-    private List<ExpertFirm> availableFirms(Case caseRecord, ProviderType providerType) {
-        return expertFirmRepository.findAvailableForBranch(branchIdOf(caseRecord), providerType);
+    private List<ServiceProvider> availableProviders(Case caseRecord, ProviderType providerType) {
+        return serviceProviderRepository.findAvailableForBranch(branchIdOf(caseRecord), providerType);
     }
 
     private static CaseStatus waitingStateFor(ProviderType providerType) {

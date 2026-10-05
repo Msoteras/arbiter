@@ -3,7 +3,7 @@ package ar.edu.utn.frba.arbiter.cases.services;
 import ar.edu.utn.frba.arbiter.cases.dto.ProviderType;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
 import ar.edu.utn.frba.arbiter.cases.models.entities.CaseDocument;
-import ar.edu.utn.frba.arbiter.cases.models.entities.ExpertAssessment;
+import ar.edu.utn.frba.arbiter.cases.models.entities.CaseReferral;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.BranchRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseDocumentRepository;
 import ar.edu.utn.frba.arbiter.common.email.SendGridAdapter;
@@ -24,8 +24,8 @@ import java.util.Locale;
 import java.util.Set;
 
 /**
- * Emails the external expert the case they have to verify. The send is recorded on
- * {@code expert_assessment.notified_at}, not as a {@code notification} row: the expert isn't a {@code User}.
+ * Emails the external provider the case they have to verify. The send is recorded on
+ * {@code case_referral.notified_at}, not as a {@code notification} row: the provider isn't a {@code User}.
  *
  * <p>The email carries the case, never the analysis (classification, risk score, model reasons):
  * telling the expert what the system suspects would hand them the conclusion before they look.
@@ -33,7 +33,7 @@ import java.util.Set;
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class ExpertNotificationService {
+public class ReferralNotificationService {
 
     /**
      * SendGrid rejects the whole message past 30 MB including base64 overhead (~33%), so it's better
@@ -47,7 +47,7 @@ public class ExpertNotificationService {
     private static final Locale AR = Locale.forLanguageTag("es-AR");
 
     private static final Set<String> INTERNAL_REPORT_TYPES = Set.of(
-            ExpertAssessmentService.REPORT_DOCUMENT_TYPE, ExpertAssessmentService.REPAIR_DOCUMENT_TYPE);
+            CaseReferralService.REPORT_DOCUMENT_TYPE, CaseReferralService.REPAIR_DOCUMENT_TYPE);
 
     private final SendGridAdapter sendGridAdapter;
     private final CaseDocumentRepository caseDocumentRepository;
@@ -57,23 +57,23 @@ public class ExpertNotificationService {
      * Best-effort: a delivery failure must not undo the referral. Returns null when nothing went
      * out, which is what tells the analyst nobody was actually asked.
      */
-    public Instant notifyDerivation(Case caseRecord, ExpertAssessment assessment) {
+    public Instant notifyDerivation(Case caseRecord, CaseReferral referral) {
         try {
-            boolean repair = assessment.getProviderType() == ProviderType.SERVICIO_TECNICO;
+            boolean repair = referral.getProviderType() == ProviderType.SERVICIO_TECNICO;
             // A repair shop fixes the item, it doesn't verify the claim: the insured's paperwork stays in.
             List<SendGridAdapter.Attachment> attachments =
                     repair ? List.of() : attachmentsOf(caseRecord.getId());
             boolean sent = sendGridAdapter.send(
-                    assessment.getExpertEmail(),
+                    referral.getProviderEmail(),
                     (repair ? "Solicitud de reparación" : "Solicitud de peritaje")
                             + " · Siniestro #" + caseRecord.getId(),
-                    repair ? repairBody(caseRecord, assessment) : body(caseRecord, assessment, attachments),
+                    repair ? repairBody(caseRecord, referral) : body(caseRecord, referral, attachments),
                     attachments);
             // With no API key the adapter returns without sending; that must not read as notified.
             return sent ? Instant.now() : null;
         } catch (Exception | LinkageError e) {
             // LinkageError too: a missing mail SDK surfaces as NoClassDefFoundError, not an Exception.
-            log.error("Could not email the expert assessment for case {}", caseRecord.getId(), e);
+            log.error("Could not email the referral for case {}", caseRecord.getId(), e);
             return null;
         }
     }
@@ -92,7 +92,7 @@ public class ExpertNotificationService {
                 .toList()) {
             byte[] content = document.getContent();
             if (content == null || content.length > budget) {
-                log.warn("[ExpertNotification] Case {}: document {} left out of the email ({} bytes)",
+                log.warn("[ReferralNotification] Case {}: document {} left out of the email ({} bytes)",
                         caseId, document.getFilename(), content == null ? 0 : content.length);
                 continue;
             }
@@ -103,7 +103,7 @@ public class ExpertNotificationService {
         return attachments;
     }
 
-    private String body(Case caseRecord, ExpertAssessment assessment,
+    private String body(Case caseRecord, CaseReferral referral,
                         List<SendGridAdapter.Attachment> attachments) {
         return """
                 <p>Hola,</p>
@@ -142,7 +142,7 @@ public class ExpertNotificationService {
                 occurredAt(caseRecord),
                 caseRecord.getReportedAt() != null ? DATE_TIME.format(caseRecord.getReportedAt()) : "—",
                 nullSafe(caseRecord.getEventAddress()),
-                assessment.getReason(),
+                referral.getReason(),
                 nullSafe(caseRecord.getDescription()),
                 attachmentList(attachments));
     }
@@ -151,7 +151,7 @@ public class ExpertNotificationService {
      * Only what a repair shop needs. No name, DNI, address or narrative (personal data, Ley 25.326),
      * and no claimed amount, which whoever quotes the repair would otherwise read.
      */
-    private String repairBody(Case caseRecord, ExpertAssessment assessment) {
+    private String repairBody(Case caseRecord, CaseReferral referral) {
         return """
                 <p>Hola,</p>
                 <p>Les derivamos el siniestro <strong>#%d</strong> para su reparación o cotización.</p>
@@ -169,7 +169,7 @@ public class ExpertNotificationService {
                 branchName(caseRecord),
                 nullSafe(caseRecord.getDeclaredItem()),
                 occurredAt(caseRecord),
-                assessment.getReason());
+                referral.getReason());
     }
 
     private String occurredAt(Case caseRecord) {

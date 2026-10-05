@@ -54,7 +54,7 @@ import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseLensCountRepository
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseSpecifications;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.ClaimsAnalystRepository;
-import ar.edu.utn.frba.arbiter.cases.models.repositories.ExpertAssessmentRepository;
+import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseReferralRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.UserRepository;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.ClaimsAnalyst;
 import ar.edu.utn.frba.arbiter.common.dto.RuleResultResponse;
@@ -95,7 +95,7 @@ public class CaseServiceImpl implements CaseService {
 
     private final CaseRepository caseRepository;
     private final CaseDocumentRepository caseDocumentRepository;
-    private final ExpertAssessmentRepository expertAssessmentRepository;
+    private final CaseReferralRepository caseReferralRepository;
     private final CaseStatusService caseStatusService;
     private final ClaimsAnalysisClient claimsAnalysisClient;
     private final ClaimsAnalystRepository claimsAnalystRepository;
@@ -850,7 +850,7 @@ public class CaseServiceImpl implements CaseService {
         if (entity.getStatus() != CaseStatus.PENDING_REPAIR) {
             return null;
         }
-        return expertAssessmentRepository
+        return caseReferralRepository
                 .findByCaseIdAndProviderType(entity.getId(), ProviderType.SERVICIO_TECNICO)
                 .map(RepairProviderResponse::from)
                 .orElse(null);

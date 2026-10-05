@@ -335,7 +335,7 @@ public class ClaimMetricsRepository {
                 SELECT count(*) AS decided,
                        count(*) FILTER (WHERE c.fraud_determined) AS fraud_determined,
                        count(*) FILTER (WHERE c.fraud_determined AND EXISTS (
-                           SELECT 1 FROM expert_assessment ea
+                           SELECT 1 FROM case_referral ea
                             WHERE ea.case_id = c.id AND ea.verdict = :fraudConfirmed
                        )) AS backed_by_expert,
                        COALESCE(sum(c.claimed_amount) FILTER (
@@ -404,7 +404,7 @@ public class ClaimMetricsRepository {
                        avg(EXTRACT(EPOCH FROM (ea.report_received_at - ea.derived_at))) AS average_seconds"""
                 + FROM_CASES + """
 
-                  JOIN expert_assessment ea ON ea.case_id = c.id
+                  JOIN case_referral ea ON ea.case_id = c.id
                  WHERE ea.derived_at >= :from AND ea.derived_at < :to"""
                 + filters(filter) + " GROUP BY ea.provider_type ORDER BY derived DESC, provider_type";
         return query(template -> template.query(sql, period(from, to, filter), (rs, rowNum) ->

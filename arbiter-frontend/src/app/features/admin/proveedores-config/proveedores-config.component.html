@@ -8,30 +8,30 @@
 
   @if (loading()) {
     <p class="t-note">Cargando…</p>
-  } @else if (peritos().length === 0 && !draft()) {
+  } @else if (proveedores().length === 0 && !draft()) {
     <app-empty-state
       message="Todavía no hay proveedores cargados"
       sub="Sin proveedores, el analista no puede derivar ningún expediente."
     />
   } @else {
-    <ul class="peritos">
-      @for (p of peritos(); track p.id) {
-        <li class="perito" [class.inactive]="!p.active">
-          <div class="perito-data">
-            <span class="perito-name">
+    <ul class="proveedores">
+      @for (p of proveedores(); track p.id) {
+        <li class="proveedor" [class.inactive]="!p.active">
+          <div class="proveedor-data">
+            <span class="proveedor-name">
               {{ p.name }}
               <app-badge variant="solid" [tone]="p.active ? 'ok' : 'neutral'">
                 {{ p.active ? 'Activo' : 'Inactivo' }}
               </app-badge>
             </span>
             <span class="t-note">
-              {{ providerTypeLabel(p.providerType) }} · {{ p.email }} · {{ ramoLabel(p) }}
+              {{ providerTypeLabel(p.providerType) }} · {{ p.email }} · {{ ramosLabel(p.branches) }}
               @if (p.zone) {
                 · {{ p.zone }}
               }
             </span>
           </div>
-          <div class="perito-actions">
+          <div class="proveedor-actions">
             <app-button variant="secondary" (click)="edit(p)">Editar</app-button>
             <button type="button" class="danger-btn" (click)="remove(p)">Borrar</button>
           </div>
@@ -41,7 +41,7 @@
   }
 
   @if (draft(); as d) {
-    <div class="perito-form">
+    <div class="proveedor-form">
       <span class="t-field-label">{{
         d.id == null ? 'Nuevo proveedor' : 'Editando proveedor'
       }}</span>
@@ -57,11 +57,18 @@
         [value]="d.email"
         (valueChange)="setField('email', $event)"
       />
-      <app-select
-        [options]="branchOptions()"
-        [value]="branchValue(d)"
-        (valueChange)="setBranch($event)"
-      />
+      <fieldset class="ramos">
+        <legend class="t-field-label">Ramos</legend>
+        @for (b of branches(); track b.id) {
+          <app-checkbox
+            [checked]="d.branchIds.includes(b.id)"
+            (checkedChange)="toggleBranch(b.id, $event)"
+          >
+            {{ b.name }}
+          </app-checkbox>
+        }
+        <p class="t-note">Sin ninguno marcado, cubre todos los ramos.</p>
+      </fieldset>
       <app-input
         placeholder="Zona (opcional)"
         [value]="d.zone ?? ''"
@@ -70,7 +77,7 @@
       <app-checkbox [checked]="d.active" (checkedChange)="setField('active', $event)">
         Activo
       </app-checkbox>
-      <div class="perito-form-actions">
+      <div class="proveedor-form-actions">
         <app-button variant="secondary" (click)="cancel()">Cancelar</app-button>
         <app-button [disabled]="!canSave() || saving()" (click)="save()">
           {{ saving() ? 'Guardando…' : 'Guardar' }}

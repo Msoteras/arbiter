@@ -65,7 +65,7 @@ public class FlaggedCaseRepository {
                    c.claims_in_window, c.suspicious_images, c.document_inconsistency_note,
                    i.name AS insured_name, i.surname AS insured_surname, i.dni,
                    b.name AS branch, cc.name AS claim_cause, s.name AS status,
-                   EXISTS (SELECT 1 FROM expert_assessment ea
+                   EXISTS (SELECT 1 FROM case_referral ea
                             WHERE ea.case_id = c.id AND ea.verdict = :fraudConfirmed) AS expert_backed,
                    (CASE WHEN c.risk_band IN (:highBands) THEN 1 ELSE 0 END
                   + CASE WHEN c.suspicious_images > 0 THEN 1 ELSE 0 END

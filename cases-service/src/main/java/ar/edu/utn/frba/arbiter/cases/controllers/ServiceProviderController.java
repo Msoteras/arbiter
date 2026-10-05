@@ -1,8 +1,8 @@
 package ar.edu.utn.frba.arbiter.cases.controllers;
 
-import ar.edu.utn.frba.arbiter.cases.dto.ExpertFirmRequest;
-import ar.edu.utn.frba.arbiter.cases.dto.ExpertFirmResponse;
-import ar.edu.utn.frba.arbiter.cases.services.ExpertFirmService;
+import ar.edu.utn.frba.arbiter.cases.dto.ServiceProviderRequest;
+import ar.edu.utn.frba.arbiter.cases.dto.ServiceProviderResponse;
+import ar.edu.utn.frba.arbiter.cases.services.ServiceProviderService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -27,17 +27,17 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/v1/expert-firms")
 @RequiredArgsConstructor
-@Tag(name = "Expert firms", description = "Catálogo de peritos externos de la aseguradora")
-public class ExpertFirmController {
+@Tag(name = "Service providers", description = "Catálogo de peritos externos de la aseguradora")
+public class ServiceProviderController {
 
-    private final ExpertFirmService expertFirmService;
+    private final ServiceProviderService serviceProviderService;
 
     @GetMapping
     @PreAuthorize("hasRole('REFERENTE_ASEGURADORA')")
     @Operation(summary = "Listar el catálogo completo",
             description = "Activos e inactivos: el referente administra el catálogo entero.")
-    public ResponseEntity<List<ExpertFirmResponse>> list() {
-        return ResponseEntity.ok(expertFirmService.list());
+    public ResponseEntity<List<ServiceProviderResponse>> list() {
+        return ResponseEntity.ok(serviceProviderService.list());
     }
 
     @PostMapping
@@ -45,8 +45,8 @@ public class ExpertFirmController {
     @Operation(summary = "Agregar un perito",
             description = "`branchId` null = generalista (cubre todos los ramos). Un ramo que no "
                     + "existe da 422.")
-    public ResponseEntity<ExpertFirmResponse> create(@RequestBody @Valid ExpertFirmRequest request) {
-        return ResponseEntity.ok(expertFirmService.create(request));
+    public ResponseEntity<ServiceProviderResponse> create(@RequestBody @Valid ServiceProviderRequest request) {
+        return ResponseEntity.ok(serviceProviderService.create(request));
     }
 
     @PutMapping("/{id}")
@@ -54,11 +54,11 @@ public class ExpertFirmController {
     @Operation(summary = "Editar un perito",
             description = "Incluye `active`: desactivarlo lo saca del selector del analista sin "
                     + "tocar las derivaciones que ya recibió.")
-    public ResponseEntity<ExpertFirmResponse> update(
+    public ResponseEntity<ServiceProviderResponse> update(
             @PathVariable Long id,
-            @RequestBody @Valid ExpertFirmRequest request
+            @RequestBody @Valid ServiceProviderRequest request
     ) {
-        return ResponseEntity.ok(expertFirmService.update(id, request));
+        return ResponseEntity.ok(serviceProviderService.update(id, request));
     }
 
     @DeleteMapping("/{id}")
@@ -67,7 +67,7 @@ public class ExpertFirmController {
             description = "409 si ya tiene peritajes: en ese caso se desactiva, no se borra, para "
                     + "no perder el rastro de a quién se le derivó.")
     public ResponseEntity<Void> delete(@PathVariable Long id) {
-        expertFirmService.delete(id);
+        serviceProviderService.delete(id);
         return ResponseEntity.noContent().build();
     }
 }

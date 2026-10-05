@@ -23,6 +23,9 @@
 --
 -- PART 6 adds volume so the inbox and dashboards look populated.
 --
+-- The dates of the live cases are not the ones you read below: PART 9 moves them forward
+-- to the day the seed runs.
+--
 -- Usage:  psql "$DATABASE_URL" -f db/seed-demo.sql
 -- =============================================================================
 
@@ -318,12 +321,18 @@ INSERT INTO arbiter_bbva.case_status_history (reason, observation, actor, change
     ('Denuncia registrada', NULL, 'INSURED', '2026-07-31 12:00:00+00', 1, NULL, 1, 5);
 
 -- Real team inboxes: the derivation email is actually sent through SendGrid.
-INSERT INTO arbiter_bbva.expert_firm (id, name, email, zone, active, branch_id) VALUES
-    (1, 'Estudio Verifica S.R.L.',   'perito.arbiter@gmail.com', 'CABA y GBA',      TRUE, NULL),
-    (2, 'Peritajes Tecnológicos SA', 'perito.arbiter@gmail.com', 'CABA',            TRUE, 1);
+-- The repair shop is what a Daño accidental case is derived to (PENDING_REPAIR).
+INSERT INTO arbiter_bbva.service_provider (id, name, email, zone, active, provider_type) VALUES
+    (1, 'Estudio Verifica S.R.L.',    'perito.arbiter@gmail.com', 'CABA y GBA', TRUE, 'ESTUDIO_LIQUIDADOR'),
+    (2, 'Peritajes Tecnológicos SA',  'perito.arbiter@gmail.com', 'CABA',       TRUE, 'ESTUDIO_LIQUIDADOR'),
+    (3, 'TecnoFix Servicio Técnico',  'perito.arbiter@gmail.com', 'CABA',       TRUE, 'SERVICIO_TECNICO');
 
-SELECT setval(pg_get_serial_sequence('arbiter_bbva.expert_firm','id'),
-              (SELECT MAX(id) FROM arbiter_bbva.expert_firm));
+-- Estudio Verifica has no rows: a generalist.
+INSERT INTO arbiter_bbva.service_provider_branch (service_provider_id, branch_id) VALUES
+    (2, 1), (3, 1);
+
+SELECT setval(pg_get_serial_sequence('arbiter_bbva.service_provider','id'),
+              (SELECT MAX(id) FROM arbiter_bbva.service_provider));
 
 -- =============================================================================
 -- PART 5 — Arbiter tenant: Provincia
@@ -504,12 +513,14 @@ INSERT INTO arbiter_provincia.case_status_history (reason, observation, actor, c
     ('Denuncia registrada', NULL, 'INSURED', '2026-07-05 11:15:00+00', 1, NULL, 1, 2),
     ('Clasificación disponible', 'Riesgo CRÍTICO: mora + reincidencia', 'SYSTEM', '2026-07-05 11:22:00+00', NULL, 1, 2, 2);
 
--- The expert catalog is per tenant.
-INSERT INTO arbiter_provincia.expert_firm (id, name, email, zone, active, branch_id) VALUES
-    (1, 'Peritos del Sur S.A.', 'perito.arbiter@gmail.com', 'La Plata', TRUE, NULL);
+-- The provider catalog is per tenant.
+-- The repair shop has no branch rows: it takes phones and laptops alike.
+INSERT INTO arbiter_provincia.service_provider (id, name, email, zone, active, provider_type) VALUES
+    (1, 'Peritos del Sur S.A.',     'perito.arbiter@gmail.com', 'La Plata', TRUE, 'ESTUDIO_LIQUIDADOR'),
+    (2, 'Reparaciones del Plata',   'perito.arbiter@gmail.com', 'La Plata', TRUE, 'SERVICIO_TECNICO');
 
-SELECT setval(pg_get_serial_sequence('arbiter_provincia.expert_firm','id'),
-              (SELECT MAX(id) FROM arbiter_provincia.expert_firm));
+SELECT setval(pg_get_serial_sequence('arbiter_provincia.service_provider','id'),
+              (SELECT MAX(id) FROM arbiter_provincia.service_provider));
 
 -- Notification sent to Martina when her case was approved.
 INSERT INTO arbiter_provincia.notification (type, channel, content, sent, read, sent_at, read_at,
@@ -1174,5 +1185,79 @@ UPDATE aseguradora_provincia.poliza p
   FROM (SELECT poliza_id, MAX(suma_asegurada) AS suma_asegurada
           FROM aseguradora_provincia.cobertura GROUP BY poliza_id) c
  WHERE c.poliza_id = p.id;
+
+-- =============================================================================
+-- PART 9 — Re-date the live cases to the day the seed runs
+-- =============================================================================
+-- The dates above are literals, so every open case would be past its response_deadline
+-- a month after they were written. Each case and its whole trail move forward by the same
+-- number of days, which keeps the gaps between events — and so the days left — intact.
+--
+-- Two anchors because the fixtures were written in two rounds: PARTS 4-5 as of 2026-07-06,
+-- PART 6 as of 2026-08-13. Run on the anchor day, nothing moves. Cases reported before
+-- 2026-06 are closed history and stay put, and so does the insurer DB: the test documents
+-- carry its policy dates in print.
+DO $$
+DECLARE
+    tenant TEXT;
+BEGIN
+    FOREACH tenant IN ARRAY ARRAY['arbiter_bbva', 'arbiter_provincia'] LOOP
+        EXECUTE format($sql$
+            CREATE TEMP TABLE seed_shift AS
+            SELECT c.id AS case_id,
+                   CURRENT_DATE - CASE WHEN c.reported_at < '2026-07-10' THEN DATE '2026-07-06'
+                                       ELSE DATE '2026-08-13' END
+                                - COALESCE(aged.days, 0) AS days
+              FROM %1$I.cases c
+              -- Left further back so the deadline traffic light has something to show:
+              -- BBVA 2 lands 1 day from its deadline (CRITICAL), BBVA 9 3 days past it (OVERDUE).
+              LEFT JOIN (VALUES ('arbiter_bbva', 2, 4), ('arbiter_bbva', 9, 10))
+                        AS aged(tenant, case_id, days)
+                     ON aged.tenant = %1$L AND aged.case_id = c.id
+             WHERE c.reported_at >= '2026-06-01';
+
+            UPDATE %1$I.cases c
+               SET occurred_at       = c.occurred_at       + s.days * INTERVAL '1 day',
+                   reported_at       = c.reported_at       + s.days * INTERVAL '1 day',
+                   police_report_at  = c.police_report_at  + s.days * INTERVAL '1 day',
+                   response_deadline = c.response_deadline + s.days
+              FROM seed_shift s WHERE s.case_id = c.id;
+
+            UPDATE %1$I.policy_snapshot ps
+               SET queried_at = ps.queried_at + s.days * INTERVAL '1 day'
+              FROM %1$I.cases c JOIN seed_shift s ON s.case_id = c.id
+             WHERE c.policy_snapshot_id = ps.id;
+
+            -- Before llm_analysis, which it joins through.
+            UPDATE %1$I.case_classification cc
+               SET decided_at = cc.decided_at + s.days * INTERVAL '1 day'
+              FROM %1$I.llm_analysis la JOIN seed_shift s ON s.case_id = la.case_id
+             WHERE cc.llm_analysis_id = la.id;
+
+            UPDATE %1$I.llm_analysis t
+               SET analyzed_at = t.analyzed_at + s.days * INTERVAL '1 day'
+              FROM seed_shift s WHERE s.case_id = t.case_id;
+
+            UPDATE %1$I.risk_analysis t
+               SET analyzed_at = t.analyzed_at + s.days * INTERVAL '1 day'
+              FROM seed_shift s WHERE s.case_id = t.case_id;
+
+            UPDATE %1$I.rule_result t
+               SET evaluated_at = t.evaluated_at + s.days * INTERVAL '1 day'
+              FROM seed_shift s WHERE s.case_id = t.case_id;
+
+            UPDATE %1$I.case_status_history t
+               SET changed_at = t.changed_at + s.days * INTERVAL '1 day'
+              FROM seed_shift s WHERE s.case_id = t.case_id;
+
+            UPDATE %1$I.notification t
+               SET sent_at = t.sent_at + s.days * INTERVAL '1 day',
+                   read_at = t.read_at + s.days * INTERVAL '1 day'
+              FROM seed_shift s WHERE s.case_id = t.case_id;
+
+            DROP TABLE seed_shift;
+        $sql$, tenant);
+    END LOOP;
+END $$;
 
 COMMIT;

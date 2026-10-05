@@ -176,6 +176,35 @@ guardaban en `analisis_llm` como si las hubiera recomendado el modelo. Ahora nin
 
 ---
 
+## 10 · `perito` y `peritaje` — renombre a nombres neutrales y ramos N:M
+
+**Encontrado:** 01/10/2026. El catálogo sirve a estudios liquidadores y a servicios técnicos
+(`tipo_proveedor`), pero las dos tablas estaban nombradas como si solo hubiera peritos, y cada
+proveedor cubría un solo ramo o todos. Implementado en `db/init-multitenant.sql` y
+`db/migrations/2026-10-01-proveedor-externo.sql`. **Todavía no aplicado en Railway.**
+
+| Antes | Después | Tipo de dato | Nulo | Restricciones |
+|---|---|---|---|---|
+| `perito` | `proveedor_externo` (`service_provider`) | — | — | tabla renombrada |
+| `perito.rama_id` | — | — | — | se dropea: pasa a `proveedor_externo_rama` |
+| — | `proveedor_externo_rama.proveedor_externo_id` (`service_provider_id`) | BIGINT | no | PK compuesta; FK → `proveedor_externo.id`, ON DELETE CASCADE |
+| — | `proveedor_externo_rama.rama_id` (`branch_id`) | BIGINT | no | PK compuesta; FK → `rama.id` |
+| `peritaje` | `derivacion_expediente` (`case_referral`) | — | — | tabla renombrada |
+| `peritaje.nombre_perito` | `derivacion_expediente.nombre_proveedor` (`provider_name`) | VARCHAR(120) | no | — |
+| `peritaje.email_perito` | `derivacion_expediente.email_proveedor` (`provider_email`) | VARCHAR(150) | no | — |
+| `peritaje.perito_id` | `derivacion_expediente.proveedor_id` (`provider_id`) | BIGINT | sí | FK → `proveedor_externo.id`, ON DELETE SET NULL |
+| `antecedente_fraude.peritaje_id` | `antecedente_fraude.derivacion_expediente_id` (`case_referral_id`) | BIGINT | sí | FK → `derivacion_expediente.id` |
+
+Un proveedor sin filas en `proveedor_externo_rama` es generalista: cubre todos los ramos, también
+los que se den de alta después. La migración pasa cada `rama_id` no nulo a una fila de la tabla
+nueva; los que tenían NULL quedan sin filas. `veredicto`, `monto_indemnizable`,
+`resultado_reparacion` y `costo_reparacion` no cambian: ya son propios de un tipo de proveedor.
+
+**Acción:** en el `.mdj`, renombrar las dos entidades y sus columnas, sacar `rama_id` de
+`proveedor_externo` y agregar `proveedor_externo_rama` como N:M entre `proveedor_externo` y `rama`.
+
+---
+
 ## Plantilla para la próxima entrada
 
 ```

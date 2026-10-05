@@ -118,20 +118,20 @@ class InsuredFraudRecordServiceTest {
                 });
     }
 
-    private FraudRecordRequest request(FraudRecordSource source, Long expertAssessmentId) {
+    private FraudRecordRequest request(FraudRecordSource source, Long caseReferralId) {
         return new FraudRecordRequest(DNI, 77L, source,
                 "El peritaje verificó que el equipo denunciado nunca existió",
-                expertAssessmentId, 1L, "Ana Gómez");
+                caseReferralId, 1L, "Ana Gómez");
     }
 
-    private InsuredFraudRecord record(FraudRecordSource source, Long expertAssessmentId) {
+    private InsuredFraudRecord record(FraudRecordSource source, Long caseReferralId) {
         return InsuredFraudRecord.builder()
                 .id(1L)
                 .insuredDni(DNI)
                 .caseId(77L)
                 .source(source)
                 .reason("El peritaje verificó que el equipo denunciado nunca existió")
-                .expertAssessmentId(expertAssessmentId)
+                .caseReferralId(caseReferralId)
                 .declaredByAnalystId(1L)
                 .declaredByAnalystName("Ana Gómez")
                 .build();
