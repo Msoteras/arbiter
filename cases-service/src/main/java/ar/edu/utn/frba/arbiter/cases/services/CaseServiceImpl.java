@@ -244,7 +244,7 @@ public class CaseServiceImpl implements CaseService {
                     contracted.getCoverage().getId());
             if (fastTrackDocs == null) {
                 throw new RulesUnavailableException(new IllegalStateException(
-                        "No se pudo leer la documentación requerida para el alta"));
+                        "Could not read the documents required for intake"));
             }
             if (!fastTrackDocs.isEmpty()) {
                 return new IntakeDocumentsResponse(fastTrackDocs, true);
@@ -252,7 +252,7 @@ public class CaseServiceImpl implements CaseService {
             List<String> schedule = rulesServiceClient.requiredDocumentTypes(branch, claimCause);
             if (schedule == null) {
                 throw new RulesUnavailableException(new IllegalStateException(
-                        "No se pudo leer la agenda documental"));
+                        "Could not read the document schedule"));
             }
             return new IntakeDocumentsResponse(schedule, false);
         } finally {

@@ -31,14 +31,14 @@ import java.time.ZoneId;
 import java.util.List;
 
 import static ar.edu.utn.frba.arbiter.reports.support.CaseTables.APPROVED;
-import static ar.edu.utn.frba.arbiter.reports.support.CaseTables.HURTO_CELULARES;
-import static ar.edu.utn.frba.arbiter.reports.support.CaseTables.HURTO_TECNOLOGIA;
+import static ar.edu.utn.frba.arbiter.reports.support.CaseTables.PHONES_THEFT;
+import static ar.edu.utn.frba.arbiter.reports.support.CaseTables.PORTABLE_TECH_THEFT;
 import static ar.edu.utn.frba.arbiter.reports.support.CaseTables.LAPSED;
 import static ar.edu.utn.frba.arbiter.reports.support.CaseTables.JUAN;
 import static ar.edu.utn.frba.arbiter.reports.support.CaseTables.LAURA;
 import static ar.edu.utn.frba.arbiter.reports.support.CaseTables.PENDING_REVIEW;
 import static ar.edu.utn.frba.arbiter.reports.support.CaseTables.REJECTED;
-import static ar.edu.utn.frba.arbiter.reports.support.CaseTables.ROBO_CELULARES;
+import static ar.edu.utn.frba.arbiter.reports.support.CaseTables.PHONES_ROBBERY;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
@@ -78,11 +78,11 @@ class ClaimMetricsRepositoryTests extends AbstractPersistenceIT {
 
     @Test
     void intake_countsWhatCameInAndHowMuchOfItWasFastTrack() {
-        tables.insertCase(1, "2026-08-02T10:00:00Z", PENDING_REVIEW, ROBO_CELULARES, true, null, null);
-        tables.insertCase(2, "2026-08-03T10:00:00Z", PENDING_REVIEW, ROBO_CELULARES, false, null, null);
-        tables.insertCase(3, "2026-08-04T10:00:00Z", PENDING_REVIEW, HURTO_CELULARES, false, null, null);
+        tables.insertCase(1, "2026-08-02T10:00:00Z", PENDING_REVIEW, PHONES_ROBBERY, true, null, null);
+        tables.insertCase(2, "2026-08-03T10:00:00Z", PENDING_REVIEW, PHONES_ROBBERY, false, null, null);
+        tables.insertCase(3, "2026-08-04T10:00:00Z", PENDING_REVIEW, PHONES_THEFT, false, null, null);
         // July: outside the window, must stay out of every figure.
-        tables.insertCase(4, "2026-07-20T10:00:00Z", PENDING_REVIEW, ROBO_CELULARES, true, null, null);
+        tables.insertCase(4, "2026-07-20T10:00:00Z", PENDING_REVIEW, PHONES_ROBBERY, true, null, null);
 
         IntakeTotals totals = repository.intakeTotals(AUGUST_FROM, AUGUST_TO, NONE);
 
@@ -91,10 +91,10 @@ class ClaimMetricsRepositoryTests extends AbstractPersistenceIT {
 
     @Test
     void byStatus_readsInLifecycleOrder() {
-        tables.insertCase(1, "2026-08-02T10:00:00Z", PENDING_REVIEW, ROBO_CELULARES, false, null, null);
-        tables.insertCase(2, "2026-08-03T10:00:00Z", APPROVED, ROBO_CELULARES, false, null, null);
-        tables.insertCase(3, "2026-08-04T10:00:00Z", APPROVED, HURTO_CELULARES, false, null, null);
-        tables.insertCase(4, "2026-08-05T10:00:00Z", REJECTED, HURTO_CELULARES, false, null, null);
+        tables.insertCase(1, "2026-08-02T10:00:00Z", PENDING_REVIEW, PHONES_ROBBERY, false, null, null);
+        tables.insertCase(2, "2026-08-03T10:00:00Z", APPROVED, PHONES_ROBBERY, false, null, null);
+        tables.insertCase(3, "2026-08-04T10:00:00Z", APPROVED, PHONES_THEFT, false, null, null);
+        tables.insertCase(4, "2026-08-05T10:00:00Z", REJECTED, PHONES_THEFT, false, null, null);
 
         assertThat(repository.countByStatus(AUGUST_FROM, AUGUST_TO, NONE)).containsExactly(
                 new MetricCount("PENDING_ANALYST_REVIEW", 1),
@@ -104,9 +104,9 @@ class ClaimMetricsRepositoryTests extends AbstractPersistenceIT {
 
     @Test
     void byBranch_groupsEveryCauseOfTheSameBranchTogether() {
-        tables.insertCase(1, "2026-08-02T10:00:00Z", PENDING_REVIEW, ROBO_CELULARES, false, null, null);
-        tables.insertCase(2, "2026-08-03T10:00:00Z", PENDING_REVIEW, HURTO_CELULARES, false, null, null);
-        tables.insertCase(3, "2026-08-04T10:00:00Z", PENDING_REVIEW, HURTO_TECNOLOGIA, false, null, null);
+        tables.insertCase(1, "2026-08-02T10:00:00Z", PENDING_REVIEW, PHONES_ROBBERY, false, null, null);
+        tables.insertCase(2, "2026-08-03T10:00:00Z", PENDING_REVIEW, PHONES_THEFT, false, null, null);
+        tables.insertCase(3, "2026-08-04T10:00:00Z", PENDING_REVIEW, PORTABLE_TECH_THEFT, false, null, null);
 
         assertThat(repository.countByBranch(AUGUST_FROM, AUGUST_TO, NONE)).containsExactly(
                 new MetricCount("Celulares", 2),
@@ -116,14 +116,14 @@ class ClaimMetricsRepositoryTests extends AbstractPersistenceIT {
     @Test
     void byClassification_prefersFastTrack_thenTheNewestRun_andKeepsTheUnclassified() {
         // Fast Track: the model never ran, and an older run of an earlier attempt must not win.
-        tables.insertCase(1, "2026-08-02T10:00:00Z", APPROVED, ROBO_CELULARES, true, null, null);
+        tables.insertCase(1, "2026-08-02T10:00:00Z", APPROVED, PHONES_ROBBERY, true, null, null);
         tables.recommendation(1, "LLM_SOLICITA_REVISION_MANUAL");
         // Append-only: the newest run is the classification.
-        tables.insertCase(2, "2026-08-03T10:00:00Z", PENDING_REVIEW, ROBO_CELULARES, false, null, null);
+        tables.insertCase(2, "2026-08-03T10:00:00Z", PENDING_REVIEW, PHONES_ROBBERY, false, null, null);
         tables.recommendation(2, "LLM_NO_RECOMIENDA_APROBAR");
         tables.recommendation(2, "LLM_RECOMIENDA_APROBAR");
         // Still being classified.
-        tables.insertCase(3, "2026-08-04T10:00:00Z", PENDING_REVIEW, ROBO_CELULARES, false, null, null);
+        tables.insertCase(3, "2026-08-04T10:00:00Z", PENDING_REVIEW, PHONES_ROBBERY, false, null, null);
 
         assertThat(repository.countByClassification(AUGUST_FROM, AUGUST_TO, NONE)).containsExactlyInAnyOrder(
                 new MetricCount("FAST_TRACK", 1),
@@ -133,9 +133,9 @@ class ClaimMetricsRepositoryTests extends AbstractPersistenceIT {
 
     @Test
     void byRiskBand_keepsTheClaimsScoringNeverReached() {
-        tables.insertCase(1, "2026-08-02T10:00:00Z", PENDING_REVIEW, ROBO_CELULARES, false, null, null);
-        tables.insertCase(2, "2026-08-03T10:00:00Z", PENDING_REVIEW, ROBO_CELULARES, false, null, null);
-        tables.insertCase(3, "2026-08-04T10:00:00Z", PENDING_REVIEW, ROBO_CELULARES, false, null, null);
+        tables.insertCase(1, "2026-08-02T10:00:00Z", PENDING_REVIEW, PHONES_ROBBERY, false, null, null);
+        tables.insertCase(2, "2026-08-03T10:00:00Z", PENDING_REVIEW, PHONES_ROBBERY, false, null, null);
+        tables.insertCase(3, "2026-08-04T10:00:00Z", PENDING_REVIEW, PHONES_ROBBERY, false, null, null);
         riskBand(1, "HIGH");
         riskBand(2, "HIGH");
 
@@ -147,14 +147,14 @@ class ClaimMetricsRepositoryTests extends AbstractPersistenceIT {
     @Test
     void resolved_countsPerFinalStatusWithItsOwnAverage() {
         // Filed 01/08 10:00Z, approved 03/08 12:30Z — 2 days 2.5 hours.
-        tables.insertCase(1, "2026-08-01T10:00:00Z", APPROVED, ROBO_CELULARES, false, LAURA, null);
+        tables.insertCase(1, "2026-08-01T10:00:00Z", APPROVED, PHONES_ROBBERY, false, LAURA, null);
         tables.transition(1, null, PENDING_REVIEW, "2026-08-01T10:00:00Z");
         tables.transition(1, PENDING_REVIEW, APPROVED, "2026-08-03T12:30:00Z");
         // Filed 01/08 10:00Z, rejected 02/08 10:00Z — 1 day.
-        tables.insertCase(2, "2026-08-01T10:00:00Z", REJECTED, ROBO_CELULARES, false, LAURA, null);
+        tables.insertCase(2, "2026-08-01T10:00:00Z", REJECTED, PHONES_ROBBERY, false, LAURA, null);
         tables.transition(2, PENDING_REVIEW, REJECTED, "2026-08-02T10:00:00Z");
         // Still open: it has no closing transition and must not appear.
-        tables.insertCase(3, "2026-08-01T10:00:00Z", PENDING_REVIEW, ROBO_CELULARES, false, LAURA, null);
+        tables.insertCase(3, "2026-08-01T10:00:00Z", PENDING_REVIEW, PHONES_ROBBERY, false, LAURA, null);
         tables.transition(3, null, PENDING_REVIEW, "2026-08-01T10:00:00Z");
 
         assertThat(repository.resolvedTotals(AUGUST_FROM, AUGUST_TO, NONE)).containsExactlyInAnyOrder(
@@ -164,7 +164,7 @@ class ClaimMetricsRepositoryTests extends AbstractPersistenceIT {
 
     @Test
     void aClaimReopenedAndClosedAgain_countsOnceOnTheDayItClosedForGood() {
-        tables.insertCase(1, "2026-08-01T10:00:00Z", REJECTED, ROBO_CELULARES, false, LAURA, null);
+        tables.insertCase(1, "2026-08-01T10:00:00Z", REJECTED, PHONES_ROBBERY, false, LAURA, null);
         // Rejected, reopened, rejected again: only the last closing is the resolution.
         tables.transition(1, PENDING_REVIEW, REJECTED, "2026-08-02T10:00:00Z");
         tables.transition(1, REJECTED, PENDING_REVIEW, "2026-08-03T10:00:00Z");
@@ -176,7 +176,7 @@ class ClaimMetricsRepositoryTests extends AbstractPersistenceIT {
 
     @Test
     void aLapsedClaim_isResolvedToo_andTheServiceDecidesWhatToDoWithIt() {
-        tables.insertCase(1, "2025-02-01T13:00:00Z", LAPSED, HURTO_TECNOLOGIA, false, null, null);
+        tables.insertCase(1, "2025-02-01T13:00:00Z", LAPSED, PORTABLE_TECH_THEFT, false, null, null);
         tables.transition(1, PENDING_REVIEW, LAPSED, "2026-08-02T13:00:00Z");
 
         assertThat(repository.resolvedTotals(AUGUST_FROM, AUGUST_TO, NONE))
@@ -190,8 +190,8 @@ class ClaimMetricsRepositoryTests extends AbstractPersistenceIT {
     @Test
     void theTimeline_bucketsByTheInsurersCalendarDay_notUTCs() {
         // 05/08 02:00 UTC is still 04/08 23:00 in Buenos Aires: the claim belongs to the 4th.
-        tables.insertCase(1, "2026-08-05T02:00:00Z", PENDING_REVIEW, ROBO_CELULARES, false, null, null);
-        tables.insertCase(2, "2026-08-05T14:00:00Z", APPROVED, ROBO_CELULARES, false, LAURA, null);
+        tables.insertCase(1, "2026-08-05T02:00:00Z", PENDING_REVIEW, PHONES_ROBBERY, false, null, null);
+        tables.insertCase(2, "2026-08-05T14:00:00Z", APPROVED, PHONES_ROBBERY, false, LAURA, null);
         tables.transition(2, PENDING_REVIEW, APPROVED, "2026-08-10T14:00:00Z");
 
         List<TimelinePoint> timeline =
@@ -207,13 +207,13 @@ class ClaimMetricsRepositoryTests extends AbstractPersistenceIT {
     void theFunnel_followsThePeriodsIntakeForward_andNeverCountsAFastTrackAsAnalyzed() {
         // Fast Track: decided, but the model never ran — it must NOT count as analyzed.
         tables.decision(1, "APPROVE", LAURA);
-        tables.insertCase(1, "2026-08-02T10:00:00Z", APPROVED, ROBO_CELULARES, true, LAURA, 1L);
+        tables.insertCase(1, "2026-08-02T10:00:00Z", APPROVED, PHONES_ROBBERY, true, LAURA, 1L);
         tables.decision(2, "REJECT", LAURA);
-        tables.insertCase(2, "2026-08-03T10:00:00Z", REJECTED, ROBO_CELULARES, false, LAURA, 2L);
+        tables.insertCase(2, "2026-08-03T10:00:00Z", REJECTED, PHONES_ROBBERY, false, LAURA, 2L);
         tables.recommendation(2, "LLM_NO_RECOMIENDA_APROBAR");
-        tables.insertCase(3, "2026-08-04T10:00:00Z", PENDING_REVIEW, ROBO_CELULARES, false, LAURA, null);
+        tables.insertCase(3, "2026-08-04T10:00:00Z", PENDING_REVIEW, PHONES_ROBBERY, false, LAURA, null);
         tables.recommendation(3, "LLM_RECOMIENDA_APROBAR");
-        tables.insertCase(4, "2026-07-20T10:00:00Z", PENDING_REVIEW, ROBO_CELULARES, false, null, null);
+        tables.insertCase(4, "2026-07-20T10:00:00Z", PENDING_REVIEW, PHONES_ROBBERY, false, null, null);
 
         assertThat(repository.intakeFunnel(AUGUST_FROM, AUGUST_TO, NONE))
                 .isEqualTo(new IntakeFunnel(3, 2, 2, 1, 1));
@@ -229,7 +229,7 @@ class ClaimMetricsRepositoryTests extends AbstractPersistenceIT {
         // Lapsed: nobody decided it, so it is not a disagreement either.
         resolvedWithRecommendation(4, "LLM_RECOMIENDA_APROBAR", LAPSED);
         // Fast Track: the model never saw it.
-        tables.insertCase(5, "2026-08-01T10:00:00Z", APPROVED, ROBO_CELULARES, true, LAURA, null);
+        tables.insertCase(5, "2026-08-01T10:00:00Z", APPROVED, PHONES_ROBBERY, true, LAURA, null);
         tables.transition(5, PENDING_REVIEW, APPROVED, "2026-08-05T10:00:00Z");
 
         assertThat(repository.recommendationAgreement(AUGUST_FROM, AUGUST_TO, NONE))
@@ -253,7 +253,7 @@ class ClaimMetricsRepositoryTests extends AbstractPersistenceIT {
     /** Only its label: an old llm_analysis row of the same case must not win over it. */
     @Test
     void classification_ofARulesOutcomeIsTheEngines() {
-        tables.insertCase(1, "2026-08-02T10:00:00Z", PENDING_REVIEW, ROBO_CELULARES, false, null, null);
+        tables.insertCase(1, "2026-08-02T10:00:00Z", PENDING_REVIEW, PHONES_ROBBERY, false, null, null);
         tables.recommendation(1, "LLM_RECOMIENDA_APROBAR");
         tables.rulesOutcome(1, "LLM_SOLICITA_REVISION_MANUAL");
 
@@ -263,7 +263,7 @@ class ClaimMetricsRepositoryTests extends AbstractPersistenceIT {
 
     @Test
     void agreement_isUnknownRatherThanZero_whenNothingDecidedCarriedARecommendation() {
-        tables.insertCase(1, "2026-08-01T10:00:00Z", APPROVED, ROBO_CELULARES, true, LAURA, null);
+        tables.insertCase(1, "2026-08-01T10:00:00Z", APPROVED, PHONES_ROBBERY, true, LAURA, null);
         tables.transition(1, PENDING_REVIEW, APPROVED, "2026-08-05T10:00:00Z");
 
         assertThat(repository.recommendationAgreement(AUGUST_FROM, AUGUST_TO, NONE))
@@ -272,9 +272,9 @@ class ClaimMetricsRepositoryTests extends AbstractPersistenceIT {
 
     @Test
     void theBranchFilter_cutsToOneBranchAcrossAllOfItsCauses() {
-        tables.insertCase(1, "2026-08-02T10:00:00Z", PENDING_REVIEW, ROBO_CELULARES, false, null, null);
-        tables.insertCase(2, "2026-08-03T10:00:00Z", PENDING_REVIEW, HURTO_CELULARES, false, null, null);
-        tables.insertCase(3, "2026-08-04T10:00:00Z", PENDING_REVIEW, HURTO_TECNOLOGIA, false, null, null);
+        tables.insertCase(1, "2026-08-02T10:00:00Z", PENDING_REVIEW, PHONES_ROBBERY, false, null, null);
+        tables.insertCase(2, "2026-08-03T10:00:00Z", PENDING_REVIEW, PHONES_THEFT, false, null, null);
+        tables.insertCase(3, "2026-08-04T10:00:00Z", PENDING_REVIEW, PORTABLE_TECH_THEFT, false, null, null);
 
         // Branch 1 is Celulares, which owns both "Robo en vía pública" and its own "Hurto".
         assertThat(repository.intakeTotals(AUGUST_FROM, AUGUST_TO, new MetricsFilter(1L, null)))
@@ -285,11 +285,11 @@ class ClaimMetricsRepositoryTests extends AbstractPersistenceIT {
 
     @Test
     void theAnalystFilter_cutsByWhoTheCaseIsAssignedTo() {
-        tables.insertCase(1, "2026-08-02T10:00:00Z", PENDING_REVIEW, ROBO_CELULARES, false, LAURA, null);
-        tables.insertCase(2, "2026-08-03T10:00:00Z", PENDING_REVIEW, ROBO_CELULARES, false, LAURA, null);
-        tables.insertCase(3, "2026-08-04T10:00:00Z", PENDING_REVIEW, ROBO_CELULARES, false, JUAN, null);
+        tables.insertCase(1, "2026-08-02T10:00:00Z", PENDING_REVIEW, PHONES_ROBBERY, false, LAURA, null);
+        tables.insertCase(2, "2026-08-03T10:00:00Z", PENDING_REVIEW, PHONES_ROBBERY, false, LAURA, null);
+        tables.insertCase(3, "2026-08-04T10:00:00Z", PENDING_REVIEW, PHONES_ROBBERY, false, JUAN, null);
         // Unassigned: belongs to nobody's cut.
-        tables.insertCase(4, "2026-08-05T10:00:00Z", PENDING_REVIEW, ROBO_CELULARES, false, null, null);
+        tables.insertCase(4, "2026-08-05T10:00:00Z", PENDING_REVIEW, PHONES_ROBBERY, false, null, null);
 
         assertThat(repository.intakeTotals(AUGUST_FROM, AUGUST_TO, new MetricsFilter(null, LAURA)))
                 .isEqualTo(new IntakeTotals(2, 0));
@@ -299,8 +299,8 @@ class ClaimMetricsRepositoryTests extends AbstractPersistenceIT {
 
     @Test
     void theFilter_reachesTheTimelineToo() {
-        tables.insertCase(1, "2026-08-05T14:00:00Z", PENDING_REVIEW, ROBO_CELULARES, false, LAURA, null);
-        tables.insertCase(2, "2026-08-05T14:00:00Z", PENDING_REVIEW, HURTO_TECNOLOGIA, false, LAURA, null);
+        tables.insertCase(1, "2026-08-05T14:00:00Z", PENDING_REVIEW, PHONES_ROBBERY, false, LAURA, null);
+        tables.insertCase(2, "2026-08-05T14:00:00Z", PENDING_REVIEW, PORTABLE_TECH_THEFT, false, LAURA, null);
 
         List<TimelinePoint> timeline = repository.timeline(
                 AUGUST_FROM, AUGUST_TO, TimelineGranularity.DAY, BUENOS_AIRES, new MetricsFilter(1L, null));
@@ -313,10 +313,10 @@ class ClaimMetricsRepositoryTests extends AbstractPersistenceIT {
         // Filed 01/08, approved 05/08: exactly 4 days.
         resolvedWithRecommendation(1, "LLM_RECOMIENDA_APROBAR", APPROVED);
         // Filed 01/08, rejected 20/08: 19 days.
-        tables.insertCase(2, "2026-08-01T10:00:00Z", REJECTED, ROBO_CELULARES, false, LAURA, null);
+        tables.insertCase(2, "2026-08-01T10:00:00Z", REJECTED, PHONES_ROBBERY, false, LAURA, null);
         tables.transition(2, PENDING_REVIEW, REJECTED, "2026-08-20T10:00:00Z");
         // Lapsed after 25 days: nobody decided it, so it is not over target.
-        tables.insertCase(3, "2026-08-01T10:00:00Z", LAPSED, ROBO_CELULARES, false, null, null);
+        tables.insertCase(3, "2026-08-01T10:00:00Z", LAPSED, PHONES_ROBBERY, false, null, null);
         tables.transition(3, PENDING_REVIEW, LAPSED, "2026-08-26T10:00:00Z");
 
         // With a 4-day target only the 19-day one exceeds it; the 4-day one meets it exactly.
@@ -333,7 +333,7 @@ class ClaimMetricsRepositoryTests extends AbstractPersistenceIT {
         long awaitingDocs = 3;
 
         // 10 wall-clock days, 6 of them awaiting documentation: 4 days of handling.
-        tables.insertCase(1, "2026-08-01T00:00:00Z", APPROVED, ROBO_CELULARES, false, LAURA, null);
+        tables.insertCase(1, "2026-08-01T00:00:00Z", APPROVED, PHONES_ROBBERY, false, LAURA, null);
         tables.transition(1, null, PENDING_REVIEW, "2026-08-01T00:00:00Z");
         tables.transition(1, PENDING_REVIEW, awaitingDocs, "2026-08-03T00:00:00Z");
         tables.transition(1, awaitingDocs, PENDING_REVIEW, "2026-08-09T00:00:00Z");
@@ -354,7 +354,7 @@ class ClaimMetricsRepositoryTests extends AbstractPersistenceIT {
         long awaitingDocs = 3;
 
         // 10 wall-clock days, 6 of them (03/08 to 09/08) awaiting documentation.
-        tables.insertCase(1, "2026-08-01T00:00:00Z", APPROVED, ROBO_CELULARES, false, LAURA, null);
+        tables.insertCase(1, "2026-08-01T00:00:00Z", APPROVED, PHONES_ROBBERY, false, LAURA, null);
         tables.transition(1, null, PENDING_REVIEW, "2026-08-01T00:00:00Z");
         tables.transition(1, PENDING_REVIEW, awaitingDocs, "2026-08-03T00:00:00Z");
         tables.transition(1, awaitingDocs, PENDING_REVIEW, "2026-08-09T00:00:00Z");
@@ -368,7 +368,7 @@ class ClaimMetricsRepositoryTests extends AbstractPersistenceIT {
 
     @Test
     void theSplit_isEmptyWhenNothingWasDecidedInThePeriod() {
-        tables.insertCase(1, "2026-08-01T10:00:00Z", PENDING_REVIEW, ROBO_CELULARES, false, LAURA, null);
+        tables.insertCase(1, "2026-08-01T10:00:00Z", PENDING_REVIEW, PHONES_ROBBERY, false, LAURA, null);
 
         assertThat(repository.resolutionSplit(AUGUST_FROM, AUGUST_TO, NONE))
                 .isEqualTo(ResolutionSplit.NONE);
@@ -376,7 +376,7 @@ class ClaimMetricsRepositoryTests extends AbstractPersistenceIT {
 
     @Test
     void theSplit_reportsZeroWaitingWhenNobodyWasEverWaitedOn() {
-        tables.insertCase(1, "2026-08-01T00:00:00Z", APPROVED, ROBO_CELULARES, false, LAURA, null);
+        tables.insertCase(1, "2026-08-01T00:00:00Z", APPROVED, PHONES_ROBBERY, false, LAURA, null);
         tables.transition(1, PENDING_REVIEW, APPROVED, "2026-08-05T00:00:00Z");
 
         ResolutionSplit split = repository.resolutionSplit(AUGUST_FROM, AUGUST_TO, NONE);
@@ -391,11 +391,11 @@ class ClaimMetricsRepositoryTests extends AbstractPersistenceIT {
         resolvedWithRecommendation(1, "LLM_RECOMIENDA_APROBAR", APPROVED);
         tables.deadline(1, "2026-08-10");
         // Decided 20/08, due 15/08: late.
-        tables.insertCase(2, "2026-08-01T10:00:00Z", REJECTED, ROBO_CELULARES, false, LAURA, null);
+        tables.insertCase(2, "2026-08-01T10:00:00Z", REJECTED, PHONES_ROBBERY, false, LAURA, null);
         tables.transition(2, PENDING_REVIEW, REJECTED, "2026-08-20T10:00:00Z");
         tables.deadline(2, "2026-08-15");
         // Lapsed: no decision to date, so it is out of the compliance figure.
-        tables.insertCase(3, "2026-08-01T10:00:00Z", LAPSED, ROBO_CELULARES, false, null, null);
+        tables.insertCase(3, "2026-08-01T10:00:00Z", LAPSED, PHONES_ROBBERY, false, null, null);
         tables.transition(3, PENDING_REVIEW, LAPSED, "2026-08-26T10:00:00Z");
         tables.deadline(3, "2026-08-02");
 
@@ -405,7 +405,7 @@ class ClaimMetricsRepositoryTests extends AbstractPersistenceIT {
 
     @Test
     void theLegalTerm_countsTheDayOfTheDeadlineItselfAsInTime() {
-        tables.insertCase(1, "2026-08-01T10:00:00Z", APPROVED, ROBO_CELULARES, false, LAURA, null);
+        tables.insertCase(1, "2026-08-01T10:00:00Z", APPROVED, PHONES_ROBBERY, false, LAURA, null);
         // 22:00 in Buenos Aires on the due date, already the next day in UTC.
         tables.transition(1, PENDING_REVIEW, APPROVED, "2026-08-11T01:00:00Z");
         tables.deadline(1, "2026-08-10");
@@ -416,7 +416,7 @@ class ClaimMetricsRepositoryTests extends AbstractPersistenceIT {
 
     @Test
     void theLegalTerm_hasNoRateWhenNothingWasDecided() {
-        tables.insertCase(1, "2026-08-01T10:00:00Z", PENDING_REVIEW, ROBO_CELULARES, false, LAURA, null);
+        tables.insertCase(1, "2026-08-01T10:00:00Z", PENDING_REVIEW, PHONES_ROBBERY, false, LAURA, null);
 
         assertThat(repository.legalDeadlineCompliance(AUGUST_FROM, AUGUST_TO, BUENOS_AIRES, NONE))
                 .isEqualTo(new LegalDeadline(0, 0, null));
@@ -425,18 +425,18 @@ class ClaimMetricsRepositoryTests extends AbstractPersistenceIT {
     @Test
     void reopening_countsCasesThatCameBackFromAFinalStatus_onceEach() {
         // Approved, reopened, approved again: one reopened case.
-        tables.insertCase(1, "2026-08-01T10:00:00Z", APPROVED, ROBO_CELULARES, false, LAURA, null);
+        tables.insertCase(1, "2026-08-01T10:00:00Z", APPROVED, PHONES_ROBBERY, false, LAURA, null);
         tables.transition(1, PENDING_REVIEW, APPROVED, "2026-08-05T10:00:00Z");
         tables.transition(1, APPROVED, PENDING_REVIEW, "2026-08-06T10:00:00Z");
         tables.transition(1, PENDING_REVIEW, APPROVED, "2026-08-10T10:00:00Z");
         // Rejected, reopened twice, rejected: still one reopened case.
-        tables.insertCase(2, "2026-08-01T10:00:00Z", REJECTED, ROBO_CELULARES, false, LAURA, null);
+        tables.insertCase(2, "2026-08-01T10:00:00Z", REJECTED, PHONES_ROBBERY, false, LAURA, null);
         tables.transition(2, PENDING_REVIEW, REJECTED, "2026-08-04T10:00:00Z");
         tables.transition(2, REJECTED, PENDING_REVIEW, "2026-08-05T10:00:00Z");
         tables.transition(2, PENDING_REVIEW, REJECTED, "2026-08-06T10:00:00Z");
         tables.transition(2, REJECTED, PENDING_REVIEW, "2026-08-07T10:00:00Z");
         tables.transition(2, PENDING_REVIEW, REJECTED, "2026-08-12T10:00:00Z");
-        tables.insertCase(3, "2026-08-01T10:00:00Z", APPROVED, ROBO_CELULARES, false, LAURA, null);
+        tables.insertCase(3, "2026-08-01T10:00:00Z", APPROVED, PHONES_ROBBERY, false, LAURA, null);
         tables.transition(3, PENDING_REVIEW, APPROVED, "2026-08-08T10:00:00Z");
 
         assertThat(repository.reopeningRate(AUGUST_FROM, AUGUST_TO, NONE))
@@ -445,7 +445,7 @@ class ClaimMetricsRepositoryTests extends AbstractPersistenceIT {
 
     @Test
     void reopening_readsEveryClosedCase_lapsedOnesIncluded() {
-        tables.insertCase(1, "2026-08-01T10:00:00Z", LAPSED, ROBO_CELULARES, false, null, null);
+        tables.insertCase(1, "2026-08-01T10:00:00Z", LAPSED, PHONES_ROBBERY, false, null, null);
         tables.transition(1, PENDING_REVIEW, LAPSED, "2026-08-20T10:00:00Z");
 
         assertThat(repository.reopeningRate(AUGUST_FROM, AUGUST_TO, NONE))
@@ -454,19 +454,19 @@ class ClaimMetricsRepositoryTests extends AbstractPersistenceIT {
 
     @Test
     void settled_addsUpOnlyTheAuthorisedSettlementsConfirmedInThePeriod() {
-        tables.insertCase(1, "2026-07-20T10:00:00Z", APPROVED, ROBO_CELULARES, false, LAURA, null);
+        tables.insertCase(1, "2026-07-20T10:00:00Z", APPROVED, PHONES_ROBBERY, false, LAURA, null);
         tables.claimed(1, "500000.00");
         tables.settlement(1, "420000.00", "AUTHORIZED", "2026-08-05T10:00:00Z",
                 "50000.00", "20000.00", "10000.00");
-        tables.insertCase(2, "2026-08-01T10:00:00Z", APPROVED, ROBO_CELULARES, false, LAURA, null);
+        tables.insertCase(2, "2026-08-01T10:00:00Z", APPROVED, PHONES_ROBBERY, false, LAURA, null);
         tables.claimed(2, "300000.00");
         tables.settlement(2, "280000.00", "AUTHORIZED", "2026-08-20T10:00:00Z", "20000.00", "0", "0");
         // Awaiting the referent's signature: not a commitment yet.
-        tables.insertCase(3, "2026-08-02T10:00:00Z", APPROVED, ROBO_CELULARES, false, LAURA, null);
+        tables.insertCase(3, "2026-08-02T10:00:00Z", APPROVED, PHONES_ROBBERY, false, LAURA, null);
         tables.claimed(3, "900000.00");
         tables.settlement(3, "850000.00", "PENDING_AUTHORIZATION", "2026-08-21T10:00:00Z", "0", "0", "0");
         // Authorized, but in September: next period.
-        tables.insertCase(4, "2026-08-03T10:00:00Z", APPROVED, ROBO_CELULARES, false, LAURA, null);
+        tables.insertCase(4, "2026-08-03T10:00:00Z", APPROVED, PHONES_ROBBERY, false, LAURA, null);
         tables.settlement(4, "100000.00", "AUTHORIZED", "2026-09-02T10:00:00Z", "0", "0", "0");
 
         SettledAmounts settled = repository.settledAmounts(AUGUST_FROM, AUGUST_TO, NONE);
@@ -483,11 +483,11 @@ class ClaimMetricsRepositoryTests extends AbstractPersistenceIT {
 
     @Test
     void settled_saysOnHowManySettlementsTheClaimedAmountCouldBeAddedUp() {
-        tables.insertCase(1, "2026-08-01T10:00:00Z", APPROVED, ROBO_CELULARES, false, LAURA, null);
+        tables.insertCase(1, "2026-08-01T10:00:00Z", APPROVED, PHONES_ROBBERY, false, LAURA, null);
         tables.claimed(1, "300000.00");
         tables.settlement(1, "280000.00", "AUTHORIZED", "2026-08-05T10:00:00Z", "0", "0", "0");
         // No claimed amount: counts as a settlement but not toward the claimed total.
-        tables.insertCase(2, "2026-08-02T10:00:00Z", APPROVED, ROBO_CELULARES, false, LAURA, null);
+        tables.insertCase(2, "2026-08-02T10:00:00Z", APPROVED, PHONES_ROBBERY, false, LAURA, null);
         tables.settlement(2, "400000.00", "AUTHORIZED", "2026-08-06T10:00:00Z", "0", "0", "0");
 
         SettledAmounts settled = repository.settledAmounts(AUGUST_FROM, AUGUST_TO, NONE);
@@ -498,7 +498,7 @@ class ClaimMetricsRepositoryTests extends AbstractPersistenceIT {
 
     @Test
     void settled_hasNoAverageWhenNothingWasSettled() {
-        tables.insertCase(1, "2026-08-01T10:00:00Z", PENDING_REVIEW, ROBO_CELULARES, false, LAURA, null);
+        tables.insertCase(1, "2026-08-01T10:00:00Z", PENDING_REVIEW, PHONES_ROBBERY, false, LAURA, null);
 
         assertThat(repository.settledAmounts(AUGUST_FROM, AUGUST_TO, NONE).average()).isNull();
     }
@@ -506,24 +506,24 @@ class ClaimMetricsRepositoryTests extends AbstractPersistenceIT {
     @Test
     void fraud_countsWhatWasNotPaidOnlyOnTheRejectedOnes() {
         // Fraud determined, rejected, backed by an expert assessment.
-        tables.insertCase(1, "2026-08-01T10:00:00Z", REJECTED, ROBO_CELULARES, false, LAURA, null);
+        tables.insertCase(1, "2026-08-01T10:00:00Z", REJECTED, PHONES_ROBBERY, false, LAURA, null);
         tables.transition(1, PENDING_REVIEW, REJECTED, "2026-08-10T10:00:00Z");
         tables.claimed(1, "400000.00");
         tables.fraudDetermined(1);
         tables.assessment(1, "ESTUDIO_LIQUIDADOR", "FRAUD_CONFIRMED", null,
                 "2026-08-03T10:00:00Z", "2026-08-08T10:00:00Z");
         // Fraud determined by the analyst alone, rejected.
-        tables.insertCase(2, "2026-08-01T10:00:00Z", REJECTED, ROBO_CELULARES, false, LAURA, null);
+        tables.insertCase(2, "2026-08-01T10:00:00Z", REJECTED, PHONES_ROBBERY, false, LAURA, null);
         tables.transition(2, PENDING_REVIEW, REJECTED, "2026-08-12T10:00:00Z");
         tables.claimed(2, "150000.00");
         tables.fraudDetermined(2);
         // Fraud determined but approved anyway: nothing saved.
-        tables.insertCase(3, "2026-08-01T10:00:00Z", APPROVED, ROBO_CELULARES, false, LAURA, null);
+        tables.insertCase(3, "2026-08-01T10:00:00Z", APPROVED, PHONES_ROBBERY, false, LAURA, null);
         tables.transition(3, PENDING_REVIEW, APPROVED, "2026-08-14T10:00:00Z");
         tables.claimed(3, "999999.00");
         tables.fraudDetermined(3);
         // No fraud: only adds to the decided total.
-        tables.insertCase(4, "2026-08-01T10:00:00Z", APPROVED, ROBO_CELULARES, false, LAURA, null);
+        tables.insertCase(4, "2026-08-01T10:00:00Z", APPROVED, PHONES_ROBBERY, false, LAURA, null);
         tables.transition(4, PENDING_REVIEW, APPROVED, "2026-08-15T10:00:00Z");
 
         FraudDetection fraud = repository.fraudDetection(AUGUST_FROM, AUGUST_TO, NONE);
@@ -536,7 +536,7 @@ class ClaimMetricsRepositoryTests extends AbstractPersistenceIT {
 
     @Test
     void fraud_countsTheExpertBackingOncePerCase_evenWithTwoDerivations() {
-        tables.insertCase(1, "2026-08-01T10:00:00Z", REJECTED, ROBO_CELULARES, false, LAURA, null);
+        tables.insertCase(1, "2026-08-01T10:00:00Z", REJECTED, PHONES_ROBBERY, false, LAURA, null);
         tables.transition(1, PENDING_REVIEW, REJECTED, "2026-08-10T10:00:00Z");
         tables.fraudDetermined(1);
         tables.assessment(1, "ESTUDIO_LIQUIDADOR", "FRAUD_CONFIRMED", null,
@@ -550,12 +550,12 @@ class ClaimMetricsRepositoryTests extends AbstractPersistenceIT {
     @Test
     void fastTrack_averagesEachSideSeparately() {
         // Fast Track: 2 days.
-        tables.insertCase(1, "2026-08-01T00:00:00Z", APPROVED, ROBO_CELULARES, true, LAURA, null);
+        tables.insertCase(1, "2026-08-01T00:00:00Z", APPROVED, PHONES_ROBBERY, true, LAURA, null);
         tables.transition(1, PENDING_REVIEW, APPROVED, "2026-08-03T00:00:00Z");
         // The rest: 10 and 20 days, 15 on average.
-        tables.insertCase(2, "2026-08-01T00:00:00Z", APPROVED, ROBO_CELULARES, false, LAURA, null);
+        tables.insertCase(2, "2026-08-01T00:00:00Z", APPROVED, PHONES_ROBBERY, false, LAURA, null);
         tables.transition(2, PENDING_REVIEW, APPROVED, "2026-08-11T00:00:00Z");
-        tables.insertCase(3, "2026-08-01T00:00:00Z", REJECTED, ROBO_CELULARES, false, LAURA, null);
+        tables.insertCase(3, "2026-08-01T00:00:00Z", REJECTED, PHONES_ROBBERY, false, LAURA, null);
         tables.transition(3, PENDING_REVIEW, REJECTED, "2026-08-21T00:00:00Z");
 
         assertThat(repository.fastTrackImpact(AUGUST_FROM, AUGUST_TO, NONE))
@@ -564,7 +564,7 @@ class ClaimMetricsRepositoryTests extends AbstractPersistenceIT {
 
     @Test
     void fastTrack_leavesTheAverageNullOnTheSideWithNothingDecided() {
-        tables.insertCase(1, "2026-08-01T00:00:00Z", APPROVED, ROBO_CELULARES, false, LAURA, null);
+        tables.insertCase(1, "2026-08-01T00:00:00Z", APPROVED, PHONES_ROBBERY, false, LAURA, null);
         tables.transition(1, PENDING_REVIEW, APPROVED, "2026-08-05T00:00:00Z");
 
         assertThat(repository.fastTrackImpact(AUGUST_FROM, AUGUST_TO, NONE))
@@ -573,7 +573,7 @@ class ClaimMetricsRepositoryTests extends AbstractPersistenceIT {
 
     @Test
     void derivations_averageOnlyTheOnesThatCameBack_andKeepThePendingOnesVisible() {
-        tables.insertCase(1, "2026-08-01T00:00:00Z", PENDING_REVIEW, ROBO_CELULARES, false, LAURA, null);
+        tables.insertCase(1, "2026-08-01T00:00:00Z", PENDING_REVIEW, PHONES_ROBBERY, false, LAURA, null);
         // Expert reports answered after 2 and 4 days, and a third still pending.
         tables.assessment(1, "ESTUDIO_LIQUIDADOR", "FRAUD_DISCARDED", null,
                 "2026-08-02T00:00:00Z", "2026-08-04T00:00:00Z");
@@ -596,7 +596,7 @@ class ClaimMetricsRepositoryTests extends AbstractPersistenceIT {
     @Test
     void blockingRules_countCasesStoppedOnce_evenIfTheCaseWasReclassified() {
         tables.rule(14, "Vigencia de la póliza");
-        tables.insertCase(1, "2026-08-01T10:00:00Z", PENDING_REVIEW, ROBO_CELULARES, false, LAURA, null);
+        tables.insertCase(1, "2026-08-01T10:00:00Z", PENDING_REVIEW, PHONES_ROBBERY, false, LAURA, null);
         // Reclassified: the same rule left two rows, but it is one blocked case.
         tables.ruleResult(1, 14L, "POLICY_IN_FORCE", "FAIL");
         tables.ruleResult(1, 14L, "POLICY_IN_FORCE", "FAIL");
@@ -606,7 +606,7 @@ class ClaimMetricsRepositoryTests extends AbstractPersistenceIT {
         tables.ruleResult(1, 14L, "REPORT_DEADLINE", "PASS");
         // Nor does an advisory: its FAIL flags something, it stopped nothing.
         tables.ruleResult(1, null, "CLAIM_CAUSE_MATCH", "FAIL");
-        tables.insertCase(2, "2026-08-02T10:00:00Z", PENDING_REVIEW, ROBO_CELULARES, false, LAURA, null);
+        tables.insertCase(2, "2026-08-02T10:00:00Z", PENDING_REVIEW, PHONES_ROBBERY, false, LAURA, null);
         tables.ruleResult(2, 14L, "POLICY_IN_FORCE", "FAIL");
 
         assertThat(repository.countByBlockingRule(AUGUST_FROM, AUGUST_TO, NONE)).containsExactly(
@@ -616,7 +616,7 @@ class ClaimMetricsRepositoryTests extends AbstractPersistenceIT {
 
     /** Filed 01/08, closed 05/08 in the given final status, with one model run behind it. */
     private void resolvedWithRecommendation(long caseId, String recommendation, long finalStatus) {
-        tables.insertCase(caseId, "2026-08-01T10:00:00Z", finalStatus, ROBO_CELULARES, false, LAURA, null);
+        tables.insertCase(caseId, "2026-08-01T10:00:00Z", finalStatus, PHONES_ROBBERY, false, LAURA, null);
         tables.transition(caseId, PENDING_REVIEW, finalStatus, "2026-08-05T10:00:00Z");
         tables.recommendation(caseId, recommendation);
     }
