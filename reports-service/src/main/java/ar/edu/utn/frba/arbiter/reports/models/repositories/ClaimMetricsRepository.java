@@ -47,7 +47,7 @@ import java.util.function.Function;
 public class ClaimMetricsRepository {
 
     /** The newest model run per case; analyses are append-only. */
-    private static final String LATEST_LLM_CTE = """
+    static final String LATEST_LLM_CTE = """
             latest_llm AS (
                 SELECT DISTINCT ON (case_id) case_id, recommendation
                   FROM llm_analysis

@@ -126,7 +126,9 @@ public class PdfFraudReportExporter implements FraudReportExporter {
         return List.of(
                 StatCardsBlock.Card.of("Denuncias del período",
                         String.valueOf(summary.totalClaims()),
-                        "%d en el período anterior".formatted(report.previousSummary().totalClaims())),
+                        "%d del %s al %s".formatted(report.comparisonSummary().totalClaims(),
+                                ReportLabels.DATE.format(report.comparison().from()),
+                                ReportLabels.DATE.format(report.comparison().to()))),
                 new StatCardsBlock.Card("Con al menos una señal",
                         ReportLabels.percentWithOneDecimal(summary.flaggedRate()),
                         "%d de %d denuncias".formatted(summary.flagged(), summary.totalClaims()),

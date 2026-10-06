@@ -7,6 +7,7 @@ import ar.edu.utn.frba.arbiter.reports.dto.ResolutionReportRow;
 import ar.edu.utn.frba.arbiter.reports.dto.ResolutionSummary;
 import ar.edu.utn.frba.arbiter.reports.dto.ResolutionTimelinePoint;
 import ar.edu.utn.frba.arbiter.reports.dto.TimelineGranularity;
+import ar.edu.utn.frba.arbiter.reports.models.repositories.DailyMetricsRepository.DailyResolution;
 
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -49,6 +50,43 @@ public final class ResolutionSummaries {
                 (double) fastTrack / total,
                 countBy(rows, row -> row.finalStatus().name()),
                 countBy(rows, ResolutionReportRow::claimCause));
+    }
+
+    /**
+     * Averages can differ from {@link #of} by under a minute: the days add up seconds, the rows truncate
+     * each case to whole minutes first.
+     */
+    public static ResolutionSummary ofStored(List<DailyResolution> days, List<MetricCount> byClaimCause) {
+        long total = days.stream().mapToLong(DailyResolution::resolved).sum();
+        if (total == 0) {
+            return ResolutionSummary.EMPTY;
+        }
+        List<DailyResolution> decided = days.stream()
+                .filter(day -> CaseStatus.APPROVED.name().equals(day.status())
+                        || CaseStatus.REJECTED.name().equals(day.status()))
+                .toList();
+        long decidedCases = decided.stream().mapToLong(DailyResolution::resolved).sum();
+        long fastTrack = days.stream().mapToLong(DailyResolution::fastTrack).sum();
+        Map<String, Long> byStatus = days.stream().collect(Collectors.groupingBy(
+                DailyResolution::status, Collectors.summingLong(DailyResolution::resolved)));
+
+        return new ResolutionSummary(
+                total,
+                decidedCases,
+                averageMinutes(decided.stream().mapToDouble(DailyResolution::totalSeconds).sum(), decidedCases),
+                averageMinutes(decided.stream().mapToDouble(DailyResolution::waitingSeconds).sum(), decidedCases),
+                fastTrack,
+                (double) fastTrack / total,
+                byStatus.entrySet().stream()
+                        .map(entry -> new MetricCount(entry.getKey(), entry.getValue()))
+                        .sorted(Comparator.comparingLong(MetricCount::count).reversed()
+                                .thenComparing(MetricCount::label))
+                        .toList(),
+                byClaimCause);
+    }
+
+    private static Double averageMinutes(double seconds, long cases) {
+        return cases == 0 ? null : seconds / cases / 60;
     }
 
     /**

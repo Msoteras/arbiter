@@ -3,12 +3,14 @@ package ar.edu.utn.frba.arbiter.reports.services;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 import ar.edu.utn.frba.arbiter.common.enums.RiskBand;
 import ar.edu.utn.frba.arbiter.reports.config.tenant.TenantContext;
+import ar.edu.utn.frba.arbiter.reports.dto.ComparisonRequest;
 import ar.edu.utn.frba.arbiter.reports.dto.ExportedReport;
 import ar.edu.utn.frba.arbiter.reports.dto.FraudReport;
 import ar.edu.utn.frba.arbiter.reports.dto.FraudReportRow;
 import ar.edu.utn.frba.arbiter.reports.dto.FraudSignal;
 import ar.edu.utn.frba.arbiter.reports.dto.FraudSummary;
 import ar.edu.utn.frba.arbiter.reports.dto.ReportFormat;
+import ar.edu.utn.frba.arbiter.reports.dto.ReportPeriod;
 import ar.edu.utn.frba.arbiter.reports.exceptions.InvalidReportPeriodException;
 import ar.edu.utn.frba.arbiter.reports.exceptions.TenantNotResolvedException;
 import ar.edu.utn.frba.arbiter.reports.exceptions.UnknownBranchException;
@@ -24,6 +26,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.OptionalLong;
 
 import static ar.edu.utn.frba.arbiter.reports.support.ReportFixtures.CLOCK;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -51,11 +54,15 @@ class FraudReportServiceTest {
     @Mock
     private FraudReportExporter pdfExporter;
 
+    @Mock
+    private DailyMetricsService dailyMetricsService;
+
     private FraudReportService service;
 
     @BeforeEach
     void setUp() {
-        service = new FraudReportService(repository, List.of(csvExporter, pdfExporter), CLOCK);
+        service = new FraudReportService(repository, dailyMetricsService, new ReportPeriods(CLOCK),
+                List.of(csvExporter, pdfExporter), CLOCK);
         TenantContext.set("arbiter_bbva");
     }
 
@@ -68,16 +75,16 @@ class FraudReportServiceTest {
     void withoutATenant_refusesToReportAnything() {
         TenantContext.clear();
 
-        assertThatThrownBy(() -> service.generate(SEP_1, SEP_30, null, null))
+        assertThatThrownBy(() -> service.generate(SEP_1, SEP_30, null, null, ComparisonRequest.DEFAULT))
                 .isInstanceOf(TenantNotResolvedException.class);
         verifyNoInteractions(repository);
     }
 
     @Test
     void anInvertedOrOverlongPeriod_isRejectedBeforeQuerying() {
-        assertThatThrownBy(() -> service.generate(SEP_30, SEP_1, null, null))
+        assertThatThrownBy(() -> service.generate(SEP_30, SEP_1, null, null, ComparisonRequest.DEFAULT))
                 .isInstanceOf(InvalidReportPeriodException.class);
-        assertThatThrownBy(() -> service.generate(SEP_1, SEP_1.plusYears(2), null, null))
+        assertThatThrownBy(() -> service.generate(SEP_1, SEP_1.plusYears(2), null, null, ComparisonRequest.DEFAULT))
                 .isInstanceOf(InvalidReportPeriodException.class);
         verifyNoInteractions(repository);
     }
@@ -85,7 +92,7 @@ class FraudReportServiceTest {
     /** Whole calendar days, both ends included: the last day reaches the next midnight. */
     @Test
     void thePeriod_coversBothDaysWhole() {
-        service.generate(SEP_1, SEP_30, null, null);
+        service.generate(SEP_1, SEP_30, null, null, ComparisonRequest.DEFAULT);
 
         verify(repository).findFlaggedBetween(
                 eq(Instant.parse("2026-09-01T03:00:00Z")),
@@ -97,7 +104,7 @@ class FraudReportServiceTest {
     void theFilters_goDown_andTheBranchNameComesBack() {
         given(repository.findBranchName(7L)).willReturn("Celulares");
 
-        FraudReport report = service.generate(SEP_1, SEP_30, 7L, RiskBand.CRITICAL);
+        FraudReport report = service.generate(SEP_1, SEP_30, 7L, RiskBand.CRITICAL, ComparisonRequest.DEFAULT);
 
         // The exact period, not any(): a wildcard would also match the previous-period query.
         verify(repository).findFlaggedBetween(
@@ -113,7 +120,7 @@ class FraudReportServiceTest {
         given(repository.findFlaggedBetween(any(), any(), eq(7L), isNull())).willReturn(List.of());
         given(repository.findBranchName(7L)).willReturn("Celulares");
 
-        FraudReport report = service.generate(SEP_1, SEP_30, 7L, null);
+        FraudReport report = service.generate(SEP_1, SEP_30, 7L, null, ComparisonRequest.DEFAULT);
 
         assertThat(report.branch()).isEqualTo("Celulares");
         assertThat(report.summary()).isEqualTo(FraudSummary.EMPTY);
@@ -124,14 +131,14 @@ class FraudReportServiceTest {
     void anUnknownBranch_isRejected_beforeRunningTheQuery() {
         given(repository.findBranchName(99L)).willReturn(null);
 
-        assertThatThrownBy(() -> service.generate(SEP_1, SEP_30, 99L, null))
+        assertThatThrownBy(() -> service.generate(SEP_1, SEP_30, 99L, null, ComparisonRequest.DEFAULT))
                 .isInstanceOf(UnknownBranchException.class);
         verify(repository, never()).findFlaggedBetween(any(), any(), any(), any());
     }
 
     @Test
     void withoutABranch_looksNoNameUp() {
-        service.generate(SEP_1, SEP_30, null, null);
+        service.generate(SEP_1, SEP_30, null, null, ComparisonRequest.DEFAULT);
 
         verify(repository, never()).findBranchName(any());
     }
@@ -139,7 +146,7 @@ class FraudReportServiceTest {
     /** Equal length, immediately before: 30 days of September compare against the 30 days before it. */
     @Test
     void generate_alsoQueriesTheEqualLengthStretchRightBefore() {
-        service.generate(SEP_1, SEP_30, null, null);
+        service.generate(SEP_1, SEP_30, null, null, ComparisonRequest.DEFAULT);
 
         verify(repository).findFlaggedBetween(
                 Instant.parse("2026-08-02T03:00:00Z"), Instant.parse("2026-09-01T03:00:00Z"), null, null);
@@ -148,7 +155,7 @@ class FraudReportServiceTest {
     }
 
     @Test
-    void generate_previousSummary_foldsThePreviousPeriodsRowsSeparately() {
+    void generate_comparisonSummary_foldsTheComparisonPeriodsRowsSeparately() {
         given(repository.findFlaggedBetween(
                 Instant.parse("2026-09-01T03:00:00Z"), Instant.parse("2026-10-01T03:00:00Z"), null, null))
                 .willReturn(List.of(row(1, RiskBand.CRITICAL, FraudSignal.HIGH_RISK_SCORE)));
@@ -162,11 +169,11 @@ class FraudReportServiceTest {
                 Instant.parse("2026-08-02T03:00:00Z"), Instant.parse("2026-09-01T03:00:00Z"), null))
                 .willReturn(4L);
 
-        FraudReport report = service.generate(SEP_1, SEP_30, null, null);
+        FraudReport report = service.generate(SEP_1, SEP_30, null, null, ComparisonRequest.DEFAULT);
 
         assertThat(report.summary().totalClaims()).isEqualTo(10);
-        assertThat(report.previousSummary().totalClaims()).isEqualTo(4);
-        assertThat(report.previousSummary().flagged()).isEqualTo(0);
+        assertThat(report.comparisonSummary().totalClaims()).isEqualTo(4);
+        assertThat(report.comparisonSummary().flagged()).isEqualTo(0);
     }
 
     @Test
@@ -177,7 +184,7 @@ class FraudReportServiceTest {
                 row(1, RiskBand.HIGH, FraudSignal.HIGH_RISK_SCORE),
                 row(2, null, FraudSignal.FORENSIC_INCONSISTENCY)));
 
-        FraudReport report = service.generate(SEP_1, SEP_30, null, null);
+        FraudReport report = service.generate(SEP_1, SEP_30, null, null, ComparisonRequest.DEFAULT);
 
         assertThat(report.rows()).extracting(FraudReportRow::caseId)
                 .containsExactly(4L, 3L, 1L, 2L);
@@ -191,7 +198,7 @@ class FraudReportServiceTest {
                 row(2, RiskBand.HIGH, FraudSignal.HIGH_RISK_SCORE)));
         given(repository.countClaimsBetween(any(), any(), isNull())).willReturn(20L);
 
-        FraudSummary summary = service.generate(SEP_1, SEP_30, null, null).summary();
+        FraudSummary summary = service.generate(SEP_1, SEP_30, null, null, ComparisonRequest.DEFAULT).summary();
 
         assertThat(summary.flagged()).isEqualTo(2);
         assertThat(summary.multiSignal()).isEqualTo(1);
@@ -206,7 +213,7 @@ class FraudReportServiceTest {
     void theDenominator_followsTheBranchButNotTheAlertLevel() {
         given(repository.findBranchName(7L)).willReturn("Celulares");
 
-        service.generate(SEP_1, SEP_30, 7L, RiskBand.CRITICAL);
+        service.generate(SEP_1, SEP_30, 7L, RiskBand.CRITICAL, ComparisonRequest.DEFAULT);
 
         verify(repository).countClaimsBetween(
                 eq(Instant.parse("2026-09-01T03:00:00Z")),
@@ -221,12 +228,36 @@ class FraudReportServiceTest {
         given(pdfExporter.format()).willReturn(ReportFormat.PDF);
         given(pdfExporter.export(any())).willReturn(pdf);
 
-        ExportedReport file = service.export(SEP_1, SEP_30, null, null, ReportFormat.PDF);
+        ExportedReport file = service.export(SEP_1, SEP_30, null, null, ComparisonRequest.DEFAULT, ReportFormat.PDF);
 
         assertThat(file.filename()).isEqualTo("fraude_2026-09-01_2026-09-30.pdf");
         assertThat(file.format()).isEqualTo(ReportFormat.PDF);
         assertThat(file.content()).isEqualTo(pdf);
         verify(csvExporter, never()).export(any());
+    }
+
+    /**
+     * How many claims came in is stored for a closed period; which of them carry a signal is not, so
+     * the flagged cases are still read.
+     */
+    @Test
+    void aStoredComparisonPeriod_takesItsDenominatorFromTheStoredDays() {
+        ReportPeriod august = new ReportPeriod(LocalDate.of(2026, 8, 2), LocalDate.of(2026, 8, 31));
+        // One stub for both periods: strict stubs reject a second one that differs only in its arguments.
+        given(dailyMetricsService.reportedClaims(any(), any())).willAnswer(invocation ->
+                august.equals(invocation.getArgument(0)) ? OptionalLong.of(40) : OptionalLong.empty());
+        given(repository.findFlaggedBetween(
+                Instant.parse("2026-08-02T03:00:00Z"), Instant.parse("2026-09-01T03:00:00Z"), null, null))
+                .willReturn(List.of(row(1, RiskBand.HIGH, FraudSignal.HIGH_RISK_SCORE)));
+        given(repository.findFlaggedBetween(
+                Instant.parse("2026-09-01T03:00:00Z"), Instant.parse("2026-10-01T03:00:00Z"), null, null))
+                .willReturn(List.of());
+
+        FraudReport report = service.generate(SEP_1, SEP_30, null, null, ComparisonRequest.DEFAULT);
+
+        assertThat(report.comparisonSummary().totalClaims()).isEqualTo(40);
+        assertThat(report.comparisonSummary().flagged()).isEqualTo(1);
+        verify(repository, never()).countClaimsBetween(eq(Instant.parse("2026-08-02T03:00:00Z")), any(), any());
     }
 
     private static FraudReportRow row(long caseId, RiskBand band, FraudSignal... signals) {

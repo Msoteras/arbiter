@@ -143,6 +143,57 @@ public final class CaseTables {
                     case_id         BIGINT NOT NULL REFERENCES cases(id)
                 );
                 """);
+        createDailyMetrics();
+    }
+
+    /**
+     * reports-service's own tables. Not entities either, so they are created by hand as well; without
+     * the foreign key to the claim cause catalog, which {@link #reset} truncates.
+     */
+    private void createDailyMetrics() {
+        jdbcTemplate.execute("""
+                CREATE TABLE IF NOT EXISTS metrics_day (
+                    day          DATE        PRIMARY KEY,
+                    computed_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                );
+                CREATE TABLE IF NOT EXISTS metrics_daily_intake (
+                    day             DATE   NOT NULL REFERENCES metrics_day(day) ON DELETE CASCADE,
+                    claim_cause_id  BIGINT NOT NULL,
+                    analyst_id      BIGINT,
+                    reported        BIGINT NOT NULL,
+                    fast_track      BIGINT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS metrics_daily_resolution (
+                    day                     DATE             NOT NULL REFERENCES metrics_day(day) ON DELETE CASCADE,
+                    claim_cause_id          BIGINT           NOT NULL,
+                    analyst_id              BIGINT,
+                    final_status            VARCHAR(60)      NOT NULL,
+                    resolved                BIGINT           NOT NULL,
+                    total_seconds           DOUBLE PRECISION NOT NULL,
+                    waiting_seconds         DOUBLE PRECISION NOT NULL,
+                    fast_track              BIGINT           NOT NULL,
+                    fast_track_seconds      DOUBLE PRECISION NOT NULL,
+                    on_time                 BIGINT           NOT NULL,
+                    reopened                BIGINT           NOT NULL,
+                    agreement_eligible      BIGINT           NOT NULL,
+                    agreement_agreed        BIGINT           NOT NULL,
+                    fraud_determined        BIGINT           NOT NULL,
+                    fraud_backed_by_expert  BIGINT           NOT NULL,
+                    fraud_claimed_amount    NUMERIC(38,2)    NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS metrics_daily_settlement (
+                    day                  DATE          NOT NULL REFERENCES metrics_day(day) ON DELETE CASCADE,
+                    claim_cause_id       BIGINT        NOT NULL,
+                    analyst_id           BIGINT,
+                    settlements          BIGINT        NOT NULL,
+                    settled_amount       NUMERIC(38,2) NOT NULL,
+                    claimed_amount       NUMERIC(38,2) NOT NULL,
+                    claimed_cases        BIGINT        NOT NULL,
+                    deductible_amount    NUMERIC(38,2) NOT NULL,
+                    installments_amount  NUMERIC(38,2) NOT NULL,
+                    overdue_amount       NUMERIC(38,2) NOT NULL
+                );
+                """);
     }
 
     /** Empties everything and leaves the catalogs seeded. Call it before each test. */
@@ -151,7 +202,7 @@ public final class CaseTables {
                 TRUNCATE case_status_history, llm_analysis, case_settlement, case_referral,
                          rule_result, insurer_rule, image_analysis, risk_analysis, case_documents,
                          cases, case_classification, claims_analyst, insured, claim_cause, branch,
-                         case_status CASCADE
+                         case_status, metrics_day CASCADE
                 """);
         jdbcTemplate.execute("""
                 INSERT INTO case_status (id, name, is_final) VALUES

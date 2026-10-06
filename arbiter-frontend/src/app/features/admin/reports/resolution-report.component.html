@@ -40,7 +40,9 @@
       <!-- Filters as the backend applied them, so any mismatch with the controls is visible. -->
       <p class="applied t-note">
         {{ formatDate(current.from) }} al {{ formatDate(current.to) }} · Ramo:
-        {{ current.branch ?? 'Todos' }} · Tipo de siniestro: {{ current.claimCause ?? 'Todos' }}
+        {{ current.branch ?? 'Todos' }} · Tipo de siniestro: {{ current.claimCause ?? 'Todos' }} ·
+        Comparado con {{ formatDate(current.comparison.from) }} al
+        {{ formatDate(current.comparison.to) }}
       </p>
       @if (current.rows.length === 0) {
         <app-empty-state

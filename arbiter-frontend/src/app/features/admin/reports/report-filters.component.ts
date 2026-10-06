@@ -48,6 +48,41 @@ import { ReportFiltersStore } from './report-filters.store';
         (valueChange)="filters.setBranch($event)"
       />
     </div>
+
+    <div class="field" [class.field-wide]="filters.comparisonMode() !== 'CUSTOM'">
+      <label class="t-field-label" for="rep-compare">Comparar con</label>
+      <app-select
+        id="rep-compare"
+        [options]="filters.comparisonOptions"
+        [value]="filters.comparisonMode()"
+        (valueChange)="filters.setComparisonMode($event)"
+      />
+    </div>
+
+    @if (filters.comparisonMode() === 'CUSTOM') {
+      <div class="field">
+        <label class="t-field-label" for="rep-compare-from">Comparar desde</label>
+        <app-input
+          id="rep-compare-from"
+          type="date"
+          [max]="filters.today"
+          [value]="filters.compareFrom()"
+          (valueChange)="filters.compareFrom.set($event)"
+        />
+      </div>
+
+      <div class="field">
+        <label class="t-field-label" for="rep-compare-to">Comparar hasta</label>
+        <app-input
+          id="rep-compare-to"
+          type="date"
+          [min]="filters.compareFrom()"
+          [max]="filters.today"
+          [value]="filters.compareTo()"
+          (valueChange)="filters.compareTo.set($event)"
+        />
+      </div>
+    }
   `,
   styleUrl: './report-params.scss',
 })
