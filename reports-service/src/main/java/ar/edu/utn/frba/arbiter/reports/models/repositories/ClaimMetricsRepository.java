@@ -481,6 +481,7 @@ public class ClaimMetricsRepository {
                            count(*) AS total"""
                 + FROM_CASES + """
 
+                       JOIN case_status s ON s.id = c.current_status_id AND s.is_final
                        JOIN resolution r ON r.case_id = c.id
                      WHERE r.resolved_at >= :from AND r.resolved_at < :to"""
                 + filters(filter) + """

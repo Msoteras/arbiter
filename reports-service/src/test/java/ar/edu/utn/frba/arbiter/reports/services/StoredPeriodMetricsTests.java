@@ -260,6 +260,7 @@ class StoredPeriodMetricsTests extends AbstractPersistenceIT {
         tables.transition(4, AWAITING_DOCUMENTATION, LAPSED, "2026-08-15T13:00:00Z");
 
         tables.insertCase(5, "2026-08-25T10:00:00Z", PENDING_REVIEW, PHONES_ROBBERY, false, JUAN, null);
+        tables.transition(5, null, PENDING_REVIEW, "2026-08-25T10:00:00Z");
 
         // Both ends on a day boundary: filed 04/08 23:00 and approved 31/08 23:30, Buenos Aires time.
         tables.insertCase(6, "2026-08-05T02:00:00Z", APPROVED, PHONES_THEFT, false, LAURA, null);
