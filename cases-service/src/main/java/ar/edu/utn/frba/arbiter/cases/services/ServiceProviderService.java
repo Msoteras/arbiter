@@ -10,7 +10,7 @@ import ar.edu.utn.frba.arbiter.cases.models.entities.ServiceProvider;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.BranchRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseReferralRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.ServiceProviderRepository;
-import ar.edu.utn.frba.arbiter.common.models.entities.Branch;
+import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Branch;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;

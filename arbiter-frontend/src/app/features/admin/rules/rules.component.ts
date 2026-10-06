@@ -65,8 +65,8 @@ type GeneralView =
   'hardStop' | 'scoring' | 'fraud' | 'providers' | 'authorities' | 'target' | 'history';
 
 /**
- * Branch master-detail with per-tab drafts, each saved by its own button. Branches are a GLOBAL
- * catalog; insurer-wide config lives outside the master-detail on purpose. The UI shows percentages
+ * Branch master-detail with per-tab drafts, each saved by its own button. Branches belong
+ * to the insurer; insurer-wide config lives outside the master-detail on purpose. The UI shows percentages
  * (0..100); the backend uses fractions (0..1).
  */
 @Component({
@@ -148,7 +148,9 @@ export class RulesComponent {
   protected readonly renaming = signal(false);
   protected readonly renameSaved = signal(false);
   protected readonly renameError = signal<string | null>(null);
-  /** Renames ask for confirmation: the branch catalog is global, shared by every insurer. */
+  /** The name only becomes an input after the pencil is pressed. */
+  protected readonly editingName = signal(false);
+  /** Renames ask for confirmation: the name changes everywhere the insurer sees the branch. */
   protected readonly showRenameConfirm = signal(false);
 
   protected readonly tabs: { id: TabId; label: string }[] = [
@@ -394,6 +396,7 @@ export class RulesComponent {
     this.rulesError.set(null);
     this.renameSaved.set(false);
     this.renameError.set(null);
+    this.editingName.set(false);
     this.beginDetailLoad(r.id);
     this.loadClaimCauses(r);
     this.loadFastTrackFromBackend(r);
@@ -704,6 +707,19 @@ export class RulesComponent {
     this.renameSaved.set(false);
   }
 
+  protected startNameEdit(): void {
+    this.renameSaved.set(false);
+    this.renameError.set(null);
+    this.editingName.set(true);
+  }
+
+  /** Puts the saved name back, so a half-typed one doesn't reappear on the next edit. */
+  protected cancelNameEdit(): void {
+    this.setName(this.renameFrom());
+    this.renameError.set(null);
+    this.editingName.set(false);
+  }
+
   /** The saved name: the draft already holds what was typed. */
   protected readonly renameFrom = computed(
     () => this.branches().find((r) => r.id === this.selectedId())?.name ?? '',
@@ -755,6 +771,7 @@ export class RulesComponent {
       next: (branch) => {
         this.renaming.set(false);
         this.renameSaved.set(true);
+        this.editingName.set(false);
         this.branches.update((list) =>
           list.map((r) => (r.id === String(branch.id) ? { ...r, name: branch.name } : r)),
         );

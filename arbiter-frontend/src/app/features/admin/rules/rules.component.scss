@@ -180,6 +180,44 @@
 .branch-name-field {
   width: min(360px, 100%);
 }
+.branch-heading {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.branch-title {
+  margin: 0;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+.rename-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  padding: var(--space-2);
+  background: none;
+  border: 1px solid var(--border-control);
+  border-radius: var(--radius-ctl);
+  color: var(--accent-fg);
+  cursor: pointer;
+}
+.rename-btn svg {
+  width: var(--font-size-lg);
+  height: var(--font-size-lg);
+}
+.rename-btn:hover {
+  border-color: var(--selected-border);
+  background: var(--selected-bg);
+}
+.rename-btn:focus-visible {
+  outline: none;
+  border-color: var(--border-focus);
+  box-shadow: var(--focus-ring);
+}
 
 .saved-note {
   color: var(--status-ok);

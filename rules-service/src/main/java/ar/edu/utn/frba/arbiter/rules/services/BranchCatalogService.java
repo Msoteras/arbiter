@@ -1,6 +1,6 @@
 package ar.edu.utn.frba.arbiter.rules.services;
 
-import ar.edu.utn.frba.arbiter.common.models.entities.Branch;
+import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Branch;
 import ar.edu.utn.frba.arbiter.rules.dto.CatalogOption;
 import ar.edu.utn.frba.arbiter.rules.exceptions.BranchInUseException;
 import ar.edu.utn.frba.arbiter.rules.exceptions.BranchNameConflictException;
@@ -19,8 +19,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 
 /**
- * CRUD of the global branch catalog ({@code arbiter_common.branch}): which branches exist, not which
- * ones each insurer sells (that's narrowed per tenant by its coverages and document schedule).
+ * CRUD of the caller's insurer's own branches: the table lives in the tenant schema, so nothing here
+ * reaches another insurer's catalog.
  */
 @Service
 @RequiredArgsConstructor
@@ -44,7 +44,13 @@ public class BranchCatalogService {
         branchRepository.findByName(clean).ifPresent(existing -> {
             throw new BranchNameConflictException(clean);
         });
-        Branch saved = branchRepository.save(Branch.builder().name(clean).build());
+        // A renamed branch still answers to its original name in the insurer database, so that name
+        // is taken too: two branches matching the same policies would make the match ambiguous.
+        branchRepository.findByExternalName(clean).ifPresent(existing -> {
+            throw new BranchNameConflictException(clean);
+        });
+        // Born under the name the insurer database uses; renaming later leaves this one alone.
+        Branch saved = branchRepository.save(Branch.builder().name(clean).externalName(clean).build());
         log.info("[BranchCatalog] created — id={} name='{}'", saved.getId(), saved.getName());
         return new CatalogOption(saved.getId(), saved.getName());
     }
@@ -67,8 +73,8 @@ public class BranchCatalogService {
     @Transactional
     public void delete(Long id) {
         Branch branch = branchRepository.findById(id).orElseThrow(() -> new BranchNotFoundException(id));
-        // Explicit check on claim causes (same common schema) to give a clear 409; the per-tenant
-        // references (coverages, rules) are caught by the FK and translated in the catch.
+        // Explicit check on claim causes to give a clear 409; the other references (coverages,
+        // rules) are caught by the FK and translated in the catch.
         if (!claimCauseRepository.findByBranch_IdOrderByNameAsc(id).isEmpty()) {
             throw new BranchInUseException(id);
         }

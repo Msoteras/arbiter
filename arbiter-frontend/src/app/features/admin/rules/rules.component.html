@@ -187,28 +187,56 @@
           </app-card>
         }
       } @else if (draft(); as d) {
+        <!-- The name is read-only until the pencil is pressed: renaming is rare and shouldn't sit one
+             keystroke away from someone who came to edit coverages. -->
         <div class="editor-head">
-          <div class="editor-title">
-            <label class="t-section-label" for="branch-name-input">Nombre del ramo</label>
-            <app-input
-              class="branch-name-field"
-              id="branch-name-input"
-              [value]="d.name"
-              (valueChange)="setName($event)"
-              placeholder="Nombre del ramo"
-            />
-          </div>
-          <div class="editor-actions">
+          @if (editingName()) {
+            <div class="editor-title">
+              <label class="t-section-label" for="branch-name-input">Nombre del ramo</label>
+              <app-input
+                class="branch-name-field"
+                id="branch-name-input"
+                [value]="d.name"
+                (valueChange)="setName($event)"
+                placeholder="Nombre del ramo"
+              />
+            </div>
+            <div class="editor-actions">
+              @if (renameError(); as err) {
+                <span class="warn-note">{{ err }}</span>
+              }
+              <app-button variant="secondary" [disabled]="renaming()" (click)="cancelNameEdit()">
+                Cancelar
+              </app-button>
+              <app-button [disabled]="renaming()" (click)="requestRename()">
+                {{ renaming() ? 'Guardando…' : 'Guardar' }}
+              </app-button>
+            </div>
+          } @else {
+            <div class="branch-heading">
+              <h2 class="branch-title">{{ renameFrom() }}</h2>
+              <button
+                type="button"
+                class="rename-btn"
+                aria-label="Renombrar el ramo"
+                title="Renombrar"
+                (click)="startNameEdit()"
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                  aria-hidden="true"
+                >
+                  <path d="M4 20h4L19 9l-4-4L4 16v4z" stroke-linejoin="round" />
+                </svg>
+              </button>
+            </div>
             @if (renameSaved()) {
               <span class="saved-note">✓ Nombre guardado</span>
             }
-            @if (renameError(); as err) {
-              <span class="warn-note">{{ err }}</span>
-            }
-            <app-button variant="secondary" [disabled]="renaming()" (click)="requestRename()">
-              {{ renaming() ? 'Guardando…' : 'Renombrar' }}
-            </app-button>
-          </div>
+          }
         </div>
 
         <nav class="tabs" role="tablist">
@@ -947,7 +975,7 @@
   </div>
 </div>
 
-<!-- Branches are a global catalog: the new name shows up for every insurer as soon as it's saved. -->
+<!-- Confirmed because the new name reaches every screen and report of the insurer at once. -->
 <app-modal [open]="showRenameConfirm()" heading="¿Renombrar el ramo?" (close)="cancelRename()">
   <p class="t-body">
     Vas a renombrar <strong>{{ renameFrom() }}</strong> a <strong>{{ draft()?.name }}</strong

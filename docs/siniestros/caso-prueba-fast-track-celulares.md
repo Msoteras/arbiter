@@ -20,7 +20,7 @@ veredictos. Si este falla, el problema está en el gate o en el entorno, no en e
 | Aseguradora | BBVA Seguros Argentina S.A. (`insurerId` 1, esquema `arbiter_bbva`) | `arbiter_common.insurer` |
 | Asegurada | Martina Soteras — DNI `42.987.654` | `aseguradora_bbva.asegurado` |
 | Póliza | `POL-CEL-2026-042` — Celular Protegido Premium | `aseguradora_bbva.poliza` |
-| Ramo / Hecho generador | Celulares (id 1) / **Robo en vía pública** (id 2) | `arbiter_common.claim_cause` |
+| Ramo / Hecho generador | Celulares (id 1) / **Robo en vía pública** (id 2) | `claim_cause` del esquema de la aseguradora |
 | Cobertura | `Robo de celular` (id 1) | `arbiter_bbva.coverage` |
 | Bien asegurado | Samsung Galaxy A56 5G 256 GB — IMEI `351000000000042` | `aseguradora_bbva.poliza` |
 | Suma asegurada | **1.300.000** | `aseguradora_bbva.cobertura` |

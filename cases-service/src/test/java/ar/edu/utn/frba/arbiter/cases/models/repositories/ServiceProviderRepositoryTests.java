@@ -3,7 +3,7 @@ package ar.edu.utn.frba.arbiter.cases.models.repositories;
 import ar.edu.utn.frba.arbiter.cases.dto.ProviderType;
 import ar.edu.utn.frba.arbiter.cases.models.entities.ServiceProvider;
 import ar.edu.utn.frba.arbiter.cases.support.AbstractPersistenceIT;
-import ar.edu.utn.frba.arbiter.common.models.entities.Branch;
+import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Branch;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;

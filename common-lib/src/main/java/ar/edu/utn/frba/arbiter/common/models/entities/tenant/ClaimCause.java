@@ -1,4 +1,4 @@
-package ar.edu.utn.frba.arbiter.common.models.entities;
+package ar.edu.utn.frba.arbiter.common.models.entities.tenant;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -15,9 +15,12 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-/** Claim cause (hecho generador): robo en vía pública, hurto, caída, incendio… */
+/**
+ * Claim cause (hecho generador): robo en vía pública, hurto, caída, incendio… Per insurer, like the
+ * {@link Branch} it hangs off.
+ */
 @Entity
-@Table(name = "claim_cause", schema = "arbiter_common")
+@Table(name = "claim_cause")
 @Getter
 @Setter
 @NoArgsConstructor

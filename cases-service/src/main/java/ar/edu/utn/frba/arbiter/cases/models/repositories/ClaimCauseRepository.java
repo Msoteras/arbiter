@@ -1,6 +1,6 @@
 package ar.edu.utn.frba.arbiter.cases.models.repositories;
 
-import ar.edu.utn.frba.arbiter.common.models.entities.ClaimCause;
+import ar.edu.utn.frba.arbiter.common.models.entities.tenant.ClaimCause;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;

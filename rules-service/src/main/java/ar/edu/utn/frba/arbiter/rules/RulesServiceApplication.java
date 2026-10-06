@@ -5,7 +5,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.persistence.autoconfigure.EntityScan;
 
 /**
- * {@code @EntityScan} is explicit because the common-schema entities (branch, claim_cause,
+ * {@code @EntityScan} is explicit because the shared entities (branch, claim_cause,
  * case_status, insurer) live in common-lib, outside this module's package — the default
  * scan only covers the application class's own package.
  */
