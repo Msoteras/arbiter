@@ -1,7 +1,7 @@
 package ar.edu.utn.frba.arbiter.rules.services;
 
-import ar.edu.utn.frba.arbiter.common.models.entities.Branch;
-import ar.edu.utn.frba.arbiter.common.models.entities.ClaimCause;
+import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Branch;
+import ar.edu.utn.frba.arbiter.common.models.entities.tenant.ClaimCause;
 import ar.edu.utn.frba.arbiter.rules.dto.CatalogOption;
 import ar.edu.utn.frba.arbiter.rules.exceptions.BranchInUseException;
 import ar.edu.utn.frba.arbiter.rules.exceptions.BranchNameConflictException;
@@ -10,6 +10,7 @@ import ar.edu.utn.frba.arbiter.rules.exceptions.InvalidRuleConfigurationExceptio
 import ar.edu.utn.frba.arbiter.rules.models.repositories.BranchRepository;
 import ar.edu.utn.frba.arbiter.rules.models.repositories.ClaimCauseRepository;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 import java.util.List;
 import java.util.Optional;
@@ -22,7 +23,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/** Global branch catalog CRUD: name uniqueness, not-found and the delete guard. Plain Mockito. */
+/** Branch catalog CRUD: name uniqueness, not-found and the delete guard. Plain Mockito. */
 class BranchCatalogServiceTest {
 
     private final BranchRepository branchRepository = mock(BranchRepository.class);
@@ -39,6 +40,38 @@ class BranchCatalogServiceTest {
         });
 
         assertThat(service.create("  Hogar ")).isEqualTo(new CatalogOption(5L, "Hogar"));
+    }
+
+    @Test
+    void createStoresTheNameAsTheInsurerDatabaseName() {
+        when(branchRepository.save(any(Branch.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        service.create("Hogar");
+
+        ArgumentCaptor<Branch> saved = ArgumentCaptor.forClass(Branch.class);
+        verify(branchRepository).save(saved.capture());
+        assertThat(saved.getValue().getExternalName()).isEqualTo("Hogar");
+    }
+
+    @Test
+    void createRejectsTheOriginalNameOfARenamedBranch() {
+        when(branchRepository.findByExternalName("Celulares")).thenReturn(Optional.of(
+                Branch.builder().id(1L).name("Equipos Móviles").externalName("Celulares").build()));
+
+        assertThatThrownBy(() -> service.create("Celulares")).isInstanceOf(BranchNameConflictException.class);
+        verify(branchRepository, never()).save(any());
+    }
+
+    @Test
+    void renameKeepsTheInsurerDatabaseName() {
+        Branch branch = Branch.builder().id(1L).name("Celulares").externalName("Celulares").build();
+        when(branchRepository.findById(1L)).thenReturn(Optional.of(branch));
+        when(branchRepository.save(any(Branch.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        service.rename(1L, "Equipos Móviles");
+
+        assertThat(branch.getName()).isEqualTo("Equipos Móviles");
+        assertThat(branch.getExternalName()).isEqualTo("Celulares");
     }
 
     @Test

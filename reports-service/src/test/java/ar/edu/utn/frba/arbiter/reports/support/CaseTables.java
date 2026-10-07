@@ -18,12 +18,12 @@ public final class CaseTables {
     public static final long REJECTED = 6;
     public static final long LAPSED = 8;
 
-    public static final long CELULARES = 1;
-    public static final long TECNOLOGIA_PORTATIL = 2;
+    public static final long PHONES_BRANCH = 1;
+    public static final long PORTABLE_TECH_BRANCH = 2;
 
-    public static final long ROBO_CELULARES = 2;
-    public static final long HURTO_CELULARES = 3;
-    public static final long HURTO_TECNOLOGIA = 8;
+    public static final long PHONES_ROBBERY = 2;
+    public static final long PHONES_THEFT = 3;
+    public static final long PORTABLE_TECH_THEFT = 8;
 
     public static final long LAURA = 1;
     public static final long JUAN = 2;

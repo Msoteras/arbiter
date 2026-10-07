@@ -249,7 +249,7 @@ class ClassificationOrchestratorIntegrationTest extends AbstractPersistenceIT {
     }
 
     @Test
-    void hurtoOnRobberyCoverage_isExcludedByRule_withoutCallingLLM() {
+    void theftOnRobberyCoverage_isExcludedByRule_withoutCallingLLM() {
         // Coverage 1 (cellphone robbery) excludes the theft claim cause (id 3): the exclusion cuts in
         // before Fast Track and the LLM.
         ClaimReport claim = ClaimReport.builder()

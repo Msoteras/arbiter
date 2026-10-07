@@ -1,7 +1,7 @@
 package ar.edu.utn.frba.arbiter.cases.dto;
 
 import ar.edu.utn.frba.arbiter.cases.models.entities.ServiceProvider;
-import ar.edu.utn.frba.arbiter.common.models.entities.Branch;
+import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Branch;
 
 import java.util.Comparator;
 import java.util.List;

@@ -30,14 +30,14 @@
     <jjwt.version>0.12.6</jjwt.version>
     <pdfbox.version>3.0.3</pdfbox.version>
 
-    <!-- Maven 3.8.x fija surefire en 2.12.4 (solo JUnit4) porque usamos el BOM de Spring, no el
-         parent que gestiona plugins. Sin este pin, NINGÚN test JUnit5 corre ("Tests run: 0"). -->
+    <!-- Maven 3.8.x pins surefire to 2.12.4 (JUnit4 only) because we import Spring's BOM instead of
+         using the parent that manages plugins. Without this pin NO JUnit5 test runs ("Tests run: 0"). -->
     <maven.surefire.version>3.2.5</maven.surefire.version>
     <jacoco.version>0.8.12</jacoco.version>
-    <!-- Split unit/IT por tag JUnit5: por default se excluyen los ITs ("it": Testcontainers,
-         Docker) y los de calibración del prompt ("llm": pegan contra el proveedor real, se facturan
-         por token y necesitan credenciales), para que `mvn test` sea rápido y determinístico.
-         Los corren los perfiles `it` y `llm`. -->
+    <!-- Unit/IT split by JUnit5 tag: by default the ITs ("it": Testcontainers, Docker) and the prompt
+         calibration tests ("llm": they hit the real provider, are billed per token and need
+         credentials) are excluded, so `mvn test` stays fast and deterministic. The `it` and
+         `llm` profiles run them. -->
     <test.excluded.groups>it,llm</test.excluded.groups>
     <test.groups></test.groups>
   </properties>
@@ -66,7 +66,7 @@
         <version>${springdoc.version}</version>
       </dependency>
 
-      <!-- Lo usan classification-service (lectura de adjuntos) y reports-service (export PDF). -->
+      <!-- Used by classification-service (reading attachments) and reports-service (PDF export). -->
       <dependency>
         <groupId>org.apache.pdfbox</groupId>
         <artifactId>pdfbox</artifactId>
@@ -142,8 +142,8 @@
       </configuration>
     </plugin>
 
-    <!-- Surefire moderno: sin esto Maven usa 2.12.4 y no descubre los JUnit5. `it` excluido por
-         default (los ITs Testcontainers corren con -Pit). -->
+    <!-- Modern Surefire: without it Maven uses 2.12.4 and doesn't discover JUnit5 tests. `it` is
+         excluded by default (the Testcontainers ITs run with -Pit). -->
     <plugin>
       <groupId>org.apache.maven.plugins</groupId>
       <artifactId>maven-surefire-plugin</artifactId>
@@ -154,7 +154,7 @@
       </configuration>
     </plugin>
 
-    <!-- Cobertura: solo reporte (target/site/jacoco), sin gate que rompa el build. -->
+    <!-- Coverage: report only (target/site/jacoco), no gate that breaks the build. -->
     <plugin>
       <groupId>org.jacoco</groupId>
       <artifactId>jacoco-maven-plugin</artifactId>
@@ -179,7 +179,7 @@
 </build>
 
 <profiles>
-  <!-- `mvn verify -Pit`: corre los tests tagueados @Tag("it") (Testcontainers, requieren Docker). -->
+  <!-- `mvn verify -Pit`: runs the tests tagged @Tag("it") (Testcontainers, need Docker). -->
   <profile>
     <id>it</id>
     <properties>
@@ -188,9 +188,9 @@
     </properties>
   </profile>
 
-  <!-- `mvn test -Pllm`: calibración del prompt contra el modelo real. Fuera de la corrida normal
-       porque pega contra el proveedor (se factura por token), necesita credenciales y su resultado
-       no es determinístico — mide si el prompt está bien calibrado, no si el código funciona. -->
+  <!-- `mvn test -Pllm`: prompt calibration against the real model. Kept out of the normal run
+       because it hits the provider (billed per token), needs credentials and its result isn't
+       deterministic: it measures whether the prompt is well calibrated, not whether the code works. -->
   <profile>
     <id>llm</id>
     <properties>

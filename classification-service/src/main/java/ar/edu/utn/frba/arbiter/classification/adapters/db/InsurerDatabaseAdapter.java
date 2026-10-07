@@ -6,6 +6,7 @@ import ar.edu.utn.frba.arbiter.classification.dto.InsuredHistory;
 import ar.edu.utn.frba.arbiter.classification.dto.InsuredHistory.ClaimRecord;
 import ar.edu.utn.frba.arbiter.classification.dto.InsuredPolicy;
 import ar.edu.utn.frba.arbiter.classification.dto.InsuredPolicy.PolicyCoverage;
+import ar.edu.utn.frba.arbiter.common.tenant.InsurerBranchNames;
 import ar.edu.utn.frba.arbiter.common.tenant.InsurerDbSchema;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Primary;
@@ -39,6 +40,11 @@ public class InsurerDatabaseAdapter implements InsurerAdapter {
     /** Resolved per call: the bean is a singleton and the tenant changes per request. */
     private static String schema() {
         return InsurerDbSchema.forTenant(TenantContext.get());
+    }
+
+    /** The claim arrives under the insurer's own branch name, so the policy and the history must too. */
+    private InsurerBranchNames branchNames() {
+        return InsurerBranchNames.load(jdbc, TenantContext.get());
     }
 
     @Override
@@ -100,7 +106,7 @@ public class InsurerDatabaseAdapter implements InsurerAdapter {
                 .policyNumber(row.numero())
                 .insuredName((row.nombre() + " " + row.apellido()).trim())
                 .insuredId(row.documento())
-                .branch(row.rama())
+                .branch(branchNames().nameOf(row.rama()))
                 .product(row.producto())
                 .insuredItem(row.bienAsegurado())
                 .imei(row.imei())
@@ -119,6 +125,7 @@ public class InsurerDatabaseAdapter implements InsurerAdapter {
     @Override
     public InsuredHistory getHistory(String insuredId) {
         String schema = schema();
+        InsurerBranchNames branchNames = branchNames();
         List<ClaimRecord> claims = jdbc.query(
                 """
                 SELECT h.id, h.fecha_ocurrencia, h.causa, h.estado_resolucion,
@@ -134,7 +141,7 @@ public class InsurerDatabaseAdapter implements InsurerAdapter {
                         .claimId(String.valueOf(rs.getLong("id")))
                         .date(rs.getObject("fecha_ocurrencia", LocalDate.class))
                         .policyNumber(rs.getString("numero"))
-                        .branch(rs.getString("rama"))
+                        .branch(branchNames.nameOf(rs.getString("rama")))
                         // Null when no coverage was recorded: the exhaustion rule skips it rather than guessing.
                         .coverageName(rs.getString("cobertura"))
                         .claimCause(rs.getString("causa"))

@@ -14,9 +14,11 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
 @Component({
   selector: 'app-modal',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  host: { '(document:keydown.escape)': 'onEscape()' },
   template: `
     @if (open()) {
-      <div class="backdrop" [class.side]="variant() === 'side'" (click)="onBackdrop()">
+      <!-- eslint-disable-next-line @angular-eslint/template/click-events-have-key-events, @angular-eslint/template/interactive-supports-focus -- Escape closes it from the keyboard. -->
+      <div class="backdrop" [class.side]="variant() === 'side'" (click)="onBackdrop($event)">
         <div
           class="modal"
           [class.side]="variant() === 'side'"
@@ -24,7 +26,6 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
           [class.no-actions]="hideActions()"
           role="dialog"
           aria-modal="true"
-          (click)="$event.stopPropagation()"
         >
           <div class="modal-head">
             @if (heading()) {
@@ -210,8 +211,14 @@ export class ModalComponent {
   readonly dismissable = input(true);
   readonly close = output<void>();
 
-  protected onBackdrop(): void {
-    if (this.dismissable()) {
+  protected onBackdrop(event: MouseEvent): void {
+    if (this.dismissable() && event.target === event.currentTarget) {
+      this.close.emit();
+    }
+  }
+
+  protected onEscape(): void {
+    if (this.open() && this.dismissable()) {
       this.close.emit();
     }
   }

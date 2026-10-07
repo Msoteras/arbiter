@@ -21,10 +21,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
-/**
- * CRUD of the branch catalog. {@code branch} is global, not per-tenant: creating or deleting a
- * branch affects every insurer.
- */
+/** CRUD of the insurer's own branches; another insurer's catalog is out of reach. */
 @RestController
 @RequestMapping("/api/v1/rules")
 @RequiredArgsConstructor
@@ -45,14 +42,14 @@ public class BranchController {
     @PostMapping("/branches")
     @PreAuthorize("hasRole('REFERENTE_ASEGURADORA')")
     @ResponseStatus(HttpStatus.CREATED)
-    @Operation(summary = "Alta de ramo", description = "Crea un ramo en el catálogo global. Nombre único.")
+    @Operation(summary = "Alta de ramo", description = "Crea un ramo en el catálogo de la aseguradora. Nombre único.")
     public CatalogOption create(@RequestBody @Valid BranchRequest request) {
         return service.create(request.name());
     }
 
     @PutMapping("/branches/{id}")
     @PreAuthorize("hasRole('REFERENTE_ASEGURADORA')")
-    @Operation(summary = "Renombrar ramo", description = "Cambia el nombre de un ramo del catálogo. Nombre único.")
+    @Operation(summary = "Renombrar ramo", description = "Cambia el nombre de un ramo de la aseguradora. Nombre único.")
     public CatalogOption rename(@PathVariable Long id, @RequestBody @Valid BranchRequest request) {
         return service.rename(id, request.name());
     }

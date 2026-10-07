@@ -1,0 +1,64 @@
+import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { HttpErrorResponse } from '@angular/common/http';
+import { catchError, map, of, startWith, switchMap } from 'rxjs';
+
+import { CaseResponse } from '../../../core/models/case';
+import { CaseService } from '../../cases/case.service';
+import { CardComponent } from '../../../shared/ui/card/card.component';
+import { DocUploadComponent } from '../../../shared/ui/doc-upload/doc-upload.component';
+import { CaseDocumentsComponent } from '../../cases/case-documents/case-documents.component';
+
+type LoadState =
+  | { status: 'loading' }
+  | { status: 'ok'; data: CaseResponse }
+  | { status: 'error'; httpStatus: number };
+
+@Component({
+  selector: 'app-case-upload',
+  imports: [RouterLink, CardComponent, DocUploadComponent, CaseDocumentsComponent],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  templateUrl: './case-upload.component.html',
+  styleUrl: './case-upload.component.scss',
+})
+export class CaseUploadComponent {
+  private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
+  private readonly service = inject(CaseService);
+
+  protected readonly caseId = Number(this.route.snapshot.paramMap.get('id'));
+  /** The case may live in a tenant other than the session's default (multi-insurer insureds). */
+  protected readonly insurerSlug = this.route.snapshot.queryParamMap.get('insurer');
+
+  private readonly state = toSignal(
+    this.route.paramMap.pipe(
+      map((params) => params.get('id') ?? ''),
+      switchMap((id) =>
+        this.service.getById(id, this.insurerSlug).pipe(
+          map((data): LoadState => ({ status: 'ok', data })),
+          startWith<LoadState>({ status: 'loading' }),
+          catchError((err: HttpErrorResponse) =>
+            of<LoadState>({ status: 'error', httpStatus: err.status }),
+          ),
+        ),
+      ),
+    ),
+    { initialValue: { status: 'loading' } as LoadState },
+  );
+
+  protected readonly loading = computed(() => this.state().status === 'loading');
+  protected readonly data = computed<CaseResponse | null>(() => {
+    const s = this.state();
+    return s.status === 'ok' ? s.data : null;
+  });
+
+  /** Upload is offered only when requested: uploading a document re-triggers classification. */
+  protected readonly needsDocs = computed(() => this.data()?.status === 'AWAITING_DOCUMENTATION');
+
+  protected onUploaded(): void {
+    this.router.navigate(['/portal/cases', this.caseId], {
+      queryParams: this.insurerSlug ? { insurer: this.insurerSlug } : {},
+    });
+  }
+}

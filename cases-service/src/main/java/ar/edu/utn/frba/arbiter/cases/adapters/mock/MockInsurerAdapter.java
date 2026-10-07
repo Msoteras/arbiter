@@ -41,7 +41,7 @@ public class MockInsurerAdapter implements InsurerAdapter {
                     .insurerId("1").insurerName("BBVA Seguros Argentina S.A.")
                     .insuredName("Martina Soteras").insuredId("42.987.654")
                     .contactEmail("martina.soteras@example.com").contactPhone("11-5555-0001")
-                    .branch("Tecnología Portátil").insuredItem("Lenovo ThinkPad T14s Gen 5").product("Seguro de Tecnología Portátil")
+                    .branch("Tecnología Portátil").product("Seguro de Tecnología Portátil")
                     .effectiveFrom(LocalDateTime.of(2026, 1, 1, 0, 0)).effectiveTo(LocalDateTime.of(2027, 1, 1, 23, 59, 59))
                     .upToDate(true)
                     .insuredAmount(new BigDecimal("900000")).deductible(new BigDecimal("90000.00"))

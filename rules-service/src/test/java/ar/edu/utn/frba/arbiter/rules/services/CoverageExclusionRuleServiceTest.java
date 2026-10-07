@@ -1,7 +1,7 @@
 package ar.edu.utn.frba.arbiter.rules.services;
 
-import ar.edu.utn.frba.arbiter.common.models.entities.Branch;
-import ar.edu.utn.frba.arbiter.common.models.entities.ClaimCause;
+import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Branch;
+import ar.edu.utn.frba.arbiter.common.models.entities.tenant.ClaimCause;
 import ar.edu.utn.frba.arbiter.rules.dto.CatalogOption;
 import ar.edu.utn.frba.arbiter.rules.dto.CoverageExclusionConfig;
 import ar.edu.utn.frba.arbiter.rules.dto.CoverageExclusionResponse;
@@ -106,10 +106,10 @@ class CoverageExclusionRuleServiceTest {
 
     @Test
     void listClaimCausesMapsIdAndName() {
-        ClaimCause hurto = mock(ClaimCause.class);
-        when(hurto.getId()).thenReturn(3L);
-        when(hurto.getName()).thenReturn("Hurto");
-        when(claimCauseRepository.findByBranch_IdOrderByNameAsc(1L)).thenReturn(List.of(hurto));
+        ClaimCause theft = mock(ClaimCause.class);
+        when(theft.getId()).thenReturn(3L);
+        when(theft.getName()).thenReturn("Hurto");
+        when(claimCauseRepository.findByBranch_IdOrderByNameAsc(1L)).thenReturn(List.of(theft));
 
         assertThat(service.listClaimCauses(1L)).containsExactly(new CatalogOption(3L, "Hurto"));
     }

@@ -109,7 +109,7 @@ DER por eso: la columna es texto libre sin CHECK, y el vocabulario vive en `Rule
 **Encontrado:** 23/09/2026. Columna que suma el código: dice si la lectura del documento funcionó.
 Sin ella, una respuesta rota del modelo (cortada por el tope de tokens) guardaba los campos vacíos y
 se veía igual que un documento que no dice nada. Implementada en `db/init-multitenant.sql` y
-`db/migrations/2026-09-23-estado-extraccion-documento.sql`. **Todavía no aplicada en Railway.**
+`db/migrations/2026-09-23-estado-extraccion-documento.sql`. Aplicada en Railway (verificado el 05/10/2026).
 
 | Columna | Tipo de dato | Nulo | Restricciones |
 |---|---|---|---|
@@ -124,7 +124,7 @@ se veía igual que un documento que no dice nada. Implementada en `db/init-multi
 **Encontrado:** 25/09/2026. El historial de cambios de reglas arranca cada regla con su creación, y
 no había dónde saber quién la creó: `historial_regla_aseguradora.modificado_por` solo se completa en
 los cambios. Implementadas en `db/init-multitenant.sql` y
-`db/migrations/2026-09-25-regla-quien-la-creo.sql`. **Todavía no aplicadas en Railway.**
+`db/migrations/2026-09-25-regla-quien-la-creo.sql`. Aplicadas en Railway (verificado el 05/10/2026).
 
 | Tabla | Columna | Tipo de dato | Nulo | Restricciones |
 |---|---|---|---|---|
@@ -181,7 +181,7 @@ guardaban en `analisis_llm` como si las hubiera recomendado el modelo. Ahora nin
 **Encontrado:** 01/10/2026. El catálogo sirve a estudios liquidadores y a servicios técnicos
 (`tipo_proveedor`), pero las dos tablas estaban nombradas como si solo hubiera peritos, y cada
 proveedor cubría un solo ramo o todos. Implementado en `db/init-multitenant.sql` y
-`db/migrations/2026-10-01-proveedor-externo.sql`. **Todavía no aplicado en Railway.**
+`db/migrations/2026-10-01-proveedor-externo.sql`. Aplicado en Railway el 05/10/2026.
 
 | Antes | Después | Tipo de dato | Nulo | Restricciones |
 |---|---|---|---|---|
@@ -202,6 +202,58 @@ nueva; los que tenían NULL quedan sin filas. `veredicto`, `monto_indemnizable`,
 
 **Acción:** en el `.mdj`, renombrar las dos entidades y sus columnas, sacar `rama_id` de
 `proveedor_externo` y agregar `proveedor_externo_rama` como N:M entre `proveedor_externo` y `rama`.
+
+---
+
+## 11 · `rama` y `hecho_generador` — pasan a ser de cada aseguradora
+
+**Encontrado:** 05/10/2026. Las dos tablas eran un catálogo de la plataforma: que un referente
+renombrara o borrara un ramo se lo cambiaba a todas las aseguradoras. Ahora cada esquema de
+aseguradora tiene las suyas, copiadas con los mismos ids. Implementado en `db/init-multitenant.sql`
+y `db/migrations/2026-10-05-ramos-por-aseguradora.sql`. **Todavía no aplicado en Railway**: va junto
+con el despliegue, no antes.
+
+| Tabla | Columna | Tipo de dato | Nulo | Restricciones |
+|---|---|---|---|---|
+| `rama` (`branch`) | `id` | BIGINT | no | PK; ahora única por aseguradora, no en la plataforma |
+| `rama` | `nombre` (`name`) | VARCHAR(100) | no | UNIQUE dentro de la aseguradora |
+| `rama` | `nombre_externo` (`external_name`) | VARCHAR(100) | sí | UNIQUE; columna nueva |
+| `hecho_generador` (`claim_cause`) | `id` | BIGINT | no | PK |
+| `hecho_generador` | `nombre` (`name`) | VARCHAR(100) | no | UNIQUE junto con `rama_id` |
+| `hecho_generador` | `rama_id` (`branch_id`) | BIGINT | no | FK → `rama.id` de la misma aseguradora |
+
+`nombre_externo` es como la BD de la aseguradora llama al ramo (`poliza.rama`). Las pólizas se cruzan
+por esa columna y no por `nombre`, así el referente puede renombrar un ramo sin que las pólizas
+dejen de encontrarlo. Nace igual a `nombre` y un rename no la toca.
+
+Las FK que apuntaban al catálogo común (`cobertura`, `regla_aseguradora`, `requisito_documental`,
+`atribucion_liquidacion`, `expediente`, `proveedor_externo_rama`) ahora apuntan a las tablas de la
+misma aseguradora: en el diagrama las relaciones no cambian, cambia de qué lado están las entidades.
+
+**Acción:** en el `.mdj`, mover `rama` y `hecho_generador` de la parte común a la parte por
+aseguradora y agregar `rama.nombre_externo`.
+
+---
+
+## 12 · `hecho_generador.nombre` — la UNIQUE es junto con `rama_id`, no sola
+
+**Encontrado:** 05/10/2026, al cotejar la entrada 11 contra el `.mdj`. No es de esa historia: el
+esquema ya era así antes.
+
+En el DER `hecho_generador.nombre` está marcada como única por sí sola. En el esquema la unicidad es
+`(rama_id, nombre)` (`claim_cause_branch_name_unique`), porque el mismo hecho se repite entre ramos a
+propósito: "Robo en vía pública" y "Hurto" existen una vez en Celulares y otra en Tecnología
+Portátil, cada una con su documentación requerida y su cobertura.
+
+| Columna | Tipo de dato | Nulo | Restricciones |
+|---|---|---|---|
+| `nombre` (`name`) | VARCHAR(100) | no | UNIQUE junto con `rama_id`; hoy el DER la marca única sola |
+
+`rama.nombre` sí es única sola, dentro de la aseguradora: ahí el DER está bien.
+
+**Acción:** en el `.mdj`, sacar la marca `unique` de `hecho_generador.nombre`. Si StarUML no deja
+modelar la compuesta (pasó con `peritaje`, entrada 4), dejar una nota de texto junto a la entidad:
+un nombre no se repite dentro de un ramo, pero sí entre ramos.
 
 ---
 

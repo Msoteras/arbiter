@@ -1,9 +1,10 @@
 package ar.edu.utn.frba.arbiter.cases.services;
 
 import ar.edu.utn.frba.arbiter.cases.config.tenant.CallerContext;
+import ar.edu.utn.frba.arbiter.cases.config.tenant.TenantContext;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Policy;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.ClaimCauseRepository;
-import ar.edu.utn.frba.arbiter.common.models.entities.ClaimCause;
+import ar.edu.utn.frba.arbiter.common.models.entities.tenant.ClaimCause;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Insured;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
@@ -18,6 +19,10 @@ import java.util.Set;
  * against, so whatever the selector offers resolves. With a policy number, causes excluded by the
  * policy's coverages ({@code COVERAGE_EXCLUSION}) are removed.
  *
+ * <p>The catalog is per insurer, so with a policy number the lookup runs in the schema of the
+ * insurer that issued it: someone insured at two companies is logged in under only one of them, and
+ * the other's branch names may not even exist there.
+ *
  * <p>Deliberately not {@code @Transactional}: the coverage lookup is best-effort and a failure
  * inside it must not mark an enclosing transaction rollback-only.
  */
@@ -30,14 +35,37 @@ public class ClaimCauseService {
     private final ClaimCauseRepository claimCauseRepository;
     private final CaseReferenceResolver referenceResolver;
     private final PolicyCoverageResolver policyCoverageResolver;
+    private final PolicyTenantLocator policyTenantLocator;
 
     public List<String> namesByBranch(String branch, String policyNumber) {
-        List<ClaimCause> causes = claimCauseRepository.findByBranch_NameOrderByNameAsc(branch);
-        Set<Long> excluded = policyNumber == null ? Set.of() : excludedForPolicy(policyNumber);
-        return causes.stream()
+        if (policyNumber == null) {
+            return names(branch, Set.of());
+        }
+        String callerTenant = TenantContext.get();
+        try {
+            TenantContext.set(issuingTenant(policyNumber, callerTenant));
+            return names(branch, excludedForPolicy(policyNumber));
+        } finally {
+            TenantContext.set(callerTenant);
+        }
+    }
+
+    private List<String> names(String branch, Set<Long> excluded) {
+        return claimCauseRepository.findByBranch_NameOrderByNameAsc(branch).stream()
                 .filter(c -> !excluded.contains(c.getId()))
                 .map(ClaimCause::getName)
                 .toList();
+    }
+
+    /** Best-effort like the exclusions: a policy that can't be located keeps the caller's schema. */
+    private String issuingTenant(String policyNumber, String callerTenant) {
+        try {
+            return policyTenantLocator.locate(policyNumber);
+        } catch (RuntimeException e) {
+            log.warn("[ClaimCause] Couldn't locate the insurer of policy {} — reading the caller's "
+                    + "catalog: {}", policyNumber, e.getMessage());
+            return callerTenant;
+        }
     }
 
     public List<String> allDistinctNames() {

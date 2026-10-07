@@ -4,6 +4,11 @@ Revisión general hecha el 22/09/2026 sobre `fix/ui-pestanas-analisis`. La limpi
 código muerto y comentarios se hizo el 23/09 en `chore/limpieza-codigo`. Este documento junta lo que
 falta.
 
+Actualizado el 05/10/2026 al cerrar `chore/front-ingles`: se sacaron los ítems ya resueltos (chat en
+tiempo real, columna `described_claim_cause`, identificadores en castellano, lógica en controllers,
+respuestas con `Map`, servicios `Internal*`, propiedades sin declarar, autor del historial de reglas,
+literales crudos del historial, Reglas en tablet y la "e" del monto a pagar).
+
 Este archivo se borra cuando se vacíe.
 
 ---
@@ -18,71 +23,50 @@ No es un bug de cálculo: es el mismo dato contado de dos formas.
 - El score y el modelo usan sus propios conteos de "previos".
 
 Falta decidir un solo criterio para todo lo que ve el analista. Código: `TemporalRuleEvaluator`
-(classification-service) y `core/models/trazabilidad.ts` (front).
+(classification-service) y `core/models/traceability.ts` (front).
 
-### 1.2 Chat en tiempo real (resuelto)
-El WebSocket del chat daba 403 en todos los entornos, producción incluida (probado el 26/09/2026):
-Spring solo aceptaba el handshake del mismo origen, y detrás de nginx nunca lo parece porque Railway
-termina el HTTPS antes y nginx descarta el puerto. Ahora `cases-service` acepta explícitamente el
-origen de `FRONTEND_BASE_URL`, que en Railway hay que cargar también en ese servicio (ver
-`docs/despliegue-railway.md`). El cambio sin commitear de `proxy.conf.json` ya no hace falta.
-
-### 1.3 PRs a `main` desde `hotfix/*`
+### 1.2 PRs a `main` desde `hotfix/*`
 `.github/workflows/main.yml` acepta `hotfix/*` y `guard-main.yml` no, así que un hotfix nunca pasa.
 Hay que decidir si se aceptan hotfixes directos a `main` y dejar un solo workflow.
 
 ---
 
-## 2. Bugs encontrados durante la limpieza
-
-- **Columna sin uso en Railway.** `document_analysis.described_claim_cause` existe en los dos
-  tenants de Railway pero el código no la usa y el script base no la crea. Se puede borrar avisando
-  al equipo. (La tabla `metric` que también aparece es de las métricas en desarrollo: no tocarla.)
-
----
-
-## 3. Restos del flujo de prueba aislado (classification-service)
+## 2. Restos del flujo de prueba aislado (classification-service)
 
 Se borraron los endpoints de prueba, pero quedaron piezas que solo existían para ellos y que ya
 cambian lógica al sacarlas:
 - Los guards `caseId == null` en `CaseOutcomeRepository` y `ClassificationResultsService`, y la rama
   `caseDocumentId == null` en `ImageEmbeddingService`.
 - Los overloads `ClassificationOrchestrator.classify(ClaimReport)` y `classify(ClaimReport, List)`:
-  producción no los usa, pero sostienen ~25 tests del orquestador.
+  producción solo usa `classify(caseId, claim, docs)`, pero estos sostienen ~25 tests del orquestador
+  (6 de `ClassificationOrchestratorIntegrationTest` usan el camino sin documentos). Sacarlos implica
+  pasar esos tests al camino con documentos, que no es mecánico.
 
 ---
 
-## 4. Convenciones (CLAUDE.md) que no se cumplen
+## 3. Convenciones del front que no se cumplen
 
-- **Identificadores en castellano.** Los comentarios ya están en inglés, pero siguen en castellano
-  nombres de archivos, componentes y funciones del front (`bandeja`, `expediente-detail`,
-  `nueva-denuncia`, `estadoTone`…) y nombres de tests del back. Renombrarlos es un refactor grande.
-- **Lógica en controllers:** `ClaimCauseController` (repositorio, try/catch y filtros) e
-  `InsuredProfileController`.
-- **Respuestas armadas con `Map` en vez de DTO:** `CaseController` y `ClaimController`.
-- **Servicios con prefijo de mecanismo:** los seis `Internal*` de rules-service.
-- **Propiedades sin declarar:** `arbiter.provisioning.invite-delay-ms` y `max-invites-per-run`
-  (auth-service) no están en ningún yml.
-- **Autor del historial de reglas:** se guarda `changed_by = null` en los 8 servicios que escriben
-  historial, y el autor se saca del texto del motivo (`RuleChangeHistoryService.actorOf`). Lo correcto
-  es guardar el id del usuario al escribir.
-- **Front:** botones hechos a mano que deberían ser del kit (chips y "Limpiar todo" de la bandeja,
-  `.remove-cov` en reglas) y `max-width` en `ch`/`.measure` sobre párrafos dentro de cards (riesgo de
-  texto cortado).
+- **Botones hechos a mano** que deberían ser del kit: los chips de filtros y "Limpiar todo" de la
+  bandeja.
+- **`.measure` sobre párrafos** (riesgo de texto cortado dentro de cards): quedan el aviso de
+  cobertura en Reglas y el subtítulo del seguimiento del asegurado. El detalle del expediente ya lo
+  resolvió poniendo el límite en la card y no en el texto.
 
 ---
 
-## 5. Otros hallazgos (no urgentes)
+## 4. Otros hallazgos (no urgentes)
 
-- **Historial de reglas con literales crudos.** Los cambios del objetivo de resolución se muestran como
-  `RESOLUTION_TARGET` y `TARGETDAYS` en vez de un label en castellano.
-- **Archivos sin referencias:** `docs/wireframes/*.html`, un PDF en `docs/siniestros/` y PNGs en
-  `public/brand/`. Confirmar si se conservan.
-- **Formulario "Identificate"** en `mis-expedientes`: quedó de antes de Auth0; revisar si sigue haciendo falta.
-- **Rendimiento en local:** `GET /cases/{id}` ~11 s, `GET /settlement-authorities` ~21 s para 2 ramos
-  y guardar una decisión ~10 s. Deployado anda mejor. Si vuelve a notarse, perfilar las N+1.
-- **Reglas en tablet:** al elegir una sección del menú, el contenido carga abajo y la página no se
-  desplaza hasta ahí.
-- **Monto a pagar** en el modal de aprobar: campo numérico nativo que acepta la letra "e". Podría
-  pasar a `app-input` con `prefix="$"`, como Atribuciones.
+- **Archivos sin referencias:** `docs/wireframes/Arbiter Wireframes.html`,
+  `docs/siniestros/diagrama-flujo-clasificacion.pdf` y los PNG de `public/brand/` (se usan los SVG).
+  Confirmar si se conservan.
+- **Formulario "Identificate"** en Mis siniestros (y el aviso que lo nombra en el alta de denuncia):
+  quedó de antes de Auth0; revisar si sigue haciendo falta.
+- **Rendimiento en local:** no es de la app. Desde local cada consulta a la base de Railway tarda
+  ~145 ms, así que los endpoints con muchas consultas (`GET /cases/{id}`, `GET
+  /settlement-authorities`, guardar una decisión) se sienten lentos; deployado anda bien. Perfilar las
+  N+1 solo si aparece en el deploy.
+- **Alta de denuncia con fecha "Hoy" y una franja futura** (por ejemplo, Noche a las 20 h): el back
+  la rechaza por hora futura (`@PastOrPresent`), pero la pantalla muestra "no se puede determinar si
+  tu póliza permite nuevos siniestros". Debería decir que la hora no puede ser futura, o no ofrecer
+  esas franjas.
 - **Inicio del analista:** "Resumen de Arbiter · Próximamente" es un placeholder a la vista.

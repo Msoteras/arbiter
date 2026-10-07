@@ -14,8 +14,8 @@ import { filter, interval, map } from 'rxjs';
 import { AuthSessionService } from './core/auth/auth-session.service';
 import { AppReadyService } from './core/app-ready.service';
 import { NotificationsService } from './core/notifications/notifications.service';
-import { CaseMessagesService } from './features/expedientes/case-messages.service';
-import { NewClaimModalService } from './features/expedientes/new-claim-modal.service';
+import { CaseMessagesService } from './features/cases/case-messages.service';
+import { NewClaimModalService } from './features/cases/new-claim-modal.service';
 import { userRoleLabel } from './core/models/user-role';
 import { LogoComponent } from './shared/ui/logo/logo.component';
 import { ButtonComponent } from './shared/ui/button/button.component';
@@ -23,8 +23,8 @@ import { ModalComponent } from './shared/ui/modal/modal.component';
 import { LoadingComponent } from './shared/ui/loading/loading.component';
 import { NotificationsPanelComponent } from './core/notifications/notifications-panel.component';
 import { ToastStackComponent } from './shared/ui/toast/toast-stack.component';
-import { NuevaDenunciaComponent } from './features/expedientes/nueva-denuncia/nueva-denuncia.component';
-import { GlobalSearchComponent } from './features/expedientes/global-search/global-search.component';
+import { NewClaimComponent } from './features/cases/new-claim/new-claim.component';
+import { GlobalSearchComponent } from './features/cases/global-search/global-search.component';
 
 /** Below this width the nav panel overlays the content instead of pushing it. */
 const OVERLAY_NAV_QUERY = '(max-width: 1024px)';
@@ -42,7 +42,7 @@ const UNREAD_POLL_MS = 30_000;
     ButtonComponent,
     ModalComponent,
     ToastStackComponent,
-    NuevaDenunciaComponent,
+    NewClaimComponent,
     GlobalSearchComponent,
     NotificationsPanelComponent,
     LoadingComponent,
@@ -143,11 +143,11 @@ export class App {
   );
 
   // Each role sees only its own nav section, even the referente, who has full permissions.
-  protected readonly showAnalistaNav = computed(
+  protected readonly showAnalystNav = computed(
     () => this.session.session()?.rol === 'ANALISTA_SINIESTROS',
   );
 
-  protected readonly showAseguradoNav = computed(() => this.session.session()?.rol === 'ASEGURADO');
+  protected readonly showInsuredNav = computed(() => this.session.session()?.rol === 'ASEGURADO');
 
   protected readonly showAdminNav = computed(
     () => this.session.session()?.rol === 'REFERENTE_ASEGURADORA',
@@ -260,8 +260,8 @@ export class App {
     return userRoleLabel(rol);
   }
 
-  protected initials(nombre: string, apellido: string): string {
-    return `${nombre?.[0] ?? ''}${apellido?.[0] ?? ''}`.toUpperCase() || '—';
+  protected initials(firstName: string, lastName: string): string {
+    return `${firstName?.[0] ?? ''}${lastName?.[0] ?? ''}`.toUpperCase() || '—';
   }
 
   protected readonly showLogoutConfirm = signal(false);

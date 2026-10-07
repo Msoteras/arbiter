@@ -113,8 +113,9 @@ INSERT INTO aseguradora_provincia.poliza (id, numero, nro_certificado, titular_i
                                           cuotas_pagas, cuotas_impagas, saldo_deuda, forma_pago,
                                           max_eventos_anuales, segundo_evento_pct, cubre_grupo_familiar,
                                           datos_proveedor) VALUES
-    -- Tecnología Portátil: no IMEI.
-    (1, 'POL-TEC-2026-311', '700841', 1, 'Tecnología Portátil', 'Seguro de Tecnología Portátil', 'MacBook Air M3 15"',
+    -- Tecnología Portátil: no IMEI and no insured item. The policy isn't tied to one device, so
+    -- the insured says which one the claim is about when filing it.
+    (1, 'POL-TEC-2026-311', '700841', 1, 'Tecnología Portátil', 'Seguro de Tecnología Portátil', NULL,
      NULL, '2026-03-01','2027-03-01 23:59:59','ACTIVA','AL_DIA', 4, 1, 3406.17, 'TARJETA DE CREDITO', 2, 50.00, FALSE,
      '{"codRamaSegR":7,"nroPolizaR":2365301,"nroCertificadoR":700841,"descProductoR":"07 150 TEC PORT","importePrimaTarifa":2762.5,"importePremio":3406.17,"clausulaAjuste":"AJUSTE TASA FIJA","codClausulaAjuste":105}'::jsonb),
     -- 2 previous claims AND in arrears — two risk factors firing at once.
@@ -597,7 +598,7 @@ INSERT INTO aseguradora_provincia.poliza (id, numero, nro_certificado, titular_i
                                           max_eventos_anuales, segundo_evento_pct, cubre_grupo_familiar, datos_proveedor) VALUES
     (4, 'POL-CEL-2025-820', '700901', 2, 'Celulares', 'Celular Protegido', 'iPhone 13 Mini', '357000000000820', '2025-07-01','2026-07-01 23:59:59','ACTIVA','AL_DIA', 10, 0, 0.00, 'TARJETA DE CREDITO', NULL, NULL, FALSE, NULL),
     (5, 'POL-CEL-2026-905', '700902', 2, 'Celulares', 'Celular Protegido', 'Samsung Galaxy A34', '358000000000905', '2026-02-01','2027-02-01 23:59:59','ACTIVA','SUSPENDIDA', 4, 2, 18200.00, 'DEBITO', NULL, NULL, FALSE, NULL),
-    (6, 'POL-TEC-2025-410', '700903', 1, 'Tecnología Portátil', 'Seguro de Tecnología Portátil', 'Dell XPS 13', NULL, '2025-04-01','2026-04-01 23:59:59','ACTIVA','AL_DIA', 12, 0, 0.00, 'TARJETA DE CREDITO', NULL, NULL, FALSE, NULL),
+    (6, 'POL-TEC-2025-410', '700903', 1, 'Tecnología Portátil', 'Seguro de Tecnología Portátil', NULL, NULL, '2025-04-01','2026-04-01 23:59:59','ACTIVA','AL_DIA', 12, 0, 0.00, 'TARJETA DE CREDITO', NULL, NULL, FALSE, NULL),
     (7, 'POL-CEL-2026-980', '700904', 1, 'Celulares', 'Celular Protegido', 'iPhone 15 Pro Max', '359000000000980', '2026-04-01','2027-04-01 23:59:59','ACTIVA','AL_DIA', 5, 0, 0.00, 'TARJETA DE CREDITO', NULL, NULL, FALSE, NULL);
 SELECT setval(pg_get_serial_sequence('aseguradora_provincia.poliza','id'),
               (SELECT MAX(id) FROM aseguradora_provincia.poliza));
@@ -1121,7 +1122,7 @@ INSERT INTO aseguradora_provincia.poliza (id, numero, nro_certificado, titular_i
                                           cuotas_pagas, cuotas_impagas, saldo_deuda, forma_pago,
                                           max_eventos_anuales, segundo_evento_pct, cubre_grupo_familiar,
                                           datos_proveedor) VALUES
-    (8, 'POL-TEC-2026-350', '700910', 3, 'Tecnología Portátil', 'Seguro de Tecnología Portátil', 'MacBook Air M3 15"',
+    (8, 'POL-TEC-2026-350', '700910', 3, 'Tecnología Portátil', 'Seguro de Tecnología Portátil', NULL,
      NULL, '2026-03-01','2027-03-01 23:59:59','ACTIVA','AL_DIA', 4, 0, 0.00, 'TARJETA DE CREDITO', 2, 50.00, FALSE,
      '{"codRamaSegR":7,"nroPolizaR":2365304,"nroCertificadoR":700910,"descProductoR":"07 150 TEC PORT","importePrimaTarifa":2762.5,"importePremio":3406.17,"clausulaAjuste":"AJUSTE TASA FIJA","codClausulaAjuste":105}'::jsonb);
 SELECT setval(pg_get_serial_sequence('aseguradora_provincia.poliza','id'),

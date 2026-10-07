@@ -19,13 +19,13 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class ClaimCauseConsistencyEvaluatorTest {
 
-    private static final String ROBO = "Robo en vía pública";
-    private static final String HURTO = "Hurto";
+    private static final String ROBBERY = "Robo en vía pública";
+    private static final String THEFT = "Hurto";
 
-    /** The BBVA robo coverage: it excludes hurto (rule 21). */
+    /** The BBVA robbery coverage: it excludes theft (rule 21). */
     private static final List<ClaimCauseOption> CATALOG = List.of(
-            new ClaimCauseOption(2L, ROBO, true),
-            new ClaimCauseOption(3L, HURTO, false),
+            new ClaimCauseOption(2L, ROBBERY, true),
+            new ClaimCauseOption(3L, THEFT, false),
             new ClaimCauseOption(4L, "Caída", true));
 
     private final ClaimCauseConsistencyEvaluator evaluator = new ClaimCauseConsistencyEvaluator();
@@ -40,9 +40,9 @@ class ClaimCauseConsistencyEvaluatorTest {
     }
 
     @Test
-    void anActaNarratingAnotherCause_warnsAndFails() {
+    void aPoliceReportNarratingAnotherCause_warnsAndFails() {
         ClaimCauseConsistencyEvaluator.Result result = evaluator.evaluate(
-                declared(ROBO), Map.of("police_report", narrating(HURTO)), CATALOG);
+                declared(ROBBERY), Map.of("police_report", narrating(THEFT)), CATALOG);
 
         assertThat(result.findings()).singleElement().satisfies(finding -> {
             assertThat(finding.ruleType()).isEqualTo("CLAIM_CAUSE_MATCH");
@@ -59,7 +59,7 @@ class ClaimCauseConsistencyEvaluatorTest {
     @Test
     void aCoveredNarratedCause_warnsWithoutClaimingItIsExcluded() {
         ClaimCauseConsistencyEvaluator.Result result = evaluator.evaluate(
-                declared(ROBO), Map.of("police_report", narrating("Caída")), CATALOG);
+                declared(ROBBERY), Map.of("police_report", narrating("Caída")), CATALOG);
 
         assertThat(result.reasons()).singleElement().asString()
                 .contains("«Caída»")
@@ -67,9 +67,9 @@ class ClaimCauseConsistencyEvaluatorTest {
     }
 
     @Test
-    void anActaNarratingTheDeclaredCause_passes() {
+    void aPoliceReportNarratingTheDeclaredCause_passes() {
         ClaimCauseConsistencyEvaluator.Result result = evaluator.evaluate(
-                declared(ROBO), Map.of("police_report", narrating("robo en vía pública")), CATALOG);
+                declared(ROBBERY), Map.of("police_report", narrating("robo en vía pública")), CATALOG);
 
         assertThat(result.reasons()).isEmpty();
         assertThat(result.findings()).extracting(RuleFinding::passed).containsExactly(true);
@@ -79,7 +79,7 @@ class ClaimCauseConsistencyEvaluatorTest {
     @Test
     void noDocumentNarratingACause_leavesTheRuleUnevaluated() {
         ClaimCauseConsistencyEvaluator.Result result = evaluator.evaluate(
-                declared(ROBO), Map.of("purchase_proof", narrating(null)), CATALOG);
+                declared(ROBBERY), Map.of("purchase_proof", narrating(null)), CATALOG);
 
         assertThat(result.findings()).isEmpty();
         assertThat(result.reasons()).isEmpty();
@@ -90,9 +90,9 @@ class ClaimCauseConsistencyEvaluatorTest {
     void theSilentDocumentsDontTakePart() {
         Map<String, DocumentExtraction> documents = new LinkedHashMap<>();
         documents.put("purchase_proof", narrating(null));
-        documents.put("police_report", narrating(HURTO));
+        documents.put("police_report", narrating(THEFT));
 
-        ClaimCauseConsistencyEvaluator.Result result = evaluator.evaluate(declared(ROBO), documents, CATALOG);
+        ClaimCauseConsistencyEvaluator.Result result = evaluator.evaluate(declared(ROBBERY), documents, CATALOG);
 
         assertThat(result.findings()).singleElement()
                 .satisfies(finding -> assertThat(finding.evaluatedValue()).endsWith("documents=police_report"));
@@ -100,14 +100,14 @@ class ClaimCauseConsistencyEvaluatorTest {
 
     @Test
     void withoutDocuments_nothingIsEvaluated() {
-        assertThat(evaluator.evaluate(declared(ROBO), Map.of(), CATALOG).findings()).isEmpty();
+        assertThat(evaluator.evaluate(declared(ROBBERY), Map.of(), CATALOG).findings()).isEmpty();
     }
 
     /** An empty catalog (couldn't be read) still compares names; it just can't say what's covered. */
     @Test
     void withoutCatalog_stillWarnsButSaysNothingAboutCoverage() {
         ClaimCauseConsistencyEvaluator.Result result = evaluator.evaluate(
-                declared(ROBO), Map.of("police_report", narrating(HURTO)), List.of());
+                declared(ROBBERY), Map.of("police_report", narrating(THEFT)), List.of());
 
         assertThat(result.reasons()).singleElement().asString().doesNotContain("no cubre");
     }

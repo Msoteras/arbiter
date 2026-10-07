@@ -38,7 +38,7 @@ public class JwtService {
             return;
         }
         if (secret.getBytes(StandardCharsets.UTF_8).length < MIN_SECRET_BYTES) {
-            throw new IllegalStateException("JWT_SECRET debe tener al menos " + MIN_SECRET_BYTES + " bytes para HS256");
+            throw new IllegalStateException("JWT_SECRET must be at least " + MIN_SECRET_BYTES + " bytes long for HS256");
         }
         key = JwtSupport.key(secret);
     }

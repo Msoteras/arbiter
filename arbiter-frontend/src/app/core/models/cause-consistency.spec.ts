@@ -24,7 +24,7 @@ describe('cause-consistency', () => {
   });
 
   it('does not break when the backend adds an unknown value', () => {
-    expect(causeConsistencyLabel('ALGO_NUEVO')).toBe('ALGO_NUEVO');
-    expect(causeConsistencyTone('ALGO_NUEVO')).toBe('neutral');
+    expect(causeConsistencyLabel('SOMETHING_NEW')).toBe('SOMETHING_NEW');
+    expect(causeConsistencyTone('SOMETHING_NEW')).toBe('neutral');
   });
 });

@@ -181,6 +181,8 @@ export class InputComponent {
   readonly align = input<'start' | 'end'>('start');
   /** Mobile keyboard hint, e.g. `numeric` for an amount typed as text so it can show separators. */
   readonly inputmode = input<string | null>(null);
+  /** Rewrites what is typed in place; a bound value that comes out unchanged never repaints the field. */
+  readonly normalize = input<((typed: string) => string) | null>(null);
 
   /** The native `min` is enforced by the arrows and submit, but not by typing or pasting "-500". */
   private readonly rejectsNegative = computed(
@@ -195,18 +197,28 @@ export class InputComponent {
   );
 
   protected onKeydown(event: KeyboardEvent): void {
-    if (this.rejectsNegative() && (event.key === '-' || event.key === 'Subtract')) {
+    if (this.type() !== 'number') {
+      return;
+    }
+    const minus = event.key === '-' || event.key === 'Subtract';
+    if (['e', 'E', '+'].includes(event.key) || (minus && this.rejectsNegative())) {
       event.preventDefault();
     }
   }
 
   protected onInput(event: Event): void {
     const field = event.target as HTMLInputElement;
-    // Pasting does not go through keydown; drop the sign but keep the number.
-    if (this.rejectsNegative() && field.value.startsWith('-')) {
-      field.value = field.value.slice(1);
+    // Pasting does not go through keydown; drop the exponent and the sign but keep the digits.
+    let next = field.value;
+    if (this.type() === 'number') {
+      next = next.replace(/[eE+]/g, '');
+      next = this.rejectsNegative() ? next.replace(/^-/, '') : next;
     }
-    this.value.set(field.value);
+    next = this.normalize()?.(next) ?? next;
+    if (next !== field.value) {
+      field.value = next;
+    }
+    this.value.set(next);
   }
 
   protected toggleReveal(): void {

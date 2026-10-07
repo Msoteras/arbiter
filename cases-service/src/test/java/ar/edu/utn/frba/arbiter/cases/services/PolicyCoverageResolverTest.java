@@ -4,8 +4,8 @@ import ar.edu.utn.frba.arbiter.cases.exceptions.UnresolvedCaseReferenceException
 import ar.edu.utn.frba.arbiter.cases.models.entities.PolicyCoverage;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.ClaimCauseRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.PolicyCoverageRepository;
-import ar.edu.utn.frba.arbiter.common.models.entities.Branch;
-import ar.edu.utn.frba.arbiter.common.models.entities.ClaimCause;
+import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Branch;
+import ar.edu.utn.frba.arbiter.common.models.entities.tenant.ClaimCause;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Coverage;
 import org.junit.jupiter.api.Test;
 
@@ -22,15 +22,15 @@ import static org.mockito.Mockito.when;
 
 /**
  * Which of the policy's coverages answers for the reported claim cause. A policy has several (the
- * phone one covers theft AND larceny), each with its own sum insured, deductible and waiting period.
+ * phone one covers robbery AND theft), each with its own sum insured, deductible and waiting period.
  */
 class PolicyCoverageResolverTest {
 
     private static final Long POLICY_ID = 7L;
-    private static final Long ROBO_VIA_PUBLICA = 2L;
-    private static final Long HURTO = 3L;
-    private static final Long CELULARES_BRANCH = 1L;
-    private static final Long TECNOLOGIA_BRANCH = 2L;
+    private static final Long STREET_ROBBERY = 2L;
+    private static final Long THEFT = 3L;
+    private static final Long PHONES_BRANCH = 1L;
+    private static final Long PORTABLE_TECH_BRANCH = 2L;
 
     private final PolicyCoverageRepository policyCoverageRepository = mock(PolicyCoverageRepository.class);
     private final RulesServiceClient rulesServiceClient = mock(RulesServiceClient.class);
@@ -42,12 +42,12 @@ class PolicyCoverageResolverTest {
     @Test
     void picksTheCoverageThatCoversTheDenouncedCause() {
         givenContracted(coverage(1L, "Robo de celular"), coverage(2L, "Hurto"));
-        // The theft coverage excludes larceny, and vice versa.
-        when(rulesServiceClient.excludedClaimCauseIds(1L)).thenReturn(List.of(HURTO));
-        when(rulesServiceClient.excludedClaimCauseIds(2L)).thenReturn(List.of(ROBO_VIA_PUBLICA));
+        // The robbery coverage excludes theft, and vice versa.
+        when(rulesServiceClient.excludedClaimCauseIds(1L)).thenReturn(List.of(THEFT));
+        when(rulesServiceClient.excludedClaimCauseIds(2L)).thenReturn(List.of(STREET_ROBBERY));
 
-        assertThat(resolver.resolveFor(POLICY_ID, HURTO).getCoverage().getName()).isEqualTo("Hurto");
-        assertThat(resolver.resolveFor(POLICY_ID, ROBO_VIA_PUBLICA).getCoverage().getName())
+        assertThat(resolver.resolveFor(POLICY_ID, THEFT).getCoverage().getName()).isEqualTo("Hurto");
+        assertThat(resolver.resolveFor(POLICY_ID, STREET_ROBBERY).getCoverage().getName())
                 .isEqualTo("Robo de celular");
     }
 
@@ -61,7 +61,7 @@ class PolicyCoverageResolverTest {
         when(rulesServiceClient.excludedClaimCauseIds(1L)).thenReturn(List.of());
         when(rulesServiceClient.excludedClaimCauseIds(2L)).thenReturn(List.of());
 
-        assertThat(resolver.resolveFor(POLICY_ID, HURTO).getDisplayOrder()).isEqualTo(1);
+        assertThat(resolver.resolveFor(POLICY_ID, THEFT).getDisplayOrder()).isEqualTo(1);
     }
 
     /** The eligibility precheck runs before a claim cause is chosen. */
@@ -79,9 +79,9 @@ class PolicyCoverageResolverTest {
     @Test
     void whenNothingCoversTheCause_stillReturnsOneForTheEligibilityGateToReject() {
         givenContracted(coverage(1L, "Robo de celular"));
-        when(rulesServiceClient.excludedClaimCauseIds(1L)).thenReturn(List.of(HURTO));
+        when(rulesServiceClient.excludedClaimCauseIds(1L)).thenReturn(List.of(THEFT));
 
-        assertThat(resolver.resolveFor(POLICY_ID, HURTO)).isNotNull();
+        assertThat(resolver.resolveFor(POLICY_ID, THEFT)).isNotNull();
     }
 
     /**
@@ -91,17 +91,17 @@ class PolicyCoverageResolverTest {
      */
     @Test
     void aCoverageFromAnotherBranchNeverAnswers_evenWithNoExclusionsConfigured() {
-        Long danioAccidental = 6L;
+        Long accidentalDamage = 6L;
         givenContracted(
-                coverage(1L, "Robo de celular", CELULARES_BRANCH),
-                coverage(3L, "Daño accidental", TECNOLOGIA_BRANCH));
-        // Neither has exclusions configured: by displayOrder alone, the theft one would win.
+                coverage(1L, "Robo de celular", PHONES_BRANCH),
+                coverage(3L, "Daño accidental", PORTABLE_TECH_BRANCH));
+        // Neither has exclusions configured: by displayOrder alone, the robbery one would win.
         when(rulesServiceClient.excludedClaimCauseIds(1L)).thenReturn(List.of());
         when(rulesServiceClient.excludedClaimCauseIds(3L)).thenReturn(List.of());
-        when(claimCauseRepository.findById(danioAccidental))
-                .thenReturn(Optional.of(claimCause(danioAccidental, TECNOLOGIA_BRANCH)));
+        when(claimCauseRepository.findById(accidentalDamage))
+                .thenReturn(Optional.of(claimCause(accidentalDamage, PORTABLE_TECH_BRANCH)));
 
-        assertThat(resolver.resolveFor(POLICY_ID, danioAccidental).getCoverage().getName())
+        assertThat(resolver.resolveFor(POLICY_ID, accidentalDamage).getCoverage().getName())
                 .isEqualTo("Daño accidental");
     }
 
@@ -109,7 +109,7 @@ class PolicyCoverageResolverTest {
     void aPolicyWithNoCoverageOnFile_throws() {
         givenContracted();
 
-        assertThatThrownBy(() -> resolver.resolveFor(POLICY_ID, HURTO))
+        assertThatThrownBy(() -> resolver.resolveFor(POLICY_ID, THEFT))
                 .isInstanceOf(UnresolvedCaseReferenceException.class);
     }
 
@@ -117,8 +117,8 @@ class PolicyCoverageResolverTest {
     @Test
     void offersEveryCauseAtLeastOneCoverageAnswersFor() {
         givenContracted(coverage(1L, "Robo de celular"), coverage(2L, "Hurto"));
-        when(rulesServiceClient.excludedClaimCauseIds(1L)).thenReturn(List.of(HURTO));
-        when(rulesServiceClient.excludedClaimCauseIds(2L)).thenReturn(List.of(ROBO_VIA_PUBLICA));
+        when(rulesServiceClient.excludedClaimCauseIds(1L)).thenReturn(List.of(THEFT));
+        when(rulesServiceClient.excludedClaimCauseIds(2L)).thenReturn(List.of(STREET_ROBBERY));
 
         assertThat(resolver.excludedClaimCauseIds(POLICY_ID)).isEmpty();
     }
@@ -126,8 +126,8 @@ class PolicyCoverageResolverTest {
     @Test
     void excludesOnlyWhatEveryCoverageExcludes() {
         givenContracted(coverage(1L, "Robo de celular"), coverage(2L, "Hurto"));
-        when(rulesServiceClient.excludedClaimCauseIds(1L)).thenReturn(List.of(HURTO, 99L));
-        when(rulesServiceClient.excludedClaimCauseIds(2L)).thenReturn(List.of(ROBO_VIA_PUBLICA, 99L));
+        when(rulesServiceClient.excludedClaimCauseIds(1L)).thenReturn(List.of(THEFT, 99L));
+        when(rulesServiceClient.excludedClaimCauseIds(2L)).thenReturn(List.of(STREET_ROBBERY, 99L));
 
         assertThat(resolver.excludedClaimCauseIds(POLICY_ID)).containsExactly(99L);
     }
@@ -135,17 +135,17 @@ class PolicyCoverageResolverTest {
     /** Unlike resolveFor, a correction never falls back to a coverage that excludes the cause. */
     @Test
     void coveringByCause_leavesOutWhatNothingCoversAndAsksEachCoverageOnce() {
-        givenContracted(coverage(1L, "Robo de celular", CELULARES_BRANCH), coverage(2L, "Hurto", CELULARES_BRANCH));
-        when(rulesServiceClient.excludedClaimCauseIds(1L)).thenReturn(List.of(HURTO, 4L));
-        when(rulesServiceClient.excludedClaimCauseIds(2L)).thenReturn(List.of(ROBO_VIA_PUBLICA, 4L));
+        givenContracted(coverage(1L, "Robo de celular", PHONES_BRANCH), coverage(2L, "Hurto", PHONES_BRANCH));
+        when(rulesServiceClient.excludedClaimCauseIds(1L)).thenReturn(List.of(THEFT, 4L));
+        when(rulesServiceClient.excludedClaimCauseIds(2L)).thenReturn(List.of(STREET_ROBBERY, 4L));
 
         var covering = resolver.coveringByCause(POLICY_ID, List.of(
-                claimCause(ROBO_VIA_PUBLICA, CELULARES_BRANCH),
-                claimCause(HURTO, CELULARES_BRANCH),
-                claimCause(4L, CELULARES_BRANCH)));
+                claimCause(STREET_ROBBERY, PHONES_BRANCH),
+                claimCause(THEFT, PHONES_BRANCH),
+                claimCause(4L, PHONES_BRANCH)));
 
-        assertThat(covering).containsOnlyKeys(ROBO_VIA_PUBLICA, HURTO);
-        assertThat(covering.get(HURTO).getCoverage().getName()).isEqualTo("Hurto");
+        assertThat(covering).containsOnlyKeys(STREET_ROBBERY, THEFT);
+        assertThat(covering.get(THEFT).getCoverage().getName()).isEqualTo("Hurto");
         verify(rulesServiceClient, times(1)).excludedClaimCauseIds(1L);
         verify(rulesServiceClient, times(1)).excludedClaimCauseIds(2L);
     }

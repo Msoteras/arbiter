@@ -2,7 +2,12 @@
 
 **Proyecto Final UTN FRBA (DDSI · K5054 · Grupo 5303).** Sistema de gestión inteligente del ciclo de vida de **siniestros** con IA, pensado como **plataforma multi-aseguradora**. Foco actual: el **Módulo de Análisis y Clasificación** (clasificación preliminar del siniestro con LLM + revisión humana obligatoria).
 
-Idioma: respondé y escribí commits/docs en **español rioplatense**. Identificadores de código y **comentarios dentro del código** van en **inglés**, sin excepción — incluidos los nombres de clases/tipos que antes quedaban en castellano (`Siniestro`→`Claim`, `Poliza`→`Policy`, `Asegurado`→`Insured`, `Aseguradora`→`Insurer`, `Regla`→`Rule`, `Clasificacion`→`Classification`, etc.).
+Idioma: respondé y escribí commits/docs en **español rioplatense**. En el código la regla es **"si lo lee el usuario final, en español; todo lo demás, en inglés"**:
+
+- **Inglés, sin excepción**: identificadores (clases, tipos, métodos, variables, campos), **comentarios**, nombres de archivos y carpetas, clases CSS y selectores, valores internos (claves, uniones de strings, literales de enum), logs, mensajes de excepciones que no llegan al usuario y nombres/descripciones de tests. Incluye los nombres que antes quedaban en castellano (`Siniestro`→`Claim`, `Poliza`→`Policy`, `Asegurado`→`Insured`, `Aseguradora`→`Insurer`, `Regla`→`Rule`, `Clasificacion`→`Classification`, etc.).
+- **Español**: todo lo que ve el usuario — textos de la UI, mensajes de error que muestra el front (el `detail` de los `ProblemDetail`), mails, PDF/CSV de reportes, notas del historial, descripciones de Swagger y los prompts del LLM (su salida la lee el analista). También los mensajes que imprimen los scripts y migraciones para quien los corre.
+- **Quedan en castellano a propósito, porque son contrato con la base, Auth0 o la BD de la aseguradora** (renombrarlos exige migrar datos; no sumar nuevos): los roles (`ASEGURADO`, `ANALISTA_SINIESTROS`, `REFERENTE_ASEGURADORA`), `FALTA_DOCUMENTACION` y los `LLM_*` de `Classification`, `ESTUDIO_LIQUIDADOR`/`SERVICIO_TECNICO`, `TITULAR`/`FAMILIAR`/`TERCERO`/`DESCONOCIDO`, los campos de sesión `nombre`/`apellido`/`rol`/`estado`, los efectos de reglas (`RECHAZAR`, `DERIVAR`), las decisiones viejas del historial (`APROBAR`/`RECHAZAR`, conviven con `APPROVE`/`REJECT`), los literales de la traza del motor (`missing=ninguno`) y las columnas y valores de la BD de la aseguradora (`estado_pago = 'AL_DIA'`, `LIQUIDADO`…). Las migraciones ya aplicadas conservan su nombre.
+- Citar un término de negocio o un texto de la UI dentro de un comentario o un test está bien (ej. "hecho generador", `'En trámite'`).
 
 La sección "Modelo de dominio — vocabulario" más abajo es la excepción: ahí los términos quedan en **español**, porque documentan el vocabulario de negocio real (relevamiento BBVA) tal como lo usa el analista — es prosa de negocio, no identificadores de código.
 
@@ -79,24 +84,28 @@ ar.edu.utn.frba.arbiter.<modulo>/
 
 ## Modelo de dominio — vocabulario
 
-Estos términos vienen del relevamiento de una aseguradora real (BBVA Seguros, API `segrest`) — no los inventamos nosotros. Usar **estos nombres** en entidades, DTOs y endpoints para que el analista de siniestros (usuario final) se encuentre con lo que ya conoce.
+Estos términos vienen del relevamiento de una aseguradora real (BBVA Seguros, API `segrest`) — no los inventamos nosotros. Son los que usa el analista de siniestros (usuario final), así que la **UI** habla con estos nombres; en el **código** van en inglés (columna "En el código", ver la regla de idioma arriba).
 
-| Concepto             | Qué es                                                                                | Dueño         |
-|----------------------|----------------------------------------------------------------------------------------|---------------|
-| **`Ramo`**           | Línea de seguro (celulares, hogar, automotor, vida…). Configurable por aseguradora.   | `rules`       |
-| **`Producto`**       | Variante comercial dentro de un ramo (ej. "Celular Protegido Básico").                | `rules`       |
-| **`HechoGenerador`** | Causa del siniestro (robo en vía pública, hurto, caída, incendio…). Es el campo central que el LLM clasifica. | `rules` |
-| **`BienAsegurado`**  | Bien cubierto por la póliza (un Samsung A56 específico, un auto patentado…).          | `classification` |
-| **`Poliza`**         | Contrato (nro, certificado, endoso, vigencia, tomador, asegurado, productor, prima).  | `classification` |
-| **`Cobertura`**      | Riesgo cubierto en la póliza con su suma asegurada y franquicia.                       | `classification` |
-| **`Clausula`/`Anexo`** | Condiciones particulares aplicables (códigos: 100, 101, 102, 105, 340, 344…).      | `classification` |
-| **`Siniestro`**      | El hecho denunciado (vincula Póliza + HechoGenerador + Bien + fecha + descripción).   | `classification` |
-| **`Denuncia`**       | Acto de carga del siniestro (con adjuntos, geolocalización, denuncia policial).       | `classification` |
-| **`Expediente`**     | Caso administrativo derivado del siniestro, con estado y trazabilidad.                | `cases`       |
-| **`AgendaDocumental`** | Lista de **documentos requeridos** según `Ramo` + `HechoGenerador`. Determina si el expediente está completo. Configurable por aseguradora. | `rules` (definición) + `cases` (instancia por expediente) |
-| **`Adjunto`**        | Archivo subido por el asegurado (PDF, imagen). Cumple un item de la `AgendaDocumental`. | `cases`       |
-| **`Clasificacion`**  | Resultado del análisis (`FAST_TRACK` / `FALTA_DOCUMENTACION` / `LLM_RECOMIENDA_APROBAR` / `LLM_NO_RECOMIENDA_APROBAR` / `LLM_SOLICITA_REVISION_MANUAL`) + factores. Solo `FAST_TRACK` es determinístico (gate de reglas, no LLM); los otros 4 son recomendaciones no vinculantes del LLM. | `classification` |
-| **`ClasificacionLog`** | Registro inmutable y auditable de cada clasificación (input, output, decisión). En el esquema: `llm_analysis`, `rule_result` y `case_classification`. | `classification` |
+| Concepto             | En el código | Qué es                                                                                | Dueño         |
+|----------------------|--------------|----------------------------------------------------------------------------------------|---------------|
+| **Ramo**             | `Branch` | Línea de seguro (celulares, hogar, automotor, vida…). Configurable por aseguradora.   | `rules`       |
+| **Producto**         | `product` (campo de la póliza) | Variante comercial dentro de un ramo (ej. "Celular Protegido Básico"). Viene de la BD Aseguradora. | — |
+| **Hecho generador**  | `ClaimCause` | Causa del siniestro (robo en vía pública, hurto, caída, incendio…). Es el campo central que el LLM clasifica. | `rules` |
+| **Bien asegurado**   | `insuredItem` | Bien cubierto por la póliza (un Samsung A56 específico, un auto patentado…).          | `cases` (snapshot de la póliza) |
+| **Póliza**           | `Policy` (+ `PolicySnapshot`) | Contrato (nro, certificado, endoso, vigencia, tomador, asegurado, productor, prima). | `cases` (snapshot de la BD Aseguradora) |
+| **Cobertura**        | `Coverage` / `PolicyCoverage` | Riesgo cubierto con su suma asegurada y franquicia: `Coverage` es el catálogo del ramo, `PolicyCoverage` la contratada en cada póliza. | `rules` / `cases` |
+| **Cláusula / Anexo** | `applicableClauses` | Condiciones particulares aplicables (códigos: 100, 101, 102, 105, 340, 344…).      | `classification` |
+| **Siniestro**        | campos del `Case`; viaja como `ClaimReport` | El hecho denunciado (vincula Póliza + Hecho generador + Bien + fecha + descripción). | `cases` |
+| **Denuncia**         | `CaseRequest` (`POST /api/v1/cases`) | Acto de carga del siniestro (con adjuntos, geolocalización, denuncia policial).       | `cases` |
+| **Expediente**       | `Case` | Caso administrativo derivado del siniestro, con estado y trazabilidad.                | `cases`       |
+| **Agenda documental** | `DocumentRequirement` | Lista de **documentos requeridos** según Ramo + Hecho generador. Determina si el expediente está completo. Configurable por aseguradora. | `rules` (definición) + `cases` (instancia por expediente) |
+| **Adjunto**          | `CaseDocument` | Archivo subido por el asegurado (PDF, imagen). Cumple un item de la agenda documental. | `cases`       |
+| **Clasificación**    | `Classification` | Resultado del análisis (`FAST_TRACK` / `FALTA_DOCUMENTACION` / `LLM_RECOMIENDA_APROBAR` / `LLM_NO_RECOMIENDA_APROBAR` / `LLM_SOLICITA_REVISION_MANUAL`) + factores. Solo `FAST_TRACK` es determinístico (gate de reglas, no LLM); los otros 4 son recomendaciones no vinculantes del LLM. | `classification` |
+| **Registro de la clasificación** | `LlmAnalysis`, `RuleResult`, `CaseClassification` | Registro inmutable y auditable de cada clasificación (input, output, decisión). En el esquema: `llm_analysis`, `rule_result` y `case_classification`. | `classification` |
+| **Proveedor externo** | `ServiceProvider` | Estudio liquidador (perito) o servicio técnico al que se deriva un expediente. Catálogo por aseguradora, con ramos N:M (sin ramos = generalista). | `cases` |
+| **Derivación**       | `CaseReferral` | El envío de un expediente a un proveedor y su respuesta (veredicto del perito o resultado de la reparación). | `cases` |
+| **Liquidación**      | `CaseSettlement` | Cálculo del monto a pagar al aprobar; si supera la atribución del analista, la autoriza el referente. | `cases` |
+| **Antecedente de fraude** | `InsuredFraudRecord` | Fraude registrado sobre un asegurado; pesa en sus denuncias siguientes dentro de la ventana que configura la aseguradora. | `classification` |
 
 ### Implicancias de diseño
 
@@ -111,7 +120,7 @@ Estos términos vienen del relevamiento de una aseguradora real (BBVA Seguros, A
    ```
    El frontend tiene que pedir cada paso y mostrar las opciones del siguiente. El backend expone endpoints de catálogo en `rules-service` (`GET /api/v1/rules/branches`, `GET /api/v1/rules/claim-causes`, etc.).
 
-2. **El LLM clasifica mejor con campos estructurados.** El prompt no recibe solo texto libre de la denuncia: recibe `{ ramo, producto, hechoGenerador, bien, descripcionLibre, adjuntosOCR, imagen }`. Los campos estructurados son contexto duro que ancla la inferencia.
+2. **El LLM clasifica mejor con campos estructurados.** El prompt no recibe solo texto libre de la denuncia: recibe los campos de `ClaimReport` (`branch`, `product`, `claimCause`, `insuredItem`, `description`, `attachmentsOcr`) más la imagen. Los campos estructurados son contexto duro que ancla la inferencia.
 
 3. **La AgendaDocumental es el contrato de "expediente completo".** Antes de pasar el expediente al analista, `cases-service` valida contra la agenda que todos los documentos obligatorios estén subidos. Si faltan, el estado es `AWAITING_DOCUMENTATION`, no `PENDING_ANALYST_REVIEW` (los valores del enum `CaseStatus` van en inglés; el label en español es cosa del frontend).
 
@@ -191,29 +200,41 @@ El frontend (`arbiter-frontend/`, Angular 20 standalone + signals + OnPush) tien
 | **1 · Primitivos** | `src/styles/_tokens.scss` | valores crudos: paleta `--c-*` (neutros cálidos "papel"), `--accent` (teal de marca) + familia `--accent-strong/soft/soft-border/veil`, technicolor `--accent-green/yellow/orange/red/blue`, `--space-1..7`, `--font-size-2xs..xl`, `--font-weight-regular/medium/bold`, `--radius-ctl/card/modal/pill`, sombras/overlay. | El **único** lugar donde pueden vivir hex/px crudos. No consumir estos tokens directo desde componentes. |
 | **2 · Semánticos** | `src/styles/_semantic.scss` | roles: `--text-primary/secondary/tertiary/muted/on-emphasis`, `--surface`/`-soft`/`-sunken`/`-head`, `--border-subtle/default/control/strong`, `--action-primary-bg`/`-bg-hover`/`-fg` (botón primario **oscuro**), `--action-secondary-bg`/`-fg`/`-border`/`-border-hover`, el **acento de marca** `--accent-fg`/`--selected-bg`/`--selected-border`/`--border-focus`/`--focus-ring` (estados activos, selección, foco), y el **semáforo de estado** `--status-ok/warning/risk/danger/info` (mapean a la technicolor). | **Los componentes consumen SOLO estos.** Acá vive el "tema" (dark mode / branding por aseguradora se resolverían acá sin tocar componentes). |
 | **Tipografía** | `src/styles/_typography.scss` | clases utilitarias: `.t-page-title`, `.t-section-label`, `.t-field-label`, `.t-body`, `.t-note`, `.mono`; utilidades `.measure` (~68ch), `.tabular`, `.sr-only`. | Usar SIEMPRE una clase `.t-*` en vez de setear `font-size`/`font-weight` sueltos. |
+| **Responsive** | `src/styles/_media.scss` | mixins `media.phone` (≤ 640px), `media.touch` (teléfono o puntero grueso, o sea también tablets) y `media.desktop`; el token `--touch-target` (44px) es el alto mínimo de un control táctil. | Importar con `@use 'media';`. Nada de `@media` con números sueltos: los cortes viven acá. |
 
 Los partials se cablean en `src/styles.scss` vía `@use`. **Guardrail del proyecto: prohibido hex/px crudos fuera de `_tokens.scss`.**
 
 ### El kit de componentes (`src/app/shared/ui/`)
 
-Antes de escribir markup de UI, usá los componentes que ya existen en vez de rearmarlos a mano:
+Antes de escribir markup de UI, usá los componentes que ya existen en vez de rearmarlos a mano (los inputs de cada uno están documentados en su archivo y en `/styleguide`):
 
-| Selector | Uso | Variantes / inputs clave |
-|----------|-----|--------------------------|
-| `app-button` | todo botón/acción | `primary` \| `secondary`; `block`, `disabled`, `type` |
-| `app-badge` | chips de estado/etiqueta | `solid` \| `strong` \| `dashed`; `tone` (semáforo `ok`/`warning`/`danger`/`info` → punto de color) |
-| `app-card` | contenedor de contenido | `heading`, `icon`, variante `soft` |
-| `app-input` | campo de texto | (ver componente) |
-| `app-textarea` | texto multilínea | (ver componente) |
-| `app-modal` | diálogos / overlays | (ver componente) |
-| `app-fraud-gauge`, `app-severity-label`, `app-empty-state`, `app-status-timeline`, `app-doc-upload` | componentes de dominio ya construidos | — |
+| Selector | Uso |
+|----------|-----|
+| `app-button` | todo botón/acción. `primary` (oscuro) \| `secondary` \| `accent`; `size` `md`/`sm`; `tone` `ok`/`danger` para acciones cuyo resultado es un estado (aprobar, rechazar); `block`, `loading`. |
+| `app-menu-button` | botón que abre un menú de acciones (ej. "Exportar", "Derivar a…"). |
+| `app-badge` | chips de estado/etiqueta. `solid` \| `strong` \| `dashed`; `tone` del semáforo → punto de color. |
+| `app-card` | contenedor de contenido. `heading`, `icon`; variante `ai` para salida del modelo; `collapsible`, `flush`. |
+| `app-input` | campo de texto (sin Angular Forms). `prefix`, `align`, `inputmode`, `revealable`; `normalize` para reescribir lo tipeado (montos: `amountInputDisplay` de `core/util/money.ts`). |
+| `app-textarea` | texto multilínea. |
+| `app-select` | desplegable propio (no el nativo); `searchable`, `required`. |
+| `app-chip-group` | elegir una opción entre 2 y 5, todas a la vista. |
+| `app-checkbox`, `app-switch` | casilla nativa y switch para ajustes con efecto inmediato. |
+| `app-modal` | diálogos; `variant="side"` es panel lateral para altas sobre una lista; `dismissable=false` para formularios que no se cierran por accidente. |
+| `app-table`, `app-pagination` | tablas (columnas fijas, encabezado pegajoso) y paginado de listas del servidor. |
+| `app-stat-tile`, `app-chart`, `app-distribution` | métricas, gráficos (ECharts) y distribuciones (barra o anillo con leyenda). |
+| `app-save-bar` | pie de una sección editable (guardar/descartar). |
+| `app-info-tip` | ayuda que se abre con clic (funciona con touch y teclado). |
+| `app-empty-state`, `app-inline-loading`, `app-loading`, `app-spinner` | estados vacío y de carga (`app-loading` es solo el de pantalla completa del inicio). |
+| toasts (`ToastService` + `app-toast-stack`) | avisos efímeros; el stack se monta una vez en `app.html`. |
+| `app-logo`, `app-file-preview` | logo de Arbiter y vista previa de un archivo antes de subirlo. |
+| `app-fraud-gauge`, `app-severity-label`, `app-status-timeline`, `app-doc-upload`, `app-policy-card` | componentes de dominio ya construidos. |
 
 ### Reglas accionables
 
-1. **Usá el kit, no reimplementes.** Botones, badges, cards, inputs, textareas y modales salen de `app-button`, `app-badge`, `app-card`, `app-input`, `app-textarea`, `app-modal`. Nada de `<button>`/`<div class="card">`/`<input>` estilizados a mano.
+1. **Usá el kit, no reimplementes.** Botones, badges, cards, campos, selects, chips, modales y tablas salen de la tabla de arriba. Nada de `<button>`/`<div class="card">`/`<input>`/`<select>` estilizados a mano.
 2. **Nunca valores crudos en componentes.** Prohibido hex y px sueltos fuera de `_tokens.scss`. Consumí tokens **semánticos** (`--text-primary`, `--surface`, `--border-control`, `--action-primary-bg`…), no primitivos `--c-*` ni `--accent` directo.
 3. **Espaciado con `--space-*`, tipografía con clases `.t-*` + escala `--font-size-*`, radios con `--radius-*`.** Nada de márgenes/paddings/tamaños ad-hoc.
-4. **Estética del proyecto: neutros cálidos ("papel") + teal de marca con criterio + semáforo solo para estado.** (Referencia visual: `docs/prototipo/arbiter-hifi.html`.) El acento de marca es `--accent` (teal) y se reserva a **estados activos, selección y foco** (stepper, tab activo, toggle, timeline, anillo de foco) vía los roles `--accent-fg`/`--selected-*`/`--border-focus`/`--focus-ring` — el botón primario es **oscuro** (`--action-primary-*`), no teal. La paleta technicolor (`--accent-*`) NO se usa cruda en componentes: se consume vía los roles semánticos `--status-ok/warning/risk/danger/info`, y **solo para comunicar estado** (semáforo de expediente/clasificación, texto de error), siempre sobrio — un punto, un borde o el color del texto, nunca fondos saturados. El tono sale del dominio: `estadoTone()` / `clasificacionTone()` (`core/models/`) mapean cada enum a su `StatusTone`. El `app-fraud-gauge` usa el semáforo `--status-*` para el nivel de riesgo (bajo→ok, medio→warning, alto→risk, crítico→danger). **La severidad textual (`app-severity-label`) se codifica por PESO + triángulo ▲, sin color.** No metas color nuevo sin acordarlo.
+4. **Estética del proyecto: neutros cálidos ("papel") + teal de marca con criterio + semáforo solo para estado.** (Referencia visual: `docs/prototipo/arbiter-hifi.html`.) El acento de marca es `--accent` (teal) y se reserva a **estados activos, selección y foco** (stepper, tab activo, toggle, timeline, anillo de foco) vía los roles `--accent-fg`/`--selected-*`/`--border-focus`/`--focus-ring` — el botón primario es **oscuro** (`--action-primary-*`), no teal. La paleta technicolor (`--accent-*`) NO se usa cruda en componentes: se consume vía los roles semánticos `--status-ok/warning/risk/danger/info`, y **solo para comunicar estado** (semáforo de expediente/clasificación, texto de error), siempre sobrio — un punto, un borde o el color del texto, nunca fondos saturados. El tono sale del dominio: `caseStatusTone()` / `classificationTone()` (`core/models/`) mapean cada enum a su `StatusTone`. El `app-fraud-gauge` usa el semáforo `--status-*` para el nivel de riesgo (bajo→ok, medio→warning, alto→risk, crítico→danger). **La severidad textual (`app-severity-label`) se codifica por PESO + triángulo ▲, sin color.** No metas color nuevo sin acordarlo.
 5. **Componente nuevo → sumalo a la styleguide.** Si agregás algo al kit, mostralo en la página `/styleguide` (`src/app/features/styleguide/styleguide.component.ts`). Es la vitrina viva del sistema.
 6. **Antes de crear UI nueva, revisá `/styleguide` y `shared/ui/`.** Si ya existe, reusá; no dupliques.
 7. **Accesibilidad y tipografía.** Los títulos de card son headings reales (jerarquía correcta, no `<div>` con estilo). Inputs a **16px en mobile** (evita el zoom de iOS). Contraste **AA** (la paleta ya está calibrada a 4.5:1). Mantené `.sr-only` para texto solo-lector y foco visible.
@@ -243,15 +264,26 @@ Desde la raíz del proyecto:
 
 ```bash
 mvn clean install                                    # construye todo (common-lib primero)
-mvn spring-boot:run -pl classification-service           # corre el módulo (revisar la cuestión del monolito antes)
-mvn -pl classification-service -am package               # construye módulo + dependencias
-mvn -pl classification-service test                      # tests del módulo
+mvn -pl classification-service -am package           # construye módulo + dependencias
+mvn -pl classification-service -am test              # tests unitarios del módulo (-am: sin eso usa el common-lib viejo de ~/.m2)
+mvn -pl reports-service -am test -Pit                # también los de Testcontainers (@Tag("it"), necesitan Docker)
 
 cd arbiter-frontend && npm install && npm start      # ng serve → http://localhost:4200
+npm test -- --watch=false --browsers=ChromeHeadless  # Karma, una sola pasada
+npm run lint                                         # ESLint (angular-eslint); tiene que dar 0
+npm run format:check                                 # Prettier
+
+# Correr contra la base de Railway (así trabaja el equipo; ver docs/despliegue-railway.md)
+.\scripts\run-local.ps1 <módulo>                     # un módulo Java local contra Railway
+.\scripts\dev-gemini.ps1 -d                          # todo el stack en Docker con Gemini (dev-ollama.ps1: con Ollama)
+.\scripts\db-railway.ps1 check                       # prueba la conexión a la base de Railway sin tocar nada
+                                                     # (reset/all BORRAN todos los esquemas: solo con el equipo avisado)
 
 # Docker: contexto SIEMPRE en la raíz (multi-módulo necesita el POM padre + common-lib)
 docker build -t classification-img -f classification-service/Dockerfile .
 ```
+
+Tests de Testcontainers: van con sufijo `*Tests.java` (nunca `*IT.java`, que Surefire excluye sin avisar) y `@Tag("it")`; `mvn test` los saltea y `-Pit` los corre. La calibración del prompt contra el modelo real va con `@Tag("llm")` y `-Pllm` (se factura por token).
 
 Ollama (para dev local):
 
@@ -279,15 +311,15 @@ ollama serve                                          # default: http://localhos
 - **Excepciones de dominio** en `exceptions/` + un `@RestControllerAdvice` por módulo que las traduce a `ProblemDetail` (RFC 7807).
 - **Endpoints REST en plural y kebab-case si aplica**: `/api/v1/cases`, `/api/v1/cases/{caseId}/fraud-record`.
 - **Tipos compartidos** (DTOs públicos entre módulos, enums de dominio, excepciones base) van a `common-lib`. Lo interno de un módulo NO.
-- **Las entidades JPA del esquema común van a `common-lib`**, en `common/models/entities/`. Son las 10 tablas de `arbiter_common` (`insurer`, `users`, `user_insurer`, `role`, `permission`, `role_permission`, `user_role`, `branch`, `claim_cause`, `case_status`): no son de ningún módulo, son de la plataforma, y varios módulos necesitan leerlas. Definirlas una sola vez evita que se desincronicen — `Insurer` llegó a estar duplicada en `auth-service` y `rules-service`. **Los repositories NO se comparten**: cada módulo declara el suyo con las queries que necesita, apuntando a la entidad de `common-lib`.
-- **Las entidades de un esquema de aseguradora son del módulo dueño**, con una excepción acotada: cuando **más de un módulo** necesita la misma tabla de tenant, va a `common/models/entities/tenant/` (ver el `package-info` de ese paquete). Hoy la única es `Insured`, que auth-service y cases-service declaraban por separado y ya habían divergido. La distinción entre los dos paquetes importa: el padre son tablas con **una sola fila para toda la plataforma**; `tenant/` son tablas que existen **una vez por aseguradora**, y qué fila se lee depende del tenant resuelto. No sumes entidades ahí por las dudas: si la usa un solo módulo, va en ese módulo.
+- **Las entidades JPA del esquema común van a `common-lib`**, en `common/models/entities/`. Son las 8 tablas de `arbiter_common` (`insurer`, `users`, `user_insurer`, `role`, `permission`, `role_permission`, `user_role`, `case_status`): no son de ningún módulo, son de la plataforma, y varios módulos necesitan leerlas. Definirlas una sola vez evita que se desincronicen — `Insurer` llegó a estar duplicada en `auth-service` y `rules-service`. **Los repositories NO se comparten**: cada módulo declara el suyo con las queries que necesita, apuntando a la entidad de `common-lib`.
+- **Las entidades de un esquema de aseguradora son del módulo dueño**, con una excepción acotada: cuando **más de un módulo** necesita la misma tabla de tenant, va a `common/models/entities/tenant/` (ver el `package-info` de ese paquete). Hoy son `Insured`, `ClaimsAnalyst`, `InsurerReferent`, `Coverage`, `Branch` y `ClaimCause` (`Insured` fue la primera: auth-service y cases-service la declaraban por separado y ya habían divergido). **Los ramos y los hechos generadores son de cada aseguradora**: sus ids se repiten entre esquemas, así que un `branch_id` solo identifica algo junto con su tenant. `branch.external_name` es el nombre con que la BD Aseguradora llama al ramo (`poliza.rama`) y es la clave de cruce con las pólizas — un rename toca solo `name`; la traducción la hace `InsurerBranchNames` en el borde, y de ahí para adentro todo resuelve por el nombre propio. La distinción entre los dos paquetes importa: el padre son tablas con **una sola fila para toda la plataforma**; `tenant/` son tablas que existen **una vez por aseguradora**, y qué fila se lee depende del tenant resuelto. No sumes entidades ahí por las dudas: si la usa un solo módulo, va en ese módulo.
 - **Tests**: JUnit 5 + Spring Boot Test. Testcontainers para PostgreSQL y, cuando aplique, para Ollama. Mockito para mocks.
 - **Trazabilidad de cada clasificación**: registro inmutable, separado del expediente, en las tablas de `classification-service` (`llm_analysis` con modelo, `prompt_version`, salida y factores; `rule_result` con cada regla evaluada; `case_classification` con el resultado y la decisión del analista). No se actualizan: cada análisis es una fila nueva.
 - **Multi-tenant**: cada request lleva el `tenant_id` (id de aseguradora) en el JWT. Resolver el esquema PostgreSQL en una `ConnectionProvider` o `Interceptor` de Hibernate al inicio del request. No hardcodear el schema en queries.
 - **Comunicación entre módulos**: REST interno por HTTP (sin TLS, dentro del host). Cliente: `RestClient` de Spring 6+ (no `RestTemplate`). DTOs del request/response en `common-lib`. Configurar URLs base por `application.yml` (`arbiter.rules-service.url`, `arbiter.classification-service.url`) con default a localhost. Timeouts cortos y manejo de error explícito — no asumir que el otro módulo siempre responde.
 - **Propagar el JWT** entre módulos cuando una request es por cuenta de un usuario. El módulo destino valida con Auth0 igual que si viniera del frontend. Para llamadas sistema-a-sistema (jobs internos), evaluar service account o token de servicio aparte.
 - **Naming de clases de servicio**: sin adjetivos ni prefijos que describan el mecanismo (`Real`, `Database`, `Default`, `Internal`). Si hay interfaz + implementación única, la implementación lleva sufijo `Impl` (ej. `CaseService` → `CaseServiceImpl`). Si hay varias implementaciones, nombrarlas por **lo que las diferencia funcionalmente**, no por tecnología (ej. `MockClaimClassifier` / `OllamaClaimClassifier`, no `RealClaimClassifier`).
-- **Enum literals en inglés**. El mapeo a labels en español es responsabilidad exclusiva del frontend (ver `estado.ts` como referencia). No mezclar idiomas dentro de un mismo enum.
+- **Enum literals en inglés** (salvo los de contrato que lista la sección de idioma, arriba de todo). El mapeo a labels en español es responsabilidad exclusiva del frontend (ver `case-status.ts` como referencia). No mezclar idiomas dentro de un mismo enum.
 
 ## Convenciones que NO quiero ver
 

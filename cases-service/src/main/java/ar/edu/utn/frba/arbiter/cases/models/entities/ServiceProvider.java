@@ -1,7 +1,7 @@
 package ar.edu.utn.frba.arbiter.cases.models.entities;
 
 import ar.edu.utn.frba.arbiter.cases.dto.ProviderType;
-import ar.edu.utn.frba.arbiter.common.models.entities.Branch;
+import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Branch;
 import jakarta.persistence.Column;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Entity;

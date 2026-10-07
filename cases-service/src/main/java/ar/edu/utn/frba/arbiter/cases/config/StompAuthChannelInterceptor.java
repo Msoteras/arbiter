@@ -63,7 +63,7 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
     private void authenticate(StompHeaderAccessor accessor) {
         String header = accessor.getFirstNativeHeader(AUTH_HEADER);
         if (header == null || !header.startsWith(BEARER)) {
-            throw new StompAccessDeniedException("Falta el token en la conexión.");
+            throw new StompAccessDeniedException("Missing token on connect.");
         }
         Claims claims;
         try {
@@ -71,7 +71,7 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
                     .parseSignedClaims(header.substring(BEARER.length()))
                     .getPayload();
         } catch (JwtException | IllegalArgumentException ex) {
-            throw new StompAccessDeniedException("Token inválido o expirado.");
+            throw new StompAccessDeniedException("Invalid or expired token.");
         }
 
         String rol = claims.get("rol", String.class);
@@ -94,24 +94,24 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
     /** Without this, any authenticated session could walk the case ids and read every thread. */
     private void authorizeSubscription(StompHeaderAccessor accessor) {
         CaseTopic.Ref ref = CaseTopic.parse(accessor.getDestination())
-                .orElseThrow(() -> new StompAccessDeniedException("Destino no permitido."));
+                .orElseThrow(() -> new StompAccessDeniedException("Destination not allowed."));
 
         Map<String, Object> session = accessor.getSessionAttributes();
         if (session == null || session.get(PRINCIPAL) == null) {
-            throw new StompAccessDeniedException("Sesión sin identificar.");
+            throw new StompAccessDeniedException("Unidentified session.");
         }
 
         restore(session);
         try {
             tenantScope.forCase(ref.caseId(), ref.insurerSlug(), () -> {
                 accessPolicy.assertCanRead(caseRepository.findById(ref.caseId())
-                        .orElseThrow(() -> new StompAccessDeniedException("Expediente inexistente.")));
+                        .orElseThrow(() -> new StompAccessDeniedException("Case not found.")));
                 return null;
             });
         } catch (StompAccessDeniedException ex) {
             throw ex;
         } catch (RuntimeException ex) {
-            throw new StompAccessDeniedException("No podés seguir esta conversación.");
+            throw new StompAccessDeniedException("Not allowed to follow this conversation.");
         } finally {
             clear();
         }

@@ -18,12 +18,12 @@ import java.time.Instant;
 import java.util.List;
 
 import static ar.edu.utn.frba.arbiter.reports.support.CaseTables.APPROVED;
-import static ar.edu.utn.frba.arbiter.reports.support.CaseTables.CELULARES;
+import static ar.edu.utn.frba.arbiter.reports.support.CaseTables.PHONES_BRANCH;
 import static ar.edu.utn.frba.arbiter.reports.support.CaseTables.DIEGO;
-import static ar.edu.utn.frba.arbiter.reports.support.CaseTables.HURTO_CELULARES;
-import static ar.edu.utn.frba.arbiter.reports.support.CaseTables.HURTO_TECNOLOGIA;
+import static ar.edu.utn.frba.arbiter.reports.support.CaseTables.PHONES_THEFT;
+import static ar.edu.utn.frba.arbiter.reports.support.CaseTables.PORTABLE_TECH_THEFT;
 import static ar.edu.utn.frba.arbiter.reports.support.CaseTables.PENDING_REVIEW;
-import static ar.edu.utn.frba.arbiter.reports.support.CaseTables.ROBO_CELULARES;
+import static ar.edu.utn.frba.arbiter.reports.support.CaseTables.PHONES_ROBBERY;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
@@ -58,7 +58,7 @@ class FlaggedCaseRepositoryTests extends AbstractPersistenceIT {
 
     @Test
     void aHighScoringCase_isFlaggedWithItsBandAsTheAlertLevel() {
-        tables.insertCase(1, "2026-09-10T10:00:00Z", PENDING_REVIEW, ROBO_CELULARES, false, null, null);
+        tables.insertCase(1, "2026-09-10T10:00:00Z", PENDING_REVIEW, PHONES_ROBBERY, false, null, null);
         tables.riskBand(1, "HIGH");
 
         List<FraudReportRow> rows = repository.findFlaggedBetween(SEPTEMBER_FROM, SEPTEMBER_TO, null, null);
@@ -83,7 +83,7 @@ class FlaggedCaseRepositoryTests extends AbstractPersistenceIT {
     /** A quiet case is not a suspicious one: no band, no repeats, no forensic finding, no row. */
     @Test
     void aCaseWithNoSignal_isLeftOut() {
-        tables.insertCase(1, "2026-09-10T10:00:00Z", PENDING_REVIEW, ROBO_CELULARES, false, null, null);
+        tables.insertCase(1, "2026-09-10T10:00:00Z", PENDING_REVIEW, PHONES_ROBBERY, false, null, null);
         tables.riskBand(1, "LOW");
         tables.image(1, "item_photo", false);
 
@@ -93,8 +93,8 @@ class FlaggedCaseRepositoryTests extends AbstractPersistenceIT {
     /** Claiming twice in a year alone does not list a case: it already weighs inside the score. */
     @Test
     void aSecondClaimOfTheSameInsured_isNotEnoughToBeListed() {
-        tables.insertCase(1, "2026-09-02T10:00:00Z", PENDING_REVIEW, ROBO_CELULARES, false, null, null);
-        tables.insertCase(2, "2026-09-20T10:00:00Z", PENDING_REVIEW, HURTO_CELULARES, false, null, null);
+        tables.insertCase(1, "2026-09-02T10:00:00Z", PENDING_REVIEW, PHONES_ROBBERY, false, null, null);
+        tables.insertCase(2, "2026-09-20T10:00:00Z", PENDING_REVIEW, PHONES_THEFT, false, null, null);
 
         assertThat(repository.findFlaggedBetween(SEPTEMBER_FROM, SEPTEMBER_TO, null, null)).isEmpty();
     }
@@ -102,8 +102,8 @@ class FlaggedCaseRepositoryTests extends AbstractPersistenceIT {
     /** Still counted, because the row shows it next to the signal that did flag the case. */
     @Test
     void theClaimsOfTheWindow_travelAsContextOfAFlaggedCase() {
-        tables.insertCase(1, "2026-09-02T10:00:00Z", PENDING_REVIEW, ROBO_CELULARES, false, null, null);
-        tables.insertCase(2, "2026-09-20T10:00:00Z", PENDING_REVIEW, HURTO_CELULARES, false, null, null);
+        tables.insertCase(1, "2026-09-02T10:00:00Z", PENDING_REVIEW, PHONES_ROBBERY, false, null, null);
+        tables.insertCase(2, "2026-09-20T10:00:00Z", PENDING_REVIEW, PHONES_THEFT, false, null, null);
         tables.image(2, "item_photo", true);
 
         List<FraudReportRow> rows = repository.findFlaggedBetween(SEPTEMBER_FROM, SEPTEMBER_TO, null, null);
@@ -118,8 +118,8 @@ class FlaggedCaseRepositoryTests extends AbstractPersistenceIT {
     /** The window is per person: another insured's claims don't add to this one's count. */
     @Test
     void claimsOfAnotherInsured_doNotCount() {
-        tables.insertCase(1, "2026-09-02T10:00:00Z", PENDING_REVIEW, ROBO_CELULARES, false, null, null);
-        tables.insertCase(2, "2026-09-20T10:00:00Z", PENDING_REVIEW, HURTO_CELULARES, false, null, null);
+        tables.insertCase(1, "2026-09-02T10:00:00Z", PENDING_REVIEW, PHONES_ROBBERY, false, null, null);
+        tables.insertCase(2, "2026-09-20T10:00:00Z", PENDING_REVIEW, PHONES_THEFT, false, null, null);
         tables.insuredOf(2, DIEGO);
         tables.image(2, "item_photo", true);
 
@@ -131,8 +131,8 @@ class FlaggedCaseRepositoryTests extends AbstractPersistenceIT {
     /** Older than the trailing 12 months: the person claimed before, but not recently. */
     @Test
     void aClaimOutsideTheTwelveMonthWindow_doesNotCount() {
-        tables.insertCase(1, "2025-06-01T10:00:00Z", APPROVED, ROBO_CELULARES, false, null, null);
-        tables.insertCase(2, "2026-09-20T10:00:00Z", PENDING_REVIEW, HURTO_CELULARES, false, null, null);
+        tables.insertCase(1, "2025-06-01T10:00:00Z", APPROVED, PHONES_ROBBERY, false, null, null);
+        tables.insertCase(2, "2026-09-20T10:00:00Z", PENDING_REVIEW, PHONES_THEFT, false, null, null);
         tables.image(2, "item_photo", true);
 
         List<FraudReportRow> rows = repository.findFlaggedBetween(SEPTEMBER_FROM, SEPTEMBER_TO, null, null);
@@ -142,7 +142,7 @@ class FlaggedCaseRepositoryTests extends AbstractPersistenceIT {
 
     @Test
     void aFlaggedImage_isASignalOnItsOwn_andOnlySuspiciousOnesCount() {
-        tables.insertCase(1, "2026-09-10T10:00:00Z", PENDING_REVIEW, ROBO_CELULARES, false, null, null);
+        tables.insertCase(1, "2026-09-10T10:00:00Z", PENDING_REVIEW, PHONES_ROBBERY, false, null, null);
         tables.image(1, "item_photo", true);
         tables.image(1, "invoice", true);
         tables.image(1, "police_report", false);
@@ -159,8 +159,8 @@ class FlaggedCaseRepositoryTests extends AbstractPersistenceIT {
     /** Two signals on one case. */
     @Test
     void theTwoSignals_coincideOnTheSameCase() {
-        tables.insertCase(1, "2026-09-02T10:00:00Z", APPROVED, ROBO_CELULARES, false, null, null);
-        tables.insertCase(2, "2026-09-20T10:00:00Z", PENDING_REVIEW, HURTO_CELULARES, false, null, null);
+        tables.insertCase(1, "2026-09-02T10:00:00Z", APPROVED, PHONES_ROBBERY, false, null, null);
+        tables.insertCase(2, "2026-09-20T10:00:00Z", PENDING_REVIEW, PHONES_THEFT, false, null, null);
         tables.riskBand(2, "CRITICAL");
         tables.image(2, "item_photo", true);
         tables.fraudDetermined(2);
@@ -183,11 +183,11 @@ class FlaggedCaseRepositoryTests extends AbstractPersistenceIT {
     @Test
     void theCasesWithMoreSignals_comeFirst_evenIfTheyWereFiledEarlier() {
         // Ana's first claim: no signal of its own, and the reason her second one is a repeat.
-        tables.insertCase(1, "2026-09-02T10:00:00Z", APPROVED, ROBO_CELULARES, false, null, null);
-        tables.insertCase(2, "2026-09-05T10:00:00Z", PENDING_REVIEW, HURTO_CELULARES, false, null, null);
+        tables.insertCase(1, "2026-09-02T10:00:00Z", APPROVED, PHONES_ROBBERY, false, null, null);
+        tables.insertCase(2, "2026-09-05T10:00:00Z", PENDING_REVIEW, PHONES_THEFT, false, null, null);
         tables.riskBand(2, "CRITICAL");
         tables.image(2, "item_photo", true);
-        tables.insertCase(3, "2026-09-20T10:00:00Z", PENDING_REVIEW, ROBO_CELULARES, false, null, null);
+        tables.insertCase(3, "2026-09-20T10:00:00Z", PENDING_REVIEW, PHONES_ROBBERY, false, null, null);
         tables.insuredOf(3, DIEGO);
         tables.riskBand(3, "HIGH");
 
@@ -198,9 +198,9 @@ class FlaggedCaseRepositoryTests extends AbstractPersistenceIT {
     /** Same number of signals: the band the engine wrote decides, and only then the filing date. */
     @Test
     void withTheSameNumberOfSignals_theHigherBandComesFirst() {
-        tables.insertCase(1, "2026-09-20T10:00:00Z", PENDING_REVIEW, ROBO_CELULARES, false, null, null);
+        tables.insertCase(1, "2026-09-20T10:00:00Z", PENDING_REVIEW, PHONES_ROBBERY, false, null, null);
         tables.riskBand(1, "HIGH");
-        tables.insertCase(2, "2026-09-10T10:00:00Z", PENDING_REVIEW, HURTO_CELULARES, false, null, null);
+        tables.insertCase(2, "2026-09-10T10:00:00Z", PENDING_REVIEW, PHONES_THEFT, false, null, null);
         tables.insuredOf(2, DIEGO);
         tables.riskBand(2, "CRITICAL");
 
@@ -211,7 +211,7 @@ class FlaggedCaseRepositoryTests extends AbstractPersistenceIT {
     /** Two derivations on one case would count the expert backing twice with a join. */
     @Test
     void twoDerivations_doNotDuplicateTheCase() {
-        tables.insertCase(1, "2026-09-10T10:00:00Z", APPROVED, ROBO_CELULARES, false, null, null);
+        tables.insertCase(1, "2026-09-10T10:00:00Z", APPROVED, PHONES_ROBBERY, false, null, null);
         tables.riskBand(1, "HIGH");
         tables.assessment(1, "EXPERT", "FRAUD_CONFIRMED", null, "2026-09-11T10:00:00Z",
                 "2026-09-12T10:00:00Z");
@@ -225,9 +225,9 @@ class FlaggedCaseRepositoryTests extends AbstractPersistenceIT {
 
     @Test
     void claimsFiledOutsideThePeriod_areLeftOut() {
-        tables.insertCase(1, "2026-08-31T23:00:00Z", PENDING_REVIEW, ROBO_CELULARES, false, null, null);
+        tables.insertCase(1, "2026-08-31T23:00:00Z", PENDING_REVIEW, PHONES_ROBBERY, false, null, null);
         tables.riskBand(1, "CRITICAL");
-        tables.insertCase(2, "2026-10-01T04:00:00Z", PENDING_REVIEW, ROBO_CELULARES, false, null, null);
+        tables.insertCase(2, "2026-10-01T04:00:00Z", PENDING_REVIEW, PHONES_ROBBERY, false, null, null);
         tables.riskBand(2, "CRITICAL");
 
         assertThat(repository.findFlaggedBetween(SEPTEMBER_FROM, SEPTEMBER_TO, null, null)).isEmpty();
@@ -235,12 +235,12 @@ class FlaggedCaseRepositoryTests extends AbstractPersistenceIT {
 
     @Test
     void theBranchAndBandFilters_narrowTheListing() {
-        tables.insertCase(1, "2026-09-10T10:00:00Z", PENDING_REVIEW, ROBO_CELULARES, false, null, null);
+        tables.insertCase(1, "2026-09-10T10:00:00Z", PENDING_REVIEW, PHONES_ROBBERY, false, null, null);
         tables.riskBand(1, "HIGH");
-        tables.insertCase(2, "2026-09-11T10:00:00Z", PENDING_REVIEW, HURTO_TECNOLOGIA, false, null, null);
+        tables.insertCase(2, "2026-09-11T10:00:00Z", PENDING_REVIEW, PORTABLE_TECH_THEFT, false, null, null);
         tables.riskBand(2, "CRITICAL");
 
-        assertThat(repository.findFlaggedBetween(SEPTEMBER_FROM, SEPTEMBER_TO, CELULARES, null))
+        assertThat(repository.findFlaggedBetween(SEPTEMBER_FROM, SEPTEMBER_TO, PHONES_BRANCH, null))
                 .extracting(FraudReportRow::caseId).containsExactly(1L);
         assertThat(repository.findFlaggedBetween(SEPTEMBER_FROM, SEPTEMBER_TO, null, RiskBand.CRITICAL))
                 .extracting(FraudReportRow::caseId).containsExactly(2L);
@@ -249,20 +249,20 @@ class FlaggedCaseRepositoryTests extends AbstractPersistenceIT {
     /** The denominator counts every claim of the period, flagged or not, and only follows the branch cut. */
     @Test
     void countClaimsBetween_countsThePeriodWhole_andRespectsTheBranch() {
-        tables.insertCase(1, "2026-09-10T10:00:00Z", PENDING_REVIEW, ROBO_CELULARES, false, null, null);
+        tables.insertCase(1, "2026-09-10T10:00:00Z", PENDING_REVIEW, PHONES_ROBBERY, false, null, null);
         tables.riskBand(1, "CRITICAL");
-        tables.insertCase(2, "2026-09-11T10:00:00Z", PENDING_REVIEW, HURTO_CELULARES, false, null, null);
-        tables.insertCase(3, "2026-09-12T10:00:00Z", PENDING_REVIEW, HURTO_TECNOLOGIA, false, null, null);
-        tables.insertCase(4, "2026-08-20T10:00:00Z", PENDING_REVIEW, ROBO_CELULARES, false, null, null);
+        tables.insertCase(2, "2026-09-11T10:00:00Z", PENDING_REVIEW, PHONES_THEFT, false, null, null);
+        tables.insertCase(3, "2026-09-12T10:00:00Z", PENDING_REVIEW, PORTABLE_TECH_THEFT, false, null, null);
+        tables.insertCase(4, "2026-08-20T10:00:00Z", PENDING_REVIEW, PHONES_ROBBERY, false, null, null);
 
         assertThat(repository.countClaimsBetween(SEPTEMBER_FROM, SEPTEMBER_TO, null)).isEqualTo(3);
-        assertThat(repository.countClaimsBetween(SEPTEMBER_FROM, SEPTEMBER_TO, CELULARES)).isEqualTo(2);
+        assertThat(repository.countClaimsBetween(SEPTEMBER_FROM, SEPTEMBER_TO, PHONES_BRANCH)).isEqualTo(2);
     }
 
     /** No band, no suspicious image — the document factor is the only reason this case is listed. */
     @Test
     void aDocumentContradiction_flagsTheCaseOnItsOwn() {
-        tables.insertCase(1, "2026-09-10T10:00:00Z", PENDING_REVIEW, ROBO_CELULARES, false, null, null);
+        tables.insertCase(1, "2026-09-10T10:00:00Z", PENDING_REVIEW, PHONES_ROBBERY, false, null, null);
         tables.riskAnalysis(1, "La constancia policial está fechada el 2026-09-08, pero el "
                 + "asegurado declaró haber denunciado el 2026-09-09", "2026-09-10T10:05:00Z");
 
@@ -277,7 +277,7 @@ class FlaggedCaseRepositoryTests extends AbstractPersistenceIT {
     /** Only the LATEST scoring run counts, so a case reclassified after fixing its documentation reads clean. */
     @Test
     void onlyTheLatestRiskAnalysisRun_decidesTheSignal() {
-        tables.insertCase(1, "2026-09-10T10:00:00Z", PENDING_REVIEW, ROBO_CELULARES, false, null, null);
+        tables.insertCase(1, "2026-09-10T10:00:00Z", PENDING_REVIEW, PHONES_ROBBERY, false, null, null);
         tables.riskAnalysis(1, "El importe del documento no coincide", "2026-09-10T10:05:00Z");
         tables.riskAnalysis(1, null, "2026-09-12T09:00:00Z");
 
@@ -286,7 +286,7 @@ class FlaggedCaseRepositoryTests extends AbstractPersistenceIT {
 
     @Test
     void findBranchName_answersTheCatalog() {
-        assertThat(repository.findBranchName(CELULARES)).isEqualTo("Celulares");
+        assertThat(repository.findBranchName(PHONES_BRANCH)).isEqualTo("Celulares");
         assertThat(repository.findBranchName(999L)).isNull();
     }
 }

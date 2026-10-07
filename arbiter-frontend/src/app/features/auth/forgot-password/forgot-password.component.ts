@@ -1,4 +1,3 @@
-import { HttpErrorResponse } from '@angular/common/http';
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 
@@ -40,7 +39,7 @@ export class ForgotPasswordComponent {
         this.submitting.set(false);
         this.sent.set(true);
       },
-      error: (_err: HttpErrorResponse) => {
+      error: () => {
         this.submitting.set(false);
         this.errorMessage.set('No se pudo procesar el pedido. Probá de nuevo en unos minutos.');
       },

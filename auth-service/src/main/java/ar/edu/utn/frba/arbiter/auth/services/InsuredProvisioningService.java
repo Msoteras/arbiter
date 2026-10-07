@@ -49,8 +49,8 @@ public class InsuredProvisioningService {
         TenantContext.set(tenantSchema);
         try {
             ProvisioningSummary summary = provision(tenantSchema, insurerId);
-            log.info("[Provisioning] Alta masiva terminada — tenant={} escaneados={} usuarios_creados={} "
-                            + "reusados={} vinculados={} perfiles={} invitados={} omitidos={}",
+            log.info("[Provisioning] Bulk provisioning finished — tenant={} scanned={} usersCreated={} "
+                            + "reused={} linked={} profiles={} invited={} skipped={}",
                     tenantSchema, summary.scanned(), summary.usersCreated(), summary.usersReused(),
                     summary.insurersLinked(), summary.profilesCreated(), summary.invited(),
                     summary.skipped().size());
@@ -75,7 +75,7 @@ public class InsuredProvisioningService {
 
         for (InsuredDirectoryEntry entry : directory) {
             if (entry.email() == null || entry.email().isBlank()) {
-                skipped.add("%s %s (%s): la aseguradora no tiene su email"
+                skipped.add("%s %s (%s): the insurer has no email for them"
                         .formatted(entry.name(), entry.surname(), entry.dni()));
                 continue;
             }
@@ -99,7 +99,7 @@ public class InsuredProvisioningService {
                     if (sendInvite(entry, outcome.inviteToken())) {
                         invited++;
                     } else {
-                        skipped.add("%s (%s): la cuenta quedó creada pero el mail no salió"
+                        skipped.add("%s (%s): account created but the email was not sent"
                                 .formatted(entry.email(), entry.dni()));
                     }
                 }

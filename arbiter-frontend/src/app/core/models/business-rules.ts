@@ -78,7 +78,7 @@ export interface ScoringConfig {
   bands: RiskBandCut[];
 }
 
-export interface RamoRules {
+export interface BranchRules {
   id: string;
   name: string;
   coverages: Coverage[];
@@ -88,7 +88,7 @@ export interface RamoRules {
    */
   coverageCount: number;
   commonExclusions: string[];
-  requiredDocumentsByClaimCause: { [claimCauseId: number]: string[] };
+  requiredDocumentsByClaimCause: Record<number, string[]>;
   businessRules: string[];
   fastTrack: FastTrackConfig;
 }
@@ -135,10 +135,10 @@ export function documentTypeLabel(code: string): string {
 }
 
 /** Backend reasons embed document codes ("…: police_report"); swaps them for their labels. */
-export function conLabelesDeDocumento(reason: string): string {
+export function withDocumentLabels(reason: string): string {
   return DOCUMENT_TYPES.reduce(
     // String.raw: in a plain template literal `\b` is a backspace, not a word boundary.
-    (texto, d) => texto.replace(new RegExp(String.raw`\b${d.code}\b`, 'g'), d.label),
+    (text, d) => text.replace(new RegExp(String.raw`\b${d.code}\b`, 'g'), d.label),
     reason,
   );
 }

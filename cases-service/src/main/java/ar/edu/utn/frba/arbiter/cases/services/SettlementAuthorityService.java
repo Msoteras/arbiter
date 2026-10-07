@@ -6,7 +6,7 @@ import ar.edu.utn.frba.arbiter.cases.models.entities.SettlementAuthority;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.BranchRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.SettlementAuthorityRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.UserRepository;
-import ar.edu.utn.frba.arbiter.common.models.entities.Branch;
+import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Branch;
 import ar.edu.utn.frba.arbiter.common.models.entities.User;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;

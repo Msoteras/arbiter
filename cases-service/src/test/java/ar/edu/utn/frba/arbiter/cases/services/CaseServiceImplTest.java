@@ -605,11 +605,11 @@ class CaseServiceImplTest {
     /** Both are PENDING_ANALYST_REVIEW while the referent signs; only the settlement tells them apart. */
     @Test
     void listCases_tellsApartTheOnesWaitingForTheReferent() {
-        Case despachado = caseRecord(2L, CaseStatus.PENDING_ANALYST_REVIEW);
-        Case pendiente = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
+        Case sentToReferent = caseRecord(2L, CaseStatus.PENDING_ANALYST_REVIEW);
+        Case withAnalyst = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
         Pageable pageable = PageRequest.of(0, 20);
         when(caseRepository.findAll(isNull(Specification.class), eq(pageable)))
-                .thenReturn(new PageImpl<>(List.of(despachado, pendiente), pageable, 2));
+                .thenReturn(new PageImpl<>(List.of(sentToReferent, withAnalyst), pageable, 2));
         when(settlementService.statusesFor(List.of(2L, 1L)))
                 .thenReturn(Map.of(2L, SettlementStatus.PENDING_AUTHORIZATION));
 

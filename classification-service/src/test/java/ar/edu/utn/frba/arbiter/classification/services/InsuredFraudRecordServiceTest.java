@@ -106,10 +106,10 @@ class InsuredFraudRecordServiceTest {
     void withNoRuleConfiguredTheDefaultWindowApplies() {
         when(rulesAdapter.getFraudRecordPolicy())
                 .thenReturn(BusinessRules.FraudRecordPolicy.unconfigured());
-        InsuredFraudRecord viejo = record(FraudRecordSource.EXPERT_BACKED, 5L);
-        viejo.setDeclaredAt(Instant.now().minus(
+        InsuredFraudRecord oldRecord = record(FraudRecordSource.EXPERT_BACKED, 5L);
+        oldRecord.setDeclaredAt(Instant.now().minus(
                 31L * (BusinessRules.FraudRecordPolicy.DEFAULT_WINDOW_MONTHS + 1), ChronoUnit.DAYS));
-        when(repository.findByInsuredDniOrderByDeclaredAtDesc(DNI)).thenReturn(List.of(viejo));
+        when(repository.findByInsuredDniOrderByDeclaredAtDesc(DNI)).thenReturn(List.of(oldRecord));
 
         assertThat(service.findByInsured(DNI)).singleElement()
                 .satisfies(response -> {
