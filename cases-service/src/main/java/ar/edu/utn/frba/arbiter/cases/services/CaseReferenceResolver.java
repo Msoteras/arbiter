@@ -8,8 +8,8 @@ import ar.edu.utn.frba.arbiter.cases.models.repositories.BranchRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.ClaimCauseRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.InsuredRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.PolicyRepository;
-import ar.edu.utn.frba.arbiter.common.models.entities.Branch;
-import ar.edu.utn.frba.arbiter.common.models.entities.ClaimCause;
+import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Branch;
+import ar.edu.utn.frba.arbiter.common.models.entities.tenant.ClaimCause;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 

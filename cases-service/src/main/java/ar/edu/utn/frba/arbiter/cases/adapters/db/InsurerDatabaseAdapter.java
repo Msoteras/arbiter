@@ -5,6 +5,7 @@ import ar.edu.utn.frba.arbiter.cases.adapters.db.CallerInsurerDatabases.InsurerD
 import ar.edu.utn.frba.arbiter.cases.dto.PolicyResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.PolicyResponse.Coverage;
 import ar.edu.utn.frba.arbiter.cases.dto.PolicyResponse.Validity;
+import ar.edu.utn.frba.arbiter.common.tenant.InsurerBranchNames;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Primary;
 import org.springframework.context.annotation.Profile;
@@ -52,7 +53,7 @@ public class InsurerDatabaseAdapter implements InsurerAdapter {
                             policyNumber)
                     .stream()
                     .findFirst()
-                    .map(row -> toResponse(row, database, LocalDateTime.now()));
+                    .map(row -> toResponse(row, database, branchNames(database), LocalDateTime.now()));
             if (found.isPresent()) {
                 return found;
             }
@@ -71,10 +72,11 @@ public class InsurerDatabaseAdapter implements InsurerAdapter {
         LocalDateTime now = LocalDateTime.now();
         List<PolicyResponse> policies = new ArrayList<>();
         for (InsurerDatabase database : insurerDatabases.forCaller()) {
+            InsurerBranchNames branchNames = branchNames(database);
             jdbc.query(POLICY_SELECT.formatted(database.schema()) + " WHERE a.documento = ?",
                             this::mapRow,
                             insuredId)
-                    .forEach(row -> policies.add(toResponse(row, database, now)));
+                    .forEach(row -> policies.add(toResponse(row, database, branchNames, now)));
         }
         return policies.stream()
                 .filter(p -> includeExpired || p.validity() != Validity.EXPIRED)
@@ -85,7 +87,12 @@ public class InsurerDatabaseAdapter implements InsurerAdapter {
                 .toList();
     }
 
-    private PolicyResponse toResponse(PolicyRow row, InsurerDatabase database, LocalDateTime now) {
+    private InsurerBranchNames branchNames(InsurerDatabase database) {
+        return InsurerBranchNames.load(jdbc, database.tenantSchema());
+    }
+
+    private PolicyResponse toResponse(PolicyRow row, InsurerDatabase database, InsurerBranchNames branchNames,
+                                      LocalDateTime now) {
         List<Coverage> coverages = jdbc.query(
                 """
                 SELECT orden, nombre, suma_asegurada, franquicia_pct
@@ -117,7 +124,8 @@ public class InsurerDatabaseAdapter implements InsurerAdapter {
                 .insuredId(row.documento())
                 .contactEmail(row.email())
                 .contactPhone(row.telefono())
-                .branch(row.rama())
+                // The insurer's own name for the line: the wizard and the filing resolve the branch by it.
+                .branch(branchNames.nameOf(row.rama()))
                 .insuredItem(row.bienAsegurado())
                 .product(row.producto())
                 .effectiveFrom(row.vigenciaDesde())

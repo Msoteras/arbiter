@@ -12,7 +12,7 @@ import ar.edu.utn.frba.arbiter.common.dto.ImageForensicReport;
 import ar.edu.utn.frba.arbiter.classification.dto.*;
 import ar.edu.utn.frba.arbiter.classification.models.entities.DocumentAnalysis;
 import ar.edu.utn.frba.arbiter.classification.models.entities.InsuredFraudRecord;
-import ar.edu.utn.frba.arbiter.common.models.entities.ClaimCause;
+import ar.edu.utn.frba.arbiter.common.models.entities.tenant.ClaimCause;
 import ar.edu.utn.frba.arbiter.classification.models.repositories.ClaimCauseRepository;
 import ar.edu.utn.frba.arbiter.classification.models.repositories.DocumentAnalysisRepository;
 import ar.edu.utn.frba.arbiter.classification.models.repositories.InsuredFraudRecordRepository;

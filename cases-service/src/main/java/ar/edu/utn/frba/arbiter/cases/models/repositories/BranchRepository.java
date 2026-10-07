@@ -1,6 +1,6 @@
 package ar.edu.utn.frba.arbiter.cases.models.repositories;
 
-import ar.edu.utn.frba.arbiter.common.models.entities.Branch;
+import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Branch;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 

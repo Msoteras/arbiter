@@ -17,7 +17,7 @@ contra el script: la base real diverge del script en dos puntos importantes, mar
 | Asegurado (mora) | **Julián Pérez**, DNI `30.555.777` — login `asegurado2.arbiter@gmail.com` | `arbiter_provincia.insured` id 2 |
 | Póliza (mora) | **`POL-CEL-2026-905`**, vigencia 01/02/2026 → 01/02/2027, `SUSPENDIDA`, 2 cuotas impagas ($18.200) | `aseguradora_provincia.poliza` id 5 |
 | Cobertura | `coverage` id **1** = "Robo de celular", suma asegurada varía por póliza ($700.000 en la de Martina), carencia **30 días**, plazo denuncia policial 72 hs, tope 2 eventos/año | `arbiter_provincia.coverage` |
-| Ramo / hecho generador | Celulares (`branch` **1**) / "Robo en vía pública" (`claim_cause` **2**) — mismos ids que en BBVA, es catálogo global | `arbiter_common` |
+| Ramo / hecho generador | Celulares (`branch` **1**) / "Robo en vía pública" (`claim_cause` **2**) — mismos ids que en BBVA porque cada aseguradora arranca del mismo catálogo, pero son filas propias | `arbiter_provincia` |
 | Reglas duras por cobertura (cobertura 1) | `insurer_rule` **6** (WAITING_PERIOD), **7** (REPORT_DEADLINE), **8** (POLICE_DEADLINE, `{"deadlineHours":72}`), **9** (MAX_EVENTS_YEAR) — todas activas | ids **distintos** de BBVA (ahí eran 5-8) |
 | Reglas duras, toda la aseguradora | `insurer_rule` **14** `POLICY_IN_FORCE` (activa) + **15** `POLICY_STANDING` (**activa, `onArrears: REJECT`**) | ver §0.2 |
 | Referente | `referente.provincia.arbiter@gmail.com` | `arbiter_common.users` id 6 |
