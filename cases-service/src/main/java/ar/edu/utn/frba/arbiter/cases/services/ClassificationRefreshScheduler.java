@@ -156,6 +156,12 @@ public class ClassificationRefreshScheduler {
         if (failed.isEmpty()) {
             return;
         }
+        // Otherwise each sweep during an outage bounces every case to pending and back, two history rows each.
+        if (!claimsAnalysisClient.isReachable()) {
+            log.info("classification-service still unreachable; {} case(s) in {} wait for the next sweep",
+                    failed.size(), TenantContext.get());
+            return;
+        }
         log.info("Requeuing {} CLASSIFICATION_FAILED case(s) in {} after an infrastructure failure",
                 failed.size(), TenantContext.get());
         for (Case caseRecord : failed) {

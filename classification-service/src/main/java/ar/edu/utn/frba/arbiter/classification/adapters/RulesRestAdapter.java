@@ -3,9 +3,11 @@ package ar.edu.utn.frba.arbiter.classification.adapters;
 import ar.edu.utn.frba.arbiter.classification.config.tenant.TenantContext;
 import ar.edu.utn.frba.arbiter.classification.dto.BusinessRules;
 import ar.edu.utn.frba.arbiter.common.enums.RiskBand;
+import ar.edu.utn.frba.arbiter.common.http.ConnectionRetryInterceptor;
 import ar.edu.utn.frba.arbiter.common.security.JwtSupport;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Primary;
 import org.springframework.context.annotation.Profile;
@@ -43,14 +45,24 @@ public class RulesRestAdapter implements RulesAdapter {
     private final SecretKey jwtKey;
     private final BaselineRulesAdapter defaults;
 
+    @Autowired
     public RulesRestAdapter(
             @Value("${arbiter.rules-service.url:http://localhost:8081}") String rulesServiceUrl,
             @Value("${arbiter.auth.jwt.secret}") String jwtSecret,
             BaselineRulesAdapter defaults) {
+        this(rulesServiceUrl, jwtSecret, defaults, ConnectionRetryInterceptor.forBootingModule());
+    }
+
+    RulesRestAdapter(String rulesServiceUrl, String jwtSecret, BaselineRulesAdapter defaults,
+                     ConnectionRetryInterceptor connectionRetry) {
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
         factory.setConnectTimeout(Duration.ofSeconds(2));
         factory.setReadTimeout(Duration.ofSeconds(3));
-        this.restClient = RestClient.builder().baseUrl(rulesServiceUrl).requestFactory(factory).build();
+        this.restClient = RestClient.builder()
+                .baseUrl(rulesServiceUrl)
+                .requestFactory(factory)
+                .requestInterceptor(connectionRetry)
+                .build();
         this.jwtKey = JwtSupport.key(jwtSecret);
         this.defaults = defaults;
     }

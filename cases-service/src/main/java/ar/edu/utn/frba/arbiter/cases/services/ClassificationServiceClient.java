@@ -17,6 +17,8 @@ import ar.edu.utn.frba.arbiter.common.dto.PriorClaim;
 import ar.edu.utn.frba.arbiter.common.dto.RuleResultResponse;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 import ar.edu.utn.frba.arbiter.common.enums.Classification;
+import ar.edu.utn.frba.arbiter.common.enums.ClassificationFailureReason;
+import ar.edu.utn.frba.arbiter.common.http.ConnectionRetryInterceptor;
 import ar.edu.utn.frba.arbiter.common.security.JwtSupport;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
@@ -29,11 +31,14 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
+import org.springframework.web.client.HttpServerErrorException;
+import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
 
 import javax.crypto.SecretKey;
+import java.net.URI;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -48,6 +53,13 @@ public class ClassificationServiceClient implements ClaimsAnalysisClient {
     private static final Logger log = LoggerFactory.getLogger(ClassificationServiceClient.class);
 
     private final RestClient restClient;
+    /**
+     * Claims carry up to 30 MB of attachments: through the retry interceptor the body would be held
+     * in memory once more, so the upload streams and the whole call is retried instead.
+     */
+    private final RestClient uploadClient;
+    private final ConnectionRetryInterceptor connectionRetry;
+    private final String uploadTarget;
     private final CaseStatusService caseStatusService;
     private final CaseRepository caseRepository;
     private final CaseStatusHistoryRepository caseStatusHistoryRepository;
@@ -56,6 +68,7 @@ public class ClassificationServiceClient implements ClaimsAnalysisClient {
 
     public ClassificationServiceClient(
             RestClient.Builder restClientBuilder,
+            ConnectionRetryInterceptor connectionRetry,
             CaseStatusService caseStatusService,
             CaseRepository caseRepository,
             CaseStatusHistoryRepository caseStatusHistoryRepository,
@@ -64,6 +77,12 @@ public class ClassificationServiceClient implements ClaimsAnalysisClient {
             @Value("${arbiter.auth.jwt.secret}") String jwtSecret
     ) {
         this.restClient = restClientBuilder.baseUrl(classificationServiceUrl).build();
+        this.uploadClient = restClientBuilder.clone()
+                .requestInterceptors(List::clear)
+                .baseUrl(classificationServiceUrl)
+                .build();
+        this.connectionRetry = connectionRetry;
+        this.uploadTarget = "POST " + URI.create(classificationServiceUrl).getAuthority();
         this.caseStatusService = caseStatusService;
         this.caseRepository = caseRepository;
         this.caseStatusHistoryRepository = caseStatusHistoryRepository;
@@ -90,8 +109,7 @@ public class ClassificationServiceClient implements ClaimsAnalysisClient {
 
     @Override
     public AnalysisResult analyzeAndPersist(Case caseRecord, List<CaseDocument> documents) {
-        postClassify(caseRecord, documents, authorizationHeaderForCurrentTenant());
-        return new AnalysisResult(null, 0.0, "Classification in progress");
+        return enqueue(caseRecord, documents, authorizationHeaderForCurrentTenant());
     }
 
     /**
@@ -102,8 +120,34 @@ public class ClassificationServiceClient implements ClaimsAnalysisClient {
     public AnalysisResult analyzeAndPersistAsSystem(Case caseRecord, List<CaseDocument> documents) {
         String serviceToken = JwtSupport.issueServiceToken(
                 jwtKey, "cases-service-recovery", TenantContext.get());
-        postClassify(caseRecord, documents, "Bearer " + serviceToken);
-        return new AnalysisResult(null, 0.0, "Classification in progress");
+        return enqueue(caseRecord, documents, "Bearer " + serviceToken);
+    }
+
+    /** The case is already saved: failing the request would invite the insured to file it again. */
+    private AnalysisResult enqueue(Case caseRecord, List<CaseDocument> documents, String authorizationHeader) {
+        try {
+            postClassify(caseRecord, documents, authorizationHeader);
+            return new AnalysisResult(null, 0.0, "Classification in progress");
+        } catch (ResourceAccessException | HttpServerErrorException e) {
+            log.error("Could not enqueue the classification of case {}; leaving it to the recovery sweep: {}",
+                    caseRecord.getId(), e.getMessage());
+            caseRecord.setClassificationFailureReason(ClassificationFailureReason.INFRASTRUCTURE);
+            caseRecord.setClassificationFailureMessage(e.getMessage());
+            caseStatusService.transition(caseRecord, CaseStatus.CLASSIFICATION_FAILED, StatusChangeActor.SYSTEM,
+                    "no se pudo iniciar la clasificación por una falla de infraestructura");
+            return new AnalysisResult(null, 0.0, "Classification left to the recovery sweep");
+        }
+    }
+
+    @Override
+    public boolean isReachable() {
+        try {
+            restClient.get().uri("/actuator/health").retrieve().toBodilessEntity();
+            return true;
+        } catch (RestClientException e) {
+            log.warn("classification-service is unreachable: {}", e.getMessage());
+            return false;
+        }
     }
 
     /**
@@ -162,13 +206,13 @@ public class ClassificationServiceClient implements ClaimsAnalysisClient {
         body.add("documentIds", documents.stream()
                 .collect(Collectors.toMap(CaseDocument::getType, CaseDocument::getId)));
 
-        restClient.post()
+        connectionRetry.call(uploadTarget, () -> uploadClient.post()
                 .uri("/api/v1/claims")
                 .header(HttpHeaders.AUTHORIZATION, authorizationHeader)
                 .contentType(MediaType.MULTIPART_FORM_DATA)
                 .body(body)
                 .retrieve()
-                .toBodilessEntity();
+                .toBodilessEntity());
     }
 
     private ByteArrayResource toResource(CaseDocument document) {

@@ -68,6 +68,7 @@ class ClassificationRefreshSchedulerTest {
         // Same for the recovery sweep's CAS.
         lenient().when(caseRepository.claimFailedCaseForRequeue(anyLong(), any()))
                 .thenReturn(1);
+        lenient().when(claimsAnalysisClient.isReachable()).thenReturn(true);
         setMaxAttempts(3);
     }
 
@@ -300,6 +301,20 @@ class ClassificationRefreshSchedulerTest {
         verify(claimsAnalysisClient).analyzeAndPersistAsSystem(entity, List.of());
     }
 
+    @Test
+    void recoverInfrastructureFailures_classificationStillUnreachable_leavesTheCasesForTheNextSweep() {
+        Case entity = failedCase(3, ClassificationFailureReason.INFRASTRUCTURE);
+        when(caseRepository.findFailedByReason(ClassificationFailureReason.INFRASTRUCTURE))
+                .thenReturn(List.of(entity));
+        when(claimsAnalysisClient.isReachable()).thenReturn(false);
+
+        scheduler.recoverInfrastructureFailures();
+
+        verify(caseRepository, never()).claimFailedCaseForRequeue(anyLong(), any());
+        verify(caseStatusService, never()).transition(any(), any(), any(), any());
+        verify(claimsAnalysisClient, never()).analyzeAndPersistAsSystem(any(), any());
+    }
+
     /**
      * Same as {@link #anotherSweepAlreadyAdvancedTheCase_doesNotTransitionAgain} for the recovery
      * sweep: the one that loses the CAS must not requeue, or two classifications go out.
@@ -315,7 +330,7 @@ class ClassificationRefreshSchedulerTest {
         scheduler.recoverInfrastructureFailures();
 
         verify(caseStatusService, never()).transition(any(), any(), any(), any());
-        verifyNoInteractions(claimsAnalysisClient);
+        verify(claimsAnalysisClient, never()).analyzeAndPersistAsSystem(any(), any());
         // Not even re-read: losing the turn stops before touching the database again.
         verify(caseRepository, never()).findById(any());
     }
@@ -337,7 +352,7 @@ class ClassificationRefreshSchedulerTest {
         scheduler.recoverInfrastructureFailures();
 
         verify(caseStatusService, never()).transition(any(), any(), any(), any());
-        verifyNoInteractions(claimsAnalysisClient);
+        verify(claimsAnalysisClient, never()).analyzeAndPersistAsSystem(any(), any());
     }
 
     @Test

@@ -13,6 +13,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.PlatformTransactionManager;
 
 import java.math.BigDecimal;
 import java.util.Collections;
@@ -33,6 +34,9 @@ class ImageEmbeddingServiceTest {
 
     @Mock
     private EmbeddingProperties properties;
+
+    @Mock
+    private PlatformTransactionManager transactionManager;
 
     @InjectMocks
     private ImageEmbeddingService service;
