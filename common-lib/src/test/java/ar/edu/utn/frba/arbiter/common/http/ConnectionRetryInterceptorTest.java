@@ -14,6 +14,7 @@ import java.net.ConnectException;
 import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
 import java.time.Duration;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -103,6 +104,34 @@ class ConnectionRetryInterceptorTest {
         assertThatThrownBy(() -> client.post().uri(URL).body("payload").retrieve().toBodilessEntity())
                 .isInstanceOf(HttpServerErrorException.class);
         server.verify();
+    }
+
+    @Test
+    void call_retriesAWholeCallThatCouldNotConnect() {
+        ConnectionRetryInterceptor retry = new ConnectionRetryInterceptor(MAX_RETRIES, Duration.ofMillis(1), Duration.ofMillis(2));
+        AtomicInteger attempts = new AtomicInteger();
+
+        String result = retry.call("cases-service:8083", () -> {
+            if (attempts.incrementAndGet() < 3) {
+                throw new ResourceAccessException("I/O error", new ConnectException("Connection refused"));
+            }
+            return "ok";
+        });
+
+        assertThat(result).isEqualTo("ok");
+        assertThat(attempts).hasValue(3);
+    }
+
+    @Test
+    void call_doesNotRetryAnErrorResponse() {
+        ConnectionRetryInterceptor retry = new ConnectionRetryInterceptor(MAX_RETRIES, Duration.ofMillis(1), Duration.ofMillis(2));
+        AtomicInteger attempts = new AtomicInteger();
+
+        assertThatThrownBy(() -> retry.call("cases-service:8083", () -> {
+            attempts.incrementAndGet();
+            throw HttpServerErrorException.create(HttpStatus.SERVICE_UNAVAILABLE, "", null, null, null);
+        })).isInstanceOf(HttpServerErrorException.class);
+        assertThat(attempts).hasValue(1);
     }
 
     @Test

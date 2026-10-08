@@ -12,6 +12,7 @@ import ar.edu.utn.frba.arbiter.cases.support.CaseStates;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 import ar.edu.utn.frba.arbiter.common.enums.Classification;
 import ar.edu.utn.frba.arbiter.common.enums.ClassificationFailureReason;
+import ar.edu.utn.frba.arbiter.common.http.ConnectionRetryInterceptor;
 import ar.edu.utn.frba.arbiter.common.security.JwtSupport;
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.BeforeEach;
@@ -21,12 +22,14 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.test.web.client.ExpectedCount;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
 
 import java.math.BigDecimal;
 import java.net.ConnectException;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
@@ -79,7 +82,8 @@ class ClassificationServiceClientTest {
     void setUp() {
         RestClient.Builder builder = RestClient.builder();
         server = MockRestServiceServer.bindTo(builder).build();
-        client = new ClassificationServiceClient(builder, caseStatusService, caseRepository,
+        client = new ClassificationServiceClient(builder,
+                new ConnectionRetryInterceptor(1, Duration.ofMillis(1), Duration.ofMillis(1)), caseStatusService, caseRepository,
                 caseStatusHistoryRepository, BASE_URL, currentRequest, JWT_SECRET);
     }
 
@@ -368,7 +372,7 @@ class ClassificationServiceClientTest {
     void analyzeAndPersist_whenClassificationCantBeReached_leavesTheCaseToTheRecoverySweep() {
         when(currentRequest.getHeader(HttpHeaders.AUTHORIZATION)).thenReturn("Bearer user-token");
         Case entity = pendingCase(11L);
-        server.expect(requestTo(BASE_URL + "/api/v1/claims"))
+        server.expect(ExpectedCount.times(2), requestTo(BASE_URL + "/api/v1/claims"))
                 .andRespond(withException(new ConnectException("Connection refused")));
 
         client.analyzeAndPersist(entity, List.<CaseDocument>of());
@@ -376,6 +380,20 @@ class ClassificationServiceClientTest {
         assertThat(entity.getClassificationFailureReason()).isEqualTo(ClassificationFailureReason.INFRASTRUCTURE);
         verify(caseStatusService).transition(eq(entity), eq(CaseStatus.CLASSIFICATION_FAILED),
                 eq(StatusChangeActor.SYSTEM), any());
+    }
+
+    @Test
+    void analyzeAndPersist_whenClassificationIsStillBooting_resendsTheClaim() {
+        when(currentRequest.getHeader(HttpHeaders.AUTHORIZATION)).thenReturn("Bearer user-token");
+        Case entity = pendingCase(14L);
+        server.expect(requestTo(BASE_URL + "/api/v1/claims"))
+                .andRespond(withException(new ConnectException("Connection refused")));
+        server.expect(requestTo(BASE_URL + "/api/v1/claims")).andExpect(method(POST)).andRespond(withSuccess());
+
+        client.analyzeAndPersist(entity, List.<CaseDocument>of());
+
+        server.verify();
+        verify(caseStatusService, never()).transition(any(), any(), any(), any());
     }
 
     @Test

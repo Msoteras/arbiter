@@ -395,6 +395,10 @@ Cómo lo tolera cada tramo:
   incluido, no se reintenta nunca: el pedido ya llegó y repetirlo podría correr un POST dos veces.
   Lo usan todas las llamadas de `cases-service` a classification y rules, las de `reports-service` y
   `classification-service` a rules, y `classification-service` → `clip-embedding` (este con ~54 s).
+  El envío de la denuncia a classification (hasta 30 MB de adjuntos) no pasa por el interceptor,
+  que guardaría el cuerpo entero en memoria para poder reenviarlo: se manda de a partes y se
+  reintenta la llamada completa (`call`). Con el `-Xmx384m` de cases, esa copia de más es la
+  diferencia entre que dos denuncias grandes a la vez entren o no.
 - **Si classification no toma una denuncia** ni con los reintentos, el expediente queda en
   `CLASSIFICATION_FAILED` con motivo `INFRASTRUCTURE` y el barrido de recuperación lo reencola. El
   usuario no ve un error, así no la vuelve a cargar.

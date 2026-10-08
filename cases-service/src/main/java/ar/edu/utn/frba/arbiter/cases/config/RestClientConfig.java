@@ -15,12 +15,17 @@ public class RestClientConfig {
     private static final Duration READ_TIMEOUT = Duration.ofSeconds(30);
 
     @Bean
-    public RestClient.Builder restClientBuilder() {
+    public ConnectionRetryInterceptor connectionRetry() {
+        return ConnectionRetryInterceptor.forBootingModule();
+    }
+
+    @Bean
+    public RestClient.Builder restClientBuilder(ConnectionRetryInterceptor connectionRetry) {
         SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
         requestFactory.setConnectTimeout(CONNECT_TIMEOUT);
         requestFactory.setReadTimeout(READ_TIMEOUT);
         return RestClient.builder()
                 .requestFactory(requestFactory)
-                .requestInterceptor(ConnectionRetryInterceptor.forBootingModule());
+                .requestInterceptor(connectionRetry);
     }
 }

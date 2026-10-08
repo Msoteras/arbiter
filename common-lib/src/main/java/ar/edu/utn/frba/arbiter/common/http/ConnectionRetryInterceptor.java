@@ -20,6 +20,7 @@ import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
 import java.net.http.HttpConnectTimeoutException;
 import java.time.Duration;
+import java.util.function.Supplier;
 
 /**
  * On Railway's private network a sleeping service refuses connections until it has booted. Only
@@ -79,6 +80,36 @@ public class ConnectionRetryInterceptor implements ClientHttpRequestInterceptor 
                 throw runtime;
             }
             throw new IOException(last);
+        }
+    }
+
+    /**
+     * The same retry around a whole call, for a body too large to buffer: as an interceptor the
+     * request is held in memory once more so it can be resent.
+     *
+     * @param target host and port only, for the log
+     */
+    public <T> T call(String target, Supplier<T> action) {
+        try {
+            return retryTemplate.execute(new Retryable<>() {
+                @Override
+                public T execute() {
+                    return action.get();
+                }
+
+                @Override
+                public String getName() {
+                    return target;
+                }
+            });
+        } catch (RetryException e) {
+            if (e.getCause() instanceof RuntimeException runtime) {
+                throw runtime;
+            }
+            if (e.getCause() instanceof Error error) {
+                throw error;
+            }
+            throw new IllegalStateException(e.getCause());
         }
     }
 
