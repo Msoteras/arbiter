@@ -6,6 +6,7 @@ import { Observable } from 'rxjs';
 
 import { classificationLabel, classificationTone } from '../../../core/models/classification';
 import { caseStatusLabel, caseStatusTone } from '../../../core/models/case-status';
+import { comparisonReference } from '../../../core/models/comparison';
 import { StatusTone } from '../../../core/models/status-tone';
 import { bucketLabel, formatDate, formatDateTime } from '../../../core/util/datetime';
 import { staggerReveal } from '../../../shared/animations';
@@ -114,11 +115,14 @@ export class ResolutionReportComponent extends ReportTab<
     if (!current) {
       return '';
     }
-    const { summary, previousSummary } = current;
+    const { summary, comparisonSummary } = current;
+    const reference = comparisonReference(current.comparison.mode);
     const lapsed = summary.totalCases - summary.decidedCases;
     // Only mention lapsed cases when there are some: "0 caducados" is noise.
     const detail = lapsed === 0 ? '' : `${summary.decidedCases} decididos · ${lapsed} caducados`;
-    return [resolvedTrend(summary, previousSummary), detail].filter(Boolean).join(' · ');
+    return [resolvedTrend(summary, comparisonSummary, reference), detail]
+      .filter(Boolean)
+      .join(' · ');
   });
 
   protected readonly fastTrackSub = computed(() => {
@@ -126,9 +130,12 @@ export class ResolutionReportComponent extends ReportTab<
     if (!current) {
       return '';
     }
-    const { summary, previousSummary } = current;
+    const { summary, comparisonSummary } = current;
+    const reference = comparisonReference(current.comparison.mode);
     const detail = `${summary.fastTrackCases} de ${summary.totalCases}`;
-    return [detail, fastTrackTrend(summary, previousSummary)].filter(Boolean).join(' · ');
+    return [detail, fastTrackTrend(summary, comparisonSummary, reference)]
+      .filter(Boolean)
+      .join(' · ');
   });
 
   protected readonly resolutionTimeSub = computed(() => {
@@ -136,8 +143,9 @@ export class ResolutionReportComponent extends ReportTab<
     if (!current) {
       return '';
     }
-    const { summary, previousSummary } = current;
-    return [resolutionTimeTrend(summary, previousSummary), waitingBreakdown(summary)]
+    const { summary, comparisonSummary } = current;
+    const reference = comparisonReference(current.comparison.mode);
+    return [resolutionTimeTrend(summary, comparisonSummary, reference), waitingBreakdown(summary)]
       .filter(Boolean)
       .join(' · ');
   });
@@ -301,6 +309,7 @@ export class ResolutionReportComponent extends ReportTab<
       to: this.filters.to(),
       branchId: this.filters.branchId(),
       claimCause: this.claimCause(),
+      comparison: this.filters.comparison(),
     };
   }
 }

@@ -40,6 +40,27 @@ describe('trendText', () => {
     );
   });
 
+  it('names what it compares against when the caller says so', () => {
+    expect(
+      trendText({
+        current: 12,
+        previous: 10,
+        format: count,
+        good: 'down',
+        reference: 'un año antes',
+      }),
+    ).toBe('▲ 2 peor que un año antes');
+    expect(
+      trendText({
+        current: 12,
+        previous: 10,
+        format: count,
+        good: 'neither',
+        reference: 'el período comparado',
+      }),
+    ).toBe('▲ 2 vs. el período comparado');
+  });
+
   it('says nothing when there is no previous figure or the change is flat', () => {
     expect(trendText({ current: 10, previous: null, format: count, good: 'up' })).toBe('');
     expect(trendText({ current: 10, previous: 10, format: count, good: 'up' })).toBe('');

@@ -2,12 +2,14 @@ package ar.edu.utn.frba.arbiter.reports.services;
 
 import ar.edu.utn.frba.arbiter.common.enums.RiskBand;
 import ar.edu.utn.frba.arbiter.reports.config.tenant.TenantContext;
+import ar.edu.utn.frba.arbiter.reports.dto.ComparisonRequest;
 import ar.edu.utn.frba.arbiter.reports.dto.ExportedReport;
 import ar.edu.utn.frba.arbiter.reports.dto.FraudReport;
 import ar.edu.utn.frba.arbiter.reports.dto.FraudReportRow;
 import ar.edu.utn.frba.arbiter.reports.dto.FraudSummary;
+import ar.edu.utn.frba.arbiter.reports.dto.ReportComparison;
 import ar.edu.utn.frba.arbiter.reports.dto.ReportFormat;
-import ar.edu.utn.frba.arbiter.reports.exceptions.InvalidReportPeriodException;
+import ar.edu.utn.frba.arbiter.reports.dto.ReportPeriod;
 import ar.edu.utn.frba.arbiter.reports.exceptions.TenantNotResolvedException;
 import ar.edu.utn.frba.arbiter.reports.exceptions.UnknownBranchException;
 import ar.edu.utn.frba.arbiter.reports.models.repositories.FlaggedCaseRepository;
@@ -19,7 +21,6 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
-import java.time.temporal.ChronoUnit;
 import java.util.List;
 
 /**
@@ -30,50 +31,55 @@ import java.util.List;
 @RequiredArgsConstructor
 public class FraudReportService {
 
-    /** Not a business rule: a guard on how many cases one request can pull into memory. */
-    static final int MAX_PERIOD_DAYS = 366;
-
     private final FlaggedCaseRepository flaggedCaseRepository;
+    private final DailyMetricsService dailyMetricsService;
+    private final ReportPeriods reportPeriods;
     private final List<FraudReportExporter> exporters;
     private final Clock clock;
 
-    public FraudReport generate(LocalDate from, LocalDate to, Long branchId, RiskBand riskBand) {
+    public FraudReport generate(LocalDate from, LocalDate to, Long branchId, RiskBand riskBand,
+                                ComparisonRequest comparisonRequest) {
         if (!TenantContext.isResolved()) {
             throw new TenantNotResolvedException();
         }
-        validatePeriod(from, to);
+        ReportPeriod period = reportPeriods.main(from, to);
+        ReportComparison comparison = reportPeriods.comparison(period, comparisonRequest);
         String branch = branchName(branchId);
 
-        // Whole calendar days in the insurer's time zone, both ends included: the upper bound is the
-        // next midnight, exclusive.
-        ZoneId zone = clock.getZone();
-        Instant start = from.atStartOfDay(zone).toInstant();
-        Instant end = to.plusDays(1).atStartOfDay(zone).toInstant();
-
-        List<FraudReportRow> rows = flaggedCaseRepository.findFlaggedBetween(start, end, branchId, riskBand);
-        long totalClaims = flaggedCaseRepository.countClaimsBetween(start, end, branchId);
+        List<FraudReportRow> rows = flaggedIn(period, branchId, riskBand);
 
         return new FraudReport(from, to, branch, riskBand, clock.instant(),
-                FraudSummaries.of(rows, totalClaims),
-                previousSummary(from, to, zone, branchId, riskBand), rows);
-    }
-
-    private FraudSummary previousSummary(LocalDate from, LocalDate to, ZoneId zone, Long branchId,
-                                         RiskBand riskBand) {
-        PreviousPeriod previous = PreviousPeriod.immediatelyBefore(from, to);
-        Instant start = previous.from().atStartOfDay(zone).toInstant();
-        Instant end = previous.to().plusDays(1).atStartOfDay(zone).toInstant();
-        List<FraudReportRow> rows = flaggedCaseRepository.findFlaggedBetween(start, end, branchId, riskBand);
-        long totalClaims = flaggedCaseRepository.countClaimsBetween(start, end, branchId);
-        return FraudSummaries.of(rows, totalClaims);
+                summary(period, rows, branchId),
+                comparison,
+                summary(comparison.period(), flaggedIn(comparison.period(), branchId, riskBand), branchId),
+                rows);
     }
 
     public ExportedReport export(LocalDate from, LocalDate to, Long branchId, RiskBand riskBand,
-                                 ReportFormat format) {
-        FraudReport report = generate(from, to, branchId, riskBand);
+                                 ComparisonRequest comparisonRequest, ReportFormat format) {
+        FraudReport report = generate(from, to, branchId, riskBand, comparisonRequest);
         byte[] content = exporterFor(format).export(report);
         String filename = "fraude_%s_%s.%s".formatted(from, to, format.extension());
         return new ExportedReport(filename, format, content);
+    }
+
+    /**
+     * Always the cases themselves, closed period or not: signals follow the latest analysis and fraud
+     * is determined months later, so neither can be stored per day.
+     */
+    private List<FraudReportRow> flaggedIn(ReportPeriod period, Long branchId, RiskBand riskBand) {
+        ZoneId zone = clock.getZone();
+        return flaggedCaseRepository.findFlaggedBetween(period.start(zone), period.end(zone), branchId, riskBand);
+    }
+
+    /** Only the denominator is stored for a closed period. */
+    private FraudSummary summary(ReportPeriod period, List<FraudReportRow> rows, Long branchId) {
+        ZoneId zone = clock.getZone();
+        Instant start = period.start(zone);
+        Instant end = period.end(zone);
+        long totalClaims = dailyMetricsService.reportedClaims(period, branchId)
+                .orElseGet(() -> flaggedCaseRepository.countClaimsBetween(start, end, branchId));
+        return FraudSummaries.of(rows, totalClaims);
     }
 
     /**
@@ -96,15 +102,5 @@ public class FraudReportService {
                 .filter(exporter -> exporter.format() == format)
                 .findFirst()
                 .orElseThrow(() -> new IllegalStateException("No exporter registered for " + format));
-    }
-
-    private static void validatePeriod(LocalDate from, LocalDate to) {
-        if (from.isAfter(to)) {
-            throw new InvalidReportPeriodException("'from' (%s) is after 'to' (%s)".formatted(from, to));
-        }
-        if (ChronoUnit.DAYS.between(from, to) + 1 > MAX_PERIOD_DAYS) {
-            throw new InvalidReportPeriodException(
-                    "The period can't be longer than %d days".formatted(MAX_PERIOD_DAYS));
-        }
     }
 }

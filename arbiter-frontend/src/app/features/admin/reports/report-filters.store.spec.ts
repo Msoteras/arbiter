@@ -69,4 +69,58 @@ describe('ReportFiltersStore', () => {
 
     expect(Object.keys(store.asQueryParams())).toEqual(['from', 'to']);
   });
+
+  it('compares against the previous period unless told otherwise, and keeps that out of the URL', () => {
+    const store = setup(() => of([]));
+
+    expect(store.comparison().mode).toBe('PREVIOUS_PERIOD');
+    expect(Object.keys(store.asQueryParams())).toEqual(['from', 'to']);
+  });
+
+  it('carries the chosen comparison in the URL, with its dates only when they were typed', () => {
+    const store = setup(() => of([]));
+
+    store.setComparisonMode('SAME_PERIOD_LAST_YEAR');
+    expect(store.asQueryParams()).toEqual(
+      jasmine.objectContaining({ compare: 'SAME_PERIOD_LAST_YEAR' }),
+    );
+    expect(store.asQueryParams()['compareFrom']).toBeUndefined();
+
+    store.setComparisonMode('CUSTOM');
+    store.compareFrom.set('2025-01-01');
+    store.compareTo.set('2025-03-31');
+    expect(store.asQueryParams()).toEqual(
+      jasmine.objectContaining({
+        compare: 'CUSTOM',
+        compareFrom: '2025-01-01',
+        compareTo: '2025-03-31',
+      }),
+    );
+  });
+
+  it('restores the comparison from the link, and ignores a custom one without usable dates', () => {
+    const store = setup(() => of([]));
+
+    store.hydrate(convertToParamMap({ compare: 'CUSTOM', compareFrom: '2025-03-31' }));
+    expect(store.comparison().mode).toBe('PREVIOUS_PERIOD');
+
+    store.hydrate(
+      convertToParamMap({ compare: 'CUSTOM', compareFrom: '2025-01-01', compareTo: '2025-03-31' }),
+    );
+    expect(store.comparison()).toEqual({ mode: 'CUSTOM', from: '2025-01-01', to: '2025-03-31' });
+
+    store.hydrate(convertToParamMap({ compare: 'LAST_DECADE' }));
+    expect(store.comparison().mode).toBe('PREVIOUS_PERIOD');
+  });
+
+  it('reports a broken custom comparison as a period error, and only while it is in use', () => {
+    const store = setup(() => of([]));
+    store.compareFrom.set('2025-03-31');
+    store.compareTo.set('2025-01-01');
+
+    expect(store.periodError()).toBeNull();
+
+    store.setComparisonMode('CUSTOM');
+    expect(store.periodError()).toBe('La fecha «desde» no puede ser posterior a «hasta».');
+  });
 });

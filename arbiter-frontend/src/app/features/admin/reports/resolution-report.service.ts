@@ -3,6 +3,7 @@ import { Injectable, inject } from '@angular/core';
 import { Observable, map } from 'rxjs';
 
 import { environment } from '../../../../environments/environment';
+import { withComparison } from '../../../core/models/comparison';
 import { ReportFile } from './report-download';
 import { ReportFormat, ResolutionReport, ResolutionReportParams } from './resolution-report';
 
@@ -32,8 +33,14 @@ export class ResolutionReportService {
   }
 }
 
-function toHttpParams({ from, to, branchId, claimCause }: ResolutionReportParams): HttpParams {
-  let params = new HttpParams().set('from', from).set('to', to);
+function toHttpParams({
+  from,
+  to,
+  branchId,
+  claimCause,
+  comparison,
+}: ResolutionReportParams): HttpParams {
+  let params = withComparison(new HttpParams().set('from', from).set('to', to), comparison);
   if (branchId !== null) {
     params = params.set('branchId', String(branchId));
   }

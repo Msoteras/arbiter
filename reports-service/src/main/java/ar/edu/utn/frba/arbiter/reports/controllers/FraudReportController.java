@@ -1,6 +1,8 @@
 package ar.edu.utn.frba.arbiter.reports.controllers;
 
 import ar.edu.utn.frba.arbiter.common.enums.RiskBand;
+import ar.edu.utn.frba.arbiter.reports.dto.ComparisonMode;
+import ar.edu.utn.frba.arbiter.reports.dto.ComparisonRequest;
 import ar.edu.utn.frba.arbiter.reports.dto.ExportedReport;
 import ar.edu.utn.frba.arbiter.reports.dto.FraudReport;
 import ar.edu.utn.frba.arbiter.reports.dto.ReportFormat;
@@ -44,14 +46,20 @@ public class FraudReportController {
                     + "fila trae el score de riesgo (la banda del motor), qué señales se cruzaron y si "
                     + "un analista determinó fraude. branchId filtra por ramo y riskBand por score de "
                     + "riesgo; sin ellos, todos. Período máximo: 366 días. "
+                    + "compare elige contra qué período se comparan los totales: PREVIOUS_PERIOD (default), "
+                    + "SAME_PERIOD_LAST_YEAR o CUSTOM con compareFrom y compareTo. "
                     + "El sistema no determina fraude: señala indicios para revisión humana.")
     public FraudReport report(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
             @RequestParam(required = false) Long branchId,
-            @RequestParam(required = false) RiskBand riskBand
+            @RequestParam(required = false) RiskBand riskBand,
+            @RequestParam(required = false) ComparisonMode compare,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate compareFrom,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate compareTo
     ) {
-        return fraudReportService.generate(from, to, branchId, riskBand);
+        return fraudReportService.generate(from, to, branchId, riskBand,
+                new ComparisonRequest(compare, compareFrom, compareTo));
     }
 
     @GetMapping("/export")
@@ -63,9 +71,13 @@ public class FraudReportController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
             @RequestParam(required = false) Long branchId,
             @RequestParam(required = false) RiskBand riskBand,
+            @RequestParam(required = false) ComparisonMode compare,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate compareFrom,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate compareTo,
             @RequestParam ReportFormat format
     ) {
-        ExportedReport file = fraudReportService.export(from, to, branchId, riskBand, format);
+        ExportedReport file = fraudReportService.export(from, to, branchId, riskBand,
+                new ComparisonRequest(compare, compareFrom, compareTo), format);
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(file.format().mediaType()))
                 .header(HttpHeaders.CONTENT_DISPOSITION,

@@ -9,6 +9,7 @@ import java.util.List;
  *
  * @param filter   echoed back so the screen can tell "no claims" from "no claims matching"
  * @param funnel   the period's intake followed forward; not the {@link #summary()} population
+ * @param comparisonSummary the same KPI cards over the {@code comparison} period, same filters
  * @param byStatus claims filed in the period by their <b>current</b> status
  */
 public record ClaimMetrics(
@@ -19,7 +20,8 @@ public record ClaimMetrics(
         MetricsFilter filter,
         IntakeFunnel funnel,
         MetricsSummary summary,
-        MetricsSummary previousSummary,
+        ReportComparison comparison,
+        MetricsSummary comparisonSummary,
         RecommendationAgreement agreement,
         ResolutionTarget resolutionTarget,
         LegalDeadline legalDeadline,

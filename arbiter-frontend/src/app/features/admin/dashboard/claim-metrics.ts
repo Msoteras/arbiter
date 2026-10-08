@@ -1,3 +1,5 @@
+import { ReportComparison } from '../../../core/models/comparison';
+
 // Mirrors reports-service DTOs (ar.edu.utn.frba.arbiter.reports.dto).
 
 /** 7, 30 and 90-day windows ending today. */
@@ -165,8 +167,9 @@ export interface ClaimMetrics {
   filter: MetricsFilter;
   funnel: IntakeFunnel;
   summary: MetricsSummary;
-  /** Same summary for the immediately preceding period of equal length, to show trends. */
-  previousSummary: MetricsSummary;
+  comparison: ReportComparison;
+  /** Same summary over the `comparison` period. */
+  comparisonSummary: MetricsSummary;
   agreement: RecommendationAgreement;
   resolutionTarget: ResolutionTarget;
   legalDeadline: LegalDeadline;

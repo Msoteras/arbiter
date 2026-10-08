@@ -1,6 +1,7 @@
 package ar.edu.utn.frba.arbiter.reports.controllers;
 
 import ar.edu.utn.frba.arbiter.common.security.JwtSupport;
+import ar.edu.utn.frba.arbiter.reports.dto.ComparisonRequest;
 import ar.edu.utn.frba.arbiter.reports.dto.ExportedReport;
 import ar.edu.utn.frba.arbiter.reports.dto.ReportFormat;
 import ar.edu.utn.frba.arbiter.reports.exceptions.InvalidReportPeriodException;
@@ -74,7 +75,8 @@ class ResolutionReportSecurityTests extends AbstractPersistenceIT {
 
     @Test
     void preview_asReferent_returnsTheRows() throws Exception {
-        given(resolutionReportService.generate(LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 31), 1L, "Hurto"))
+        given(resolutionReportService.generate(LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 31), 1L, "Hurto",
+                ComparisonRequest.DEFAULT))
                 .willReturn(augustReport(List.of(approvedRow(42)), "Celulares", "Hurto"));
 
         mockMvc.perform(get(PREVIEW).param("from", "2026-08-01").param("to", "2026-08-31")
@@ -95,7 +97,7 @@ class ResolutionReportSecurityTests extends AbstractPersistenceIT {
 
     @Test
     void preview_asAnalyst_returns200() throws Exception {
-        given(resolutionReportService.generate(any(), any(), any(), any())).willReturn(augustReport(List.of()));
+        given(resolutionReportService.generate(any(), any(), any(), any(), any())).willReturn(augustReport(List.of()));
 
         mockMvc.perform(get(PREVIEW).param("from", "2026-08-01").param("to", "2026-08-31")
                         .header("Authorization", bearer("ANALISTA_SINIESTROS")))
@@ -111,7 +113,7 @@ class ResolutionReportSecurityTests extends AbstractPersistenceIT {
 
     @Test
     void preview_invalidPeriod_returnsProblemDetail400() throws Exception {
-        given(resolutionReportService.generate(any(), any(), any(), any()))
+        given(resolutionReportService.generate(any(), any(), any(), any(), any()))
                 .willThrow(new InvalidReportPeriodException("'from' is after 'to'"));
 
         mockMvc.perform(get(PREVIEW).param("from", "2026-09-01").param("to", "2026-08-01")
@@ -124,7 +126,7 @@ class ResolutionReportSecurityTests extends AbstractPersistenceIT {
     @Test
     void export_returnsTheFileAsAnAttachment() throws Exception {
         byte[] csv = "Nº expediente;Asegurado\r\n".getBytes(StandardCharsets.UTF_8);
-        given(resolutionReportService.export(any(), any(), any(), any(), eq(ReportFormat.CSV)))
+        given(resolutionReportService.export(any(), any(), any(), any(), any(), eq(ReportFormat.CSV)))
                 .willReturn(new ExportedReport("resoluciones_2026-08-01_2026-08-31.csv", ReportFormat.CSV, csv));
 
         mockMvc.perform(get(EXPORT).param("from", "2026-08-01").param("to", "2026-08-31").param("format", "CSV")

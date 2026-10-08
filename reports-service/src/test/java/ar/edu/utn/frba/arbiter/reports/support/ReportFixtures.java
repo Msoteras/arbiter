@@ -3,7 +3,9 @@ package ar.edu.utn.frba.arbiter.reports.support;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 import ar.edu.utn.frba.arbiter.common.enums.Classification;
 import ar.edu.utn.frba.arbiter.common.enums.RiskBand;
+import ar.edu.utn.frba.arbiter.reports.dto.ComparisonMode;
 import ar.edu.utn.frba.arbiter.reports.dto.FraudReport;
+import ar.edu.utn.frba.arbiter.reports.dto.ReportComparison;
 import ar.edu.utn.frba.arbiter.reports.dto.FraudReportRow;
 import ar.edu.utn.frba.arbiter.reports.dto.FraudSignal;
 import ar.edu.utn.frba.arbiter.reports.dto.ResolutionReport;
@@ -91,7 +93,10 @@ public final class ReportFixtures {
         LocalDate to = LocalDate.of(2026, 8, 31);
         TimelineGranularity granularity = TimelineGranularity.forPeriod(from, to, rows.size());
         return new ResolutionReport(from, to, branch, claimCause, CLOCK.instant(),
-                ResolutionSummaries.of(rows), previousSummary, granularity,
+                ResolutionSummaries.of(rows),
+                new ReportComparison(ComparisonMode.PREVIOUS_PERIOD,
+                        LocalDate.of(2026, 7, 1), LocalDate.of(2026, 7, 31)),
+                previousSummary, granularity,
                 ResolutionSummaries.timeline(rows, from, to, BUENOS_AIRES, granularity), rows);
     }
 
@@ -157,6 +162,9 @@ public final class ReportFixtures {
                                                    RiskBand riskBand, long totalClaims,
                                                    FraudSummary previousSummary) {
         return new FraudReport(LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 30), branch, riskBand,
-                CLOCK.instant(), FraudSummaries.of(rows, totalClaims), previousSummary, rows);
+                CLOCK.instant(), FraudSummaries.of(rows, totalClaims),
+                new ReportComparison(ComparisonMode.PREVIOUS_PERIOD,
+                        LocalDate.of(2026, 8, 2), LocalDate.of(2026, 8, 31)),
+                previousSummary, rows);
     }
 }

@@ -2,8 +2,13 @@ package ar.edu.utn.frba.arbiter.reports.services;
 
 import ar.edu.utn.frba.arbiter.reports.config.tenant.TenantContext;
 import ar.edu.utn.frba.arbiter.reports.dto.ClaimMetrics;
+import ar.edu.utn.frba.arbiter.reports.dto.ComparisonMode;
+import ar.edu.utn.frba.arbiter.reports.dto.ComparisonRequest;
 import ar.edu.utn.frba.arbiter.reports.dto.IntakeFunnel;
+import ar.edu.utn.frba.arbiter.reports.dto.MetricCount;
 import ar.edu.utn.frba.arbiter.reports.dto.MetricsFilter;
+import ar.edu.utn.frba.arbiter.reports.dto.ReportPeriod;
+import ar.edu.utn.frba.arbiter.reports.dto.SettledAmounts;
 import ar.edu.utn.frba.arbiter.reports.dto.MetricsRange;
 import ar.edu.utn.frba.arbiter.reports.dto.RecommendationAgreement;
 import ar.edu.utn.frba.arbiter.reports.dto.ResolutionTarget;
@@ -13,6 +18,8 @@ import ar.edu.utn.frba.arbiter.reports.dto.TimelinePoint;
 import ar.edu.utn.frba.arbiter.reports.exceptions.InvalidReportPeriodException;
 import ar.edu.utn.frba.arbiter.reports.exceptions.TenantNotResolvedException;
 import ar.edu.utn.frba.arbiter.reports.models.repositories.ClaimMetricsRepository;
+import ar.edu.utn.frba.arbiter.reports.models.repositories.DailyMetricsRepository;
+import ar.edu.utn.frba.arbiter.reports.models.repositories.DailyMetricsRepository.DailyIntake;
 import ar.edu.utn.frba.arbiter.reports.models.repositories.ClaimMetricsRepository.IntakeTotals;
 import ar.edu.utn.frba.arbiter.reports.models.repositories.ClaimMetricsRepository.ResolutionSplit;
 import ar.edu.utn.frba.arbiter.reports.models.repositories.ClaimMetricsRepository.ResolvedTotals;
@@ -58,11 +65,25 @@ class ClaimMetricsServiceTest {
     @Mock
     private RulesServiceClient rulesServiceClient;
 
+    @Mock
+    private DailyMetricsRepository dailyMetricsRepository;
+
+    /** Covers nothing unless a test says so: every period is read from the cases. */
+    @Mock
+    private DailyMetricsService dailyMetricsService;
+
     private ClaimMetricsService claimMetricsService;
 
     @BeforeEach
     void setUp() {
-        claimMetricsService = new ClaimMetricsService(claimMetricsRepository, rulesServiceClient, CLOCK);
+        claimMetricsService = new ClaimMetricsService(
+                claimMetricsRepository,
+                new LivePeriodMetrics(claimMetricsRepository, CLOCK),
+                new StoredPeriodMetrics(dailyMetricsRepository),
+                dailyMetricsService,
+                new ReportPeriods(CLOCK),
+                rulesServiceClient,
+                CLOCK);
         TenantContext.set("arbiter_bbva");
         stubEmpty();
     }
@@ -92,13 +113,13 @@ class ClaimMetricsServiceTest {
     void withoutTenant_isRejected() {
         TenantContext.clear();
 
-        assertThatThrownBy(() -> claimMetricsService.generate(MetricsRange.WEEK, null, null, MetricsFilter.NONE))
+        assertThatThrownBy(() -> claimMetricsService.generate(MetricsRange.WEEK, null, null, MetricsFilter.NONE, ComparisonRequest.DEFAULT))
                 .isInstanceOf(TenantNotResolvedException.class);
     }
 
     @Test
     void withNoPeriod_defaultsToTheLastMonth() {
-        ClaimMetrics metrics = claimMetricsService.generate(null, null, null, MetricsFilter.NONE);
+        ClaimMetrics metrics = claimMetricsService.generate(null, null, null, MetricsFilter.NONE, ComparisonRequest.DEFAULT);
 
         assertThat(metrics.to()).isEqualTo(LocalDate.of(2026, 9, 11));
         assertThat(metrics.from()).isEqualTo(LocalDate.of(2026, 8, 13));
@@ -106,7 +127,7 @@ class ClaimMetricsServiceTest {
 
     @Test
     void aRange_isAWindowEndingToday_todayIncluded() {
-        ClaimMetrics metrics = claimMetricsService.generate(MetricsRange.WEEK, null, null, MetricsFilter.NONE);
+        ClaimMetrics metrics = claimMetricsService.generate(MetricsRange.WEEK, null, null, MetricsFilter.NONE, ComparisonRequest.DEFAULT);
 
         assertThat(metrics.from()).isEqualTo(LocalDate.of(2026, 9, 5));
         assertThat(metrics.to()).isEqualTo(LocalDate.of(2026, 9, 11));
@@ -115,14 +136,14 @@ class ClaimMetricsServiceTest {
     @Test
     void aRangeTogetherWithACustomPeriod_isRejected() {
         assertThatThrownBy(() -> claimMetricsService.generate(
-                MetricsRange.WEEK, LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 31), MetricsFilter.NONE))
+                MetricsRange.WEEK, LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 31), MetricsFilter.NONE, ComparisonRequest.DEFAULT))
                 .isInstanceOf(InvalidReportPeriodException.class)
                 .hasMessageContaining("not both");
     }
 
     @Test
     void halfACustomPeriod_isRejected() {
-        assertThatThrownBy(() -> claimMetricsService.generate(null, LocalDate.of(2026, 8, 1), null, MetricsFilter.NONE))
+        assertThatThrownBy(() -> claimMetricsService.generate(null, LocalDate.of(2026, 8, 1), null, MetricsFilter.NONE, ComparisonRequest.DEFAULT))
                 .isInstanceOf(InvalidReportPeriodException.class)
                 .hasMessageContaining("both");
     }
@@ -130,7 +151,7 @@ class ClaimMetricsServiceTest {
     @Test
     void aPeriodThatRunsBackwards_isRejected() {
         assertThatThrownBy(() -> claimMetricsService.generate(
-                null, LocalDate.of(2026, 8, 31), LocalDate.of(2026, 8, 1), MetricsFilter.NONE))
+                null, LocalDate.of(2026, 8, 31), LocalDate.of(2026, 8, 1), MetricsFilter.NONE, ComparisonRequest.DEFAULT))
                 .isInstanceOf(InvalidReportPeriodException.class)
                 .hasMessageContaining("is after");
     }
@@ -138,7 +159,7 @@ class ClaimMetricsServiceTest {
     @Test
     void aPeriodLongerThanAYear_isRejected() {
         assertThatThrownBy(() -> claimMetricsService.generate(
-                null, LocalDate.of(2025, 1, 1), LocalDate.of(2026, 9, 11), MetricsFilter.NONE))
+                null, LocalDate.of(2025, 1, 1), LocalDate.of(2026, 9, 11), MetricsFilter.NONE, ComparisonRequest.DEFAULT))
                 .isInstanceOf(InvalidReportPeriodException.class)
                 .hasMessageContaining("366");
     }
@@ -152,7 +173,7 @@ class ClaimMetricsServiceTest {
                 // they decided.
                 new ResolvedTotals("LAPSED", 2, hours(13_000))));
 
-        MetricsSummary summary = claimMetricsService.generate(MetricsRange.MONTH, null, null, MetricsFilter.NONE).summary();
+        MetricsSummary summary = claimMetricsService.generate(MetricsRange.MONTH, null, null, MetricsFilter.NONE, ComparisonRequest.DEFAULT).summary();
 
         assertThat(summary.resolvedCases()).isEqualTo(10);
         assertThat(summary.approvedCases()).isEqualTo(6);
@@ -168,7 +189,7 @@ class ClaimMetricsServiceTest {
                 new ResolvedTotals("REJECTED", 1, hours(30)),
                 new ResolvedTotals("LAPSED", 1, hours(13_000))));
 
-        MetricsSummary summary = claimMetricsService.generate(MetricsRange.MONTH, null, null, MetricsFilter.NONE).summary();
+        MetricsSummary summary = claimMetricsService.generate(MetricsRange.MONTH, null, null, MetricsFilter.NONE, ComparisonRequest.DEFAULT).summary();
 
         // (3*10 + 1*30) / 4 = 15. Averaging the averages would say 20; including the lapsed ones, over 2600.
         assertThat(summary.averageResolutionHours()).isEqualTo(15.0);
@@ -178,7 +199,7 @@ class ClaimMetricsServiceTest {
     void fastTrackRate_readsAgainstTheClaimsFiled() {
         given(claimMetricsRepository.intakeTotals(any(), any(), any())).willReturn(new IntakeTotals(40, 10));
 
-        MetricsSummary summary = claimMetricsService.generate(MetricsRange.MONTH, null, null, MetricsFilter.NONE).summary();
+        MetricsSummary summary = claimMetricsService.generate(MetricsRange.MONTH, null, null, MetricsFilter.NONE, ComparisonRequest.DEFAULT).summary();
 
         assertThat(summary.reportedCases()).isEqualTo(40);
         assertThat(summary.fastTrackRate()).isEqualTo(0.25);
@@ -186,7 +207,7 @@ class ClaimMetricsServiceTest {
 
     @Test
     void withNothingToDivide_ratesAreUnknownRatherThanZero() {
-        MetricsSummary summary = claimMetricsService.generate(MetricsRange.MONTH, null, null, MetricsFilter.NONE).summary();
+        MetricsSummary summary = claimMetricsService.generate(MetricsRange.MONTH, null, null, MetricsFilter.NONE, ComparisonRequest.DEFAULT).summary();
 
         assertThat(summary.approvalRate()).isNull();
         assertThat(summary.rejectionRate()).isNull();
@@ -203,7 +224,7 @@ class ClaimMetricsServiceTest {
                 .willReturn(new ResolutionSplit(hours(30 * 24), hours(18 * 24)));
 
         MetricsSummary summary = claimMetricsService.generate(
-                MetricsRange.MONTH, null, null, MetricsFilter.NONE).summary();
+                MetricsRange.MONTH, null, null, MetricsFilter.NONE, ComparisonRequest.DEFAULT).summary();
 
         // 30 wall-clock days, 18 of them waiting on third parties.
         assertThat(summary.averageResolutionHours()).isEqualTo(30 * 24.0);
@@ -211,7 +232,7 @@ class ClaimMetricsServiceTest {
     }
 
     @Test
-    void previousSummary_readsTheEqualStretchEndingTheDayBefore() {
+    void byDefault_comparesAgainstTheEqualStretchEndingTheDayBefore() {
         // The default month runs 13/08 → 11/09, so the one before it is 14/07 → 12/08.
         Instant previousStart = LocalDate.of(2026, 7, 14).atStartOfDay(BUENOS_AIRES).toInstant();
         Instant previousEnd = LocalDate.of(2026, 8, 13).atStartOfDay(BUENOS_AIRES).toInstant();
@@ -222,10 +243,71 @@ class ClaimMetricsServiceTest {
         given(claimMetricsRepository.intakeTotals(eq(start), eq(end), any()))
                 .willReturn(new IntakeTotals(12, 3));
 
-        ClaimMetrics metrics = claimMetricsService.generate(null, null, null, MetricsFilter.NONE);
+        ClaimMetrics metrics = claimMetricsService.generate(null, null, null, MetricsFilter.NONE, ComparisonRequest.DEFAULT);
 
         assertThat(metrics.summary().reportedCases()).isEqualTo(12);
-        assertThat(metrics.previousSummary().reportedCases()).isEqualTo(10);
+        assertThat(metrics.comparisonSummary().reportedCases()).isEqualTo(10);
+        assertThat(metrics.comparison().mode()).isEqualTo(ComparisonMode.PREVIOUS_PERIOD);
+        assertThat(metrics.comparison().from()).isEqualTo(LocalDate.of(2026, 7, 14));
+        assertThat(metrics.comparison().to()).isEqualTo(LocalDate.of(2026, 8, 12));
+    }
+
+    @Test
+    void comparingWithLastYear_readsTheSameDatesAYearEarlier() {
+        Instant start = LocalDate.of(2025, 8, 13).atStartOfDay(BUENOS_AIRES).toInstant();
+        Instant end = LocalDate.of(2025, 9, 12).atStartOfDay(BUENOS_AIRES).toInstant();
+        given(claimMetricsRepository.intakeTotals(eq(start), eq(end), any()))
+                .willReturn(new IntakeTotals(7, 1));
+
+        ClaimMetrics metrics = claimMetricsService.generate(null, null, null, MetricsFilter.NONE,
+                new ComparisonRequest(ComparisonMode.SAME_PERIOD_LAST_YEAR, null, null));
+
+        assertThat(metrics.comparisonSummary().reportedCases()).isEqualTo(7);
+        assertThat(metrics.comparison().from()).isEqualTo(LocalDate.of(2025, 8, 13));
+        assertThat(metrics.comparison().to()).isEqualTo(LocalDate.of(2025, 9, 11));
+    }
+
+    @Test
+    void aStoredComparisonPeriod_isAddedUpFromItsDays_withoutScanningItsCases() {
+        ReportPeriod july = new ReportPeriod(LocalDate.of(2026, 7, 14), LocalDate.of(2026, 8, 12));
+        given(dailyMetricsService.covers(july)).willReturn(true);
+        given(dailyMetricsRepository.intake(eq(july), any())).willReturn(List.of(
+                new DailyIntake(LocalDate.of(2026, 7, 20), 6, 1),
+                new DailyIntake(LocalDate.of(2026, 8, 3), 4, 1)));
+        given(dailyMetricsRepository.resolution(eq(july), any())).willReturn(List.of());
+
+        ClaimMetrics metrics = claimMetricsService.generate(null, null, null, MetricsFilter.NONE, ComparisonRequest.DEFAULT);
+
+        assertThat(metrics.comparisonSummary().reportedCases()).isEqualTo(10);
+        assertThat(metrics.comparisonSummary().fastTrackRate()).isEqualTo(0.2);
+        Instant julyStart = LocalDate.of(2026, 7, 14).atStartOfDay(BUENOS_AIRES).toInstant();
+        verify(claimMetricsRepository, never()).intakeTotals(eq(julyStart), any(), any());
+        verify(claimMetricsRepository, never()).resolvedTotals(eq(julyStart), any(), any());
+    }
+
+    /** Stored or not, "by current status" is about now: a closed period still asks the cases. */
+    @Test
+    void aStoredPeriod_stillReadsItsCurrentStatusesLive() {
+        ReportPeriod august = new ReportPeriod(LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 31));
+        given(dailyMetricsService.covers(august)).willReturn(true);
+        given(dailyMetricsRepository.intake(eq(august), any()))
+                .willReturn(List.of(new DailyIntake(LocalDate.of(2026, 8, 5), 9, 0)));
+        given(dailyMetricsRepository.resolution(eq(august), any())).willReturn(List.of());
+        given(dailyMetricsRepository.settled(eq(august), any())).willReturn(SettledAmounts.NONE);
+        given(dailyMetricsRepository.reportedByBranch(eq(august), any())).willReturn(List.of());
+        Instant start = LocalDate.of(2026, 8, 1).atStartOfDay(BUENOS_AIRES).toInstant();
+        Instant end = LocalDate.of(2026, 9, 1).atStartOfDay(BUENOS_AIRES).toInstant();
+        given(claimMetricsRepository.countByStatus(eq(start), eq(end), any()))
+                .willReturn(List.of(new MetricCount("PENDING_ANALYST_REVIEW", 2)));
+
+        ClaimMetrics metrics = claimMetricsService.generate(
+                null, LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 31), MetricsFilter.NONE,
+                ComparisonRequest.DEFAULT);
+
+        assertThat(metrics.summary().reportedCases()).isEqualTo(9);
+        assertThat(metrics.byStatus()).containsExactly(new MetricCount("PENDING_ANALYST_REVIEW", 2));
+        verify(claimMetricsRepository).intakeFunnel(eq(start), eq(end), any());
+        verify(claimMetricsRepository, never()).intakeTotals(eq(start), any(), any());
     }
 
     /** About a dozen claims a month: read daily that is mostly zeros, so the timeline steps up to weeks. */
@@ -233,7 +315,7 @@ class ClaimMetricsServiceTest {
     void aQuietMonth_isGroupedByWeekInsteadOfByDay() {
         given(claimMetricsRepository.intakeTotals(any(), any(), any())).willReturn(new IntakeTotals(12, 3));
 
-        assertThat(claimMetricsService.generate(MetricsRange.MONTH, null, null, MetricsFilter.NONE).granularity())
+        assertThat(claimMetricsService.generate(MetricsRange.MONTH, null, null, MetricsFilter.NONE, ComparisonRequest.DEFAULT).granularity())
                 .isEqualTo(TimelineGranularity.WEEK);
     }
 
@@ -241,7 +323,7 @@ class ClaimMetricsServiceTest {
     void aBusyMonth_keepsTheDailyDetail() {
         given(claimMetricsRepository.intakeTotals(any(), any(), any())).willReturn(new IntakeTotals(300, 10));
 
-        assertThat(claimMetricsService.generate(MetricsRange.MONTH, null, null, MetricsFilter.NONE).granularity())
+        assertThat(claimMetricsService.generate(MetricsRange.MONTH, null, null, MetricsFilter.NONE, ComparisonRequest.DEFAULT).granularity())
                 .isEqualTo(TimelineGranularity.DAY);
     }
 
@@ -249,7 +331,7 @@ class ClaimMetricsServiceTest {
     void theFilter_travelsToEveryReadAndComesBackInTheResponse() {
         MetricsFilter filter = new MetricsFilter(7L, 3L);
 
-        ClaimMetrics metrics = claimMetricsService.generate(MetricsRange.MONTH, null, null, filter);
+        ClaimMetrics metrics = claimMetricsService.generate(MetricsRange.MONTH, null, null, filter, ComparisonRequest.DEFAULT);
 
         assertThat(metrics.filter()).isEqualTo(filter);
         verify(claimMetricsRepository, atLeastOnce()).countByStatus(any(), any(), eq(filter));
@@ -260,7 +342,7 @@ class ClaimMetricsServiceTest {
 
     @Test
     void withoutATarget_theDashboardDoesNotEvenAskHowManyExceededIt() {
-        ClaimMetrics metrics = claimMetricsService.generate(MetricsRange.MONTH, null, null, MetricsFilter.NONE);
+        ClaimMetrics metrics = claimMetricsService.generate(MetricsRange.MONTH, null, null, MetricsFilter.NONE, ComparisonRequest.DEFAULT);
 
         assertThat(metrics.resolutionTarget()).isEqualTo(ResolutionTarget.UNSET);
         verify(claimMetricsRepository, never()).countDecidedOverTarget(any(), any(), anyInt(), any());
@@ -272,7 +354,7 @@ class ClaimMetricsServiceTest {
         given(claimMetricsRepository.countDecidedOverTarget(any(), any(), eq(21), any())).willReturn(3L);
 
         ResolutionTarget target =
-                claimMetricsService.generate(MetricsRange.MONTH, null, null, MetricsFilter.NONE).resolutionTarget();
+                claimMetricsService.generate(MetricsRange.MONTH, null, null, MetricsFilter.NONE, ComparisonRequest.DEFAULT).resolutionTarget();
 
         assertThat(target).isEqualTo(new ResolutionTarget(true, 21, 3));
     }
@@ -285,7 +367,7 @@ class ClaimMetricsServiceTest {
         given(rulesServiceClient.resolutionTarget()).willReturn(ResolutionTarget.UNSET);
         given(claimMetricsRepository.intakeTotals(any(), any(), any())).willReturn(new IntakeTotals(12, 3));
 
-        ClaimMetrics metrics = claimMetricsService.generate(MetricsRange.MONTH, null, null, MetricsFilter.NONE);
+        ClaimMetrics metrics = claimMetricsService.generate(MetricsRange.MONTH, null, null, MetricsFilter.NONE, ComparisonRequest.DEFAULT);
 
         assertThat(metrics.resolutionTarget().enabled()).isFalse();
         assertThat(metrics.summary().reportedCases()).isEqualTo(12);
@@ -296,7 +378,7 @@ class ClaimMetricsServiceTest {
         given(claimMetricsRepository.timeline(any(), any(), any(), any(), any())).willReturn(List.of(
                 new TimelinePoint(LocalDate.of(2026, 9, 7), 3, 1)));
 
-        ClaimMetrics metrics = claimMetricsService.generate(MetricsRange.WEEK, null, null, MetricsFilter.NONE);
+        ClaimMetrics metrics = claimMetricsService.generate(MetricsRange.WEEK, null, null, MetricsFilter.NONE, ComparisonRequest.DEFAULT);
 
         assertThat(metrics.granularity()).isEqualTo(TimelineGranularity.DAY);
         assertThat(metrics.timeline()).hasSize(7);
@@ -309,7 +391,7 @@ class ClaimMetricsServiceTest {
 
     @Test
     void aQuarter_readsWeekByWeek_startingOnTheMondayOfTheFirstWeek() {
-        ClaimMetrics metrics = claimMetricsService.generate(MetricsRange.QUARTER, null, null, MetricsFilter.NONE);
+        ClaimMetrics metrics = claimMetricsService.generate(MetricsRange.QUARTER, null, null, MetricsFilter.NONE, ComparisonRequest.DEFAULT);
 
         assertThat(metrics.granularity()).isEqualTo(TimelineGranularity.WEEK);
         // The period opens on Sunday 14/06; Postgres buckets weeks from Monday, so the first point

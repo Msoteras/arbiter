@@ -68,6 +68,7 @@ export abstract class ReportTab<TRow, TReport extends ReportPayload<TRow>, TPara
       this.filters.from();
       this.filters.to();
       this.filters.branchId();
+      this.filters.comparison();
       if (firstRun) {
         firstRun = false;
         return;

@@ -1,5 +1,7 @@
 package ar.edu.utn.frba.arbiter.reports.controllers;
 
+import ar.edu.utn.frba.arbiter.reports.dto.ComparisonMode;
+import ar.edu.utn.frba.arbiter.reports.dto.ComparisonRequest;
 import ar.edu.utn.frba.arbiter.reports.dto.ExportedReport;
 import ar.edu.utn.frba.arbiter.reports.dto.ReportFormat;
 import ar.edu.utn.frba.arbiter.reports.dto.ResolutionReport;
@@ -38,14 +40,20 @@ public class ResolutionReportController {
                     + "from y to (ambos incluidos, días calendario), con tiempos, clasificación y decisión, "
                     + "precedidos por los totales del período (cantidad por estado, tiempo promedio, "
                     + "distribución por hecho generador y porcentaje de Fast Track). branchId filtra por "
-                    + "ramo y claimCause por hecho generador; sin ellos, todos. Período máximo: 366 días.")
+                    + "ramo y claimCause por hecho generador; sin ellos, todos. Período máximo: 366 días. "
+                    + "compare elige contra qué período se comparan los totales: PREVIOUS_PERIOD (default), "
+                    + "SAME_PERIOD_LAST_YEAR o CUSTOM con compareFrom y compareTo.")
     public ResolutionReport preview(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
             @RequestParam(required = false) Long branchId,
-            @RequestParam(required = false) String claimCause
+            @RequestParam(required = false) String claimCause,
+            @RequestParam(required = false) ComparisonMode compare,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate compareFrom,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate compareTo
     ) {
-        return resolutionReportService.generate(from, to, branchId, claimCause);
+        return resolutionReportService.generate(from, to, branchId, claimCause,
+                new ComparisonRequest(compare, compareFrom, compareTo));
     }
 
     @GetMapping("/export")
@@ -57,9 +65,13 @@ public class ResolutionReportController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
             @RequestParam(required = false) Long branchId,
             @RequestParam(required = false) String claimCause,
+            @RequestParam(required = false) ComparisonMode compare,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate compareFrom,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate compareTo,
             @RequestParam ReportFormat format
     ) {
-        ExportedReport file = resolutionReportService.export(from, to, branchId, claimCause, format);
+        ExportedReport file = resolutionReportService.export(from, to, branchId, claimCause,
+                new ComparisonRequest(compare, compareFrom, compareTo), format);
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(file.format().mediaType()))
                 .header(HttpHeaders.CONTENT_DISPOSITION,

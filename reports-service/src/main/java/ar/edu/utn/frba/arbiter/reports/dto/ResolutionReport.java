@@ -12,7 +12,7 @@ import java.util.List;
  *
  * @param branch          null means every branch
  * @param claimCause      null means every cause
- * @param previousSummary the same aggregates over the preceding period of equal length, same filters
+ * @param comparisonSummary the same aggregates over the {@code comparison} period, same filters
  */
 public record ResolutionReport(
         LocalDate from,
@@ -21,7 +21,8 @@ public record ResolutionReport(
         String claimCause,
         Instant generatedAt,
         ResolutionSummary summary,
-        ResolutionSummary previousSummary,
+        ReportComparison comparison,
+        ResolutionSummary comparisonSummary,
         TimelineGranularity granularity,
         List<ResolutionTimelinePoint> timeline,
         List<ResolutionReportRow> rows
