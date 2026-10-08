@@ -360,10 +360,14 @@ Asegurado registra denuncia (frontend, wizard con catálogos en cascada)
   ├─> si no califica: OCR de adjuntos + embedding de la imagen (pgvector) + prompt con campos
   │   ESTRUCTURADOS (ramo, producto, hecho generador, bien, relato, OCR, imagen, reglas, historial)
   ├─> LlmClient (Ollama por default, Gemini opt-in) → valida la salida contra el JSON schema
-  └─> persiste llm_analysis / rule_result / case_classification (inmutables)
+  ├─> persiste llm_analysis / rule_result / case_classification (inmutables)
+  └─> POST /api/v1/cases/{caseId}/classification-finished (cases-service, token de servicio)
+        ├─> si terminó bien: lee GET /api/v1/claims/{caseId} y pasa a PENDING_ANALYST_REVIEW,
+        │   o a AWAITING_DOCUMENTATION si falta algo de la agenda documental
+        └─> si falló: CLASSIFICATION_FAILED en el momento
 
-cases-service (ClassificationRefreshScheduler) consulta GET /api/v1/claims/{caseId}
-  └─> PENDING_ANALYST_REVIEW, o AWAITING_DOCUMENTATION si falta algo de la agenda documental
+cases-service (ClassificationRefreshScheduler): red de seguridad para avisos perdidos, consulta
+GET /api/v1/claims/{caseId} cada 10 min y da el expediente por fallido a las 3 h sin resultado
 
 Analista revisa y decide (frontend)
   └─> POST /api/v1/cases/{caseId}/decision

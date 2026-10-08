@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
@@ -171,6 +172,21 @@ public class CaseStatusService {
 
     public List<CaseStatusHistory> history(Long caseId) {
         return historyRepository.findByCaseIdOrderByChangedAtAsc(caseId);
+    }
+
+    public Instant enteredCurrentStatusAt(Case caseRecord) {
+        return historyRepository
+                .findFirstByCaseIdAndFinalStatus_IdOrderByChangedAtDesc(
+                        caseRecord.getId(), caseRecord.getCurrentStatus().getId())
+                .map(CaseStatusHistory::getChangedAt)
+                .orElse(caseRecord.getUpdatedAt());
+    }
+
+    public Optional<Instant> lastTransitionAt(Long caseId, CaseStatus from, CaseStatus to, StatusChangeActor actor) {
+        return historyRepository
+                .findFirstByCaseIdAndInitialStatus_IdAndFinalStatus_IdAndActorOrderByChangedAtDesc(
+                        caseId, caseStateCatalog.resolve(from).getId(), caseStateCatalog.resolve(to).getId(), actor)
+                .map(CaseStatusHistory::getChangedAt);
     }
 
     /**

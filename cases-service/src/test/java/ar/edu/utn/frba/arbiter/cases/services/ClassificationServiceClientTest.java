@@ -4,9 +4,7 @@ import ar.edu.utn.frba.arbiter.cases.dto.AnalystDecisionRequest;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
 import ar.edu.utn.frba.arbiter.cases.models.entities.CaseDocument;
 import ar.edu.utn.frba.arbiter.cases.models.entities.StatusChangeActor;
-import ar.edu.utn.frba.arbiter.cases.models.entities.CaseStatusHistory;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseRepository;
-import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseStatusHistoryRepository;
 import ar.edu.utn.frba.arbiter.cases.support.CaseFixtures;
 import ar.edu.utn.frba.arbiter.cases.support.CaseStates;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
@@ -72,9 +70,6 @@ class ClassificationServiceClientTest {
     @Mock
     private CaseRepository caseRepository;
 
-    @Mock
-    private CaseStatusHistoryRepository caseStatusHistoryRepository;
-
     private MockRestServiceServer server;
     private ClassificationServiceClient client;
 
@@ -84,7 +79,7 @@ class ClassificationServiceClientTest {
         server = MockRestServiceServer.bindTo(builder).build();
         client = new ClassificationServiceClient(builder,
                 new ConnectionRetryInterceptor(1, Duration.ofMillis(1), Duration.ofMillis(1)), caseStatusService, caseRepository,
-                caseStatusHistoryRepository, BASE_URL, currentRequest, JWT_SECRET);
+                BASE_URL, currentRequest, JWT_SECRET);
     }
 
     /**
@@ -235,10 +230,7 @@ class ClassificationServiceClientTest {
         Case entity = pendingCase(23L);
         Instant enteredPendingClassificationAt = Instant.parse("2026-09-13T00:32:47Z");
         Instant staleAnalyzedAt = enteredPendingClassificationAt.minus(90, ChronoUnit.SECONDS);
-        when(caseStatusHistoryRepository.findFirstByCaseIdAndFinalStatus_IdOrderByChangedAtDesc(any(), any()))
-                .thenReturn(Optional.of(CaseStatusHistory.builder()
-                        .changedAt(enteredPendingClassificationAt)
-                        .build()));
+        when(caseStatusService.enteredCurrentStatusAt(entity)).thenReturn(enteredPendingClassificationAt);
         server.expect(requestTo(BASE_URL + "/api/v1/claims/23"))
                 .andExpect(method(GET))
                 .andRespond(withSuccess("""
@@ -266,10 +258,7 @@ class ClassificationServiceClientTest {
         Instant enteredPendingClassificationAt = Instant.parse("2026-09-13T00:32:47Z");
         Instant freshAnalyzedAt = enteredPendingClassificationAt.plus(90, ChronoUnit.SECONDS);
         winsTheTurn(entity, CaseStatus.PENDING_ANALYST_REVIEW);
-        when(caseStatusHistoryRepository.findFirstByCaseIdAndFinalStatus_IdOrderByChangedAtDesc(any(), any()))
-                .thenReturn(Optional.of(CaseStatusHistory.builder()
-                        .changedAt(enteredPendingClassificationAt)
-                        .build()));
+        when(caseStatusService.enteredCurrentStatusAt(entity)).thenReturn(enteredPendingClassificationAt);
         server.expect(requestTo(BASE_URL + "/api/v1/claims/23"))
                 .andExpect(method(GET))
                 .andRespond(withSuccess("""
