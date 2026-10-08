@@ -20,10 +20,11 @@ import java.util.List;
 public class CallerInsurerDatabases {
 
     /**
-     * @param insurerId the platform's insurer id, not the insurer DB's {@code compania} id (always 1
-     *                  with one schema per company)
+     * @param insurerId    the platform's insurer id, not the insurer DB's {@code compania} id (always 1
+     *                     with one schema per company)
+     * @param tenantSchema the insurer's schema in Arbiter, where its own branch names live
      */
-    public record InsurerDatabase(Long insurerId, String insurerName, String schema) {
+    public record InsurerDatabase(Long insurerId, String insurerName, String schema, String tenantSchema) {
     }
 
     private final InsurerRepository insurerRepository;
@@ -42,7 +43,8 @@ public class CallerInsurerDatabases {
                 .map(insurer -> new InsurerDatabase(
                         insurer.getId(),
                         insurer.getName(),
-                        InsurerDbSchema.forTenant(insurer.getSchemaName())))
+                        InsurerDbSchema.forTenant(insurer.getSchemaName()),
+                        insurer.getSchemaName()))
                 .toList();
     }
 }

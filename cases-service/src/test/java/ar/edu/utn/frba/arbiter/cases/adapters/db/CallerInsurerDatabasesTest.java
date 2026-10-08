@@ -57,8 +57,8 @@ class CallerInsurerDatabasesTest {
                 insurer(2L, "Provincia Seguros", "arbiter_provincia", true)));
 
         assertThat(databases.forCaller()).containsExactly(
-                new InsurerDatabase(1L, "BBVA Seguros", "aseguradora_bbva"),
-                new InsurerDatabase(2L, "Provincia Seguros", "aseguradora_provincia"));
+                new InsurerDatabase(1L, "BBVA Seguros", "aseguradora_bbva", "arbiter_bbva"),
+                new InsurerDatabase(2L, "Provincia Seguros", "aseguradora_provincia", "arbiter_provincia"));
     }
 
     @Test
@@ -82,7 +82,7 @@ class CallerInsurerDatabasesTest {
                 .thenReturn(Optional.of(insurer(1L, "BBVA Seguros", "arbiter_bbva", true)));
 
         assertThat(databases.forCaller())
-                .containsExactly(new InsurerDatabase(1L, "BBVA Seguros", "aseguradora_bbva"));
+                .containsExactly(new InsurerDatabase(1L, "BBVA Seguros", "aseguradora_bbva", "arbiter_bbva"));
     }
 
     @Test

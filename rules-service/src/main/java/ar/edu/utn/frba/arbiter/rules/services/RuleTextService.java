@@ -1,6 +1,6 @@
 package ar.edu.utn.frba.arbiter.rules.services;
 
-import ar.edu.utn.frba.arbiter.common.models.entities.Branch;
+import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Branch;
 import ar.edu.utn.frba.arbiter.rules.dto.InsurerRuleSnapshot;
 import ar.edu.utn.frba.arbiter.rules.dto.RuleTextResponse;
 import ar.edu.utn.frba.arbiter.rules.exceptions.BranchNotFoundException;

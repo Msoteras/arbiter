@@ -9,7 +9,7 @@ export interface BranchOption {
   name: string;
 }
 
-/** Global catalog shared by every insurer: creating or deleting a branch affects all of them. */
+/** The caller's insurer's own branches; another insurer's catalog is out of reach. */
 @Injectable({ providedIn: 'root' })
 export class BranchesService {
   private readonly http = inject(HttpClient);

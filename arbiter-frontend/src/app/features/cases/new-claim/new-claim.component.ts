@@ -221,17 +221,17 @@ export class NewClaimComponent {
     () => this.policies().find((p) => p.policyNumber === this.selectedPolicyNumber()) ?? null,
   );
 
-  // Portable-tech policies aren't tied to one device (unlike phones), so the insured item can't be
-  // prefilled and locked from the policy.
-  protected readonly lockInsuredItem = computed<boolean>(() => {
-    const policy = this.selectedPolicy();
-    return !!policy?.insuredItem && policy.branch !== 'Tecnología Portátil';
-  });
+  // The insured item is optional on a policy. When the policy names one, that is what's covered and
+  // the insured can't declare another; when it doesn't, they say what the claim is about.
+  protected readonly lockInsuredItem = computed<boolean>(
+    () => !!this.selectedPolicy()?.insuredItem,
+  );
 
   private readonly autofillEffect = effect(() => {
     const policy = this.selectedPolicy();
     if (policy) {
-      if (policy.insuredItem && this.lockInsuredItem()) this.insuredItem.set(policy.insuredItem);
+      // Reset on every policy change, so another policy's item never lingers in an editable field.
+      this.insuredItem.set(policy.insuredItem ?? '');
       if (policy.contactEmail) this.contactEmail.set(policy.contactEmail);
       if (policy.contactPhone) this.contactPhone.set(policy.contactPhone);
     }

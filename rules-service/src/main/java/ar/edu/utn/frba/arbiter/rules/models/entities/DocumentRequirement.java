@@ -1,7 +1,7 @@
 package ar.edu.utn.frba.arbiter.rules.models.entities;
 
-import ar.edu.utn.frba.arbiter.common.models.entities.Branch;
-import ar.edu.utn.frba.arbiter.common.models.entities.ClaimCause;
+import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Branch;
+import ar.edu.utn.frba.arbiter.common.models.entities.tenant.ClaimCause;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;

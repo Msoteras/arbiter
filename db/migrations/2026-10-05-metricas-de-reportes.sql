@@ -16,9 +16,16 @@ BEGIN;
 
 DO $$
 DECLARE
-    tenant TEXT;
+    tenant  TEXT;
+    -- The claim cause catalog moves from arbiter_common to each tenant in
+    -- 2026-10-05-ramos-por-aseguradora.sql; this works on either side of it.
+    causes  TEXT;
 BEGIN
     FOR tenant IN SELECT schema_name FROM arbiter_common.insurer LOOP
+
+        causes := CASE WHEN to_regclass(format('%I.claim_cause', tenant)) IS NOT NULL
+                       THEN format('%I.claim_cause', tenant)
+                       ELSE 'arbiter_common.claim_cause' END;
 
         EXECUTE format(
             'CREATE TABLE IF NOT EXISTS %I.metrics_day (
@@ -29,16 +36,16 @@ BEGIN
         EXECUTE format(
             'CREATE TABLE IF NOT EXISTS %I.metrics_daily_intake (
                 day             DATE   NOT NULL REFERENCES %I.metrics_day(day) ON DELETE CASCADE,
-                claim_cause_id  BIGINT NOT NULL REFERENCES arbiter_common.claim_cause(id),
+                claim_cause_id  BIGINT NOT NULL REFERENCES %s(id),
                 analyst_id      BIGINT,
                 reported        BIGINT NOT NULL,
                 fast_track      BIGINT NOT NULL
-            )', tenant, tenant);
+            )', tenant, tenant, causes);
 
         EXECUTE format(
             'CREATE TABLE IF NOT EXISTS %I.metrics_daily_resolution (
                 day                     DATE             NOT NULL REFERENCES %I.metrics_day(day) ON DELETE CASCADE,
-                claim_cause_id          BIGINT           NOT NULL REFERENCES arbiter_common.claim_cause(id),
+                claim_cause_id          BIGINT           NOT NULL REFERENCES %s(id),
                 analyst_id              BIGINT,
                 final_status            VARCHAR(60)      NOT NULL,
                 resolved                BIGINT           NOT NULL,
@@ -53,12 +60,12 @@ BEGIN
                 fraud_determined        BIGINT           NOT NULL,
                 fraud_backed_by_expert  BIGINT           NOT NULL,
                 fraud_claimed_amount    NUMERIC(38,2)    NOT NULL
-            )', tenant, tenant);
+            )', tenant, tenant, causes);
 
         EXECUTE format(
             'CREATE TABLE IF NOT EXISTS %I.metrics_daily_settlement (
                 day                  DATE          NOT NULL REFERENCES %I.metrics_day(day) ON DELETE CASCADE,
-                claim_cause_id       BIGINT        NOT NULL REFERENCES arbiter_common.claim_cause(id),
+                claim_cause_id       BIGINT        NOT NULL REFERENCES %s(id),
                 analyst_id           BIGINT,
                 settlements          BIGINT        NOT NULL,
                 settled_amount       NUMERIC(38,2) NOT NULL,
@@ -67,7 +74,7 @@ BEGIN
                 deductible_amount    NUMERIC(38,2) NOT NULL,
                 installments_amount  NUMERIC(38,2) NOT NULL,
                 overdue_amount       NUMERIC(38,2) NOT NULL
-            )', tenant, tenant);
+            )', tenant, tenant, causes);
 
         EXECUTE format('CREATE INDEX IF NOT EXISTS idx_metrics_daily_intake_day ON %I.metrics_daily_intake (day)', tenant);
         EXECUTE format('CREATE INDEX IF NOT EXISTS idx_metrics_daily_resolution_day ON %I.metrics_daily_resolution (day)', tenant);

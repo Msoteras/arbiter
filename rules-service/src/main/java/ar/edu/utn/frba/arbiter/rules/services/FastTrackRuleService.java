@@ -1,7 +1,7 @@
 package ar.edu.utn.frba.arbiter.rules.services;
 
 import ar.edu.utn.frba.arbiter.common.enums.RuleType;
-import ar.edu.utn.frba.arbiter.common.models.entities.Branch;
+import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Branch;
 import ar.edu.utn.frba.arbiter.rules.dto.FastTrackConfigDto;
 import ar.edu.utn.frba.arbiter.rules.dto.FastTrackRuleResponse;
 import ar.edu.utn.frba.arbiter.rules.dto.InsurerRuleSnapshot;

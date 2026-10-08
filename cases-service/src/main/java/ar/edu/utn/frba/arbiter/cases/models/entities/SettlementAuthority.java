@@ -32,7 +32,7 @@ public class SettlementAuthority {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    /** Logical reference to the common-schema branch (no FK across schemas). */
+    /** The insurer's branch, by id and without a mapped association. */
     @Column(name = "branch_id", nullable = false, unique = true)
     private Long branchId;
 

@@ -24,8 +24,8 @@ import java.math.BigDecimal;
 import java.util.List;
 
 /**
- * Coverage a policy grants. {@code branchId} is a logical reference to the common-schema
- * {@code Branch}, with no FK. {@code deductible} is in percentage points (10.00 = 10%), not a
+ * Coverage a policy grants. {@code branchId} references the insurer's {@link Branch} by id,
+ * without a mapped association. {@code deductible} is in percentage points (10.00 = 10%), not a
  * 0..1 fraction.
  */
 @Entity
