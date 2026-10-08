@@ -3,6 +3,15 @@
 # Production counterpart of proxy.conf.json. KEEP THEM IN SYNC: a route missing here works in
 # development and 404s once deployed.
 
+# A backend asleep on Railway's private network refuses the connection until it has booted. Only
+# when nothing was sent upstream is its 502 safe for the SPA to retry (upstream-retry.interceptor.ts).
+# One value per address tried ("0, 0" when both IPv4 and IPv6 refused); empty if the name didn't resolve.
+map $upstream_bytes_sent $upstream_unreachable {
+    ""           1;
+    "~^[0,: ]+$" 1;
+    default      0;
+}
+
 server {
     listen ${PORT};
     server_name _;
@@ -24,6 +33,17 @@ server {
     gzip on;
     gzip_types text/plain text/css application/javascript application/json image/svg+xml;
     gzip_min_length 1024;
+
+    error_page 502 = @backend_unavailable;
+
+    location @backend_unavailable {
+        if ($upstream_unreachable) {
+            add_header X-Upstream-Unreachable true always;
+            add_header Retry-After 2 always;
+            return 503;
+        }
+        return 502;
+    }
 
     # ─── API ────────────────────────────────────────────────────────────────────────────
     # Longest prefix wins, so /claims and /claim-causes route correctly regardless of order.

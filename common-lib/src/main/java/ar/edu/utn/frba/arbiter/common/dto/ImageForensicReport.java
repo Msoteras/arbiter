@@ -13,12 +13,17 @@ public record ImageForensicReport(
         List<ImageFinding> findings
 ) {
 
-    /** @param documentType the {@code case_documents.type}, unique per case: what the UI joins on */
+    /**
+     * @param documentType        the {@code case_documents.type}, unique per case: what the UI joins on
+     * @param internalCheckFailed no internal matches then means "not compared", not "no reuse"; null on
+     *                            reports stored before the field existed
+     */
     public record ImageFinding(
             String label,
             String documentType,
             List<InternalMatch> internalMatches,
-            WebFinding webFinding
+            WebFinding webFinding,
+            Boolean internalCheckFailed
     ) {}
 
     public record InternalMatch(

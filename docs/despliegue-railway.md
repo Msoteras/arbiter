@@ -380,6 +380,34 @@ simplemente falla los primeros health checks y Railway lo reintenta.
 6. `reports-service` — necesita `rules-service`; el resto lo lee directo de la base.
 7. `arbiter-frontend` — necesita a los cinco. Es el que recibe el dominio público.
 
+## Servicios dormidos (Serverless)
+
+Con Serverless, Railway duerme un servicio tras 10 min sin tráfico saliente. Por el dominio público
+lo despierta reteniendo el pedido, pero **por la red privada (`*.railway.internal`) no**: el primer
+pedido recibe `connection refused` y recién ahí el servicio arranca. Un módulo Spring Boot tarda
+5-7 s; `clip-embedding`, 20-40 s, porque carga torch y los pesos de CLIP. Se vio el 27/09: nginx →
+`auth-service` dio 502 al instante y a los segundos respondió normal.
+
+Cómo lo tolera cada tramo:
+
+- **Entre módulos** (`ConnectionRetryInterceptor`, en `common-lib`): reintenta solo cuando el pedido
+  no llegó (conexión rechazada o nombre que no resuelve), ~23 s en total. Una respuesta HTTP, 5xx
+  incluido, no se reintenta nunca: el pedido ya llegó y repetirlo podría correr un POST dos veces.
+  Lo usan todas las llamadas de `cases-service` a classification y rules, `reports-service` → rules
+  y `classification-service` → `clip-embedding` (este con ~54 s).
+- **Si classification no toma una denuncia** ni con los reintentos, el expediente queda en
+  `CLASSIFICATION_FAILED` con motivo `INFRASTRUCTURE` y el barrido de recuperación lo reencola. El
+  usuario no ve un error, así no la vuelve a cargar.
+- **Si `clip-embedding` no responde**, la clasificación sigue: la imagen queda como "no se pudo
+  comparar" y el factor de reutilización de imágenes queda no evaluable, en vez de leerse como "sin
+  coincidencias".
+- **Navegador → backend**: el nginx del frontend convierte en `503` con `X-Upstream-Unreachable` el
+  502 de un pedido que nunca llegó al backend. El front reintenta solo esos (~20 s) y avisa que el
+  sistema se está iniciando. Un 502 de un pedido que sí llegó se devuelve tal cual.
+
+Con esto `classification-service` puede volver a tener Serverless (estaba apagado porque la primera
+denuncia después de un rato sin uso fallaba). `cases-service` sigue sin dormir: ver más abajo.
+
 ---
 
 ## Ya hecho en el repo
@@ -406,7 +434,8 @@ simplemente falla los primeros health checks y Railway lo reintenta.
   detalle: con un `proxy_pass` a un hostname literal, nginx resuelve una sola vez al iniciar y
   **se niega a levantar** si el nombre no resuelve — o sea que el frontend entraba en crash-loop
   si arrancaba antes que los backends, o mientras alguno estuviera caído. Verificado: con los
-  cinco backends ausentes, la SPA sirve 200 y solo las rutas `/api/v1/*` dan 502.
+  cinco backends ausentes, la SPA sirve 200 y solo las rutas `/api/v1/*` fallan (503 con
+  `X-Upstream-Unreachable`, ver "Servicios dormidos").
 - **No hay `railway.json`**: se borraron (30/08) al quedar Config as Code deprecado sin que
   pudiéramos habilitarlo. Toda la configuración de despliegue vive en el dashboard de Railway y
   está documentada acá — este archivo es la única fuente de verdad.

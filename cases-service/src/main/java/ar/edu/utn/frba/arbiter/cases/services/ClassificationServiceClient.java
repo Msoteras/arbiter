@@ -17,6 +17,7 @@ import ar.edu.utn.frba.arbiter.common.dto.PriorClaim;
 import ar.edu.utn.frba.arbiter.common.dto.RuleResultResponse;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 import ar.edu.utn.frba.arbiter.common.enums.Classification;
+import ar.edu.utn.frba.arbiter.common.enums.ClassificationFailureReason;
 import ar.edu.utn.frba.arbiter.common.security.JwtSupport;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
@@ -29,6 +30,8 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
+import org.springframework.web.client.HttpServerErrorException;
+import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
@@ -90,8 +93,7 @@ public class ClassificationServiceClient implements ClaimsAnalysisClient {
 
     @Override
     public AnalysisResult analyzeAndPersist(Case caseRecord, List<CaseDocument> documents) {
-        postClassify(caseRecord, documents, authorizationHeaderForCurrentTenant());
-        return new AnalysisResult(null, 0.0, "Classification in progress");
+        return enqueue(caseRecord, documents, authorizationHeaderForCurrentTenant());
     }
 
     /**
@@ -102,8 +104,34 @@ public class ClassificationServiceClient implements ClaimsAnalysisClient {
     public AnalysisResult analyzeAndPersistAsSystem(Case caseRecord, List<CaseDocument> documents) {
         String serviceToken = JwtSupport.issueServiceToken(
                 jwtKey, "cases-service-recovery", TenantContext.get());
-        postClassify(caseRecord, documents, "Bearer " + serviceToken);
-        return new AnalysisResult(null, 0.0, "Classification in progress");
+        return enqueue(caseRecord, documents, "Bearer " + serviceToken);
+    }
+
+    /** The case is already saved: failing the request would invite the insured to file it again. */
+    private AnalysisResult enqueue(Case caseRecord, List<CaseDocument> documents, String authorizationHeader) {
+        try {
+            postClassify(caseRecord, documents, authorizationHeader);
+            return new AnalysisResult(null, 0.0, "Classification in progress");
+        } catch (ResourceAccessException | HttpServerErrorException e) {
+            log.error("Could not enqueue the classification of case {}; leaving it to the recovery sweep: {}",
+                    caseRecord.getId(), e.getMessage());
+            caseRecord.setClassificationFailureReason(ClassificationFailureReason.INFRASTRUCTURE);
+            caseRecord.setClassificationFailureMessage(e.getMessage());
+            caseStatusService.transition(caseRecord, CaseStatus.CLASSIFICATION_FAILED, StatusChangeActor.SYSTEM,
+                    "no se pudo iniciar la clasificación por una falla de infraestructura");
+            return new AnalysisResult(null, 0.0, "Classification left to the recovery sweep");
+        }
+    }
+
+    @Override
+    public boolean isReachable() {
+        try {
+            restClient.get().uri("/actuator/health").retrieve().toBodilessEntity();
+            return true;
+        } catch (RestClientException e) {
+            log.warn("classification-service is unreachable: {}", e.getMessage());
+            return false;
+        }
     }
 
     /**

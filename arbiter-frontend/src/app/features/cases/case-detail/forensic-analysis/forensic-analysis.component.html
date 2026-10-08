@@ -49,6 +49,12 @@
                 </p>
               }
 
+              @if (finding.internalCheckFailed) {
+                <p class="unchecked-note">
+                  No se pudo comparar con adjuntos de siniestros previos.
+                </p>
+              }
+
               @for (m of finding.internalMatches; track matchKey(m)) {
                 <div class="match-row">
                   <p class="match-text">

@@ -11,6 +11,7 @@ import ar.edu.utn.frba.arbiter.cases.support.CaseFixtures;
 import ar.edu.utn.frba.arbiter.cases.support.CaseStates;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 import ar.edu.utn.frba.arbiter.common.enums.Classification;
+import ar.edu.utn.frba.arbiter.common.enums.ClassificationFailureReason;
 import ar.edu.utn.frba.arbiter.common.security.JwtSupport;
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.BeforeEach;
@@ -21,9 +22,11 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
 
 import java.math.BigDecimal;
+import java.net.ConnectException;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
@@ -31,6 +34,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
@@ -45,6 +49,8 @@ import static org.springframework.http.HttpMethod.POST;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withBadRequest;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withException;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withServerError;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
@@ -356,6 +362,60 @@ class ClassificationServiceClientTest {
 
         server.verify();
         verifyNoInteractions(currentRequest);
+    }
+
+    @Test
+    void analyzeAndPersist_whenClassificationCantBeReached_leavesTheCaseToTheRecoverySweep() {
+        when(currentRequest.getHeader(HttpHeaders.AUTHORIZATION)).thenReturn("Bearer user-token");
+        Case entity = pendingCase(11L);
+        server.expect(requestTo(BASE_URL + "/api/v1/claims"))
+                .andRespond(withException(new ConnectException("Connection refused")));
+
+        client.analyzeAndPersist(entity, List.<CaseDocument>of());
+
+        assertThat(entity.getClassificationFailureReason()).isEqualTo(ClassificationFailureReason.INFRASTRUCTURE);
+        verify(caseStatusService).transition(eq(entity), eq(CaseStatus.CLASSIFICATION_FAILED),
+                eq(StatusChangeActor.SYSTEM), any());
+    }
+
+    @Test
+    void analyzeAndPersist_whenClassificationFailsWith5xx_alsoLeavesTheCaseToTheRecoverySweep() {
+        when(currentRequest.getHeader(HttpHeaders.AUTHORIZATION)).thenReturn("Bearer user-token");
+        Case entity = pendingCase(12L);
+        server.expect(requestTo(BASE_URL + "/api/v1/claims")).andRespond(withServerError());
+
+        client.analyzeAndPersist(entity, List.<CaseDocument>of());
+
+        assertThat(entity.getClassificationFailureReason()).isEqualTo(ClassificationFailureReason.INFRASTRUCTURE);
+        verify(caseStatusService).transition(eq(entity), eq(CaseStatus.CLASSIFICATION_FAILED),
+                eq(StatusChangeActor.SYSTEM), any());
+    }
+
+    @Test
+    void analyzeAndPersist_whenClassificationRejectsTheRequest_propagatesWithoutTouchingTheCase() {
+        when(currentRequest.getHeader(HttpHeaders.AUTHORIZATION)).thenReturn("Bearer user-token");
+        Case entity = pendingCase(13L);
+        server.expect(requestTo(BASE_URL + "/api/v1/claims")).andRespond(withBadRequest());
+
+        assertThatThrownBy(() -> client.analyzeAndPersist(entity, List.<CaseDocument>of()))
+                .isInstanceOf(HttpClientErrorException.class);
+        assertThat(entity.getClassificationFailureReason()).isNull();
+        verify(caseStatusService, never()).transition(any(), any(), any(), any());
+    }
+
+    @Test
+    void isReachable_whenTheHealthCheckAnswers() {
+        server.expect(requestTo(BASE_URL + "/actuator/health")).andRespond(withSuccess());
+
+        assertThat(client.isReachable()).isTrue();
+    }
+
+    @Test
+    void isReachable_whenTheConnectionFails() {
+        server.expect(requestTo(BASE_URL + "/actuator/health"))
+                .andRespond(withException(new ConnectException("Connection refused")));
+
+        assertThat(client.isReachable()).isFalse();
     }
 
     /**
