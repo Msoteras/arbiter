@@ -4,7 +4,8 @@
 # development and 404s once deployed.
 
 # A backend asleep on Railway's private network refuses the connection until it has booted. Only
-# when nothing was sent upstream is its 502 safe for the SPA to retry (upstream-retry.interceptor.ts).
+# when nothing was sent upstream is its 502 (refused) or 504 (connect timeout) safe for the SPA to
+# retry (upstream-retry.interceptor.ts).
 # One value per address tried ("0, 0" when both IPv4 and IPv6 refused); empty if the name didn't resolve.
 map $upstream_bytes_sent $upstream_unreachable {
     ""           1;
@@ -35,6 +36,7 @@ server {
     gzip_min_length 1024;
 
     error_page 502 = @backend_unavailable;
+    error_page 504 = @backend_timed_out;
 
     location @backend_unavailable {
         if ($upstream_unreachable) {
@@ -43,6 +45,15 @@ server {
             return 503;
         }
         return 502;
+    }
+
+    location @backend_timed_out {
+        if ($upstream_unreachable) {
+            add_header X-Upstream-Unreachable true always;
+            add_header Retry-After 2 always;
+            return 503;
+        }
+        return 504;
     }
 
     # ─── API ────────────────────────────────────────────────────────────────────────────

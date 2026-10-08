@@ -64,6 +64,16 @@ class ConnectionRetryInterceptorTest {
     }
 
     @Test
+    void connectTimeout_isRetried_becauseTheRequestNeverLeft() {
+        server.expect(requestTo(URL)).andRespond(withException(new SocketTimeoutException("Connect timed out")));
+        server.expect(requestTo(URL)).andRespond(withSuccess());
+
+        client.post().uri(URL).body("payload").retrieve().toBodilessEntity();
+
+        server.verify();
+    }
+
+    @Test
     void post_isResentWithTheSameBody() {
         server.expect(requestTo(URL)).andExpect(method(HttpMethod.POST)).andExpect(content().string("payload"))
                 .andRespond(withException(new ConnectException("Connection refused")));

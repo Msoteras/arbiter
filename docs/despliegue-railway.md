@@ -391,7 +391,7 @@ pedido recibe `connection refused` y recién ahí el servicio arranca. Un módul
 Cómo lo tolera cada tramo:
 
 - **Entre módulos** (`ConnectionRetryInterceptor`, en `common-lib`): reintenta solo cuando el pedido
-  no llegó (conexión rechazada o nombre que no resuelve), ~23 s en total. Una respuesta HTTP, 5xx
+  no llegó (conexión rechazada, nombre que no resuelve o timeout de conexión), ~23 s en total. Una respuesta HTTP, 5xx
   incluido, no se reintenta nunca: el pedido ya llegó y repetirlo podría correr un POST dos veces.
   Lo usan todas las llamadas de `cases-service` a classification y rules, `reports-service` → rules
   y `classification-service` → `clip-embedding` (este con ~54 s).
@@ -402,8 +402,9 @@ Cómo lo tolera cada tramo:
   comparar" y el factor de reutilización de imágenes queda no evaluable, en vez de leerse como "sin
   coincidencias".
 - **Navegador → backend**: el nginx del frontend convierte en `503` con `X-Upstream-Unreachable` el
-  502 de un pedido que nunca llegó al backend. El front reintenta solo esos (~20 s) y avisa que el
-  sistema se está iniciando. Un 502 de un pedido que sí llegó se devuelve tal cual.
+  502 (conexión rechazada) o el 504 (timeout de conexión) de un pedido que nunca llegó al backend.
+  El front reintenta solo esos (~20 s) y avisa que el sistema se está iniciando. Un 502 o 504 de un
+  pedido que sí llegó se devuelve tal cual.
 
 Con esto `classification-service` puede volver a tener Serverless (estaba apagado porque la primera
 denuncia después de un rato sin uso fallaba). `cases-service` sigue sin dormir: ver más abajo.

@@ -16,13 +16,15 @@ import org.springframework.http.client.ClientHttpResponse;
 import java.io.IOException;
 import java.net.ConnectException;
 import java.net.NoRouteToHostException;
+import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
+import java.net.http.HttpConnectTimeoutException;
 import java.time.Duration;
 
 /**
  * On Railway's private network a sleeping service refuses connections until it has booted. Only
- * failures where the request never got through are retried: repeating one that arrived could run a
- * POST twice.
+ * failures where the request never got through (refused, unresolvable or connect timeout) are
+ * retried: repeating one that arrived could run a POST twice.
  */
 public class ConnectionRetryInterceptor implements ClientHttpRequestInterceptor {
 
@@ -84,10 +86,17 @@ public class ConnectionRetryInterceptor implements ClientHttpRequestInterceptor 
         for (Throwable cause = failure; cause != null; cause = cause.getCause()) {
             if (cause instanceof ConnectException
                     || cause instanceof UnknownHostException
-                    || cause instanceof NoRouteToHostException) {
+                    || cause instanceof NoRouteToHostException
+                    || isConnectTimeout(cause)) {
                 return true;
             }
         }
         return false;
+    }
+
+    /** HttpURLConnection tells a connect timeout from a read timeout only by the message. */
+    private static boolean isConnectTimeout(Throwable cause) {
+        return cause instanceof HttpConnectTimeoutException
+                || (cause instanceof SocketTimeoutException && "Connect timed out".equalsIgnoreCase(cause.getMessage()));
     }
 }
