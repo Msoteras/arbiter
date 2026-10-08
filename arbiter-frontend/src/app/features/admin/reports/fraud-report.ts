@@ -1,3 +1,4 @@
+import { ComparisonChoice, ReportComparison } from '../../../core/models/comparison';
 import { RiskBand } from '../../../core/models/risk-band';
 
 /** Not `MetricCount`: here the label can be null (a case never scored has no band). */
@@ -65,8 +66,9 @@ export interface FraudReport {
   riskBand: RiskBand | null;
   generatedAt: string;
   summary: FraudSummary;
-  /** Same aggregates over the preceding period of equal length. */
-  previousSummary: FraudSummary;
+  comparison: ReportComparison;
+  /** Same aggregates over the `comparison` period. */
+  comparisonSummary: FraudSummary;
   rows: FraudReportRow[];
 }
 
@@ -76,6 +78,7 @@ export interface FraudReportParams {
   branchId: number | null;
   /** Empty = every band. */
   riskBand: string;
+  comparison: ComparisonChoice;
 }
 
 /** Band → `app-fraud-gauge` segment (1..4, Low to Critical). */

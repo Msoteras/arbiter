@@ -47,7 +47,7 @@ import java.util.function.Function;
 public class ClaimMetricsRepository {
 
     /** The newest model run per case; analyses are append-only. */
-    private static final String LATEST_LLM_CTE = """
+    static final String LATEST_LLM_CTE = """
             latest_llm AS (
                 SELECT DISTINCT ON (case_id) case_id, recommendation
                   FROM llm_analysis
@@ -481,6 +481,7 @@ public class ClaimMetricsRepository {
                            count(*) AS total"""
                 + FROM_CASES + """
 
+                       JOIN case_status s ON s.id = c.current_status_id AND s.is_final
                        JOIN resolution r ON r.case_id = c.id
                      WHERE r.resolved_at >= :from AND r.resolved_at < :to"""
                 + filters(filter) + """

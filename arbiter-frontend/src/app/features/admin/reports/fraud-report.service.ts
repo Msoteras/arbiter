@@ -3,6 +3,7 @@ import { Injectable, inject } from '@angular/core';
 import { Observable, map } from 'rxjs';
 
 import { environment } from '../../../../environments/environment';
+import { withComparison } from '../../../core/models/comparison';
 import { FraudReport, FraudReportParams } from './fraud-report';
 import { ReportFile } from './report-download';
 import { ReportFormat } from './resolution-report';
@@ -33,8 +34,8 @@ export class FraudReportService {
   }
 }
 
-function toHttpParams({ from, to, branchId, riskBand }: FraudReportParams): HttpParams {
-  let params = new HttpParams().set('from', from).set('to', to);
+function toHttpParams({ from, to, branchId, riskBand, comparison }: FraudReportParams): HttpParams {
+  let params = withComparison(new HttpParams().set('from', from).set('to', to), comparison);
   if (branchId !== null) {
     params = params.set('branchId', String(branchId));
   }

@@ -14,8 +14,8 @@ import java.util.List;
  *
  * @param branch          the branch filter by name; null means every branch
  * @param riskBand        null means every band
- * @param previousSummary the same aggregates over the preceding period of equal length, same filters;
- *                        {@link FraudSummary#EMPTY} when it had no claims
+ * @param comparisonSummary the same aggregates over the {@code comparison} period, same filters;
+ *                          {@link FraudSummary#EMPTY} when it had no claims
  */
 public record FraudReport(
         LocalDate from,
@@ -24,6 +24,7 @@ public record FraudReport(
         RiskBand riskBand,
         Instant generatedAt,
         FraudSummary summary,
-        FraudSummary previousSummary,
+        ReportComparison comparison,
+        FraudSummary comparisonSummary,
         List<FraudReportRow> rows
 ) {}

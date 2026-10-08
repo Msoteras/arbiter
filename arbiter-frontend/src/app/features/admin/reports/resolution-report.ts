@@ -1,3 +1,4 @@
+import { ComparisonChoice, ReportComparison } from '../../../core/models/comparison';
 import { isTypedDate } from '../../../core/util/datetime';
 import { percentagePoints, trendText } from '../../../core/util/trend';
 
@@ -68,8 +69,9 @@ export interface ResolutionReport {
   claimCause: string | null;
   generatedAt: string;
   summary: ResolutionSummary;
-  /** Same summary for the preceding equal-length period and same filters, from the backend. */
-  previousSummary: ResolutionSummary;
+  comparison: ReportComparison;
+  /** Same summary over the `comparison` period, same filters. */
+  comparisonSummary: ResolutionSummary;
   /** Chosen by the backend from the period length. */
   granularity: TimelineGranularity;
   timeline: ResolutionTimelinePoint[];
@@ -82,6 +84,7 @@ export interface ResolutionReportParams {
   to: string;
   branchId: number | null;
   claimCause: string;
+  comparison: ComparisonChoice;
 }
 
 export type ReportFormat = 'CSV' | 'PDF';
@@ -161,12 +164,17 @@ export function periodError(from: string, to: string): string | null {
  * No verdict (volume is neither better nor worse) and no minimum comparison base: an absolute
  * difference stays exact on a small base, only percentages become noise.
  */
-export function resolvedTrend(summary: ResolutionSummary, previous: ResolutionSummary): string {
+export function resolvedTrend(
+  summary: ResolutionSummary,
+  previous: ResolutionSummary,
+  reference?: string,
+): string {
   return trendText({
     current: summary.totalCases,
     previous: previous.totalCases,
     format: (size) => `${size}`,
     good: 'neither',
+    reference,
   });
 }
 
@@ -174,13 +182,18 @@ export function resolvedTrend(summary: ResolutionSummary, previous: ResolutionSu
  * In percentage points; more is better. Silent when the previous period closed too few cases
  * (`DEFAULT_MIN_COMPARISON_BASE` in core/util/trend).
  */
-export function fastTrackTrend(summary: ResolutionSummary, previous: ResolutionSummary): string {
+export function fastTrackTrend(
+  summary: ResolutionSummary,
+  previous: ResolutionSummary,
+  reference?: string,
+): string {
   return trendText({
     current: summary.fastTrackRate,
     previous: previous.fastTrackRate,
     format: percentagePoints,
     good: 'up',
     base: previous.totalCases,
+    reference,
   });
 }
 
@@ -188,6 +201,7 @@ export function fastTrackTrend(summary: ResolutionSummary, previous: ResolutionS
 export function resolutionTimeTrend(
   summary: ResolutionSummary,
   previous: ResolutionSummary,
+  reference?: string,
 ): string {
   return trendText({
     current: summary.averageMinutes,
@@ -195,5 +209,6 @@ export function resolutionTimeTrend(
     format: formatDuration,
     good: 'down',
     base: previous.decidedCases,
+    reference,
   });
 }

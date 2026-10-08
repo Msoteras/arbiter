@@ -106,7 +106,8 @@ describe('FraudReportComponent', () => {
         { label: 'FORENSIC_INCONSISTENCY', count: 2 },
       ],
     },
-    previousSummary: {
+    comparison: { mode: 'PREVIOUS_PERIOD', from: '2026-07-01', to: '2026-07-31' },
+    comparisonSummary: {
       totalClaims: 15,
       flagged: 3,
       flaggedRate: 0.2,
@@ -226,7 +227,7 @@ describe('FraudReportComponent', () => {
   /** Rates are gated by the minimum base; the raw count isn't, same as the dashboard. */
   it('drops the rate and cross-count comparisons when the previous period is too thin', () => {
     reportService.report.and.returnValue(
-      of({ ...report, previousSummary: { ...report.previousSummary, totalClaims: 2 } }),
+      of({ ...report, comparisonSummary: { ...report.comparisonSummary, totalClaims: 2 } }),
     );
 
     preview();
@@ -240,7 +241,7 @@ describe('FraudReportComponent', () => {
   it('states each rate next to the claims it was taken over', () => {
     // Previous period too thin to compare against, so the trend doesn't take the sub's place.
     reportService.report.and.returnValue(
-      of({ ...report, previousSummary: { ...report.previousSummary, totalClaims: 2 } }),
+      of({ ...report, comparisonSummary: { ...report.comparisonSummary, totalClaims: 2 } }),
     );
 
     preview();
@@ -457,7 +458,8 @@ describe('FraudReportComponent opened from a link', () => {
           byAlertLevel: [],
           bySignal: [],
         },
-        previousSummary: {
+        comparison: { mode: 'PREVIOUS_PERIOD', from: '2026-07-01', to: '2026-07-31' },
+        comparisonSummary: {
           totalClaims: 0,
           flagged: 0,
           flaggedRate: null,

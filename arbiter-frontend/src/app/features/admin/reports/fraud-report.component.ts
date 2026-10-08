@@ -11,6 +11,7 @@ import { Params, RouterLink } from '@angular/router';
 import { Observable } from 'rxjs';
 
 import { caseStatusLabel, caseStatusTone } from '../../../core/models/case-status';
+import { comparisonReference } from '../../../core/models/comparison';
 import { RiskBand, riskBandLabel } from '../../../core/models/risk-band';
 import { StatusTone } from '../../../core/models/status-tone';
 import { formatDate, formatDateTime } from '../../../core/util/datetime';
@@ -101,12 +102,13 @@ export class FraudReportComponent extends ReportTab<
   /** From the backend, not summed here, so the header and the table describe the same set. */
   protected readonly summary = computed(() => this.report()?.summary ?? null);
 
-  private readonly previousSummary = computed(() => this.report()?.previousSummary ?? null);
+  private readonly comparisonSummary = computed(() => this.report()?.comparisonSummary ?? null);
+  private readonly reference = computed(() => comparisonReference(this.report()?.comparison.mode));
 
   /** Volume only: no better/worse verdict. */
   protected readonly totalClaimsTrend = computed(() => {
     const summary = this.summary();
-    const previous = this.previousSummary();
+    const previous = this.comparisonSummary();
     if (!summary || !previous) {
       return '';
     }
@@ -115,13 +117,14 @@ export class FraudReportComponent extends ReportTab<
       previous: previous.totalClaims,
       format: (size) => formatNumber(size, this.locale, '1.0-0'),
       good: 'neither',
+      reference: this.reference(),
     });
   });
 
   /** No verdict: a higher share may mean better detection or more suspicious claims. */
   protected readonly flaggedRateTrend = computed(() => {
     const summary = this.summary();
-    const previous = this.previousSummary();
+    const previous = this.comparisonSummary();
     if (!summary || !previous) {
       return '';
     }
@@ -130,6 +133,7 @@ export class FraudReportComponent extends ReportTab<
       previous: previous.flaggedRate,
       format: formatRate,
       good: 'neither',
+      reference: this.reference(),
       base: previous.totalClaims,
     });
   });
@@ -137,7 +141,7 @@ export class FraudReportComponent extends ReportTab<
   /** No verdict, same as {@link flaggedRateTrend}. */
   protected readonly multiSignalTrend = computed(() => {
     const summary = this.summary();
-    const previous = this.previousSummary();
+    const previous = this.comparisonSummary();
     if (!summary || !previous) {
       return '';
     }
@@ -146,6 +150,7 @@ export class FraudReportComponent extends ReportTab<
       previous: previous.multiSignal,
       format: (size) => formatNumber(size, this.locale, '1.0-0'),
       good: 'neither',
+      reference: this.reference(),
       base: previous.totalClaims,
     });
   });
@@ -216,6 +221,7 @@ export class FraudReportComponent extends ReportTab<
       to: this.filters.to(),
       branchId: this.filters.branchId(),
       riskBand: this.riskBand(),
+      comparison: this.filters.comparison(),
     };
   }
 }

@@ -133,7 +133,8 @@ describe('ResolutionReportComponent', () => {
       byClaimCause: [{ label: 'Robo en vía pública', count: 4 }],
     },
     // Previous period closed 6 with 1 Fast Track: the card drops by 2 and the rate rises 8 pp.
-    previousSummary: {
+    comparison: { mode: 'PREVIOUS_PERIOD', from: '2026-07-01', to: '2026-07-31' },
+    comparisonSummary: {
       totalCases: 6,
       decidedCases: 6,
       averageMinutes: 4000,
@@ -251,7 +252,8 @@ describe('ResolutionReportComponent', () => {
     reportService.preview.and.returnValue(
       of({
         ...report,
-        previousSummary: { ...report.previousSummary, totalCases: 2, decidedCases: 2 },
+        comparison: { mode: 'PREVIOUS_PERIOD', from: '2026-07-01', to: '2026-07-31' },
+        comparisonSummary: { ...report.comparisonSummary, totalCases: 2, decidedCases: 2 },
       }),
     );
 
@@ -314,7 +316,8 @@ describe('ResolutionReportComponent opened from a link', () => {
       byStatus: [],
       byClaimCause: [],
     },
-    previousSummary: {
+    comparison: { mode: 'PREVIOUS_PERIOD', from: '2026-07-01', to: '2026-07-31' },
+    comparisonSummary: {
       totalCases: 0,
       decidedCases: 0,
       averageMinutes: null,

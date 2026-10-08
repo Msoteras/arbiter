@@ -1,6 +1,7 @@
 import { DatePipe, formatNumber } from '@angular/common';
 import {
   ChangeDetectionStrategy,
+  DestroyRef,
   Component,
   LOCALE_ID,
   computed,
@@ -10,22 +11,32 @@ import {
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
 import { EChartsCoreOption } from 'echarts/core';
-import { switchMap, tap } from 'rxjs';
+import { forkJoin, switchMap, tap } from 'rxjs';
 
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
 import { classificationLabel, classificationTone } from '../../../core/models/classification';
+import {
+  COMPARISON_MODES,
+  ComparisonChoice,
+  ComparisonMode,
+  comparisonLabel,
+  comparisonReference,
+} from '../../../core/models/comparison';
 import { caseStatusLabel, caseStatusTone } from '../../../core/models/case-status';
 import { RiskBand, riskBandLabel } from '../../../core/models/risk-band';
 import { ruleTypeDescription, ruleTypeLabel } from '../../../core/models/rule-type';
 import { StatusTone } from '../../../core/models/status-tone';
+import { todayIso } from '../../../core/util/datetime';
 import { formatRate } from '../../../core/util/percent';
 import { formatMoney } from '../../../core/util/money';
 import { percentagePoints, trendText } from '../../../core/util/trend';
 import { staggerReveal } from '../../../shared/animations';
+import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { CardComponent } from '../../../shared/ui/card/card.component';
 import { ChartTheme, baseChartOptions, readChartTheme } from '../../../shared/ui/chart/chart-theme';
 import { ChartComponent } from '../../../shared/ui/chart/chart.component';
 import { EmptyStateComponent } from '../../../shared/ui/empty-state/empty-state.component';
+import { InfoTipComponent } from '../../../shared/ui/info-tip/info-tip.component';
 import { InputComponent } from '../../../shared/ui/input/input.component';
 import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
 import {
@@ -33,6 +44,7 @@ import {
   MenuItem,
 } from '../../../shared/ui/menu-button/menu-button.component';
 import { StatTileComponent } from '../../../shared/ui/stat-tile/stat-tile.component';
+import { ToastService } from '../../../shared/ui/toast/toast.service';
 import { BranchesService } from '../branches.service';
 import { CaseService } from '../../cases/case.service';
 import { AttentionItem, AttentionService } from './attention.service';
@@ -98,10 +110,12 @@ function legalTone(rate: number | null): StatusTone {
 @Component({
   selector: 'app-dashboard',
   imports: [
+    ButtonComponent,
     CardComponent,
     ChartComponent,
     DatePipe,
     EmptyStateComponent,
+    InfoTipComponent,
     InputComponent,
     InlineLoadingComponent,
     MenuButtonComponent,
@@ -121,6 +135,8 @@ export class DashboardComponent {
   private readonly caseService = inject(CaseService);
   private readonly session = inject(AuthSessionService);
   private readonly locale = inject(LOCALE_ID);
+  private readonly toasts = inject(ToastService);
+  private readonly destroyRef = inject(DestroyRef);
   private readonly theme: ChartTheme = readChartTheme();
 
   protected readonly period = signal<PeriodChoice>('MONTH');
@@ -139,6 +155,18 @@ export class DashboardComponent {
     () => this.periodOptions.find((option) => option.value === this.period())?.label ?? '',
   );
   protected readonly isCustom = computed(() => this.period() === 'CUSTOM');
+
+  protected readonly comparisonMode = signal<ComparisonMode>('PREVIOUS_PERIOD');
+  protected readonly compareFrom = signal(isoDaysAgo(365 + 29));
+  protected readonly compareTo = signal(isoDaysAgo(365));
+  protected readonly comparisonOptions: MenuItem[] = COMPARISON_MODES.map((mode) => ({
+    value: mode,
+    label: comparisonLabel(mode),
+  }));
+  protected readonly comparisonModeLabel = computed(() =>
+    comparisonLabel(this.comparisonMode()).toLowerCase(),
+  );
+  protected readonly isCustomComparison = computed(() => this.comparisonMode() === 'CUSTOM');
 
   protected readonly branchOptions = signal<MenuItem[]>([{ value: ALL, label: 'Todos los ramos' }]);
   protected readonly analystOptions = signal<MenuItem[]>([
@@ -161,18 +189,32 @@ export class DashboardComponent {
   protected readonly attentionItems = signal<AttentionItem[]>([]);
 
   /** A reversed custom range would get a 400 from the backend; it's a typo, so skip the request. */
-  private readonly request = computed<{ period: MetricsPeriod; filter: MetricsFilter } | null>(
-    () => {
-      const filter: MetricsFilter = { branchId: this.branchId(), analystId: this.analystId() };
-      const choice = this.period();
-      if (choice !== 'CUSTOM') {
-        return { period: { range: choice }, filter };
-      }
-      const from = this.customFrom();
-      const to = this.customTo();
-      return from && to && from <= to ? { period: { from, to }, filter } : null;
-    },
-  );
+  private readonly request = computed<{
+    period: MetricsPeriod;
+    filter: MetricsFilter;
+    comparison: ComparisonChoice;
+  } | null>(() => {
+    this.reloads();
+    const filter: MetricsFilter = { branchId: this.branchId(), analystId: this.analystId() };
+    const comparison: ComparisonChoice = {
+      mode: this.comparisonMode(),
+      from: this.compareFrom(),
+      to: this.compareTo(),
+    };
+    if (
+      comparison.mode === 'CUSTOM' &&
+      !(comparison.from && comparison.to && comparison.from <= comparison.to)
+    ) {
+      return null;
+    }
+    const choice = this.period();
+    if (choice !== 'CUSTOM') {
+      return { period: { range: choice }, filter, comparison };
+    }
+    const from = this.customFrom();
+    const to = this.customTo();
+    return from && to && from <= to ? { period: { from, to }, filter, comparison } : null;
+  });
 
   constructor() {
     toObservable(this.request)
@@ -182,7 +224,9 @@ export class DashboardComponent {
           this.failed.set(false);
         }),
         switchMap((request) =>
-          request === null ? [] : this.claimMetrics.load(request.period, request.filter),
+          request === null
+            ? []
+            : this.claimMetrics.load(request.period, request.filter, request.comparison),
         ),
         takeUntilDestroyed(),
       )
@@ -238,6 +282,56 @@ export class DashboardComponent {
     this.period.set(value as PeriodChoice);
   }
 
+  /** Bumped to ask for the same request again. */
+  private readonly reloads = signal(0);
+  protected readonly recalculating = signal(false);
+
+  /**
+   * The periods on screen that are already closed: those are the ones served from stored totals, so
+   * the only ones a recalculation can change.
+   */
+  private readonly closedPeriods = computed(() => {
+    const metrics = this.data();
+    if (!metrics) {
+      return [];
+    }
+    const today = todayIso();
+    return [
+      { from: metrics.from, to: metrics.to },
+      { from: metrics.comparison.from, to: metrics.comparison.to },
+    ].filter((period) => period.to < today);
+  });
+
+  protected readonly canRecalculate = computed(
+    () => this.canFilterByAnalyst() && this.closedPeriods().length > 0,
+  );
+
+  protected recalculate(): void {
+    if (this.recalculating()) {
+      return;
+    }
+    this.recalculating.set(true);
+    forkJoin(
+      this.closedPeriods().map((period) => this.claimMetrics.recalculate(period.from, period.to)),
+    )
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.recalculating.set(false);
+          this.toasts.show('Totales recalculados.', 'ok');
+          this.reloads.update((count) => count + 1);
+        },
+        error: () => {
+          this.recalculating.set(false);
+          this.toasts.show('No se pudieron recalcular los totales.');
+        },
+      });
+  }
+
+  protected setComparison(value: string): void {
+    this.comparisonMode.set(value as ComparisonMode);
+  }
+
   protected setBranch(value: string): void {
     this.branchId.set(value === ALL ? null : Number(value));
   }
@@ -256,9 +350,7 @@ export class DashboardComponent {
     if (!metrics) {
       return '';
     }
-    const days = daysBetween(metrics.from, metrics.to);
-    const to = shiftDays(metrics.from, -1);
-    return `comparado con ${shortDate(shiftDays(to, -(days - 1)))} – ${shortDate(to)}`;
+    return `comparado con ${shortDate(metrics.comparison.from)} – ${shortDate(metrics.comparison.to)}`;
   });
 
   protected readonly funnel = computed<FunnelStep[]>(() => {
@@ -275,7 +367,7 @@ export class DashboardComponent {
         value: funnel.reported,
         note: this.trendOf(
           funnel.reported,
-          metrics.previousSummary.reportedCases,
+          metrics.comparisonSummary.reportedCases,
           'count',
           'neither',
         ),
@@ -313,9 +405,9 @@ export class DashboardComponent {
     if (!metrics) {
       return [];
     }
-    const { summary, previousSummary, agreement } = metrics;
+    const { summary, comparisonSummary, agreement } = metrics;
     const decided = summary.approvedCases + summary.rejectedCases;
-    const previousDecided = previousSummary.approvedCases + previousSummary.rejectedCases;
+    const previousDecided = comparisonSummary.approvedCases + comparisonSummary.rejectedCases;
     return [
       {
         label: 'Tiempo prom. de resolución',
@@ -327,7 +419,7 @@ export class DashboardComponent {
         // Taking longer is worse: an upward arrow is bad news here.
         trend: this.trendOf(
           summary.averageResolutionHours,
-          previousSummary.averageResolutionHours,
+          comparisonSummary.averageResolutionHours,
           'hours',
           'down',
           previousDecided,
@@ -378,7 +470,7 @@ export class DashboardComponent {
         tone: 'ok' as StatusTone,
         trend: this.trendOf(
           summary.approvalRate,
-          previousSummary.approvalRate,
+          comparisonSummary.approvalRate,
           'rate',
           'up',
           previousDecided,
@@ -392,10 +484,10 @@ export class DashboardComponent {
         tone: 'info' as StatusTone,
         trend: this.trendOf(
           summary.fastTrackRate,
-          previousSummary.fastTrackRate,
+          comparisonSummary.fastTrackRate,
           'rate',
           'up',
-          previousSummary.reportedCases,
+          comparisonSummary.reportedCases,
         ),
       },
     ];
@@ -634,7 +726,8 @@ export class DashboardComponent {
         : unit === 'hours'
           ? resolutionTimeLabel(size)
           : formatNumber(size, this.locale, '1.0-0');
-    return trendText({ current, previous, format, good, base });
+    const reference = comparisonReference(this.data()?.comparison.mode);
+    return trendText({ current, previous, format, good, base, reference });
   }
 
   private bucketLabel(point: TimelinePoint): string {
@@ -679,18 +772,6 @@ function isoDaysAgo(days: number): string {
   const date = new Date();
   date.setDate(date.getDate() - days);
   return date.toISOString().slice(0, 10);
-}
-
-function shiftDays(iso: string, days: number): string {
-  const date = new Date(`${iso}T00:00:00`);
-  date.setDate(date.getDate() + days);
-  return date.toISOString().slice(0, 10);
-}
-
-function daysBetween(fromIso: string, toIso: string): number {
-  const from = new Date(`${fromIso}T00:00:00`).getTime();
-  const to = new Date(`${toIso}T00:00:00`).getTime();
-  return Math.round((to - from) / 86_400_000) + 1;
 }
 
 function shortDate(iso: string): string {

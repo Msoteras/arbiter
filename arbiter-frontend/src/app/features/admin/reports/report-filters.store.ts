@@ -2,6 +2,13 @@ import { Injectable, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ParamMap, Params } from '@angular/router';
 
+import {
+  COMPARISON_MODES,
+  ComparisonChoice,
+  ComparisonMode,
+  comparisonLabel,
+  parseComparisonMode,
+} from '../../../core/models/comparison';
 import { todayIso } from '../../../core/util/datetime';
 import { SelectOption } from '../../../shared/ui/select/select.component';
 import { BranchesService } from '../branches.service';
@@ -20,6 +27,18 @@ export class ReportFiltersStore {
   readonly from = signal(`${this.today.slice(0, 8)}01`);
   readonly to = signal(this.today);
   readonly branchId = signal<number | null>(null);
+  readonly comparisonMode = signal<ComparisonMode>('PREVIOUS_PERIOD');
+  readonly compareFrom = signal(yearBefore(`${this.today.slice(0, 8)}01`));
+  readonly compareTo = signal(yearBefore(this.today));
+  readonly comparison = computed<ComparisonChoice>(() => ({
+    mode: this.comparisonMode(),
+    from: this.compareFrom(),
+    to: this.compareTo(),
+  }));
+  readonly comparisonOptions: SelectOption[] = COMPARISON_MODES.map((mode) => ({
+    value: mode,
+    label: comparisonLabel(mode),
+  }));
   /**
    * The active tab's own filter, as it goes in the URL. Held here so the shell is the only URL
    * writer: two writers navigating in the same tick overwrite each other's params.
@@ -52,7 +71,13 @@ export class ReportFiltersStore {
     return id === null ? '' : String(id);
   });
 
-  readonly periodError = computed(() => periodError(this.from(), this.to()));
+  readonly periodError = computed(
+    () =>
+      periodError(this.from(), this.to()) ??
+      (this.comparisonMode() === 'CUSTOM'
+        ? periodError(this.compareFrom(), this.compareTo())
+        : null),
+  );
 
   constructor() {
     this.branches
@@ -78,6 +103,11 @@ export class ReportFiltersStore {
     this.branchId.set(value === '' ? null : Number(value));
   }
 
+  /** The select can be cleared; an empty value falls back to the default comparison. */
+  setComparisonMode(value: string): void {
+    this.comparisonMode.set(parseComparisonMode(value));
+  }
+
   notePreviewedBranch(name: string | null): void {
     const id = this.branchId();
     this.previewedBranch.set(id !== null && name !== null ? { id, name } : null);
@@ -90,6 +120,17 @@ export class ReportFiltersStore {
     if (from && to && periodError(from, to) === null) {
       this.from.set(from);
       this.to.set(to);
+    }
+    const mode = parseComparisonMode(params.get('compare'));
+    const compareFrom = params.get('compareFrom');
+    const compareTo = params.get('compareTo');
+    if (mode !== 'CUSTOM') {
+      this.comparisonMode.set(mode);
+    } else if (compareFrom && compareTo && periodError(compareFrom, compareTo) === null) {
+      // A custom comparison without usable dates keeps the default instead of a broken range.
+      this.comparisonMode.set(mode);
+      this.compareFrom.set(compareFrom);
+      this.compareTo.set(compareTo);
     }
     const branchId = Number(params.get('branchId'));
     const catalog = this.branchCatalog();
@@ -104,10 +145,14 @@ export class ReportFiltersStore {
 
   /** Shared filters only: what a tab link carries to the other tab. */
   sharedQueryParams(): Params {
+    const mode = this.comparisonMode();
     return {
       from: this.from(),
       to: this.to(),
       branchId: this.branchId() ?? undefined,
+      compare: mode === 'PREVIOUS_PERIOD' ? undefined : mode,
+      compareFrom: mode === 'CUSTOM' ? this.compareFrom() : undefined,
+      compareTo: mode === 'CUSTOM' ? this.compareTo() : undefined,
     };
   }
 
@@ -119,4 +164,11 @@ export class ReportFiltersStore {
       ),
     );
   }
+}
+
+/** Same day and month a year earlier; 29/02 falls back to the 28th, as the backend does. */
+function yearBefore(iso: string): string {
+  const [year, month, day] = iso.split('-');
+  const leapDay = month === '02' && day === '29';
+  return `${Number(year) - 1}-${month}-${leapDay ? '28' : day}`;
 }

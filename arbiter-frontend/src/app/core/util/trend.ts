@@ -30,6 +30,8 @@ export interface TrendParams {
   /** Previous-period case count, checked against {@link DEFAULT_MIN_COMPARISON_BASE}. */
   base?: number;
   minBase?: number;
+  /** See comparisonReference(). */
+  reference?: string;
 }
 
 /** "▲ 4 d peor que el período anterior", or "" when there is no data, no change or too small a base. */
@@ -41,6 +43,7 @@ export function trendText(params: TrendParams): string {
     good,
     base = Number.POSITIVE_INFINITY,
     minBase = DEFAULT_MIN_COMPARISON_BASE,
+    reference = 'el período anterior',
   } = params;
   if (base < minBase) {
     return '';
@@ -53,8 +56,8 @@ export function trendText(params: TrendParams): string {
   const amount = format(Math.abs(change.value));
   const tail =
     good === 'neither'
-      ? 'vs. el período anterior'
-      : `${change.direction === good ? 'mejor' : 'peor'} que el período anterior`;
+      ? `vs. ${reference}`
+      : `${change.direction === good ? 'mejor' : 'peor'} que ${reference}`;
   return `${arrow} ${amount} ${tail}`;
 }
 

@@ -46,7 +46,8 @@
       <p class="applied t-note">
         {{ formatDate(current.from) }} al {{ formatDate(current.to) }} · Ramo:
         {{ current.branch ?? 'Todos' }} · Score de riesgo:
-        {{ current.riskBand ? riskBandLabel(current.riskBand) : 'Todos' }}
+        {{ current.riskBand ? riskBandLabel(current.riskBand) : 'Todos' }} · Comparado con
+        {{ formatDate(current.comparison.from) }} al {{ formatDate(current.comparison.to) }}
       </p>
       @if (current.rows.length === 0) {
         <!-- With claims in the period, "0 of 84" is a finding, not "nothing". -->

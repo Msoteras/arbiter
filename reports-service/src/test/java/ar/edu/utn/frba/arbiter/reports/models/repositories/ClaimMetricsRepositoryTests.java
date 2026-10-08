@@ -203,6 +203,18 @@ class ClaimMetricsRepositoryTests extends AbstractPersistenceIT {
                 new TimelinePoint(LocalDate.of(2026, 8, 10), 0, 1));
     }
 
+    /** An open case also has a last transition into its current status; that is not a resolution. */
+    @Test
+    void theTimeline_doesNotCountAnOpenCasesLastTransitionAsResolved() {
+        tables.insertCase(1, "2026-08-03T14:00:00Z", PENDING_REVIEW, PHONES_ROBBERY, false, LAURA, null);
+        tables.transition(1, null, PENDING_REVIEW, "2026-08-06T14:00:00Z");
+
+        List<TimelinePoint> timeline =
+                repository.timeline(AUGUST_FROM, AUGUST_TO, TimelineGranularity.DAY, BUENOS_AIRES, NONE);
+
+        assertThat(timeline).containsExactly(new TimelinePoint(LocalDate.of(2026, 8, 3), 1, 0));
+    }
+
     @Test
     void theFunnel_followsThePeriodsIntakeForward_andNeverCountsAFastTrackAsAnalyzed() {
         // Fast Track: decided, but the model never ran — it must NOT count as analyzed.

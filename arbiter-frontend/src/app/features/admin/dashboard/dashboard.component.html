@@ -24,6 +24,23 @@
       <app-menu-button [items]="periodOptions" align="end" (itemSelected)="setPeriod($event)">
         {{ periodLabel() }} <span aria-hidden="true">▾</span>
       </app-menu-button>
+      <app-menu-button
+        heading="Comparar con"
+        [items]="comparisonOptions"
+        align="end"
+        (itemSelected)="setComparison($event)"
+      >
+        vs. {{ comparisonModeLabel() }} <span aria-hidden="true">▾</span>
+      </app-menu-button>
+      @if (canRecalculate()) {
+        <app-button variant="secondary" [loading]="recalculating()" (click)="recalculate()">
+          Recalcular período
+        </app-button>
+        <app-info-tip>
+          Los totales de un período ya cerrado quedan guardados y no cambian solos. Recalculalos si
+          se reabrió o corrigió un expediente de esas fechas.
+        </app-info-tip>
+      }
     </div>
   </header>
 
@@ -36,6 +53,19 @@
       <div class="range-field">
         <label class="t-field-label" for="dash-to">Hasta</label>
         <app-input id="dash-to" type="date" [(value)]="customTo" [min]="customFrom()" />
+      </div>
+    </div>
+  }
+
+  @if (isCustomComparison()) {
+    <div class="range" role="group" aria-label="Período de comparación">
+      <div class="range-field">
+        <label class="t-field-label" for="dash-compare-from">Comparar desde</label>
+        <app-input id="dash-compare-from" type="date" [(value)]="compareFrom" [max]="compareTo()" />
+      </div>
+      <div class="range-field">
+        <label class="t-field-label" for="dash-compare-to">Comparar hasta</label>
+        <app-input id="dash-compare-to" type="date" [(value)]="compareTo" [min]="compareFrom()" />
       </div>
     </div>
   }
