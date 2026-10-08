@@ -393,8 +393,8 @@ Cómo lo tolera cada tramo:
 - **Entre módulos** (`ConnectionRetryInterceptor`, en `common-lib`): reintenta solo cuando el pedido
   no llegó (conexión rechazada, nombre que no resuelve o timeout de conexión), ~23 s en total. Una respuesta HTTP, 5xx
   incluido, no se reintenta nunca: el pedido ya llegó y repetirlo podría correr un POST dos veces.
-  Lo usan todas las llamadas de `cases-service` a classification y rules, `reports-service` → rules
-  y `classification-service` → `clip-embedding` (este con ~54 s).
+  Lo usan todas las llamadas de `cases-service` a classification y rules, las de `reports-service` y
+  `classification-service` a rules, y `classification-service` → `clip-embedding` (este con ~54 s).
 - **Si classification no toma una denuncia** ni con los reintentos, el expediente queda en
   `CLASSIFICATION_FAILED` con motivo `INFRASTRUCTURE` y el barrido de recuperación lo reencola. El
   usuario no ve un error, así no la vuelve a cargar.
