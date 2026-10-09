@@ -3,6 +3,7 @@ package ar.edu.utn.frba.arbiter.cases.services;
 import ar.edu.utn.frba.arbiter.cases.adapters.InsurerAdapter;
 import ar.edu.utn.frba.arbiter.cases.dto.PolicyResponse;
 import ar.edu.utn.frba.arbiter.cases.exceptions.PolicyNotEligibleException;
+import ar.edu.utn.frba.arbiter.cases.exceptions.RulesUnavailableException;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.ClaimCause;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Coverage;
 import org.junit.jupiter.api.Test;
@@ -11,8 +12,6 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
-
-import org.springframework.web.client.ResourceAccessException;
 
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -184,7 +183,7 @@ class PolicyEligibilityValidatorTest {
     void whenRulesServiceIsUnreachable_arrearsIsNotValidated() {
         givenPolicy(LocalDate.of(2026, 1, 1), LocalDate.of(2027, 1, 1), false);
         when(rulesServiceClient.policyStandingRule())
-                .thenThrow(new ResourceAccessException("Connection refused"));
+                .thenThrow(new RulesUnavailableException(new IllegalStateException("rules-service down")));
 
         assertThatCode(() -> validate(LocalDateTime.of(2026, 6, 13, 20, 0), null, coverage(null)))
                 .doesNotThrowAnyException();
@@ -229,7 +228,7 @@ class PolicyEligibilityValidatorTest {
     @Test
     void whenRulesServiceIsUnreachableForExclusions_theClaimIsNotRejected() {
         givenPolicy(LocalDate.of(2026, 1, 1), LocalDate.of(2027, 1, 1));
-        when(rulesServiceClient.excludedClaimCauseIds(1L)).thenThrow(new ResourceAccessException("Connection refused"));
+        when(rulesServiceClient.excludedClaimCauseIds(1L)).thenThrow(new RulesUnavailableException(new IllegalStateException("rules-service down")));
 
         assertThatCode(() -> validate(LocalDateTime.of(2026, 6, 13, 20, 0), null,
                 coverage(null, 1L, "Robo de celular"), claimCause(3L, "Hurto")))

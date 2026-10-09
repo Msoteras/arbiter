@@ -72,6 +72,9 @@ public class PolicyCoverageResolver {
                     policyId, contracted.size(), claimCauseId);
             return contracted.getFirst();
         }
+        if (sameBranch.size() == 1) {
+            return sameBranch.getFirst();
+        }
 
         List<PolicyCoverage> candidates = sameBranch.stream()
                 .filter(pc -> !excludes(pc, claimCauseId))

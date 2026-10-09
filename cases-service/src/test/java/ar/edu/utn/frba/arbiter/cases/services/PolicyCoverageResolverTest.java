@@ -1,5 +1,6 @@
 package ar.edu.utn.frba.arbiter.cases.services;
 
+import ar.edu.utn.frba.arbiter.cases.exceptions.RulesUnavailableException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.UnresolvedCaseReferenceException;
 import ar.edu.utn.frba.arbiter.cases.models.entities.PolicyCoverage;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.ClaimCauseRepository;
@@ -18,6 +19,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
@@ -103,6 +105,24 @@ class PolicyCoverageResolverTest {
 
         assertThat(resolver.resolveFor(POLICY_ID, accidentalDamage).getCoverage().getName())
                 .isEqualTo("Daño accidental");
+    }
+
+    @Test
+    void aSingleCoverageOfTheBranch_answersWithoutAskingRules() {
+        givenContracted(coverage(1L, "Celular protegido"));
+
+        assertThat(resolver.resolveFor(POLICY_ID, THEFT).getCoverage().getName()).isEqualTo("Celular protegido");
+        verifyNoInteractions(rulesServiceClient);
+    }
+
+    @Test
+    void severalCoveragesOfTheBranch_withRulesUnavailable_failsInsteadOfGuessing() {
+        givenContracted(coverage(1L, "Robo de celular"), coverage(2L, "Hurto"));
+        when(rulesServiceClient.excludedClaimCauseIds(1L))
+                .thenThrow(new RulesUnavailableException(new IllegalStateException("rules-service down")));
+
+        assertThatThrownBy(() -> resolver.resolveFor(POLICY_ID, THEFT))
+                .isInstanceOf(RulesUnavailableException.class);
     }
 
     @Test

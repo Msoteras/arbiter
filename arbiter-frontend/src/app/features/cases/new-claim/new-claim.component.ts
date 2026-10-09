@@ -687,6 +687,8 @@ export class NewClaimComponent {
     () => this.requiredDocsState().status === 'unavailable',
   );
 
+  protected readonly docsLoading = computed(() => this.requiredDocsState().status === 'loading');
+
   protected readonly docsCount = computed(() => this.docSlots().filter((d) => d.file).length);
 
   /**
@@ -704,7 +706,7 @@ export class NewClaimComponent {
   );
 
   protected readonly canSubmit = computed(
-    () => !this.submitting() && this.missingDocs().length === 0,
+    () => !this.submitting() && !this.docsLoading() && this.missingDocs().length === 0,
   );
 
   /** No police report declared but the agenda requires it: warned in step 2 rather than at upload. */
@@ -830,7 +832,11 @@ export class NewClaimComponent {
       },
       error: (err) => {
         this.submitting.set(false);
-        this.submitError.set(err.error?.detail || 'Error al crear el caso');
+        this.submitError.set(
+          err.status === 503
+            ? 'No pudimos registrar tu denuncia en este momento. Probá de nuevo en unos minutos.'
+            : err.error?.detail || 'Error al crear el caso',
+        );
       },
     });
   }

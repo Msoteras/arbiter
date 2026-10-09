@@ -3,13 +3,13 @@ package ar.edu.utn.frba.arbiter.cases.services;
 import ar.edu.utn.frba.arbiter.cases.adapters.InsurerAdapter;
 import ar.edu.utn.frba.arbiter.cases.dto.PolicyResponse;
 import ar.edu.utn.frba.arbiter.cases.exceptions.PolicyNotEligibleException;
+import ar.edu.utn.frba.arbiter.cases.exceptions.RulesUnavailableException;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.ClaimCause;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Coverage;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestClientException;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -61,7 +61,7 @@ public class PolicyEligibilityValidator {
         List<Long> excludedIds;
         try {
             excludedIds = rulesServiceClient.excludedClaimCauseIds(coverage.getId());
-        } catch (RestClientException e) {
+        } catch (RulesUnavailableException e) {
             log.warn("[PolicyEligibility] Couldn't reach rules-service for COVERAGE_EXCLUSION — "
                     + "coverage match isn't validated at intake for this alta: {}", e.getMessage());
             return;
@@ -83,7 +83,7 @@ public class PolicyEligibilityValidator {
         RulesServiceClient.PolicyStandingRule rule;
         try {
             rule = rulesServiceClient.policyStandingRule();
-        } catch (RestClientException e) {
+        } catch (RulesUnavailableException e) {
             log.warn("[PolicyEligibility] Couldn't reach rules-service for the POLICY_STANDING rule — "
                     + "arrears isn't validated at intake for this alta: {}", e.getMessage());
             return;
