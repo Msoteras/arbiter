@@ -36,6 +36,7 @@ import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
 import ar.edu.utn.frba.arbiter.cases.models.entities.CaseStatusHistory;
 import ar.edu.utn.frba.arbiter.cases.models.entities.CaseReferral;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.ClaimsAnalyst;
+import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Coverage;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Insured;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Policy;
 import ar.edu.utn.frba.arbiter.cases.models.entities.StatusChangeActor;
@@ -52,6 +53,7 @@ import ar.edu.utn.frba.arbiter.cases.support.CaseStates;
 import ar.edu.utn.frba.arbiter.common.dto.ImageForensicReport;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 import ar.edu.utn.frba.arbiter.common.enums.Classification;
+import ar.edu.utn.frba.arbiter.common.enums.ClassificationFailureReason;
 import ar.edu.utn.frba.arbiter.common.enums.RiskBand;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.ClaimsAnalyst;
 import org.junit.jupiter.api.AfterEach;
@@ -1511,6 +1513,61 @@ class CaseServiceImplTest {
                 .isInstanceOf(InsuredIdentityMismatchException.class);
 
         verifyNoInteractions(referenceResolver, policyEligibilityValidator);
+    }
+
+    @Test
+    void createCase_withCoverageExclusionsUnreadable_takesTheClaimOnAProvisionalCoverage() {
+        CaseRequest request = caseRequest();
+        Case saved = caseRecord(1L, CaseStatus.PENDING_CLASSIFICATION);
+        stubReferenceResolution();
+        Coverage provisional = Coverage.builder().name("Robo de celular").branchId(1L).build();
+        when(policyCoverageResolver.resolveFor(any(), any()))
+                .thenThrow(new RulesUnavailableException(new IllegalStateException("rules-service down")));
+        when(policyCoverageResolver.provisionalFor(any(), any()))
+                .thenReturn(CaseFixtures.policyCoverage(1L, provisional, 1));
+        when(caseStatusService.initialStatus()).thenReturn(CaseStates.of(CaseStatus.PENDING_CLASSIFICATION));
+        when(caseRepository.save(any(Case.class))).thenReturn(saved);
+
+        caseService.createCase(request, Map.of());
+
+        ArgumentCaptor<Case> captor = ArgumentCaptor.forClass(Case.class);
+        verify(caseRepository).save(captor.capture());
+        assertThat(captor.getValue().getCoverage()).isSameAs(provisional);
+        assertThat(captor.getValue().getDocumentsUnverifiedSince()).isEqualTo(Instant.parse("2026-06-15T12:00:00Z"));
+        verify(policyEligibilityValidator).validate(any(), any(), any(), isNull(), any());
+        verify(rulesServiceClient, never()).fastTrackDocumentTypes(any());
+        verify(rulesServiceClient, never()).requiredDocumentTypes(any(), any());
+        verify(claimsAnalysisClient, never()).analyzeAndPersist(any(), any());
+        assertThat(saved.getClassificationFailureReason()).isEqualTo(ClassificationFailureReason.INFRASTRUCTURE);
+        verify(caseStatusService).transition(eq(saved), eq(CaseStatus.CLASSIFICATION_FAILED),
+                eq(StatusChangeActor.SYSTEM), any());
+    }
+
+    @Test
+    void retryClassification_ofAClaimFiledUnverified_classifiesItOnTheReverifiedCoverage() {
+        Case failed = caseRecord(1L, CaseStatus.CLASSIFICATION_FAILED);
+        Coverage verified = Coverage.builder().name("Daño accidental").branchId(1L).build();
+        when(caseRepository.findById(1L)).thenReturn(Optional.of(failed));
+        when(policyCoverageResolver.reverifiedCoverage(failed)).thenReturn(Optional.of(verified));
+        when(caseDocumentRepository.findByCaseId(1L)).thenReturn(List.of());
+
+        caseService.retryClassification(1L);
+
+        assertThat(failed.getCoverage()).isSameAs(verified);
+        verify(claimsAnalysisClient).analyzeAndPersist(failed, List.of());
+    }
+
+    @Test
+    void retryClassification_ofAClaimFiledUnverified_withRulesStillDown_changesNothing() {
+        Case failed = caseRecord(1L, CaseStatus.CLASSIFICATION_FAILED);
+        when(caseRepository.findById(1L)).thenReturn(Optional.of(failed));
+        when(policyCoverageResolver.reverifiedCoverage(failed))
+                .thenThrow(new RulesUnavailableException(new IllegalStateException("rules-service down")));
+
+        assertThatThrownBy(() -> caseService.retryClassification(1L)).isInstanceOf(RulesUnavailableException.class);
+
+        verify(caseStatusService, never()).transition(any(), any(), any(), any());
+        verify(claimsAnalysisClient, never()).analyzeAndPersist(any(), any());
     }
 
     private CaseRequest caseRequest() {

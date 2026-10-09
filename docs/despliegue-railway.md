@@ -415,7 +415,13 @@ Cómo lo tolera cada tramo:
   pedido que sí llegó se devuelve tal cual.
 
 Con esto `classification-service` puede volver a tener Serverless (estaba apagado porque la primera
-denuncia después de un rato sin uso fallaba). `cases-service` sigue sin dormir: ver más abajo.
+denuncia después de un rato sin uso fallaba).
+
+**`cases-service` tiene que tener Serverless apagado.** Railway lo duerme aunque reciba pedidos y
+consulte la base todo el tiempo: el log del front del 8/10 muestra un 502 de cases cada 10 min justos
+con una pestaña abierta pidiéndole datos cada 30 s. Dormido, no corren sus crons diarios (pólizas
+3:00, vencimientos 8:00, caducidad 8:30) ni los barridos de clasificación y documentos, y el chat
+pierde el WebSocket.
 
 ---
 
@@ -430,9 +436,8 @@ denuncia después de un rato sin uso fallaba). `cases-service` sigue sin dormir:
 - El pool **se vacía cuando no hay tráfico** (`minimum-idle: 0`, `idle-timeout` 60 s,
   `keepalive-time: 0`). Serverless solo duerme un servicio tras 10 min sin tráfico saliente, y con
   los defaults de Hikari 7 (5 conexiones fijas, keepalive cada 2 min) ningún backend llegaba nunca,
-  ni la base con 25 conexiones abiertas. `cases-service` igual no duerme: la recuperación y la
-  recontrolación de documentos consultan la base cada 5 min, y sus crons diarios (3:00, 8:00 y
-  8:30) no correrían si estuviera dormido a esa hora.
+  ni la base con 25 conexiones abiertas. Que consulte la base no impide que Railway duerma un
+  servicio: por eso `cases-service` va con Serverless apagado (ver "Servicios dormidos").
 - Todas las imágenes corren con usuario sin privilegios.
 - Timezone fijada a `America/Argentina/Buenos_Aires` en las imágenes Java. **No es cosmético**: los
   contenedores corren en UTC, las máquinas del equipo en UTC-3, y hay `ZoneId.systemDefault()` en

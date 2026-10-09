@@ -311,6 +311,12 @@ arriba:
    `POST /api/v1/cases/{id}/retry-classification`. **Esperado:** esta vez sí clasifica con las
    reglas reales de la BD (no el mock), y quedan las filas de `rule_result` correspondientes.
 
+**Póliza con varias coberturas del ramo** (la mayoría en BBVA): sin las exclusiones de rules no se
+sabe cuál responde por el hecho. La denuncia igual entra (la caída es nuestra, como en la #162), con
+la primera cobertura del ramo como **provisoria** y marcada sin verificar, y no se manda a clasificar:
+queda `CLASSIFICATION_FAILED` con motivo `infrastructure`. Cuando rules vuelve, la recuperación (o el
+reintento del analista) resuelve la cobertura de verdad y recién ahí clasifica.
+
 ## 9 · Mora — sexta regla dura, alcance aseguradora (nuevo, 13-15/08)
 
 Mar consultó con Mich (equipo de negocio real) cómo se maneja la mora hoy: *"a las 3 cuotas

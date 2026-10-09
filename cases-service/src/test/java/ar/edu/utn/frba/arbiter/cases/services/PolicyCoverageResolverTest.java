@@ -1,6 +1,9 @@
 package ar.edu.utn.frba.arbiter.cases.services;
 
+import ar.edu.utn.frba.arbiter.cases.exceptions.RulesUnavailableException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.UnresolvedCaseReferenceException;
+import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
+import ar.edu.utn.frba.arbiter.cases.models.entities.Policy;
 import ar.edu.utn.frba.arbiter.cases.models.entities.PolicyCoverage;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.ClaimCauseRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.PolicyCoverageRepository;
@@ -10,6 +13,7 @@ import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Coverage;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
@@ -18,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
@@ -106,6 +111,52 @@ class PolicyCoverageResolverTest {
     }
 
     @Test
+    void aSingleCoverageOfTheBranch_answersWithoutAskingRules() {
+        givenContracted(coverage(1L, "Celular protegido"));
+
+        assertThat(resolver.resolveFor(POLICY_ID, THEFT).getCoverage().getName()).isEqualTo("Celular protegido");
+        verifyNoInteractions(rulesServiceClient);
+    }
+
+    @Test
+    void severalCoveragesOfTheBranch_withRulesUnavailable_failsInsteadOfGuessing() {
+        givenContracted(coverage(1L, "Robo de celular"), coverage(2L, "Hurto"));
+        when(rulesServiceClient.excludedClaimCauseIds(1L))
+                .thenThrow(new RulesUnavailableException(new IllegalStateException("rules-service down")));
+
+        assertThatThrownBy(() -> resolver.resolveFor(POLICY_ID, THEFT))
+                .isInstanceOf(RulesUnavailableException.class);
+    }
+
+    @Test
+    void provisionalFor_takesTheFirstCoverageOfTheCausesBranch_withoutAskingRules() {
+        givenContracted(
+                coverage(1L, "Daño accidental", PORTABLE_TECH_BRANCH),
+                coverage(2L, "Robo de celular", PHONES_BRANCH),
+                coverage(3L, "Hurto", PHONES_BRANCH));
+        when(claimCauseRepository.findById(THEFT)).thenReturn(Optional.of(claimCause(THEFT, PHONES_BRANCH)));
+
+        assertThat(resolver.provisionalFor(POLICY_ID, THEFT).getCoverage().getName()).isEqualTo("Robo de celular");
+        verifyNoInteractions(rulesServiceClient);
+    }
+
+    @Test
+    void reverifiedCoverage_ofACaseFiledVerified_isEmpty() {
+        assertThat(resolver.reverifiedCoverage(filedCase(null))).isEmpty();
+        verifyNoInteractions(rulesServiceClient, policyCoverageRepository);
+    }
+
+    @Test
+    void reverifiedCoverage_ofACaseFiledUnverified_resolvesItAgain() {
+        givenContracted(coverage(1L, "Robo de celular"), coverage(2L, "Hurto"));
+        when(rulesServiceClient.excludedClaimCauseIds(1L)).thenReturn(List.of(THEFT));
+        when(rulesServiceClient.excludedClaimCauseIds(2L)).thenReturn(List.of(STREET_ROBBERY));
+
+        assertThat(resolver.reverifiedCoverage(filedCase(Instant.parse("2026-10-09T03:00:00Z"))))
+                .hasValueSatisfying(coverage -> assertThat(coverage.getName()).isEqualTo("Hurto"));
+    }
+
+    @Test
     void aPolicyWithNoCoverageOnFile_throws() {
         givenContracted();
 
@@ -170,6 +221,14 @@ class PolicyCoverageResolverTest {
                 .displayOrder(coverageId.intValue())
                 .sumInsured(new BigDecimal("500000"))
                 .deductiblePct(new BigDecimal("10.00"))
+                .build();
+    }
+
+    private Case filedCase(Instant documentsUnverifiedSince) {
+        return Case.builder()
+                .policy(Policy.builder().id(POLICY_ID).build())
+                .claimCause(ClaimCause.builder().id(THEFT).build())
+                .documentsUnverifiedSince(documentsUnverifiedSince)
                 .build();
     }
 

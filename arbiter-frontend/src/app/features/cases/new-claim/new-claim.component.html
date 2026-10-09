@@ -332,7 +332,9 @@
       @if (step() === 3) {
         <section class="step-content">
           <h2 class="step-title">Adjuntá documentación</h2>
-          @if (docsRequired()) {
+          @if (docsLoading()) {
+            <app-inline-loading [size]="20" message="Verificando qué documentación necesitás…" />
+          } @else if (docsRequired()) {
             <p class="step-hint">
               Esta documentación es obligatoria para poder evaluar tu caso.
               @if (docsFirstRound()) {
