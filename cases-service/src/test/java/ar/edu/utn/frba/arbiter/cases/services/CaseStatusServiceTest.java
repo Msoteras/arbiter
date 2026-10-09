@@ -8,6 +8,7 @@ import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseStatusHistoryRepository;
 import ar.edu.utn.frba.arbiter.cases.support.CaseStates;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
+import ar.edu.utn.frba.arbiter.common.models.entities.CaseState;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
@@ -307,6 +308,46 @@ class CaseStatusServiceTest {
         // Resolving resets nothing: the term stops because the status is terminal, which
         // verifyNoInteractions(clock) tells apart from a reset.
         verifyNoInteractions(clock);
+    }
+
+    @Test
+    void enteredCurrentStatusAt_isTheLatestMoveIntoIt() {
+        Case entity = Case.builder().id(1L).currentStatus(stateWithId(CaseStatus.PENDING_CLASSIFICATION, 1L)).build();
+        Instant enteredAt = Instant.parse("2026-10-08T12:00:00Z");
+        when(historyRepository.findFirstByCaseIdAndFinalStatus_IdOrderByChangedAtDesc(1L, 1L))
+                .thenReturn(Optional.of(CaseStatusHistory.builder().changedAt(enteredAt).build()));
+
+        assertThat(caseStatusService.enteredCurrentStatusAt(entity)).isEqualTo(enteredAt);
+    }
+
+    @Test
+    void enteredCurrentStatusAt_withoutHistory_fallsBackToTheLastUpdate() {
+        Instant updatedAt = Instant.parse("2026-10-08T12:00:00Z");
+        Case entity = Case.builder().id(1L).currentStatus(stateWithId(CaseStatus.PENDING_CLASSIFICATION, 1L))
+                .updatedAt(updatedAt).build();
+        when(historyRepository.findFirstByCaseIdAndFinalStatus_IdOrderByChangedAtDesc(1L, 1L))
+                .thenReturn(Optional.empty());
+
+        assertThat(caseStatusService.enteredCurrentStatusAt(entity)).isEqualTo(updatedAt);
+    }
+
+    @Test
+    void lastTransitionAt_looksUpThatMoveByThatActor() {
+        Instant requeuedAt = Instant.parse("2026-10-08T12:00:00Z");
+        when(caseStateCatalog.resolve(CaseStatus.CLASSIFICATION_FAILED))
+                .thenReturn(stateWithId(CaseStatus.CLASSIFICATION_FAILED, 4L));
+        when(caseStateCatalog.resolve(CaseStatus.PENDING_CLASSIFICATION))
+                .thenReturn(stateWithId(CaseStatus.PENDING_CLASSIFICATION, 1L));
+        when(historyRepository.findFirstByCaseIdAndInitialStatus_IdAndFinalStatus_IdAndActorOrderByChangedAtDesc(
+                9L, 4L, 1L, StatusChangeActor.SYSTEM))
+                .thenReturn(Optional.of(CaseStatusHistory.builder().changedAt(requeuedAt).build()));
+
+        assertThat(caseStatusService.lastTransitionAt(9L, CaseStatus.CLASSIFICATION_FAILED,
+                CaseStatus.PENDING_CLASSIFICATION, StatusChangeActor.SYSTEM)).contains(requeuedAt);
+    }
+
+    private CaseState stateWithId(CaseStatus status, Long id) {
+        return CaseState.builder().id(id).name(status.name()).description(status.name()).build();
     }
 
     private Case caseRecord(Long id, CaseStatus status) {

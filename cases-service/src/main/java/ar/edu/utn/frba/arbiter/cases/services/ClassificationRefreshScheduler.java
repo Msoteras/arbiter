@@ -17,13 +17,16 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import java.time.Clock;
+import java.time.Duration;
 import java.util.List;
 
 /**
  * Two cross-tenant background sweeps over cases waiting on classification:
  * <ul>
- *   <li>{@link #refreshPendingCases()} polls classification-service for {@code PENDING_CLASSIFICATION}
- *       results and gives up to {@code CLASSIFICATION_FAILED} after {@code max-attempts}.</li>
+ *   <li>{@link #refreshPendingCases()} is the safety net for notices from classification-service that
+ *       never arrived: it polls for {@code PENDING_CLASSIFICATION} results and gives up to
+ *       {@code CLASSIFICATION_FAILED} once a case has waited {@code give-up-after}.</li>
  *   <li>{@link #recoverInfrastructureFailures()} requeues {@code CLASSIFICATION_FAILED} cases whose
  *       recorded reason is {@link ClassificationFailureReason#INFRASTRUCTURE}; polling alone never
  *       re-triggers a run, so they would otherwise stay failed after the outage is over.</li>
@@ -39,21 +42,26 @@ public class ClassificationRefreshScheduler {
     private final CaseDocumentRepository caseDocumentRepository;
     private final CaseStatusService caseStatusService;
     private final ClaimsAnalysisClient claimsAnalysisClient;
+    private final ClassificationOutcomeService classificationOutcomeService;
     private final InsurerRepository insurerRepository;
+    private final Clock clock;
 
-    @Value("${arbiter.classification-refresh.max-attempts:120}")
-    private int maxAttempts;
+    @Value("${arbiter.classification-refresh.give-up-after:3h}")
+    private Duration giveUpAfter;
 
-    @Value("${arbiter.classification-refresh.interval-ms:5000}")
+    @Value("${arbiter.classification-refresh.interval-ms:600000}")
     private long intervalMs;
+
+    @Value("${arbiter.classification-refresh.requeue-cooldown:30m}")
+    private Duration requeueCooldown;
 
     @PostConstruct
     void logWindow() {
-        log.info("[Refresh] Ventana: interval-ms={} x max-attempts={} = {} min",
-                intervalMs, maxAttempts, (intervalMs * maxAttempts) / 60000);
+        log.info("[Refresh] Polling every {} s; giving up after {} min without a result",
+                intervalMs / 1000, giveUpAfter.toMinutes());
     }
 
-    @Scheduled(fixedDelayString = "${arbiter.classification-refresh.interval-ms:5000}")
+    @Scheduled(fixedDelayString = "${arbiter.classification-refresh.interval-ms:600000}")
     public void refreshPendingCases() {
         for (Insurer insurer : insurerRepository.findByActiveTrue()) {
             try {
@@ -103,37 +111,23 @@ public class ClassificationRefreshScheduler {
             return;
         }
 
-        if (attempts < maxAttempts) {
+        Duration waited = Duration.between(caseStatusService.enteredCurrentStatusAt(caseRecord), clock.instant());
+        if (waited.compareTo(giveUpAfter) < 0) {
             return;
         }
 
-        // Re-read rather than reusing the sweep's copy: transition() validates against the state
-        // the entity carries, and the case may have left PENDING_CLASSIFICATION in the meantime.
-        caseRepository.findById(caseRecord.getId())
-                .filter(fresh -> fresh.getStatus() == CaseStatus.PENDING_CLASSIFICATION)
-                .ifPresentOrElse(fresh -> {
-                    log.error("Case {} marked as CLASSIFICATION_FAILED after {} attempts",
-                            fresh.getId(), attempts);
-                    caseStatusService.transition(fresh, CaseStatus.CLASSIFICATION_FAILED,
-                            StatusChangeActor.SYSTEM,
-                            "clasificación fallida tras " + attempts + " reintentos" + failureSuffix(fresh));
-                }, () -> log.debug("Case {} left PENDING_CLASSIFICATION before the sweep gave up",
-                        caseRecord.getId()));
+        classificationOutcomeService.markFailed(caseRecord,
+                "clasificación fallida: sin resultado después de " + describe(giveUpAfter));
+    }
+
+    private static String describe(Duration duration) {
+        long minutes = duration.toMinutes();
+        return minutes % 60 == 0 ? minutes / 60 + " h" : minutes + " min";
     }
 
     /**
-     * Surfaces the reason classification-service recorded on the row. Empty when none was recorded,
-     * e.g. when the poll itself kept failing.
-     */
-    private String failureSuffix(Case caseRecord) {
-        ClassificationFailureReason reason = caseRecord.getClassificationFailureReason();
-        return reason == null ? "" : " (" + reason.name().toLowerCase() + ")";
-    }
-
-    /**
-     * Runs far less often than the poller on purpose: classification-service already retries for
-     * several minutes before a case fails, and requeuing seconds later would just hammer a
-     * dependency that's still down.
+     * Not right after a failure: classification-service already retries for several minutes before
+     * a case fails, and requeuing at once would just hammer a dependency that's still down.
      */
     @Scheduled(fixedDelayString = "${arbiter.classification-refresh.recovery-interval-ms:300000}")
     public void recoverInfrastructureFailures() {
@@ -152,7 +146,9 @@ public class ClassificationRefreshScheduler {
     }
 
     private void recoverInfrastructureFailuresForCurrentTenant() {
-        List<Case> failed = caseRepository.findFailedByReason(ClassificationFailureReason.INFRASTRUCTURE);
+        List<Case> failed = caseRepository.findFailedByReason(ClassificationFailureReason.INFRASTRUCTURE).stream()
+                .filter(this::requeueCooldownElapsed)
+                .toList();
         if (failed.isEmpty()) {
             return;
         }
@@ -203,5 +199,12 @@ public class ClassificationRefreshScheduler {
 
         claimsAnalysisClient.analyzeAndPersistAsSystem(
                 caseRecord, caseDocumentRepository.findByCaseId(caseRecord.getId()));
+    }
+
+    private boolean requeueCooldownElapsed(Case caseRecord) {
+        return caseStatusService.lastTransitionAt(caseRecord.getId(), CaseStatus.CLASSIFICATION_FAILED,
+                        CaseStatus.PENDING_CLASSIFICATION, StatusChangeActor.SYSTEM)
+                .map(lastRequeue -> !clock.instant().isBefore(lastRequeue.plus(requeueCooldown)))
+                .orElse(true);
     }
 }

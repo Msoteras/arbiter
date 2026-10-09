@@ -6,9 +6,7 @@ import ar.edu.utn.frba.arbiter.cases.dto.AnalystDecisionRequest;
 import ar.edu.utn.frba.arbiter.cases.models.entities.CaseDocument;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
 import ar.edu.utn.frba.arbiter.cases.models.entities.StatusChangeActor;
-import ar.edu.utn.frba.arbiter.cases.models.entities.CaseStatusHistory;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseRepository;
-import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseStatusHistoryRepository;
 import ar.edu.utn.frba.arbiter.common.dto.ClaimReport;
 import ar.edu.utn.frba.arbiter.common.dto.ClaimResponse;
 import ar.edu.utn.frba.arbiter.common.dto.FraudRecordRequest;
@@ -39,7 +37,6 @@ import org.springframework.web.client.RestClientResponseException;
 
 import javax.crypto.SecretKey;
 import java.net.URI;
-import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.List;
@@ -62,7 +59,6 @@ public class ClassificationServiceClient implements ClaimsAnalysisClient {
     private final String uploadTarget;
     private final CaseStatusService caseStatusService;
     private final CaseRepository caseRepository;
-    private final CaseStatusHistoryRepository caseStatusHistoryRepository;
     private final HttpServletRequest currentRequest;
     private final SecretKey jwtKey;
 
@@ -71,7 +67,6 @@ public class ClassificationServiceClient implements ClaimsAnalysisClient {
             ConnectionRetryInterceptor connectionRetry,
             CaseStatusService caseStatusService,
             CaseRepository caseRepository,
-            CaseStatusHistoryRepository caseStatusHistoryRepository,
             @Value("${arbiter.classification-service.url:http://classification-service:8082}") String classificationServiceUrl,
             HttpServletRequest currentRequest,
             @Value("${arbiter.auth.jwt.secret}") String jwtSecret
@@ -85,7 +80,6 @@ public class ClassificationServiceClient implements ClaimsAnalysisClient {
         this.uploadTarget = "POST " + URI.create(classificationServiceUrl).getAuthority();
         this.caseStatusService = caseStatusService;
         this.caseRepository = caseRepository;
-        this.caseStatusHistoryRepository = caseStatusHistoryRepository;
         this.currentRequest = currentRequest;
         this.jwtKey = JwtSupport.key(jwtSecret);
     }
@@ -291,12 +285,7 @@ public class ClassificationServiceClient implements ClaimsAnalysisClient {
         if (response.analyzedAt() == null) {
             return false;
         }
-        Instant enteredPendingAt = caseStatusHistoryRepository
-                .findFirstByCaseIdAndFinalStatus_IdOrderByChangedAtDesc(
-                        caseRecord.getId(), caseRecord.getCurrentStatus().getId())
-                .map(CaseStatusHistory::getChangedAt)
-                .orElse(caseRecord.getUpdatedAt());
-        return response.analyzedAt().isBefore(enteredPendingAt);
+        return response.analyzedAt().isBefore(caseStatusService.enteredCurrentStatusAt(caseRecord));
     }
 
     /** Missing documentation is the insured's turn; every other result goes to the analyst. */

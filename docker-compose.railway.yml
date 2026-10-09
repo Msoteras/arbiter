@@ -131,6 +131,7 @@ services:
       JWT_SECRET: ${JWT_SECRET:?falta JWT_SECRET en .env}
       # The yml default is localhost, which inside a container is the container itself.
       RULES_SERVICE_URL: http://rules-service:8081
+      CASES_SERVICE_URL: http://cases-service:8083
     depends_on:
       ollama-init:
         condition: service_completed_successfully

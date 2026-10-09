@@ -191,6 +191,7 @@ declara módulo por módulo. En Railway se cargan las mismas, con estas diferenc
 | `DB_URL` / `DB_USER` / `DB_PASSWORD` | La base vive en el Postgres de Railway. **`DB_URL` va por la red privada**: `jdbc:postgresql://${{Postgres.RAILWAY_PRIVATE_DOMAIN}}:5432/railway?sslmode=require`. El proxy público (`*.proxy.rlwy.net`) es solo para conectarse desde afuera (scripts, `psql`): usado desde los servicios, cada consulta sale a internet y vuelve, y se cobra como egress |
 | `RULES_SERVICE_URL` | `http://rules-service.railway.internal:8081` |
 | `CLASSIFICATION_SERVICE_URL` | `http://classification-service.railway.internal:8082` |
+| `CASES_SERVICE_URL` | **En `classification-service`**: `http://cases-service.railway.internal:8083`. Es a donde avisa que terminó una clasificación. Si falta, el aviso no llega y cases se entera recién con el polling de respaldo (cada 10 min); el log de classification dice `Could not notify cases-service` |
 | `EMBEDDING_SERVICE_URL` | `http://clip-embedding.railway.internal:8000` |
 | `LLM_PROVIDER` | **`gemini`** — ver abajo |
 | `OLLAMA_BASE_URL` | No se setea: no hay Ollama en Railway |
@@ -394,7 +395,8 @@ Cómo lo tolera cada tramo:
   no llegó (conexión rechazada, nombre que no resuelve o timeout de conexión), ~23 s en total. Una respuesta HTTP, 5xx
   incluido, no se reintenta nunca: el pedido ya llegó y repetirlo podría correr un POST dos veces.
   Lo usan todas las llamadas de `cases-service` a classification y rules, las de `reports-service` y
-  `classification-service` a rules, y `classification-service` → `clip-embedding` (este con ~54 s).
+  `classification-service` a rules, el aviso de `classification-service` a `cases-service` y
+  `classification-service` → `clip-embedding` (este con ~54 s).
   El envío de la denuncia a classification (hasta 30 MB de adjuntos) no pasa por el interceptor,
   que guardaría el cuerpo entero en memoria para poder reenviarlo: se manda de a partes y se
   reintenta la llamada completa (`call`). Con el `-Xmx384m` de cases, esa copia de más es la
@@ -402,6 +404,8 @@ Cómo lo tolera cada tramo:
 - **Si classification no toma una denuncia** ni con los reintentos, el expediente queda en
   `CLASSIFICATION_FAILED` con motivo `INFRASTRUCTURE` y el barrido de recuperación lo reencola. El
   usuario no ve un error, así no la vuelve a cargar.
+- **Si el aviso de fin de clasificación no llega a cases** ni con los reintentos, el expediente lo
+  levanta el polling de respaldo de cases, que corre cada 10 min (`CLASSIFICATION_REFRESH_INTERVAL_MS`).
 - **Si `clip-embedding` no responde**, la clasificación sigue: la imagen queda como "no se pudo
   comparar" y el factor de reutilización de imágenes queda no evaluable, en vez de leerse como "sin
   coincidencias".
@@ -426,8 +430,9 @@ denuncia después de un rato sin uso fallaba). `cases-service` sigue sin dormir:
 - El pool **se vacía cuando no hay tráfico** (`minimum-idle: 0`, `idle-timeout` 60 s,
   `keepalive-time: 0`). Serverless solo duerme un servicio tras 10 min sin tráfico saliente, y con
   los defaults de Hikari 7 (5 conexiones fijas, keepalive cada 2 min) ningún backend llegaba nunca,
-  ni la base con 25 conexiones abiertas. `cases-service` igual no duerme: sus schedulers consultan
-  la base cada 20 s.
+  ni la base con 25 conexiones abiertas. `cases-service` igual no duerme: la recuperación y la
+  recontrolación de documentos consultan la base cada 5 min, y sus crons diarios (3:00, 8:00 y
+  8:30) no correrían si estuviera dormido a esa hora.
 - Todas las imágenes corren con usuario sin privilegios.
 - Timezone fijada a `America/Argentina/Buenos_Aires` en las imágenes Java. **No es cosmético**: los
   contenedores corren en UTC, las máquinas del equipo en UTC-3, y hay `ZoneId.systemDefault()` en

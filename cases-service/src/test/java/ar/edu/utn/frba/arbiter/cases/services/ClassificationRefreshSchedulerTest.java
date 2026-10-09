@@ -15,12 +15,15 @@ import ar.edu.utn.frba.arbiter.common.models.entities.Insurer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -35,6 +38,8 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class ClassificationRefreshSchedulerTest {
 
+    private static final Instant NOW = Instant.parse("2026-10-08T15:00:00Z");
+
     @Mock
     private CaseRepository caseRepository;
 
@@ -48,6 +53,9 @@ class ClassificationRefreshSchedulerTest {
     private ClaimsAnalysisClient claimsAnalysisClient;
 
     @Mock
+    private ClassificationOutcomeService classificationOutcomeService;
+
+    @Mock
     private InsurerRepository insurerRepository;
 
     private ClassificationRefreshScheduler scheduler;
@@ -55,7 +63,8 @@ class ClassificationRefreshSchedulerTest {
     @BeforeEach
     void setUp() {
         scheduler = new ClassificationRefreshScheduler(
-                caseRepository, caseDocumentRepository, caseStatusService, claimsAnalysisClient, insurerRepository);
+                caseRepository, caseDocumentRepository, caseStatusService, claimsAnalysisClient,
+                classificationOutcomeService, insurerRepository, Clock.fixed(NOW, ZoneOffset.UTC));
         // The sweep is per tenant, so every test needs at least one insurer. Lenient because the
         // multi-tenant tests override this stub before it is ever called.
         lenient().when(insurerRepository.findByActiveTrue())
@@ -69,7 +78,8 @@ class ClassificationRefreshSchedulerTest {
         lenient().when(caseRepository.claimFailedCaseForRequeue(anyLong(), any()))
                 .thenReturn(1);
         lenient().when(claimsAnalysisClient.isReachable()).thenReturn(true);
-        setMaxAttempts(3);
+        setField("giveUpAfter", Duration.ofHours(3));
+        setField("requeueCooldown", Duration.ofMinutes(30));
     }
 
     @Test
@@ -97,6 +107,7 @@ class ClassificationRefreshSchedulerTest {
     @Test
     void unresolvedCase_incrementsAttempts() {
         Case entity = pendingCase(0);
+        waitingSince(entity, Duration.ofHours(1));
         when(caseRepository.findByStatus(CaseStatus.PENDING_CLASSIFICATION)).thenReturn(List.of(entity));
         when(claimsAnalysisClient.refreshClassification(entity)).thenReturn(false);
 
@@ -106,42 +117,34 @@ class ClassificationRefreshSchedulerTest {
         // the row from a stale copy and revert concurrent changes.
         verify(caseRepository).advanceClassificationAttempts(entity.getId(), 0, 1);
         verify(caseRepository, never()).save(any());
-        verify(caseStatusService, never()).transition(any(), any(), any(), any());
+        verify(classificationOutcomeService, never()).markFailed(any(), any());
     }
 
     @Test
-    void maxAttemptsReached_marksClassificationFailed() {
-        Case entity = pendingCase(2);
+    void waitedTheWholeWindow_marksClassificationFailed() {
+        Case entity = pendingCase(17);
+        waitingSince(entity, Duration.ofHours(3));
         when(caseRepository.findByStatus(CaseStatus.PENDING_CLASSIFICATION)).thenReturn(List.of(entity));
         when(claimsAnalysisClient.refreshClassification(entity)).thenReturn(false);
-        when(caseRepository.findById(entity.getId())).thenReturn(Optional.of(entity));
 
         scheduler.refreshPendingCases();
 
-        verify(caseRepository).advanceClassificationAttempts(entity.getId(), 2, 3);
-        verify(caseStatusService).transition(eq(entity), eq(CaseStatus.CLASSIFICATION_FAILED),
-                eq(StatusChangeActor.SYSTEM), any());
+        verify(caseRepository).advanceClassificationAttempts(entity.getId(), 17, 18);
+        verify(classificationOutcomeService).markFailed(entity,
+                "clasificación fallida: sin resultado después de 3 h");
         verify(caseRepository, never()).save(any());
     }
 
-    /**
-     * classification-service already wrote the structured failure reason on the row before the
-     * sweep gives up; the transition reason must surface it instead of a generic "N retries".
-     */
     @Test
-    void maxAttemptsReached_withRecordedInfrastructureFailure_includesItInTransitionReason() {
-        Case entity = pendingCase(2);
-        entity.setClassificationFailureReason(ClassificationFailureReason.INFRASTRUCTURE);
+    void manyAttemptsWithinTheWindow_keepWaiting() {
+        Case entity = pendingCase(539);
+        waitingSince(entity, Duration.ofMinutes(179));
         when(caseRepository.findByStatus(CaseStatus.PENDING_CLASSIFICATION)).thenReturn(List.of(entity));
         when(claimsAnalysisClient.refreshClassification(entity)).thenReturn(false);
-        when(caseRepository.findById(entity.getId())).thenReturn(Optional.of(entity));
 
         scheduler.refreshPendingCases();
 
-        ArgumentCaptor<String> reasonCaptor = ArgumentCaptor.forClass(String.class);
-        verify(caseStatusService).transition(eq(entity), eq(CaseStatus.CLASSIFICATION_FAILED),
-                eq(StatusChangeActor.SYSTEM), reasonCaptor.capture());
-        assertThat(reasonCaptor.getValue()).contains("infrastructure");
+        verify(classificationOutcomeService, never()).markFailed(any(), any());
     }
 
     /**
@@ -157,33 +160,14 @@ class ClassificationRefreshSchedulerTest {
 
         scheduler.refreshPendingCases();
 
-        verify(caseStatusService, never()).transition(any(), any(), any(), any());
-        verify(caseRepository, never()).findById(any());
-    }
-
-    /**
-     * Minutes may pass between the read and running out of attempts. If the case left
-     * PENDING_CLASSIFICATION meanwhile (an analyst retried it, or the result arrived), marking it
-     * failed from the stale copy would write a wrong transition.
-     */
-    @Test
-    void caseLeftPendingBeforeGivingUp_doesNotTransition() {
-        Case entity = pendingCase(2);
-        when(caseRepository.findByStatus(CaseStatus.PENDING_CLASSIFICATION)).thenReturn(List.of(entity));
-        when(claimsAnalysisClient.refreshClassification(entity)).thenReturn(false);
-
-        Case reclassified = pendingCase(2);
-        reclassified.setCurrentStatus(CaseStates.of(CaseStatus.PENDING_ANALYST_REVIEW));
-        when(caseRepository.findById(entity.getId())).thenReturn(Optional.of(reclassified));
-
-        scheduler.refreshPendingCases();
-
-        verify(caseStatusService, never()).transition(any(), any(), any(), any());
+        verify(classificationOutcomeService, never()).markFailed(any(), any());
+        verify(caseStatusService, never()).enteredCurrentStatusAt(any());
     }
 
     @Test
     void exceptionDuringRefresh_incrementsAttempts() {
         Case entity = pendingCase(0);
+        waitingSince(entity, Duration.ofMinutes(10));
         when(caseRepository.findByStatus(CaseStatus.PENDING_CLASSIFICATION)).thenReturn(List.of(entity));
         when(claimsAnalysisClient.refreshClassification(entity)).thenThrow(new RuntimeException("connection refused"));
 
@@ -194,17 +178,30 @@ class ClassificationRefreshSchedulerTest {
     }
 
     @Test
-    void exceptionAtMaxAttempts_marksClassificationFailed() {
+    void exceptionOnceTheWindowRanOut_marksClassificationFailed() {
         Case entity = pendingCase(2);
+        waitingSince(entity, Duration.ofHours(4));
         when(caseRepository.findByStatus(CaseStatus.PENDING_CLASSIFICATION)).thenReturn(List.of(entity));
         when(claimsAnalysisClient.refreshClassification(entity)).thenThrow(new RuntimeException("timeout"));
-        when(caseRepository.findById(entity.getId())).thenReturn(Optional.of(entity));
 
         scheduler.refreshPendingCases();
 
         verify(caseRepository).advanceClassificationAttempts(entity.getId(), 2, 3);
-        verify(caseStatusService).transition(eq(entity), eq(CaseStatus.CLASSIFICATION_FAILED),
-                eq(StatusChangeActor.SYSTEM), any());
+        verify(classificationOutcomeService).markFailed(eq(entity), any());
+    }
+
+    @Test
+    void giveUpWindowNotInWholeHours_isDescribedInMinutes() {
+        setField("giveUpAfter", Duration.ofMinutes(90));
+        Case entity = pendingCase(2);
+        waitingSince(entity, Duration.ofMinutes(90));
+        when(caseRepository.findByStatus(CaseStatus.PENDING_CLASSIFICATION)).thenReturn(List.of(entity));
+        when(claimsAnalysisClient.refreshClassification(entity)).thenReturn(false);
+
+        scheduler.refreshPendingCases();
+
+        verify(classificationOutcomeService).markFailed(entity,
+                "clasificación fallida: sin resultado después de 90 min");
     }
 
     @Test
@@ -212,25 +209,23 @@ class ClassificationRefreshSchedulerTest {
         Case resolved = pendingCase(0);
         Case unresolved = pendingCase(1);
         Case failing = pendingCase(2);
+        waitingSince(unresolved, Duration.ofMinutes(30));
+        waitingSince(failing, Duration.ofHours(5));
 
         when(caseRepository.findByStatus(CaseStatus.PENDING_CLASSIFICATION))
                 .thenReturn(List.of(resolved, unresolved, failing));
         when(claimsAnalysisClient.refreshClassification(resolved)).thenReturn(true);
         when(claimsAnalysisClient.refreshClassification(unresolved)).thenReturn(false);
         when(claimsAnalysisClient.refreshClassification(failing)).thenReturn(false);
-        when(caseRepository.findById(failing.getId())).thenReturn(Optional.of(failing));
 
         scheduler.refreshPendingCases();
 
         assertThat(resolved.getClassificationAttempts()).isEqualTo(0);
-        assertThat(unresolved.getStatus()).isEqualTo(CaseStatus.PENDING_CLASSIFICATION);
-
-        // Only the still-pending case gets its counter bumped; the exhausted one goes through the
-        // status transition.
         verify(caseRepository).advanceClassificationAttempts(unresolved.getId(), 1, 2);
+        verify(caseRepository).advanceClassificationAttempts(failing.getId(), 2, 3);
         verify(caseRepository, never()).save(any());
-        verify(caseStatusService).transition(eq(failing), eq(CaseStatus.CLASSIFICATION_FAILED),
-                eq(StatusChangeActor.SYSTEM), any());
+        verify(classificationOutcomeService).markFailed(eq(failing), any());
+        verify(classificationOutcomeService, never()).markFailed(eq(unresolved), any());
     }
 
     @Test
@@ -315,6 +310,48 @@ class ClassificationRefreshSchedulerTest {
         verify(claimsAnalysisClient, never()).analyzeAndPersistAsSystem(any(), any());
     }
 
+    @Test
+    void recoverInfrastructureFailures_requeuedAutomaticallyWithinTheCooldown_waits() {
+        Case entity = failedCase(3, ClassificationFailureReason.INFRASTRUCTURE);
+        when(caseRepository.findFailedByReason(ClassificationFailureReason.INFRASTRUCTURE))
+                .thenReturn(List.of(entity));
+        lastAutomaticRequeue(entity, Duration.ofMinutes(29));
+
+        scheduler.recoverInfrastructureFailures();
+
+        verify(claimsAnalysisClient, never()).isReachable();
+        verify(caseRepository, never()).claimFailedCaseForRequeue(anyLong(), any());
+        verify(claimsAnalysisClient, never()).analyzeAndPersistAsSystem(any(), any());
+    }
+
+    @Test
+    void recoverInfrastructureFailures_lastAutomaticRequeueOlderThanTheCooldown_requeues() {
+        Case entity = failedCase(3, ClassificationFailureReason.INFRASTRUCTURE);
+        when(caseRepository.findFailedByReason(ClassificationFailureReason.INFRASTRUCTURE))
+                .thenReturn(List.of(entity));
+        when(caseRepository.findById(entity.getId())).thenReturn(Optional.of(entity));
+        lastAutomaticRequeue(entity, Duration.ofMinutes(30));
+
+        scheduler.recoverInfrastructureFailures();
+
+        verify(claimsAnalysisClient).analyzeAndPersistAsSystem(entity, List.of());
+    }
+
+    @Test
+    void recoverInfrastructureFailures_onlyTheCasesOutOfTheCooldownAreRequeued() {
+        Case cooling = failedCase(3, ClassificationFailureReason.INFRASTRUCTURE);
+        Case ready = failedCase(4, ClassificationFailureReason.INFRASTRUCTURE);
+        when(caseRepository.findFailedByReason(ClassificationFailureReason.INFRASTRUCTURE))
+                .thenReturn(List.of(cooling, ready));
+        when(caseRepository.findById(ready.getId())).thenReturn(Optional.of(ready));
+        lastAutomaticRequeue(cooling, Duration.ofMinutes(5));
+
+        scheduler.recoverInfrastructureFailures();
+
+        verify(claimsAnalysisClient).analyzeAndPersistAsSystem(ready, List.of());
+        verify(claimsAnalysisClient, never()).analyzeAndPersistAsSystem(eq(cooling), any());
+    }
+
     /**
      * Same as {@link #anotherSweepAlreadyAdvancedTheCase_doesNotTransitionAgain} for the recovery
      * sweep: the one that loses the CAS must not requeue, or two classifications go out.
@@ -388,6 +425,16 @@ class ClassificationRefreshSchedulerTest {
         assertThat(TenantContext.get()).isEqualTo(TenantContext.COMMON_SCHEMA);
     }
 
+    private void waitingSince(Case entity, Duration waited) {
+        when(caseStatusService.enteredCurrentStatusAt(entity)).thenReturn(NOW.minus(waited));
+    }
+
+    private void lastAutomaticRequeue(Case entity, Duration ago) {
+        when(caseStatusService.lastTransitionAt(entity.getId(), CaseStatus.CLASSIFICATION_FAILED,
+                CaseStatus.PENDING_CLASSIFICATION, StatusChangeActor.SYSTEM))
+                .thenReturn(Optional.of(NOW.minus(ago)));
+    }
+
     private Case failedCase(long id, ClassificationFailureReason reason) {
         return Case.builder()
                 .id(id)
@@ -417,11 +464,11 @@ class ClassificationRefreshSchedulerTest {
                 .build();
     }
 
-    private void setMaxAttempts(int maxAttempts) {
+    private void setField(String name, Object value) {
         try {
-            var field = ClassificationRefreshScheduler.class.getDeclaredField("maxAttempts");
+            var field = ClassificationRefreshScheduler.class.getDeclaredField(name);
             field.setAccessible(true);
-            field.setInt(scheduler, maxAttempts);
+            field.set(scheduler, value);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }

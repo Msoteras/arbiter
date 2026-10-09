@@ -304,12 +304,9 @@ arriba:
    veces, backoff 2s/4s/8s) y después se rinde. **No** debe aparecer ninguna fila nueva en
    `llm_analysis` ni en `rule_result` para ese caso: es la prueba de que no se coló el baseline del
    mock disfrazado de resultado real.
-4. Con `arbiter.classification-refresh.interval-ms`/`max-attempts` en los valores del
-   `application.yml` (20000 ms / 540), el expediente recién pasa a `CLASSIFICATION_FAILED` a las
-   **3 horas** — la ventana se agrandó porque corriendo Ollama por CPU hay clasificaciones de 20
-   minutos a más de una hora y el scheduler las daba por fallidas mientras seguían en curso. Para
-   no esperar tanto en la prueba manual, bajar `max-attempts` a algo chico (ej. 3) vía variable de
-   entorno antes de levantar cases-service.
+4. Cuando classification se rinde, le avisa a cases-service y el expediente pasa enseguida a
+   `CLASSIFICATION_FAILED` con motivo `infrastructure`. Mientras rules-service siga caído, la
+   recuperación lo reencola como mucho cada 30 min (`requeue-cooldown`) y vuelve a fallar.
 5. Levantar rules-service de nuevo y, como analista o referente,
    `POST /api/v1/cases/{id}/retry-classification`. **Esperado:** esta vez sí clasifica con las
    reglas reales de la BD (no el mock), y quedan las filas de `rule_result` correspondientes.

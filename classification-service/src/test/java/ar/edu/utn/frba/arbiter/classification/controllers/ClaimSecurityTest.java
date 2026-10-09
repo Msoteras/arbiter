@@ -1,5 +1,6 @@
 package ar.edu.utn.frba.arbiter.classification.controllers;
 
+import ar.edu.utn.frba.arbiter.classification.adapters.CasesServiceNotifier;
 import ar.edu.utn.frba.arbiter.classification.models.repositories.CaseOutcomeRepository;
 import ar.edu.utn.frba.arbiter.classification.support.AbstractPersistenceIT;
 import ar.edu.utn.frba.arbiter.common.security.JwtSupport;
@@ -38,6 +39,9 @@ class ClaimSecurityTest extends AbstractPersistenceIT {
     /** Mocked because {@code cases} doesn't exist in this module's test container. */
     @MockitoBean
     private CaseOutcomeRepository caseOutcomeRepository;
+
+    @MockitoBean
+    private CasesServiceNotifier casesServiceNotifier;
 
     @BeforeEach
     void stubCaseLookup() {
