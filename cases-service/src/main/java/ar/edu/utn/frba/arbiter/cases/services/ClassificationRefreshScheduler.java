@@ -1,6 +1,7 @@
 package ar.edu.utn.frba.arbiter.cases.services;
 
 import ar.edu.utn.frba.arbiter.cases.config.tenant.TenantContext;
+import ar.edu.utn.frba.arbiter.cases.exceptions.RulesUnavailableException;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
 import ar.edu.utn.frba.arbiter.cases.models.entities.StatusChangeActor;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseDocumentRepository;
@@ -9,6 +10,7 @@ import ar.edu.utn.frba.arbiter.cases.models.repositories.InsurerRepository;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 import ar.edu.utn.frba.arbiter.common.enums.ClassificationFailureReason;
 import ar.edu.utn.frba.arbiter.common.models.entities.Insurer;
+import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Coverage;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
@@ -20,6 +22,7 @@ import org.springframework.stereotype.Component;
 import java.time.Clock;
 import java.time.Duration;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Two cross-tenant background sweeps over cases waiting on classification:
@@ -43,6 +46,7 @@ public class ClassificationRefreshScheduler {
     private final CaseStatusService caseStatusService;
     private final ClaimsAnalysisClient claimsAnalysisClient;
     private final ClassificationOutcomeService classificationOutcomeService;
+    private final PolicyCoverageResolver policyCoverageResolver;
     private final InsurerRepository insurerRepository;
     private final Clock clock;
 
@@ -162,7 +166,10 @@ public class ClassificationRefreshScheduler {
                 failed.size(), TenantContext.get());
         for (Case caseRecord : failed) {
             try {
-                requeueAfterInfrastructureFailure(caseRecord.getId());
+                requeueAfterInfrastructureFailure(caseRecord.getId(), policyCoverageResolver.reverifiedCoverage(caseRecord));
+            } catch (RulesUnavailableException e) {
+                log.info("Case {} waits for rules-service to verify its coverage before being requeued",
+                        caseRecord.getId());
             } catch (Exception e) {
                 log.warn("Could not requeue case {}: {}", caseRecord.getId(), e.getMessage());
             }
@@ -174,7 +181,7 @@ public class ClassificationRefreshScheduler {
      * re-reads it: the CAS checks the reason but not the status, and an analyst may have retried
      * the case in between.
      */
-    private void requeueAfterInfrastructureFailure(Long caseId) {
+    private void requeueAfterInfrastructureFailure(Long caseId, Optional<Coverage> verifiedCoverage) {
         if (caseRepository.claimFailedCaseForRequeue(
                 caseId, ClassificationFailureReason.INFRASTRUCTURE) == 0) {
             log.debug("Case {} already claimed by another sweep, skipping", caseId);
@@ -183,12 +190,13 @@ public class ClassificationRefreshScheduler {
 
         caseRepository.findById(caseId)
                 .filter(fresh -> fresh.getStatus() == CaseStatus.CLASSIFICATION_FAILED)
-                .ifPresentOrElse(this::doRequeueAfterInfrastructureFailure,
+                .ifPresentOrElse(fresh -> doRequeueAfterInfrastructureFailure(fresh, verifiedCoverage),
                         () -> log.debug("Case {} left CLASSIFICATION_FAILED before the sweep reached it", caseId));
     }
 
     /** Same reset + retrigger as the analyst's manual retry-classification button, actor SYSTEM. */
-    private void doRequeueAfterInfrastructureFailure(Case caseRecord) {
+    private void doRequeueAfterInfrastructureFailure(Case caseRecord, Optional<Coverage> verifiedCoverage) {
+        verifiedCoverage.ifPresent(caseRecord::setCoverage);
         caseRecord.setRiskScore(null);
         caseRecord.setRiskBand(null);
         caseRecord.setRulesClassification(null);

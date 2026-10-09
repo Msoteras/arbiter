@@ -1,6 +1,7 @@
 package ar.edu.utn.frba.arbiter.cases.services;
 
 import ar.edu.utn.frba.arbiter.cases.config.tenant.TenantContext;
+import ar.edu.utn.frba.arbiter.cases.exceptions.RulesUnavailableException;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
 import ar.edu.utn.frba.arbiter.cases.models.entities.StatusChangeActor;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseDocumentRepository;
@@ -12,6 +13,7 @@ import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 import ar.edu.utn.frba.arbiter.common.enums.Classification;
 import ar.edu.utn.frba.arbiter.common.enums.ClassificationFailureReason;
 import ar.edu.utn.frba.arbiter.common.models.entities.Insurer;
+import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Coverage;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -56,6 +58,9 @@ class ClassificationRefreshSchedulerTest {
     private ClassificationOutcomeService classificationOutcomeService;
 
     @Mock
+    private PolicyCoverageResolver policyCoverageResolver;
+
+    @Mock
     private InsurerRepository insurerRepository;
 
     private ClassificationRefreshScheduler scheduler;
@@ -64,7 +69,7 @@ class ClassificationRefreshSchedulerTest {
     void setUp() {
         scheduler = new ClassificationRefreshScheduler(
                 caseRepository, caseDocumentRepository, caseStatusService, claimsAnalysisClient,
-                classificationOutcomeService, insurerRepository, Clock.fixed(NOW, ZoneOffset.UTC));
+                classificationOutcomeService, policyCoverageResolver, insurerRepository, Clock.fixed(NOW, ZoneOffset.UTC));
         // The sweep is per tenant, so every test needs at least one insurer. Lenient because the
         // multi-tenant tests override this stub before it is ever called.
         lenient().when(insurerRepository.findByActiveTrue())
@@ -350,6 +355,38 @@ class ClassificationRefreshSchedulerTest {
 
         verify(claimsAnalysisClient).analyzeAndPersistAsSystem(ready, List.of());
         verify(claimsAnalysisClient, never()).analyzeAndPersistAsSystem(eq(cooling), any());
+    }
+
+    @Test
+    void recoverInfrastructureFailures_caseFiledWithoutVerifyingItsCoverage_isRequeuedOnTheVerifiedOne() {
+        Case entity = failedCase(3, ClassificationFailureReason.INFRASTRUCTURE);
+        entity.setDocumentsUnverifiedSince(NOW.minus(Duration.ofHours(1)));
+        Coverage verified = Coverage.builder().name("Daño accidental").branchId(1L).build();
+        when(caseRepository.findFailedByReason(ClassificationFailureReason.INFRASTRUCTURE))
+                .thenReturn(List.of(entity));
+        when(policyCoverageResolver.reverifiedCoverage(entity)).thenReturn(Optional.of(verified));
+        when(caseRepository.findById(entity.getId())).thenReturn(Optional.of(entity));
+
+        scheduler.recoverInfrastructureFailures();
+
+        assertThat(entity.getCoverage()).isSameAs(verified);
+        verify(claimsAnalysisClient).analyzeAndPersistAsSystem(entity, List.of());
+    }
+
+    @Test
+    void recoverInfrastructureFailures_coverageStillUnverifiable_leavesTheCaseForTheNextSweep() {
+        Case entity = failedCase(3, ClassificationFailureReason.INFRASTRUCTURE);
+        entity.setDocumentsUnverifiedSince(NOW.minus(Duration.ofHours(1)));
+        when(caseRepository.findFailedByReason(ClassificationFailureReason.INFRASTRUCTURE))
+                .thenReturn(List.of(entity));
+        when(policyCoverageResolver.reverifiedCoverage(entity))
+                .thenThrow(new RulesUnavailableException(new IllegalStateException("rules-service down")));
+
+        scheduler.recoverInfrastructureFailures();
+
+        verify(caseRepository, never()).claimFailedCaseForRequeue(anyLong(), any());
+        verify(caseStatusService, never()).transition(any(), any(), any(), any());
+        verify(claimsAnalysisClient, never()).analyzeAndPersistAsSystem(any(), any());
     }
 
     /**
