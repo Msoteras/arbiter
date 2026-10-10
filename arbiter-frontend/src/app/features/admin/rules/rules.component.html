@@ -411,10 +411,6 @@
 
                         <div class="cov-section">
                           <span class="t-section-label">Determinación del monto a pagar</span>
-                          <p class="section-hint">
-                            El analista no fija el monto a mano: el sistema lo calcula con estos
-                            parámetros y él confirma o ajusta con una justificación.
-                          </p>
                           <div class="cov-fields wide">
                             <label class="fieldset grow">
                               <span class="t-field-label">Cómo se liquida</span>
@@ -501,10 +497,6 @@
 
                         <div class="cov-section">
                           <span class="t-section-label">Hechos generadores NO cubiertos</span>
-                          <p class="section-hint">
-                            Si se denuncia uno de estos sobre esta cobertura, lo detecta el motor
-                            por regla —no el modelo—: bloquea Fast Track y deriva a revisión.
-                          </p>
                           @if (!canEditExclusions(c)) {
                             <p class="t-note">
                               Guardá la cobertura primero para configurar sus exclusiones.
@@ -561,8 +553,7 @@
           @case ('exclusions') {
             <app-card heading="Exclusiones comunes del ramo">
               <p class="section-hint">
-                Situaciones NO cubiertas por ninguna cobertura del ramo. Condiciones objetivas que
-                evalúa el motor de reglas, no el modelo.
+                Situaciones NO cubiertas por ninguna cobertura del ramo.
                 <app-info-tip>
                   Distintas de las exclusiones de cada cobertura, que se configuran en Coberturas:
                   aquellas dicen qué hecho generador no cubre una cobertura puntual, y estas valen
@@ -574,7 +565,7 @@
                 (itemsChange)="setCommonExclusions($event)"
                 placeholder="Exclusión común…"
                 addLabel="+ Agregar exclusión"
-                badge="Motor de reglas"
+                badge="Lo lee el modelo"
                 [marker]="true"
                 emptyTitle="Sin exclusiones comunes"
                 emptyHint="Situaciones que ninguna cobertura del ramo cubre. Por ejemplo: «Daño estético que no afecta el funcionamiento del equipo»."
@@ -617,15 +608,6 @@
                     <!-- Fast Track can't be turned off: it's part of the analysis. -->
                     <app-badge variant="solid" tone="ok">Siempre activo</app-badge>
                   </div>
-
-                  <p class="ft-banner">
-                    <span class="ft-banner-icon" aria-hidden="true">i</span>
-                    <span>
-                      Gate determinístico que agiliza el caso.
-                      <strong>Nunca lo resuelve solo</strong>: siempre lo revisa un analista. Solo
-                      decide si el expediente entra por la vía rápida.
-                    </span>
-                  </p>
 
                   <!-- Fast Track is one rule PER COVERAGE (each demands its own documents), so
                      the tab edits one coverage at a time. Locked while there are unsaved changes:
@@ -673,11 +655,6 @@
                         <span class="t-section-label"
                           >Condiciones para habilitar el Fast Track</span
                         >
-                        <p class="section-hint">
-                          Activá solo los umbrales que quieras exigir. Los que dejes apagados no se
-                          evalúan.
-                        </p>
-
                         <ul class="rule-rows">
                           <li class="rule-row" [class.off]="!ftActive('minPolicyAgeMonths')">
                             <app-switch
@@ -798,10 +775,6 @@
 
                       <div class="cov-section">
                         <span class="t-section-label">Documentos que exige el Fast Track</span>
-                        <p class="section-hint">
-                          Si falta alguno de los marcados, el caso no va por vía rápida. Tocá para
-                          incluir o quitar.
-                        </p>
                         <div class="chips">
                           @for (doc of docTypes; track doc.code) {
                             <button
@@ -819,10 +792,6 @@
 
                       <div class="cov-section">
                         <span class="t-section-label">Criterios descriptivos</span>
-                        <p class="section-hint">
-                          No deciden nada: se le pasan al modelo como descripción de la política,
-                          así que conviene que digan lo mismo que los umbrales de arriba.
-                        </p>
                         <app-string-list-editor
                           [items]="d.fastTrack.criteria"
                           (itemsChange)="setFtCriteria($event)"
