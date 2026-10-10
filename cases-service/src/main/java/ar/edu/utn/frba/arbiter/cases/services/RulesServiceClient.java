@@ -40,12 +40,17 @@ public class RulesServiceClient {
 
     /** No configuration means {@code enabled=false}: arrears isn't evaluated. */
     public PolicyStandingRule policyStandingRule() {
-        String serviceToken = JwtSupport.issueServiceToken(jwtKey, "cases-service-intake", TenantContext.get());
-        return restClient.get()
-                .uri("/api/v1/rules/internal/policy-standing")
-                .header(HttpHeaders.AUTHORIZATION, "Bearer " + serviceToken)
-                .retrieve()
-                .body(PolicyStandingRule.class);
+        try {
+            String serviceToken = JwtSupport.issueServiceToken(jwtKey, "cases-service-intake", TenantContext.get());
+            return restClient.get()
+                    .uri("/api/v1/rules/internal/policy-standing")
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + serviceToken)
+                    .retrieve()
+                    .body(PolicyStandingRule.class);
+        } catch (Exception e) {
+            log.error("Could not read the policy standing rule", e);
+            throw new RulesUnavailableException(e);
+        }
     }
 
     /** Mirrors rules-service's InsurerHardRuleDto for the POLICY_STANDING row. */
@@ -61,12 +66,18 @@ public class RulesServiceClient {
      * has no {@code COVERAGE_EXCLUSION} rule.
      */
     public List<Long> excludedClaimCauseIds(Long coverageId) {
-        String serviceToken = JwtSupport.issueServiceToken(jwtKey, "cases-service-claim-causes", TenantContext.get());
-        EvaluableRulesResponse resp = restClient.get()
-                .uri(uri -> uri.path("/api/v1/rules/internal/evaluable").queryParam("coverageId", coverageId).build())
-                .header(HttpHeaders.AUTHORIZATION, "Bearer " + serviceToken)
-                .retrieve()
-                .body(EvaluableRulesResponse.class);
+        EvaluableRulesResponse resp;
+        try {
+            String serviceToken = JwtSupport.issueServiceToken(jwtKey, "cases-service-claim-causes", TenantContext.get());
+            resp = restClient.get()
+                    .uri(uri -> uri.path("/api/v1/rules/internal/evaluable").queryParam("coverageId", coverageId).build())
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + serviceToken)
+                    .retrieve()
+                    .body(EvaluableRulesResponse.class);
+        } catch (Exception e) {
+            log.error("Could not read the coverage exclusions for coverage {}", coverageId, e);
+            throw new RulesUnavailableException(e);
+        }
         if (resp == null || resp.rules() == null) {
             return List.of();
         }

@@ -1082,11 +1082,9 @@
     <app-card>
       <p class="t-note">
         @if (notFound()) {
-          No se encontró el caso. Creá uno con
-          <span class="mono">POST /api/v1/cases</span> antes de consultarlo.
+          No se encontró el expediente.
         } @else {
-          No se pudo cargar el caso. Verificá que <span class="mono">cases-service</span>
-          esté corriendo en el puerto 8083.
+          No se pudo cargar el expediente. Probá de nuevo en unos minutos.
         }
       </p>
     </app-card>

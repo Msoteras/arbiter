@@ -21,6 +21,8 @@ public interface ClaimsAnalysisClient {
     /** Single, non-blocking attempt; returns false while classification is still pending. */
     boolean refreshClassification(Case caseRecord);
 
+    boolean isReachable();
+
     /**
      * @return the {@code case_classification} row created, for {@code cases.classification_id}; null if
      *         the response carried none

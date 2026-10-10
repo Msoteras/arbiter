@@ -2,10 +2,7 @@
   <app-inline-loading message="Cargando documentación…" />
 } @else if (hasError()) {
   <app-card>
-    <p class="t-note">
-      No se pudo cargar la documentación. Verificá que
-      <span class="mono">cases-service</span> esté corriendo en el puerto 8083.
-    </p>
+    <p class="t-note">No se pudo cargar la documentación. Probá de nuevo en unos minutos.</p>
   </app-card>
 } @else if (!showMissing() && presentCount() === 0) {
   <app-card [heading]="heading()">

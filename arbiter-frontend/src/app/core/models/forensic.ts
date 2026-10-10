@@ -29,6 +29,7 @@ export interface ImageForensicFinding {
   internalMatches: ImageForensicInternalMatch[];
   /** Null when no web search ran (not needed, failed or disabled). */
   webFinding: ImageForensicWebFinding | null;
+  internalCheckFailed?: boolean | null;
 }
 
 export interface ImageForensicReport {
@@ -66,5 +67,9 @@ function webFindingFound(web: ImageForensicWebFinding | null): boolean {
 }
 
 export function forensicFindingIsClean(finding: ImageForensicFinding): boolean {
-  return finding.internalMatches.length === 0 && !webFindingFound(finding.webFinding);
+  return (
+    !finding.internalCheckFailed &&
+    finding.internalMatches.length === 0 &&
+    !webFindingFound(finding.webFinding)
+  );
 }

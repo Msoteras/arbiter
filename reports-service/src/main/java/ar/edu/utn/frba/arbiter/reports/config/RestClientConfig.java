@@ -1,5 +1,6 @@
 package ar.edu.utn.frba.arbiter.reports.config;
 
+import ar.edu.utn.frba.arbiter.common.http.ConnectionRetryInterceptor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
@@ -23,6 +24,8 @@ public class RestClientConfig {
         SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
         requestFactory.setConnectTimeout(CONNECT_TIMEOUT);
         requestFactory.setReadTimeout(READ_TIMEOUT);
-        return RestClient.builder().requestFactory(requestFactory);
+        return RestClient.builder()
+                .requestFactory(requestFactory)
+                .requestInterceptor(ConnectionRetryInterceptor.forBootingModule());
     }
 }

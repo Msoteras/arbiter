@@ -1,6 +1,7 @@
 package ar.edu.utn.frba.arbiter.cases.models.repositories;
 
 import ar.edu.utn.frba.arbiter.cases.models.entities.CaseStatusHistory;
+import ar.edu.utn.frba.arbiter.cases.models.entities.StatusChangeActor;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
@@ -18,4 +19,7 @@ public interface CaseStatusHistoryRepository extends JpaRepository<CaseStatusHis
      */
     Optional<CaseStatusHistory> findFirstByCaseIdAndFinalStatus_IdOrderByChangedAtDesc(
             Long caseId, Long finalStatusId);
+
+    Optional<CaseStatusHistory> findFirstByCaseIdAndInitialStatus_IdAndFinalStatus_IdAndActorOrderByChangedAtDesc(
+            Long caseId, Long initialStatusId, Long finalStatusId, StatusChangeActor actor);
 }

@@ -45,6 +45,8 @@ arbiter:
       secret: ${JWT_SECRET:}
   rules-service:
     url: ${RULES_SERVICE_URL:http://localhost:8081}
+  cases-service:
+    url: ${CASES_SERVICE_URL:http://localhost:8083}
   classification:
     retry:
       # Retry window when a dependency is down (~4-5 min total), long enough to outlast a

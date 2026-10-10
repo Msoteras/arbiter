@@ -1,6 +1,7 @@
 package ar.edu.utn.frba.arbiter.classification.adapters;
 
 import ar.edu.utn.frba.arbiter.classification.dto.BusinessRules;
+import ar.edu.utn.frba.arbiter.common.http.ConnectionRetryInterceptor;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -12,6 +13,7 @@ import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -64,6 +66,27 @@ class RulesRestAdapterTest {
 
         assertThatThrownBy(() -> adapter.getRules("Celulares", 1L, "Robo en vía pública"))
                 .isInstanceOf(ResourceAccessException.class);
+    }
+
+    @Test
+    void rulesServiceStillBooting_isWaitedForInsteadOfFailing() throws Exception {
+        int port = closedPort();
+        RulesRestAdapter adapter = new RulesRestAdapter("http://localhost:" + port, JWT_SECRET,
+                new BaselineRulesAdapter(), new ConnectionRetryInterceptor(10, Duration.ofMillis(100), Duration.ofMillis(100)));
+        Thread booting = new Thread(() -> {
+            try {
+                Thread.sleep(300);
+                server = startServer(port, this::respondEmpty);
+            } catch (IOException | InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        });
+        booting.start();
+
+        BusinessRules rules = adapter.getRules("Celulares", 1L, "Robo en vía pública");
+
+        booting.join();
+        assertThat(rules.branchId()).isEqualTo("Celulares");
     }
 
     @Test
@@ -172,7 +195,8 @@ class RulesRestAdapterTest {
     // ── Infra ────────────────────────────────────────────────────────────────
 
     private RulesRestAdapter adapterPointingAt(String url) {
-        return new RulesRestAdapter(url, JWT_SECRET, new BaselineRulesAdapter());
+        return new RulesRestAdapter(url, JWT_SECRET, new BaselineRulesAdapter(),
+                new ConnectionRetryInterceptor(2, Duration.ofMillis(1), Duration.ofMillis(1)));
     }
 
     private String queryParam(String uri, String name) {
@@ -207,7 +231,11 @@ class RulesRestAdapterTest {
     }
 
     private HttpServer startServer(Handler handler) throws IOException {
-        HttpServer httpServer = HttpServer.create(new InetSocketAddress("localhost", 0), 0);
+        return startServer(0, handler);
+    }
+
+    private HttpServer startServer(int port, Handler handler) throws IOException {
+        HttpServer httpServer = HttpServer.create(new InetSocketAddress("localhost", port), 0);
         httpServer.createContext("/", exchange -> {
             try {
                 handler.handle(exchange);

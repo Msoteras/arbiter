@@ -225,10 +225,7 @@
       <app-inline-loading message="Cargando expedientes…" />
     } @else if (hasError()) {
       <app-card>
-        <p class="t-note">
-          No se pudo cargar el listado. Verificá que <span class="mono">cases-service</span>
-          esté corriendo en el puerto 8083.
-        </p>
+        <p class="t-note">No se pudo cargar el listado. Probá de nuevo en unos minutos.</p>
       </app-card>
     } @else if (isEmpty()) {
       @if (hasActiveFilters()) {

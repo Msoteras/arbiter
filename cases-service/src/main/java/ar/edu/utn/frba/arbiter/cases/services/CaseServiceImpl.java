@@ -60,6 +60,7 @@ import ar.edu.utn.frba.arbiter.common.models.entities.tenant.ClaimsAnalyst;
 import ar.edu.utn.frba.arbiter.common.dto.RuleResultResponse;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 import ar.edu.utn.frba.arbiter.common.enums.CauseConsistency;
+import ar.edu.utn.frba.arbiter.common.enums.ClassificationFailureReason;
 import ar.edu.utn.frba.arbiter.common.enums.SettlementStatus;
 import ar.edu.utn.frba.arbiter.common.enums.Classification;
 import ar.edu.utn.frba.arbiter.common.enums.DeadlinePriority;
@@ -175,13 +176,20 @@ public class CaseServiceImpl implements CaseService {
         ClaimCause claimCause = referenceResolver.resolveClaimCause(request.branch(), request.claimCause());
 
         // After the ownership check, so someone else's policy never leaks its coverage window.
-        PolicyCoverage contracted = policyCoverageResolver.resolveFor(policy.getId(), claimCause.getId());
+        PolicyCoverage contracted;
+        boolean coverageVerified = true;
+        try {
+            contracted = policyCoverageResolver.resolveFor(policy.getId(), claimCause.getId());
+        } catch (RulesUnavailableException e) {
+            contracted = policyCoverageResolver.provisionalFor(policy.getId(), claimCause.getId());
+            coverageVerified = false;
+        }
 
         policyEligibilityValidator.validate(
                 request.policyNumber(), request.eventDate(), request.policeReportAt(),
-                contracted.getCoverage(), claimCause);
+                coverageVerified ? contracted.getCoverage() : null, claimCause);
 
-        boolean documentsVerified = verifyRequiredDocuments(
+        boolean documentsVerified = coverageVerified && verifyRequiredDocuments(
                 contracted.getCoverage().getId(), request.branch(), request.claimCause(), documents);
 
         Case entity = Case.builder()
@@ -205,7 +213,14 @@ public class CaseServiceImpl implements CaseService {
         Case saved = caseRepository.save(entity);
         caseStatusService.recordCreation(saved, StatusChangeActor.INSURED, "denuncia registrada");
         storeDocuments(saved.getId(), documents);
-        claimsAnalysisClient.analyzeAndPersist(saved, caseDocumentRepository.findByCaseId(saved.getId()));
+        if (coverageVerified) {
+            claimsAnalysisClient.analyzeAndPersist(saved, caseDocumentRepository.findByCaseId(saved.getId()));
+        } else {
+            saved.setClassificationFailureReason(ClassificationFailureReason.INFRASTRUCTURE);
+            saved.setClassificationFailureMessage("Coverage exclusions unreadable at filing");
+            caseStatusService.transition(saved, CaseStatus.CLASSIFICATION_FAILED, StatusChangeActor.SYSTEM,
+                    "no se pudo verificar la cobertura por una falla de infraestructura");
+        }
 
         // The case may have landed outside the login's tenant; the frontend needs the slug for every
         // later call on it.
@@ -342,6 +357,7 @@ public class CaseServiceImpl implements CaseService {
     public CaseResponse retryClassification(Long caseId) {
         Case entity = caseRepository.findById(caseId)
                 .orElseThrow(() -> new CaseNotFoundException(caseId));
+        policyCoverageResolver.reverifiedCoverage(entity).ifPresent(entity::setCoverage);
 
         // Same reset as addDocumentsAndReclassify: attempts are already at the maximum.
         entity.setRiskScore(null);
