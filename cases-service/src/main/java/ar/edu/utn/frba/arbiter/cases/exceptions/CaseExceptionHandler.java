@@ -61,6 +61,11 @@ public class CaseExceptionHandler extends ResponseEntityExceptionHandler {
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(422), ex.getMessage());
     }
 
+    @ExceptionHandler(CoverageNotConfiguredException.class)
+    public ProblemDetail handleCoverageNotConfigured(CoverageNotConfiguredException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(422), ex.getMessage());
+    }
+
     @ExceptionHandler(UnknownCaseStateException.class)
     public ProblemDetail handleUnknownCaseState(UnknownCaseStateException ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(500), ex.getMessage());

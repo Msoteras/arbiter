@@ -28,6 +28,7 @@ import ar.edu.utn.frba.arbiter.cases.exceptions.AnalystProfileNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CaseAssignedToAnotherAnalystException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CaseNotAssignedException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CaseNotFoundException;
+import ar.edu.utn.frba.arbiter.cases.exceptions.CoverageNotConfiguredException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.DocumentNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.DocumentReadException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.InsuredIdentityMismatchException;
@@ -306,7 +307,7 @@ public class CaseServiceImpl implements CaseService {
                     policyCoverageResolver.resolveFor(policy.getId(), null).getCoverage(),
                     null);
             return EligibilityCheckResponse.ok();
-        } catch (PolicyNotEligibleException | PolicyInsuredMismatchException e) {
+        } catch (PolicyNotEligibleException | PolicyInsuredMismatchException | CoverageNotConfiguredException e) {
             return EligibilityCheckResponse.notEligible(e.getMessage());
         }
     }

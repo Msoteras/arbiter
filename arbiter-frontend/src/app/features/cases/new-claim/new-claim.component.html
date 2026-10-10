@@ -66,7 +66,14 @@
 
           @switch (policiesState().status) {
             @case ('loading') {
-              <p class="step-hint">Cargando tus pólizas…</p>
+              <!-- The same select, disabled: it holds the space the loaded one will take. -->
+              <label class="sr-only" for="claim-policy">Póliza del siniestro</label>
+              <app-select
+                id="claim-policy"
+                [disabled]="true"
+                [options]="[]"
+                placeholder="Cargando tus pólizas…"
+              />
             }
             @case ('no-identity') {
               <p class="step-hint">
@@ -83,9 +90,7 @@
               @if (policies().length === 0) {
                 <p class="step-hint">No encontramos pólizas asociadas a tu identificación.</p>
               } @else {
-                <label class="field-label" for="claim-policy"
-                  >Elegí la póliza del siniestro *</label
-                >
+                <label class="sr-only" for="claim-policy">Póliza del siniestro</label>
                 <app-select
                   id="claim-policy"
                   [(value)]="selectedPolicyNumber"
@@ -105,32 +110,45 @@
                       <span class="policy-warn">Póliza con premios adeudados</span>
                     }
                   </div>
-                  <!-- POLICY_STANDING doesn't need the event date, so the precheck can already tell here whether arrears block the claim. -->
-                  @if (eligibilityError(); as reason) {
-                    <div class="submit-error" role="alert">{{ reason }}</div>
-                  } @else if (eligibilityChecking()) {
-                    <app-inline-loading [size]="16" message="Verificando la póliza…" />
-                  } @else if (eligibilityUnknown()) {
-                    <div class="eligibility-unknown" role="status">
-                      En este momento no se puede determinar si tu póliza permite nuevos siniestros.
-                      Por favor, intentá de nuevo más tarde.
-                    </div>
-                  }
                 }
               }
             }
           }
 
           <p class="field-label">¿Qué te pasó? *</p>
-          @if (claimTypesLoading()) {
-            <app-inline-loading [size]="20" message="Cargando hechos generadores…" />
-          } @else {
-            <app-chip-group
-              [options]="claimTypeOptions()"
-              [value]="selectedType()?.key ?? ''"
-              (valueChange)="selectClaimType($event)"
-              ariaLabel="Hecho generador"
-            />
+          <!-- Fixed slot: the loader takes the row the chips will fill, so nothing below moves. -->
+          <div class="claim-types-slot">
+            @if (claimTypesLoading()) {
+              <app-inline-loading [size]="20" message="Cargando hechos generadores…" />
+            } @else {
+              <app-chip-group
+                [options]="claimTypeOptions()"
+                [value]="selectedType()?.key ?? ''"
+                [disabled]="eligibilityError() !== null"
+                (valueChange)="selectClaimType($event)"
+                ariaLabel="Hecho generador"
+              />
+            }
+          </div>
+
+          <!-- POLICY_STANDING doesn't need the event date, so the precheck can already tell here
+               whether the policy blocks the claim. Reserved while a policy is selected: the loader,
+               the reason and an eligible policy all take the same space. -->
+          @if (selectedPolicy()) {
+            <div class="eligibility-slot">
+              @if (eligibilityError(); as reason) {
+                <div class="submit-error" role="alert">{{ reason }}</div>
+              } @else if (eligibilityChecking()) {
+                <div class="eligibility-checking">
+                  <app-inline-loading [size]="16" message="Verificando la póliza…" />
+                </div>
+              } @else if (eligibilityUnknown()) {
+                <div class="eligibility-unknown" role="status">
+                  En este momento no se puede determinar si tu póliza permite nuevos siniestros. Por
+                  favor, intentá de nuevo más tarde.
+                </div>
+              }
+            </div>
           }
         </section>
       }
