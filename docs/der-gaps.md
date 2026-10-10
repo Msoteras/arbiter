@@ -132,8 +132,8 @@ los cambios. Implementadas en `db/init-multitenant.sql` y
 | `configuracion_scoring` | `creado_por` (`created_by`) | BIGINT | no | FK → `usuario.id` |
 
 Apuntan a `usuario` y no a `referente_aseguradora` a propósito: el autor es siempre un usuario, sin
-atarlo a qué rol puede configurar reglas hoy. Las reglas por defecto de una aseguradora quedan a
-nombre del usuario que la da de alta (`create_tenant_schema` lo recibe como parámetro). La
+atarlo a qué rol puede configurar reglas hoy. Una aseguradora nueva nace sin reglas; las de las
+aseguradoras de demo (`db/seed-demo.sql`) quedan a nombre de su referente. La
 migración completa las filas que ya existían con el usuario del referente del primer cambio de la
 regla, o el del primer referente de la aseguradora.
 

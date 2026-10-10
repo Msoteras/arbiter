@@ -109,7 +109,7 @@ import { BadgeComponent } from '../badge/badge.component';
       border: 1px solid var(--border-default);
       border-left: 3px solid var(--accent);
       border-radius: var(--radius-card);
-      background: var(--surface-soft);
+      background: var(--surface);
     }
 
     .policy[data-validity='EXPIRED'] {

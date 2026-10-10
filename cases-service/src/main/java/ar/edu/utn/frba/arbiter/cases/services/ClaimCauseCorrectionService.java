@@ -7,7 +7,6 @@ import ar.edu.utn.frba.arbiter.cases.exceptions.CaseAssignedToAnotherAnalystExce
 import ar.edu.utn.frba.arbiter.cases.exceptions.CaseNotAssignedException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CaseNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.ClaimCauseCorrectionNotAllowedException;
-import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidStatusTransitionException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.UnresolvedCaseReferenceException;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
 import ar.edu.utn.frba.arbiter.cases.models.entities.PolicyCoverage;
@@ -81,7 +80,7 @@ public class ClaimCauseCorrectionService {
         ClaimsAnalyst analyst = assertCallerOwns(caseRecord);
 
         if (caseRecord.getStatus() != CaseStatus.PENDING_ANALYST_REVIEW) {
-            throw new InvalidStatusTransitionException(caseRecord.getStatus(), CaseStatus.PENDING_CLASSIFICATION);
+            throw ClaimCauseCorrectionNotAllowedException.notUnderReview(caseRecord.getStatus());
         }
         boolean awaitingReferent = settlementRepository.findByCaseId(caseId)
                 .map(settlement -> settlement.getStatus() == SettlementStatus.PENDING_AUTHORIZATION)

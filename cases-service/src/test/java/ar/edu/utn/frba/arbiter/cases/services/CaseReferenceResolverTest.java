@@ -16,6 +16,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -107,6 +108,30 @@ class CaseReferenceResolverTest {
         when(policySynchronizer.importFromInsurer("POL-NUEVA", 1L)).thenReturn(imported);
 
         assertThat(resolver.resolvePolicy("POL-NUEVA", 1L)).isSameAs(imported);
+    }
+
+    /** Two requests importing the same policy at once: the slower one reuses the faster one's copy. */
+    @Test
+    void resolvePolicy_importedConcurrently_reusesTheCopyTheOtherRequestSaved() {
+        Policy savedByTheOtherRequest = new Policy();
+        when(policyRepository.findByExternalPolicyNumber("POL-NUEVA"))
+                .thenReturn(Optional.empty())
+                .thenReturn(Optional.of(savedByTheOtherRequest));
+        when(policySynchronizer.importFromInsurer("POL-NUEVA", 1L))
+                .thenThrow(new DataIntegrityViolationException("policy_external_number_unique"));
+
+        assertThat(resolver.resolvePolicy("POL-NUEVA", 1L)).isSameAs(savedByTheOtherRequest);
+    }
+
+    /** Any other integrity error still surfaces: there is no copy to fall back on. */
+    @Test
+    void resolvePolicy_integrityErrorWithNoCopyToReuse_propagates() {
+        when(policyRepository.findByExternalPolicyNumber("POL-NUEVA")).thenReturn(Optional.empty());
+        when(policySynchronizer.importFromInsurer("POL-NUEVA", 1L))
+                .thenThrow(new DataIntegrityViolationException("something else"));
+
+        assertThatThrownBy(() -> resolver.resolvePolicy("POL-NUEVA", 1L))
+                .isInstanceOf(DataIntegrityViolationException.class);
     }
 
     @Test

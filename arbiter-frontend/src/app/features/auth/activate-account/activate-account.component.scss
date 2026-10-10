@@ -29,16 +29,10 @@
 }
 
 .brand-title {
-  margin: 0 0 var(--space-4);
+  margin: 0;
   font-size: clamp(var(--font-size-xl), 2.5vw, 2.75rem);
   font-weight: var(--font-weight-medium);
   line-height: 1.2;
-}
-.brand-tag {
-  margin: 0;
-  color: rgba(255, 255, 255, 0.75);
-  font-size: var(--font-size-md);
-  line-height: 1.55;
 }
 
 .form-pane {
@@ -75,12 +69,27 @@
   font-size: var(--font-size-xs);
 }
 
-.password-issues {
+.password-reqs {
   list-style: none;
+  margin: 0;
   padding: 0;
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+}
+.password-reqs li {
+  display: flex;
+  gap: var(--space-2);
+}
+.req-mark {
+  flex: none;
+  width: 1em;
+  text-align: center;
+}
+.password-reqs li.met .req-mark {
+  color: var(--status-ok);
 }
 
 @media (max-width: 860px) {

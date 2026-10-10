@@ -2,6 +2,7 @@
 -- Arbiter — demo data, segmented by insurer
 --
 -- Run AFTER db/init-multitenant.sql, which creates the schemas, catalogs and seed users.
+-- PART 0 loads the demo insurers' rules: a new insurer gets none.
 --
 -- Claims belong only to insureds with a real, loginable Auth0 account. Scoring:
 --
@@ -30,6 +31,267 @@
 -- =============================================================================
 
 BEGIN;
+
+-- =============================================================================
+-- PART 0 — Rules of the demo insurers
+-- create_tenant_schema only seeds the catalog: a new insurer starts with no coverages or
+-- rules. BBVA and Provincia get the same starting configuration here, each recorded as
+-- created by its referent (users 3 and 6); later parts add what each one diverged in.
+-- =============================================================================
+
+CREATE FUNCTION arbiter_common.seed_demo_insurer_rules(p_schema TEXT, p_created_by BIGINT)
+RETURNS VOID AS $fn$
+BEGIN
+    -- A temporary default stamps the referent on every rule and on the scoring config
+    -- without repeating it on each row; dropped at the end, so the app always sets it.
+    EXECUTE format('ALTER TABLE %I.insurer_rule ALTER COLUMN created_by SET DEFAULT %s',
+                   p_schema, p_created_by);
+    EXECUTE format('ALTER TABLE %I.scoring_configuration ALTER COLUMN created_by SET DEFAULT %s',
+                   p_schema, p_created_by);
+
+    EXECUTE format($ddl$
+        INSERT INTO %I.coverage (id, name, description, report_deadline_hours,
+                                 max_events_per_year, covers_family_group, deductible,
+                                 claim_exhausts_coverage, is_individual, waiting_period_days, branch_id,
+                                 settlement_formula, settlement_basis, second_event_percentage,
+                                 deduct_pending_installments, deduct_overdue_balance) VALUES
+            -- Total loss: the lesser of sum insured and replacement value (annex 340 art. 7) minus
+            -- deductible minus the year's pending installments, since the policy ends with the
+            -- claim. Two events a year, the second at 50%%.
+            (1, 'Robo de celular', 'Cobertura por robo en vía pública', 72, 2, FALSE, 10.00, FALSE, TRUE, 30, 1,
+             'TOTAL_LOSS', 'LESSER_OF_SUM_AND_REPLACEMENT', 50.00, TRUE, TRUE),
+            -- One event a year, so no second-event percentage.
+            (2, 'Hurto', 'Cobertura por hurto sin violencia', 72, 1, FALSE, 20.00, TRUE, TRUE, 30, 1,
+             'TOTAL_LOSS', 'LESSER_OF_SUM_AND_REPLACEMENT', NULL, TRUE, TRUE)
+        $ddl$, p_schema);
+
+    -- Per-branch caps sized to each branch's typical sum insured, so small claims stay with
+    -- the analyst and large ones go to the referent.
+    EXECUTE format($ddl$
+        INSERT INTO %I.settlement_authority (branch_id, max_amount) VALUES
+            (1, 500000.00),
+            (2,  50000.00)
+        $ddl$, p_schema);
+
+    -- Fast Track gate thresholds, one row per coverage. requiredDocumentTypes is only the
+    -- first batch asked at filing: the full document schedule is required only if the case
+    -- does not fast-track.
+    -- The gate reads the text extracted from these documents, not their presence, so an
+    -- unreadable attachment loses Fast Track. Hence never item_photo: a photo has no text.
+    EXECUTE format($ddl$
+        INSERT INTO %I.insurer_rule (id, active, valid_from, name, rule_type, effect, priority,
+                                     blocks_fast_track, branch_id, coverage_id, configuration) VALUES
+            (1, TRUE, '2026-01-01 00:00:00+00',
+             'Fast Track — Robo de celular', 'FAST_TRACK', 'APROBAR', 1, FALSE, 1, 1,
+             '{"maxClaimedAmountRatio":0.5,"maxPriorClaims":0,"requiresUpToDatePolicy":true,
+               "requiredDocumentTypes":["police_report","purchase_proof"],
+               "criteria":["Primer siniestro del asegurado",
+                           "Monto reclamado inferior al 50%% de la suma asegurada",
+                           "Póliza al día con sus pagos"]}'),
+            (2, TRUE, '2026-01-01 00:00:00+00',
+             'Fast Track — Hurto', 'FAST_TRACK', 'APROBAR', 2, FALSE, 1, 2,
+             '{"maxClaimedAmountRatio":0.3,"maxPriorClaims":0,"requiresUpToDatePolicy":true,
+               "requiredDocumentTypes":["police_report","purchase_proof"],
+               "criteria":["Primer siniestro del asegurado",
+                           "Monto reclamado inferior al 30%% de la suma asegurada",
+                           "Póliza al día con sus pagos"]}')
+        $ddl$, p_schema);
+
+    -- COVERAGE_EXCLUSION is a deny-list of claim causes the coverage does not cover; unlike
+    -- the rows above, it is evaluated against the claim and leaves a rule_result row.
+    -- Each claim cause of a branch must be covered by exactly one coverage, which is how
+    -- PolicyCoverageResolver picks the coverage when a policy has several.
+    -- Celulares causes: 1 Rotura accidental, 2 Robo en vía pública, 3 Hurto, 4 Caída.
+    EXECUTE format($ddl$
+        INSERT INTO %I.insurer_rule (id, active, valid_from, name, rule_type, effect, priority,
+                                     blocks_fast_track, branch_id, coverage_id, configuration) VALUES
+            (3, TRUE, '2026-01-01 00:00:00+00',
+             'La cobertura de robo solo cubre robo en vía pública', 'COVERAGE_EXCLUSION', 'RECHAZAR', 1,
+             TRUE, 1, 1, '{"excludedClaimCauseIds":[1,3,4]}'),
+            (4, TRUE, '2026-01-01 00:00:00+00',
+             'La cobertura de hurto solo cubre hurto', 'COVERAGE_EXCLUSION', 'RECHAZAR', 1,
+             TRUE, 1, 2, '{"excludedClaimCauseIds":[1,2,4]}')
+        $ddl$, p_schema);
+
+    -- Coverage-scoped temporal rules. The row is the switch: without it TemporalRuleEvaluator
+    -- skips the rule, so a new insurer inherits nothing unconfigured. Thresholds are coverage
+    -- columns, except POLICE_DEADLINE's: report_deadline_hours is the deadline to report to
+    -- the insurer, a different one.
+    EXECUTE format($ddl$
+        INSERT INTO %I.insurer_rule (id, active, valid_from, name, rule_type, effect, priority,
+                                     blocks_fast_track, branch_id, coverage_id, configuration) VALUES
+            (5,  TRUE, '2026-01-01 00:00:00+00', 'Carencia de la cobertura (cobertura 1)',
+             'WAITING_PERIOD',  'DERIVAR', 2, TRUE, 1, 1, '{}'),
+            (6,  TRUE, '2026-01-01 00:00:00+00', 'Plazo de denuncia a la aseguradora (cobertura 1)',
+             'REPORT_DEADLINE', 'DERIVAR', 3, TRUE, 1, 1, '{}'),
+            -- Off by default: the deadline is not strict enough to derive on its own. An insurer
+            -- that wants it can turn it on from the panel.
+            (7,  FALSE, '2026-01-01 00:00:00+00', 'Plazo de la denuncia policial (cobertura 1)',
+             'POLICE_DEADLINE', 'DERIVAR', 4, TRUE, 1, 1, '{"deadlineHours":72}'),
+            (8,  TRUE, '2026-01-01 00:00:00+00', 'Tope de eventos por año (cobertura 1)',
+             'MAX_EVENTS_YEAR', 'DERIVAR', 5, TRUE, 1, 1, '{}'),
+            (10, TRUE, '2026-01-01 00:00:00+00', 'Carencia de la cobertura (cobertura 2)',
+             'WAITING_PERIOD',  'DERIVAR', 2, TRUE, 1, 2, '{}'),
+            (11, TRUE, '2026-01-01 00:00:00+00', 'Plazo de denuncia a la aseguradora (cobertura 2)',
+             'REPORT_DEADLINE', 'DERIVAR', 3, TRUE, 1, 2, '{}'),
+            (12, FALSE, '2026-01-01 00:00:00+00', 'Plazo de la denuncia policial (cobertura 2)',
+             'POLICE_DEADLINE', 'DERIVAR', 4, TRUE, 1, 2, '{"deadlineHours":72}'),
+            (13, TRUE, '2026-01-01 00:00:00+00', 'Tope de eventos por año (cobertura 2)',
+             'MAX_EVENTS_YEAR', 'DERIVAR', 5, TRUE, 1, 2, '{}')
+        $ddl$, p_schema);
+
+    -- Insurer-scoped: a policy is in force or not regardless of the coverage. POLICY_STANDING
+    -- is not seeded on purpose; an insurer turns it on from the Hard Stop tab.
+    EXECUTE format($ddl$
+        INSERT INTO %I.insurer_rule (id, active, valid_from, name, rule_type, effect, priority,
+                                     blocks_fast_track, branch_id, coverage_id, configuration) VALUES
+            (14, TRUE, '2026-01-01 00:00:00+00', 'Vigencia de la póliza',
+             'POLICY_IN_FORCE', 'DERIVAR', 1, TRUE, NULL, NULL, '{}')
+        $ddl$, p_schema);
+
+    -- Expert derivation policy, opt-in per branch: an assessment has a fixed cost, so below a
+    -- minimum claim it costs more than the claim. Without a row the option is not offered.
+    -- DERIVAR here means "to an external expert"; the temporal rules above use the same
+    -- literal for "to analyst review". rule_type tells them apart.
+    EXECUTE format($ddl$
+        INSERT INTO %I.insurer_rule (id, active, valid_from, name, rule_type, effect, priority,
+                                     blocks_fast_track, branch_id, coverage_id, configuration) VALUES
+            (15, TRUE, '2026-01-01 00:00:00+00',
+             'Derivar a peritaje desde $500.000 reclamados', 'EXPERT_DERIVATION', 'DERIVAR', 1,
+             FALSE, 1, NULL, '{"minClaimedAmount":500000}'),
+            (16, TRUE, '2026-01-01 00:00:00+00',
+             'Derivar a peritaje desde $700.000 reclamados', 'EXPERT_DERIVATION', 'DERIVAR', 1,
+             FALSE, 2, NULL, '{"minClaimedAmount":700000}')
+        $ddl$, p_schema);
+
+    -- Fraud record policy, insurer-scoped: the record belongs to the person. The window keeps
+    -- old records from weighing forever, and is the insurer's call.
+    -- It blocks Fast Track but never rejects: a past fraud is a reason for a human to look,
+    -- not an exclusion of this claim. Without an active row records are still kept and
+    -- shown, but neither score nor veto.
+    EXECUTE format($ddl$
+        INSERT INTO %I.insurer_rule (id, active, valid_from, name, rule_type, effect, priority,
+                                     blocks_fast_track, branch_id, coverage_id, configuration) VALUES
+            (17, TRUE, '2026-01-01 00:00:00+00', 'Antecedente de fraude del asegurado',
+             'FRAUD_RECORD', 'DERIVAR', 1, TRUE, NULL, NULL, '{"windowMonths":36}')
+        $ddl$, p_schema);
+
+    -- Claim causes that can go to a repair shop; opt-in like expert derivation. Only damage
+    -- causes: a stolen item has nothing to repair.
+    EXECUTE format($ddl$
+        INSERT INTO %I.insurer_rule (id, active, valid_from, name, rule_type, effect, priority,
+                                     blocks_fast_track, branch_id, coverage_id, configuration) VALUES
+            (18, TRUE, '2026-01-01 00:00:00+00',
+             'Derivar a reparación: rotura accidental y caída', 'REPAIR_DERIVATION', 'DERIVAR', 1,
+             FALSE, 1, NULL, '{"claimCauseIds":[1,4]}'),
+            (19, TRUE, '2026-01-01 00:00:00+00',
+             'Derivar a reparación: daño accidental', 'REPAIR_DERIVATION', 'DERIVAR', 1,
+             FALSE, 2, NULL, '{"claimCauseIds":[6]}')
+        $ddl$, p_schema);
+
+    -- The insurer's own resolution target, not the legal deadline in cases.response_deadline.
+    -- Nothing enforces it; only the dashboard reads it.
+    EXECUTE format($ddl$
+        INSERT INTO %I.insurer_rule (id, active, valid_from, name, rule_type, effect, priority,
+                                     blocks_fast_track, branch_id, coverage_id, configuration) VALUES
+            (20, TRUE, '2026-01-01 00:00:00+00', 'Objetivo de resolución',
+             'RESOLUTION_TARGET', NULL, NULL, FALSE, NULL, NULL, '{"targetDays":21}')
+        $ddl$, p_schema);
+
+    -- Document types use the same codes as claim filing and classification. Every claim
+    -- cause is seeded: a cause with no rows means "requires nothing".
+    -- Theft asks for police report and proof of purchase, plus IMEI deregistration and last
+    -- connection only for Celulares. Damage asks for proof of purchase, repair quote and a
+    -- photo of the item.
+    EXECUTE format($ddl$
+        INSERT INTO %I.document_requirement (id, document_type, mandatory, risk_band, branch_id, claim_cause_id) VALUES
+            -- Celulares · Robo en vía pública
+            ( 1, 'police_report',       TRUE, NULL, 1, 2),
+            ( 2, 'purchase_proof',      TRUE, NULL, 1, 2),
+            ( 3, 'imei_deregistration', TRUE, NULL, 1, 2),
+            ( 4, 'last_connection',     TRUE, NULL, 1, 2),
+            -- Celulares · Hurto
+            ( 5, 'police_report',       TRUE, NULL, 1, 3),
+            ( 6, 'purchase_proof',      TRUE, NULL, 1, 3),
+            ( 7, 'imei_deregistration', TRUE, NULL, 1, 3),
+            ( 8, 'last_connection',     TRUE, NULL, 1, 3),
+            -- Celulares · Caída
+            ( 9, 'purchase_proof',      TRUE, NULL, 1, 4),
+            (10, 'repair_quote',        TRUE, NULL, 1, 4),
+            (11, 'item_photo',          TRUE, NULL, 1, 4),
+            -- Celulares · Rotura accidental
+            (12, 'purchase_proof',      TRUE, NULL, 1, 1),
+            (13, 'repair_quote',        TRUE, NULL, 1, 1),
+            (14, 'item_photo',          TRUE, NULL, 1, 1),
+            -- Tecnología Portátil · Daño accidental
+            (15, 'purchase_proof',      TRUE, NULL, 2, 6),
+            (16, 'repair_quote',        TRUE, NULL, 2, 6),
+            (17, 'item_photo',          TRUE, NULL, 2, 6),
+            -- Tecnología Portátil · Robo en vía pública
+            (18, 'police_report',       TRUE, NULL, 2, 7),
+            (19, 'purchase_proof',      TRUE, NULL, 2, 7),
+            (20, 'item_photo',          TRUE, NULL, 2, 7),
+            -- Tecnología Portátil · Hurto
+            (21, 'police_report',       TRUE, NULL, 2, 8),
+            (22, 'purchase_proof',      TRUE, NULL, 2, 8),
+            (23, 'item_photo',          TRUE, NULL, 2, 8)
+        $ddl$, p_schema);
+
+    -- Shared by both demo insurers, with what they added to the reference config
+    -- (fraud_history, document_inconsistency); each tenant diverges from here.
+    EXECUTE format($ddl$
+        INSERT INTO %I.scoring_configuration (id, name, active, full_analysis_on_fast_track, valid_from) VALUES
+            (1, 'Default (H0012 reference config)', TRUE, FALSE, '2026-01-01 00:00:00+00')
+        $ddl$, p_schema);
+
+    EXECUTE format($ddl$
+        INSERT INTO %I.factor_weight (id, factor_code, weight, scoring_configuration_id) VALUES
+            (1, 'amount_ratio', 0.45, 1),
+            (2, 'claim_frequency', 0.35, 1),
+            (3, 'policy_standing', 0.20, 1),
+            (4, 'image_reuse', 0.50, 1),
+            (5, 'image_web_match', 0.40, 1),
+            -- Heaviest factor, being the only one backed by a human-verified fact, but not
+            -- enough alone to reach CRITICAL. Skipped without an active FRAUD_RECORD rule.
+            (6, 'fraud_history', 0.60, 1),
+            -- Loaded from the referente panel on 25/09/2026 in both insurers, once its two false
+            -- positives were fixed (amount vs. the wrong document, the purchase proof's date).
+            (7, 'document_inconsistency', 0.40, 1),
+            -- Weak signal on its own: plenty of honest buyers insure at the point of sale.
+            (8, 'purchase_to_report_time', 0.25, 1)
+        $ddl$, p_schema);
+
+    EXECUTE format($ddl$
+        INSERT INTO %I.score_band (id, band, min_score_inclusive, active, scoring_configuration_id) VALUES
+            (1, 'LOW', 0.00, TRUE, 1),
+            (2, 'MEDIUM', 0.30, TRUE, 1),
+            (3, 'HIGH', 0.60, TRUE, 1),
+            (4, 'CRITICAL', 0.80, TRUE, 1)
+        $ddl$, p_schema);
+
+    -- Realign every identity sequence with the explicit ids seeded above.
+    EXECUTE format($ddl$SELECT setval(pg_get_serial_sequence('%I.coverage','id'),
+        (SELECT MAX(id) FROM %I.coverage))$ddl$, p_schema, p_schema);
+    EXECUTE format($ddl$SELECT setval(pg_get_serial_sequence('%I.insurer_rule','id'),
+        (SELECT MAX(id) FROM %I.insurer_rule))$ddl$, p_schema, p_schema);
+    EXECUTE format($ddl$SELECT setval(pg_get_serial_sequence('%I.document_requirement','id'),
+        (SELECT MAX(id) FROM %I.document_requirement))$ddl$, p_schema, p_schema);
+    EXECUTE format($ddl$SELECT setval(pg_get_serial_sequence('%I.scoring_configuration','id'),
+        (SELECT MAX(id) FROM %I.scoring_configuration))$ddl$, p_schema, p_schema);
+    EXECUTE format($ddl$SELECT setval(pg_get_serial_sequence('%I.factor_weight','id'),
+        (SELECT MAX(id) FROM %I.factor_weight))$ddl$, p_schema, p_schema);
+    EXECUTE format($ddl$SELECT setval(pg_get_serial_sequence('%I.score_band','id'),
+        (SELECT MAX(id) FROM %I.score_band))$ddl$, p_schema, p_schema);
+
+    EXECUTE format('ALTER TABLE %I.insurer_rule ALTER COLUMN created_by DROP DEFAULT', p_schema);
+    EXECUTE format('ALTER TABLE %I.scoring_configuration ALTER COLUMN created_by DROP DEFAULT', p_schema);
+END;
+$fn$ LANGUAGE plpgsql;
+
+SELECT arbiter_common.seed_demo_insurer_rules('arbiter_bbva', 3);
+SELECT arbiter_common.seed_demo_insurer_rules('arbiter_provincia', 6);
+
+DROP FUNCTION arbiter_common.seed_demo_insurer_rules(TEXT, BIGINT);
 
 -- =============================================================================
 -- PART 1 — Shared identity (arbiter_common)

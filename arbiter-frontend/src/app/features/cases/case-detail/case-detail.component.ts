@@ -169,6 +169,8 @@ interface BriefAlert {
   label: string;
   /** 'chat' opens the chat popup instead of a tab. */
   tab: TabId | 'chat';
+  /** Strong fraud signal: only the ▲ turns red, the label keeps its color. */
+  danger?: boolean;
 }
 
 @Component({
@@ -417,7 +419,7 @@ export class CaseDetailComponent {
       {
         heading: 'Siniestro',
         fields: [
-          { label: 'Causa', value: d?.claimCause ?? null },
+          { label: 'Hecho generador', value: d?.claimCause ?? null },
           {
             label: 'Fecha y hora de ocurrencia',
             value: d?.eventDate ? formatDateTime(d.eventDate) : null,
@@ -450,7 +452,7 @@ export class CaseDetailComponent {
           { label: 'Asegurado', value: d?.insuredName ?? null },
           { label: 'DNI', value: d?.insuredId ?? null, mono: true },
           // "No" is a value, not missing data, so it skips the `?? null` "Sin datos" path.
-          { label: 'PEP (declarativo)', value: d ? (d.pep ? 'Sí' : 'No') : null },
+          { label: 'PEP', value: d ? (d.pep ? 'Sí' : 'No') : null },
           { label: 'N° de póliza', value: d?.policyNumber ?? null, mono: true },
           { label: 'Producto', value: d?.product ?? null },
           { label: 'Rama', value: d?.branch ?? null },
@@ -666,6 +668,17 @@ export class CaseDetailComponent {
   );
 
   /** Medium or high findings only; flagging "low" ones would turn the dot into noise. */
+  private readonly imageMatchedAnotherClaim = computed(() =>
+    (this.data()?.forensicReport?.findings ?? []).some((f) => f.internalMatches.length > 0),
+  );
+
+  /** Same threshold as forensicAlertLevel: a page that only mentions the image is too weak. */
+  private readonly imageFoundOnline = computed(() =>
+    (this.data()?.forensicReport?.findings ?? []).some(
+      (f) => !!f.webFinding && (f.webFinding.fullMatches > 0 || f.webFinding.partialMatches > 0),
+    ),
+  );
+
   private readonly hasImageMatches = computed(() =>
     (this.data()?.forensicReport?.findings ?? []).some((f) => {
       const level = forensicAlertLevel(f);
@@ -1345,8 +1358,12 @@ export class CaseDetailComponent {
         tab: 'rules',
       });
     }
-    if (this.hasImageMatches()) {
-      alertList.push({ label: 'Imágenes con coincidencias', tab: 'images' });
+    // One alert per source, so the label says where the image was seen before.
+    if (this.imageMatchedAnotherClaim()) {
+      alertList.push({ label: 'Imagen usada en otro siniestro', tab: 'images', danger: true });
+    }
+    if (this.imageFoundOnline()) {
+      alertList.push({ label: 'Imagen encontrada en internet', tab: 'images', danger: true });
     }
     const priorCount = this.priorFraudRecords().length;
     if (priorCount > 0) {

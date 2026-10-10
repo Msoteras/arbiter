@@ -2,6 +2,7 @@ package ar.edu.utn.frba.arbiter.cases.services;
 
 import ar.edu.utn.frba.arbiter.cases.adapters.InsurerAdapter;
 import ar.edu.utn.frba.arbiter.cases.dto.PolicyResponse;
+import ar.edu.utn.frba.arbiter.cases.exceptions.CoverageNotConfiguredException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.UnresolvedCaseReferenceException;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Policy;
 import ar.edu.utn.frba.arbiter.cases.models.entities.PolicyCoverage;
@@ -127,17 +128,26 @@ class PolicySynchronizerTest {
     /**
      * The coverage is configured by the referente (deadlines, waiting period, events cap) and only
      * name and amount come from the company: creating one here would leave a coverage with no rule
-     * at all. The error names the coverage and not the policy, which is what's really missing.
+     * at all. What's missing is the insurer's configuration, so the insured is told to ask it.
      */
     @Test
-    void aCoverageTheTenantHasNotConfigured_throwsNamingTheCoverage() {
+    void aCoverageTheTenantHasNotConfigured_throwsCoverageNotConfigured() {
         givenRemotePolicy(LocalDate.now().minusMonths(6), LocalDate.now().plusMonths(6), "Daño accidental");
         when(coverageRepository.findByName("Daño accidental")).thenReturn(Optional.empty());
         savesWhatItIsGiven();
 
         assertThatThrownBy(() -> synchronizer.importFromInsurer(POLICY_NUMBER, 1L))
-                .isInstanceOf(UnresolvedCaseReferenceException.class)
-                .hasMessageContaining("Daño accidental");
+                .isInstanceOf(CoverageNotConfiguredException.class);
+    }
+
+    /** No coverages at all is the insurer's data being incomplete, not a missing configuration. */
+    @Test
+    void aPolicyWithNoCoveragesAtTheInsurer_isAnUnresolvedReference() {
+        givenRemotePolicyWithCoverages();
+        savesWhatItIsGiven();
+
+        assertThatThrownBy(() -> synchronizer.importFromInsurer(POLICY_NUMBER, 1L))
+                .isInstanceOf(UnresolvedCaseReferenceException.class);
     }
 
     /**

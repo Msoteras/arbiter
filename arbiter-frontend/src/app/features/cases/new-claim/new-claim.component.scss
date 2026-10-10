@@ -325,6 +325,27 @@ app-textarea {
 }
 
 // The eligibility precheck didn't answer: unknown is a warning, not a rejection.
+// One row of chips: the loader sits where they'll be, so nothing below moves when they arrive.
+.claim-types-slot {
+  min-height: var(--touch-target);
+  display: flex;
+  align-items: center;
+}
+
+// Fits a two-line message, so the loader turning into a reason doesn't push anything.
+.eligibility-slot {
+  margin-top: var(--space-4);
+  min-height: calc(2lh + 2 * var(--space-3));
+}
+.eligibility-slot > * {
+  margin-top: 0;
+}
+.eligibility-checking {
+  display: flex;
+  align-items: center;
+  padding: var(--space-3);
+}
+
 .eligibility-unknown {
   margin-top: var(--space-4);
   padding: var(--space-3);
