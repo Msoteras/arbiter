@@ -7,6 +7,10 @@
 --   · Existing insurers keep their rows. Nothing here touches tenant data.
 -- Afterwards run the CREATE OR REPLACE FUNCTION arbiter_common.create_tenant_schema block from
 -- init-multitenant.sql, or onboarding a new insurer fails because the function no longer exists.
+-- Run the arbiter_common.create_insurer_db_schema block too: the poliza.imei and
+-- poliza.importe_cuota migrations added those columns to existing insurer databases but never
+-- refreshed the function, so a new insurer's database lacked them and every classification failed
+-- reading its policies. Same signature, so CREATE OR REPLACE replaces it in place.
 -- Idempotent.
 
 BEGIN;
