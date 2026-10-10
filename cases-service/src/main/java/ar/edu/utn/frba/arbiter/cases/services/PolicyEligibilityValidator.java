@@ -36,6 +36,7 @@ public class PolicyEligibilityValidator {
     public void validate(String policyNumber, LocalDateTime eventDate, LocalDateTime policeReportAt,
                           Coverage coverage, ClaimCause claimCause) {
         assertCoherentDates(eventDate, policeReportAt);
+        assertDocumentScheduleConfigured(claimCause);
 
         PolicyResponse policy = insurerAdapter.findPolicy(policyNumber).orElse(null);
         if (policy == null) {
@@ -72,6 +73,26 @@ public class PolicyEligibilityValidator {
         throw new PolicyNotEligibleException(String.format(
                 "La cobertura \"%s\" no cubre \"%s\", así que no se puede iniciar el expediente.",
                 coverage.getName(), claimCause.getName()));
+    }
+
+    /**
+     * A claim cause with no document schedule isn't open for claims yet: the case would count as
+     * complete without asking for a single document. The schedule has no "requires nothing" option,
+     * so no rows means the referent hasn't configured it. Fails open like the rest when rules-service
+     * is down; {@code DocumentRecheckScheduler} reads the schedule again later.
+     */
+    private void assertDocumentScheduleConfigured(ClaimCause claimCause) {
+        if (claimCause == null) {
+            return;
+        }
+        List<String> schedule = rulesServiceClient.requiredDocumentTypes(
+                claimCause.getBranch().getName(), claimCause.getName());
+        if (schedule == null || !schedule.isEmpty()) {
+            return;
+        }
+        throw new PolicyNotEligibleException(String.format(
+                "Todavía no se pueden denunciar siniestros por \"%s\". Comunicate con tu aseguradora.",
+                claimCause.getName()));
     }
 
     /**
