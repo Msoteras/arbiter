@@ -4,10 +4,8 @@ import ar.edu.utn.frba.arbiter.cases.adapters.InsurerAdapter;
 import ar.edu.utn.frba.arbiter.cases.dto.PolicyResponse;
 import ar.edu.utn.frba.arbiter.cases.exceptions.PolicyNotEligibleException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.RulesUnavailableException;
-import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Branch;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.ClaimCause;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Coverage;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDate;
@@ -18,7 +16,6 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -35,12 +32,6 @@ class PolicyEligibilityValidatorTest {
     private final InsurerAdapter insurerAdapter = mock(InsurerAdapter.class);
     private final RulesServiceClient rulesServiceClient = mock(RulesServiceClient.class);
     private final PolicyEligibilityValidator validator = new PolicyEligibilityValidator(insurerAdapter, rulesServiceClient);
-
-    /** Every claim cause has a schedule unless a test says otherwise. */
-    @BeforeEach
-    void givenEveryClaimCauseHasADocumentSchedule() {
-        when(rulesServiceClient.requiredDocumentTypes(anyString(), anyString())).thenReturn(List.of("police_report"));
-    }
 
     @Test
     void anEventInsideThePolicyPeriod_isAccepted() {
@@ -244,38 +235,6 @@ class PolicyEligibilityValidatorTest {
                 .doesNotThrowAnyException();
     }
 
-    /** Without a schedule the case would count as complete without asking for a single document. */
-    @Test
-    void aClaimCauseWithoutADocumentSchedule_isRejected() {
-        givenPolicy(LocalDate.of(2026, 1, 1), LocalDate.of(2027, 1, 1));
-        when(rulesServiceClient.requiredDocumentTypes("Celulares", "Caída")).thenReturn(List.of());
-
-        assertThatThrownBy(() -> validate(LocalDateTime.of(2026, 6, 13, 20, 0), null,
-                coverage(null, 1L, "Robo de celular"), claimCause(4L, "Caída")))
-                .isInstanceOf(PolicyNotEligibleException.class)
-                .hasMessage("Todavía no se pueden denunciar siniestros por \"Caída\". Comunicate con tu aseguradora.");
-    }
-
-    /** Null is "couldn't read it", not "not configured": fails open like the other checks. */
-    @Test
-    void whenTheDocumentScheduleCantBeRead_theClaimIsNotRejected() {
-        givenPolicy(LocalDate.of(2026, 1, 1), LocalDate.of(2027, 1, 1));
-        when(rulesServiceClient.requiredDocumentTypes("Celulares", "Caída")).thenReturn(null);
-
-        assertThatCode(() -> validate(LocalDateTime.of(2026, 6, 13, 20, 0), null,
-                coverage(null, 1L, "Robo de celular"), claimCause(4L, "Caída")))
-                .doesNotThrowAnyException();
-    }
-
-    @Test
-    void withoutAClaimCause_theDocumentScheduleIsNotChecked() {
-        givenPolicy(LocalDate.of(2026, 1, 1), LocalDate.of(2027, 1, 1));
-
-        assertThatCode(() -> validate(LocalDateTime.of(2026, 6, 13, 20, 0), null, coverage(null)))
-                .doesNotThrowAnyException();
-        verify(rulesServiceClient, never()).requiredDocumentTypes(any(), any());
-    }
-
     private void validate(LocalDateTime eventDate, LocalDateTime policeReportAt, Coverage coverage) {
         validate(eventDate, policeReportAt, coverage, null);
     }
@@ -313,6 +272,6 @@ class PolicyEligibilityValidatorTest {
     }
 
     private ClaimCause claimCause(Long id, String name) {
-        return ClaimCause.builder().id(id).name(name).branch(Branch.builder().id(1L).name("Celulares").build()).build();
+        return ClaimCause.builder().id(id).name(name).build();
     }
 }

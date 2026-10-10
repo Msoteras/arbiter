@@ -199,7 +199,7 @@ BEGIN
         $ddl$, p_schema);
 
     -- Document types use the same codes as claim filing and classification. Every claim
-    -- cause is seeded: one with no rows can't be claimed.
+    -- cause is seeded: a cause with no rows means "requires nothing".
     -- Theft asks for police report and proof of purchase, plus IMEI deregistration and last
     -- connection only for Celulares. Damage asks for proof of purchase, repair quote and a
     -- photo of the item.
