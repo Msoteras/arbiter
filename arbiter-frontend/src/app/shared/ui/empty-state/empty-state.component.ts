@@ -6,7 +6,9 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
   template: `
     <div class="empty">
       <p class="msg">{{ message() }}</p>
-      <p class="sub">{{ sub() }}</p>
+      @if (sub()) {
+        <p class="sub">{{ sub() }}</p>
+      }
     </div>
   `,
   styles: `
@@ -36,6 +38,6 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 export class EmptyStateComponent {
   readonly message = input('Sin datos');
   /** Line under the message, usually a sentence ("Probá con otro rango de fechas"), so it is not
-   *  set in capitals. */
+   *  set in capitals. An empty string hides it. */
   readonly sub = input('Sin datos');
 }

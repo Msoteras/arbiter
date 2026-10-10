@@ -279,17 +279,6 @@
   flex: 1 1 auto;
 }
 /* ───────── Coverages: accordion ───────── */
-.cov-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  margin-bottom: var(--space-2);
-}
-.cov-count {
-  margin: 0;
-}
-
 .cov-card {
   margin-bottom: var(--space-3);
 }

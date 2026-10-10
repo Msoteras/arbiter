@@ -261,289 +261,306 @@
               <app-inline-loading [size]="26" message="Cargando coberturas…" />
             } @else {
               <div class="tab-panel" @fadeInUp>
-                <div class="cov-head">
-                  <p class="cov-count t-note">
-                    {{ d.coverages.length }}
-                    {{
-                      d.coverages.length === 1
-                        ? 'cobertura en este ramo'
-                        : 'coberturas en este ramo'
-                    }}
-                  </p>
-                  <app-button variant="secondary" (click)="addCoverage()"
-                    >+ Agregar cobertura</app-button
-                  >
-                </div>
+                <app-card heading="Coberturas">
+                  <!-- Only with coverages: empty, the empty state below carries the one action. -->
+                  @if (d.coverages.length > 0) {
+                    <app-button cardAside variant="secondary" (click)="addCoverage()"
+                      >+ Agregar cobertura</app-button
+                    >
+                  }
 
-                @for (c of d.coverages; track c.id) {
-                  <app-card class="cov-card" [class.open]="isCoverageOpen(c)">
-                    <div class="cov-summary">
-                      <button
-                        type="button"
-                        class="cov-toggle"
-                        [attr.aria-expanded]="isCoverageOpen(c)"
-                        (click)="toggleCoverage(c)"
-                      >
-                        <span class="cov-caret" [class.open]="isCoverageOpen(c)" aria-hidden="true"
-                          >▸</span
+                  @for (c of d.coverages; track c.id) {
+                    <app-card class="cov-card" variant="soft" [class.open]="isCoverageOpen(c)">
+                      <div class="cov-summary">
+                        <button
+                          type="button"
+                          class="cov-toggle"
+                          [attr.aria-expanded]="isCoverageOpen(c)"
+                          (click)="toggleCoverage(c)"
                         >
-                        <span class="cov-title">{{ c.name || 'Cobertura sin nombre' }}</span>
-                        @if (!isCoverageOpen(c)) {
-                          <span class="cov-chips">
-                            <!-- Visible while collapsed: exclusions decide the sum insured used to
+                          <span
+                            class="cov-caret"
+                            [class.open]="isCoverageOpen(c)"
+                            aria-hidden="true"
+                            >▸</span
+                          >
+                          <span class="cov-title">{{ c.name || 'Cobertura sin nombre' }}</span>
+                          @if (!isCoverageOpen(c)) {
+                            <span class="cov-chips">
+                              <!-- Visible while collapsed: exclusions decide the sum insured used to
                                settle. -->
-                            @if (!hasExcludedCauses(c)) {
-                              <app-badge variant="solid" tone="warning"
-                                >Cubre todo el ramo</app-badge
-                              >
-                            }
-                            @for (chip of coverageSummary(c); track chip) {
-                              <app-badge variant="solid">{{ chip }}</app-badge>
-                            } @empty {
-                              <span class="t-note">Sin umbrales configurados</span>
-                            }
-                          </span>
-                        }
-                      </button>
-                      <app-button
-                        class="remove-cov"
-                        variant="secondary"
-                        size="sm"
-                        tone="danger"
-                        (click)="removeCoverage(c.id)"
-                      >
-                        Quitar cobertura
-                      </app-button>
-                    </div>
-
-                    @if (isCoverageOpen(c)) {
-                      <div class="cov-body" @accordion>
-                        <span class="t-section-label">Datos de la cobertura</span>
-                        <div class="cov-fields">
-                          <label class="fieldset grow">
-                            <span class="t-field-label">Nombre</span>
-                            <app-input
-                              [value]="c.name"
-                              (valueChange)="setCoverageField(c.id, { name: $event })"
-                              placeholder="Nombre de la cobertura"
-                            />
-                          </label>
-                          <label class="fieldset">
-                            <span class="t-field-label">Cláusula</span>
-                            <app-input
-                              [value]="c.clause"
-                              (valueChange)="setCoverageField(c.id, { clause: $event })"
-                              placeholder="ej. 340"
-                            />
-                          </label>
-                          <label class="fieldset">
-                            <span class="t-field-label">Franquicia (%)</span>
-                            <app-input
-                              type="number"
-                              [min]="0"
-                              [value]="coverageDeductiblePct(c)"
-                              (valueChange)="setCoverageDeductible(c.id, $event)"
-                            />
-                          </label>
-                        </div>
-
-                        <div class="chips">
-                          <button
-                            type="button"
-                            class="chip"
-                            [class.active]="c.coversFamilyGroup"
-                            [attr.aria-pressed]="c.coversFamilyGroup"
-                            (click)="toggleCoverageFamilyGroup(c)"
-                          >
-                            Alcanza al grupo familiar
-                          </button>
-                          <button
-                            type="button"
-                            class="chip"
-                            [class.active]="c.claimExhaustsCoverage"
-                            [attr.aria-pressed]="c.claimExhaustsCoverage"
-                            (click)="toggleCoverageExhausts(c)"
-                          >
-                            Un siniestro agota la cobertura
-                          </button>
-                        </div>
-
-                        <div class="cov-section">
-                          <span class="t-section-label">Reglas que evalúa el motor</span>
-                          @if (!canEditExclusions(c)) {
-                            <p class="t-note">
-                              Guardá la cobertura primero para configurar sus reglas.
-                            </p>
-                          } @else if (orderedHardRules(c).length === 0) {
-                            <p class="t-note">
-                              No se pudieron cargar las reglas de esta cobertura.
-                            </p>
-                          } @else {
-                            <ul class="rule-rows">
-                              @for (rule of orderedHardRules(c); track rule.ruleType) {
-                                <li class="rule-row" [class.off]="!rule.enabled">
-                                  <app-switch
-                                    [checked]="rule.enabled"
-                                    [ariaLabel]="hardRuleLabel(rule.ruleType)"
-                                    (checkedChange)="toggleHardRule(c.id, rule.ruleType)"
-                                  />
-                                  <div class="rule-text">
-                                    <span class="t-field-label">{{
-                                      hardRuleLabel(rule.ruleType)
-                                    }}</span>
-                                    <p class="rule-hint">{{ hardRuleHint(rule.ruleType) }}</p>
-                                  </div>
-                                  <div class="rule-value">
-                                    <app-input
-                                      type="number"
-                                      [min]="0"
-                                      [value]="hardRuleValue(c, rule.ruleType)"
-                                      (valueChange)="setHardRuleValue(c, rule.ruleType, $event)"
-                                      placeholder="—"
-                                    />
-                                    <span class="t-note">{{ hardRuleUnit(rule.ruleType) }}</span>
-                                  </div>
-                                </li>
+                              @if (!hasExcludedCauses(c)) {
+                                <app-badge variant="solid" tone="warning"
+                                  >Cubre todo el ramo</app-badge
+                                >
                               }
-                            </ul>
+                              @for (chip of coverageSummary(c); track chip) {
+                                <app-badge variant="solid">{{ chip }}</app-badge>
+                              } @empty {
+                                <span class="t-note">Sin umbrales configurados</span>
+                              }
+                            </span>
                           }
-                        </div>
+                        </button>
+                        <app-button
+                          class="remove-cov"
+                          variant="secondary"
+                          size="sm"
+                          tone="danger"
+                          (click)="removeCoverage(c.id)"
+                        >
+                          Quitar cobertura
+                        </app-button>
+                      </div>
 
-                        <div class="cov-section">
-                          <span class="t-section-label">Determinación del monto a pagar</span>
-                          <div class="cov-fields wide">
+                      @if (isCoverageOpen(c)) {
+                        <div class="cov-body" @accordion>
+                          <span class="t-section-label">Datos de la cobertura</span>
+                          <div class="cov-fields">
                             <label class="fieldset grow">
-                              <span class="t-field-label">Cómo se liquida</span>
-                              <app-select
-                                [options]="settlementFormulaOptions"
-                                [value]="c.settlementFormula"
-                                (valueChange)="setCoverageSettlementFormula(c.id, $event)"
-                              />
-                            </label>
-                            <!-- For repairs the ceiling is the quote: no basis to pick. -->
-                            @if (showsSettlementBasis(c)) {
-                              <label class="fieldset grow">
-                                <span class="t-field-label">Techo indemnizable</span>
-                                <app-select
-                                  [options]="settlementBasisOptions"
-                                  [value]="c.settlementBasis"
-                                  (valueChange)="setCoverageSettlementBasis(c.id, $event)"
-                                />
-                              </label>
-                            }
-                            <label class="fieldset grow">
-                              <span class="t-field-label">Franquicia sobre</span>
-                              <app-select
-                                [options]="deductibleBasisOptions"
-                                [value]="c.deductibleBasis"
-                                (valueChange)="setCoverageDeductibleBasis(c.id, $event)"
+                              <span class="t-field-label">Nombre</span>
+                              <app-input
+                                [value]="c.name"
+                                (valueChange)="setCoverageField(c.id, { name: $event })"
+                                placeholder="Nombre de la cobertura"
                               />
                             </label>
                             <label class="fieldset">
-                              <span class="t-field-label">2.º evento del año (%)</span>
+                              <span class="t-field-label">Cláusula</span>
+                              <app-input
+                                [value]="c.clause"
+                                (valueChange)="setCoverageField(c.id, { clause: $event })"
+                                placeholder="ej. 340"
+                              />
+                            </label>
+                            <label class="fieldset">
+                              <span class="t-field-label">Franquicia (%)</span>
                               <app-input
                                 type="number"
                                 [min]="0"
-                                [value]="coverageSecondEventPct(c)"
-                                (valueChange)="setCoverageSecondEvent(c.id, $event)"
-                                placeholder="—"
+                                [value]="coverageDeductiblePct(c)"
+                                (valueChange)="setCoverageDeductible(c.id, $event)"
                               />
                             </label>
                           </div>
-                          <ul class="rule-rows">
-                            @if (showsSettlementBasis(c)) {
-                              <li class="rule-row" [class.off]="!c.deductPendingInstallments">
+
+                          <div class="chips">
+                            <button
+                              type="button"
+                              class="chip"
+                              [class.active]="c.coversFamilyGroup"
+                              [attr.aria-pressed]="c.coversFamilyGroup"
+                              (click)="toggleCoverageFamilyGroup(c)"
+                            >
+                              Alcanza al grupo familiar
+                            </button>
+                            <button
+                              type="button"
+                              class="chip"
+                              [class.active]="c.claimExhaustsCoverage"
+                              [attr.aria-pressed]="c.claimExhaustsCoverage"
+                              (click)="toggleCoverageExhausts(c)"
+                            >
+                              Un siniestro agota la cobertura
+                            </button>
+                          </div>
+
+                          <div class="cov-section">
+                            <span class="t-section-label">Reglas que evalúa el motor</span>
+                            @if (!canEditExclusions(c)) {
+                              <p class="t-note">
+                                Guardá la cobertura primero para configurar sus reglas.
+                              </p>
+                            } @else if (orderedHardRules(c).length === 0) {
+                              <p class="t-note">
+                                No se pudieron cargar las reglas de esta cobertura.
+                              </p>
+                            } @else {
+                              <ul class="rule-rows">
+                                @for (rule of orderedHardRules(c); track rule.ruleType) {
+                                  <li class="rule-row" [class.off]="!rule.enabled">
+                                    <app-switch
+                                      [checked]="rule.enabled"
+                                      [ariaLabel]="hardRuleLabel(rule.ruleType)"
+                                      (checkedChange)="toggleHardRule(c.id, rule.ruleType)"
+                                    />
+                                    <div class="rule-text">
+                                      <span class="t-field-label">{{
+                                        hardRuleLabel(rule.ruleType)
+                                      }}</span>
+                                      <p class="rule-hint">{{ hardRuleHint(rule.ruleType) }}</p>
+                                    </div>
+                                    <div class="rule-value">
+                                      <app-input
+                                        type="number"
+                                        [min]="0"
+                                        [value]="hardRuleValue(c, rule.ruleType)"
+                                        (valueChange)="setHardRuleValue(c, rule.ruleType, $event)"
+                                        placeholder="—"
+                                      />
+                                      <span class="t-note">{{ hardRuleUnit(rule.ruleType) }}</span>
+                                    </div>
+                                  </li>
+                                }
+                              </ul>
+                            }
+                          </div>
+
+                          <div class="cov-section">
+                            <span class="t-section-label">Determinación del monto a pagar</span>
+                            <div class="cov-fields wide">
+                              <label class="fieldset grow">
+                                <span class="t-field-label">Cómo se liquida</span>
+                                <app-select
+                                  [options]="settlementFormulaOptions"
+                                  [value]="c.settlementFormula"
+                                  (valueChange)="setCoverageSettlementFormula(c.id, $event)"
+                                />
+                              </label>
+                              <!-- For repairs the ceiling is the quote: no basis to pick. -->
+                              @if (showsSettlementBasis(c)) {
+                                <label class="fieldset grow">
+                                  <span class="t-field-label">Techo indemnizable</span>
+                                  <app-select
+                                    [options]="settlementBasisOptions"
+                                    [value]="c.settlementBasis"
+                                    (valueChange)="setCoverageSettlementBasis(c.id, $event)"
+                                  />
+                                </label>
+                              }
+                              <label class="fieldset grow">
+                                <span class="t-field-label">Franquicia sobre</span>
+                                <app-select
+                                  [options]="deductibleBasisOptions"
+                                  [value]="c.deductibleBasis"
+                                  (valueChange)="setCoverageDeductibleBasis(c.id, $event)"
+                                />
+                              </label>
+                              <label class="fieldset">
+                                <span class="t-field-label">2.º evento del año (%)</span>
+                                <app-input
+                                  type="number"
+                                  [min]="0"
+                                  [value]="coverageSecondEventPct(c)"
+                                  (valueChange)="setCoverageSecondEvent(c.id, $event)"
+                                  placeholder="—"
+                                />
+                              </label>
+                            </div>
+                            <ul class="rule-rows">
+                              @if (showsSettlementBasis(c)) {
+                                <li class="rule-row" [class.off]="!c.deductPendingInstallments">
+                                  <app-switch
+                                    [checked]="c.deductPendingInstallments"
+                                    ariaLabel="Descontar las cuotas a vencer"
+                                    (checkedChange)="toggleDeductPendingInstallments(c)"
+                                  />
+                                  <div class="rule-text">
+                                    <span class="t-field-label">Descontar las cuotas a vencer</span>
+                                    <p class="rule-hint">
+                                      La pérdida total extingue la póliza, así que el premio que
+                                      resta del año se cobra de la indemnización.
+                                    </p>
+                                  </div>
+                                </li>
+                              }
+                              <li class="rule-row" [class.off]="!c.deductOverdueBalance">
                                 <app-switch
-                                  [checked]="c.deductPendingInstallments"
-                                  ariaLabel="Descontar las cuotas a vencer"
-                                  (checkedChange)="toggleDeductPendingInstallments(c)"
+                                  [checked]="c.deductOverdueBalance"
+                                  ariaLabel="Descontar la deuda vencida"
+                                  (checkedChange)="toggleDeductOverdueBalance(c)"
                                 />
                                 <div class="rule-text">
-                                  <span class="t-field-label">Descontar las cuotas a vencer</span>
+                                  <span class="t-field-label">Descontar la deuda vencida</span>
                                   <p class="rule-hint">
-                                    La pérdida total extingue la póliza, así que el premio que resta
-                                    del año se cobra de la indemnización.
+                                    Saldo impago del contrato a la fecha del siniestro (cláusula
+                                    102, art. 5).
                                   </p>
                                 </div>
                               </li>
-                            }
-                            <li class="rule-row" [class.off]="!c.deductOverdueBalance">
-                              <app-switch
-                                [checked]="c.deductOverdueBalance"
-                                ariaLabel="Descontar la deuda vencida"
-                                (checkedChange)="toggleDeductOverdueBalance(c)"
-                              />
-                              <div class="rule-text">
-                                <span class="t-field-label">Descontar la deuda vencida</span>
-                                <p class="rule-hint">
-                                  Saldo impago del contrato a la fecha del siniestro (cláusula 102,
-                                  art. 5).
-                                </p>
-                              </div>
-                            </li>
-                          </ul>
-                        </div>
+                            </ul>
+                          </div>
 
-                        <div class="cov-section">
-                          <span class="t-section-label">Exclusiones de esta cobertura</span>
-                          <app-string-list-editor
-                            [items]="c.exclusions"
-                            (itemsChange)="setCoverageField(c.id, { exclusions: $event })"
-                            placeholder="Exclusión específica de esta cobertura…"
-                            addLabel="+ Agregar exclusión"
-                            emptyText="Sin exclusiones específicas."
-                          />
-                        </div>
+                          <div class="cov-section">
+                            <span class="t-section-label">Exclusiones de esta cobertura</span>
+                            <app-string-list-editor
+                              [items]="c.exclusions"
+                              (itemsChange)="setCoverageField(c.id, { exclusions: $event })"
+                              placeholder="Exclusión específica de esta cobertura…"
+                              addLabel="+ Agregar exclusión"
+                              emptyText="Sin exclusiones específicas."
+                            />
+                          </div>
 
-                        <div class="cov-section">
-                          <span class="t-section-label">Hechos generadores NO cubiertos</span>
-                          @if (!canEditExclusions(c)) {
-                            <p class="t-note">
-                              Guardá la cobertura primero para configurar sus exclusiones.
-                            </p>
-                          } @else if (claimCauses().length === 0) {
-                            <p class="t-note">No hay hechos generadores en este ramo.</p>
-                          } @else {
-                            <div class="chips">
-                              @for (cause of claimCauses(); track cause.id) {
-                                <button
-                                  type="button"
-                                  class="chip"
-                                  [class.active]="isCauseExcluded(c, cause.id)"
-                                  [attr.aria-pressed]="isCauseExcluded(c, cause.id)"
-                                  (click)="toggleExcludedCause(c.id, cause.id)"
-                                >
-                                  {{ cause.name }}
-                                </button>
-                              }
-                            </div>
-                            <!-- Warns, doesn't block: covering the whole branch can be correct. -->
-                            @if (!hasExcludedCauses(c)) {
-                              <p class="warn-note cov-warning measure" role="status">
-                                No excluye ningún hecho generador, así que cubre
-                                {{ coveredCausesLabel() }} del ramo. Puede ser lo que querés. Tené
-                                en cuenta que, si una póliza contrata varias coberturas, la que no
-                                excluye nada es la que termina respondiendo, y el siniestro se
-                                liquida con <strong>su</strong> suma asegurada y
-                                <strong>su</strong> franquicia.
+                          <div class="cov-section">
+                            <span class="t-section-label">Hechos generadores NO cubiertos</span>
+                            @if (!canEditExclusions(c)) {
+                              <p class="t-note">
+                                Guardá la cobertura primero para configurar sus exclusiones.
                               </p>
+                            } @else if (claimCauses().length === 0) {
+                              <p class="t-note">No hay hechos generadores en este ramo.</p>
+                            } @else {
+                              <div class="chips">
+                                @for (cause of claimCauses(); track cause.id) {
+                                  <button
+                                    type="button"
+                                    class="chip"
+                                    [class.active]="isCauseExcluded(c, cause.id)"
+                                    [attr.aria-pressed]="isCauseExcluded(c, cause.id)"
+                                    (click)="toggleExcludedCause(c.id, cause.id)"
+                                  >
+                                    {{ cause.name }}
+                                  </button>
+                                }
+                              </div>
+                              <!-- Warns, doesn't block: covering the whole branch can be correct. -->
+                              @if (!hasExcludedCauses(c)) {
+                                <p class="warn-note cov-warning measure" role="status">
+                                  No excluye ningún hecho generador, así que cubre
+                                  {{ coveredCausesLabel() }} del ramo. Puede ser lo que querés. Tené
+                                  en cuenta que, si una póliza contrata varias coberturas, la que no
+                                  excluye nada es la que termina respondiendo, y el siniestro se
+                                  liquida con <strong>su</strong> suma asegurada y
+                                  <strong>su</strong> franquicia.
+                                </p>
+                              }
                             }
-                          }
+                          </div>
                         </div>
-                      </div>
-                    }
-                  </app-card>
-                } @empty {
-                  <p class="t-note">Este ramo todavía no tiene coberturas.</p>
-                }
+                      }
+                    </app-card>
+                  } @empty {
+                    <!-- Same empty state as the string-list tabs of this branch. -->
+                    <div class="cov-empty">
+                      <svg
+                        class="cov-empty-icon"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.6"
+                        width="26"
+                        height="26"
+                        aria-hidden="true"
+                      >
+                        <path
+                          d="M12 3l7 3v5c0 4.4-3 8.3-7 10-4-1.7-7-5.6-7-10V6l7-3z"
+                          stroke-linejoin="round"
+                        />
+                      </svg>
+                      <p class="cov-empty-title">Este ramo todavía no tiene coberturas</p>
+                      <app-button (click)="addCoverage()">+ Agregar primera cobertura</app-button>
+                    </div>
+                  }
 
-                <app-save-bar
-                  [dirty]="covDirty()"
-                  [saving]="covSaving()"
-                  [error]="covError()"
-                  (save)="saveCoverages()"
-                  (discard)="discardCoverages()"
-                />
+                  <app-save-bar
+                    [dirty]="covDirty()"
+                    [saving]="covSaving()"
+                    [error]="covError()"
+                    (save)="saveCoverages()"
+                    (discard)="discardCoverages()"
+                  />
+                </app-card>
               </div>
             }
           }
@@ -551,48 +568,54 @@
           <!-- ============ COMMON EXCLUSIONS ============ -->
           <!-- Branch-wide, not per coverage, and saved through their own rules-service endpoint. -->
           @case ('exclusions') {
-            <app-card heading="Exclusiones comunes del ramo">
-              <p class="section-hint">
-                Situaciones NO cubiertas por ninguna cobertura del ramo.
-                <app-info-tip>
-                  Distintas de las exclusiones de cada cobertura, que se configuran en Coberturas:
-                  aquellas dicen qué hecho generador no cubre una cobertura puntual, y estas valen
-                  para todo el ramo sin importar bajo qué cobertura entre el siniestro.
-                </app-info-tip>
-              </p>
-              <app-string-list-editor
-                [items]="d.commonExclusions"
-                (itemsChange)="setCommonExclusions($event)"
-                placeholder="Exclusión común…"
-                addLabel="+ Agregar exclusión"
-                badge="Lo lee el modelo"
-                [marker]="true"
-                emptyTitle="Sin exclusiones comunes"
-                emptyHint="Situaciones que ninguna cobertura del ramo cubre. Por ejemplo: «Daño estético que no afecta el funcionamiento del equipo»."
-                emptyCta="+ Agregar primera exclusión"
-              >
-                <svg
-                  emptyIcon
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="1.6"
-                  width="26"
-                  height="26"
-                  aria-hidden="true"
-                >
-                  <circle cx="12" cy="12" r="9" />
-                  <line x1="6" y1="18" x2="18" y2="6" stroke-linecap="round" />
-                </svg>
-              </app-string-list-editor>
-              <app-save-bar
-                [dirty]="exclDirty()"
-                [saving]="exclSaving()"
-                [error]="exclError()"
-                (save)="saveCommonExclusions()"
-                (discard)="discardCommonExclusions()"
-              />
-            </app-card>
+            @if (detailLoading()) {
+              <app-inline-loading [size]="26" message="Cargando exclusiones…" />
+            } @else {
+              <div class="tab-panel" @fadeInUp>
+                <app-card heading="Exclusiones comunes del ramo">
+                  <p class="section-hint">
+                    Situaciones NO cubiertas por ninguna cobertura del ramo.
+                    <app-info-tip>
+                      Distintas de las exclusiones de cada cobertura, que se configuran en
+                      Coberturas: aquellas dicen qué hecho generador no cubre una cobertura puntual,
+                      y estas valen para todo el ramo sin importar bajo qué cobertura entre el
+                      siniestro.
+                    </app-info-tip>
+                  </p>
+                  <app-string-list-editor
+                    [items]="d.commonExclusions"
+                    (itemsChange)="setCommonExclusions($event)"
+                    placeholder="Exclusión común…"
+                    addLabel="+ Agregar exclusión"
+                    badge="Lo lee el modelo"
+                    [marker]="true"
+                    emptyTitle="Sin exclusiones comunes"
+                    emptyCta="+ Agregar primera exclusión"
+                  >
+                    <svg
+                      emptyIcon
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="1.6"
+                      width="26"
+                      height="26"
+                      aria-hidden="true"
+                    >
+                      <circle cx="12" cy="12" r="9" />
+                      <line x1="6" y1="18" x2="18" y2="6" stroke-linecap="round" />
+                    </svg>
+                  </app-string-list-editor>
+                  <app-save-bar
+                    [dirty]="exclDirty()"
+                    [saving]="exclSaving()"
+                    [error]="exclError()"
+                    (save)="saveCommonExclusions()"
+                    (discard)="discardCommonExclusions()"
+                  />
+                </app-card>
+              </div>
+            }
           }
 
           <!-- ============ FAST TRACK ============ -->
@@ -601,13 +624,9 @@
               <app-inline-loading [size]="26" message="Cargando Fast Track…" />
             } @else {
               <div class="tab-panel" @fadeInUp>
-                <app-card>
-                  <div class="ft-head">
-                    <h2 class="card-title">Fast Track</h2>
-                    <span class="t-note">Siniestro express</span>
-                    <!-- Fast Track can't be turned off: it's part of the analysis. -->
-                    <app-badge variant="solid" tone="ok">Siempre activo</app-badge>
-                  </div>
+                <app-card heading="Fast Track">
+                  <!-- Fast Track can't be turned off: it's part of the analysis. -->
+                  <app-badge cardAside variant="solid" tone="ok">Siempre activo</app-badge>
 
                   <!-- Fast Track is one rule PER COVERAGE (each demands its own documents), so
                      the tab edits one coverage at a time. Locked while there are unsaved changes:
@@ -823,11 +842,11 @@
             } @else {
               <div class="tab-panel" @fadeInUp>
                 <app-card heading="Agenda documental">
-                  <p class="section-hint">
+                  <app-info-tip cardAside>
                     Marcá qué documentos son obligatorios para cada hecho generador. Si falta alguno
-                    de los marcados, el expediente queda en <strong>"Falta documentación"</strong> y
-                    no se considera completo.
-                  </p>
+                    de los marcados, el expediente queda en "Falta documentación" y no se considera
+                    completo.
+                  </app-info-tip>
                   @if (claimCauses().length === 0) {
                     <p class="section-hint">
                       Este ramo todavía no tiene hechos generadores cargados.
@@ -907,7 +926,6 @@
                     addLabel="+ Agregar regla"
                     badge="Analista + modelo"
                     emptyTitle="Todavía no cargaste reglas de negocio"
-                    emptyHint="Sirven para orientar al analista y al modelo. Por ejemplo: «Si el asegurado tuvo 2 o más robos en los últimos 12 meses, derivar a un analista senior»."
                     emptyCta="+ Agregar primera regla"
                   >
                     <svg
