@@ -23,16 +23,17 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Overlays what the referente configured in rules-service on {@link BaselineRulesAdapter}'s baseline.
- * An empty 200 means "not configured" and keeps the baseline. Runs async, so it authenticates with a
+ * Builds the rules from what the referente configured in rules-service, starting from
+ * {@link BusinessRules#unconfigured}. An empty 200 means "not configured" and leaves that section
+ * empty: nothing the insurer didn't set is filled in for it. Runs async, so it authenticates with a
  * service token carrying the tenant schema from {@link TenantContext}.
  *
- * <p>An unreachable rules-service is <b>not</b> best-effort: silently falling back to the baseline
- * could Fast Track a claim with rules nobody at the insurer configured. The exception propagates to
+ * <p>An unreachable rules-service is <b>not</b> best-effort: reading it as "nothing configured"
+ * would analyse the claim without the insurer's rules. The exception propagates to
  * {@code @Retryable} and, if it persists, the case ends up {@code CLASSIFICATION_FAILED}. Only
  * {@link #overlayScoring} is best-effort, since the fraud score never gates a decision.
  *
- * <p>Excluded in the {@code test} profile so integration tests run against the baseline only.
+ * <p>Excluded in the {@code test} profile so integration tests run against {@link BaselineRulesAdapter}.
  */
 @Component
 @Primary
@@ -43,18 +44,15 @@ public class RulesRestAdapter implements RulesAdapter {
 
     private final RestClient restClient;
     private final SecretKey jwtKey;
-    private final BaselineRulesAdapter defaults;
 
     @Autowired
     public RulesRestAdapter(
             @Value("${arbiter.rules-service.url:http://localhost:8081}") String rulesServiceUrl,
-            @Value("${arbiter.auth.jwt.secret}") String jwtSecret,
-            BaselineRulesAdapter defaults) {
-        this(rulesServiceUrl, jwtSecret, defaults, ConnectionRetryInterceptor.forBootingModule());
+            @Value("${arbiter.auth.jwt.secret}") String jwtSecret) {
+        this(rulesServiceUrl, jwtSecret, ConnectionRetryInterceptor.forBootingModule());
     }
 
-    RulesRestAdapter(String rulesServiceUrl, String jwtSecret, BaselineRulesAdapter defaults,
-                     ConnectionRetryInterceptor connectionRetry) {
+    RulesRestAdapter(String rulesServiceUrl, String jwtSecret, ConnectionRetryInterceptor connectionRetry) {
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
         factory.setConnectTimeout(Duration.ofSeconds(2));
         factory.setReadTimeout(Duration.ofSeconds(3));
@@ -64,12 +62,11 @@ public class RulesRestAdapter implements RulesAdapter {
                 .requestInterceptor(connectionRetry)
                 .build();
         this.jwtKey = JwtSupport.key(jwtSecret);
-        this.defaults = defaults;
     }
 
     @Override
     public BusinessRules getRules(String branchId, Long coverageId, String claimCauseId) {
-        BusinessRules base = defaults.getRules(branchId, coverageId, claimCauseId);
+        BusinessRules base = BusinessRules.unconfigured(branchId, claimCauseId);
         if (coverageId == null) {
             return base;
         }
@@ -112,7 +109,7 @@ public class RulesRestAdapter implements RulesAdapter {
                 .build();
     }
 
-    /** One config per insurer; replaces the baseline only when enabled and usable. */
+    /** One config per insurer; without an enabled, usable one the claim isn't scored. */
     private BusinessRules overlayScoring(BusinessRules rules) {
         try {
             ScoringResponse scoring = restClient.get()
@@ -123,19 +120,19 @@ public class RulesRestAdapter implements RulesAdapter {
             if (scoring == null || !scoring.enabled()
                     || scoring.factors() == null || scoring.factors().isEmpty()
                     || scoring.bands() == null || scoring.bands().isEmpty()) {
-                log.debug("[RulesRestAdapter] No scoring config in DB (or disabled) — using baseline");
+                log.debug("[RulesRestAdapter] No scoring config in DB (or disabled) — not scored");
                 return rules;
             }
             BusinessRules.ScoringConfig mapped = scoring.toScoringConfig();
             if (mapped == null) {
-                log.warn("[RulesRestAdapter] Scoring config in DB is unusable (bad band?) — using baseline");
+                log.warn("[RulesRestAdapter] Scoring config in DB is unusable (bad band?) — not scored");
                 return rules;
             }
             log.info("[RulesRestAdapter] Scoring config loaded from rules-service — {} factors, {} bands",
                     mapped.factors().size(), mapped.bands().size());
             return rules.toBuilder().scoringConfig(mapped).build();
         } catch (Exception e) {
-            log.warn("[RulesRestAdapter] rules-service unavailable for scoring — baseline: {}", e.getMessage());
+            log.warn("[RulesRestAdapter] rules-service unavailable for scoring — not scored: {}", e.getMessage());
             return rules;
         }
     }
@@ -148,7 +145,7 @@ public class RulesRestAdapter implements RulesAdapter {
                 .retrieve()
                 .body(CoverageLimitsResponse.class);
         if (limits == null || limits.isEmpty()) {
-            log.debug("[RulesRestAdapter] No coverage limits in DB for coverage {} — using baseline", coverageId);
+            log.debug("[RulesRestAdapter] No coverage limits in DB for coverage {} — not evaluated", coverageId);
             return rules;
         }
         log.info("[RulesRestAdapter] Coverage limits loaded for coverage {} — deadlineHours={} "
@@ -172,7 +169,7 @@ public class RulesRestAdapter implements RulesAdapter {
                 .retrieve()
                 .body(EvaluableRulesResponse.class);
         if (resp == null || resp.isEmpty()) {
-            log.debug("[RulesRestAdapter] No evaluable rules in DB for coverage {} — using baseline", coverageId);
+            log.debug("[RulesRestAdapter] No evaluable rules in DB for coverage {} — none evaluated", coverageId);
             return rules;
         }
         List<BusinessRules.EvaluableRule> mapped = resp.rules().stream()
@@ -198,7 +195,7 @@ public class RulesRestAdapter implements RulesAdapter {
                 .retrieve()
                 .body(FastTrackResponse.class);
         if (ft == null || ft.isEmpty()) {
-            log.debug("[RulesRestAdapter] No Fast Track config in DB for coverage {} — using baseline", coverageId);
+            log.debug("[RulesRestAdapter] No Fast Track config in DB for coverage {} — no Fast Track", coverageId);
             return base;
         }
         log.info("[RulesRestAdapter] Fast Track thresholds loaded from rules-service for coverage {}", coverageId);
@@ -208,15 +205,13 @@ public class RulesRestAdapter implements RulesAdapter {
                         ft.priorClaimsWindowMonths(), ft.minPolicyAgeMonths(),
                         ft.requiresUpToDatePolicy(), ft.requiredDocumentTypes()));
 
-        // Replaced, not merged: the baseline's criteria describe different thresholds and would
-        // contradict the referente's in the prompt.
         if (ft.criteria() != null) {
             overlaid.fastTrackCriteria(List.copyOf(ft.criteria()));
         }
         return overlaid.build();
     }
 
-    /** Free-text rules and exclusions for the prompt; replaces the baseline rather than adding to it. */
+    /** Free-text rules and exclusions for the prompt. */
     private BusinessRules overlayRuleTexts(BusinessRules rules, Long coverageId) {
         RuleTextsResponse texts = restClient.get()
                 .uri(uri -> uri.path("/api/v1/rules/internal/rule-texts")
@@ -225,7 +220,7 @@ public class RulesRestAdapter implements RulesAdapter {
                 .retrieve()
                 .body(RuleTextsResponse.class);
         if (texts == null || texts.isEmpty()) {
-            log.debug("[RulesRestAdapter] No rule texts in DB for coverage {} — using baseline", coverageId);
+            log.debug("[RulesRestAdapter] No rule texts in DB for coverage {} — none in the prompt", coverageId);
             return rules;
         }
         BusinessRules.BusinessRulesBuilder builder = rules.toBuilder();
@@ -254,9 +249,8 @@ public class RulesRestAdapter implements RulesAdapter {
                 .header(HttpHeaders.AUTHORIZATION, serviceToken())
                 .retrieve()
                 .body(new ParameterizedTypeReference<List<String>>() {});
-        // Empty is an answer ("no documents required"); only null means "not configured".
         if (agenda == null) {
-            log.debug("[RulesRestAdapter] No document agenda in DB for coverage {} — using baseline", coverageId);
+            log.debug("[RulesRestAdapter] No document agenda in DB for coverage {} — no documents required", coverageId);
             return rules;
         }
         log.info("[RulesRestAdapter] Document agenda loaded from rules-service for coverage {} — {} docs",

@@ -106,6 +106,18 @@ class PromptBuilderTest {
         assertThat(rendered).doesNotContain("EXCLUSIONES DE COBERTURA");
     }
 
+    /** An insurer that loaded no rules says so, instead of leaving the heading with nothing under it. */
+    @Test
+    void renderRulesAndPolicy_saysSoWhenTheInsurerLoadedNoRules() {
+        BusinessRules rules = BusinessRules.unconfigured("Celulares", "Robo en vía pública");
+
+        String rendered = promptBuilder.renderRulesAndPolicy(rules, policy());
+
+        assertThat(rendered).contains("La aseguradora no cargó reglas propias para este caso.");
+        assertThat(rendered).doesNotContain("EXCLUSIONES DE COBERTURA");
+        assertThat(rendered).doesNotContain("CRITERIOS FAST TRACK");
+    }
+
     /** The rendered text reaches the final prompt through {@code insurerRules}. */
     @Test
     void buildFullPrompt_carriesTheRenderedRulesIntoTheTemplate() {

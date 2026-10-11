@@ -15,7 +15,8 @@
   padding: var(--space-2) var(--space-3);
   border: 1px solid var(--border-default);
   border-left-width: 3px;
-  border-radius: 0 var(--radius-ctl) var(--radius-ctl) 0;
+  // Rounded on every corner, like policy-card: square left corners read as a clipped box.
+  border-radius: var(--radius-ctl);
   background: var(--surface);
   font-size: var(--font-size-sm);
   color: var(--text-secondary);

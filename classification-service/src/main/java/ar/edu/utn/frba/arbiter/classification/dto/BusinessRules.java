@@ -27,6 +27,23 @@ public record BusinessRules(
 ) {
 
     /**
+     * What a claim is analysed with when the insurer configured nothing: every section empty, so
+     * nothing is evaluated, no Fast Track, no score and no insurer text in the prompt.
+     */
+    public static BusinessRules unconfigured(String branchId, String claimCauseId) {
+        return BusinessRules.builder()
+                .branchId(branchId)
+                .claimCauseId(claimCauseId)
+                .rules(List.of())
+                .exclusions(List.of())
+                .fastTrackCriteria(List.of())
+                .requiredDocumentTypes(List.of())
+                .evaluableRules(List.of())
+                .fraudRecordPolicy(FraudRecordPolicy.unconfigured())
+                .build();
+    }
+
+    /**
      * A hard rule evaluated by code; {@code id} is what {@code rule_result.rule_id} points at.
      * {@code COVERAGE_EXCLUSION} matches claim causes by id (names repeat across branches),
      * {@code POLICE_DEADLINE} uses {@code deadlineHours}; the rest use the enclosing coverage limits.

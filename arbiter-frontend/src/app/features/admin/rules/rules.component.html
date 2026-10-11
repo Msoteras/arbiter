@@ -232,9 +232,12 @@
             } @else {
               <div class="tab-panel" @fadeInUp>
                 <app-card [heading]="'Coberturas (' + d.coverages.length + ')'" headingSize="md">
-                  <app-button cardAside variant="secondary" size="sm" (click)="addCoverage()">
-                    + Agregar cobertura
-                  </app-button>
+                  <!-- Only with coverages: empty, the empty state below carries the one action. -->
+                  @if (d.coverages.length > 0) {
+                    <app-button cardAside variant="secondary" size="sm" (click)="addCoverage()">
+                      + Agregar cobertura
+                    </app-button>
+                  }
 
                   @for (c of d.coverages; track c.id) {
                     <app-card class="cov-card" variant="soft" [class.open]="isCoverageOpen(c)">
@@ -516,7 +519,26 @@
                       }
                     </app-card>
                   } @empty {
-                    <p class="t-note">Este ramo todavía no tiene coberturas.</p>
+                    <!-- Same empty state as the string-list tabs of this branch. -->
+                    <div class="cov-empty">
+                      <svg
+                        class="cov-empty-icon"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.6"
+                        width="26"
+                        height="26"
+                        aria-hidden="true"
+                      >
+                        <path
+                          d="M12 3l7 3v5c0 4.4-3 8.3-7 10-4-1.7-7-5.6-7-10V6l7-3z"
+                          stroke-linejoin="round"
+                        />
+                      </svg>
+                      <p class="cov-empty-title">Este ramo todavía no tiene coberturas</p>
+                      <app-button (click)="addCoverage()">+ Agregar primera cobertura</app-button>
+                    </div>
                   }
 
                   <app-save-bar
@@ -534,42 +556,48 @@
           <!-- ============ COMMON EXCLUSIONS ============ -->
           <!-- Branch-wide, not per coverage, and saved through their own rules-service endpoint. -->
           @case ('exclusions') {
-            <app-card heading="Exclusiones comunes del ramo" headingSize="md">
-              <app-info-tip cardAside>
-                Situaciones que ninguna cobertura del ramo cubre. Por ejemplo: «Daño estético que no
-                afecta el funcionamiento del equipo».
-              </app-info-tip>
-              <app-string-list-editor
-                [items]="d.commonExclusions"
-                (itemsChange)="setCommonExclusions($event)"
-                placeholder="Exclusión común…"
-                addLabel="+ Agregar exclusión"
-                [marker]="true"
-                emptyTitle="Sin exclusiones comunes"
-                emptyCta="+ Agregar primera exclusión"
-              >
-                <svg
-                  emptyIcon
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="1.6"
-                  width="26"
-                  height="26"
-                  aria-hidden="true"
-                >
-                  <circle cx="12" cy="12" r="9" />
-                  <line x1="6" y1="18" x2="18" y2="6" stroke-linecap="round" />
-                </svg>
-              </app-string-list-editor>
-              <app-save-bar
-                [dirty]="exclDirty()"
-                [saving]="exclSaving()"
-                [error]="exclError()"
-                (save)="saveCommonExclusions()"
-                (discard)="discardCommonExclusions()"
-              />
-            </app-card>
+            @if (detailLoading()) {
+              <app-inline-loading [size]="26" message="Cargando exclusiones…" />
+            } @else {
+              <div class="tab-panel" @fadeInUp>
+                <app-card heading="Exclusiones comunes del ramo" headingSize="md">
+                  <app-info-tip cardAside>
+                    Situaciones que ninguna cobertura del ramo cubre. Por ejemplo: «Daño estético
+                    que no afecta el funcionamiento del equipo».
+                  </app-info-tip>
+                  <app-string-list-editor
+                    [items]="d.commonExclusions"
+                    (itemsChange)="setCommonExclusions($event)"
+                    placeholder="Exclusión común…"
+                    addLabel="+ Agregar exclusión"
+                    [marker]="true"
+                    emptyTitle="Sin exclusiones comunes"
+                    emptyCta="+ Agregar primera exclusión"
+                  >
+                    <svg
+                      emptyIcon
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="1.6"
+                      width="26"
+                      height="26"
+                      aria-hidden="true"
+                    >
+                      <circle cx="12" cy="12" r="9" />
+                      <line x1="6" y1="18" x2="18" y2="6" stroke-linecap="round" />
+                    </svg>
+                  </app-string-list-editor>
+                  <app-save-bar
+                    [dirty]="exclDirty()"
+                    [saving]="exclSaving()"
+                    [error]="exclError()"
+                    (save)="saveCommonExclusions()"
+                    (discard)="discardCommonExclusions()"
+                  />
+                </app-card>
+              </div>
+            }
           }
 
           <!-- ============ FAST TRACK ============ -->

@@ -56,18 +56,13 @@ export class ActivateAccountComponent implements OnInit {
     this.mode === 'reset'
       ? {
           brandTitle: 'Restablecé tu contraseña',
-          brandTag: 'Elegí una contraseña nueva para volver a entrar a Arbiter.',
           formTitle: 'Elegí tu contraseña nueva',
-          formNote: 'Con esto quedás adentro, sin tener que volver a loguearte.',
           submitLabel: 'Restablecer contraseña',
           submittingLabel: 'Restableciendo…',
         }
       : {
           brandTitle: 'Activá tu cuenta',
-          brandTag: 'Elegí tu contraseña para terminar de configurar tu acceso a Arbiter.',
           formTitle: 'Elegí tu contraseña',
-          formNote:
-            'Con esto activás tu cuenta y entrás directo, sin tener que loguearte de nuevo.',
           submitLabel: 'Activar cuenta',
           submittingLabel: 'Activando…',
         };
@@ -83,6 +78,17 @@ export class ActivateAccountComponent implements OnInit {
       variety: this.charClassCount(pwd) >= 3,
       noRepeats: pwd.length === 0 || !/(.)\1\1/.test(pwd),
     };
+  });
+
+  /** Nothing ticks before typing: an empty password trivially has no repeated characters. */
+  protected readonly passwordChecklist = computed(() => {
+    const r = this.passwordRequirements();
+    const typed = this.password().length > 0;
+    return [
+      { label: 'Al menos 8 caracteres', met: typed && r.minLength },
+      { label: '3 de estos: minúsculas, mayúsculas, números, símbolos', met: typed && r.variety },
+      { label: 'Sin 3 caracteres iguales seguidos', met: typed && r.noRepeats },
+    ];
   });
 
   protected readonly passwordValid = computed(() => {
