@@ -379,7 +379,7 @@ Analista revisa y decide (frontend)
 ### Dónde está cada cosa
 
 - **Prompts versionados** en `classification-service/src/main/resources/prompts/`. La versión vigente la fija
-  `arbiter.llm.prompt-version` (hoy `classification-v7`; el de OCR es `extraccion-documento-v7`) y se
+  `arbiter.llm.prompt-version` (hoy `classification-v7`; el de OCR es `extraccion-documento-v8`) y se
   persiste en `llm_analysis.prompt_version`. Las versiones anteriores se conservan para poder auditar
   análisis viejos. Plantilla (markdown) separada de la inyección de datos: nada de concatenar strings.
 - **Variables de entorno**: la lista completa y comentada está en `.env.example`. Nunca en un yml versionado.

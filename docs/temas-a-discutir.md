@@ -104,14 +104,15 @@ panel antes era imposible, porque el nombre era único en toda la aseguradora; a
 Para que cruce con las pólizas hay que crearla como "Robo de celular" (así queda su nombre externo)
 y renombrarla después.
 
-**El fixture sigue con el agujero.** Lo hecho por UI vive en la base desplegada; `seed-demo.sql`
-nace igual que antes. Si alguien levanta de cero con `reset → init → seed` para una demo, vuelve.
-Cerrarlo del todo pide igual la pasada por el seed — decisión aparte, y no urgente.
+**Cerrado en el fixture (11/10/2026).** `seed-demo.sql` ahora le carga a Provincia *Robo* y *Hurto*
+en Tecnología Portátil y *Daño accidental* en Celulares, con sus exclusiones, Fast Track y reglas
+duras: cada hecho generador de los dos ramos lo responde exactamente una cobertura. Una póliza de
+cada ramo las contrata (`POL-TEC-2026-311` suma Hurto, `POL-CEL-2026-777` suma Daño accidental).
 
-**Bloquea:** nada hoy. Bloquearía a cualquiera que quiera demostrar un robo o un hurto de notebook
-en Provincia, que es un caso perfectamente razonable de mostrar en la defensa.
+**Falta en Railway.** El seed solo corre sobre una base vacía: en la base desplegada las tres
+coberturas siguen sin existir hasta que se creen desde el panel o se haga `reset → init → seed`.
 
-**Se va a ver todas las noches hasta que se decida.** La BD Aseguradora de Provincia sí tiene una
+**En Railway se va a ver todas las noches hasta que se creen.** La BD Aseguradora de Provincia sí tiene una
 cobertura de robo en dos pólizas de Tecnología (bajo el nombre "Robo de celular", que es el único
 literal de robo que admite el CHECK de `cobertura.nombre`). Como el ramo no la tiene configurada del
 lado de Arbiter, `PolicyResyncScheduler` la va a saltear y dejar el warning *"coverage(s) not

@@ -46,19 +46,8 @@ public class DocumentAnalysis {
     @Column(precision = 14, scale = 2)
     private BigDecimal amount;
 
-    // TEXT and never truncated: brand and model are compared against the insured item, and a cut
-    // value would be wrong, not incomplete, raising false findings.
     @Column(name = "item_description", columnDefinition = "text")
     private String itemDescription;
-
-    @Column(columnDefinition = "text")
-    private String brand;
-
-    @Column(columnDefinition = "text")
-    private String model;
-
-    @Column(length = 20)
-    private String imei;
 
     /** Never null: {@code DESCONOCIDO} is a real answer. */
     @Enumerated(EnumType.STRING)
@@ -90,6 +79,10 @@ public class DocumentAnalysis {
     @OneToMany(mappedBy = "analysis", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<DocumentVisualFinding> visualFindings = new ArrayList<>();
 
+    /** What the document says identifies the item, compared against the policy's (see {@link DocumentAttribute}). */
+    @OneToMany(mappedBy = "analysis", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<DocumentAttribute> itemAttributes = new ArrayList<>();
+
     /** Displayed, never compared (see {@link DocumentDetail}). */
     @OneToMany(mappedBy = "analysis", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<DocumentDetail> details = new ArrayList<>();
@@ -99,6 +92,14 @@ public class DocumentAnalysis {
         row.setFinding(finding);
         row.setAnalysis(this);
         visualFindings.add(row);
+    }
+
+    public void addItemAttribute(String name, String value) {
+        DocumentAttribute row = new DocumentAttribute();
+        row.setName(name);
+        row.setValue(value);
+        row.setAnalysis(this);
+        itemAttributes.add(row);
     }
 
     public void addDetail(String name, String value) {

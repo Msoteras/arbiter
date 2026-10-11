@@ -8,9 +8,9 @@ afuera del backlog de Trello por eso.
 El DER sigue siendo la fuente de verdad (`CLAUDE.md`) — este documento no propone desvíos, es la
 lista de qué hay que corregirle a él mismo cuando se lo vuelva a tocar.
 
-**Revisado el 07/10/2026, quinta pasada** contra el `.mdj` actual y contra
+**Revisado el 11/10/2026, sexta pasada** contra el `.mdj` actual y contra
 `db/init-multitenant.sql`. El `.mdj` no cambió desde el 22/09: las entradas 2 y 3 ya están
-aplicadas en el diagrama y las 5 a 12 siguen pendientes. No queda ninguna columna sin tipo de dato en todo el archivo.
+aplicadas en el diagrama y las 5 a 20 siguen pendientes. No queda ninguna columna sin tipo de dato en todo el archivo.
 
 ---
 
@@ -290,11 +290,11 @@ O se suman al DER con una semántica definida, o se dropean del esquema y de las
 | `aseguradora` | `logo` | BYTEA | no existe |
 | `metrica` | entidad completa (6 columnas) | — | no existe la tabla |
 
-`metrica` modela métricas precalculadas por período. `reports-service` no guarda nada: calcula cada
-reporte con una consulta sobre las tablas de expedientes.
+`metrica` modela un valor precalculado por métrica y período. Lo que terminó implementado es otra
+cosa: las cuatro tablas de la entrada 20, así que `metrica` se resuelve ahí.
 
-**Decisión pendiente:** sacarlas del DER, o dejarlas como algo a implementar. Si quedan, conviene
-una nota en el diagrama que diga que todavía no existen.
+**Decisión pendiente** solo para `aseguradora.logo`: sacarla del DER, o dejarla como algo a
+implementar con una nota en el diagrama que diga que todavía no existe.
 
 ---
 
@@ -411,6 +411,70 @@ esquemas `aseguradora_*`, no en los de Arbiter.
 **Acción:** decisión pendiente — sumarla al `.mdj` solo si el diagrama incluye las tablas de la BD de
 la aseguradora. La UNIQUE es compuesta, así que no se marca en la columna (misma nota que la entrada
 12).
+
+---
+
+## 20 · `metrica_dia` y las tres `metrica_diaria_*` — tablas nuevas de reportes
+
+**Encontrado:** 11/10/2026, al repasar las migraciones posteriores a la quinta pasada. La
+`2026-10-05-metricas-de-reportes.sql` no tenía entrada. `reports-service` ahora guarda los totales de
+los días ya cerrados, para armar un período sumando días en vez de volver a los expedientes. Son
+cuatro tablas por aseguradora, también en `db/init-multitenant.sql`.
+
+| Tabla | Columna | Tipo de dato | Nulo | Restricciones |
+|---|---|---|---|---|
+| `metrica_dia` (`metrics_day`) | `dia` (`day`) | DATE | no | PK |
+| `metrica_dia` | `fecha_calculo` (`computed_at`) | TIMESTAMPTZ | no | default `NOW()` |
+| `metrica_diaria_ingreso` (`metrics_daily_intake`) | `dia` (`day`) | DATE | no | FK → `metrica_dia.dia`, ON DELETE CASCADE |
+| `metrica_diaria_ingreso` | `hecho_generador_id` (`claim_cause_id`) | BIGINT | no | FK → `hecho_generador.id` |
+| `metrica_diaria_ingreso` | `analista_id` (`analyst_id`) | BIGINT | sí | sin FK |
+| `metrica_diaria_ingreso` | `denunciados` (`reported`), `fast_track` | BIGINT | no | — |
+| `metrica_diaria_resolucion` (`metrics_daily_resolution`) | `dia`, `hecho_generador_id`, `analista_id` | — | — | igual que en `metrica_diaria_ingreso` |
+| `metrica_diaria_resolucion` | `estado_final` (`final_status`) | VARCHAR(60) | no | — |
+| `metrica_diaria_resolucion` | `resueltos`, `fast_track`, `en_plazo`, `reabiertos`, `acuerdo_evaluables`, `acuerdo_coincidentes`, `fraude_determinado`, `fraude_respaldado_por_perito` | BIGINT | no | — |
+| `metrica_diaria_resolucion` | `segundos_totales`, `segundos_en_espera`, `segundos_fast_track` | DOUBLE PRECISION | no | — |
+| `metrica_diaria_resolucion` | `monto_reclamado_fraude` (`fraud_claimed_amount`) | NUMERIC(38,2) | no | — |
+| `metrica_diaria_liquidacion` (`metrics_daily_settlement`) | `dia`, `hecho_generador_id`, `analista_id` | — | — | igual que en `metrica_diaria_ingreso` |
+| `metrica_diaria_liquidacion` | `liquidaciones` (`settlements`), `expedientes_con_reclamo` (`claimed_cases`) | BIGINT | no | — |
+| `metrica_diaria_liquidacion` | `monto_liquidado`, `monto_reclamado`, `monto_franquicia`, `monto_cuotas`, `monto_saldo_deuda` | NUMERIC(38,2) | no | — |
+
+Las tres `metrica_diaria_*` no tienen `id`: son una fila por día, hecho generador y analista
+asignado. Guardan sumas y conteos, nunca una tasa ni un promedio. `metrica_dia` marca qué días
+están guardados, aunque ese día no haya pasado nada.
+
+Esto reemplaza a la entidad `metrica` que hoy tiene el DER (entrada 14): esa modelaba un valor por
+métrica y período, y lo implementado guarda los componentes por día.
+
+**Acción:** en el `.mdj`, sacar `metrica` y agregar las cuatro tablas, con `metrica_dia` 1—N contra
+cada `metrica_diaria_*` y `hecho_generador` 1—N contra cada una.
+
+---
+
+## 21 · `atributo_documento` — tabla nueva, y `analisis_documento` deja de usar `marca`, `modelo` e `imei`
+
+**Encontrado:** 11/10/2026. Lo que un documento dice sobre el bien se guardaba en tres columnas fijas
+de `analisis_documento` (`document_analysis.brand`, `model`, `imei`), que solo sirven para un celular
+o una notebook. Ahora cada documento se lee buscando los datos con que la póliza identifica a su bien
+(`atributo_bien`, entrada 19) y se guarda una fila por dato. Implementado en
+`db/init-multitenant.sql` y `db/migrations/2026-10-11-atributos-del-documento.sql`. **Sin aplicar en
+Railway.**
+
+| Tabla | Columna | Tipo de dato | Nulo | Restricciones |
+|---|---|---|---|---|
+| `atributo_documento` (`document_attribute`) | `id` | BIGINT | no | PK |
+| `atributo_documento` | `nombre` (`name`) | VARCHAR(60) | no | |
+| `atributo_documento` | `valor` (`value`) | TEXT | no | |
+| `atributo_documento` | `analisis_id` (`analysis_id`) | BIGINT | no | FK a `analisis_documento`, borrado en cascada |
+
+Relación: un `analisis_documento` tiene de 0 a N `atributo_documento`, igual que con
+`detalle_documento`. La diferencia es que estos sí se comparan: el nombre es el de la póliza
+(`marca`, `modelo`, `IMEI`, mañana `patente`), no el que eligió el modelo.
+
+La misma migración copia a la tabla nueva lo ya leído y pasa el IMEI de las pólizas a `atributo_bien`.
+
+**Acción:** agregar `atributo_documento` en el `.mdj`, con su relación a `analisis_documento`. Las
+columnas `marca`, `modelo` e `imei` de `analisis_documento` quedan en la base sin usar hasta que salga
+el deploy y se borran en una migración posterior: sacarlas del diagrama recién ahí.
 
 ---
 

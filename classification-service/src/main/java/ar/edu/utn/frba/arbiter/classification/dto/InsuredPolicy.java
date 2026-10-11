@@ -16,10 +16,10 @@ public record InsuredPolicy(
         String product,
         /** As the insurer has it, not as the insured declared it. */
         String insuredItem,
-        String imei,
         /**
          * What identifies the insured item, as name → value rows of the insurer database ("marca" →
-         * "Samsung"). Which names exist depends on the line of insurance, so nothing here lists them.
+         * "Samsung", "IMEI" → "35…"). Which names exist depends on the line of insurance, so nothing
+         * here lists them.
          */
         Map<String, String> itemAttributes,
         // Date and time: policies start at an exact hour, and comparing dates only accepts
@@ -65,7 +65,6 @@ public record InsuredPolicy(
                         .branch(branch)
                         .product(product)
                         .insuredItem(insuredItem)
-                        .imei(imei)
                         .itemAttributes(itemAttributes)
                         .effectiveFrom(effectiveFrom)
                         .effectiveTo(effectiveTo)

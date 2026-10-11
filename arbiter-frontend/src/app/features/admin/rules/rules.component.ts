@@ -1074,7 +1074,7 @@ export class RulesComponent {
       chips.push(`Denuncia ${c.reportingWindowDays} d`);
     }
     const police = this.hardRulesOf(c).find((r) => r.ruleType === 'POLICE_DEADLINE');
-    if (police?.deadlineHours != null) {
+    if (police?.deadlineHours != null && this.coversACauseWithPoliceReport(c)) {
       chips.push(`Policial ${police.deadlineHours} h`);
     }
     if (c.maxAnnualClaims != null) {
@@ -1101,11 +1101,26 @@ export class RulesComponent {
     'MAX_EVENTS_YEAR',
   ];
 
+  /** The police deadline is left out when the coverage has no police report to time. */
   protected orderedHardRules(c: Coverage): HardRule[] {
     const rules = this.hardRulesOf(c);
-    return RulesComponent.HARD_RULE_ORDER.map((type) =>
-      rules.find((r) => r.ruleType === type),
-    ).filter((r): r is HardRule => r != null);
+    const policeReportApplies = this.coversACauseWithPoliceReport(c);
+    return RulesComponent.HARD_RULE_ORDER.filter(
+      (type) => type !== 'POLICE_DEADLINE' || policeReportApplies,
+    )
+      .map((type) => rules.find((r) => r.ruleType === type))
+      .filter((r): r is HardRule => r != null);
+  }
+
+  /**
+   * Read off the drafts of both tabs, so the rule shows up as the referent picks the covered causes
+   * or edits the document schedule. The engine applies the same test to each claim.
+   */
+  private coversACauseWithPoliceReport(c: Coverage): boolean {
+    return this.claimCauses().some(
+      (cause) =>
+        this.isCauseCovered(c, cause.id) && this.isDocRequiredFor(cause.id, 'police_report'),
+    );
   }
 
   protected hardRuleHint(type: HardRuleType): string {

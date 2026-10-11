@@ -32,7 +32,7 @@ class DocumentInconsistencyEvaluatorTest {
                 .policyNumber("POL-CEL-2024-001")
                 .insuredId("40.123.456")
                 .branch("Celulares")
-                .imei(INSURED_IMEI)
+                .itemAttributes(Map.of("IMEI", INSURED_IMEI))
                 .effectiveFrom(RiskFixtures.POLICY_START.atStartOfDay())
                 .effectiveTo(RiskFixtures.POLICY_START.plusYears(1).atStartOfDay())
                 .upToDate(true)
@@ -86,11 +86,19 @@ class DocumentInconsistencyEvaluatorTest {
 
     private DocumentExtraction.Fields fields(LocalDate documentDate, BigDecimal amount, String imei) {
         return new DocumentExtraction.Fields(
-                documentDate, amount, null, null, null, imei, null, null, List.of());
+                documentDate, amount, null, imei == null ? Map.of() : Map.of("IMEI", imei), null, null, List.of());
     }
 
+    /** A null leaves the name out, which is how the extraction says "the document doesn't state it". */
     private DocumentExtraction.Fields itemFields(String brand, String model) {
-        return new DocumentExtraction.Fields(null, null, null, brand, model, null, null, null, List.of());
+        Map<String, String> attributes = new LinkedHashMap<>();
+        if (brand != null) {
+            attributes.put("marca", brand);
+        }
+        if (model != null) {
+            attributes.put("modelo", model);
+        }
+        return new DocumentExtraction.Fields(null, null, null, attributes, null, null, List.of());
     }
 
     /** No documents analyzed: not evaluable, rather than a 0.0 that would dilute the score. */
@@ -292,8 +300,8 @@ class DocumentInconsistencyEvaluatorTest {
     void findingsNameTheDocumentTheWayTheScreenDoes() {
         Contribution c = evaluator.evaluate(context(policyInsuring("Samsung", "Galaxy A56"), Map.of(
                 "purchase_proof", withFields(new DocumentExtraction.Fields(
-                        null, new BigDecimal("450000"), null, "Samsung", "Galaxy S24", null, null, null,
-                        List.of())),
+                        null, new BigDecimal("450000"), null,
+                        Map.of("marca", "Samsung", "modelo", "Galaxy S24"), null, null, List.of())),
                 "police_report", withFields(fields(EVENT_DAY.minusMonths(3), null, null)))));
 
         assertThat(c.rationale())
@@ -382,7 +390,26 @@ class DocumentInconsistencyEvaluatorTest {
         assertThat(c.score()).isZero();
     }
 
-    /** An attribute the extraction has no field for is skipped, never read as a mismatch. */
+    /** The policy and the document each write an identifier their own way: same one, no finding. */
+    @Test
+    void theSameIdentifier_spacedOrHyphenatedDifferently_isNotAnInconsistency() {
+        Contribution c = evaluator.evaluate(context(policyWithAttributes(Map.of("patente", "AB 123 CD")),
+                Map.of("repair_quote", withFields(new DocumentExtraction.Fields(
+                        null, null, null, Map.of("Patente", "ab-123-cd"), null, null, List.of())))));
+
+        assertThat(c.score()).isZero();
+    }
+
+    @Test
+    void anotherIdentifierWithTheSameDigits_isFlagged() {
+        Contribution c = evaluator.evaluate(context(policyWithAttributes(Map.of("patente", "AB123CD")),
+                Map.of("repair_quote", withFields(new DocumentExtraction.Fields(
+                        null, null, null, Map.of("patente", "AC123XY"), null, null, List.of())))));
+
+        assertThat(c.rationale()).contains("Patente del documento").contains("AC123XY");
+    }
+
+    /** An attribute the document doesn't state is skipped, never read as a mismatch. */
     @Test
     void anAttributeTheDocumentDoesNotCarry_isSkipped() {
         Contribution c = evaluator.evaluate(context(policyWithAttributes(Map.of("patente", "AB123CD")),

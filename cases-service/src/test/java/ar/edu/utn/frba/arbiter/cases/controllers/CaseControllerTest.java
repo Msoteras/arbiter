@@ -344,12 +344,15 @@ class CaseControllerTest {
                                 StatusChangeActor.SYSTEM, "clasificación: FAST_TRACK", null,
                                 Instant.parse("2026-06-13T22:55:00Z"))
                 ),
-                // One field read (amount) and one the document doesn't carry (IMEI): the null must
-                // reach the frontend as null, shown as "not applicable", never as a mismatch.
+                // Only the item attributes the document states: the IMEI it doesn't carry is
+                // simply absent, never a mismatch.
                 List.of(new DocumentAnalysisSummary(
                         "purchase_proof", "Factura de compra…",
                         LocalDate.of(2026, 5, 30), new BigDecimal("150000"),
-                        "Motorola Edge 50 Pro", "Motorola", "Edge 50 Pro", null, "TITULAR",
+                        "Motorola Edge 50 Pro",
+                        List.of(new DocumentAnalysisSummary.Detail("marca", "Motorola"),
+                                new DocumentAnalysisSummary.Detail("modelo", "Edge 50 Pro")),
+                        "TITULAR",
                         List.of("La tipografía del encabezado no coincide con el resto"),
                         List.of(new DocumentAnalysisSummary.Detail("N° de factura", "0001-00034521")),
                         "COMPLETE")),
@@ -372,7 +375,9 @@ class CaseControllerTest {
                 .andExpect(jsonPath("$.documentAnalyses.length()").value(1))
                 .andExpect(jsonPath("$.documentAnalyses[0].documentType").value("purchase_proof"))
                 .andExpect(jsonPath("$.documentAnalyses[0].amount").value(150000))
-                .andExpect(jsonPath("$.documentAnalyses[0].imei").doesNotExist())
+                .andExpect(jsonPath("$.documentAnalyses[0].itemAttributes.length()").value(2))
+                .andExpect(jsonPath("$.documentAnalyses[0].itemAttributes[0].name").value("marca"))
+                .andExpect(jsonPath("$.documentAnalyses[0].itemAttributes[0].value").value("Motorola"))
                 .andExpect(jsonPath("$.documentAnalyses[0].visualFindings.length()").value(1));
     }
 

@@ -1,6 +1,7 @@
 package ar.edu.utn.frba.arbiter.cases.services;
 
 import ar.edu.utn.frba.arbiter.cases.dto.AnalystDecisionRequest;
+import ar.edu.utn.frba.arbiter.cases.dto.AnalystDecisionResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.AnalystWorkloadResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.AssignedCaseSummaryResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseDocumentResponse;
@@ -416,12 +417,8 @@ public class CaseServiceImpl implements CaseService {
         Case entity = caseRepository.findById(caseId)
                 .orElseThrow(() -> new CaseNotFoundException(caseId));
         accessPolicy.assertCanRead(entity);
-        // Observations are the staff's own words (why it was rejected, why a cause was corrected):
-        // internal reasoning the insured doesn't get to read.
-        boolean insured = accessPolicy.currentUserIsInsured();
         List<StatusTransitionResponse> history = caseStatusService.history(caseId).stream()
                 .map(StatusTransitionResponse::from)
-                .map(transition -> insured ? transition.withoutObservation() : transition)
                 .toList();
         // tenantScope already switched to the case's schema, so this resolves the case's insurer.
         Insurer issuer = insurerRepository.findBySchemaName(TenantContext.get()).orElse(null);
@@ -755,10 +752,24 @@ public class CaseServiceImpl implements CaseService {
         // links the case to the model run the verdict was based on.
         entity.setClassificationId(claimsAnalysisClient.forwardAnalystDecision(entity.getId(), audited));
 
-        // The audit row lives in classification-service; the observation is what lets the case
-        // itself show why it was resolved.
         caseStatusService.transition(entity, targetStatus,
-                StatusChangeActor.ANALYST, "decisión del analista: " + decision, justification);
+                StatusChangeActor.ANALYST, "decisión del analista: " + decision);
+    }
+
+    @Override
+    public Optional<AnalystDecisionResponse> getAnalystDecision(Long caseId) {
+        Case entity = caseRepository.findById(caseId)
+                .orElseThrow(() -> new CaseNotFoundException(caseId));
+        accessPolicy.assertCanRead(entity);
+
+        boolean resolved = entity.getStatus() == CaseStatus.APPROVED
+                || entity.getStatus() == CaseStatus.REJECTED;
+        if (!resolved || entity.getClassificationId() == null) {
+            return Optional.empty();
+        }
+        return caseAnalysisRepository.findDecision(entity.getClassificationId())
+                .map(decision -> new AnalystDecisionResponse(
+                        decision.decision(), decision.justification(), decision.decidedAt()));
     }
 
     /** Records the held decision with its justification, then approves the case (which emails the amount). */

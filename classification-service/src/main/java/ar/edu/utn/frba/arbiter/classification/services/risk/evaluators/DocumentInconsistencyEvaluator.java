@@ -12,7 +12,6 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -85,7 +84,6 @@ public class DocumentInconsistencyEvaluator implements RiskFactorEvaluator {
             if (PROVIDER_REPORT_TYPES.contains(type)) {
                 return;
             }
-            checkImei(context, type, extraction.fields(), findings);
             checkItemAttributes(context, type, extraction.fields(), findings);
             checkDocumentDate(context, type, extraction.fields(), findings);
         });
@@ -100,25 +98,11 @@ public class DocumentInconsistencyEvaluator implements RiskFactorEvaluator {
         return new Contribution(factorId(), score, String.join(" · ", findings));
     }
 
-    /** Only runs when the policy has an IMEI (cellphone branch). */
-    private void checkImei(
-            RiskContext context, String type, DocumentExtraction.Fields fields, List<String> findings) {
-        String insuredImei = context.policy() == null ? null : context.policy().imei();
-        if (insuredImei == null || fields.imei() == null) {
-            return;
-        }
-        if (!insuredImei.equals(fields.imei())) {
-            findings.add(String.format(
-                    "El IMEI del documento \"%s\" (%s) no coincide con el del bien asegurado (%s)",
-                    label(type), fields.imei(), insuredImei));
-        }
-    }
-
     /**
      * Each attribute the policy states about the insured item against the same one read from the
-     * document. Driven by the policy's rows, so a line of insurance with other attributes needs no
-     * code here. At most one finding per document: a wrong make comes with a wrong model, and
-     * reporting both would count one contradiction twice.
+     * document. Driven by the policy's rows, and the extraction is asked for those same names, so a
+     * line of insurance with other attributes needs no code here. At most one finding per document:
+     * a wrong make comes with a wrong model, and reporting both would count one contradiction twice.
      */
     private void checkItemAttributes(
             RiskContext context, String type, DocumentExtraction.Fields fields, List<String> findings) {
@@ -126,9 +110,8 @@ public class DocumentInconsistencyEvaluator implements RiskFactorEvaluator {
         if (insured == null) {
             return;
         }
-        Map<String, String> onDocument = documentAttributes(fields);
         for (Map.Entry<String, String> attribute : insured.entrySet()) {
-            String read = onDocument.get(attribute.getKey().toLowerCase());
+            String read = readFromDocument(fields, attribute.getKey());
             if (read == null || attribute.getValue() == null || sameValue(read, attribute.getValue())) {
                 continue;
             }
@@ -139,19 +122,12 @@ public class DocumentInconsistencyEvaluator implements RiskFactorEvaluator {
         }
     }
 
-    /**
-     * What the extraction reads about the item, under the names the insurer database uses. The
-     * extraction still has fixed fields; the IMEI stays out because it is compared exactly, above.
-     */
-    private static Map<String, String> documentAttributes(DocumentExtraction.Fields fields) {
-        Map<String, String> attributes = new HashMap<>();
-        if (fields.brand() != null) {
-            attributes.put("marca", fields.brand());
-        }
-        if (fields.model() != null) {
-            attributes.put("modelo", fields.model());
-        }
-        return attributes;
+    private static String readFromDocument(DocumentExtraction.Fields fields, String name) {
+        return fields.itemAttributes().entrySet().stream()
+                .filter(entry -> name.equalsIgnoreCase(entry.getKey()))
+                .map(Map.Entry::getValue)
+                .findFirst()
+                .orElse(null);
     }
 
     /**
@@ -159,8 +135,13 @@ public class DocumentInconsistencyEvaluator implements RiskFactorEvaluator {
      * policy does ("Galaxy A56 5G — 256 GB" for an insured "Galaxy A56"), and that is detail, not a
      * contradiction. Words carrying a digit are what tells two items apart ("A56", a plate), so when
      * both sides have them one set has to contain the other; otherwise sharing a word is enough.
+     * An identifier is one such word, so two of them only match when they are the same one, however
+     * each side spaces or hyphenates it.
      */
     private static boolean sameValue(String onDocument, String insured) {
+        if (compact(onDocument).equals(compact(insured))) {
+            return true;
+        }
         Set<String> documentWords = words(onDocument);
         Set<String> insuredWords = words(insured);
         Set<String> documentCodes = codes(documentWords);
@@ -169,6 +150,10 @@ public class DocumentInconsistencyEvaluator implements RiskFactorEvaluator {
             return documentCodes.containsAll(insuredCodes) || insuredCodes.containsAll(documentCodes);
         }
         return documentWords.isEmpty() || !Collections.disjoint(documentWords, insuredWords);
+    }
+
+    private static String compact(String text) {
+        return NOT_A_WORD.matcher(text.toLowerCase()).replaceAll("");
     }
 
     private static Set<String> words(String text) {

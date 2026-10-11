@@ -36,7 +36,7 @@ class ClaimCauseConsistencyEvaluatorTest {
 
     private static DocumentExtraction narrating(String cause) {
         return new DocumentExtraction("...", List.of(),
-                new DocumentExtraction.Fields(null, null, null, null, null, null, null, cause, List.of()));
+                new DocumentExtraction.Fields(null, null, null, null, null, cause, List.of()));
     }
 
     @Test

@@ -60,7 +60,7 @@ public class InsurerDatabaseAdapter implements InsurerAdapter {
         String schema = schema();
         PolicyRow row = jdbc.query(
                         """
-                        SELECT p.id, p.numero, p.rama, p.producto, p.bien_asegurado, p.imei,
+                        SELECT p.id, p.numero, p.rama, p.producto, p.bien_asegurado,
                                p.vigencia_desde, p.vigencia_hasta,
                                p.estado_pago, p.saldo_deuda, p.importe_cuota,
                                a.documento, a.nombre, a.apellido
@@ -75,7 +75,6 @@ public class InsurerDatabaseAdapter implements InsurerAdapter {
                                 rs.getString("rama"),
                                 rs.getString("producto"),
                                 rs.getString("bien_asegurado"),
-                                rs.getString("imei"),
                                 rs.getObject("vigencia_desde", LocalDateTime.class),
                                 rs.getObject("vigencia_hasta", LocalDateTime.class),
                                 rs.getString("estado_pago"),
@@ -131,7 +130,6 @@ public class InsurerDatabaseAdapter implements InsurerAdapter {
                 .branch(branchNames().nameOf(row.rama()))
                 .product(row.producto())
                 .insuredItem(row.bienAsegurado())
-                .imei(row.imei())
                 .itemAttributes(itemAttributes)
                 .effectiveFrom(row.vigenciaDesde())
                 .effectiveTo(row.vigenciaHasta())
@@ -220,7 +218,6 @@ public class InsurerDatabaseAdapter implements InsurerAdapter {
             String rama,
             String producto,
             String bienAsegurado,
-            String imei,
             LocalDateTime vigenciaDesde,
             LocalDateTime vigenciaHasta,
             String estadoPago,

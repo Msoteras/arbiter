@@ -547,7 +547,7 @@ class SettlementServiceTest {
     }
 
     private DocumentAnalysisSummary document(String type, BigDecimal amount) {
-        return new DocumentAnalysisSummary(type, "…", null, amount, null, null, null, null, "TITULAR",
+        return new DocumentAnalysisSummary(type, "…", null, amount, null, List.of(), "TITULAR",
                 List.of(), List.of(), "COMPLETE");
     }
 

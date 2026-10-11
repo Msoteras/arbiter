@@ -130,9 +130,11 @@ SELECT setval(pg_get_serial_sequence('aseguradora_provincia.poliza','id'),
 INSERT INTO aseguradora_provincia.cobertura (poliza_id, orden, nombre, suma_asegurada, franquicia_pct) VALUES
     (1, 1, 'Robo de celular', 170000.00, 10.00),
     (1, 2, 'Daño accidental',  90000.00, 10.00),
+    (1, 3, 'Hurto',            85000.00, 10.00),
     (2, 1, 'Robo de celular', 900000.00, 10.00),
     (2, 2, 'Hurto',           300000.00, 10.00),
-    (3, 1, 'Robo de celular', 700000.00, 10.00);
+    (3, 1, 'Robo de celular', 700000.00, 10.00),
+    (3, 2, 'Daño accidental', 700000.00, 20.00);
 
 INSERT INTO aseguradora_provincia.siniestro_historico (poliza_id, cobertura_id, asegurado_id,
                                                        fecha_ocurrencia, causa, estado_resolucion,
@@ -339,9 +341,11 @@ SELECT setval(pg_get_serial_sequence('arbiter_bbva.service_provider','id'),
 -- PART 5 — Arbiter tenant: Provincia
 -- =============================================================================
 
--- Provincia sells Tecnología Portátil, so it needs a coverage BBVA does not have.
--- LESSER_OF_SUM_AND_REPLACEMENT, as clause 340 art. 7 requires for Tecnología Portátil.
--- Two events a year, the second at 50%.
+-- Provincia sells Tecnología Portátil, so it needs coverages BBVA does not have, plus
+-- accidental damage for its phones. Every claim cause of both branches ends up answered by
+-- exactly one coverage. LESSER_OF_SUM_AND_REPLACEMENT, as clause 340 art. 7 requires.
+-- The insurer database also names a laptop robbery cover "Robo de celular": hence the
+-- external_name of coverage 5, whose name is unique only within its branch.
 INSERT INTO arbiter_provincia.coverage (id, name, external_name, description, report_deadline_hours, max_events_per_year,
                                         covers_family_group, deductible, claim_exhausts_coverage,
                                         is_individual, waiting_period_days, branch_id,
@@ -349,7 +353,14 @@ INSERT INTO arbiter_provincia.coverage (id, name, external_name, description, re
                                         second_event_percentage, deduct_pending_installments,
                                         deduct_overdue_balance) VALUES
     (3, 'Daño accidental', 'Daño accidental', 'Cobertura por daño accidental de equipo portátil', 96, 2, FALSE, 10.00, FALSE, TRUE, 30, 2,
-     'REPAIR', 'LESSER_OF_SUM_AND_REPLACEMENT', 'LOSS_AMOUNT', 50.00, FALSE, TRUE);
+     'REPAIR', 'LESSER_OF_SUM_AND_REPLACEMENT', 'LOSS_AMOUNT', 50.00, FALSE, TRUE),
+    (4, 'Daño accidental', 'Daño accidental', 'Cobertura por rotura o caída accidental del equipo', 72, 2, FALSE, 20.00, FALSE, TRUE, 30, 1,
+     'REPAIR', 'LESSER_OF_SUM_AND_REPLACEMENT', 'LOSS_AMOUNT', 50.00, FALSE, TRUE),
+    (5, 'Robo', 'Robo de celular', 'Cobertura por robo de equipo portátil', 96, 2, FALSE, 10.00, FALSE, TRUE, 30, 2,
+     'TOTAL_LOSS', 'LESSER_OF_SUM_AND_REPLACEMENT', 'LOSS_AMOUNT', 50.00, TRUE, TRUE),
+    -- One event a year, so no second-event percentage.
+    (6, 'Hurto', 'Hurto', 'Cobertura por hurto de equipo portátil', 96, 1, FALSE, 10.00, TRUE, TRUE, 30, 2,
+     'TOTAL_LOSS', 'LESSER_OF_SUM_AND_REPLACEMENT', 'LOSS_AMOUNT', NULL, TRUE, TRUE);
 
 -- Provincia's policy says "Franquicia 10%" without saying of what, so its theft coverages take it
 -- from the loss. BBVA's keep the sum insured, as their phone policy states.
@@ -359,16 +370,53 @@ UPDATE arbiter_provincia.coverage SET deductible_basis = 'LOSS_AMOUNT'
 SELECT setval(pg_get_serial_sequence('arbiter_provincia.coverage','id'),
               (SELECT MAX(id) FROM arbiter_provincia.coverage));
 
--- Without this deny-list the coverage would cover the whole branch. Tecnología Portátil
--- causes: 6 Rotura accidental, 7 Robo en vía pública, 8 Hurto, 9 Caída.
+-- Without these deny-lists a coverage would cover its whole branch. Tecnología Portátil
+-- causes: 6 Rotura accidental, 7 Robo en vía pública, 8 Hurto, 9 Caída. Celulares: 1 Rotura
+-- accidental, 2 Robo en vía pública, 3 Hurto, 4 Caída.
 INSERT INTO arbiter_provincia.insurer_rule (active, valid_from, name, rule_type, effect, priority,
                                             blocks_fast_track, branch_id, coverage_id, configuration, created_by) VALUES
     (TRUE, '2026-01-01 00:00:00+00',
      'La cobertura de daño accidental solo cubre rotura y caída', 'COVERAGE_EXCLUSION', 'RECHAZAR', 1,
-     TRUE, 2, 3, '{"excludedClaimCauseIds":[7,8]}', 6);
+     TRUE, 2, 3, '{"excludedClaimCauseIds":[7,8]}', 6),
+    (TRUE, '2026-01-01 00:00:00+00',
+     'La cobertura de daño accidental solo cubre rotura y caída', 'COVERAGE_EXCLUSION', 'RECHAZAR', 1,
+     TRUE, 1, 4, '{"excludedClaimCauseIds":[2,3]}', 6),
+    (TRUE, '2026-01-01 00:00:00+00',
+     'La cobertura de robo solo cubre robo en vía pública', 'COVERAGE_EXCLUSION', 'RECHAZAR', 1,
+     TRUE, 2, 5, '{"excludedClaimCauseIds":[6,8,9]}', 6),
+    (TRUE, '2026-01-01 00:00:00+00',
+     'La cobertura de hurto solo cubre hurto', 'COVERAGE_EXCLUSION', 'RECHAZAR', 1,
+     TRUE, 2, 6, '{"excludedClaimCauseIds":[6,7,9]}', 6);
 
--- Fast Track thresholds for this coverage. The amount cap is 60%, above robbery's 50%, on
--- purpose: a repair is a large share of a small sum insured.
+-- Same hard rules as the coverages init-multitenant.sql seeds. POLICE_DEADLINE only where a
+-- covered cause has a police report to file, and off by default like there.
+INSERT INTO arbiter_provincia.insurer_rule (active, valid_from, name, rule_type, effect, priority,
+                                            blocks_fast_track, branch_id, coverage_id, configuration, created_by) VALUES
+    (TRUE,  '2026-01-01 00:00:00+00', 'Carencia de la cobertura (cobertura 4)',
+     'WAITING_PERIOD',  'DERIVAR', 2, TRUE, 1, 4, '{}', 6),
+    (TRUE,  '2026-01-01 00:00:00+00', 'Plazo de denuncia a la aseguradora (cobertura 4)',
+     'REPORT_DEADLINE', 'DERIVAR', 3, TRUE, 1, 4, '{}', 6),
+    (TRUE,  '2026-01-01 00:00:00+00', 'Tope de eventos por año (cobertura 4)',
+     'MAX_EVENTS_YEAR', 'DERIVAR', 5, TRUE, 1, 4, '{}', 6),
+    (TRUE,  '2026-01-01 00:00:00+00', 'Carencia de la cobertura (cobertura 5)',
+     'WAITING_PERIOD',  'DERIVAR', 2, TRUE, 2, 5, '{}', 6),
+    (TRUE,  '2026-01-01 00:00:00+00', 'Plazo de denuncia a la aseguradora (cobertura 5)',
+     'REPORT_DEADLINE', 'DERIVAR', 3, TRUE, 2, 5, '{}', 6),
+    (FALSE, '2026-01-01 00:00:00+00', 'Plazo de la denuncia policial (cobertura 5)',
+     'POLICE_DEADLINE', 'DERIVAR', 4, TRUE, 2, 5, '{"deadlineHours":72}', 6),
+    (TRUE,  '2026-01-01 00:00:00+00', 'Tope de eventos por año (cobertura 5)',
+     'MAX_EVENTS_YEAR', 'DERIVAR', 5, TRUE, 2, 5, '{}', 6),
+    (TRUE,  '2026-01-01 00:00:00+00', 'Carencia de la cobertura (cobertura 6)',
+     'WAITING_PERIOD',  'DERIVAR', 2, TRUE, 2, 6, '{}', 6),
+    (TRUE,  '2026-01-01 00:00:00+00', 'Plazo de denuncia a la aseguradora (cobertura 6)',
+     'REPORT_DEADLINE', 'DERIVAR', 3, TRUE, 2, 6, '{}', 6),
+    (FALSE, '2026-01-01 00:00:00+00', 'Plazo de la denuncia policial (cobertura 6)',
+     'POLICE_DEADLINE', 'DERIVAR', 4, TRUE, 2, 6, '{"deadlineHours":72}', 6),
+    (TRUE,  '2026-01-01 00:00:00+00', 'Tope de eventos por año (cobertura 6)',
+     'MAX_EVENTS_YEAR', 'DERIVAR', 5, TRUE, 2, 6, '{}', 6);
+
+-- Fast Track thresholds. The laptop damage cap is 60%, above robbery's 50%, on purpose: a
+-- repair is a large share of a small sum insured.
 INSERT INTO arbiter_provincia.insurer_rule (active, valid_from, name, rule_type, effect, priority,
                                             blocks_fast_track, branch_id, coverage_id, configuration, created_by) VALUES
     (TRUE, '2026-01-01 00:00:00+00',
@@ -377,6 +425,27 @@ INSERT INTO arbiter_provincia.insurer_rule (active, valid_from, name, rule_type,
                     "requiredDocumentTypes":["purchase_proof","repair_quote"],
                     "criteria":["Primer siniestro del asegurado",
                                 "Monto reclamado inferior al 60% de la suma asegurada",
+                                "Póliza al día con sus pagos"]}', 6),
+    (TRUE, '2026-01-01 00:00:00+00',
+     'Fast Track — Daño accidental', 'FAST_TRACK', 'APROBAR', 1,
+     FALSE, 1, 4, '{"maxClaimedAmountRatio":0.5,"maxPriorClaims":0,"requiresUpToDatePolicy":true,
+                    "requiredDocumentTypes":["purchase_proof","repair_quote"],
+                    "criteria":["Primer siniestro del asegurado",
+                                "Monto reclamado inferior al 50% de la suma asegurada",
+                                "Póliza al día con sus pagos"]}', 6),
+    (TRUE, '2026-01-01 00:00:00+00',
+     'Fast Track — Robo', 'FAST_TRACK', 'APROBAR', 1,
+     FALSE, 2, 5, '{"maxClaimedAmountRatio":0.5,"maxPriorClaims":0,"requiresUpToDatePolicy":true,
+                    "requiredDocumentTypes":["police_report","purchase_proof"],
+                    "criteria":["Primer siniestro del asegurado",
+                                "Monto reclamado inferior al 50% de la suma asegurada",
+                                "Póliza al día con sus pagos"]}', 6),
+    (TRUE, '2026-01-01 00:00:00+00',
+     'Fast Track — Hurto', 'FAST_TRACK', 'APROBAR', 2,
+     FALSE, 2, 6, '{"maxClaimedAmountRatio":0.3,"maxPriorClaims":0,"requiresUpToDatePolicy":true,
+                    "requiredDocumentTypes":["police_report","purchase_proof"],
+                    "criteria":["Primer siniestro del asegurado",
+                                "Monto reclamado inferior al 30% de la suma asegurada",
                                 "Póliza al día con sus pagos"]}', 6);
 
 -- Same person as arbiter_bbva.insured(1) — one identity, two tenants, no shared row.
@@ -391,12 +460,12 @@ INSERT INTO arbiter_provincia.policy (id, external_policy_number, product, in_fo
     (2, 'POL-CEL-2026-501', 'Celular Protegido',             TRUE, 1),
     (3, 'POL-CEL-2026-777', 'Celular Protegido',             TRUE, 1);
 
--- Policy 1 is Tecnología Portátil, so its only coverage is Daño accidental: a policy never
--- mixes coverages from different branches.
+-- Mirrors aseguradora_provincia.cobertura. Policy 1 is Tecnología Portátil, so its coverages
+-- are that branch's (5 Robo, 3 Daño accidental, 6 Hurto): a policy never mixes branches.
 INSERT INTO arbiter_provincia.policy_coverage (policy_id, coverage_id, display_order, sum_insured, deductible_pct) VALUES
-    (1, 3, 1,   90000.00, 10.00),
+    (1, 5, 1,  170000.00, 10.00), (1, 3, 2,  90000.00, 10.00), (1, 6, 3, 85000.00, 10.00),
     (2, 1, 1,  900000.00, 10.00), (2, 2, 2, 300000.00, 10.00),
-    (3, 1, 1,  700000.00, 10.00);
+    (3, 1, 1,  700000.00, 10.00), (3, 4, 2, 700000.00, 20.00);
 
 SELECT setval(pg_get_serial_sequence('arbiter_provincia.policy','id'),
               (SELECT MAX(id) FROM arbiter_provincia.policy));
@@ -1151,12 +1220,12 @@ INSERT INTO arbiter_provincia.insured (id, name, surname, dni, email, phone, cas
 SELECT setval(pg_get_serial_sequence('arbiter_provincia.insured','id'),
               (SELECT MAX(id) FROM arbiter_provincia.insured));
 
--- coverage_id 3 = 'Daño accidental' in arbiter_provincia.
+-- In arbiter_provincia's Tecnología Portátil: coverage 5 = 'Robo', 3 = 'Daño accidental'.
 INSERT INTO arbiter_provincia.policy (id, external_policy_number, product, in_force, insured_id) VALUES
     (8, 'POL-TEC-2026-350', 'Seguro de Tecnología Portátil', TRUE, 3);
 
 INSERT INTO arbiter_provincia.policy_coverage (policy_id, coverage_id, display_order, sum_insured, deductible_pct) VALUES
-    (8, 3, 1, 90000.00, 10.00);
+    (8, 5, 1, 170000.00, 10.00), (8, 3, 2, 90000.00, 10.00);
 SELECT setval(pg_get_serial_sequence('arbiter_provincia.policy','id'),
               (SELECT MAX(id) FROM arbiter_provincia.policy));
 
@@ -1263,7 +1332,7 @@ END $$;
 
 -- ─── atributo_bien ───────────────────────────────────────────────────────────
 -- Make and model of every insured item, derived from bien_asegurado: the first word is the make,
--- except Apple's products, which the text names without it.
+-- except Apple's products, which the text names without it. Plus the IMEI where the policy has one.
 DO $$
 DECLARE
     insurer_schema TEXT;
@@ -1287,6 +1356,11 @@ BEGIN
                    ) AS a (nombre, valor)
              WHERE btrim(coalesce(p.bien_asegurado, '')) <> ''
                AND a.valor <> '';
+
+            INSERT INTO %1$I.atributo_bien (poliza_id, nombre, valor)
+            SELECT p.id, 'IMEI', p.imei
+              FROM %1$I.poliza p
+             WHERE btrim(coalesce(p.imei, '')) <> '';
         $sql$, insurer_schema);
     END LOOP;
 END $$;

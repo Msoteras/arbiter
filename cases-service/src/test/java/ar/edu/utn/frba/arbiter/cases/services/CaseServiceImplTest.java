@@ -2,6 +2,7 @@ package ar.edu.utn.frba.arbiter.cases.services;
 
 import ar.edu.utn.frba.arbiter.cases.config.tenant.CallerContext;
 import ar.edu.utn.frba.arbiter.cases.dto.AnalystDecisionRequest;
+import ar.edu.utn.frba.arbiter.cases.dto.AnalystDecisionResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.LensSummaryResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.SettlementDecisionRequest;
 import ar.edu.utn.frba.arbiter.cases.models.entities.CaseSettlement;
@@ -539,6 +540,30 @@ class CaseServiceImplTest {
     }
 
     @Test
+    void getAnalystDecision_resolvedCase_readsTheVerdictItPointsAt() {
+        Case entity = caseRecord(1L, CaseStatus.REJECTED);
+        entity.setClassificationId(31L);
+        when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
+        java.time.Instant decidedAt = java.time.Instant.parse("2026-10-10T14:32:00Z");
+        when(caseAnalysisRepository.findDecision(31L)).thenReturn(Optional.of(
+                new CaseAnalysisRepository.AnalystDecision("REJECT", "El hecho es hurto, no robo", decidedAt)));
+
+        assertThat(caseService.getAnalystDecision(1L)).contains(
+                new AnalystDecisionResponse("REJECT", "El hecho es hurto, no robo", decidedAt));
+    }
+
+    /** {@code classification_id} survives the reopening, but that verdict no longer stands. */
+    @Test
+    void getAnalystDecision_reopenedCase_hasNone() {
+        Case entity = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
+        entity.setClassificationId(31L);
+        when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
+
+        assertThat(caseService.getAnalystDecision(1L)).isEmpty();
+        verify(caseAnalysisRepository, never()).findDecision(any());
+    }
+
+    @Test
     void addDocumentsAndReclassify_resetsClassificationAndRetriggers() {
         Case entity = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
         when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
@@ -924,26 +949,6 @@ class CaseServiceImplTest {
         assertThat(response.statusHistory().get(1).actor()).isEqualTo(StatusChangeActor.SYSTEM);
     }
 
-    /** The justification of a rejection is the analyst's reasoning, not something the insured reads. */
-    @Test
-    void getCase_hidesTheObservationsFromTheInsuredOnly() {
-        Case entity = caseRecord(1L, CaseStatus.REJECTED);
-        when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
-        when(caseStatusService.history(1L)).thenReturn(List.of(
-                CaseStatusHistory.builder()
-                        .caseId(1L).initialStatus(CaseStates.of(CaseStatus.PENDING_ANALYST_REVIEW))
-                        .finalStatus(CaseStates.of(CaseStatus.REJECTED))
-                        .actor(StatusChangeActor.ANALYST).reason("decisión del analista: REJECT")
-                        .observation("El hecho es hurto, no robo").build()));
-
-        assertThat(caseService.getCase(1L).statusHistory().get(0).observation())
-                .isEqualTo("El hecho es hurto, no robo");
-
-        when(accessPolicy.currentUserIsInsured()).thenReturn(true);
-
-        assertThat(caseService.getCase(1L).statusHistory().get(0).observation()).isNull();
-    }
-
     @Test
     void recordAnalystDecision_approve_transitionsToApprovedAndRecordsTheSettlement() {
         Case entity = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
@@ -967,7 +972,7 @@ class CaseServiceImplTest {
                 new AnalystDecisionRequest(7L, "APPROVE", "Documentación completa", entity.getClassificationAttempts(), null));
         verify(settlementService).confirm(entity, 7L, "Documentación completa", settlement);
         verify(caseStatusService).transition(eq(entity), eq(CaseStatus.APPROVED),
-                eq(StatusChangeActor.ANALYST), any(), eq("Documentación completa"));
+                eq(StatusChangeActor.ANALYST), any());
     }
 
     /**
@@ -990,7 +995,7 @@ class CaseServiceImplTest {
                 new SettlementDecisionRequest(null, new BigDecimal("1140000.00"), null)));
 
         verify(claimsAnalysisClient, never()).forwardAnalystDecision(any(), any());
-        verify(caseStatusService, never()).transition(any(), any(), any(), any(), any());
+        verify(caseStatusService, never()).transition(any(), any(), any(), any());
     }
 
     @Test
@@ -1012,7 +1017,7 @@ class CaseServiceImplTest {
         verify(claimsAnalysisClient).forwardAnalystDecision(1L, new AnalystDecisionRequest(
                 7L, "APPROVE", "Monto alto pero documentado", entity.getClassificationAttempts(), null));
         verify(caseStatusService).transition(eq(entity), eq(CaseStatus.APPROVED),
-                eq(StatusChangeActor.ANALYST), any(), eq("Monto alto pero documentado"));
+                eq(StatusChangeActor.ANALYST), any());
     }
 
     @Test
@@ -1025,7 +1030,7 @@ class CaseServiceImplTest {
 
         verify(settlementService).returnToAnalyst(1L, 3L, "El presupuesto no respalda ese monto");
         verify(claimsAnalysisClient, never()).forwardAnalystDecision(any(), any());
-        verify(caseStatusService, never()).transition(any(), any(), any(), any(), any());
+        verify(caseStatusService, never()).transition(any(), any(), any(), any());
     }
 
     private CaseSettlement settlementWith(SettlementStatus status) {
@@ -1058,7 +1063,7 @@ class CaseServiceImplTest {
 
         // Before forwarding: a decision that will fail must not reach the audit log.
         verify(claimsAnalysisClient, never()).forwardAnalystDecision(any(), any());
-        verify(caseStatusService, never()).transition(any(), any(), any(), any(), any());
+        verify(caseStatusService, never()).transition(any(), any(), any(), any());
     }
 
     /** Rejecting pays nothing, so an amount in the body is a client bug, not data. */
@@ -1092,9 +1097,8 @@ class CaseServiceImplTest {
                 new AnalystDecisionRequest(null, "REJECT", "El hecho es hurto, no robo", null, null));
 
         verify(settlementService, never()).confirm(any(), any(), any(), any());
-        // The justification rides on the history row so the case can show why it was rejected.
         verify(caseStatusService).transition(eq(entity), eq(CaseStatus.REJECTED),
-                eq(StatusChangeActor.ANALYST), any(), eq("El hecho es hurto, no robo"));
+                eq(StatusChangeActor.ANALYST), any());
     }
 
     @Test
@@ -1107,7 +1111,7 @@ class CaseServiceImplTest {
                 .isInstanceOf(InvalidAnalystDecisionException.class);
 
         verify(claimsAnalysisClient, never()).forwardAnalystDecision(any(), any());
-        verify(caseStatusService, never()).transition(any(), any(), any(), any(), any());
+        verify(caseStatusService, never()).transition(any(), any(), any(), any());
     }
 
     @Test
@@ -1150,7 +1154,7 @@ class CaseServiceImplTest {
                 .isInstanceOf(CaseNotAssignedException.class);
 
         verify(claimsAnalysisClient, never()).forwardAnalystDecision(any(), any());
-        verify(caseStatusService, never()).transition(any(), any(), any(), any(), any());
+        verify(caseStatusService, never()).transition(any(), any(), any(), any());
     }
 
     @Test
@@ -1167,7 +1171,7 @@ class CaseServiceImplTest {
                 .isInstanceOf(CaseAssignedToAnotherAnalystException.class);
 
         verify(claimsAnalysisClient, never()).forwardAnalystDecision(any(), any());
-        verify(caseStatusService, never()).transition(any(), any(), any(), any(), any());
+        verify(caseStatusService, never()).transition(any(), any(), any(), any());
     }
 
     @Test

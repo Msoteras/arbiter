@@ -25,6 +25,7 @@ import {
 
 import {
   CaseService,
+  AnalystDecision,
   AnalystDecisionRequest,
   ClaimCauseOption,
   Settlement,
@@ -787,21 +788,28 @@ export class CaseDetailComponent {
     }
   });
 
-  /**
-   * When the case was resolved and what the analyst wrote, read off the history row of that move.
-   * `justification` is null on cases resolved before it was kept there.
-   */
+  /** Refetched with the case, so it shows up right after deciding. A 403 (insured) yields null. */
+  private readonly decisionFetch = toSignal(
+    combineLatest([
+      this.route.paramMap.pipe(map((params) => params.get('id') ?? '')),
+      toObservable(this.reloadTrigger),
+    ]).pipe(
+      switchMap(([id]) =>
+        this.service
+          .decision(id as unknown as number)
+          .pipe(catchError(() => of<AnalystDecision | null>(null))),
+      ),
+    ),
+    { initialValue: null },
+  );
+
+  /** When the case was resolved and what the analyst wrote, from the audited decision. */
   protected readonly resolution = computed<{ at: string; justification: string | null } | null>(
     () => {
-      const status = this.data()?.status;
-      if (status !== 'APPROVED' && status !== 'REJECTED') {
-        return null;
-      }
-      // The latest one: a reopened case can be resolved more than once.
-      const move = this.history()
-        .filter((h) => h.toStatus === status)
-        .at(-1);
-      return move ? { at: formatDateTime(move.changedAt), justification: move.observation } : null;
+      const decision = this.decisionFetch();
+      return decision
+        ? { at: formatDateTime(decision.decidedAt), justification: decision.justification }
+        : null;
     },
   );
 
