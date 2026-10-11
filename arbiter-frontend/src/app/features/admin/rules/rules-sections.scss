@@ -171,6 +171,9 @@
 .rule-value app-input {
   width: var(--control-w-number);
 }
+.rule-value > .t-note {
+  min-width: var(--unit-label-w);
+}
 /* A choice between sentences rather than a number. */
 .rule-value.choice app-select {
   width: 18rem;
