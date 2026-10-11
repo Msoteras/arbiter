@@ -4,11 +4,8 @@
   <div class="onboarding">
     <header class="welcome">
       <app-logo variant="symbol" class="welcome-logo" />
-      <span class="eyebrow">Primer ingreso</span>
       <h1 class="t-hero-title">Hola, {{ firstName() }}</h1>
-      <p class="welcome-sub measure">
-        Antes de empezar, confirmá tus datos de contacto y elegí tus preferencias.
-      </p>
+      <p class="welcome-sub measure">Confirmá tus datos de contacto.</p>
     </header>
 
     @if (loadError()) {
@@ -58,10 +55,6 @@
           </span>
           <span class="t-section-label">Tus pólizas</span>
         </h2>
-        <p class="t-note">
-          Son las que ya tenés registradas con tu aseguradora. Si sumás una nueva póliza, se va a
-          reflejar acá sola — no hace falta que la cargues vos.
-        </p>
         <ul class="policies">
           @for (p of policies(); track p.policyNumber) {
             <li>
@@ -99,12 +92,12 @@
 
       <div class="fields">
         <div class="field">
-          <label class="t-field-label" for="onboarding-email">Email</label>
+          <label class="sr-only" for="onboarding-email">Email</label>
           <app-input
             id="onboarding-email"
             type="email"
             autocomplete="email"
-            placeholder="tunombre@email.com"
+            placeholder="Email"
             [(value)]="email"
           />
           @if (email().length > 0 && !emailValid()) {
@@ -113,12 +106,12 @@
         </div>
 
         <div class="field">
-          <label class="t-field-label" for="onboarding-phone">Teléfono</label>
+          <label class="sr-only" for="onboarding-phone">Teléfono</label>
           <app-input
             id="onboarding-phone"
             type="tel"
             autocomplete="tel"
-            placeholder="11 5555-0000"
+            placeholder="Teléfono"
             [(value)]="phone"
           />
           @if (phone().length > 0 && !phoneValid()) {
@@ -129,32 +122,22 @@
     </section>
 
     <section class="section">
-      <h2 class="section-title">
-        <span class="section-icon" aria-hidden="true">
-          <svg width="16" height="16" viewBox="0 0 20 20" fill="none">
-            <path
-              d="M10 2.5l6 2.5v4.5c0 3.4-2.4 6.4-6 8.5-3.6-2.1-6-5.1-6-8.5V5l6-2.5z"
-              stroke="currentColor"
-              stroke-width="1.5"
-              stroke-linejoin="round"
-            />
-          </svg>
-        </span>
-        <span class="t-section-label">Tus consentimientos</span>
-      </h2>
-
       <div class="consent">
         <app-checkbox [(checked)]="imageConsent">{{ consentSummary }}</app-checkbox>
-        <p class="consent-detail">{{ consentDetail }}</p>
-        <p class="consent-meta t-note">Podés cambiarlo cuando quieras desde tu perfil.</p>
+        <!-- Beside the checkbox, not inside its label: a click on the tip would toggle consent. -->
+        <app-info-tip>
+          {{ consentDetail }} Podés cambiarlo cuando quieras desde tu perfil.
+        </app-info-tip>
       </div>
 
+      <!-- Disabled: the insurer reports it, the insured only sees it. -->
       <div class="pep">
-        <div class="pep-row">
-          <span class="pep-label">Persona Expuesta Políticamente (PEP)</span>
-          <span class="pep-value" [class.is-yes]="pep()">{{ pep() ? 'Sí' : 'No' }}</span>
-        </div>
-        <p class="t-note">Lo informa tu aseguradora. Si no es correcto, contactate con ella.</p>
+        <app-checkbox [checked]="pep()" [disabled]="true">
+          Soy Persona Expuesta Políticamente (PEP)
+        </app-checkbox>
+        <app-info-tip
+          >Informado por tu aseguradora. Si no es correcto, contactate con ella.</app-info-tip
+        >
       </div>
     </section>
 

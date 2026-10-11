@@ -2,6 +2,7 @@ package ar.edu.utn.frba.arbiter.cases.services;
 
 import ar.edu.utn.frba.arbiter.cases.config.tenant.CallerContext;
 import ar.edu.utn.frba.arbiter.cases.dto.AnalystDecisionRequest;
+import ar.edu.utn.frba.arbiter.cases.dto.AnalystDecisionResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.LensSummaryResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.SettlementDecisionRequest;
 import ar.edu.utn.frba.arbiter.cases.models.entities.CaseSettlement;
@@ -22,6 +23,7 @@ import ar.edu.utn.frba.arbiter.cases.exceptions.AnalystProfileNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CaseAssignedToAnotherAnalystException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CaseNotAssignedException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CaseNotFoundException;
+import ar.edu.utn.frba.arbiter.cases.exceptions.CoverageNotConfiguredException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.InsuredIdentityMismatchException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidAnalystDecisionException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidSettlementException;
@@ -536,6 +538,30 @@ class CaseServiceImplTest {
         assertThatThrownBy(() -> caseService.getCase(999L))
                 .isInstanceOf(CaseNotFoundException.class)
                 .hasMessageContaining("999");
+    }
+
+    @Test
+    void getAnalystDecision_resolvedCase_readsTheVerdictItPointsAt() {
+        Case entity = caseRecord(1L, CaseStatus.REJECTED);
+        entity.setClassificationId(31L);
+        when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
+        java.time.Instant decidedAt = java.time.Instant.parse("2026-10-10T14:32:00Z");
+        when(caseAnalysisRepository.findDecision(31L)).thenReturn(Optional.of(
+                new CaseAnalysisRepository.AnalystDecision("REJECT", "El hecho es hurto, no robo", decidedAt)));
+
+        assertThat(caseService.getAnalystDecision(1L)).contains(
+                new AnalystDecisionResponse("REJECT", "El hecho es hurto, no robo", decidedAt));
+    }
+
+    /** {@code classification_id} survives the reopening, but that verdict no longer stands. */
+    @Test
+    void getAnalystDecision_reopenedCase_hasNone() {
+        Case entity = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
+        entity.setClassificationId(31L);
+        when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
+
+        assertThat(caseService.getAnalystDecision(1L)).isEmpty();
+        verify(caseAnalysisRepository, never()).findDecision(any());
     }
 
     @Test
@@ -1456,8 +1482,8 @@ class CaseServiceImplTest {
         assertThat(stored.getContent()).isEqualTo("new".getBytes());
     }
 
-    // checkEligibility turns PolicyNotEligibleException/PolicyInsuredMismatchException into
-    // eligible=false instead of propagating, and persists nothing either way.
+    // checkEligibility turns PolicyNotEligibleException, PolicyInsuredMismatchException and
+    // CoverageNotConfiguredException into eligible=false instead of propagating, and persists nothing.
 
     private EligibilityCheckRequest eligibilityRequest() {
         return new EligibilityCheckRequest(
@@ -1501,6 +1527,23 @@ class CaseServiceImplTest {
 
         assertThat(response.eligible()).isFalse();
         assertThat(response.reason()).contains("POL-CEL-2024-001");
+        verifyNoInteractions(policyEligibilityValidator);
+    }
+
+    /** Not an error to retry: the wizard has to show it as a reason and stop the insured there. */
+    @Test
+    void checkEligibility_notEligibleWhenTheInsurerHasNotConfiguredThePolicysCoverages() {
+        Insured insured = CaseFixtures.insured(CALLER_DNI, "Laura", "Fernández");
+        insured.setId(1L);
+        when(referenceResolver.resolveInsured(CALLER_DNI)).thenReturn(insured);
+        when(referenceResolver.resolvePolicy("POL-CEL-2024-001", 1L))
+                .thenThrow(new CoverageNotConfiguredException());
+
+        EligibilityCheckResponse response = caseService.checkEligibility(eligibilityRequest());
+
+        assertThat(response.eligible()).isFalse();
+        assertThat(response.reason()).isEqualTo(
+                "Tu aseguradora todavía no habilitó denuncias online para esta póliza. Comunicate con ella.");
         verifyNoInteractions(policyEligibilityValidator);
     }
 

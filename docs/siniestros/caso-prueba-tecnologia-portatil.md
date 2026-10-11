@@ -41,7 +41,7 @@ Hoy el seed pide, para el ramo Tecnología Portátil:
 
 | Hecho generador | Documentos obligatorios |
 |---|---|
-| Daño accidental (6) | `purchase_proof` · `repair_quote` · `item_photo` |
+| Rotura accidental (6) | `purchase_proof` · `repair_quote` · `item_photo` |
 | **Robo en vía pública (7)** | **`police_report` · `purchase_proof` · `item_photo`** |
 | Hurto (8) | `police_report` · `purchase_proof` · `item_photo` |
 

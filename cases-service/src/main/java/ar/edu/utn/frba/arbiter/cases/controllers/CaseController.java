@@ -1,6 +1,7 @@
 package ar.edu.utn.frba.arbiter.cases.controllers;
 
 import ar.edu.utn.frba.arbiter.cases.dto.AnalystDecisionRequest;
+import ar.edu.utn.frba.arbiter.cases.dto.AnalystDecisionResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.AnalystWorkloadResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.AssignAnalystRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.AssignedCaseSummaryResponse;
@@ -529,6 +530,19 @@ public class CaseController {
     ) {
         caseService.returnSettlement(caseId, request.reason());
         return ResponseEntity.ok(new CaseActionResponse(caseId, "settlement-returned"));
+    }
+
+    // Staff only: the justification is the analyst's reasoning, not what the insured is told.
+    @GetMapping("/{caseId}/decision")
+    @PreAuthorize("hasAnyRole('ANALISTA_SINIESTROS', 'REFERENTE_ASEGURADORA')")
+    @Operation(summary = "The decision a resolved case stands on",
+            description = "The analyst's verdict with its justification and date, read from the audit "
+                    + "record. 204 while the case isn't APPROVED or REJECTED — including a reopened "
+                    + "case, whose previous verdict stays in the audit trail but no longer applies.")
+    public ResponseEntity<AnalystDecisionResponse> decision(@PathVariable Long caseId) {
+        return caseService.getAnalystDecision(caseId)
+                .map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.noContent().build());
     }
 
     // @PreAuthorize only filters by role; the service also checks the caller is the assigned analyst.

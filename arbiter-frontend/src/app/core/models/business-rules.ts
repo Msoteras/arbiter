@@ -121,22 +121,30 @@ export interface DocumentTypeDef {
 
 export const DOCUMENT_TYPES: DocumentTypeDef[] = [
   { code: 'police_report', label: 'Denuncia policial' },
-  { code: 'purchase_proof', label: 'Comprobante de compra (preexistencia)' },
+  { code: 'purchase_proof', label: 'Comprobante de compra' },
   { code: 'imei_deregistration', label: 'Baja de IMEI (ENACOM)' },
   { code: 'last_connection', label: 'Captura de última conexión' },
   { code: 'repair_quote', label: 'Presupuesto de reparación' },
   { code: 'item_photo', label: 'Foto del bien' },
-  // Uploaded by the analyst from the expert's report, not by the insured.
-  { code: 'expert_report', label: 'Informe de peritaje' },
 ];
 
 export function documentTypeLabel(code: string): string {
   return DOCUMENT_TYPES.find((d) => d.code === code)?.label ?? code;
 }
 
+/**
+ * Produced by the case flow itself (a provider's answer to a referral), not required nor uploaded
+ * by the insured. Kept out of `DOCUMENT_TYPES` so they never become a checklist slot, an upload
+ * option or a document a rule can require.
+ */
+export const NON_AGENDA_DOCUMENT_TYPES: DocumentTypeDef[] = [
+  { code: 'expert_report', label: 'Informe pericial' },
+  { code: 'repair_report', label: 'Respuesta del servicio técnico' },
+];
+
 /** Backend reasons embed document codes ("…: police_report"); swaps them for their labels. */
 export function withDocumentLabels(reason: string): string {
-  return DOCUMENT_TYPES.reduce(
+  return [...DOCUMENT_TYPES, ...NON_AGENDA_DOCUMENT_TYPES].reduce(
     // String.raw: in a plain template literal `\b` is a backspace, not a word boundary.
     (text, d) => text.replace(new RegExp(String.raw`\b${d.code}\b`, 'g'), d.label),
     reason,

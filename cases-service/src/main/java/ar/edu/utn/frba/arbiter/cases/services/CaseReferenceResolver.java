@@ -11,6 +11,7 @@ import ar.edu.utn.frba.arbiter.cases.models.repositories.PolicyRepository;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Branch;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.ClaimCause;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 
 /**
@@ -44,7 +45,21 @@ public class CaseReferenceResolver {
      */
     public Policy resolvePolicy(String policyNumber, Long insuredId) {
         return policyRepository.findByExternalPolicyNumber(policyNumber)
-                .orElseGet(() -> policySynchronizer.importFromInsurer(policyNumber, insuredId));
+                .orElseGet(() -> importOrReuse(policyNumber, insuredId));
+    }
+
+    /**
+     * The wizard asks for eligibility and claim causes at once, so on a policy's first use two
+     * requests import it concurrently and the slower one hits the unique policy number. That one
+     * reads the copy the other just saved: it is the same policy. The import runs in its own
+     * transaction, already rolled back here, so the read sees the committed row.
+     */
+    private Policy importOrReuse(String policyNumber, Long insuredId) {
+        try {
+            return policySynchronizer.importFromInsurer(policyNumber, insuredId);
+        } catch (DataIntegrityViolationException e) {
+            return policyRepository.findByExternalPolicyNumber(policyNumber).orElseThrow(() -> e);
+        }
     }
 
     /** The request's {@code insuredId} is the person's DNI, which is UNIQUE on {@code insured}. */

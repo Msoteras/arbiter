@@ -8,8 +8,9 @@ afuera del backlog de Trello por eso.
 El DER sigue siendo la fuente de verdad (`CLAUDE.md`) — este documento no propone desvíos, es la
 lista de qué hay que corregirle a él mismo cuando se lo vuelva a tocar.
 
-**Revisado el 20/09/2026, cuarta pasada** contra el `.mdj` actual y contra
-`db/init-multitenant.sql`. No queda ninguna columna sin tipo de dato en todo el archivo.
+**Revisado el 11/10/2026, sexta pasada** contra el `.mdj` actual y contra
+`db/init-multitenant.sql`. El `.mdj` no cambió desde el 22/09: las entradas 2 y 3 ya están
+aplicadas en el diagrama y las 5 a 20 siguen pendientes. No queda ninguna columna sin tipo de dato en todo el archivo.
 
 ---
 
@@ -132,8 +133,8 @@ los cambios. Implementadas en `db/init-multitenant.sql` y
 | `configuracion_scoring` | `creado_por` (`created_by`) | BIGINT | no | FK → `usuario.id` |
 
 Apuntan a `usuario` y no a `referente_aseguradora` a propósito: el autor es siempre un usuario, sin
-atarlo a qué rol puede configurar reglas hoy. Las reglas por defecto de una aseguradora quedan a
-nombre del usuario que la da de alta (`create_tenant_schema` lo recibe como parámetro). La
+atarlo a qué rol puede configurar reglas hoy. Una aseguradora nueva nace sin reglas; las de las
+aseguradoras de demo (`db/seed-demo.sql`) quedan a nombre de su referente. La
 migración completa las filas que ya existían con el usuario del referente del primer cambio de la
 regla, o el del primer referente de la aseguradora.
 
@@ -210,8 +211,7 @@ nueva; los que tenían NULL quedan sin filas. `veredicto`, `monto_indemnizable`,
 **Encontrado:** 05/10/2026. Las dos tablas eran un catálogo de la plataforma: que un referente
 renombrara o borrara un ramo se lo cambiaba a todas las aseguradoras. Ahora cada esquema de
 aseguradora tiene las suyas, copiadas con los mismos ids. Implementado en `db/init-multitenant.sql`
-y `db/migrations/2026-10-05-ramos-por-aseguradora.sql`. **Todavía no aplicado en Railway**: va junto
-con el despliegue, no antes.
+y `db/migrations/2026-10-05-ramos-por-aseguradora.sql`. Aplicado en Railway el 06/10/2026.
 
 | Tabla | Columna | Tipo de dato | Nulo | Restricciones |
 |---|---|---|---|---|
@@ -254,6 +254,227 @@ Portátil, cada una con su documentación requerida y su cobertura.
 **Acción:** en el `.mdj`, sacar la marca `unique` de `hecho_generador.nombre`. Si StarUML no deja
 modelar la compuesta (pasó con `peritaje`, entrada 4), dejar una nota de texto junto a la entidad:
 un nombre no se repite dentro de un ramo, pero sí entre ramos.
+
+---
+
+## 13 · Columnas que el código tiene y el DER no
+
+**Encontrado:** 07/10/2026, en una pasada completa del `.mdj` contra `db/init-multitenant.sql`. Las
+tres son anteriores a las entradas 5 a 12; no las había cruzado nadie.
+
+| Tabla | Columna | Tipo de dato | Nulo | Restricciones |
+|---|---|---|---|---|
+| `analisis_llm` | `fecha_analisis` (`analyzed_at`) | TIMESTAMPTZ | no | default `NOW()` |
+| `cobertura` | `es_individual` (`is_individual`) | BOOLEAN | no | default `TRUE` |
+| `expediente` | `destino` (`destination`) | VARCHAR(40) | sí | — |
+
+**Acción:** agregar `analisis_llm.fecha_analisis` al `.mdj`: es la marca temporal que pide la
+auditoría de clasificaciones, y `analisis_imagen` y `analisis_riesgo_expediente` ya tienen la suya.
+
+**Decisión pendiente** para las otras dos, porque ninguna se usa de verdad:
+
+- `cobertura.es_individual`: el alta de cobertura la guarda siempre en `TRUE` y nada la lee.
+- `expediente.destino`: nada la escribe; el comentario de la entidad dice que sus valores nunca se
+  definieron.
+
+O se suman al DER con una semántica definida, o se dropean del esquema y de las entidades.
+
+---
+
+## 14 · `aseguradora.logo` y la entidad `metrica` — están en el DER y no en el código
+
+**Encontrado:** 07/10/2026. Es el caso inverso al habitual.
+
+| Tabla | Columna | Tipo de dato | En el esquema |
+|---|---|---|---|
+| `aseguradora` | `logo` | BYTEA | no existe |
+| `metrica` | entidad completa (6 columnas) | — | no existe la tabla |
+
+`metrica` modela un valor precalculado por métrica y período. Lo que terminó implementado es otra
+cosa: las cuatro tablas de la entrada 20, así que `metrica` se resuelve ahí.
+
+**Decisión pendiente** solo para `aseguradora.logo`: sacarla del DER, o dejarla como algo a
+implementar con una nota en el diagrama que diga que todavía no existe.
+
+---
+
+## 15 · Marcas de FK que faltan
+
+**Encontrado:** 07/10/2026. Las dos de `antecedente_fraude` ya estaban en la nota de la entrada 4;
+quedan acá para que tengan su acción.
+
+| Tabla | Columna | Apunta a |
+|---|---|---|
+| `hecho_generador` | `rama_id` | `rama.id` |
+| `antecedente_fraude` | `analista_declarante_id` | `analista_siniestro.id` |
+| `antecedente_fraude` | `expediente_id` | `expediente.id` |
+
+**Acción:** marcar las tres como FK en el `.mdj`.
+
+---
+
+## 16 · Tipos y largos que no coinciden con el esquema
+
+**Encontrado:** 07/10/2026. Las pasadas anteriores revisaron que cada columna tuviera tipo, no que
+el tipo coincidiera.
+
+| Tabla | Columna | En el DER | En el esquema |
+|---|---|---|---|
+| `asegurado` | `dni` | VARCHAR(8) | VARCHAR(20) |
+| `analisis_llm` | `recomendacion` | VARCHAR(20) | VARCHAR(50) |
+| `analisis_llm` | `confianza` | NUMERIC(5,2) | NUMERIC(5,3) |
+| `analisis_llm` | `hecho_generador_sugerido` | VARCHAR(100) | VARCHAR(120) |
+| `analisis_llm` | `evidencia_hecho_generador` | VARCHAR(255) | TEXT |
+| `analisis_imagen` | `modelo_utlizado` | VARCHAR(255) | VARCHAR(80) |
+| `antecedente_fraude` | `motivo` | VARCHAR(20) | TEXT |
+| `documento_expediente` | `tipo` | VARCHAR(60) | VARCHAR(255) |
+| `documento_expediente` | `tipo_contenido` | MIME | VARCHAR(255) |
+| `poliza` | `producto` | VARCHAR(100) | VARCHAR(1000) |
+| `requisito_documental` | `tipo_documento` | VARCHAR(20) | VARCHAR(50) |
+| `resultado_regla` | `tipo_regla` | VARCHAR(20) | VARCHAR(40) |
+
+Los que más importan son los que en el DER no alcanzan para lo que ya se guarda: un DNI con puntos
+(`42.987.654`) no entra en 8 caracteres, y `LLM_SOLICITA_REVISION_MANUAL` no entra en 20.
+
+Dos nombres con error de tipeo: `analisis_imagen.modelo_utlizado` (por `modelo_utilizado`) y
+`poliza_consultada.canitdad_siniestros_previos` (por `cantidad_siniestros_previos`).
+
+**Acción:** corregir tipos, largos y los dos nombres en el `.mdj`.
+
+---
+
+## 17 · UNIQUE de una sola columna que faltan
+
+**Encontrado:** 07/10/2026. Ninguna es una FK, así que no les aplica la nota general de la entrada
+4: la unicidad es de la columna y va marcada en ella.
+
+| Tabla | Columna | Restricción en el esquema |
+|---|---|---|
+| `rol` | `codigo` | UNIQUE |
+| `permiso` | `nombre` | UNIQUE |
+| `estado_expediente` | `nombre` | UNIQUE |
+| `asegurado` | `dni` | UNIQUE |
+| `poliza` | `nro_poliza_externo` | UNIQUE |
+
+**Acción:** marcar las cinco como `unique` en el `.mdj`.
+
+*Nota: el esquema tiene además dos UNIQUE compuestas sin representar, `cobertura_contratada
+(poliza_id, cobertura_id)` y `documento_expediente (expediente_id, tipo)`. No las pido como acción
+por lo mismo que la de `peritaje` en la entrada 4.*
+
+---
+
+## 18 · `cobertura.nombre_externo` — columna nueva, y la UNIQUE de `nombre` pasa a ser por ramo
+
+**Encontrado:** 10/10/2026. El nombre de la cobertura era la clave de cruce con la BD de la
+aseguradora (`cobertura.nombre`), así que renombrarla desde el panel hacía que las pólizas dejaran de
+encontrarla. Implementado en `db/init-multitenant.sql` y
+`db/migrations/2026-10-10-nombres-de-cobertura.sql`. **Sin aplicar en Railway.**
+
+| Tabla | Columna | Tipo de dato | Nulo | Restricciones |
+|---|---|---|---|---|
+| `cobertura` (`coverage`) | `nombre` (`name`) | VARCHAR(100) | no | UNIQUE junto con `rama_id` (antes sola) |
+| `cobertura` | `nombre_externo` (`external_name`) | VARCHAR(160) | sí | UNIQUE junto con `rama_id`; columna nueva |
+
+`nombre_externo` es como la BD de la aseguradora llama a la cobertura. Nace igual a `nombre` y un
+rename no la toca, igual que `rama.nombre_externo` (entrada 11). Las dos UNIQUE son por ramo porque
+esa base repite un mismo nombre entre ramos ("Robo de celular" también cubre una notebook).
+
+La misma migración cambia datos, sin impacto en el diagrama: la cobertura "Robo de celular" pasa a
+llamarse "Robo", y en Tecnología Portátil el hecho generador "Daño accidental" pasa a "Rotura
+accidental" y se suma "Caída".
+
+**Acción:** agregar `cobertura.nombre_externo` en el `.mdj`. Las dos UNIQUE son compuestas, así que
+no se marcan en la columna (misma nota que la entrada 12).
+
+---
+
+## 19 · `atributo_bien` — tabla nueva en la BD de la aseguradora
+
+**Encontrado:** 11/10/2026. Lo único que describía el bien asegurado era `poliza.bien_asegurado`,
+texto libre, y el score de fraude buscaba adentro la marca y el modelo de cada documento: "Galaxy
+A56 5G" no aparecía en "Samsung Galaxy A56" y sumaba como inconsistencia. Implementado en
+`db/init-multitenant.sql` y `db/migrations/2026-10-11-atributos-del-bien.sql`. **Aplicada en Railway
+el 11/10/2026.**
+
+| Tabla | Columna | Tipo de dato | Nulo | Restricciones |
+|---|---|---|---|---|
+| `atributo_bien` | `id` | BIGINT | no | PK |
+| `atributo_bien` | `poliza_id` | BIGINT | no | FK a `poliza` de la BD de la aseguradora |
+| `atributo_bien` | `nombre` | VARCHAR(60) | no | UNIQUE junto con `poliza_id` |
+| `atributo_bien` | `valor` | VARCHAR(255) | no | |
+
+Una fila por dato que identifica al bien (`marca` → `Samsung`, `modelo` → `Galaxy A56`). Son filas y
+no columnas de `poliza` porque cada ramo identifica sus bienes con datos distintos. Vive en los
+esquemas `aseguradora_*`, no en los de Arbiter.
+
+**Acción:** decisión pendiente — sumarla al `.mdj` solo si el diagrama incluye las tablas de la BD de
+la aseguradora. La UNIQUE es compuesta, así que no se marca en la columna (misma nota que la entrada
+12).
+
+---
+
+## 20 · `metrica_dia` y las tres `metrica_diaria_*` — tablas nuevas de reportes
+
+**Encontrado:** 11/10/2026, al repasar las migraciones posteriores a la quinta pasada. La
+`2026-10-05-metricas-de-reportes.sql` no tenía entrada. `reports-service` ahora guarda los totales de
+los días ya cerrados, para armar un período sumando días en vez de volver a los expedientes. Son
+cuatro tablas por aseguradora, también en `db/init-multitenant.sql`.
+
+| Tabla | Columna | Tipo de dato | Nulo | Restricciones |
+|---|---|---|---|---|
+| `metrica_dia` (`metrics_day`) | `dia` (`day`) | DATE | no | PK |
+| `metrica_dia` | `fecha_calculo` (`computed_at`) | TIMESTAMPTZ | no | default `NOW()` |
+| `metrica_diaria_ingreso` (`metrics_daily_intake`) | `dia` (`day`) | DATE | no | FK → `metrica_dia.dia`, ON DELETE CASCADE |
+| `metrica_diaria_ingreso` | `hecho_generador_id` (`claim_cause_id`) | BIGINT | no | FK → `hecho_generador.id` |
+| `metrica_diaria_ingreso` | `analista_id` (`analyst_id`) | BIGINT | sí | sin FK |
+| `metrica_diaria_ingreso` | `denunciados` (`reported`), `fast_track` | BIGINT | no | — |
+| `metrica_diaria_resolucion` (`metrics_daily_resolution`) | `dia`, `hecho_generador_id`, `analista_id` | — | — | igual que en `metrica_diaria_ingreso` |
+| `metrica_diaria_resolucion` | `estado_final` (`final_status`) | VARCHAR(60) | no | — |
+| `metrica_diaria_resolucion` | `resueltos`, `fast_track`, `en_plazo`, `reabiertos`, `acuerdo_evaluables`, `acuerdo_coincidentes`, `fraude_determinado`, `fraude_respaldado_por_perito` | BIGINT | no | — |
+| `metrica_diaria_resolucion` | `segundos_totales`, `segundos_en_espera`, `segundos_fast_track` | DOUBLE PRECISION | no | — |
+| `metrica_diaria_resolucion` | `monto_reclamado_fraude` (`fraud_claimed_amount`) | NUMERIC(38,2) | no | — |
+| `metrica_diaria_liquidacion` (`metrics_daily_settlement`) | `dia`, `hecho_generador_id`, `analista_id` | — | — | igual que en `metrica_diaria_ingreso` |
+| `metrica_diaria_liquidacion` | `liquidaciones` (`settlements`), `expedientes_con_reclamo` (`claimed_cases`) | BIGINT | no | — |
+| `metrica_diaria_liquidacion` | `monto_liquidado`, `monto_reclamado`, `monto_franquicia`, `monto_cuotas`, `monto_saldo_deuda` | NUMERIC(38,2) | no | — |
+
+Las tres `metrica_diaria_*` no tienen `id`: son una fila por día, hecho generador y analista
+asignado. Guardan sumas y conteos, nunca una tasa ni un promedio. `metrica_dia` marca qué días
+están guardados, aunque ese día no haya pasado nada.
+
+Esto reemplaza a la entidad `metrica` que hoy tiene el DER (entrada 14): esa modelaba un valor por
+métrica y período, y lo implementado guarda los componentes por día.
+
+**Acción:** en el `.mdj`, sacar `metrica` y agregar las cuatro tablas, con `metrica_dia` 1—N contra
+cada `metrica_diaria_*` y `hecho_generador` 1—N contra cada una.
+
+---
+
+## 21 · `atributo_documento` — tabla nueva, y `analisis_documento` deja de usar `marca`, `modelo` e `imei`
+
+**Encontrado:** 11/10/2026. Lo que un documento dice sobre el bien se guardaba en tres columnas fijas
+de `analisis_documento` (`document_analysis.brand`, `model`, `imei`), que solo sirven para un celular
+o una notebook. Ahora cada documento se lee buscando los datos con que la póliza identifica a su bien
+(`atributo_bien`, entrada 19) y se guarda una fila por dato. Implementado en
+`db/init-multitenant.sql` y `db/migrations/2026-10-11-atributos-del-documento.sql`. **Sin aplicar en
+Railway.**
+
+| Tabla | Columna | Tipo de dato | Nulo | Restricciones |
+|---|---|---|---|---|
+| `atributo_documento` (`document_attribute`) | `id` | BIGINT | no | PK |
+| `atributo_documento` | `nombre` (`name`) | VARCHAR(60) | no | |
+| `atributo_documento` | `valor` (`value`) | TEXT | no | |
+| `atributo_documento` | `analisis_id` (`analysis_id`) | BIGINT | no | FK a `analisis_documento`, borrado en cascada |
+
+Relación: un `analisis_documento` tiene de 0 a N `atributo_documento`, igual que con
+`detalle_documento`. La diferencia es que estos sí se comparan: el nombre es el de la póliza
+(`marca`, `modelo`, `IMEI`, mañana `patente`), no el que eligió el modelo.
+
+La misma migración copia a la tabla nueva lo ya leído y pasa el IMEI de las pólizas a `atributo_bien`.
+
+**Acción:** agregar `atributo_documento` en el `.mdj`, con su relación a `analisis_documento`. Las
+columnas `marca`, `modelo` e `imei` de `analisis_documento` quedan en la base sin usar hasta que salga
+el deploy y se borran en una migración posterior: sacarlas del diagrama recién ahí.
 
 ---
 

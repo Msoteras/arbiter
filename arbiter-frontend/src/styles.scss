@@ -39,7 +39,15 @@ a {
   text-decoration-thickness: from-font;
 }
 
-/* <button> does not inherit font-family; without `font: inherit` it falls back to the UA font. */
+/* Form controls don't inherit the family by default and fall back to the UA font (Arial). Only the
+   family: size and weight stay with each control. */
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+}
+
 .link-btn {
   border: none;
   background: none;

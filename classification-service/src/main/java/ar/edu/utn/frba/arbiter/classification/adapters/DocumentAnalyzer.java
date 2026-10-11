@@ -9,8 +9,11 @@ public interface DocumentAnalyzer {
     /**
      * Never throws for an unreadable document: one bad file must not sink the whole classification.
      *
-     * @param claimCauses the branch's claim cause names, the only values {@code describedClaimCause}
-     *                    can take; empty if the catalog couldn't be read
+     * @param claimCauses    the branch's claim cause names, the only values {@code describedClaimCause}
+     *                       can take; empty if the catalog couldn't be read
+     * @param itemAttributes the names the policy identifies its insured item by ("marca", "modelo"),
+     *                       which are the ones to look for in the document; empty asks for none
      */
-    DocumentExtraction extract(byte[] content, String contentType, List<String> claimCauses);
+    DocumentExtraction extract(
+            byte[] content, String contentType, List<String> claimCauses, List<String> itemAttributes);
 }

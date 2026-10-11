@@ -6,6 +6,8 @@ type Variant = 'default' | 'soft' | 'ai';
  * `ai` is the teal wash for model output cards. With `collapsible` the body is hidden, not
  * destroyed, so whatever the user opened inside stays open when expanded again. An element marked
  * `cardAside` (e.g. a badge) goes at the right end of the heading; not on collapsible cards.
+ * `headingSize="lg"` is for a card that is the whole panel, where the heading acts as its title;
+ * `md` for the same card when the page already shows a title above it.
  */
 @Component({
   selector: 'app-card',
@@ -40,7 +42,13 @@ type Variant = 'default' | 'soft' | 'ai';
             @if (icon()) {
               <span class="icon" aria-hidden="true">{{ icon() }}</span>
             }
-            <h2 class="card-title">{{ heading() }}</h2>
+            <h2
+              class="card-title"
+              [class.md]="headingSize() === 'md'"
+              [class.lg]="headingSize() === 'lg'"
+            >
+              {{ heading() }}
+            </h2>
             <span class="card-aside"><ng-content select="[cardAside]" /></span>
           </div>
         }
@@ -156,6 +164,21 @@ type Variant = 'default' | 'soft' | 'ai';
       letter-spacing: 0.05em;
       color: var(--text-tertiary);
     }
+    .card-title.md,
+    .card-title.lg {
+      font-weight: var(--font-weight-bold);
+      text-transform: none;
+      letter-spacing: normal;
+      color: var(--text-primary);
+    }
+    .card-title.md {
+      font-size: var(--font-size-md);
+    }
+    .card-title.lg {
+      font-size: var(--font-size-title);
+      letter-spacing: -0.01em;
+      line-height: 1.1;
+    }
   `,
 })
 export class CardComponent {
@@ -163,6 +186,7 @@ export class CardComponent {
 
   readonly variant = input<Variant>('default');
   readonly heading = input('');
+  readonly headingSize = input<'sm' | 'md' | 'lg'>('sm');
   readonly icon = input('');
   readonly flush = input(false);
   /** No border/background/padding, for when the outer container already is the box. */

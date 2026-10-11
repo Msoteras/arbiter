@@ -122,7 +122,7 @@ de esta carpeta: el mismo A56 de la póliza. Ver "Las dos fotos", más abajo.
 |---|---|---|---|
 | `robo/` | Robo en vía pública | `police_report` · `purchase_proof` · `item_photo` | ✅ completo |
 | `hurto/` | Hurto | los mismos tres | ✅ completo |
-| `danio_acc/` | Daño accidental | `purchase_proof` · `repair_quote` · `item_photo` | ✅ completo |
+| `danio_acc/` | Rotura accidental | `purchase_proof` · `repair_quote` · `item_photo` | ✅ completo |
 
 El `item_photo` de estos tres es **`foto_notebook_para_fraude.jpg`**, también en la raíz: un MacBook
 Air Medianoche cerrado sobre una mesa, el mismo color que declara la póliza.

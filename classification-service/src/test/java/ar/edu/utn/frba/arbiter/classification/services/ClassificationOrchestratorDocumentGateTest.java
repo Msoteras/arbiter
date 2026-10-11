@@ -87,7 +87,7 @@ class ClassificationOrchestratorDocumentGateTest {
         when(coverageScopeEvaluator.evaluate(any(), any(), any(), any(), any()))
                 .thenReturn(CoverageScopeEvaluator.Result.none());
         // The gate compares transcriptions, not presence, so every document needs text.
-        lenient().when(documentAnalyzer.extract(any(), any(), any()))
+        lenient().when(documentAnalyzer.extract(any(), any(), any(), any()))
                 .thenReturn(DocumentExtraction.of("texto legible del documento"));
         lenient().when(riskScoringService.score(any()))
                 .thenReturn(new RiskScore(true, 0.1, RiskBand.LOW, List.of(), 1L));
@@ -111,9 +111,9 @@ class ClassificationOrchestratorDocumentGateTest {
     void aPoliceReportNarratingAnotherCause_staysFastTrackButWarns() {
         when(fastTrackValidator.evaluate(any(), any(), any(), any(), any()))
                 .thenReturn(new FastTrackValidator.Result(true, List.of("Primer siniestro"), List.of()));
-        when(documentAnalyzer.extract(any(), any(), any())).thenReturn(new DocumentExtraction(
+        when(documentAnalyzer.extract(any(), any(), any(), any())).thenReturn(new DocumentExtraction(
                 "ACTA DE DENUNCIA — HURTO (art. 162)", List.of(),
-                new DocumentExtraction.Fields(null, null, null, null, null, null, null, "Hurto", List.of())));
+                new DocumentExtraction.Fields(null, null, null, null, null, "Hurto", List.of())));
 
         ClassificationResponse response = orchestrator.classify(
                 RiskFixtures.claim(new BigDecimal("100000")), attachments(MINIMUM_DOCS));
@@ -132,7 +132,7 @@ class ClassificationOrchestratorDocumentGateTest {
     void signsOfTamperingOnAFastTrack_staysFastTrackButWarns() {
         when(fastTrackValidator.evaluate(any(), any(), any(), any(), any()))
                 .thenReturn(new FastTrackValidator.Result(true, List.of("Primer siniestro"), List.of()));
-        when(documentAnalyzer.extract(any(), any(), any())).thenReturn(new DocumentExtraction(
+        when(documentAnalyzer.extract(any(), any(), any(), any())).thenReturn(new DocumentExtraction(
                 "FACTURA B", List.of("El importe tiene una tipografía distinta al resto"),
                 DocumentExtraction.Fields.none()));
 

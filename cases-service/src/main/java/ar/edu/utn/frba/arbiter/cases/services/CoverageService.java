@@ -61,6 +61,9 @@ public class CoverageService {
                 .individual(true)
                 .build();
         applyRequest(coverage, request);
+        // Starts equal to the name and never changes again: it is what the insurer database calls
+        // the coverage, and the key its policies are matched by.
+        coverage.setExternalName(request.name());
         return toDetail(coverageRepository.save(coverage));
     }
 

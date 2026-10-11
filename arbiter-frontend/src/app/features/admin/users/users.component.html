@@ -5,7 +5,7 @@
       <app-button variant="secondary" (click)="showProvisionConfirm.set(true)">
         Dar de alta asegurados
       </app-button>
-      <app-button (click)="showCreatePanel.set(true)">+ Nuevo usuario</app-button>
+      <app-button (click)="showCreatePanel.set(true)">+ Nuevo analista</app-button>
     </div>
   </header>
 
@@ -124,7 +124,7 @@
 
 <app-modal
   [open]="showCreatePanel()"
-  heading="Nuevo usuario"
+  heading="Nuevo analista"
   variant="side"
   (close)="showCreatePanel.set(false)"
 >
@@ -137,10 +137,9 @@
   (close)="showProvisionConfirm.set(false)"
 >
   <p class="t-body">
-    Se van a crear las cuentas de tus asegurados con póliza vigente y
-    <strong>cada uno va a recibir un mail</strong> para elegir su contraseña.
+    Se van a crear las cuentas de tus asegurados con pólizas vigentes y cada uno va a recibir un
+    mail para elegir su contraseña.
   </p>
-  <p class="t-note">A quien ya tenga cuenta no se le escribe de nuevo.</p>
   <ng-container modalActions>
     <app-button
       variant="secondary"

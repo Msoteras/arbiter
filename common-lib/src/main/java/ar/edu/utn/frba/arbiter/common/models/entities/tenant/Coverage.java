@@ -44,6 +44,13 @@ public class Coverage {
     @Column(nullable = false)
     private String name;
 
+    /**
+     * What the insurer database calls this coverage ({@code cobertura.nombre}). Set once, when the
+     * coverage is created; a rename only touches {@link #name}. Unique per branch.
+     */
+    @Column(name = "external_name", length = 160)
+    private String externalName;
+
     @Column(columnDefinition = "TEXT")
     private String description;
 

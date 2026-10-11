@@ -47,7 +47,7 @@ public class MockInsurerAdapter implements InsurerAdapter {
                     .branch("Celulares")
                     .product("Celular Protegido Básico")
                     .insuredItem("Motorola Edge 50 Pro")
-                    .imei("351000000000042")
+                    .itemAttributes(Map.of("marca", "Motorola", "modelo", "Edge 50 Pro", "IMEI", "351000000000042"))
                     .effectiveFrom(LocalDateTime.of(2024, 3, 1, 0, 0))
                     .effectiveTo(LocalDateTime.of(2027, 3, 1, 23, 59, 59))
                     .upToDate(true)

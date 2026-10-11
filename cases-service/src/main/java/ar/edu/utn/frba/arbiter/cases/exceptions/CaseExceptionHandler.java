@@ -61,6 +61,11 @@ public class CaseExceptionHandler extends ResponseEntityExceptionHandler {
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(422), ex.getMessage());
     }
 
+    @ExceptionHandler(CoverageNotConfiguredException.class)
+    public ProblemDetail handleCoverageNotConfigured(CoverageNotConfiguredException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(422), ex.getMessage());
+    }
+
     @ExceptionHandler(UnknownCaseStateException.class)
     public ProblemDetail handleUnknownCaseState(UnknownCaseStateException ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(500), ex.getMessage());
@@ -113,7 +118,8 @@ public class CaseExceptionHandler extends ResponseEntityExceptionHandler {
 
     @ExceptionHandler(ServiceProviderNotFoundException.class)
     public ProblemDetail handleServiceProviderNotFound(ServiceProviderNotFoundException ex) {
-        return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(404), ex.getMessage());
+        return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(404),
+                "Ese proveedor ya no está en el catálogo. Recargá la página.");
     }
 
     @ExceptionHandler(ClosedConversationException.class)

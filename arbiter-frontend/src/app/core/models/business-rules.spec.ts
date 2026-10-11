@@ -13,6 +13,12 @@ describe('withDocumentLabels', () => {
     );
   });
 
+  it('also labels the documents a provider answers a referral with', () => {
+    expect(withDocumentLabels("El documento 'expert_report' y el 'repair_report'")).toBe(
+      "El documento 'Informe pericial' y el 'Respuesta del servicio técnico'",
+    );
+  });
+
   it('leaves a reason that mentions no document untouched', () => {
     const reason = 'El monto reclamado supera el promedio del ramo';
     expect(withDocumentLabels(reason)).toBe(reason);

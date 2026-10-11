@@ -16,7 +16,7 @@ contra el script: la base real diverge del script en dos puntos importantes, mar
 | Póliza (camino feliz) | **`POL-CEL-2026-777`**, vigencia **01/04/2026 → 01/04/2027**, al día, 0 cuotas impagas | `aseguradora_provincia.poliza` id 3 |
 | Asegurado (mora) | **Julián Pérez**, DNI `30.555.777` — login `asegurado2.arbiter@gmail.com` | `arbiter_provincia.insured` id 2 |
 | Póliza (mora) | **`POL-CEL-2026-905`**, vigencia 01/02/2026 → 01/02/2027, `SUSPENDIDA`, 2 cuotas impagas ($18.200) | `aseguradora_provincia.poliza` id 5 |
-| Cobertura | `coverage` id **1** = "Robo de celular", suma asegurada varía por póliza ($700.000 en la de Martina), carencia **30 días**, plazo denuncia policial 72 hs, tope 2 eventos/año | `arbiter_provincia.coverage` |
+| Cobertura | `coverage` id **1** = "Robo", suma asegurada varía por póliza ($700.000 en la de Martina), carencia **30 días**, plazo denuncia policial 72 hs, tope 2 eventos/año | `arbiter_provincia.coverage` |
 | Ramo / hecho generador | Celulares (`branch` **1**) / "Robo en vía pública" (`claim_cause` **2**) — mismos ids que en BBVA porque cada aseguradora arranca del mismo catálogo, pero son filas propias | `arbiter_provincia` |
 | Reglas duras por cobertura (cobertura 1) | `insurer_rule` **6** (WAITING_PERIOD), **7** (REPORT_DEADLINE), **8** (POLICE_DEADLINE, `{"deadlineHours":72}`), **9** (MAX_EVENTS_YEAR) — todas activas | ids **distintos** de BBVA (ahí eran 5-8) |
 | Reglas duras, toda la aseguradora | `insurer_rule` **14** `POLICY_IN_FORCE` (activa) + **15** `POLICY_STANDING` (**activa, `onArrears: REJECT`**) | ver §0.2 |
@@ -77,7 +77,7 @@ es una decisión de qué excluir que le corresponde al referente, no algo que se
 | Caso original (BBVA) | Qué cambia para Provincia |
 |---|---|
 | §1 — Punto de partida | Mismas dos queries, cambiando `arbiter_bbva` → `arbiter_provincia` y los ids esperados (**6,7,8,9** por cobertura; **14** vigencia). `POLICY_STANDING` (**15**) sí aparece acá — ver §0.2. |
-| §2 — Preparar la aseguradora | Login `referente.provincia.arbiter@gmail.com`. Cobertura "Robo de celular": mismo ajuste de plazo de denuncia a 30 días. Fast Track: mismo setup, ver §0.1. |
+| §2 — Preparar la aseguradora | Login `referente.provincia.arbiter@gmail.com`. Cobertura "Robo": mismo ajuste de plazo de denuncia a 30 días. Fast Track: mismo setup, ver §0.1. |
 | §3 — Denuncia con policial tardía | Login `asegurado.arbiter@gmail.com` (Martina), póliza **`POL-CEL-2026-777`**. Mismas fechas relativas ("hace 10 días" / "hace 5 días") — la póliza está vigente desde 01/04/2026, muy anterior a cualquier fecha relativa razonable, así que no hace falta ajustar nada. |
 | §4 — Cambiar umbral (criterio 2) | Igual, pero el `rule_id` de la query de auditoría es **8**, no 7: `WHERE h.rule_id = 8`. |
 | §5 — Apagar una regla (criterio 4) | Igual, `WHERE id = 8`. |

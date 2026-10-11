@@ -23,7 +23,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * When rules-service doesn't respond the exception must propagate (for {@code @Retryable}) instead of
- * silently falling back to the baseline; scoring is the one exception. Uses a real JDK HTTP server so
+ * being read as "nothing configured"; scoring is the one exception. Uses a real JDK HTTP server so
  * the exceptions are the ones the real HTTP layer throws, which is what {@code @Retryable} matches on.
  */
 class RulesRestAdapterTest {
@@ -40,24 +40,30 @@ class RulesRestAdapterTest {
     }
 
     @Test
-    void noCoverageId_returnsBaselineWithoutCallingRulesService() {
+    void noCoverageId_returnsUnconfiguredWithoutCallingRulesService() {
         RulesRestAdapter adapter = adapterPointingAt("http://localhost:1");
 
         BusinessRules rules = adapter.getRules("Celulares", null, "Robo en vía pública");
 
-        assertThat(rules.branchId()).isEqualTo("Celulares");
+        assertThat(rules).isEqualTo(BusinessRules.unconfigured("Celulares", "Robo en vía pública"));
     }
 
+    /** Coverage 1 was the baseline's "Robo de celular": a new insurer's first coverage must not inherit it. */
     @Test
-    void rulesServiceUp_withNothingConfigured_fallsBackToBaselinePerField() throws IOException {
+    void rulesServiceUp_withNothingConfigured_leavesEverySectionEmpty() throws IOException {
         server = startServer(exchange -> respondEmpty(exchange));
         RulesRestAdapter adapter = adapterPointingAt(baseUrl());
 
         BusinessRules rules = adapter.getRules("Celulares", 1L, "Robo en vía pública");
 
-        BusinessRules baseline = new BaselineRulesAdapter().getRules("Celulares", 1L, "Robo en vía pública");
-        assertThat(rules.fastTrackThresholds()).isEqualTo(baseline.fastTrackThresholds());
-        assertThat(rules.reportDeadlineHours()).isEqualTo(baseline.reportDeadlineHours());
+        assertThat(rules.fastTrackThresholds()).isNull();
+        assertThat(rules.scoringConfig()).isNull();
+        assertThat(rules.reportDeadlineHours()).isNull();
+        assertThat(rules.evaluableRules()).isEmpty();
+        assertThat(rules.rules()).isEmpty();
+        assertThat(rules.exclusions()).isEmpty();
+        assertThat(rules.fastTrackCriteria()).isEmpty();
+        assertThat(rules.requiredDocumentTypes()).isEmpty();
     }
 
     @Test
@@ -72,7 +78,7 @@ class RulesRestAdapterTest {
     void rulesServiceStillBooting_isWaitedForInsteadOfFailing() throws Exception {
         int port = closedPort();
         RulesRestAdapter adapter = new RulesRestAdapter("http://localhost:" + port, JWT_SECRET,
-                new BaselineRulesAdapter(), new ConnectionRetryInterceptor(10, Duration.ofMillis(100), Duration.ofMillis(100)));
+                new ConnectionRetryInterceptor(10, Duration.ofMillis(100), Duration.ofMillis(100)));
         Thread booting = new Thread(() -> {
             try {
                 Thread.sleep(300);
@@ -100,7 +106,7 @@ class RulesRestAdapterTest {
 
     /** Scoring is the exception: it never gates the decision, so its failure is tolerated. */
     @Test
-    void scoringAlone_stillFallsBackToBaseline_whenEverythingElseSucceeds() throws IOException {
+    void scoringFailure_leavesTheClaimUnscored_whenEverythingElseSucceeds() throws IOException {
         server = startServer(exchange -> {
             if (exchange.getRequestURI().getPath().endsWith("/internal/scoring")) {
                 respondError(exchange, 500);
@@ -112,8 +118,7 @@ class RulesRestAdapterTest {
 
         BusinessRules rules = adapter.getRules("Celulares", 1L, "Robo en vía pública");
 
-        BusinessRules baseline = new BaselineRulesAdapter().getRules("Celulares", 1L, "Robo en vía pública");
-        assertThat(rules.scoringConfig()).isEqualTo(baseline.scoringConfig());
+        assertThat(rules.scoringConfig()).isNull();
     }
 
     /** rules-service answers 400 without claimCause, failing every classification. */
@@ -145,7 +150,7 @@ class RulesRestAdapterTest {
 
     /**
      * The claim cause travels as a name, so accents and spaces must survive: a mangled name finds no
-     * agenda and silently falls back to the baseline's documents. Asserted decoded on the server side.
+     * agenda and the claim is analysed as if no documents were required. Asserted decoded on the server side.
      */
     @Test
     void claimCauseWithAccentsAndSpaces_arrivesIntactAtRulesService() throws IOException {
@@ -164,19 +169,8 @@ class RulesRestAdapterTest {
         assertThat(received).containsExactly("Caída");
     }
 
-    /** An empty agenda is "no documents required", not "not configured". */
     @Test
-    void emptyAgenda_isHonoured_notReadAsUnconfigured() throws IOException {
-        server = startServer(this::respondEmpty);
-        RulesRestAdapter adapter = adapterPointingAt(baseUrl());
-
-        BusinessRules rules = adapter.getRules("Celulares", 1L, "Caída");
-
-        assertThat(rules.requiredDocumentTypes()).isEmpty();
-    }
-
-    @Test
-    void noAgendaAnswer_fallsBackToBaseline() throws IOException {
+    void noAgendaAnswer_requiresNoDocuments() throws IOException {
         server = startServer(exchange -> {
             if (exchange.getRequestURI().getPath().contains("document-requirements")) {
                 exchange.sendResponseHeaders(200, -1);
@@ -188,14 +182,32 @@ class RulesRestAdapterTest {
 
         BusinessRules rules = adapter.getRules("Celulares", 1L, "Caída");
 
-        BusinessRules baseline = new BaselineRulesAdapter().getRules("Celulares", 1L, "Caída");
-        assertThat(rules.requiredDocumentTypes()).isEqualTo(baseline.requiredDocumentTypes());
+        assertThat(rules.requiredDocumentTypes()).isEmpty();
+    }
+
+    @Test
+    void configuredAgenda_isUsed() throws IOException {
+        server = startServer(exchange -> {
+            if (exchange.getRequestURI().getPath().contains("document-requirements")) {
+                byte[] body = "[\"purchase_proof\",\"repair_quote\"]".getBytes(StandardCharsets.UTF_8);
+                exchange.getResponseHeaders().add("Content-Type", "application/json");
+                exchange.sendResponseHeaders(200, body.length);
+                exchange.getResponseBody().write(body);
+            } else {
+                respondEmpty(exchange);
+            }
+        });
+        RulesRestAdapter adapter = adapterPointingAt(baseUrl());
+
+        BusinessRules rules = adapter.getRules("Celulares", 1L, "Caída");
+
+        assertThat(rules.requiredDocumentTypes()).containsExactly("purchase_proof", "repair_quote");
     }
 
     // ── Infra ────────────────────────────────────────────────────────────────
 
     private RulesRestAdapter adapterPointingAt(String url) {
-        return new RulesRestAdapter(url, JWT_SECRET, new BaselineRulesAdapter(),
+        return new RulesRestAdapter(url, JWT_SECRET,
                 new ConnectionRetryInterceptor(2, Duration.ofMillis(1), Duration.ofMillis(1)));
     }
 

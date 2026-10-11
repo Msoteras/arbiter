@@ -1,13 +1,12 @@
-<app-card>
-  <div class="sc-section-head">
-    <span class="t-section-label">Peritos y servicios técnicos</span>
-    @if (!draft()) {
-      <app-button variant="secondary" (click)="add()">+ Agregar proveedor</app-button>
-    }
-  </div>
+<app-card heading="Proveedores externos" headingSize="lg">
+  @if (!draft()) {
+    <app-button cardAside variant="secondary" size="sm" (click)="add()">
+      + Agregar proveedor
+    </app-button>
+  }
 
   @if (loading()) {
-    <p class="t-note">Cargando…</p>
+    <app-inline-loading [size]="26" message="Cargando proveedores…" />
   } @else if (providers().length === 0 && !draft()) {
     <app-empty-state
       message="Todavía no hay proveedores cargados"
@@ -43,38 +42,58 @@
 
   @if (draft(); as d) {
     <div class="provider-form">
-      <span class="t-field-label">{{
+      <span class="t-section-label">{{
         d.id == null ? 'Nuevo proveedor' : 'Editando proveedor'
       }}</span>
-      <app-select
-        [options]="providerTypeOptions"
-        [value]="d.providerType"
-        (valueChange)="setProviderType($event)"
-      />
-      <app-input placeholder="Nombre" [value]="d.name" (valueChange)="setField('name', $event)" />
-      <app-input
-        type="email"
-        placeholder="Mail de contacto"
-        [value]="d.email"
-        (valueChange)="setField('email', $event)"
-      />
+      <label class="fieldset">
+        <span class="t-field-label">Tipo</span>
+        <app-select
+          [options]="providerTypeOptions"
+          [value]="d.providerType"
+          (valueChange)="setProviderType($event)"
+        />
+      </label>
+      <label class="fieldset">
+        <span class="t-field-label">Nombre</span>
+        <app-input [value]="d.name" (valueChange)="setField('name', $event)" />
+      </label>
+      <label class="fieldset">
+        <span class="t-field-label">Mail de contacto</span>
+        <app-input type="email" [value]="d.email" (valueChange)="setField('email', $event)" />
+      </label>
       <fieldset class="branch-picker">
         <legend class="t-field-label">Ramos</legend>
-        @for (b of branches(); track b.id) {
-          <app-checkbox
-            [checked]="d.branchIds.includes(b.id)"
-            (checkedChange)="toggleBranch(b.id, $event)"
-          >
-            {{ b.name }}
-          </app-checkbox>
+        @switch (branchesState()) {
+          @case ('loading') {
+            <app-inline-loading [size]="20" message="Cargando ramos…" />
+          }
+          @case ('error') {
+            <p class="t-note error" role="alert">No se pudieron cargar los ramos.</p>
+            <app-button variant="secondary" size="sm" (click)="loadBranches()"
+              >Reintentar</app-button
+            >
+          }
+          @default {
+            @for (b of branches(); track b.id) {
+              <app-checkbox
+                [checked]="d.branchIds.includes(b.id)"
+                (checkedChange)="toggleBranch(b.id, $event)"
+              >
+                {{ b.name }}
+              </app-checkbox>
+            }
+            <p class="t-note">Sin ninguno marcado, cubre todos los ramos.</p>
+          }
         }
-        <p class="t-note">Sin ninguno marcado, cubre todos los ramos.</p>
       </fieldset>
-      <app-input
-        placeholder="Zona (opcional)"
-        [value]="d.zone ?? ''"
-        (valueChange)="setField('zone', $event)"
-      />
+      <label class="fieldset">
+        <span class="t-field-label">Zona</span>
+        <app-input
+          placeholder="Opcional"
+          [value]="d.zone ?? ''"
+          (valueChange)="setField('zone', $event)"
+        />
+      </label>
       <app-checkbox [checked]="d.active" (checkedChange)="setField('active', $event)">
         Activo
       </app-checkbox>
@@ -91,3 +110,26 @@
     <p class="t-note error">{{ error() }}</p>
   }
 </app-card>
+
+<app-modal
+  [open]="providerToDelete() !== null"
+  heading="¿Borrar proveedor?"
+  (close)="cancelDelete()"
+>
+  @if (providerToDelete(); as p) {
+    <p class="t-body">
+      Vas a borrar a <strong>{{ p.name }}</strong> del catálogo de proveedores.
+    </p>
+    @if (deleteError()) {
+      <p class="t-note error" role="alert">{{ deleteError() }}</p>
+    }
+  }
+  <ng-container modalActions>
+    <app-button variant="secondary" [disabled]="deleting()" (click)="cancelDelete()"
+      >Cancelar</app-button
+    >
+    <app-button [disabled]="deleting()" (click)="confirmDelete()">
+      {{ deleting() ? 'Borrando…' : 'Sí, borrar proveedor' }}
+    </app-button>
+  </ng-container>
+</app-modal>

@@ -7,6 +7,7 @@ import ar.edu.utn.frba.arbiter.classification.dto.InsuredHistory.ClaimRecord;
 import ar.edu.utn.frba.arbiter.classification.dto.InsuredPolicy;
 import ar.edu.utn.frba.arbiter.classification.dto.InsuredPolicy.PolicyCoverage;
 import ar.edu.utn.frba.arbiter.common.tenant.InsurerBranchNames;
+import ar.edu.utn.frba.arbiter.common.tenant.InsurerCoverageNames;
 import ar.edu.utn.frba.arbiter.common.tenant.InsurerDbSchema;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Primary;
@@ -18,7 +19,9 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Reads policies and insured history from the insurer's database, one schema per insurer resolved
@@ -47,12 +50,17 @@ public class InsurerDatabaseAdapter implements InsurerAdapter {
         return InsurerBranchNames.load(jdbc, TenantContext.get());
     }
 
+    /** Same for coverages: the claim names its coverage the way the insurer does in Arbiter. */
+    private InsurerCoverageNames coverageNames() {
+        return InsurerCoverageNames.load(jdbc, TenantContext.get());
+    }
+
     @Override
     public InsuredPolicy getPolicy(String policyNumber) {
         String schema = schema();
         PolicyRow row = jdbc.query(
                         """
-                        SELECT p.id, p.numero, p.rama, p.producto, p.bien_asegurado, p.imei,
+                        SELECT p.id, p.numero, p.rama, p.producto, p.bien_asegurado,
                                p.vigencia_desde, p.vigencia_hasta,
                                p.estado_pago, p.saldo_deuda, p.importe_cuota,
                                a.documento, a.nombre, a.apellido
@@ -67,7 +75,6 @@ public class InsurerDatabaseAdapter implements InsurerAdapter {
                                 rs.getString("rama"),
                                 rs.getString("producto"),
                                 rs.getString("bien_asegurado"),
-                                rs.getString("imei"),
                                 rs.getObject("vigencia_desde", LocalDateTime.class),
                                 rs.getObject("vigencia_hasta", LocalDateTime.class),
                                 rs.getString("estado_pago"),
@@ -81,6 +88,7 @@ public class InsurerDatabaseAdapter implements InsurerAdapter {
                 .findFirst()
                 .orElseThrow(() -> new IllegalArgumentException("Policy not found: " + policyNumber));
 
+        InsurerCoverageNames coverageNames = coverageNames();
         List<PolicyCoverage> coverages = jdbc.query(
                 """
                 SELECT orden, nombre, suma_asegurada, franquicia_pct
@@ -93,10 +101,23 @@ public class InsurerDatabaseAdapter implements InsurerAdapter {
                     BigDecimal deductiblePct = rs.getBigDecimal("franquicia_pct");
                     return PolicyCoverage.builder()
                             .code("COB-" + rs.getInt("orden"))
-                            .description(rs.getString("nombre"))
+                            .description(coverageNames.nameOf(row.rama(), rs.getString("nombre")))
                             .insuredAmount(sum)
                             .deductible(absoluteDeductible(sum, deductiblePct))
                             .build();
+                },
+                row.id());
+
+        Map<String, String> itemAttributes = new LinkedHashMap<>();
+        jdbc.query(
+                """
+                SELECT nombre, valor
+                FROM %s.atributo_bien
+                WHERE poliza_id = ?
+                ORDER BY id
+                """.formatted(schema),
+                rs -> {
+                    itemAttributes.put(rs.getString("nombre"), rs.getString("valor"));
                 },
                 row.id());
 
@@ -109,7 +130,7 @@ public class InsurerDatabaseAdapter implements InsurerAdapter {
                 .branch(branchNames().nameOf(row.rama()))
                 .product(row.producto())
                 .insuredItem(row.bienAsegurado())
-                .imei(row.imei())
+                .itemAttributes(itemAttributes)
                 .effectiveFrom(row.vigenciaDesde())
                 .effectiveTo(row.vigenciaHasta())
                 .upToDate(isUpToDate(row.estadoPago(), row.saldoDeuda()))
@@ -126,6 +147,7 @@ public class InsurerDatabaseAdapter implements InsurerAdapter {
     public InsuredHistory getHistory(String insuredId) {
         String schema = schema();
         InsurerBranchNames branchNames = branchNames();
+        InsurerCoverageNames coverageNames = coverageNames();
         List<ClaimRecord> claims = jdbc.query(
                 """
                 SELECT h.id, h.fecha_ocurrencia, h.causa, h.estado_resolucion,
@@ -143,7 +165,7 @@ public class InsurerDatabaseAdapter implements InsurerAdapter {
                         .policyNumber(rs.getString("numero"))
                         .branch(branchNames.nameOf(rs.getString("rama")))
                         // Null when no coverage was recorded: the exhaustion rule skips it rather than guessing.
-                        .coverageName(rs.getString("cobertura"))
+                        .coverageName(coverageNames.nameOf(rs.getString("rama"), rs.getString("cobertura")))
                         .claimCause(rs.getString("causa"))
                         .status(rs.getString("estado_resolucion"))
                         .amountSettled(rs.getBigDecimal("monto_indemnizado"))
@@ -196,7 +218,6 @@ public class InsurerDatabaseAdapter implements InsurerAdapter {
             String rama,
             String producto,
             String bienAsegurado,
-            String imei,
             LocalDateTime vigenciaDesde,
             LocalDateTime vigenciaHasta,
             String estadoPago,

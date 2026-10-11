@@ -23,7 +23,14 @@ import {
   switchMap,
 } from 'rxjs';
 
-import { CaseService, AnalystDecisionRequest, ClaimCauseOption, Settlement } from '../case.service';
+import {
+  CaseService,
+  AnalystDecision,
+  AnalystDecisionRequest,
+  ClaimCauseOption,
+  Settlement,
+  SettlementLine,
+} from '../case.service';
 import { DocumentAgendaService } from '../document-agenda.service';
 import { CaseNavigationService } from '../case-navigation.service';
 import { CaseMessagesService } from '../case-messages.service';
@@ -169,6 +176,8 @@ interface BriefAlert {
   label: string;
   /** 'chat' opens the chat popup instead of a tab. */
   tab: TabId | 'chat';
+  /** Strong fraud signal: only the ▲ turns red, the label keeps its color. */
+  danger?: boolean;
 }
 
 @Component({
@@ -346,6 +355,11 @@ export class CaseDetailComponent {
     return riskFactorLabel(factorId);
   }
 
+  /** Rationales name documents by their code ("…documento 'police_report'…"), like the reasons. */
+  protected factorRationale(rationale: string): string {
+    return withDocumentLabels(rationale);
+  }
+
   protected pct(value: number): number {
     return Math.round(value * 100);
   }
@@ -417,7 +431,7 @@ export class CaseDetailComponent {
       {
         heading: 'Siniestro',
         fields: [
-          { label: 'Causa', value: d?.claimCause ?? null },
+          { label: 'Hecho generador', value: d?.claimCause ?? null },
           {
             label: 'Fecha y hora de ocurrencia',
             value: d?.eventDate ? formatDateTime(d.eventDate) : null,
@@ -450,7 +464,7 @@ export class CaseDetailComponent {
           { label: 'Asegurado', value: d?.insuredName ?? null },
           { label: 'DNI', value: d?.insuredId ?? null, mono: true },
           // "No" is a value, not missing data, so it skips the `?? null` "Sin datos" path.
-          { label: 'PEP (declarativo)', value: d ? (d.pep ? 'Sí' : 'No') : null },
+          { label: 'PEP', value: d ? (d.pep ? 'Sí' : 'No') : null },
           { label: 'N° de póliza', value: d?.policyNumber ?? null, mono: true },
           { label: 'Producto', value: d?.product ?? null },
           { label: 'Rama', value: d?.branch ?? null },
@@ -666,6 +680,17 @@ export class CaseDetailComponent {
   );
 
   /** Medium or high findings only; flagging "low" ones would turn the dot into noise. */
+  private readonly imageMatchedAnotherClaim = computed(() =>
+    (this.data()?.forensicReport?.findings ?? []).some((f) => f.internalMatches.length > 0),
+  );
+
+  /** Same threshold as forensicAlertLevel: a page that only mentions the image is too weak. */
+  private readonly imageFoundOnline = computed(() =>
+    (this.data()?.forensicReport?.findings ?? []).some(
+      (f) => !!f.webFinding && (f.webFinding.fullMatches > 0 || f.webFinding.partialMatches > 0),
+    ),
+  );
+
   private readonly hasImageMatches = computed(() =>
     (this.data()?.forensicReport?.findings ?? []).some((f) => {
       const level = forensicAlertLevel(f);
@@ -775,6 +800,31 @@ export class CaseDetailComponent {
         return 'not-ready';
     }
   });
+
+  /** Refetched with the case, so it shows up right after deciding. A 403 (insured) yields null. */
+  private readonly decisionFetch = toSignal(
+    combineLatest([
+      this.route.paramMap.pipe(map((params) => params.get('id') ?? '')),
+      toObservable(this.reloadTrigger),
+    ]).pipe(
+      switchMap(([id]) =>
+        this.service
+          .decision(id as unknown as number)
+          .pipe(catchError(() => of<AnalystDecision | null>(null))),
+      ),
+    ),
+    { initialValue: null },
+  );
+
+  /** When the case was resolved and what the analyst wrote, from the audited decision. */
+  protected readonly resolution = computed<{ at: string; justification: string | null } | null>(
+    () => {
+      const decision = this.decisionFetch();
+      return decision
+        ? { at: formatDateTime(decision.decidedAt), justification: decision.justification }
+        : null;
+    },
+  );
 
   protected readonly pendingDecision = signal<Verb | null>(null);
   protected readonly showJustify = signal(false);
@@ -944,6 +994,20 @@ export class CaseDetailComponent {
   });
 
   /**
+   * The amount the calculation starts from hasn't been entered yet, so everything derived from it
+   * came back as zero. Those zeros mean "not computed", not "nothing to pay".
+   */
+  protected readonly baseAmountMissing = computed(() => {
+    const value = this.settlement()?.replacementValue;
+    return this.needsAccreditedAmount() && !(value != null && value > 0);
+  });
+
+  /** Null = nothing to show yet. A deduction that doesn't depend on the base keeps its figure. */
+  protected sheetAmount(line: SettlementLine): string | null {
+    return this.baseAmountMissing() && line.amount === 0 ? null : this.exactAmount(line.amount);
+  }
+
+  /**
    * Offered only until a value is entered. A document amount was read by the model, so it waits
    * for the click; a provider's is prefilled by `prefillProviderAmount`.
    */
@@ -1059,6 +1123,10 @@ export class CaseDetailComponent {
     }
     if (this.needsReplacementValue() && this.replacementApplied() == null) {
       return 'Cargá cuánto cuesta hoy reponer el bien.';
+    }
+    // The quote is the base of a repair: without it the amount is a zero nobody calculated.
+    if (this.settlement()?.formula === 'REPAIR' && this.baseAmountMissing()) {
+      return 'Cargá el presupuesto de reparación.';
     }
     if (this.amountToAuthorize() == null) {
       return 'El monto a pagar tiene que ser un número.';
@@ -1345,8 +1413,12 @@ export class CaseDetailComponent {
         tab: 'rules',
       });
     }
-    if (this.hasImageMatches()) {
-      alertList.push({ label: 'Imágenes con coincidencias', tab: 'images' });
+    // One alert per source, so the label says where the image was seen before.
+    if (this.imageMatchedAnotherClaim()) {
+      alertList.push({ label: 'Imagen usada en otro siniestro', tab: 'images', danger: true });
+    }
+    if (this.imageFoundOnline()) {
+      alertList.push({ label: 'Imagen encontrada en internet', tab: 'images', danger: true });
     }
     const priorCount = this.priorFraudRecords().length;
     if (priorCount > 0) {
@@ -1717,7 +1789,7 @@ export class CaseDetailComponent {
 
   protected readonly chosenOriginEffect = computed(() =>
     this.chosenOrigin() === 'EXPERT_BACKED'
-      ? 'Va a sumar al nivel de riesgo de sus próximas denuncias y, si la aseguradora lo configuró así, a impedirles la vía rápida.'
+      ? 'Va a sumar al nivel de riesgo de sus próximas denuncias y, si la aseguradora lo configuró así, a impedirles el Fast Track.'
       : 'Va a aparecer como alerta en sus próximas denuncias, pero no suma al nivel de riesgo: sin peritaje detrás, una sospecha que mueve el score termina alimentándose sola.',
   );
 

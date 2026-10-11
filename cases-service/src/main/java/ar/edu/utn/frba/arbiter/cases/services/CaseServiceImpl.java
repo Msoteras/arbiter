@@ -1,6 +1,7 @@
 package ar.edu.utn.frba.arbiter.cases.services;
 
 import ar.edu.utn.frba.arbiter.cases.dto.AnalystDecisionRequest;
+import ar.edu.utn.frba.arbiter.cases.dto.AnalystDecisionResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.AnalystWorkloadResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.AssignedCaseSummaryResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseDocumentResponse;
@@ -28,6 +29,7 @@ import ar.edu.utn.frba.arbiter.cases.exceptions.AnalystProfileNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CaseAssignedToAnotherAnalystException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CaseNotAssignedException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CaseNotFoundException;
+import ar.edu.utn.frba.arbiter.cases.exceptions.CoverageNotConfiguredException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.DocumentNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.DocumentReadException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.InsuredIdentityMismatchException;
@@ -306,7 +308,7 @@ public class CaseServiceImpl implements CaseService {
                     policyCoverageResolver.resolveFor(policy.getId(), null).getCoverage(),
                     null);
             return EligibilityCheckResponse.ok();
-        } catch (PolicyNotEligibleException | PolicyInsuredMismatchException e) {
+        } catch (PolicyNotEligibleException | PolicyInsuredMismatchException | CoverageNotConfiguredException e) {
             return EligibilityCheckResponse.notEligible(e.getMessage());
         }
     }
@@ -753,6 +755,22 @@ public class CaseServiceImpl implements CaseService {
 
         caseStatusService.transition(entity, targetStatus,
                 StatusChangeActor.ANALYST, "decisión del analista: " + decision);
+    }
+
+    @Override
+    public Optional<AnalystDecisionResponse> getAnalystDecision(Long caseId) {
+        Case entity = caseRepository.findById(caseId)
+                .orElseThrow(() -> new CaseNotFoundException(caseId));
+        accessPolicy.assertCanRead(entity);
+
+        boolean resolved = entity.getStatus() == CaseStatus.APPROVED
+                || entity.getStatus() == CaseStatus.REJECTED;
+        if (!resolved || entity.getClassificationId() == null) {
+            return Optional.empty();
+        }
+        return caseAnalysisRepository.findDecision(entity.getClassificationId())
+                .map(decision -> new AnalystDecisionResponse(
+                        decision.decision(), decision.justification(), decision.decidedAt()));
     }
 
     /** Records the held decision with its justification, then approves the case (which emails the amount). */

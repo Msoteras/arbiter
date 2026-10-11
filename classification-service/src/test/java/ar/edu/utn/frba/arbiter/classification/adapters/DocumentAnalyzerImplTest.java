@@ -35,6 +35,9 @@ class DocumentAnalyzerImplTest {
     /** The branch's claim causes: the only values describedClaimCause may take. */
     private static final List<String> CATALOG = List.of("Caída", "Hurto", "Robo en vía pública");
 
+    /** What the policy identifies its item by: the only names itemAttributes may carry. */
+    private static final List<String> ITEM_ATTRIBUTES = List.of("marca", "modelo", "IMEI");
+
     @Mock
     private LlmClient client;
 
@@ -45,7 +48,7 @@ class DocumentAnalyzerImplTest {
         analyzer = new DocumentAnalyzerImpl(
                 client,
                 new ObjectMapper(),
-                new ClassPathResource("prompts/extraccion-documento-v7.md"));
+                new ClassPathResource("prompts/extraccion-documento-v8.md"));
     }
 
     private void modelAnswers(String content) {
@@ -60,7 +63,7 @@ class DocumentAnalyzerImplTest {
                  "visualFindings": ["El sello está pixelado respecto del resto"]}
                 """);
 
-        DocumentExtraction extraction = analyzer.extract(SOME_IMAGE, "image/jpeg", CATALOG);
+        DocumentExtraction extraction = analyzer.extract(SOME_IMAGE, "image/jpeg", CATALOG, ITEM_ATTRIBUTES);
 
         assertThat(extraction.transcription()).isEqualTo("Constancia de denuncia N° 4471/26");
         assertThat(extraction.visualFindings()).containsExactly("El sello está pixelado respecto del resto");
@@ -73,7 +76,7 @@ class DocumentAnalyzerImplTest {
                 {"transcription": "Factura B 0001-00023456", "visualFindings": []}
                 """);
 
-        assertThat(analyzer.extract(SOME_IMAGE, "image/jpeg", CATALOG).visualFindings()).isEmpty();
+        assertThat(analyzer.extract(SOME_IMAGE, "image/jpeg", CATALOG, ITEM_ATTRIBUTES).visualFindings()).isEmpty();
     }
 
     @Test
@@ -82,7 +85,7 @@ class DocumentAnalyzerImplTest {
                 {"transcription": "Factura B 0001-00023456", "visualFindings": []}
                 """);
 
-        assertThat(analyzer.extract(SOME_IMAGE, "image/jpeg", CATALOG).status())
+        assertThat(analyzer.extract(SOME_IMAGE, "image/jpeg", CATALOG, ITEM_ATTRIBUTES).status())
                 .isEqualTo(DocumentExtraction.Status.COMPLETE);
         verify(client, times(1)).chat(anyString(), anyList(), anyMap(), eq(false));
     }
@@ -91,16 +94,16 @@ class DocumentAnalyzerImplTest {
     @Test
     void aBrokenAnswerIsRetriedAndTheRetryWins() {
         when(client.chat(anyString(), anyList(), anyMap(), eq(false))).thenReturn(
-                "{\"transcription\": \"ACTA DE DENUNCIA\", \"visualFindings\": [], \"fields\": {\"brand\": \"GOO",
+                "{\"transcription\": \"ACTA DE DENUNCIA\", \"visualFindings\": [], \"fields\": {\"itemAttributes\": {\"marca\": \"GOO",
                 """
                 {"transcription": "ACTA DE DENUNCIA", "visualFindings": [],
-                 "fields": {"brand": "GOOGLE", "affectedParty": "TITULAR"}}
+                 "fields": {"itemAttributes": {"marca": "GOOGLE"}, "affectedParty": "TITULAR"}}
                 """);
 
-        DocumentExtraction extraction = analyzer.extract(SOME_IMAGE, "image/jpeg", CATALOG);
+        DocumentExtraction extraction = analyzer.extract(SOME_IMAGE, "image/jpeg", CATALOG, ITEM_ATTRIBUTES);
 
         assertThat(extraction.status()).isEqualTo(DocumentExtraction.Status.COMPLETE);
-        assertThat(extraction.fields().brand()).isEqualTo("GOOGLE");
+        assertThat(extraction.fields().itemAttributes()).containsExactly(Map.entry("marca", "GOOGLE"));
         assertThat(extraction.fields().affectedParty()).isEqualTo(DocumentExtraction.AffectedParty.TITULAR);
     }
 
@@ -109,7 +112,7 @@ class DocumentAnalyzerImplTest {
     void unparseableAnswerDegradesToRawTextWithoutFindings() {
         modelAnswers("Constancia de denuncia, comisaría 15a.");
 
-        DocumentExtraction extraction = analyzer.extract(SOME_IMAGE, "image/jpeg", CATALOG);
+        DocumentExtraction extraction = analyzer.extract(SOME_IMAGE, "image/jpeg", CATALOG, ITEM_ATTRIBUTES);
 
         assertThat(extraction.transcription()).isEqualTo("Constancia de denuncia, comisaría 15a.");
         assertThat(extraction.visualFindings()).isEmpty();
@@ -123,7 +126,7 @@ class DocumentAnalyzerImplTest {
         modelAnswers("""
                 {"transcription": "ACTA DE DENUNCIA. Domicilio: piso 6 \\"A\\", C.A.B.A.", "visualFindings": [], "fields": {"brand": "GOO""");
 
-        DocumentExtraction extraction = analyzer.extract(SOME_IMAGE, "image/jpeg", CATALOG);
+        DocumentExtraction extraction = analyzer.extract(SOME_IMAGE, "image/jpeg", CATALOG, ITEM_ATTRIBUTES);
 
         assertThat(extraction.transcription()).isEqualTo("ACTA DE DENUNCIA. Domicilio: piso 6 \"A\", C.A.B.A.");
         assertThat(extraction.visualFindings()).isEmpty();
@@ -136,7 +139,7 @@ class DocumentAnalyzerImplTest {
     void transcriptionCutMidwayKeepsWhatArrived() {
         modelAnswers("{\"transcription\": \"Comisaría Vecinal 3-B\\nRelato: que siendo las 19:25\\");
 
-        DocumentExtraction extraction = analyzer.extract(SOME_IMAGE, "image/jpeg", CATALOG);
+        DocumentExtraction extraction = analyzer.extract(SOME_IMAGE, "image/jpeg", CATALOG, ITEM_ATTRIBUTES);
 
         assertThat(extraction.transcription()).isEqualTo("Comisaría Vecinal 3-B\nRelato: que siendo las 19:25");
     }
@@ -144,9 +147,9 @@ class DocumentAnalyzerImplTest {
     /** A JSON with nothing to salvage is never shown: the analyst would be reading the model's syntax. */
     @Test
     void brokenJsonWithoutTranscriptionIsAFailedRead() {
-        modelAnswers("{\"visualFindings\": [], \"fields\": {\"imei\": \"3552000000000000000000000000");
+        modelAnswers("{\"visualFindings\": [], \"fields\": {\"itemAttributes\": {\"IMEI\": \"3552000000000000000000000000");
 
-        DocumentExtraction extraction = analyzer.extract(SOME_IMAGE, "image/jpeg", CATALOG);
+        DocumentExtraction extraction = analyzer.extract(SOME_IMAGE, "image/jpeg", CATALOG, ITEM_ATTRIBUTES);
 
         assertThat(extraction.transcription()).contains("No se pudo extraer contenido");
         assertThat(extraction.status()).isEqualTo(DocumentExtraction.Status.FAILED);
@@ -157,14 +160,14 @@ class DocumentAnalyzerImplTest {
     void nulCharactersNeverReachTheExtraction() {
         modelAnswers("""
                 {"transcription": "ACTA\\u0000 DE DENUNCIA", "visualFindings": ["sello\\u0000 borroso"],
-                 "fields": {"brand": "GOO\\u0000GLE", "details": [{"name": "Folio\\u0000", "value": "214\\u0000"}]}}
+                 "fields": {"itemAttributes": {"marca": "GOO\\u0000GLE"}, "details": [{"name": "Folio\\u0000", "value": "214\\u0000"}]}}
                 """);
 
-        DocumentExtraction extraction = analyzer.extract(SOME_IMAGE, "image/jpeg", CATALOG);
+        DocumentExtraction extraction = analyzer.extract(SOME_IMAGE, "image/jpeg", CATALOG, ITEM_ATTRIBUTES);
 
         assertThat(extraction.transcription()).isEqualTo("ACTA DE DENUNCIA");
         assertThat(extraction.visualFindings()).containsExactly("sello borroso");
-        assertThat(extraction.fields().brand()).isEqualTo("GOOGLE");
+        assertThat(extraction.fields().itemAttributes()).containsExactly(Map.entry("marca", "GOOGLE"));
         assertThat(extraction.fields().details())
                 .containsExactly(new DocumentExtraction.Detail("Folio", "214"));
     }
@@ -173,7 +176,7 @@ class DocumentAnalyzerImplTest {
     void emptyAnswerReadsAsAnUnreadableDocument() {
         modelAnswers("");
 
-        DocumentExtraction extraction = analyzer.extract(SOME_IMAGE, "image/jpeg", CATALOG);
+        DocumentExtraction extraction = analyzer.extract(SOME_IMAGE, "image/jpeg", CATALOG, ITEM_ATTRIBUTES);
 
         assertThat(extraction.transcription()).contains("No se pudo extraer contenido");
         assertThat(extraction.visualFindings()).isEmpty();
@@ -186,7 +189,7 @@ class DocumentAnalyzerImplTest {
                 {"transcription": "   ", "visualFindings": []}
                 """);
 
-        assertThat(analyzer.extract(SOME_IMAGE, "image/jpeg", CATALOG).transcription())
+        assertThat(analyzer.extract(SOME_IMAGE, "image/jpeg", CATALOG, ITEM_ATTRIBUTES).transcription())
                 .contains("No se pudo extraer contenido");
     }
 
@@ -197,15 +200,15 @@ class DocumentAnalyzerImplTest {
         modelAnswers("""
                 {"transcription": "Factura B 0001-00034521",
                  "visualFindings": [],
-                 "fields": {"brand": "Samsung", "model": "Galaxy A56",
+                 "fields": {"itemAttributes": {"marca": "Samsung", "modelo": "Galaxy A56"},
                             "details": [{"name": "N° de factura", "value": "0001-00034521"},
                                         {"name": "Comercio", "value": "Frávega S.A."}]}}
                 """);
 
-        DocumentExtraction extraction = analyzer.extract(SOME_IMAGE, "image/png", CATALOG);
+        DocumentExtraction extraction = analyzer.extract(SOME_IMAGE, "image/png", CATALOG, ITEM_ATTRIBUTES);
 
-        assertThat(extraction.fields().brand()).isEqualTo("Samsung");
-        assertThat(extraction.fields().model()).isEqualTo("Galaxy A56");
+        assertThat(extraction.fields().itemAttributes())
+                .containsExactly(Map.entry("marca", "Samsung"), Map.entry("modelo", "Galaxy A56"));
         assertThat(extraction.fields().details())
                 .extracting(DocumentExtraction.Detail::name)
                 .containsExactly("N° de factura", "Comercio");
@@ -222,7 +225,7 @@ class DocumentAnalyzerImplTest {
                                         {"name": "Comercio", "value": "Frávega S.A."}]}}
                 """);
 
-        DocumentExtraction extraction = analyzer.extract(SOME_IMAGE, "image/png", CATALOG);
+        DocumentExtraction extraction = analyzer.extract(SOME_IMAGE, "image/png", CATALOG, ITEM_ATTRIBUTES);
 
         assertThat(extraction.fields().details())
                 .extracting(DocumentExtraction.Detail::name)
@@ -235,9 +238,67 @@ class DocumentAnalyzerImplTest {
                 {"transcription": "Foto del equipo", "visualFindings": [], "fields": {}}
                 """);
 
-        DocumentExtraction extraction = analyzer.extract(SOME_IMAGE, "image/png", CATALOG);
+        DocumentExtraction extraction = analyzer.extract(SOME_IMAGE, "image/png", CATALOG, ITEM_ATTRIBUTES);
 
         assertThat(extraction.fields().details()).isEmpty();
+    }
+
+    // ─── itemAttributes ──────────────────────────────────────────────────────────
+
+    /** Looked up later by the policy's own names, so they come back under that spelling and no other. */
+    @Test
+    void itemAttributes_keepOnlyTheNamesAskedFor_underTheSpellingAsked() {
+        modelAnswers("""
+                {"transcription": "...", "visualFindings": [],
+                 "fields": {"itemAttributes": {"MARCA": "Samsung", "imei": "351000000000042",
+                                               "modelo": "  ", "color": "Gris"}}}
+                """);
+
+        DocumentExtraction extraction = analyzer.extract(SOME_IMAGE, "image/png", CATALOG, ITEM_ATTRIBUTES);
+
+        assertThat(extraction.fields().itemAttributes())
+                .containsExactly(Map.entry("marca", "Samsung"), Map.entry("IMEI", "351000000000042"));
+    }
+
+    /** One property per name the policy uses, and the same names listed in the prompt. */
+    @Test
+    @SuppressWarnings("unchecked")
+    void schemaAndPrompt_carryThePolicysItemAttributes() {
+        modelAnswers("""
+                {"transcription": "...", "visualFindings": []}
+                """);
+
+        analyzer.extract(SOME_IMAGE, "image/png", CATALOG, List.of("patente", "chasis"));
+
+        ArgumentCaptor<String> prompt = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<Map<String, Object>> schema = ArgumentCaptor.forClass(Map.class);
+        verify(client).chat(prompt.capture(), anyList(), schema.capture(), eq(false));
+
+        Map<String, Object> fields = (Map<String, Object>) ((Map<String, Object>) schema.getValue()
+                .get("properties")).get("fields");
+        Map<String, Object> attributes = (Map<String, Object>) ((Map<String, Object>) fields.get("properties"))
+                .get("itemAttributes");
+        assertThat((Map<String, Object>) attributes.get("properties")).containsOnlyKeys("patente", "chasis");
+        assertThat(prompt.getValue())
+                .contains("- `patente`").contains("- `chasis`").doesNotContain("{{itemAttributes}}");
+    }
+
+    /** A policy with no attribute rows asks for none: an object with no properties is an invalid schema. */
+    @Test
+    @SuppressWarnings("unchecked")
+    void withoutItemAttributes_theSchemaLeavesThePropertyOut() {
+        modelAnswers("""
+                {"transcription": "...", "visualFindings": []}
+                """);
+
+        analyzer.extract(SOME_IMAGE, "image/png", CATALOG, List.of());
+
+        ArgumentCaptor<Map<String, Object>> schema = ArgumentCaptor.forClass(Map.class);
+        verify(client).chat(anyString(), anyList(), schema.capture(), eq(false));
+
+        Map<String, Object> fields = (Map<String, Object>) ((Map<String, Object>) schema.getValue()
+                .get("properties")).get("fields");
+        assertThat((Map<String, Object>) fields.get("properties")).doesNotContainKey("itemAttributes");
     }
 
     // ─── describedClaimCause ─────────────────────────────────────────────────────
@@ -250,7 +311,7 @@ class DocumentAnalyzerImplTest {
                  "fields": {"describedClaimCause": "hurto"}}
                 """);
 
-        DocumentExtraction extraction = analyzer.extract(SOME_IMAGE, "image/png", CATALOG);
+        DocumentExtraction extraction = analyzer.extract(SOME_IMAGE, "image/png", CATALOG, ITEM_ATTRIBUTES);
 
         assertThat(extraction.fields().describedClaimCause()).isEqualTo("Hurto");
     }
@@ -266,7 +327,7 @@ class DocumentAnalyzerImplTest {
                  "fields": {"describedClaimCause": "Robo con arma de fuego"}}
                 """);
 
-        DocumentExtraction extraction = analyzer.extract(SOME_IMAGE, "image/png", CATALOG);
+        DocumentExtraction extraction = analyzer.extract(SOME_IMAGE, "image/png", CATALOG, ITEM_ATTRIBUTES);
 
         assertThat(extraction.fields().describedClaimCause()).isNull();
     }
@@ -279,7 +340,7 @@ class DocumentAnalyzerImplTest {
                 {"transcription": "...", "visualFindings": []}
                 """);
 
-        analyzer.extract(SOME_IMAGE, "image/png", CATALOG);
+        analyzer.extract(SOME_IMAGE, "image/png", CATALOG, ITEM_ATTRIBUTES);
 
         ArgumentCaptor<String> prompt = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<Map<String, Object>> schema = ArgumentCaptor.forClass(Map.class);
