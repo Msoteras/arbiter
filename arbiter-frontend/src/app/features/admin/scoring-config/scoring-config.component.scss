@@ -206,3 +206,8 @@
     width: 100%;
   }
 }
+
+.load-error {
+  margin: 0 0 var(--space-3);
+  color: var(--status-danger);
+}
