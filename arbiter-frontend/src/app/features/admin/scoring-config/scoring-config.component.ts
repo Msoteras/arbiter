@@ -4,6 +4,7 @@ import { finalize } from 'rxjs';
 
 import { RISK_FACTORS, ScoringConfig } from '../../../core/models/business-rules';
 import { RISK_BANDS, RiskBand, riskBandLabel } from '../../../core/models/risk-band';
+import { formatRate } from '../../../core/util/percent';
 import { ScoringConfigDto, ScoringRulesService } from '../scoring-rules.service';
 import { SwitchComponent } from '../../../shared/ui/switch/switch.component';
 import { CardComponent } from '../../../shared/ui/card/card.component';
@@ -75,7 +76,7 @@ export class ScoringConfigComponent {
     if (!factor || total === 0) {
       return '—';
     }
-    return `${Math.round((factor.weight / total) * 1000) / 10}%`;
+    return formatRate(factor.weight / total, 1);
   }
 
   /**

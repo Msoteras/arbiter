@@ -61,7 +61,6 @@
                     [value]="factorWeightPct(f.id)"
                     (valueChange)="setFactorWeight(f.id, $event)"
                   />
-                  <span class="t-note">%</span>
                 </div>
               } @else {
                 <span class="rule-off-note t-note">No se evalúa</span>
@@ -100,7 +99,6 @@
                 [value]="band === 'LOW' ? '0' : bandCutPct(band)"
                 (valueChange)="setBandCut(band, $event)"
               />
-              <span class="t-note">%</span>
             </label>
           </li>
         }
