@@ -144,6 +144,9 @@ public class PromptBuilder {
 
         sb.append("REGLAS DE LA ASEGURADORA (ramo: %s, hecho generador: %s):\n"
                 .formatted(rules.branchId(), rules.claimCauseId()));
+        if (rules.rules().isEmpty()) {
+            sb.append("- La aseguradora no cargó reglas propias para este caso.\n");
+        }
         rules.rules().forEach(r -> sb.append("- ").append(r).append("\n"));
 
         if (!rules.exclusions().isEmpty()) {

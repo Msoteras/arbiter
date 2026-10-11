@@ -183,7 +183,8 @@
                     <p class="brief-alerts">
                       @for (a of decisionAlerts(); track a.tab) {
                         <button type="button" class="brief-link" (click)="onAlert(a)">
-                          <span aria-hidden="true">▲</span> {{ a.label }}
+                          <span aria-hidden="true" [class.is-danger]="a.danger">▲</span>
+                          {{ a.label }}
                         </button>
                       }
                     </p>
@@ -416,14 +417,6 @@
                           <p class="nodata">Sin datos</p>
                         }
                       </div>
-                      <!-- When the account contradicts the declared cause; the coverage follows from it. -->
-                      @if (canCorrectCause()) {
-                        <div class="correct-cause">
-                          <app-button variant="secondary" (click)="askCorrectCause()"
-                            >Corregir hecho generador</app-button
-                          >
-                        </div>
-                      }
                     }
                   </section>
                 }
@@ -701,7 +694,7 @@
               } @else {
                 <app-empty-state
                   message="Este expediente todavía no tiene score de fraude"
-                  sub="Se calcula al clasificar (no aplica en Fast Track ni sin datos suficientes)."
+                  sub=""
                 />
               }
             </app-card>

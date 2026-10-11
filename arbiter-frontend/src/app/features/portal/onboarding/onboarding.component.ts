@@ -23,6 +23,7 @@ import {
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { CheckboxComponent } from '../../../shared/ui/checkbox/checkbox.component';
 import { InputComponent } from '../../../shared/ui/input/input.component';
+import { InfoTipComponent } from '../../../shared/ui/info-tip/info-tip.component';
 import { LoadingComponent } from '../../../shared/ui/loading/loading.component';
 import { LogoComponent } from '../../../shared/ui/logo/logo.component';
 import { PolicyCardComponent } from '../../../shared/ui/policy-card/policy-card.component';
@@ -43,6 +44,7 @@ type PoliciesState =
   imports: [
     ButtonComponent,
     CheckboxComponent,
+    InfoTipComponent,
     InputComponent,
     LoadingComponent,
     LogoComponent,

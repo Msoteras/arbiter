@@ -22,6 +22,7 @@ import ar.edu.utn.frba.arbiter.cases.exceptions.AnalystProfileNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CaseAssignedToAnotherAnalystException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CaseNotAssignedException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CaseNotFoundException;
+import ar.edu.utn.frba.arbiter.cases.exceptions.CoverageNotConfiguredException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.InsuredIdentityMismatchException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidAnalystDecisionException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidSettlementException;
@@ -1456,8 +1457,8 @@ class CaseServiceImplTest {
         assertThat(stored.getContent()).isEqualTo("new".getBytes());
     }
 
-    // checkEligibility turns PolicyNotEligibleException/PolicyInsuredMismatchException into
-    // eligible=false instead of propagating, and persists nothing either way.
+    // checkEligibility turns PolicyNotEligibleException, PolicyInsuredMismatchException and
+    // CoverageNotConfiguredException into eligible=false instead of propagating, and persists nothing.
 
     private EligibilityCheckRequest eligibilityRequest() {
         return new EligibilityCheckRequest(
@@ -1501,6 +1502,23 @@ class CaseServiceImplTest {
 
         assertThat(response.eligible()).isFalse();
         assertThat(response.reason()).contains("POL-CEL-2024-001");
+        verifyNoInteractions(policyEligibilityValidator);
+    }
+
+    /** Not an error to retry: the wizard has to show it as a reason and stop the insured there. */
+    @Test
+    void checkEligibility_notEligibleWhenTheInsurerHasNotConfiguredThePolicysCoverages() {
+        Insured insured = CaseFixtures.insured(CALLER_DNI, "Laura", "Fernández");
+        insured.setId(1L);
+        when(referenceResolver.resolveInsured(CALLER_DNI)).thenReturn(insured);
+        when(referenceResolver.resolvePolicy("POL-CEL-2024-001", 1L))
+                .thenThrow(new CoverageNotConfiguredException());
+
+        EligibilityCheckResponse response = caseService.checkEligibility(eligibilityRequest());
+
+        assertThat(response.eligible()).isFalse();
+        assertThat(response.reason()).isEqualTo(
+                "Tu aseguradora todavía no habilitó denuncias online para esta póliza. Comunicate con ella.");
         verifyNoInteractions(policyEligibilityValidator);
     }
 

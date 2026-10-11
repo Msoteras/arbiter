@@ -4,17 +4,19 @@ import ar.edu.utn.frba.arbiter.common.enums.RuleType;
 import ar.edu.utn.frba.arbiter.classification.dto.BusinessRules;
 import ar.edu.utn.frba.arbiter.classification.services.risk.RiskFactorIds;
 import ar.edu.utn.frba.arbiter.common.enums.RiskBand;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
 import java.util.Map;
 
 /**
- * The platform's baseline rule set, onto which {@link RulesRestAdapter} overlays what the referente
- * configured. Not a test double: every section the insurer hasn't configured falls back to it. It is
- * the whole answer only in the {@code test} profile, where {@link RulesRestAdapter} is excluded.
+ * A fixed rule set for the {@code test} profile, where {@link RulesRestAdapter} is excluded and
+ * there is no rules-service to read. Never used outside tests: an insurer's unconfigured sections
+ * stay empty, they don't fall back to these values.
  */
 @Component
+@Profile("test")
 public class BaselineRulesAdapter implements RulesAdapter {
 
     /**
@@ -44,7 +46,7 @@ public class BaselineRulesAdapter implements RulesAdapter {
         return BusinessRules.ScoringConfig.Band.builder().band(band).minScoreInclusive(minScoreInclusive).build();
     }
 
-    /** Ids mirror {@code init-multitenant.sql}'s seed: they end up in {@code rule_result.rule_id}. */
+    /** Ids mirror the demo rules in {@code seed-demo.sql}: they end up in {@code rule_result.rule_id}. */
     private static BusinessRules.EvaluableRule temporalRule(long id, RuleType type) {
         return BusinessRules.EvaluableRule.builder()
                 .id(id)
