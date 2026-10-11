@@ -17,6 +17,7 @@ import { SelectComponent, SelectOption } from '../../../shared/ui/select/select.
 import { EmptyStateComponent } from '../../../shared/ui/empty-state/empty-state.component';
 import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
 import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
+import { ModalComponent } from '../../../shared/ui/modal/modal.component';
 
 /** `id` null = new provider. */
 interface ProviderDraft extends ProviderRequest {
@@ -38,6 +39,7 @@ interface ProviderDraft extends ProviderRequest {
     EmptyStateComponent,
     BadgeComponent,
     InlineLoadingComponent,
+    ModalComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './providers-config.component.html',
@@ -49,6 +51,7 @@ export class ProvidersConfigComponent {
 
   protected readonly providers = signal<ProviderAdmin[]>([]);
   protected readonly branches = signal<BranchOption[]>([]);
+  protected readonly branchesState = signal<'loading' | 'ok' | 'error'>('loading');
   protected readonly loading = signal(true);
   protected readonly error = signal<string | null>(null);
 
@@ -56,9 +59,24 @@ export class ProvidersConfigComponent {
   protected readonly draft = signal<ProviderDraft | null>(null);
   protected readonly saving = signal(false);
 
+  protected readonly providerToDelete = signal<ProviderAdmin | null>(null);
+  protected readonly deleting = signal(false);
+  protected readonly deleteError = signal<string | null>(null);
+
   constructor() {
     this.reload();
-    this.branchesService.list().subscribe({ next: (list) => this.branches.set(list) });
+    this.loadBranches();
+  }
+
+  protected loadBranches(): void {
+    this.branchesState.set('loading');
+    this.branchesService.list().subscribe({
+      next: (list) => {
+        this.branches.set(list);
+        this.branchesState.set('ok');
+      },
+      error: () => this.branchesState.set('error'),
+    });
   }
 
   private reload(): void {
@@ -132,7 +150,9 @@ export class ProvidersConfigComponent {
   protected readonly canSave = computed(() => {
     const d = this.draft();
     // Email is the only channel to the provider: without it a referral goes nowhere.
-    return !!d && d.name.trim().length > 0 && d.email.trim().length > 0;
+    return (
+      !!d && d.name.trim().length > 0 && d.email.trim().length > 0 && this.branchesState() === 'ok'
+    );
   });
 
   protected save(): void {
@@ -167,13 +187,35 @@ export class ProvidersConfigComponent {
     });
   }
 
-  /** A 409 (provider has referrals) explains it must be deactivated instead; shown as is. */
   protected remove(provider: ProviderAdmin): void {
-    this.error.set(null);
+    this.deleteError.set(null);
+    this.providerToDelete.set(provider);
+  }
+
+  protected cancelDelete(): void {
+    if (!this.deleting()) {
+      this.providerToDelete.set(null);
+    }
+  }
+
+  /** A 409 (provider has referrals) explains it must be deactivated instead; shown as is. */
+  protected confirmDelete(): void {
+    const provider = this.providerToDelete();
+    if (!provider || this.deleting()) {
+      return;
+    }
+    this.deleting.set(true);
+    this.deleteError.set(null);
     this.providersService.remove(provider.id).subscribe({
-      next: () => this.reload(),
-      error: (err: HttpErrorResponse) =>
-        this.error.set(err.error?.detail || 'No se pudo borrar el proveedor'),
+      next: () => {
+        this.deleting.set(false);
+        this.providerToDelete.set(null);
+        this.reload();
+      },
+      error: (err: HttpErrorResponse) => {
+        this.deleting.set(false);
+        this.deleteError.set(err.error?.detail || 'No se pudo borrar el proveedor');
+      },
     });
   }
 

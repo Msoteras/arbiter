@@ -113,7 +113,8 @@ public class CaseExceptionHandler extends ResponseEntityExceptionHandler {
 
     @ExceptionHandler(ServiceProviderNotFoundException.class)
     public ProblemDetail handleServiceProviderNotFound(ServiceProviderNotFoundException ex) {
-        return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(404), ex.getMessage());
+        return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(404),
+                "Ese proveedor ya no está en el catálogo. Recargá la página.");
     }
 
     @ExceptionHandler(ClosedConversationException.class)
