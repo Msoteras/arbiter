@@ -11,6 +11,7 @@ import { CardComponent } from '../../../shared/ui/card/card.component';
 import { SaveBarComponent } from '../../../shared/ui/save-bar/save-bar.component';
 import { InputComponent } from '../../../shared/ui/input/input.component';
 import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
+import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { fadeInUp } from '../../../shared/animations';
 
 /**
@@ -25,6 +26,7 @@ import { fadeInUp } from '../../../shared/animations';
     InputComponent,
     InlineLoadingComponent,
     SaveBarComponent,
+    ButtonComponent,
   ],
   animations: [fadeInUp],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -43,6 +45,7 @@ export class ScoringConfigComponent {
   // The component is recreated on every visit (`@if` in rules.component.html), so `load()` reruns;
   // without this flag the empty skeleton would show until the response arrives.
   protected readonly loading = signal(true);
+  protected readonly loadFailed = signal(false);
 
   protected readonly saving = signal(false);
   protected readonly error = signal<string | null>(null);
@@ -180,13 +183,15 @@ export class ScoringConfigComponent {
   }
 
   /**
-   * An unconfigured insurer gets an empty config (no bands), filled with the defaults. Best-effort:
-   * if the backend is down, the skeleton stays. `showLoading` only on first load: the post-save
-   * reload already has the button's indicator and would otherwise flicker.
+   * An unconfigured insurer gets an empty config (no bands), filled with the defaults. A failed load
+   * shows an error instead of the skeleton, which would read as every factor switched off.
+   * `showLoading` only on first load: the post-save reload already has the button's indicator and
+   * would otherwise flicker.
    */
-  private load(showLoading = false): void {
+  protected load(showLoading = false): void {
     if (showLoading) {
       this.loading.set(true);
+      this.loadFailed.set(false);
     }
     this.scoringService
       .get()
@@ -204,7 +209,9 @@ export class ScoringConfigComponent {
           this.persisted.set(structuredClone(loaded));
         },
         error: () => {
-          /* backend down: keep the skeleton */
+          if (this.persisted() === null) {
+            this.loadFailed.set(true);
+          }
         },
       });
   }

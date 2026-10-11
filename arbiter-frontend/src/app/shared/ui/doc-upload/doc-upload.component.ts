@@ -111,6 +111,7 @@ type FetchState<T> = { status: 'loading' } | { status: 'ok'; value: T };
       background: var(--surface-sunken);
     }
     .doc-row-label {
+      flex: 0 0 40%;
       font-size: var(--font-size-body);
       color: var(--text-secondary);
     }
@@ -164,6 +165,9 @@ type FetchState<T> = { status: 'loading' } | { status: 'ok'; value: T };
         flex-direction: column;
         align-items: stretch;
         gap: var(--space-2);
+      }
+      .doc-row-label {
+        flex: none;
       }
     }
     .upload-error {

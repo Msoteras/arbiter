@@ -1,5 +1,10 @@
 @if (loading()) {
   <app-inline-loading [size]="26" message="Cargando puntaje de riesgo…" />
+} @else if (loadFailed()) {
+  <app-card heading="Puntaje de riesgo" headingSize="lg">
+    <p class="t-note load-error" role="alert">No se pudo cargar el puntaje de riesgo.</p>
+    <app-button variant="secondary" size="sm" (click)="load(true)">Reintentar</app-button>
+  </app-card>
 } @else {
   <app-card heading="Puntaje de riesgo" headingSize="lg" @fadeInUp>
     <div class="sc-section">
@@ -26,11 +31,8 @@
             <div class="rule-text">
               <span class="t-field-label">Evaluar estos factores también en Fast Track</span>
               <p class="rule-hint">
-                {{
-                  fullAnalysisOnFastTrack()
-                    ? 'Corren siempre: el puntaje sale completo, pero el Fast Track tarda más.'
-                    : 'En Fast Track no corren, para no frenarlo: el puntaje sale parcial, solo con los factores de datos.'
-                }}
+                El Fast Track también lee el resto de los documentos y revisa las imágenes, por eso
+                tarda más.
               </p>
             </div>
           </div>
