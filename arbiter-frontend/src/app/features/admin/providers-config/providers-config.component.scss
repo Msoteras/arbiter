@@ -76,6 +76,12 @@
   border-radius: var(--radius-card);
 }
 
+.fieldset {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
 .branch-picker {
   margin: 0;
   padding: 0;

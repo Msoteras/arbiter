@@ -1117,7 +1117,7 @@ export class RulesComponent {
       case 'POLICE_DEADLINE':
         return 'Plazo para hacer la denuncia policial, sobre la fecha que declara el asegurado.';
       case 'MAX_EVENTS_YEAR':
-        return 'Cuántos siniestros puede tener el asegurado en esta cobertura en 12 meses.';
+        return 'Cuántos siniestros del ramo puede tener el asegurado en 12 meses.';
     }
   }
 

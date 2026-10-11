@@ -95,8 +95,8 @@ describe('RuleHistoryComponent', () => {
     ]);
 
     expect(text()).toContain('Peso');
-    expect(text()).toContain('20%');
-    expect(text()).toContain('40%');
+    expect(text()).toContain('pasó de 20 a 40');
+    expect(text()).not.toContain('%');
     expect(text()).toContain('Imagen reutilizada de otra denuncia');
     expect(text()).not.toContain('image_reuse');
   });
@@ -112,7 +112,8 @@ describe('RuleHistoryComponent', () => {
     ]);
 
     expect(text()).toContain('Alto');
-    expect(text()).toContain('60%');
+    expect(text()).toContain('pasó de 60 a 70');
+    expect(text()).not.toContain('%');
     expect(text()).not.toContain('HIGH');
   });
 
@@ -258,7 +259,8 @@ describe('RuleHistoryComponent', () => {
     const added = fixture.nativeElement.querySelectorAll('.is-added');
     expect(added.length).toBe(1);
     expect(added[0].textContent).toContain('Se agregó');
-    expect(added[0].textContent).toContain('60%');
+    expect(added[0].textContent).toContain('60');
+    expect(added[0].textContent).not.toContain('%');
     expect(text()).not.toContain('→');
     expect(text()).not.toContain('Sin definir');
   });
