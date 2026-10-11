@@ -23,7 +23,13 @@ import {
   switchMap,
 } from 'rxjs';
 
-import { CaseService, AnalystDecisionRequest, ClaimCauseOption, Settlement } from '../case.service';
+import {
+  CaseService,
+  AnalystDecisionRequest,
+  ClaimCauseOption,
+  Settlement,
+  SettlementLine,
+} from '../case.service';
 import { DocumentAgendaService } from '../document-agenda.service';
 import { CaseNavigationService } from '../case-navigation.service';
 import { CaseMessagesService } from '../case-messages.service';
@@ -781,6 +787,24 @@ export class CaseDetailComponent {
     }
   });
 
+  /**
+   * When the case was resolved and what the analyst wrote, read off the history row of that move.
+   * `justification` is null on cases resolved before it was kept there.
+   */
+  protected readonly resolution = computed<{ at: string; justification: string | null } | null>(
+    () => {
+      const status = this.data()?.status;
+      if (status !== 'APPROVED' && status !== 'REJECTED') {
+        return null;
+      }
+      // The latest one: a reopened case can be resolved more than once.
+      const move = this.history()
+        .filter((h) => h.toStatus === status)
+        .at(-1);
+      return move ? { at: formatDateTime(move.changedAt), justification: move.observation } : null;
+    },
+  );
+
   protected readonly pendingDecision = signal<Verb | null>(null);
   protected readonly showJustify = signal(false);
   protected readonly justification = signal('');
@@ -949,6 +973,20 @@ export class CaseDetailComponent {
   });
 
   /**
+   * The amount the calculation starts from hasn't been entered yet, so everything derived from it
+   * came back as zero. Those zeros mean "not computed", not "nothing to pay".
+   */
+  protected readonly baseAmountMissing = computed(() => {
+    const value = this.settlement()?.replacementValue;
+    return this.needsAccreditedAmount() && !(value != null && value > 0);
+  });
+
+  /** Null = nothing to show yet. A deduction that doesn't depend on the base keeps its figure. */
+  protected sheetAmount(line: SettlementLine): string | null {
+    return this.baseAmountMissing() && line.amount === 0 ? null : this.exactAmount(line.amount);
+  }
+
+  /**
    * Offered only until a value is entered. A document amount was read by the model, so it waits
    * for the click; a provider's is prefilled by `prefillProviderAmount`.
    */
@@ -1064,6 +1102,10 @@ export class CaseDetailComponent {
     }
     if (this.needsReplacementValue() && this.replacementApplied() == null) {
       return 'Cargá cuánto cuesta hoy reponer el bien.';
+    }
+    // The quote is the base of a repair: without it the amount is a zero nobody calculated.
+    if (this.settlement()?.formula === 'REPAIR' && this.baseAmountMissing()) {
+      return 'Cargá el presupuesto de reparación.';
     }
     if (this.amountToAuthorize() == null) {
       return 'El monto a pagar tiene que ser un número.';

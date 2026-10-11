@@ -1261,4 +1261,34 @@ BEGIN
     END LOOP;
 END $$;
 
+-- ─── atributo_bien ───────────────────────────────────────────────────────────
+-- Make and model of every insured item, derived from bien_asegurado: the first word is the make,
+-- except Apple's products, which the text names without it.
+DO $$
+DECLARE
+    insurer_schema TEXT;
+BEGIN
+    FOR insurer_schema IN
+        SELECT schema_name FROM information_schema.schemata WHERE schema_name LIKE 'aseguradora\_%'
+    LOOP
+        EXECUTE format($sql$
+            INSERT INTO %1$I.atributo_bien (poliza_id, nombre, valor)
+            SELECT p.id, a.nombre, a.valor
+              FROM %1$I.poliza p
+             CROSS JOIN LATERAL (
+                    SELECT p.bien_asegurado ~* '^(iphone|ipad|macbook)' AS es_apple
+                   ) marca
+             CROSS JOIN LATERAL (VALUES
+                    ('marca',  CASE WHEN marca.es_apple THEN 'Apple'
+                                    ELSE split_part(p.bien_asegurado, ' ', 1) END),
+                    ('modelo', CASE WHEN marca.es_apple THEN p.bien_asegurado
+                                    ELSE btrim(substr(p.bien_asegurado,
+                                                      length(split_part(p.bien_asegurado, ' ', 1)) + 1)) END)
+                   ) AS a (nombre, valor)
+             WHERE btrim(coalesce(p.bien_asegurado, '')) <> ''
+               AND a.valor <> '';
+        $sql$, insurer_schema);
+    END LOOP;
+END $$;
+
 COMMIT;

@@ -416,8 +416,12 @@ public class CaseServiceImpl implements CaseService {
         Case entity = caseRepository.findById(caseId)
                 .orElseThrow(() -> new CaseNotFoundException(caseId));
         accessPolicy.assertCanRead(entity);
+        // Observations are the staff's own words (why it was rejected, why a cause was corrected):
+        // internal reasoning the insured doesn't get to read.
+        boolean insured = accessPolicy.currentUserIsInsured();
         List<StatusTransitionResponse> history = caseStatusService.history(caseId).stream()
                 .map(StatusTransitionResponse::from)
+                .map(transition -> insured ? transition.withoutObservation() : transition)
                 .toList();
         // tenantScope already switched to the case's schema, so this resolves the case's insurer.
         Insurer issuer = insurerRepository.findBySchemaName(TenantContext.get()).orElse(null);
@@ -751,8 +755,10 @@ public class CaseServiceImpl implements CaseService {
         // links the case to the model run the verdict was based on.
         entity.setClassificationId(claimsAnalysisClient.forwardAnalystDecision(entity.getId(), audited));
 
+        // The audit row lives in classification-service; the observation is what lets the case
+        // itself show why it was resolved.
         caseStatusService.transition(entity, targetStatus,
-                StatusChangeActor.ANALYST, "decisión del analista: " + decision);
+                StatusChangeActor.ANALYST, "decisión del analista: " + decision, justification);
     }
 
     /** Records the held decision with its justification, then approves the case (which emails the amount). */

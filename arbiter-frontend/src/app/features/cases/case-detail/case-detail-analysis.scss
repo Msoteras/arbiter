@@ -52,10 +52,9 @@
 
 .analysis-grid {
   display: grid;
-  /* The reasons are long prose; the score is a number and a short list. */
-  grid-template-columns: minmax(0, 2.2fr) minmax(0, 1fr);
+  /* Equal halves, stretched to the taller card: the score's breakdown can run as long as the reasons. */
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-4);
-  align-items: start;
 }
 
 .reason-list {

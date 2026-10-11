@@ -389,6 +389,31 @@ no se marcan en la columna (misma nota que la entrada 12).
 
 ---
 
+## 19 · `atributo_bien` — tabla nueva en la BD de la aseguradora
+
+**Encontrado:** 11/10/2026. Lo único que describía el bien asegurado era `poliza.bien_asegurado`,
+texto libre, y el score de fraude buscaba adentro la marca y el modelo de cada documento: "Galaxy
+A56 5G" no aparecía en "Samsung Galaxy A56" y sumaba como inconsistencia. Implementado en
+`db/init-multitenant.sql` y `db/migrations/2026-10-11-atributos-del-bien.sql`. **Aplicada en Railway
+el 11/10/2026.**
+
+| Tabla | Columna | Tipo de dato | Nulo | Restricciones |
+|---|---|---|---|---|
+| `atributo_bien` | `id` | BIGINT | no | PK |
+| `atributo_bien` | `poliza_id` | BIGINT | no | FK a `poliza` de la BD de la aseguradora |
+| `atributo_bien` | `nombre` | VARCHAR(60) | no | UNIQUE junto con `poliza_id` |
+| `atributo_bien` | `valor` | VARCHAR(255) | no | |
+
+Una fila por dato que identifica al bien (`marca` → `Samsung`, `modelo` → `Galaxy A56`). Son filas y
+no columnas de `poliza` porque cada ramo identifica sus bienes con datos distintos. Vive en los
+esquemas `aseguradora_*`, no en los de Arbiter.
+
+**Acción:** decisión pendiente — sumarla al `.mdj` solo si el diagrama incluye las tablas de la BD de
+la aseguradora. La UNIQUE es compuesta, así que no se marca en la columna (misma nota que la entrada
+12).
+
+---
+
 ## Plantilla para la próxima entrada
 
 ```

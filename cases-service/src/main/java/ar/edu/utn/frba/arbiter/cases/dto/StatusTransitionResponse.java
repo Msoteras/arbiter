@@ -25,4 +25,8 @@ public record StatusTransitionResponse(
                 history.getChangedAt()
         );
     }
+
+    public StatusTransitionResponse withoutObservation() {
+        return new StatusTransitionResponse(fromStatus, toStatus, actor, reason, null, changedAt);
+    }
 }

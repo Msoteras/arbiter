@@ -19,7 +19,9 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Reads policies and insured history from the insurer's database, one schema per insurer resolved
@@ -107,6 +109,19 @@ public class InsurerDatabaseAdapter implements InsurerAdapter {
                 },
                 row.id());
 
+        Map<String, String> itemAttributes = new LinkedHashMap<>();
+        jdbc.query(
+                """
+                SELECT nombre, valor
+                FROM %s.atributo_bien
+                WHERE poliza_id = ?
+                ORDER BY id
+                """.formatted(schema),
+                rs -> {
+                    itemAttributes.put(rs.getString("nombre"), rs.getString("valor"));
+                },
+                row.id());
+
         PolicyCoverage primary = coverages.isEmpty() ? null : coverages.get(0);
 
         return InsuredPolicy.builder()
@@ -117,6 +132,7 @@ public class InsurerDatabaseAdapter implements InsurerAdapter {
                 .product(row.producto())
                 .insuredItem(row.bienAsegurado())
                 .imei(row.imei())
+                .itemAttributes(itemAttributes)
                 .effectiveFrom(row.vigenciaDesde())
                 .effectiveTo(row.vigenciaHasta())
                 .upToDate(isUpToDate(row.estadoPago(), row.saldoDeuda()))

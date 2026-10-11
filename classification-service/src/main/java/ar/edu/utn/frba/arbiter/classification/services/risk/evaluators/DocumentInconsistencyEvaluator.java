@@ -10,11 +10,11 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
@@ -40,10 +40,7 @@ public class DocumentInconsistencyEvaluator implements RiskFactorEvaluator {
     /** On a damage claim, the document that sets what is being claimed. */
     private static final String REPAIR_QUOTE_TYPE = "repair_quote";
 
-    private static final Pattern NUMBER = Pattern.compile("\\d+");
-
-    /** Letters only: in "A56" or "256GB" the number is what identifies, and NUMBER reads it. */
-    private static final Pattern WORD = Pattern.compile("\\p{L}{2,}");
+    private static final Pattern NOT_A_WORD = Pattern.compile("[^\\p{L}\\d]+");
 
     @Override
     public String factorId() {
@@ -61,7 +58,7 @@ public class DocumentInconsistencyEvaluator implements RiskFactorEvaluator {
         List<String> findings = new ArrayList<>();
         documents.forEach((type, extraction) -> {
             checkImei(context, type, extraction.fields(), findings);
-            checkBrandAndModel(context, type, extraction.fields(), findings);
+            checkItemAttributes(context, type, extraction.fields(), findings);
             checkDocumentDate(context, type, extraction.fields(), findings);
         });
         checkAmount(context, documents, findings);
@@ -90,52 +87,84 @@ public class DocumentInconsistencyEvaluator implements RiskFactorEvaluator {
     }
 
     /**
-     * The insured item is free text, so this only flags a make that is <b>absent</b> from it or, once
-     * the make matched, a model that is a different one; a matching one proves nothing on its own.
+     * Each attribute the policy states about the insured item against the same one read from the
+     * document. Driven by the policy's rows, so a line of insurance with other attributes needs no
+     * code here. At most one finding per document: a wrong make comes with a wrong model, and
+     * reporting both would count one contradiction twice.
      */
-    private void checkBrandAndModel(
+    private void checkItemAttributes(
             RiskContext context, String type, DocumentExtraction.Fields fields, List<String> findings) {
-        String insuredItem = context.policy() == null ? null : context.policy().insuredItem();
-        if (insuredItem == null || insuredItem.isBlank() || fields.brand() == null) {
+        Map<String, String> insured = context.policy() == null ? null : context.policy().itemAttributes();
+        if (insured == null) {
             return;
         }
-        String haystack = insuredItem.toLowerCase();
-        if (!haystack.contains(fields.brand().toLowerCase().trim())) {
+        Map<String, String> onDocument = documentAttributes(fields);
+        for (Map.Entry<String, String> attribute : insured.entrySet()) {
+            String read = onDocument.get(attribute.getKey().toLowerCase());
+            if (read == null || attribute.getValue() == null || sameValue(read, attribute.getValue())) {
+                continue;
+            }
             findings.add(String.format(
-                    "La marca del documento '%s' (%s) no aparece en el bien asegurado (%s)",
-                    type, fields.brand(), insuredItem));
+                    "%s del documento '%s' (%s) no coincide con la póliza (%s)",
+                    capitalized(attribute.getKey()), type, read, attribute.getValue()));
             return;
-        }
-        if (fields.model() != null && !sameModel(fields.model(), insuredItem)) {
-            findings.add(String.format(
-                    "El modelo del documento '%s' (%s) no coincide con el bien asegurado (%s)",
-                    type, fields.model(), insuredItem));
         }
     }
 
     /**
-     * Compared by words, never as a literal substring: a document spells the model out further than
-     * the policy does ("Galaxy A56 5G — 256 GB" for an insured "Samsung Galaxy A56"), and that is
-     * detail, not a contradiction. The numbers are what tells two models of a line apart, so when
-     * both sides have them one set has to contain the other; otherwise sharing a word is enough.
+     * What the extraction reads about the item, under the names the insurer database uses. The
+     * extraction still has fixed fields; the IMEI stays out because it is compared exactly, above.
      */
-    private static boolean sameModel(String documentModel, String insuredItem) {
-        Set<String> documentNumbers = matches(NUMBER, documentModel);
-        Set<String> insuredNumbers = matches(NUMBER, insuredItem);
-        if (!documentNumbers.isEmpty() && !insuredNumbers.isEmpty()) {
-            return documentNumbers.containsAll(insuredNumbers) || insuredNumbers.containsAll(documentNumbers);
+    private static Map<String, String> documentAttributes(DocumentExtraction.Fields fields) {
+        Map<String, String> attributes = new HashMap<>();
+        if (fields.brand() != null) {
+            attributes.put("marca", fields.brand());
         }
-        Set<String> documentWords = matches(WORD, documentModel);
-        return documentWords.isEmpty() || !Collections.disjoint(documentWords, matches(WORD, insuredItem));
+        if (fields.model() != null) {
+            attributes.put("modelo", fields.model());
+        }
+        return attributes;
     }
 
-    private static Set<String> matches(Pattern pattern, String text) {
-        Set<String> found = new HashSet<>();
-        Matcher matcher = pattern.matcher(text.toLowerCase());
-        while (matcher.find()) {
-            found.add(matcher.group());
+    /**
+     * Compared by words, never as literal text: a document spells a value out further than the
+     * policy does ("Galaxy A56 5G — 256 GB" for an insured "Galaxy A56"), and that is detail, not a
+     * contradiction. Words carrying a digit are what tells two items apart ("A56", a plate), so when
+     * both sides have them one set has to contain the other; otherwise sharing a word is enough.
+     */
+    private static boolean sameValue(String onDocument, String insured) {
+        Set<String> documentWords = words(onDocument);
+        Set<String> insuredWords = words(insured);
+        Set<String> documentCodes = codes(documentWords);
+        Set<String> insuredCodes = codes(insuredWords);
+        if (!documentCodes.isEmpty() && !insuredCodes.isEmpty()) {
+            return documentCodes.containsAll(insuredCodes) || insuredCodes.containsAll(documentCodes);
         }
-        return found;
+        return documentWords.isEmpty() || !Collections.disjoint(documentWords, insuredWords);
+    }
+
+    private static Set<String> words(String text) {
+        Set<String> words = new HashSet<>();
+        for (String word : NOT_A_WORD.split(text.toLowerCase())) {
+            if (!word.isEmpty()) {
+                words.add(word);
+            }
+        }
+        return words;
+    }
+
+    private static Set<String> codes(Set<String> words) {
+        Set<String> codes = new HashSet<>();
+        for (String word : words) {
+            if (word.chars().anyMatch(Character::isDigit)) {
+                codes.add(word);
+            }
+        }
+        return codes;
+    }
+
+    private static String capitalized(String name) {
+        return name.substring(0, 1).toUpperCase() + name.substring(1);
     }
 
     /**
