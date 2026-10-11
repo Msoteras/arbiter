@@ -288,6 +288,12 @@ app-textarea {
   display: flex;
   align-items: center;
   gap: var(--space-2);
+  width: var(--doc-file-w);
+  min-width: 0;
+}
+.doc-file app-file-preview {
+  flex: 1;
+  min-width: 0;
 }
 .doc-remove {
   background: none;
@@ -484,11 +490,6 @@ app-textarea {
   }
   .doc-file {
     flex-basis: 100%;
-    min-width: 0;
-  }
-  .doc-file app-file-preview {
-    flex: 1;
-    min-width: 0;
   }
   .success-card {
     padding: var(--space-6) var(--space-4);

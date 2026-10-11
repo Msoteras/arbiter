@@ -2,7 +2,10 @@ package ar.edu.utn.frba.arbiter.classification.dto;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * What a document <b>says</b> and what it <b>looks like</b>, kept apart so the classifier never reads
@@ -29,24 +32,29 @@ public record DocumentExtraction(
     /**
      * Null means "the document doesn't say", never "doesn't match". Only data a rule compares gets a
      * typed field; the rest goes in {@code details}. {@code describedClaimCause} is a catalog name or null.
+     *
+     * @param itemAttributes what the document says identifies the item, under the names the policy
+     *                       uses for it ("marca" → "Samsung"). Only the names asked for, and only
+     *                       those the document states: an absent name is "doesn't say"
      */
     public record Fields(
             LocalDate documentDate,
             BigDecimal amount,
             String itemDescription,
-            String brand,
-            String model,
-            String imei,
+            Map<String, String> itemAttributes,
             AffectedParty affectedParty,
             String describedClaimCause,
             List<Detail> details
     ) {
         public Fields {
+            itemAttributes = itemAttributes == null
+                    ? Map.of()
+                    : Collections.unmodifiableMap(new LinkedHashMap<>(itemAttributes));
             details = details == null ? List.of() : List.copyOf(details);
         }
 
         public static Fields none() {
-            return new Fields(null, null, null, null, null, null, null, null, List.of());
+            return new Fields(null, null, null, Map.of(), null, null, List.of());
         }
     }
 

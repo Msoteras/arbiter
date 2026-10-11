@@ -4,20 +4,6 @@
   gap: var(--space-4);
 }
 
-.at-head {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-}
-.at-head h2 {
-  margin: 0;
-}
-.section-hint {
-  margin: 0;
-  color: var(--text-secondary);
-  font-size: var(--font-size-sm);
-}
-
 .rows {
   list-style: none;
   margin: var(--space-3) 0;

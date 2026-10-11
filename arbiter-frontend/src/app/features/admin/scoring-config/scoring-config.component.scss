@@ -8,17 +8,6 @@
   font-size: var(--font-size-sm);
 }
 
-.sc-head {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  flex-wrap: wrap;
-  margin-bottom: var(--space-3);
-}
-.sc-head .card-title {
-  margin: 0;
-}
-
 .sc-section {
   margin-top: var(--space-5);
   display: flex;
@@ -33,13 +22,21 @@
   flex-wrap: wrap;
 }
 
+/* A real heading that outranks the factor labels: which group a factor is in decides when it runs. */
 .sc-group {
-  margin: var(--space-3) 0 0;
-  font-size: var(--font-size-xs);
-  color: var(--text-secondary);
+  margin: var(--space-5) 0 0;
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-primary);
+}
+.sc-section-head + .sc-group {
+  margin-top: var(--space-3);
 }
 .sc-group-hint {
-  color: var(--text-muted);
+  margin-left: var(--space-2);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-regular);
+  color: var(--text-secondary);
 }
 
 /* Sunken header: the Fast Track switch governs the factors below, it isn't one of them. */
@@ -208,4 +205,9 @@
   .sc-share {
     width: 100%;
   }
+}
+
+.load-error {
+  margin: 0 0 var(--space-3);
+  color: var(--status-danger);
 }

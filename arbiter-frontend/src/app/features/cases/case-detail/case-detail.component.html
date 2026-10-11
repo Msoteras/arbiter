@@ -93,7 +93,10 @@
       <app-card class="rcard" [heading]="decisionCardHeading()">
         @switch (decisionState()) {
           @case ('approved') {
-            <p class="registered">✓ Registrado: Aprobado</p>
+            <p class="registered">Aprobado{{ resolution() ? ' el ' + resolution()?.at : '' }}</p>
+            @if (resolution()?.justification; as why) {
+              <p class="decision-reason">{{ why }}</p>
+            }
             @if (settlement(); as s) {
               @if (s.confirmed) {
                 <p class="rcard-note">
@@ -107,7 +110,12 @@
             }
           }
           @case ('rejected') {
-            <p class="registered">✓ Registrado: Rechazado</p>
+            <p class="registered rejected">
+              Rechazado{{ resolution() ? ' el ' + resolution()?.at : '' }}
+            </p>
+            @if (resolution()?.justification; as why) {
+              <p class="decision-reason">{{ why }}</p>
+            }
           }
           @case ('lapsed') {
             <p class="registered">Cerrado por caducidad</p>
@@ -301,7 +309,6 @@
               {{ reopening() ? 'Reabriendo…' : 'Reabrir expediente' }}
             </app-button>
           </div>
-          <p class="rcard-note">Vuelve a revisión con el plazo de respuesta corriendo de nuevo.</p>
           @if (reopenError()) {
             <p class="rcard-note error">{{ reopenError() }}</p>
           }
@@ -681,7 +688,7 @@
                         <span class="score-factor-text">
                           <span class="score-factor-name">{{ factorLabel(item.factorId) }}</span>
                           @if (item.rationale) {
-                            <span class="t-note">{{ item.rationale }}</span>
+                            <span class="t-note">{{ factorRationale(item.rationale) }}</span>
                           }
                         </span>
                         <span class="score-factor-contribution tabular"
@@ -1108,11 +1115,16 @@
                   <span class="t-note">{{ line.detail }}</span>
                 }
               </span>
+              <!-- A dash while the base amount is missing: a zero would read as a result. -->
               <span class="settlement-amount tabular">
-                @if (line.kind === 'DEDUCTION') {
-                  −
+                @if (sheetAmount(line); as amount) {
+                  @if (line.kind === 'DEDUCTION') {
+                    −
+                  }
+                  {{ amount }}
+                } @else {
+                  —
                 }
-                {{ exactAmount(line.amount) }}
               </span>
             </li>
           }
@@ -1190,7 +1202,7 @@
               [normalize]="amountInputDisplay"
               [value]="amountInputLabel(settledAmountInput())"
               (valueChange)="settledAmountInput.set(amountInputValue($event))"
-              [placeholder]="exactAmount(s.calculatedAmount)"
+              [placeholder]="baseAmountMissing() ? 'Sin calcular' : exactAmount(s.calculatedAmount)"
             />
 
             <!-- The expert's amount is what to pay, not a replacement value; taking it records an adjustment. -->
@@ -1290,16 +1302,12 @@
 </app-modal>
 
 <!-- The reason is mandatory: it is the audit trail for why a closed case was reopened. -->
-<app-modal [open]="showReopen()" heading="Reabrir expediente" (close)="cancelReopen()">
-  <p class="t-note">
-    El expediente vuelve a revisión del analista con el plazo de respuesta corriendo de nuevo. No se
-    borra la resolución anterior: queda en el historial, y el motivo que escribas también.
-  </p>
-  <app-textarea
-    [rows]="3"
-    placeholder="Motivo de la reapertura (obligatorio)…"
-    [(value)]="reopenReason"
-  />
+<app-modal [open]="showReopen()" heading="¿Reabrir el expediente?" (close)="cancelReopen()">
+  <p class="t-body">Vuelve a revisión y el plazo legal de respuesta arranca de cero.</p>
+  <label class="justification">
+    <span class="t-field-label">Motivo <span class="required" aria-hidden="true">*</span></span>
+    <app-textarea [rows]="3" placeholder="Por qué se reabre…" [(value)]="reopenReason" />
+  </label>
   <ng-container modalActions>
     <app-button variant="secondary" (click)="cancelReopen()">Cancelar</app-button>
     <app-button [disabled]="!reopenReason().trim() || reopening()" (click)="confirmReopen()">

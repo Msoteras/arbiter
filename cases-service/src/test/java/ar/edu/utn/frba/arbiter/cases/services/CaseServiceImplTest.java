@@ -2,6 +2,7 @@ package ar.edu.utn.frba.arbiter.cases.services;
 
 import ar.edu.utn.frba.arbiter.cases.config.tenant.CallerContext;
 import ar.edu.utn.frba.arbiter.cases.dto.AnalystDecisionRequest;
+import ar.edu.utn.frba.arbiter.cases.dto.AnalystDecisionResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.LensSummaryResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.SettlementDecisionRequest;
 import ar.edu.utn.frba.arbiter.cases.models.entities.CaseSettlement;
@@ -537,6 +538,30 @@ class CaseServiceImplTest {
         assertThatThrownBy(() -> caseService.getCase(999L))
                 .isInstanceOf(CaseNotFoundException.class)
                 .hasMessageContaining("999");
+    }
+
+    @Test
+    void getAnalystDecision_resolvedCase_readsTheVerdictItPointsAt() {
+        Case entity = caseRecord(1L, CaseStatus.REJECTED);
+        entity.setClassificationId(31L);
+        when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
+        java.time.Instant decidedAt = java.time.Instant.parse("2026-10-10T14:32:00Z");
+        when(caseAnalysisRepository.findDecision(31L)).thenReturn(Optional.of(
+                new CaseAnalysisRepository.AnalystDecision("REJECT", "El hecho es hurto, no robo", decidedAt)));
+
+        assertThat(caseService.getAnalystDecision(1L)).contains(
+                new AnalystDecisionResponse("REJECT", "El hecho es hurto, no robo", decidedAt));
+    }
+
+    /** {@code classification_id} survives the reopening, but that verdict no longer stands. */
+    @Test
+    void getAnalystDecision_reopenedCase_hasNone() {
+        Case entity = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
+        entity.setClassificationId(31L);
+        when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
+
+        assertThat(caseService.getAnalystDecision(1L)).isEmpty();
+        verify(caseAnalysisRepository, never()).findDecision(any());
     }
 
     @Test

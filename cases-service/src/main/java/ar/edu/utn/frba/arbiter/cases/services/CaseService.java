@@ -1,6 +1,7 @@
 package ar.edu.utn.frba.arbiter.cases.services;
 
 import ar.edu.utn.frba.arbiter.cases.dto.AnalystDecisionRequest;
+import ar.edu.utn.frba.arbiter.cases.dto.AnalystDecisionResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.AnalystWorkloadResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.AssignedCaseSummaryResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseDocumentResponse;
@@ -23,6 +24,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 public interface CaseService {
 
@@ -105,6 +107,12 @@ public interface CaseService {
     void recordAnalystDecision(Long caseId, AnalystDecisionRequest request);
 
     void authorizeSettlement(Long caseId);
+
+    /**
+     * Empty unless the case is resolved: a reopened case still points at its previous verdict, which
+     * is no longer what it stands on.
+     */
+    Optional<AnalystDecisionResponse> getAnalystDecision(Long caseId);
 
     /** The case doesn't move: it never left the analyst's review. */
     void returnSettlement(Long caseId, String reason);

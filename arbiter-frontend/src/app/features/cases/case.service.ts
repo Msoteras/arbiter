@@ -87,6 +87,13 @@ export interface SettlementLine {
   amount: number;
 }
 
+/** Mirrors cases-service's AnalystDecisionResponse: the verdict a resolved case stands on. */
+export interface AnalystDecision {
+  decision: string;
+  justification: string | null;
+  decidedAt: string;
+}
+
 /** Either the authorized settlement or a proposal to confirm. */
 export interface Settlement {
   formula: SettlementFormula;
@@ -311,6 +318,11 @@ export class CaseService {
     const params =
       replacementValue == null ? undefined : { replacementValue: String(replacementValue) };
     return this.http.get<Settlement>(`${this.baseUrl}/${caseId}/settlement`, { params });
+  }
+
+  /** Null (204) while the case isn't approved or rejected. */
+  decision(caseId: number): Observable<AnalystDecision | null> {
+    return this.http.get<AnalystDecision | null>(`${this.baseUrl}/${caseId}/decision`);
   }
 
   /** Only valid from CLASSIFICATION_FAILED (409 otherwise). */

@@ -119,7 +119,7 @@ class CaseDocumentRecheckRepositoryTests extends AbstractPersistenceIT {
     }
 
     private Coverage testCoverage() {
-        return coverageRepository.findByName("Cobertura Celulares")
+        return coverageRepository.findByName("Cobertura Celulares").stream().findFirst()
                 .orElseGet(() -> coverageRepository.save(CaseFixtures.coverage("Celulares")));
     }
 }

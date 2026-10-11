@@ -150,7 +150,7 @@ class PolicyCoverageTests extends AbstractPersistenceIT {
     }
 
     private Coverage coverage(String name) {
-        return coverageRepository.findByName(name).orElseGet(() -> coverageRepository.save(
+        return coverageRepository.findByName(name).stream().findFirst().orElseGet(() -> coverageRepository.save(
                 Coverage.builder().name(name).branchId(1L).build()));
     }
 }

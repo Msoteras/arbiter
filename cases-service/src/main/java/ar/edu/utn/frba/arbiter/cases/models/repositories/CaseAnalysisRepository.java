@@ -13,14 +13,17 @@ import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 /**
- * Reads classification-service's {@code llm_analysis} / {@code risk_analysis} directly: a deliberate
+ * Reads classification-service's {@code llm_analysis} / {@code risk_analysis} /
+ * {@code case_classification} directly: a deliberate
  * exception to table ownership, since they share the tenant schema with {@code cases} and a REST hop
  * per inbox row is not an option. Plain JDBC over named columns, so this module never claims them.
  * Both tables are append-only, hence {@code DISTINCT ON ... ORDER BY id DESC} to get the newest run.
@@ -70,6 +73,26 @@ public class CaseAnalysisRepository {
         return entityManager.unwrap(Session.class).doReturningWork(connection ->
                 queryAnalysis(new NamedParameterJdbcTemplate(
                         new SingleConnectionDataSource(connection, true)), caseIds));
+    }
+
+    /** The analyst's verdict as audited in {@code case_classification}. */
+    public record AnalystDecision(String decision, String justification, Instant decidedAt) {
+    }
+
+    /** @param classificationId {@code cases.classification_id}: the verdict the case was resolved with */
+    @Transactional(readOnly = true)
+    public Optional<AnalystDecision> findDecision(Long classificationId) {
+        return entityManager.unwrap(Session.class).doReturningWork(connection ->
+                new NamedParameterJdbcTemplate(new SingleConnectionDataSource(connection, true))
+                        .query("""
+                                SELECT decision, analyst_justification, decided_at
+                                  FROM case_classification
+                                 WHERE id = :id
+                                """, Map.of("id", classificationId), (rs, rowNum) -> new AnalystDecision(
+                                rs.getString("decision"),
+                                rs.getString("analyst_justification"),
+                                rs.getTimestamp("decided_at").toInstant()))
+                        .stream().findFirst());
     }
 
     private Map<Long, CaseAnalysis> queryAnalysis(NamedParameterJdbcTemplate jdbcTemplate,

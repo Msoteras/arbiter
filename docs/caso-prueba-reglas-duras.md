@@ -28,7 +28,7 @@ nueva. Los ids de §1 reflejan Railway tal como quedó, no los del script.
 | Tenant | `arbiter_bbva` | `init-multitenant.sql` |
 | Asegurado | **Martina Soteras**, DNI `42.987.654` — `asegurado.arbiter@gmail.com` | `arbiter_bbva.insured` id 1 |
 | Póliza | **`POL-CEL-2026-042`**, vigencia **01/01/2026 → 01/01/2027**, al día, 0 siniestros previos | `aseguradora.poliza` id 1 |
-| Cobertura | `coverage` id **1** = "Robo de celular", suma asegurada **$1.300.000**, carencia **30 días**, plazo denuncia 72 hs, tope 2 eventos/año | `arbiter_bbva.coverage` |
+| Cobertura | `coverage` id **1** = "Robo", suma asegurada **$1.300.000**, carencia **30 días**, plazo denuncia 72 hs, tope 2 eventos/año | `arbiter_bbva.coverage` |
 | Ramo / hecho generador | Celulares (`branch` 1) / "Robo en vía pública" (`claim_cause` **2**) | `arbiter_common` |
 | Reglas duras | `insurer_rule` **5, 6, 7, 8** para la cobertura 1 (por cobertura) + **14** vigencia (toda la aseguradora) (ver §1) | seed nuevo |
 | Referente | `referente.arbiter@gmail.com` | — |
@@ -77,7 +77,7 @@ umbral es la columna de `coverage`, no la regla. La segunda trae una sola fila: 
 `POLICY_IN_FORCE`, `active = true` — `POLICY_STANDING` no aparece, arranca sin sembrar (§9).
 
 **Criterio 1 (parte a):** como referente, ir a **Reglas → Celulares → solapa Coberturas**. Dentro de
-la card de "Robo de celular", abajo de las exclusiones, tiene que estar el bloque *"Reglas duras que
+la card de "Robo", abajo de las exclusiones, tiene que estar el bloque *"Reglas duras que
 evalúa el motor"* con los **cuatro** chips en activo (carencia, plazo de denuncia, plazo policial,
 tope de eventos) y el campo **"Plazo de la denuncia policial (horas)"** en 72. Vigencia y mora **no**
 están acá: son de toda la aseguradora, no del ramo, así que viven en su propio recuadro del
@@ -94,7 +94,7 @@ Login como `referente.arbiter@gmail.com`.
 
 ### 2.1 · Coberturas — ampliar el plazo de denuncia a la aseguradora
 
-Solapa **Coberturas**, cobertura "Robo de celular": **Plazo de denuncia (días) = 30**.
+Solapa **Coberturas**, cobertura "Robo": **Plazo de denuncia (días) = 30**.
 
 > Por qué: el plazo de denuncia a la aseguradora (D11) y el de la denuncia policial (D12) son dos
 > reglas distintas con dos relojes distintos, y las dos arrancan en 72 hs. Con las dos en 72 es
@@ -450,10 +450,10 @@ abierto, y el gate real del submit sigue estando.
 
 ### Caso de prueba — hechos generadores recortados por cobertura
 
-1. Asegurado: iniciar denuncia con `POL-CEL-2026-042` (cobertura "Robo de celular", branch
+1. Asegurado: iniciar denuncia con `POL-CEL-2026-042` (cobertura "Robo", branch
    Celulares).
 2. En "¿Qué te pasó?", revisar las opciones ofrecidas.
-3. **Esperado:** **"Hurto" no aparece** en la lista — la cobertura "Robo de celular" lo excluye
+3. **Esperado:** **"Hurto" no aparece** en la lista — la cobertura "Robo" lo excluye
    (`insurer_rule` id 3 del seed, `COVERAGE_EXCLUSION`, ver `db/init-multitenant.sql` línea ~737).
    El resto de los hechos generadores del ramo Celulares sí aparecen (la exclusión es lista negra,
    no blanca).

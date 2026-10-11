@@ -65,7 +65,7 @@ export function fraudRecordStatusTone(a: FraudRecord): StatusTone {
 }
 
 const STATUS_EFFECTS: Record<FraudRecordStatus, string> = {
-  expertBacked: 'Suma al nivel de riesgo y puede impedir la vía rápida.',
+  expertBacked: 'Suma al nivel de riesgo y puede impedir el Fast Track.',
   declared: 'No suma al nivel de riesgo: se muestra como alerta porque no tuvo peritaje detrás.',
   expired: 'Ya no pesa: pasó la ventana de vigencia que configuró la aseguradora.',
 };

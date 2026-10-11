@@ -40,6 +40,12 @@ public class InvalidSettlementException extends RuntimeException {
                 "Para aprobar hay que cargar cuánto cuesta hoy reponer el bien.");
     }
 
+    /** The quote is the base of a repair: without it the calculation is zero, not an amount. */
+    public static InvalidSettlementException missingRepairQuote() {
+        return new InvalidSettlementException(
+                "Para aprobar hay que cargar el presupuesto de reparación.");
+    }
+
     /** The sum insured is the contractual ceiling per claim; no justification can exceed it. */
     public static InvalidSettlementException aboveSumInsured(BigDecimal amount, BigDecimal sumInsured) {
         return new InvalidSettlementException(

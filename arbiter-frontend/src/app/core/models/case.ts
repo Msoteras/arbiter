@@ -35,10 +35,11 @@ export interface DocumentAnalysis {
   documentDate: string | null;
   amount: number | null;
   itemDescription: string | null;
-  /** Brand alone, apart from `itemDescription`: it is what gets matched against the insured item. */
-  brand: string | null;
-  model: string | null;
-  imei: string | null;
+  /**
+   * What the document says identifies the item, under the names the policy uses for it (`marca`,
+   * `IMEI`, a plate…): they vary with the line of insurance. Only the ones the document states.
+   */
+  itemAttributes: ExtractedDetail[];
   /** TITULAR | FAMILIAR | TERCERO | DESCONOCIDO. */
   affectedParty: string;
   /** Tampering signals seen by the vision model. Empty is normal and does not prove authenticity. */
