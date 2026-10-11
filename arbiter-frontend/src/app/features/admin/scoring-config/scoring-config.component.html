@@ -1,17 +1,7 @@
 @if (loading()) {
   <app-inline-loading [size]="26" message="Cargando puntaje de riesgo…" />
 } @else {
-  <app-card @fadeInUp>
-    <div class="sc-head">
-      <h2 class="card-title">Puntaje de riesgo</h2>
-      <app-badge variant="solid">Toda la aseguradora</app-badge>
-    </div>
-
-    <p class="section-hint">
-      Puntaje paralelo de riesgo. Cada factor pesa sobre el total y el resultado cae en una banda.
-      Configuración única: aplica igual a todos los ramos.
-    </p>
-
+  <app-card heading="Puntaje de riesgo" headingSize="lg" @fadeInUp>
     <div class="sc-section">
       <div class="sc-section-head">
         <span class="t-section-label">Factores y pesos</span>
@@ -21,9 +11,9 @@
       </div>
 
       @for (group of factorGroups; track group.title) {
-        <p class="sc-group">
-          {{ group.title }} <span class="sc-group-hint">· {{ group.hint }}</span>
-        </p>
+        <h3 class="sc-group">
+          {{ group.title }} <span class="sc-group-hint">{{ group.hint }}</span>
+        </h3>
         @if (group.heavy) {
           <!-- Inside the group it affects, not in the branch's Fast Track tab: the flag is
              insurer-wide, saved with scoring, and only decides whether these factors run. -->

@@ -346,6 +346,11 @@ export class CaseDetailComponent {
     return riskFactorLabel(factorId);
   }
 
+  /** Rationales name documents by their code ("…documento 'police_report'…"), like the reasons. */
+  protected factorRationale(rationale: string): string {
+    return withDocumentLabels(rationale);
+  }
+
   protected pct(value: number): number {
     return Math.round(value * 100);
   }
@@ -1717,7 +1722,7 @@ export class CaseDetailComponent {
 
   protected readonly chosenOriginEffect = computed(() =>
     this.chosenOrigin() === 'EXPERT_BACKED'
-      ? 'Va a sumar al nivel de riesgo de sus próximas denuncias y, si la aseguradora lo configuró así, a impedirles la vía rápida.'
+      ? 'Va a sumar al nivel de riesgo de sus próximas denuncias y, si la aseguradora lo configuró así, a impedirles el Fast Track.'
       : 'Va a aparecer como alerta en sus próximas denuncias, pero no suma al nivel de riesgo: sin peritaje detrás, una sospecha que mueve el score termina alimentándose sola.',
   );
 

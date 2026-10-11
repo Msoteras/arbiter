@@ -161,11 +161,11 @@ SELECT setval(pg_get_serial_sequence('arbiter_bbva.insured','id'),
 -- 4 Caída); without it no coverage answers for them. Settles as a repair; an irreparable item
 -- becomes a total loss and pays the lesser of sum insured and replacement value, like a theft.
 -- The deductible applies to the loss: on the sum insured a broken screen would pay nothing.
-INSERT INTO arbiter_bbva.coverage (id, name, description, report_deadline_hours, max_events_per_year,
+INSERT INTO arbiter_bbva.coverage (id, name, external_name, description, report_deadline_hours, max_events_per_year,
                                    covers_family_group, deductible, claim_exhausts_coverage,
                                    is_individual, waiting_period_days, branch_id, settlement_formula,
                                    settlement_basis, deductible_basis) VALUES
-    (3, 'Daño accidental', 'Cobertura por rotura o caída accidental del equipo', 72, 2, FALSE,
+    (3, 'Daño accidental', 'Daño accidental', 'Cobertura por rotura o caída accidental del equipo', 72, 2, FALSE,
      20.00, FALSE, TRUE, 30, 1, 'REPAIR', 'LESSER_OF_SUM_AND_REPLACEMENT', 'LOSS_AMOUNT');
 SELECT setval(pg_get_serial_sequence('arbiter_bbva.coverage','id'),
               (SELECT MAX(id) FROM arbiter_bbva.coverage));
@@ -191,7 +191,7 @@ INSERT INTO arbiter_bbva.insurer_rule (active, valid_from, name, rule_type, effe
     (TRUE, '2026-01-01 00:00:00+00', 'Tope de eventos por año (cobertura 3)',
      'MAX_EVENTS_YEAR', 'DERIVAR', 5, TRUE, 1, 3, '{}', 3);
 
--- Local snapshots of the policies above. coverage 1 = 'Robo de celular', 2 = 'Hurto',
+-- Local snapshots of the policies above. coverage 1 = 'Robo', 2 = 'Hurto',
 -- 3 = 'Daño accidental' (Premium policies only).
 INSERT INTO arbiter_bbva.policy (id, external_policy_number, product, in_force, insured_id) VALUES
     (1, 'POL-CEL-2026-042', 'Celular Protegido Premium', TRUE, 1),
@@ -342,29 +342,29 @@ SELECT setval(pg_get_serial_sequence('arbiter_bbva.service_provider','id'),
 -- Provincia sells Tecnología Portátil, so it needs a coverage BBVA does not have.
 -- LESSER_OF_SUM_AND_REPLACEMENT, as clause 340 art. 7 requires for Tecnología Portátil.
 -- Two events a year, the second at 50%.
-INSERT INTO arbiter_provincia.coverage (id, name, description, report_deadline_hours, max_events_per_year,
+INSERT INTO arbiter_provincia.coverage (id, name, external_name, description, report_deadline_hours, max_events_per_year,
                                         covers_family_group, deductible, claim_exhausts_coverage,
                                         is_individual, waiting_period_days, branch_id,
                                         settlement_formula, settlement_basis, deductible_basis,
                                         second_event_percentage, deduct_pending_installments,
                                         deduct_overdue_balance) VALUES
-    (3, 'Daño accidental', 'Cobertura por daño accidental de equipo portátil', 96, 2, FALSE, 10.00, FALSE, TRUE, 30, 2,
+    (3, 'Daño accidental', 'Daño accidental', 'Cobertura por daño accidental de equipo portátil', 96, 2, FALSE, 10.00, FALSE, TRUE, 30, 2,
      'REPAIR', 'LESSER_OF_SUM_AND_REPLACEMENT', 'LOSS_AMOUNT', 50.00, FALSE, TRUE);
 
 -- Provincia's policy says "Franquicia 10%" without saying of what, so its theft coverages take it
 -- from the loss. BBVA's keep the sum insured, as their phone policy states.
 UPDATE arbiter_provincia.coverage SET deductible_basis = 'LOSS_AMOUNT'
- WHERE name IN ('Robo de celular', 'Hurto');
+ WHERE name IN ('Robo', 'Hurto');
 
 SELECT setval(pg_get_serial_sequence('arbiter_provincia.coverage','id'),
               (SELECT MAX(id) FROM arbiter_provincia.coverage));
 
 -- Without this deny-list the coverage would cover the whole branch. Tecnología Portátil
--- causes: 6 Daño accidental, 7 Robo en vía pública, 8 Hurto.
+-- causes: 6 Rotura accidental, 7 Robo en vía pública, 8 Hurto, 9 Caída.
 INSERT INTO arbiter_provincia.insurer_rule (active, valid_from, name, rule_type, effect, priority,
                                             blocks_fast_track, branch_id, coverage_id, configuration, created_by) VALUES
     (TRUE, '2026-01-01 00:00:00+00',
-     'La cobertura de daño accidental solo cubre daño accidental', 'COVERAGE_EXCLUSION', 'RECHAZAR', 1,
+     'La cobertura de daño accidental solo cubre rotura y caída', 'COVERAGE_EXCLUSION', 'RECHAZAR', 1,
      TRUE, 2, 3, '{"excludedClaimCauseIds":[7,8]}', 6);
 
 -- Fast Track thresholds for this coverage. The amount cap is 60%, above robbery's 50%, on
@@ -414,7 +414,7 @@ INSERT INTO arbiter_provincia.policy_snapshot (id, external_policy_number, sum_i
 SELECT setval(pg_get_serial_sequence('arbiter_provincia.policy_snapshot','id'),
               (SELECT MAX(id) FROM arbiter_provincia.policy_snapshot));
 
--- claim_cause 6 = 'Daño accidental' (Tecnología Portátil), 2 = 'Robo en vía pública'.
+-- claim_cause 6 = 'Rotura accidental' (Tecnología Portátil), 2 = 'Robo en vía pública'.
 INSERT INTO arbiter_provincia.cases
     (id, occurred_at, reported_at, police_report_at, response_deadline, description,
      rules_classification, claimed_amount, declared_item, event_address, locality, province,

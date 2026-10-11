@@ -15,6 +15,7 @@ import { CheckboxComponent } from '../../../shared/ui/checkbox/checkbox.componen
 import { InputComponent } from '../../../shared/ui/input/input.component';
 import { SelectComponent, SelectOption } from '../../../shared/ui/select/select.component';
 import { EmptyStateComponent } from '../../../shared/ui/empty-state/empty-state.component';
+import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
 import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
 
 /** `id` null = new provider. */
@@ -36,6 +37,7 @@ interface ProviderDraft extends ProviderRequest {
     SelectComponent,
     EmptyStateComponent,
     BadgeComponent,
+    InlineLoadingComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './providers-config.component.html',

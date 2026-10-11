@@ -5,7 +5,6 @@ import { finalize } from 'rxjs';
 import { RISK_FACTORS, ScoringConfig } from '../../../core/models/business-rules';
 import { RISK_BANDS, RiskBand, riskBandLabel } from '../../../core/models/risk-band';
 import { ScoringConfigDto, ScoringRulesService } from '../scoring-rules.service';
-import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
 import { SwitchComponent } from '../../../shared/ui/switch/switch.component';
 import { CardComponent } from '../../../shared/ui/card/card.component';
 import { SaveBarComponent } from '../../../shared/ui/save-bar/save-bar.component';
@@ -20,7 +19,6 @@ import { fadeInUp } from '../../../shared/animations';
 @Component({
   selector: 'app-scoring-config',
   imports: [
-    BadgeComponent,
     SwitchComponent,
     CardComponent,
     InputComponent,
@@ -92,7 +90,7 @@ export class ScoringConfigComponent {
   }[] = [
     {
       title: 'Datos del siniestro y del asegurado',
-      hint: 'corren siempre',
+      hint: '',
       ids: [
         'amount_ratio',
         'claim_frequency',
@@ -103,7 +101,7 @@ export class ScoringConfigComponent {
     },
     {
       title: 'Documentos e imágenes',
-      hint: 'análisis pesado',
+      hint: '',
       ids: ['document_inconsistency', 'image_reuse', 'image_web_match'],
       heavy: true,
     },

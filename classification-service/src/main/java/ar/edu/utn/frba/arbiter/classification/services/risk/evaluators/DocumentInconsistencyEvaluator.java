@@ -9,8 +9,13 @@ import org.springframework.stereotype.Component;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Contradictions between the documents' typed fields and the claim: the model reads, the code
@@ -34,6 +39,11 @@ public class DocumentInconsistencyEvaluator implements RiskFactorEvaluator {
 
     /** On a damage claim, the document that sets what is being claimed. */
     private static final String REPAIR_QUOTE_TYPE = "repair_quote";
+
+    private static final Pattern NUMBER = Pattern.compile("\\d+");
+
+    /** Letters only: in "A56" or "256GB" the number is what identifies, and NUMBER reads it. */
+    private static final Pattern WORD = Pattern.compile("\\p{L}{2,}");
 
     @Override
     public String factorId() {
@@ -80,8 +90,8 @@ public class DocumentInconsistencyEvaluator implements RiskFactorEvaluator {
     }
 
     /**
-     * The insured item is free text, so this only flags a make (or, once the make matched, a model)
-     * that is <b>absent</b> from it; a present one proves nothing on its own.
+     * The insured item is free text, so this only flags a make that is <b>absent</b> from it or, once
+     * the make matched, a model that is a different one; a matching one proves nothing on its own.
      */
     private void checkBrandAndModel(
             RiskContext context, String type, DocumentExtraction.Fields fields, List<String> findings) {
@@ -96,11 +106,36 @@ public class DocumentInconsistencyEvaluator implements RiskFactorEvaluator {
                     type, fields.brand(), insuredItem));
             return;
         }
-        if (fields.model() != null && !haystack.contains(fields.model().toLowerCase().trim())) {
+        if (fields.model() != null && !sameModel(fields.model(), insuredItem)) {
             findings.add(String.format(
-                    "El modelo del documento '%s' (%s) no aparece en el bien asegurado (%s)",
+                    "El modelo del documento '%s' (%s) no coincide con el bien asegurado (%s)",
                     type, fields.model(), insuredItem));
         }
+    }
+
+    /**
+     * Compared by words, never as a literal substring: a document spells the model out further than
+     * the policy does ("Galaxy A56 5G — 256 GB" for an insured "Samsung Galaxy A56"), and that is
+     * detail, not a contradiction. The numbers are what tells two models of a line apart, so when
+     * both sides have them one set has to contain the other; otherwise sharing a word is enough.
+     */
+    private static boolean sameModel(String documentModel, String insuredItem) {
+        Set<String> documentNumbers = matches(NUMBER, documentModel);
+        Set<String> insuredNumbers = matches(NUMBER, insuredItem);
+        if (!documentNumbers.isEmpty() && !insuredNumbers.isEmpty()) {
+            return documentNumbers.containsAll(insuredNumbers) || insuredNumbers.containsAll(documentNumbers);
+        }
+        Set<String> documentWords = matches(WORD, documentModel);
+        return documentWords.isEmpty() || !Collections.disjoint(documentWords, matches(WORD, insuredItem));
+    }
+
+    private static Set<String> matches(Pattern pattern, String text) {
+        Set<String> found = new HashSet<>();
+        Matcher matcher = pattern.matcher(text.toLowerCase());
+        while (matcher.find()) {
+            found.add(matcher.group());
+        }
+        return found;
     }
 
     /**

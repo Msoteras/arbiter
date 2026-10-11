@@ -126,8 +126,6 @@ export const DOCUMENT_TYPES: DocumentTypeDef[] = [
   { code: 'last_connection', label: 'Captura de última conexión' },
   { code: 'repair_quote', label: 'Presupuesto de reparación' },
   { code: 'item_photo', label: 'Foto del bien' },
-  // Uploaded by the analyst from the expert's report, not by the insured.
-  { code: 'expert_report', label: 'Informe de peritaje' },
 ];
 
 export function documentTypeLabel(code: string): string {

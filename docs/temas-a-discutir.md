@@ -97,6 +97,13 @@ Coberturas). Son dos operaciones distintas:
 **Estado al 25/09/2026: sin hacer.** En Railway, Tecnología Portátil sigue solo con *Daño
 accidental* y Celulares sin él.
 
+**Actualización 10/10/2026.** La cobertura "Robo de celular" pasó a llamarse *Robo* y el hecho
+*Daño accidental* de Tecnología Portátil se partió en *Rotura accidental* y *Caída*
+(`2026-10-10-nombres-de-cobertura.sql`). Crear la cobertura de robo de Tecnología Portátil desde el
+panel antes era imposible, porque el nombre era único en toda la aseguradora; ahora lo es por ramo.
+Para que cruce con las pólizas hay que crearla como "Robo de celular" (así queda su nombre externo)
+y renombrarla después.
+
 **El fixture sigue con el agujero.** Lo hecho por UI vive en la base desplegada; `seed-demo.sql`
 nace igual que antes. Si alguien levanta de cero con `reset → init → seed` para una demo, vuelve.
 Cerrarlo del todo pide igual la pasada por el seed — decisión aparte, y no urgente.

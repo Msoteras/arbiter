@@ -8,8 +8,9 @@ afuera del backlog de Trello por eso.
 El DER sigue siendo la fuente de verdad (`CLAUDE.md`) — este documento no propone desvíos, es la
 lista de qué hay que corregirle a él mismo cuando se lo vuelva a tocar.
 
-**Revisado el 20/09/2026, cuarta pasada** contra el `.mdj` actual y contra
-`db/init-multitenant.sql`. No queda ninguna columna sin tipo de dato en todo el archivo.
+**Revisado el 07/10/2026, quinta pasada** contra el `.mdj` actual y contra
+`db/init-multitenant.sql`. El `.mdj` no cambió desde el 22/09: las entradas 2 y 3 ya están
+aplicadas en el diagrama y las 5 a 12 siguen pendientes. No queda ninguna columna sin tipo de dato en todo el archivo.
 
 ---
 
@@ -210,8 +211,7 @@ nueva; los que tenían NULL quedan sin filas. `veredicto`, `monto_indemnizable`,
 **Encontrado:** 05/10/2026. Las dos tablas eran un catálogo de la plataforma: que un referente
 renombrara o borrara un ramo se lo cambiaba a todas las aseguradoras. Ahora cada esquema de
 aseguradora tiene las suyas, copiadas con los mismos ids. Implementado en `db/init-multitenant.sql`
-y `db/migrations/2026-10-05-ramos-por-aseguradora.sql`. **Todavía no aplicado en Railway**: va junto
-con el despliegue, no antes.
+y `db/migrations/2026-10-05-ramos-por-aseguradora.sql`. Aplicado en Railway el 06/10/2026.
 
 | Tabla | Columna | Tipo de dato | Nulo | Restricciones |
 |---|---|---|---|---|
@@ -254,6 +254,138 @@ Portátil, cada una con su documentación requerida y su cobertura.
 **Acción:** en el `.mdj`, sacar la marca `unique` de `hecho_generador.nombre`. Si StarUML no deja
 modelar la compuesta (pasó con `peritaje`, entrada 4), dejar una nota de texto junto a la entidad:
 un nombre no se repite dentro de un ramo, pero sí entre ramos.
+
+---
+
+## 13 · Columnas que el código tiene y el DER no
+
+**Encontrado:** 07/10/2026, en una pasada completa del `.mdj` contra `db/init-multitenant.sql`. Las
+tres son anteriores a las entradas 5 a 12; no las había cruzado nadie.
+
+| Tabla | Columna | Tipo de dato | Nulo | Restricciones |
+|---|---|---|---|---|
+| `analisis_llm` | `fecha_analisis` (`analyzed_at`) | TIMESTAMPTZ | no | default `NOW()` |
+| `cobertura` | `es_individual` (`is_individual`) | BOOLEAN | no | default `TRUE` |
+| `expediente` | `destino` (`destination`) | VARCHAR(40) | sí | — |
+
+**Acción:** agregar `analisis_llm.fecha_analisis` al `.mdj`: es la marca temporal que pide la
+auditoría de clasificaciones, y `analisis_imagen` y `analisis_riesgo_expediente` ya tienen la suya.
+
+**Decisión pendiente** para las otras dos, porque ninguna se usa de verdad:
+
+- `cobertura.es_individual`: el alta de cobertura la guarda siempre en `TRUE` y nada la lee.
+- `expediente.destino`: nada la escribe; el comentario de la entidad dice que sus valores nunca se
+  definieron.
+
+O se suman al DER con una semántica definida, o se dropean del esquema y de las entidades.
+
+---
+
+## 14 · `aseguradora.logo` y la entidad `metrica` — están en el DER y no en el código
+
+**Encontrado:** 07/10/2026. Es el caso inverso al habitual.
+
+| Tabla | Columna | Tipo de dato | En el esquema |
+|---|---|---|---|
+| `aseguradora` | `logo` | BYTEA | no existe |
+| `metrica` | entidad completa (6 columnas) | — | no existe la tabla |
+
+`metrica` modela métricas precalculadas por período. `reports-service` no guarda nada: calcula cada
+reporte con una consulta sobre las tablas de expedientes.
+
+**Decisión pendiente:** sacarlas del DER, o dejarlas como algo a implementar. Si quedan, conviene
+una nota en el diagrama que diga que todavía no existen.
+
+---
+
+## 15 · Marcas de FK que faltan
+
+**Encontrado:** 07/10/2026. Las dos de `antecedente_fraude` ya estaban en la nota de la entrada 4;
+quedan acá para que tengan su acción.
+
+| Tabla | Columna | Apunta a |
+|---|---|---|
+| `hecho_generador` | `rama_id` | `rama.id` |
+| `antecedente_fraude` | `analista_declarante_id` | `analista_siniestro.id` |
+| `antecedente_fraude` | `expediente_id` | `expediente.id` |
+
+**Acción:** marcar las tres como FK en el `.mdj`.
+
+---
+
+## 16 · Tipos y largos que no coinciden con el esquema
+
+**Encontrado:** 07/10/2026. Las pasadas anteriores revisaron que cada columna tuviera tipo, no que
+el tipo coincidiera.
+
+| Tabla | Columna | En el DER | En el esquema |
+|---|---|---|---|
+| `asegurado` | `dni` | VARCHAR(8) | VARCHAR(20) |
+| `analisis_llm` | `recomendacion` | VARCHAR(20) | VARCHAR(50) |
+| `analisis_llm` | `confianza` | NUMERIC(5,2) | NUMERIC(5,3) |
+| `analisis_llm` | `hecho_generador_sugerido` | VARCHAR(100) | VARCHAR(120) |
+| `analisis_llm` | `evidencia_hecho_generador` | VARCHAR(255) | TEXT |
+| `analisis_imagen` | `modelo_utlizado` | VARCHAR(255) | VARCHAR(80) |
+| `antecedente_fraude` | `motivo` | VARCHAR(20) | TEXT |
+| `documento_expediente` | `tipo` | VARCHAR(60) | VARCHAR(255) |
+| `documento_expediente` | `tipo_contenido` | MIME | VARCHAR(255) |
+| `poliza` | `producto` | VARCHAR(100) | VARCHAR(1000) |
+| `requisito_documental` | `tipo_documento` | VARCHAR(20) | VARCHAR(50) |
+| `resultado_regla` | `tipo_regla` | VARCHAR(20) | VARCHAR(40) |
+
+Los que más importan son los que en el DER no alcanzan para lo que ya se guarda: un DNI con puntos
+(`42.987.654`) no entra en 8 caracteres, y `LLM_SOLICITA_REVISION_MANUAL` no entra en 20.
+
+Dos nombres con error de tipeo: `analisis_imagen.modelo_utlizado` (por `modelo_utilizado`) y
+`poliza_consultada.canitdad_siniestros_previos` (por `cantidad_siniestros_previos`).
+
+**Acción:** corregir tipos, largos y los dos nombres en el `.mdj`.
+
+---
+
+## 17 · UNIQUE de una sola columna que faltan
+
+**Encontrado:** 07/10/2026. Ninguna es una FK, así que no les aplica la nota general de la entrada
+4: la unicidad es de la columna y va marcada en ella.
+
+| Tabla | Columna | Restricción en el esquema |
+|---|---|---|
+| `rol` | `codigo` | UNIQUE |
+| `permiso` | `nombre` | UNIQUE |
+| `estado_expediente` | `nombre` | UNIQUE |
+| `asegurado` | `dni` | UNIQUE |
+| `poliza` | `nro_poliza_externo` | UNIQUE |
+
+**Acción:** marcar las cinco como `unique` en el `.mdj`.
+
+*Nota: el esquema tiene además dos UNIQUE compuestas sin representar, `cobertura_contratada
+(poliza_id, cobertura_id)` y `documento_expediente (expediente_id, tipo)`. No las pido como acción
+por lo mismo que la de `peritaje` en la entrada 4.*
+
+---
+
+## 18 · `cobertura.nombre_externo` — columna nueva, y la UNIQUE de `nombre` pasa a ser por ramo
+
+**Encontrado:** 10/10/2026. El nombre de la cobertura era la clave de cruce con la BD de la
+aseguradora (`cobertura.nombre`), así que renombrarla desde el panel hacía que las pólizas dejaran de
+encontrarla. Implementado en `db/init-multitenant.sql` y
+`db/migrations/2026-10-10-nombres-de-cobertura.sql`. **Sin aplicar en Railway.**
+
+| Tabla | Columna | Tipo de dato | Nulo | Restricciones |
+|---|---|---|---|---|
+| `cobertura` (`coverage`) | `nombre` (`name`) | VARCHAR(100) | no | UNIQUE junto con `rama_id` (antes sola) |
+| `cobertura` | `nombre_externo` (`external_name`) | VARCHAR(160) | sí | UNIQUE junto con `rama_id`; columna nueva |
+
+`nombre_externo` es como la BD de la aseguradora llama a la cobertura. Nace igual a `nombre` y un
+rename no la toca, igual que `rama.nombre_externo` (entrada 11). Las dos UNIQUE son por ramo porque
+esa base repite un mismo nombre entre ramos ("Robo de celular" también cubre una notebook).
+
+La misma migración cambia datos, sin impacto en el diagrama: la cobertura "Robo de celular" pasa a
+llamarse "Robo", y en Tecnología Portátil el hecho generador "Daño accidental" pasa a "Rotura
+accidental" y se suma "Caída".
+
+**Acción:** agregar `cobertura.nombre_externo` en el `.mdj`. Las dos UNIQUE son compuestas, así que
+no se marcan en la columna (misma nota que la entrada 12).
 
 ---
 

@@ -2,13 +2,18 @@ package ar.edu.utn.frba.arbiter.rules.services;
 
 import ar.edu.utn.frba.arbiter.common.enums.RuleType;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Branch;
+import ar.edu.utn.frba.arbiter.common.models.entities.tenant.ClaimCause;
+import ar.edu.utn.frba.arbiter.rules.dto.CoverageExclusionConfig;
 import ar.edu.utn.frba.arbiter.rules.dto.HardRuleDto;
 import ar.edu.utn.frba.arbiter.rules.exceptions.InvalidRuleConfigurationException;
+import ar.edu.utn.frba.arbiter.rules.models.entities.DocumentRequirement;
 import ar.edu.utn.frba.arbiter.rules.models.entities.InsurerRule;
 import ar.edu.utn.frba.arbiter.rules.models.entities.InsurerRuleHistory;
 import ar.edu.utn.frba.arbiter.rules.models.repositories.BranchRepository;
+import ar.edu.utn.frba.arbiter.rules.models.repositories.DocumentRequirementRepository;
 import ar.edu.utn.frba.arbiter.rules.models.repositories.InsurerRuleHistoryRepository;
 import ar.edu.utn.frba.arbiter.rules.models.repositories.InsurerRuleRepository;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
@@ -35,10 +40,38 @@ class HardRuleServiceTest {
     private final InsurerRuleRepository ruleRepository = mock(InsurerRuleRepository.class);
     private final InsurerRuleHistoryRepository historyRepository = mock(InsurerRuleHistoryRepository.class);
     private final BranchRepository branchRepository = mock(BranchRepository.class);
+    private final DocumentRequirementRepository documentRequirementRepository =
+            mock(DocumentRequirementRepository.class);
+    private final CoverageExclusionRuleService coverageExclusions = mock(CoverageExclusionRuleService.class);
     private final RuleAuthorResolver authorResolver = mock(RuleAuthorResolver.class);
 
-    private final HardRuleService service =
-            new HardRuleService(ruleRepository, historyRepository, branchRepository, authorResolver);
+    private static final long ROBBERY_CAUSE = 2L;
+
+    private final HardRuleService service = new HardRuleService(
+            ruleRepository, historyRepository, branchRepository, documentRequirementRepository,
+            coverageExclusions, authorResolver);
+
+    /** Coverage 1 answers for a robbery, which the document schedule asks a police report for. */
+    @BeforeEach
+    void aRobberyAsksForAPoliceReport() {
+        when(documentRequirementRepository.findByBranch_IdAndDocumentType(anyLong(), eq("police_report")))
+                .thenReturn(List.of(DocumentRequirement.builder()
+                        .documentType("police_report")
+                        .claimCause(ClaimCause.builder().id(ROBBERY_CAUSE).build())
+                        .build()));
+        when(coverageExclusions.get(anyLong())).thenReturn(new CoverageExclusionConfig(List.of()));
+    }
+
+    /** A damage coverage excludes robbery: nothing it answers for has a police report to time. */
+    @Test
+    void getLeavesOutThePoliceDeadlineWhenNoCoveredCauseAsksForAPoliceReport() {
+        when(ruleRepository.findByBranch_IdAndCoverageIdAndRuleTypeIn(eq(1L), eq(3L), any()))
+                .thenReturn(List.of());
+        when(coverageExclusions.get(3L)).thenReturn(new CoverageExclusionConfig(List.of(ROBBERY_CAUSE)));
+
+        assertThat(service.get(1L, 3L)).extracting(HardRuleDto::ruleType)
+                .containsExactly(RuleType.WAITING_PERIOD, RuleType.REPORT_DEADLINE, RuleType.MAX_EVENTS_YEAR);
+    }
 
     /**
      * The panel always shows every coverage-scoped rule, so an unconfigured one comes back disabled

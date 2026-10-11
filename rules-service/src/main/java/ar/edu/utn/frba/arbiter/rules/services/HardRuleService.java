@@ -10,6 +10,7 @@ import ar.edu.utn.frba.arbiter.rules.exceptions.InvalidRuleConfigurationExceptio
 import ar.edu.utn.frba.arbiter.rules.models.entities.InsurerRule;
 import ar.edu.utn.frba.arbiter.rules.models.entities.InsurerRuleHistory;
 import ar.edu.utn.frba.arbiter.rules.models.repositories.BranchRepository;
+import ar.edu.utn.frba.arbiter.rules.models.repositories.DocumentRequirementRepository;
 import ar.edu.utn.frba.arbiter.rules.models.repositories.InsurerRuleHistoryRepository;
 import ar.edu.utn.frba.arbiter.rules.models.repositories.InsurerRuleRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -51,19 +52,29 @@ public class HardRuleService {
             .map(Enum::name)
             .toList();
 
+    private static final String POLICE_REPORT_TYPE = "police_report";
+
     private final InsurerRuleRepository ruleRepository;
     private final InsurerRuleHistoryRepository historyRepository;
     private final BranchRepository branchRepository;
+    private final DocumentRequirementRepository documentRequirementRepository;
+    private final CoverageExclusionRuleService coverageExclusions;
     private final RuleAuthorResolver authorResolver;
 
-    /** Always the whole catalog: a rule with no row comes back disabled, which to the engine is the same. */
+    /**
+     * The whole catalog: a rule with no row comes back disabled, which to the engine is the same.
+     * The one exception is {@code POLICE_DEADLINE}, left out when the coverage answers for no claim
+     * cause that asks for a police report: there is nothing to time, and the engine skips it anyway.
+     */
     @Transactional(readOnly = true)
     public List<HardRuleDto> get(Long branchId, Long coverageId) {
         Map<String, InsurerRule> configured = ruleRepository
                 .findByBranch_IdAndCoverageIdAndRuleTypeIn(branchId, coverageId, COVERAGE_SCOPED_RULE_NAMES).stream()
                 .collect(Collectors.toMap(InsurerRule::getRuleType, Function.identity(), (first, second) -> first));
+        boolean policeReportApplies = coversACauseRequiringPoliceReport(branchId, coverageId);
 
         return RuleType.coverageScoped().stream()
+                .filter(type -> type != RuleType.POLICE_DEADLINE || policeReportApplies)
                 .map(type -> {
                     InsurerRule rule = configured.get(type.name());
                     return rule == null
@@ -71,6 +82,13 @@ public class HardRuleService {
                             : new HardRuleDto(type, rule.isActive(), deserialize(rule.getConfiguration()).deadlineHours());
                 })
                 .toList();
+    }
+
+    /** Read off the document schedule, the same source the claim wizard asks the report by. */
+    private boolean coversACauseRequiringPoliceReport(Long branchId, Long coverageId) {
+        List<Long> excluded = coverageExclusions.get(coverageId).excludedClaimCauseIds();
+        return documentRequirementRepository.findByBranch_IdAndDocumentType(branchId, POLICE_REPORT_TYPE).stream()
+                .anyMatch(requirement -> !excluded.contains(requirement.getClaimCause().getId()));
     }
 
     /** A partial request leaves the rules it doesn't mention untouched. */

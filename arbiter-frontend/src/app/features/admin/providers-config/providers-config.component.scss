@@ -1,14 +1,7 @@
+@use 'media';
+
 :host {
   display: block;
-}
-
-.sc-section-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  flex-wrap: wrap;
-  margin-bottom: var(--space-2);
 }
 
 /* Destructive but sober: colored text and hover border, no red fill. */
@@ -100,7 +93,7 @@
   color: var(--status-danger);
 }
 
-@media (max-width: 640px) {
+@include media.phone {
   .provider {
     flex-direction: column;
     align-items: stretch;

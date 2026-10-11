@@ -122,6 +122,23 @@ class TemporalRuleEvaluatorTest {
         assertThat(result.blocksFastTrack()).isFalse();
     }
 
+    /** A drop under a coverage with the rule on: its document schedule asks for no police report. */
+    @Test
+    void aClaimCauseThatAsksForNoPoliceReport_theRuleDoesNotParticipate() {
+        BusinessRules dropRules = rulesWith(List.of(activePoliceDeadline(POLICE_DEADLINE_HOURS))).toBuilder()
+                .requiredDocumentTypes(List.of("purchase_proof", "repair_quote"))
+                .build();
+
+        TemporalRuleEvaluator.Result result = evaluator.evaluate(
+                claimWithPoliceReport(EVENT.plusHours(500)),
+                policy(LocalDate.of(2024, 3, 1), LocalDate.of(2027, 3, 1)),
+                history(List.of()),
+                dropRules);
+
+        assertThat(result.blocksFastTrack()).isFalse();
+        assertThat(result.findings()).isEmpty();
+    }
+
     /** The referente can save it without a threshold. */
     @Test
     void anEnabledPoliceDeadlineWithoutThreshold_doesNotParticipate() {

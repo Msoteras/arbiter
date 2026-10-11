@@ -7,6 +7,8 @@ import ar.edu.utn.frba.arbiter.classification.services.risk.RiskFactorEvaluator.
 import ar.edu.utn.frba.arbiter.classification.services.risk.RiskFactorIds;
 import ar.edu.utn.frba.arbiter.classification.services.risk.RiskFixtures;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -41,11 +43,15 @@ class DocumentInconsistencyEvaluatorTest {
 
     /** A laptop policy: an insured item to cross against, and no IMEI. */
     private InsuredPolicy laptopPolicy() {
+        return policyInsuring("Notebook Lenovo IdeaPad 3");
+    }
+
+    private InsuredPolicy policyInsuring(String insuredItem) {
         return InsuredPolicy.builder()
                 .policyNumber("POL-TEC-2026-010")
                 .insuredId("40.123.456")
                 .branch("Tecnología Portátil")
-                .insuredItem("Notebook Lenovo IdeaPad 3")
+                .insuredItem(insuredItem)
                 .effectiveFrom(RiskFixtures.POLICY_START.atStartOfDay())
                 .effectiveTo(RiskFixtures.POLICY_START.plusYears(1).atStartOfDay())
                 .upToDate(true)
@@ -266,6 +272,37 @@ class DocumentInconsistencyEvaluatorTest {
                 Map.of("repair_quote", withFields(itemFields("Asus", "VivoBook 15")))));
 
         assertThat(c.rationale()).doesNotContain("El modelo del documento");
+    }
+
+    /** The document spells the model out further than the policy: detail, not a contradiction. */
+    @ParameterizedTest
+    @CsvSource(delimiter = '|', value = {
+            "Samsung Galaxy A56        | SAMSUNG | Galaxy A56 5G",
+            "Samsung Galaxy A56        | SAMSUNG | Galaxy A56 5G — 256 GB — Gris (Awesome Graphite)",
+            "Samsung Galaxy A56 256GB  | Samsung | Galaxy A56",
+            "MacBook Air M3 15\"       | MacBook | MacBook Air 15\" (M3, 2024)",
+            "MacBook Air M3 15\"       | MacBook | MacBook Air",
+            "Notebook Lenovo IdeaPad 3 | Lenovo  | IdeaPad 3 15ITL6",
+    })
+    void aModelWrittenWithMoreOrLessDetail_isNotAnInconsistency(String insuredItem, String brand, String model) {
+        Contribution c = evaluator.evaluate(context(policyInsuring(insuredItem),
+                Map.of("purchase_proof", withFields(itemFields(brand, model)))));
+
+        assertThat(c.score()).isZero();
+    }
+
+    @ParameterizedTest
+    @CsvSource(delimiter = '|', value = {
+            "Samsung Galaxy A56        | SAMSUNG | Galaxy S24",
+            "Samsung Galaxy A56        | SAMSUNG | Galaxy A36 5G",
+            "Notebook Lenovo IdeaPad 3 | Lenovo  | IdeaPad 5",
+            "Notebook Lenovo IdeaPad 3 | Lenovo  | ThinkPad",
+    })
+    void anotherModelOfTheSameMake_isFlagged(String insuredItem, String brand, String model) {
+        Contribution c = evaluator.evaluate(context(policyInsuring(insuredItem),
+                Map.of("purchase_proof", withFields(itemFields(brand, model)))));
+
+        assertThat(c.rationale()).contains("El modelo del documento").contains(model);
     }
 
     @Test

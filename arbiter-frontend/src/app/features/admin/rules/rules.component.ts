@@ -47,6 +47,7 @@ import { ProvidersConfigComponent } from '../providers-config/providers-config.c
 import { ResolutionTargetConfigComponent } from '../resolution-target-config/resolution-target-config.component';
 import { RuleHistoryComponent } from '../rule-history/rule-history.component';
 import { SaveBarComponent } from '../../../shared/ui/save-bar/save-bar.component';
+import { MonthsInputComponent } from './months-input.component';
 import { StringListEditorComponent } from './string-list-editor.component';
 import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
 import { InfoTipComponent } from '../../../shared/ui/info-tip/info-tip.component';
@@ -59,6 +60,11 @@ import { ToastService } from '../../../shared/ui/toast/toast.service';
 import { accordion, fadeInUp, listStagger, staggerReveal } from '../../../shared/animations';
 
 type TabId = 'coverages' | 'exclusions' | 'fastTrack' | 'documents' | 'rules';
+
+/** The backend stores whole months; a typed fraction (1,5 años is fine, 1,5 meses isn't) is rounded. */
+function wholeMonths(months: number | null): number | null {
+  return months == null ? null : Math.max(0, Math.round(months));
+}
 
 /** Right-panel views that don't depend on the selected branch. */
 type GeneralView =
@@ -85,6 +91,7 @@ type GeneralView =
     RuleHistoryComponent,
     SaveBarComponent,
     StringListEditorComponent,
+    MonthsInputComponent,
     InlineLoadingComponent,
     InfoTipComponent,
     BadgeComponent,
@@ -929,12 +936,6 @@ export class RulesComponent {
     return this.insurerHardRules().find((r) => r.ruleType === 'POLICY_IN_FORCE');
   }
 
-  /** Enabled isn't enough: with `STANDBY` the claim is created and arrears evaluated later. */
-  protected arrearsBlocks(): boolean {
-    const rule = this.policyStandingRule();
-    return rule?.enabled === true && rule.onArrears === 'REJECT';
-  }
-
   protected saveHardStop(): void {
     if (this.hardStopSaving()) {
       return;
@@ -960,8 +961,9 @@ export class RulesComponent {
     return this.isPersistedId(c.id);
   }
 
-  protected isCauseExcluded(c: Coverage, causeId: number): boolean {
-    return (c.excludedClaimCauseIds ?? []).includes(causeId);
+  /** Stored as a deny-list; the panel shows its complement, which is what the referent thinks in. */
+  protected isCauseCovered(c: Coverage, causeId: number): boolean {
+    return !(c.excludedClaimCauseIds ?? []).includes(causeId);
   }
 
   /**
@@ -1078,9 +1080,15 @@ export class RulesComponent {
     if (c.maxAnnualClaims != null) {
       chips.push(`Máx. ${c.maxAnnualClaims}/año`);
     }
-    const excluded = (c.excludedClaimCauseIds ?? []).length;
-    if (excluded > 0) {
-      chips.push(excluded === 1 ? '1 hecho excluido' : `${excluded} hechos excluidos`);
+    // Covering everything already has its own badge; an unloaded catalog would read as "none".
+    const causes = this.claimCauses();
+    if (this.hasExcludedCauses(c) && causes.length > 0) {
+      const covered = causes.filter((cause) => this.isCauseCovered(c, cause.id));
+      chips.push(
+        covered.length > 0
+          ? `Cubre ${covered.map((cause) => cause.name).join(', ')}`
+          : 'No cubre ningún hecho',
+      );
     }
     return chips;
   }
@@ -1258,16 +1266,16 @@ export class RulesComponent {
     }
   }
 
-  protected setMinPolicyAge(v: string): void {
-    this.patchFastTrack((ft) => ({ ...ft, minPolicyAgeMonths: this.intFromStr(v) }));
+  protected setMinPolicyAge(months: number | null): void {
+    this.patchFastTrack((ft) => ({ ...ft, minPolicyAgeMonths: wholeMonths(months) }));
   }
 
   protected setMaxPriorClaims(v: string): void {
     this.patchFastTrack((ft) => ({ ...ft, maxPriorClaims: this.intFromStr(v) }));
   }
 
-  protected setPriorClaimsWindow(v: string): void {
-    this.patchFastTrack((ft) => ({ ...ft, priorClaimsWindowMonths: this.intFromStr(v) }));
+  protected setPriorClaimsWindow(months: number | null): void {
+    this.patchFastTrack((ft) => ({ ...ft, priorClaimsWindowMonths: wholeMonths(months) }));
   }
 
   protected setFtMaxRatio(v: string): void {
@@ -1298,14 +1306,8 @@ export class RulesComponent {
     this.patchFastTrack((ft) => ({ ...ft, criteria: items }));
   }
 
-  protected ftMinAgeStr(): string {
-    return this.intStr(this.draft()?.fastTrack.minPolicyAgeMonths);
-  }
   protected ftMaxPriorStr(): string {
     return this.intStr(this.draft()?.fastTrack.maxPriorClaims);
-  }
-  protected ftWindowStr(): string {
-    return this.intStr(this.draft()?.fastTrack.priorClaimsWindowMonths);
   }
   protected ftMaxRatioPct(): string {
     return this.pctFromRatio(this.draft()?.fastTrack.maxClaimedAmountRatio ?? null);

@@ -7,6 +7,7 @@ import ar.edu.utn.frba.arbiter.classification.dto.InsuredHistory.ClaimRecord;
 import ar.edu.utn.frba.arbiter.classification.dto.InsuredPolicy;
 import ar.edu.utn.frba.arbiter.classification.dto.InsuredPolicy.PolicyCoverage;
 import ar.edu.utn.frba.arbiter.common.tenant.InsurerBranchNames;
+import ar.edu.utn.frba.arbiter.common.tenant.InsurerCoverageNames;
 import ar.edu.utn.frba.arbiter.common.tenant.InsurerDbSchema;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Primary;
@@ -47,6 +48,11 @@ public class InsurerDatabaseAdapter implements InsurerAdapter {
         return InsurerBranchNames.load(jdbc, TenantContext.get());
     }
 
+    /** Same for coverages: the claim names its coverage the way the insurer does in Arbiter. */
+    private InsurerCoverageNames coverageNames() {
+        return InsurerCoverageNames.load(jdbc, TenantContext.get());
+    }
+
     @Override
     public InsuredPolicy getPolicy(String policyNumber) {
         String schema = schema();
@@ -81,6 +87,7 @@ public class InsurerDatabaseAdapter implements InsurerAdapter {
                 .findFirst()
                 .orElseThrow(() -> new IllegalArgumentException("Policy not found: " + policyNumber));
 
+        InsurerCoverageNames coverageNames = coverageNames();
         List<PolicyCoverage> coverages = jdbc.query(
                 """
                 SELECT orden, nombre, suma_asegurada, franquicia_pct
@@ -93,7 +100,7 @@ public class InsurerDatabaseAdapter implements InsurerAdapter {
                     BigDecimal deductiblePct = rs.getBigDecimal("franquicia_pct");
                     return PolicyCoverage.builder()
                             .code("COB-" + rs.getInt("orden"))
-                            .description(rs.getString("nombre"))
+                            .description(coverageNames.nameOf(row.rama(), rs.getString("nombre")))
                             .insuredAmount(sum)
                             .deductible(absoluteDeductible(sum, deductiblePct))
                             .build();
@@ -126,6 +133,7 @@ public class InsurerDatabaseAdapter implements InsurerAdapter {
     public InsuredHistory getHistory(String insuredId) {
         String schema = schema();
         InsurerBranchNames branchNames = branchNames();
+        InsurerCoverageNames coverageNames = coverageNames();
         List<ClaimRecord> claims = jdbc.query(
                 """
                 SELECT h.id, h.fecha_ocurrencia, h.causa, h.estado_resolucion,
@@ -143,7 +151,7 @@ public class InsurerDatabaseAdapter implements InsurerAdapter {
                         .policyNumber(rs.getString("numero"))
                         .branch(branchNames.nameOf(rs.getString("rama")))
                         // Null when no coverage was recorded: the exhaustion rule skips it rather than guessing.
-                        .coverageName(rs.getString("cobertura"))
+                        .coverageName(coverageNames.nameOf(rs.getString("rama"), rs.getString("cobertura")))
                         .claimCause(rs.getString("causa"))
                         .status(rs.getString("estado_resolucion"))
                         .amountSettled(rs.getBigDecimal("monto_indemnizado"))
