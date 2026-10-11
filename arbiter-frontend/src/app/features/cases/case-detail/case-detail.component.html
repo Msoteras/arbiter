@@ -110,7 +110,9 @@
             }
           }
           @case ('rejected') {
-            <p class="registered rejected">Rechazado{{ resolution() ? ' el ' + resolution()?.at : '' }}</p>
+            <p class="registered rejected">
+              Rechazado{{ resolution() ? ' el ' + resolution()?.at : '' }}
+            </p>
             @if (resolution()?.justification; as why) {
               <p class="decision-reason">{{ why }}</p>
             }

@@ -7,12 +7,15 @@ import ar.edu.utn.frba.arbiter.classification.services.risk.RiskFactorIds;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
+import java.text.NumberFormat;
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
@@ -40,6 +43,28 @@ public class DocumentInconsistencyEvaluator implements RiskFactorEvaluator {
     /** On a damage claim, the document that sets what is being claimed. */
     private static final String REPAIR_QUOTE_TYPE = "repair_quote";
 
+    /**
+     * What a provider answers a referral with. The analyst uploads them, not the insured, so they
+     * say nothing about the insured's documentation.
+     */
+    private static final Set<String> PROVIDER_REPORT_TYPES = Set.of("expert_report", "repair_report");
+
+    /**
+     * The analyst reads the finding, so it names the document as the screen does. The frontend's
+     * labels can't be reused: this text also goes out as is in the fraud report's CSV and PDF.
+     */
+    private static final Map<String, String> DOCUMENT_LABELS = Map.of(
+            POLICE_REPORT_TYPE, "Denuncia policial",
+            PURCHASE_PROOF_TYPE, "Comprobante de compra",
+            REPAIR_QUOTE_TYPE, "Presupuesto de reparación",
+            "imei_deregistration", "Baja de IMEI",
+            "last_connection", "Captura de última conexión",
+            "item_photo", "Foto del bien");
+
+    private static final DateTimeFormatter DISPLAY_DATE = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+
+    private static final Locale AR = Locale.forLanguageTag("es-AR");
+
     private static final Pattern NOT_A_WORD = Pattern.compile("[^\\p{L}\\d]+");
 
     @Override
@@ -57,6 +82,9 @@ public class DocumentInconsistencyEvaluator implements RiskFactorEvaluator {
 
         List<String> findings = new ArrayList<>();
         documents.forEach((type, extraction) -> {
+            if (PROVIDER_REPORT_TYPES.contains(type)) {
+                return;
+            }
             checkImei(context, type, extraction.fields(), findings);
             checkItemAttributes(context, type, extraction.fields(), findings);
             checkDocumentDate(context, type, extraction.fields(), findings);
@@ -81,8 +109,8 @@ public class DocumentInconsistencyEvaluator implements RiskFactorEvaluator {
         }
         if (!insuredImei.equals(fields.imei())) {
             findings.add(String.format(
-                    "El IMEI del documento '%s' (%s) no coincide con el del bien asegurado (%s)",
-                    type, fields.imei(), insuredImei));
+                    "El IMEI del documento \"%s\" (%s) no coincide con el del bien asegurado (%s)",
+                    label(type), fields.imei(), insuredImei));
         }
     }
 
@@ -105,8 +133,8 @@ public class DocumentInconsistencyEvaluator implements RiskFactorEvaluator {
                 continue;
             }
             findings.add(String.format(
-                    "%s del documento '%s' (%s) no coincide con la póliza (%s)",
-                    capitalized(attribute.getKey()), type, read, attribute.getValue()));
+                    "%s del documento \"%s\" (%s) no coincide con la póliza (%s)",
+                    capitalized(attribute.getKey()), label(type), read, attribute.getValue()));
             return;
         }
     }
@@ -181,8 +209,8 @@ public class DocumentInconsistencyEvaluator implements RiskFactorEvaluator {
         LocalDate earliestAccepted = eventDate.minusDays(DOCUMENT_DATE_TOLERANCE_DAYS);
         if (fields.documentDate().isBefore(earliestAccepted)) {
             findings.add(String.format(
-                    "El documento '%s' está fechado el %s, anterior al hecho (%s)",
-                    type, fields.documentDate(), eventDate));
+                    "El documento \"%s\" está fechado el %s, anterior al hecho (%s)",
+                    label(type), displayDate(fields.documentDate()), displayDate(eventDate)));
         }
     }
 
@@ -201,7 +229,7 @@ public class DocumentInconsistencyEvaluator implements RiskFactorEvaluator {
         if (!onPaper.equals(declared)) {
             findings.add(String.format(
                     "La constancia policial está fechada el %s, pero el asegurado declaró haber denunciado el %s",
-                    onPaper, declared));
+                    displayDate(onPaper), displayDate(declared)));
         }
     }
 
@@ -226,8 +254,24 @@ public class DocumentInconsistencyEvaluator implements RiskFactorEvaluator {
         BigDecimal difference = fields.amount().subtract(claimed).abs();
         if (difference.compareTo(tolerance) > 0) {
             findings.add(String.format(
-                    "El importe del documento '%s' ($%s) difiere del monto reclamado ($%s)",
-                    type, fields.amount(), claimed));
+                    "El importe del documento \"%s\" (%s) difiere del monto reclamado (%s)",
+                    label(type), displayAmount(fields.amount()), displayAmount(claimed)));
         }
+    }
+
+    /** A type with no label is shown as it came rather than hidden. */
+    private static String label(String type) {
+        return DOCUMENT_LABELS.getOrDefault(type, type);
+    }
+
+    private static String displayDate(LocalDate date) {
+        return DISPLAY_DATE.format(date);
+    }
+
+    /** Cents only when the amount has them: "$ 589.999", not "$ 589.999,00". */
+    private static String displayAmount(BigDecimal amount) {
+        NumberFormat format = NumberFormat.getNumberInstance(AR);
+        format.setMaximumFractionDigits(2);
+        return "$ " + format.format(amount);
     }
 }

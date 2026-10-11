@@ -149,6 +149,25 @@ class DocumentInconsistencyEvaluatorTest {
         assertThat(c.rationale()).contains("anterior al hecho");
     }
 
+    /** The analyst reads this text: dates as dd/mm/yyyy, never ISO. */
+    @Test
+    void datesAreWrittenTheWayTheAnalystReadsThem() {
+        Contribution c = evaluator.evaluate(context(policyWithImei(), Map.of(
+                "police_report", withFields(fields(LocalDate.of(2025, 12, 30), null, null)))));
+
+        assertThat(c.rationale()).contains("30/12/2025").contains("13/06/2026").doesNotContain("2025-12-30");
+    }
+
+    /** What a provider answers a referral with is not the insured's documentation. */
+    @ParameterizedTest
+    @CsvSource({"expert_report", "repair_report"})
+    void aProviderReport_isNotCrossedAgainstTheClaim(String type) {
+        Contribution c = evaluator.evaluate(context(policyWithImei(), Map.of(
+                type, withFields(fields(EVENT_DAY.minusMonths(6), null, "359999999999999")))));
+
+        assertThat(c.score()).isZero();
+    }
+
     @Test
     void aDocumentDatedAFewDaysBefore_isTolerated() {
         Contribution c = evaluator.evaluate(context(policyWithImei(), Map.of(
@@ -174,6 +193,19 @@ class DocumentInconsistencyEvaluatorTest {
 
         assertThat(c.score()).isGreaterThan(0.0);
         assertThat(c.rationale()).contains("difiere del monto reclamado");
+    }
+
+    @ParameterizedTest
+    @CsvSource(delimiter = '|', value = {
+            "589999.0  | $ 589.999",
+            "900000.00 | $ 900.000",
+            "450000.50 | $ 450.000,5",
+    })
+    void amountsAreWrittenInArgentineFormat(BigDecimal onDocument, String shown) {
+        Contribution c = evaluator.evaluate(context(policyWithImei(), Map.of(
+                "purchase_proof", withFields(fields(null, onDocument, null)))));
+
+        assertThat(c.rationale()).contains("(" + shown + ")").contains("($ 100.000)");
     }
 
     @Test
@@ -203,7 +235,7 @@ class DocumentInconsistencyEvaluatorTest {
                 "purchase_proof", withFields(fields(null, new BigDecimal("100000"), null)),
                 "repair_quote", withFields(fields(null, new BigDecimal("30000"), null)))));
 
-        assertThat(c.rationale()).contains("'repair_quote'").contains("difiere del monto reclamado");
+        assertThat(c.rationale()).contains("\"Presupuesto de reparación\"").contains("difiere del monto reclamado");
     }
 
     /** Other documents' amounts (a police report's valuation, say) never take part. */
@@ -253,6 +285,23 @@ class DocumentInconsistencyEvaluatorTest {
                 "purchase_proof", withFields(fields(null, new BigDecimal("450000"), "359999999999999")))));
 
         assertThat(c.score()).isEqualTo(1.0);
+    }
+
+    /** Every kind of finding names the document in Spanish, never by its internal key. */
+    @Test
+    void findingsNameTheDocumentTheWayTheScreenDoes() {
+        Contribution c = evaluator.evaluate(context(policyInsuring("Samsung", "Galaxy A56"), Map.of(
+                "purchase_proof", withFields(new DocumentExtraction.Fields(
+                        null, new BigDecimal("450000"), null, "Samsung", "Galaxy S24", null, null, null,
+                        List.of())),
+                "police_report", withFields(fields(EVENT_DAY.minusMonths(3), null, null)))));
+
+        assertThat(c.rationale())
+                .contains("Modelo del documento \"Comprobante de compra\"")
+                .contains("El importe del documento \"Comprobante de compra\"")
+                .contains("El documento \"Denuncia policial\"")
+                .doesNotContain("purchase_proof")
+                .doesNotContain("police_report");
     }
 
     // ─── Item attributes of the policy against the document ──────────────────────
