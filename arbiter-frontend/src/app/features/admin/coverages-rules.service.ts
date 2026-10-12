@@ -77,6 +77,13 @@ export class CoveragesRulesService {
     return this.http.get<CoverageSummary[]>(`${this.base}/summary`);
   }
 
+  /** Coverage names on the insurer's policies of the branch: a coverage must be named one of them. */
+  insurerNames(branchId: number): Observable<string[]> {
+    return this.http.get<string[]>(`${this.base}/insurer-names`, {
+      params: { branchId: String(branchId) },
+    });
+  }
+
   create(branchId: number, request: CoverageUpsertRequest): Observable<CoverageDetail> {
     return this.http.post<CoverageDetail>(this.base, request, {
       params: { branchId: String(branchId) },

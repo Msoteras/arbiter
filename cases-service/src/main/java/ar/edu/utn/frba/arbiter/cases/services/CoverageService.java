@@ -1,13 +1,17 @@
 package ar.edu.utn.frba.arbiter.cases.services;
 
+import ar.edu.utn.frba.arbiter.cases.adapters.InsurerAdapter;
 import ar.edu.utn.frba.arbiter.cases.dto.CoverageDetailResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CoverageOption;
 import ar.edu.utn.frba.arbiter.cases.dto.CoverageSummary;
 import ar.edu.utn.frba.arbiter.cases.dto.CoverageUpsertRequest;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CoverageNotFoundException;
+import ar.edu.utn.frba.arbiter.cases.exceptions.UnresolvedCaseReferenceException;
+import ar.edu.utn.frba.arbiter.cases.models.repositories.BranchRepository;
 import ar.edu.utn.frba.arbiter.common.enums.DeductibleBasis;
 import ar.edu.utn.frba.arbiter.common.enums.SettlementBasis;
 import ar.edu.utn.frba.arbiter.common.enums.SettlementFormula;
+import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Branch;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Coverage;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CoverageRepository;
 import lombok.RequiredArgsConstructor;
@@ -29,12 +33,26 @@ public class CoverageService {
     private static final long HOURS_PER_DAY = 24L;
 
     private final CoverageRepository coverageRepository;
+    private final BranchRepository branchRepository;
+    private final InsurerAdapter insurerAdapter;
 
     @Transactional(readOnly = true)
     public List<CoverageOption> listByBranch(Long branchId) {
         return coverageRepository.findByBranchIdOrderByNameAsc(branchId).stream()
                 .map(coverage -> new CoverageOption(coverage.getId(), coverage.getName()))
                 .toList();
+    }
+
+    /**
+     * What the referent can name a coverage of the branch: the names on the insurer's policies. A
+     * coverage named otherwise never matches a policy, and no claim can be filed under it.
+     */
+    @Transactional(readOnly = true)
+    public List<String> insurerCoverageNames(Long branchId) {
+        Branch branch = branchRepository.findById(branchId)
+                .orElseThrow(() -> new UnresolvedCaseReferenceException("ramo", String.valueOf(branchId)));
+        String externalName = branch.getExternalName() != null ? branch.getExternalName() : branch.getName();
+        return insurerAdapter.findCoverageNames(externalName);
     }
 
     @Transactional(readOnly = true)
