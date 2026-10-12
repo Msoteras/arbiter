@@ -1,6 +1,6 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
-import { Observable, finalize, forkJoin, of } from 'rxjs';
+import { Observable, finalize, forkJoin, of, switchMap, tap } from 'rxjs';
 
 import {
   Coverage,
@@ -254,6 +254,8 @@ export class RulesComponent {
   // Cached because the counts and the branch list are independent requests with no guaranteed
   // order; both callbacks reapply it, so whichever arrives last wins.
   private coverageCounts = new Map<string, number>();
+  /** Until the summary answers, a branch's count is unknown, not zero. */
+  private coverageSummaryLoaded = false;
 
   constructor() {
     this.branchesService.list().subscribe({
@@ -277,6 +279,7 @@ export class RulesComponent {
     this.coveragesService.summary().subscribe({
       next: (counts) => {
         this.coverageCounts = new Map(counts.map((c) => [String(c.branchId), c.coverageCount]));
+        this.coverageSummaryLoaded = true;
         this.applyCoverageCounts();
       },
       error: () => {
@@ -285,14 +288,54 @@ export class RulesComponent {
     });
   }
 
+  /** A branch missing from the summary has no coverages: the summary only lists the others. */
   private applyCoverageCounts(): void {
-    if (this.coverageCounts.size === 0) {
+    if (!this.coverageSummaryLoaded) {
       return;
     }
     this.branches.update((list) =>
-      list.map((r) => ({ ...r, coverageCount: this.coverageCounts.get(r.id) ?? r.coverageCount })),
+      list.map((r) => ({ ...r, coverageCount: this.coverageCounts.get(r.id) ?? 0 })),
     );
   }
+
+  /** Claim causes at least one coverage of the branch covers. */
+  private readonly coveredClaimCauses = computed(() => {
+    const coverages = this.draft()?.coverages ?? [];
+    return this.claimCauses().filter((cause) =>
+      coverages.some((c) => !(c.excludedClaimCauseIds ?? []).includes(cause.id)),
+    );
+  });
+
+  /**
+   * The only setting a branch can't work without: no coverage, no policy matches and no claim
+   * can be filed. Everything else is optional and only flagged when left empty.
+   */
+  protected tabStatus(tab: TabId): 'required' | 'pending' | null {
+    const d = this.draft();
+    if (!d) {
+      return null;
+    }
+    switch (tab) {
+      case 'coverages':
+        return d.coverages.length === 0 ? 'required' : null;
+      case 'documents':
+        return this.coveredClaimCauses().some(
+          (cause) => (d.requiredDocumentsByClaimCause[cause.id] ?? []).length === 0,
+        )
+          ? 'pending'
+          : null;
+      default:
+        return null;
+    }
+  }
+
+  /** Points from a branch's first coverages to its document schedule while that is incomplete. */
+  protected readonly showNextToDocuments = computed(
+    () =>
+      (this.draft()?.coverages.length ?? 0) > 0 &&
+      !this.covDirty() &&
+      this.tabStatus('documents') === 'pending',
+  );
 
   private beginDetailLoad(rulesId: string): void {
     this.detailToken = rulesId;
@@ -370,6 +413,59 @@ export class RulesComponent {
 
   protected selectGeneral(section: GeneralView): void {
     this.view.set(section);
+  }
+
+  /** Unsaved edits in the open view; leaving it would drop them without a word. */
+  private readonly hasUnsavedChanges = computed(() => {
+    switch (this.view()) {
+      case 'branch':
+        return (
+          this.covDirty() ||
+          this.exclDirty() ||
+          this.ftDirty() ||
+          this.docDirty() ||
+          this.rulesDirty()
+        );
+      case 'hardStop':
+        return this.hardStopDirty();
+      default:
+        return false;
+    }
+  });
+
+  /** Where the user wanted to go when the discard confirmation opened. */
+  protected readonly pendingNavigation = signal<(() => void) | null>(null);
+
+  protected goToBranch(r: BranchRules, menu: HTMLElement, editor: HTMLElement): void {
+    this.leaveCurrentView(() => {
+      this.select(r);
+      this.revealEditor(menu, editor);
+    });
+  }
+
+  protected goToGeneral(section: GeneralView, menu: HTMLElement, editor: HTMLElement): void {
+    this.leaveCurrentView(() => {
+      this.selectGeneral(section);
+      this.revealEditor(menu, editor);
+    });
+  }
+
+  private leaveCurrentView(navigate: () => void): void {
+    if (this.hasUnsavedChanges()) {
+      this.pendingNavigation.set(navigate);
+      return;
+    }
+    navigate();
+  }
+
+  protected discardAndLeave(): void {
+    const navigate = this.pendingNavigation();
+    this.pendingNavigation.set(null);
+    navigate?.();
+  }
+
+  protected keepEditing(): void {
+    this.pendingNavigation.set(null);
   }
 
   protected revealEditor(menu: HTMLElement, editor: HTMLElement): void {
@@ -529,6 +625,11 @@ export class RulesComponent {
       return;
     }
     const rulesId = r.id;
+    this.insurerCoverageNames.set(null);
+    this.trackDetail(rulesId, this.coveragesService.insurerNames(branchId)).subscribe({
+      next: (names) => this.insurerCoverageNames.set(names),
+      error: () => this.insurerCoverageNames.set([]),
+    });
     this.trackDetail(rulesId, this.coveragesService.listDetailed(branchId)).subscribe({
       next: (list) => {
         this.overlayCoverages(rulesId, list);
@@ -551,6 +652,12 @@ export class RulesComponent {
   }
 
   private overlayCoverages(rulesId: string, list: CoverageDetail[]): void {
+    // On a reload of the same branch (after a save), keep what the screen shows until the fresh
+    // exclusions and rules answer: starting them empty flashes the "covers the whole branch" warning.
+    const current = this.draft();
+    const shown = new Map(
+      current && current.id === rulesId ? current.coverages.map((c) => [c.id, c]) : [],
+    );
     const coverages: Coverage[] = list.map((c) => ({
       id: String(c.id),
       name: c.name,
@@ -570,8 +677,8 @@ export class RulesComponent {
       deductOverdueBalance: c.deductOverdueBalance,
       exclusions: c.exclusions ?? [],
       // Filled in by loadCoverageExclusions / loadCoverageHardRules (they live in rules-service).
-      excludedClaimCauseIds: [],
-      hardRules: [],
+      excludedClaimCauseIds: shown.get(String(c.id))?.excludedClaimCauseIds ?? [],
+      hardRules: shown.get(String(c.id))?.hardRules ?? [],
     }));
     this.loadedCoverages = coverages;
     // Only if the draft still shows this branch: a slow reply for a branch the user left mustn't
@@ -805,7 +912,12 @@ export class RulesComponent {
       deductOverdueBalance: false,
       exclusions: [],
       excludedClaimCauseIds: [],
-      hardRules: [],
+      // Every rule, switched off: a new coverage is configured whole before its first save.
+      hardRules: RulesComponent.HARD_RULE_ORDER.map((ruleType) => ({
+        ruleType,
+        enabled: false,
+        deadlineHours: null,
+      })),
     };
     this.draft.update((d) => (d ? { ...d, coverages: [...d.coverages, coverage] } : d));
     // Opened right away, or adding a collapsed row at the bottom looks like nothing happened.
@@ -955,11 +1067,6 @@ export class RulesComponent {
     });
   }
 
-  /** Only saved coverages (numeric id) can have exclusions. */
-  protected canEditExclusions(c: Coverage): boolean {
-    return this.isPersistedId(c.id);
-  }
-
   protected isCauseExcluded(c: Coverage, causeId: number): boolean {
     return (c.excludedClaimCauseIds ?? []).includes(causeId);
   }
@@ -1000,11 +1107,44 @@ export class RulesComponent {
     );
   }
 
-  protected removeCoverage(id: string): void {
+  /** The coverage waiting for the removal confirmation. */
+  protected readonly coverageToRemove = signal<Coverage | null>(null);
+
+  protected confirmRemoveCoverage(): void {
+    const c = this.coverageToRemove();
+    this.coverageToRemove.set(null);
+    if (c) {
+      this.removeCoverage(c.id);
+    }
+  }
+
+  private removeCoverage(id: string): void {
     this.draft.update((d) => (d ? { ...d, coverages: d.coverages.filter((c) => c.id !== id) } : d));
     if (this.expandedCoverageId() === id) {
       this.expandedCoverageId.set(null);
     }
+  }
+
+  /** Names on the insurer's policies of the open branch; null while they load. */
+  protected readonly insurerCoverageNames = signal<string[] | null>(null);
+
+  /** The insurer's names not taken by another coverage of the branch, plus this one's own. */
+  protected coverageNameOptions(c: Coverage): SelectOption[] {
+    const taken = new Set(
+      (this.draft()?.coverages ?? []).filter((o) => o.id !== c.id).map((o) => o.name),
+    );
+    const names = (this.insurerCoverageNames() ?? []).filter((name) => !taken.has(name));
+    // A name stored before this selector existed stays visible, so the mismatch can be fixed.
+    if (c.name && !names.includes(c.name)) {
+      names.unshift(c.name);
+    }
+    return names.map((name) => ({ value: name, label: name }));
+  }
+
+  /** Named something no policy of the branch has: no claim could be filed under it. */
+  protected coverageNameUnmatched(c: Coverage): boolean {
+    const names = this.insurerCoverageNames();
+    return names !== null && c.name !== '' && !names.includes(c.name);
   }
 
   protected setCoverageField(id: string, patch: Partial<Coverage>): void {
@@ -1100,24 +1240,25 @@ export class RulesComponent {
     ).filter((r): r is HardRule => r != null);
   }
 
-  protected hardRuleHint(type: HardRuleType): string {
-    switch (type) {
-      case 'WAITING_PERIOD':
-        return 'Días desde el alta de la póliza en los que la cobertura todavía no aplica.';
-      case 'REPORT_DEADLINE':
-        return 'Plazo para denunciar el siniestro a la aseguradora, contado desde el hecho.';
-      case 'POLICE_DEADLINE':
-        return 'Plazo para hacer la denuncia policial, sobre la fecha que declara el asegurado.';
-      case 'MAX_EVENTS_YEAR':
-        return 'Cuántos siniestros puede tener el asegurado en esta cobertura en 12 meses.';
-    }
-  }
-
   protected hardRuleUnit(type: HardRuleType): string {
     return type === 'POLICE_DEADLINE' ? 'horas' : type === 'MAX_EVENTS_YEAR' ? 'por año' : 'días';
   }
 
   /** Three thresholds are coverage columns; the police deadline lives on the rule itself. */
+  /** Switched on with no threshold: the engine would skip it while the screen shows it as active. */
+  protected ruleMissingValue(c: Coverage, rule: HardRule): boolean {
+    return rule.enabled && this.hardRuleValue(c, rule.ruleType).trim() === '';
+  }
+
+  protected readonly covCanSave = computed(
+    () =>
+      !(this.draft()?.coverages ?? []).some(
+        (c) =>
+          c.name.trim() === '' ||
+          this.hardRulesOf(c).some((rule) => this.ruleMissingValue(c, rule)),
+      ),
+  );
+
   protected hardRuleValue(c: Coverage, type: HardRuleType): string {
     switch (type) {
       case 'WAITING_PERIOD':
@@ -1278,6 +1419,34 @@ export class RulesComponent {
     this.patchFastTrack((ft) => ({ ...ft, requiresUpToDatePolicy: !ft.requiresUpToDatePolicy }));
   }
 
+  /**
+   * Fast Track asks for the first round of the coverage's own documents: those the document
+   * schedule requires for the claim causes the coverage covers. A document already chosen but no
+   * longer in that list stays listed, so it can be turned off.
+   */
+  protected readonly ftDocOptions = computed(() => {
+    const d = this.draft();
+    const coverageId = this.ftCoverageId();
+    if (!d || coverageId == null) {
+      return [];
+    }
+    const coverage = d.coverages.find((c) => c.id === String(coverageId));
+    const excluded = new Set(coverage?.excludedClaimCauseIds ?? []);
+    const allowed = new Set<string>();
+    this.claimCauses()
+      .filter((cause) => !excluded.has(cause.id))
+      .forEach((cause) =>
+        (d.requiredDocumentsByClaimCause[cause.id] ?? []).forEach((code) => allowed.add(code)),
+      );
+    return this.docTypes
+      .filter((doc) => allowed.has(doc.code) || this.isFtDoc(doc.code))
+      .map((doc) => ({ ...doc, outsideSchedule: !allowed.has(doc.code) }));
+  });
+
+  protected readonly ftHasStaleDocs = computed(() =>
+    this.ftDocOptions().some((doc) => doc.outsideSchedule),
+  );
+
   protected isFtDoc(code: string): boolean {
     return this.draft()?.fastTrack.requiredDocumentTypes.includes(code) ?? false;
   }
@@ -1318,7 +1487,7 @@ export class RulesComponent {
   /** Only the coverage picked in the selector: each has its own FAST_TRACK rule. */
   protected saveFastTrack(): void {
     const d = this.draft();
-    if (!d || this.ftSaving()) {
+    if (!d || this.ftSaving() || this.ftHasStaleDocs()) {
       return;
     }
     this.ftError.set(null);
@@ -1386,7 +1555,7 @@ export class RulesComponent {
   /** Diffs the draft against `loadedCoverages` into creates, updates and deletes. */
   protected saveCoverages(): void {
     const d = this.draft();
-    if (!d || this.covSaving()) {
+    if (!d || this.covSaving() || !this.covCanSave()) {
       return;
     }
     this.covError.set(null);
@@ -1403,15 +1572,19 @@ export class RulesComponent {
 
     const requests: Observable<unknown>[] = [
       ...toDelete.map((c) => this.coveragesService.remove(Number(c.id))),
-      ...toCreate.map((c) => this.coveragesService.create(branchId, this.toCoverageRequest(c))),
-      ...toUpdate.map((c) => this.coveragesService.update(Number(c.id), this.toCoverageRequest(c))),
-      // Exclusions and hard rules only for saved coverages: a new one has no real id until reload.
       ...toUpdate.map((c) =>
-        this.exclusionsService.save(branchId, Number(c.id), c.excludedClaimCauseIds ?? []),
+        forkJoin([
+          this.coveragesService.update(Number(c.id), this.toCoverageRequest(c)),
+          this.saveCoverageRules(branchId, Number(c.id), c),
+        ]),
       ),
-      ...toUpdate
-        .filter((c) => this.hardRulesOf(c).length > 0)
-        .map((c) => this.hardRulesService.save(branchId, Number(c.id), this.hardRulesOf(c))),
+      // Rules need the coverage's real id, so they wait for the create.
+      ...toCreate.map((c) =>
+        this.coveragesService.create(branchId, this.toCoverageRequest(c)).pipe(
+          tap((created) => this.adoptCreatedCoverage(c.id, created.id)),
+          switchMap((created) => this.saveCoverageRules(branchId, created.id, c)),
+        ),
+      ),
     ];
 
     this.covSaving.set(true);
@@ -1419,7 +1592,7 @@ export class RulesComponent {
       next: () => {
         this.covSaving.set(false);
         this.markPersisted('coverages');
-        // Reload so newly created coverages get their real ids.
+        // Reload so the screen shows exactly what was stored.
         this.loadCoveragesFromBackend(d);
         this.refreshCoverageSummary();
       },
@@ -1428,6 +1601,37 @@ export class RulesComponent {
         this.covError.set(this.backendErrorMessage(e));
       },
     });
+  }
+
+  private saveCoverageRules(
+    branchId: number,
+    coverageId: number,
+    c: Coverage,
+  ): Observable<unknown> {
+    return forkJoin([
+      this.exclusionsService.save(branchId, coverageId, c.excludedClaimCauseIds ?? []),
+      this.hardRulesOf(c).length > 0
+        ? this.hardRulesService.save(branchId, coverageId, this.hardRulesOf(c))
+        : of(null),
+    ]);
+  }
+
+  /**
+   * Swaps the draft's temporary id for the stored one as soon as the create answers, so a retry
+   * after a later failure updates the coverage instead of creating it twice.
+   */
+  private adoptCreatedCoverage(tempId: string, storedId: number): void {
+    const id = String(storedId);
+    this.draft.update((d) =>
+      d ? { ...d, coverages: d.coverages.map((c) => (c.id === tempId ? { ...c, id } : c)) } : d,
+    );
+    const created = this.draft()?.coverages.find((c) => c.id === id);
+    if (created) {
+      this.loadedCoverages = [...this.loadedCoverages, structuredClone(created)];
+    }
+    if (this.expandedCoverageId() === tempId) {
+      this.expandedCoverageId.set(id);
+    }
   }
 
   private toCoverageRequest(c: Coverage): CoverageUpsertRequest {
