@@ -117,7 +117,6 @@ export class ProvidersConfigComponent {
     this.setField('providerType', value as ProviderType);
   }
 
-  /** None checked is a valid answer: a generalist covering every branch. */
   protected toggleBranch(branchId: number, checked: boolean): void {
     const current = this.draft();
     if (!current) {
@@ -129,8 +128,9 @@ export class ProvidersConfigComponent {
 
   protected readonly canSave = computed(() => {
     const d = this.draft();
-    // Email is the only channel to the provider: without it a referral goes nowhere.
-    return !!d && d.name.trim().length > 0 && d.email.trim().length > 0;
+    // Email is the only channel to the provider: without it a referral goes nowhere. With no
+    // branch it would never be offered to an analyst.
+    return !!d && d.name.trim().length > 0 && d.email.trim().length > 0 && d.branchIds.length > 0;
   });
 
   protected save(): void {

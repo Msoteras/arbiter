@@ -83,11 +83,8 @@ public class ServiceProviderService {
         serviceProviderRepository.delete(provider);
     }
 
-    /** Empty means a generalist covering every branch; any unknown id is a 422, not a skipped one. */
+    /** Any unknown id is a 422, not a skipped one. The request guarantees at least one. */
     private Set<Branch> resolveBranches(List<Long> branchIds) {
-        if (branchIds == null) {
-            return new HashSet<>();
-        }
         Set<Branch> branches = new HashSet<>();
         for (Long branchId : new LinkedHashSet<>(branchIds)) {
             branches.add(branchRepository.findById(branchId)

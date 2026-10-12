@@ -195,9 +195,10 @@ proveedor cubría un solo ramo o todos. Implementado en `db/init-multitenant.sql
 | `peritaje.perito_id` | `derivacion_expediente.proveedor_id` (`provider_id`) | BIGINT | sí | FK → `proveedor_externo.id`, ON DELETE SET NULL |
 | `antecedente_fraude.peritaje_id` | `antecedente_fraude.derivacion_expediente_id` (`case_referral_id`) | BIGINT | sí | FK → `derivacion_expediente.id` |
 
-Un proveedor sin filas en `proveedor_externo_rama` es generalista: cubre todos los ramos, también
-los que se den de alta después. La migración pasa cada `rama_id` no nulo a una fila de la tabla
-nueva; los que tenían NULL quedan sin filas. `veredicto`, `monto_indemnizable`,
+Un proveedor cubre solo los ramos con fila en `proveedor_externo_rama`, y tiene al menos una. La
+migración pasa cada `rama_id` no nulo a una fila de la tabla nueva. Hasta el 10/10/2026, un
+proveedor sin filas era generalista; la migración `2026-10-10-proveedores-con-ramos.sql` le asignó
+todos los ramos de su aseguradora. `veredicto`, `monto_indemnizable`,
 `resultado_reparacion` y `costo_reparacion` no cambian: ya son propios de un tipo de proveedor.
 
 **Acción:** en el `.mdj`, renombrar las dos entidades y sus columnas, sacar `rama_id` de
