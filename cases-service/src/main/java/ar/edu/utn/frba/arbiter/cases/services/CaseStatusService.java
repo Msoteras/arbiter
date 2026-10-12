@@ -170,6 +170,18 @@ public class CaseStatusService {
                 actor, reason);
     }
 
+    /**
+     * Something that happened to the case without moving it (a settlement going to the referent and
+     * coming back). Same {@code from == to} row as an assignment.
+     *
+     * @param observation what a person wrote alongside it, or null
+     */
+    @Transactional
+    public void recordNote(Case caseRecord, StatusChangeActor actor, String reason, String observation) {
+        appendHistory(caseRecord.getId(), caseRecord.getCurrentStatus(), caseRecord.getCurrentStatus(),
+                actor, reason, observation);
+    }
+
     public List<CaseStatusHistory> history(Long caseId) {
         return historyRepository.findByCaseIdOrderByChangedAtAsc(caseId);
     }

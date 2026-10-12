@@ -54,7 +54,9 @@ export class CaseUploadComponent {
   });
 
   /** Upload is offered only when requested: uploading a document re-triggers classification. */
-  protected readonly needsDocs = computed(() => this.data()?.status === 'AWAITING_DOCUMENTATION');
+  protected readonly needsDocs = computed(
+    () => this.data()?.insuredStatus.code === 'AWAITING_DOCUMENTATION',
+  );
 
   protected onUploaded(): void {
     this.router.navigate(['/portal/cases', this.caseId], {

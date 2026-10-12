@@ -7,7 +7,7 @@ import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseSpecifications;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.InsurerRepository;
 import ar.edu.utn.frba.arbiter.cases.config.tenant.TenantContext;
-import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
+import ar.edu.utn.frba.arbiter.common.enums.InsuredStatus;
 import ar.edu.utn.frba.arbiter.common.enums.RiskBand;
 import ar.edu.utn.frba.arbiter.common.models.entities.Insurer;
 import lombok.RequiredArgsConstructor;
@@ -20,6 +20,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 
@@ -46,7 +47,7 @@ public class InsuredCaseAggregator {
      * Returns entities rather than {@code CaseResponse}: mapping belongs to {@code CaseServiceImpl},
      * and doing it here would make the two beans depend on each other.
      */
-    public Page<InsuredCase> findOwnCases(List<CaseStatus> status, String claimCause, String policyNumber,
+    public Page<InsuredCase> findOwnCases(List<InsuredStatus> insuredStatus, String claimCause, String policyNumber,
                                     LocalDate eventDateFrom, LocalDate eventDateTo,
                                     String q, RiskBand riskBand, CaseScope scope, Long insurerId,
                                     Pageable pageable) {
@@ -60,11 +61,13 @@ public class InsuredCaseAggregator {
 
         // The DNI filter is forced from the token, not taken from the request.
         Specification<Case> spec = CaseSpecifications.withFilters(
-                status, claimCause, policyNumber, caller.insuredId(),
+                null, claimCause, policyNumber, caller.insuredId(),
                 eventDateFrom, eventDateTo, q, riskBand, null);
-        Specification<Case> scoped = CaseSpecifications.scope(scope);
-        if (scoped != null) {
-            spec = spec == null ? scoped : spec.and(scoped);
+        for (Specification<Case> extra : Arrays.asList(
+                CaseSpecifications.scope(scope), CaseSpecifications.insuredStatus(insuredStatus))) {
+            if (extra != null) {
+                spec = spec == null ? extra : spec.and(extra);
+            }
         }
 
         // Intersected with the token's insurers: the filter can't widen what the insured sees.

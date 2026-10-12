@@ -2,9 +2,13 @@ import { CauseConsistency } from './cause-consistency';
 import { Classification } from './classification';
 import { DeadlinePriority } from './deadline-priority';
 import { ImageForensicReport } from './forensic';
+import { InsuredMovement, InsuredStatus } from './insured-status';
 import { PolicySnapshot, RuleResult } from './traceability';
 
-// Mirrors cases-service's StatusTransitionResponse; `fromStatus` is null on the creation row.
+/**
+ * The analyst's side of cases-service's StatusTransitionResponse; `fromStatus` is null on the
+ * creation row. None of it reaches the portal: the insured gets only the `InsuredMovement` half.
+ */
 export interface StatusTransition {
   fromStatus: string | null;
   toStatus: string;
@@ -72,7 +76,9 @@ export interface CaseResponse {
   /** Only in the insured's cross-insurer list, where `id` repeats across insurers. */
   insurerSlug?: string | null;
   insurerName?: string | null;
+  /** Not sent to the insured: the portal reads `insuredStatus`. */
   status: string;
+  insuredStatus: InsuredStatus;
   branch: string;
   product: string;
   claimCause: string;
@@ -124,7 +130,7 @@ export interface CaseResponse {
    */
   settlementStatus: SettlementStatus | null;
   /** Only in GET /{id}; null in lists. */
-  statusHistory: StatusTransition[] | null;
+  statusHistory: (StatusTransition & InsuredMovement)[] | null;
   /** Only in GET /{id}. */
   documentAnalyses: DocumentAnalysis[];
   /** Only in GET /{id}, PASS included. Empty = no rule ran; `null` = could not be read. */

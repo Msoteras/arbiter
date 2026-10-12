@@ -11,7 +11,7 @@ import { CaseListParams, CaseService } from '../../cases/case.service';
 import { NewClaimModalService } from '../../cases/new-claim-modal.service';
 import { PolicyService } from '../../cases/policy.service';
 
-/** Each simplified status bucket must expand to every `CaseStatus` it covers. */
+/** The insured filters by the status they are told, never by an internal one. */
 describe('MyCasesComponent · filters', () => {
   let fixture: ComponentFixture<MyCasesComponent>;
   let listCalls: CaseListParams[];
@@ -36,6 +36,11 @@ describe('MyCasesComponent · filters', () => {
               listCalls.push(params);
               return of(emptyPage);
             },
+            insuredStatuses: () =>
+              of([
+                { code: 'UNDER_ANALYSIS', label: 'En análisis' },
+                { code: 'UNDER_VERIFICATION', label: 'En peritaje' },
+              ]),
           },
         },
         { provide: PolicyService, useValue: { listByInsured: () => of(policies) } },
@@ -67,34 +72,30 @@ describe('MyCasesComponent · filters', () => {
     await mount([bbva]);
 
     expect(lastList().status).toBeUndefined();
+    expect(lastList().insuredStatus).toBeUndefined();
     expect(lastList().insurerId).toBeUndefined();
     expect(lastList().insuredId).toBe('42.987.654');
   });
 
-  it('"En trámite" expands to the four statuses it groups', async () => {
+  it('filters by the status the insured sees on the cards', async () => {
     await mount([bbva]);
 
-    signalOf('statusFilter').set('IN_PROGRESS');
+    signalOf('statusFilter').set('UNDER_VERIFICATION');
     fixture.detectChanges();
     await fixture.whenStable();
 
-    expect(lastList().status).toEqual([
-      'PENDING_ANALYST_REVIEW',
-      'CLASSIFICATION_FAILED',
-      'AWAITING_DOCUMENTATION',
-      'PENDING_EXPERT_REPORT',
-      'PENDING_REPAIR',
-    ]);
+    expect(lastList().insuredStatus).toEqual(['UNDER_VERIFICATION']);
+    expect(lastList().status).toBeUndefined();
   });
 
-  it('"Terminado" sends the three final statuses', async () => {
+  it('offers the statuses with the labels the backend sends', async () => {
     await mount([bbva]);
 
-    signalOf('statusFilter').set('FINISHED');
-    fixture.detectChanges();
-    await fixture.whenStable();
+    const options = (
+      fixture.componentInstance as unknown as Record<string, () => { label: string }[]>
+    )['statusOptions']();
 
-    expect(lastList().status).toEqual(['APPROVED', 'REJECTED', 'LAPSED']);
+    expect(options.map((o) => o.label)).toEqual(['En análisis', 'En peritaje']);
   });
 
   it('does not offer the filter with a single insurer', async () => {
@@ -121,7 +122,7 @@ describe('MyCasesComponent · filters', () => {
     fixture.detectChanges();
     await fixture.whenStable();
 
-    signalOf('statusFilter').set('FINISHED');
+    signalOf('statusFilter').set('UNDER_ANALYSIS');
     (fixture.componentInstance as unknown as Record<string, () => void>)['onFilterChange']();
     fixture.detectChanges();
     await fixture.whenStable();

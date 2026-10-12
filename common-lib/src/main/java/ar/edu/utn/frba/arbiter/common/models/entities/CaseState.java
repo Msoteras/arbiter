@@ -1,7 +1,10 @@
 package ar.edu.utn.frba.arbiter.common.models.entities;
 
+import ar.edu.utn.frba.arbiter.common.enums.InsuredStatus;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -39,6 +42,11 @@ public class CaseState {
     /** Aggregated label the insured sees (several internal states can map to the same one). */
     @Column(name = "insured_status", nullable = false)
     private String insuredState;
+
+    /** What the insured's API carries instead of {@code name}; the label above is only its text. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "insured_status_code", nullable = false, length = 40)
+    private InsuredStatus insuredStatusCode;
 
     @Column(name = "is_final", nullable = false)
     private boolean isFinal;

@@ -93,8 +93,7 @@ import {
   fraudRecordOriginLabel,
 } from '../../../core/models/fraud-record';
 import {
-  caseStatusLabel,
-  simplifiedStatusLabel,
+  workStatusLabel,
   caseStatusTone,
   isFinalStatus,
   riskBandEmptyLabel,
@@ -292,7 +291,7 @@ export class CaseDetailComponent {
 
   protected readonly statusLabel = computed(() => {
     const d = this.data();
-    return d ? caseStatusLabel(d.status) : '';
+    return d ? workStatusLabel(d.status, this.settlement()?.status) : '';
   });
 
   protected readonly statusTone = computed<StatusTone>(() => {
@@ -302,7 +301,7 @@ export class CaseDetailComponent {
 
   protected readonly simplifiedStatusLabel = computed(() => {
     const d = this.data();
-    return d ? simplifiedStatusLabel(d.status) : '';
+    return d ? d.insuredStatus.label : '';
   });
 
   private static readonly RISK_BAND_GAUGE: Record<string, 1 | 2 | 3 | 4> = {

@@ -8,6 +8,7 @@ import ar.edu.utn.frba.arbiter.cases.dto.CaseDocumentResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseFollowUp;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseScope;
 import ar.edu.utn.frba.arbiter.cases.dto.EligibilityCheckRequest;
+import ar.edu.utn.frba.arbiter.cases.dto.InsuredStatusResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.IntakeDocumentsResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.EligibilityCheckResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.LensSummaryResponse;
@@ -16,6 +17,7 @@ import ar.edu.utn.frba.arbiter.cases.dto.CaseResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.PolicyResponse;
 import ar.edu.utn.frba.arbiter.cases.models.entities.CaseDocument;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
+import ar.edu.utn.frba.arbiter.common.enums.InsuredStatus;
 import ar.edu.utn.frba.arbiter.common.enums.RiskBand;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -64,7 +66,8 @@ public interface CaseService {
      * with no analyst profile gets an empty page, not everything. {@code analystId} is the referent's
      * filter.
      */
-    Page<CaseResponse> listCases(List<CaseStatus> status, String claimCause, String policyNumber, String insuredId,
+    Page<CaseResponse> listCases(List<CaseStatus> status, List<InsuredStatus> insuredStatus,
+                                  String claimCause, String policyNumber, String insuredId,
                                   LocalDate eventDateFrom, LocalDate eventDateTo, String q, RiskBand riskBand,
                                   Long analystId, boolean assignedToMe, boolean unassigned, boolean fraudAlert,
                                   boolean assigned, boolean dueSoon, CaseFollowUp followUp, Integer staleDays,
@@ -73,9 +76,12 @@ public interface CaseService {
     default Page<CaseResponse> listCases(List<CaseStatus> status, String claimCause, String policyNumber, String insuredId,
                                           LocalDate eventDateFrom, LocalDate eventDateTo, String q, RiskBand riskBand,
                                           boolean assignedToMe, Pageable pageable) {
-        return listCases(status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
+        return listCases(status, null, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
                 null, assignedToMe, false, false, false, false, null, null, CaseScope.ALL, null, pageable);
     }
+
+    /** The statuses an insured can be told, each with its label, for their filter. */
+    List<InsuredStatusResponse> insuredStatuses();
 
     /** All lens counts at once, over the same filters as the listing, using {@code count(spec)}. */
     LensSummaryResponse lensSummary(List<CaseStatus> status, String claimCause, String policyNumber,
