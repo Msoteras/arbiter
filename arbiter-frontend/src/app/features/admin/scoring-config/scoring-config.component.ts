@@ -9,6 +9,7 @@ import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
 import { SwitchComponent } from '../../../shared/ui/switch/switch.component';
 import { CardComponent } from '../../../shared/ui/card/card.component';
 import { SaveBarComponent } from '../../../shared/ui/save-bar/save-bar.component';
+import { InfoTipComponent } from '../../../shared/ui/info-tip/info-tip.component';
 import { InputComponent } from '../../../shared/ui/input/input.component';
 import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
 import { fadeInUp } from '../../../shared/animations';
@@ -23,6 +24,7 @@ import { fadeInUp } from '../../../shared/animations';
     BadgeComponent,
     SwitchComponent,
     CardComponent,
+    InfoTipComponent,
     InputComponent,
     InlineLoadingComponent,
     SaveBarComponent,

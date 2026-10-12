@@ -7,6 +7,7 @@ import {
   SettlementAuthority,
 } from '../settlement-authorities.service';
 import { CardComponent } from '../../../shared/ui/card/card.component';
+import { InfoTipComponent } from '../../../shared/ui/info-tip/info-tip.component';
 import { InputComponent } from '../../../shared/ui/input/input.component';
 import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
 import { SaveBarComponent } from '../../../shared/ui/save-bar/save-bar.component';
@@ -18,7 +19,13 @@ import { fadeInUp } from '../../../shared/animations';
  */
 @Component({
   selector: 'app-settlement-authorities-config',
-  imports: [CardComponent, InputComponent, InlineLoadingComponent, SaveBarComponent],
+  imports: [
+    CardComponent,
+    InfoTipComponent,
+    InputComponent,
+    InlineLoadingComponent,
+    SaveBarComponent,
+  ],
   animations: [fadeInUp],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './settlement-authorities-config.component.html',

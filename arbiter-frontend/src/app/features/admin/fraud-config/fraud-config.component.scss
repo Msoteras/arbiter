@@ -12,9 +12,6 @@
 .gf-head h2 {
   margin: 0;
 }
-.gf-head .section-hint {
-  margin: 0;
-}
 .sc-section-head {
   display: flex;
   align-items: center;
@@ -25,11 +22,6 @@
 }
 
 /* No max-width on purpose: the hint uses the card's full width like the rest of the rules screen. */
-.section-hint {
-  margin: 0 0 var(--space-3);
-  color: var(--text-secondary);
-  font-size: var(--font-size-sm);
-}
 
 /* Same row classes as the other rule tabs; view encapsulation forces repeating them here. */
 .rule-rows {
@@ -51,11 +43,6 @@
 .rule-text {
   flex: 1 1 auto;
   min-width: 0;
-}
-.rule-hint {
-  margin: var(--space-1) 0 0;
-  color: var(--text-secondary);
-  font-size: var(--font-size-xs);
 }
 .rule-value {
   display: flex;

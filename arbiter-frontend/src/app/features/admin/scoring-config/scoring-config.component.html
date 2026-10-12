@@ -7,17 +7,10 @@
       <app-badge variant="solid">Toda la aseguradora</app-badge>
     </div>
 
-    <p class="section-hint">
-      Puntaje paralelo de riesgo. Cada factor pesa sobre el total y el resultado cae en una banda.
-      Configuración única: aplica igual a todos los ramos.
-    </p>
-
     <div class="sc-section">
       <div class="sc-section-head">
         <span class="t-section-label">Factores y pesos</span>
-        <span class="t-note">
-          Pesos relativos · no hace falta que sumen 100 · «pesa %» = peso sobre los factores activos
-        </span>
+        <app-info-tip>Los pesos son relativos. No tienen que sumar 100.</app-info-tip>
       </div>
 
       @for (group of factorGroups; track group.title) {
@@ -35,13 +28,6 @@
             />
             <div class="rule-text">
               <span class="t-field-label">Evaluar estos factores también en Fast Track</span>
-              <p class="rule-hint">
-                {{
-                  fullAnalysisOnFastTrack()
-                    ? 'Corren siempre: el puntaje sale completo, pero el Fast Track tarda más.'
-                    : 'En Fast Track no corren, para no frenarlo: el puntaje sale parcial, solo con los factores de datos.'
-                }}
-              </p>
             </div>
           </div>
         }

@@ -9,13 +9,13 @@
   flex-direction: column;
   gap: var(--space-1);
 }
+.at-section-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
 .at-head h2 {
   margin: 0;
-}
-.section-hint {
-  margin: 0;
-  color: var(--text-secondary);
-  font-size: var(--font-size-sm);
 }
 
 .rows {
@@ -47,11 +47,6 @@
 .row-name {
   font-weight: var(--font-weight-medium);
   color: var(--text-primary);
-}
-.row-hint {
-  margin: 0;
-  font-size: var(--font-size-xs);
-  color: var(--text-secondary);
 }
 
 /* The input doesn't compete with the branch name for width. */

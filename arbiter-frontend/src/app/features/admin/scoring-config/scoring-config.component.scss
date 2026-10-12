@@ -2,12 +2,6 @@
   display: block;
 }
 
-.section-hint {
-  margin: 0 0 var(--space-4);
-  color: var(--text-secondary);
-  font-size: var(--font-size-sm);
-}
-
 .sc-head {
   display: flex;
   align-items: center;
@@ -77,11 +71,6 @@
 .rule-text {
   flex: 1 1 auto;
   min-width: 0;
-}
-.rule-hint {
-  margin: var(--space-1) 0 0;
-  color: var(--text-secondary);
-  font-size: var(--font-size-xs);
 }
 .rule-value {
   display: flex;
