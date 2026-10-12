@@ -30,8 +30,8 @@
             <div class="case-head-text">
               <div class="case-title-row">
                 <h2 class="case-title">{{ d.claimCause }}</h2>
-                <app-badge [tone]="statusTone(d.status)" variant="strong">
-                  {{ statusBadgeLabel(d.status) }}
+                <app-badge [tone]="statusTone(d.insuredStatus.code)" variant="strong">
+                  {{ d.insuredStatus.label }}
                 </app-badge>
               </div>
               <div class="case-id mono">EXP-{{ d.id }} · denunciado el {{ reportedOn(d) }}</div>
@@ -58,7 +58,10 @@
           </div>
 
           <div class="case-body">
-            <ol class="stepper" [attr.aria-label]="'Progreso: ' + simplifiedStatusLabel(d.status)">
+            <ol
+              class="stepper"
+              [attr.aria-label]="'Progreso: ' + progressLabel(d.insuredStatus.code)"
+            >
               @for (s of steps(); track s.n; let i = $index; let last = $last) {
                 <li
                   class="node"
@@ -98,8 +101,8 @@
                 </svg>
               </span>
               <div>
-                <div class="info-title">{{ statusTitle(d.status) }}</div>
-                <div class="info-desc">{{ description(d.status) }}</div>
+                <div class="info-title">{{ statusTitle(d.insuredStatus.code) }}</div>
+                <div class="info-desc">{{ description(d.insuredStatus.code) }}</div>
               </div>
             </div>
 

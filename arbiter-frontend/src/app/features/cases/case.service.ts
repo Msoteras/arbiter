@@ -3,6 +3,7 @@ import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 
 import { environment } from '../../../environments/environment';
+import { InsuredStatus, InsuredStatusCode } from '../../core/models/insured-status';
 import { CaseResponse } from '../../core/models/case';
 import { CaseDocument } from '../../core/models/case-document';
 import { Policy } from '../../core/models/policy';
@@ -145,6 +146,8 @@ export interface PagedResponse<T> {
 
 export interface CaseListParams {
   status?: string | string[];
+  /** The insured's filter: the backend ignores `status` for them. */
+  insuredStatus?: InsuredStatusCode[];
   claimCause?: string;
   policyNumber?: string;
   insuredId?: string;
@@ -230,6 +233,7 @@ export class CaseService {
   list(params: CaseListParams = {}): Observable<PagedResponse<CaseResponse>> {
     const query: Record<string, string | string[]> = {};
     if (params.status?.length) query['status'] = params.status;
+    if (params.insuredStatus?.length) query['insuredStatus'] = params.insuredStatus;
     if (params.claimCause) query['claimCause'] = params.claimCause;
     if (params.policyNumber) query['policyNumber'] = params.policyNumber;
     if (params.insuredId) query['insuredId'] = params.insuredId;
@@ -250,6 +254,11 @@ export class CaseService {
     if (params.staleDays != null) query['staleDays'] = String(params.staleDays);
     if (params.insurerId != null) query['insurerId'] = String(params.insurerId);
     return this.http.get<PagedResponse<CaseResponse>>(this.baseUrl, { params: query });
+  }
+
+  /** Every status an insured can be told, with its label, for their filter. */
+  insuredStatuses(): Observable<InsuredStatus[]> {
+    return this.http.get<InsuredStatus[]>(`${this.baseUrl}/insured-statuses`);
   }
 
   /** Same gate `create` runs (term, waiting period, arrears) without creating anything. */

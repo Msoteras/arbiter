@@ -46,6 +46,11 @@ public class CaseExceptionHandler extends ResponseEntityExceptionHandler {
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(404), ex.getMessage());
     }
 
+    @ExceptionHandler(DocumentTypeNotAllowedException.class)
+    public ProblemDetail handleDocumentTypeNotAllowed(DocumentTypeNotAllowedException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(400), ex.getMessage());
+    }
+
     @ExceptionHandler(DocumentReadException.class)
     public ProblemDetail handleDocumentRead(DocumentReadException ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(422), ex.getMessage());

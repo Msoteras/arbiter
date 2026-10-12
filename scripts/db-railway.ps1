@@ -203,6 +203,11 @@ SELECT count(*) FROM pg_indexes
  WHERE schemaname='arbiter_common' AND indexname='users_email_lower_uq';
 "@ 1
 
+    Assert-Count 'insured_status_code en arbiter_common.case_status' @"
+SELECT count(*) FROM information_schema.columns
+ WHERE table_schema='arbiter_common' AND table_name='case_status' AND column_name='insured_status_code';
+"@ 1
+
     # 3. Catalogs and seed data.
     Assert-Count 'estados en arbiter_common.case_status' `
         'SELECT count(*) FROM arbiter_common.case_status;' 9

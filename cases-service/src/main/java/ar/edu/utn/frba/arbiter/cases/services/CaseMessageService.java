@@ -3,6 +3,7 @@ package ar.edu.utn.frba.arbiter.cases.services;
 import ar.edu.utn.frba.arbiter.cases.config.tenant.TenantContext;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseMessageEvent;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseMessageInboxItemResponse;
+import ar.edu.utn.frba.arbiter.cases.dto.InsuredStatusResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseMessageResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseMessageThreadResponse;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CaseNotFoundException;
@@ -158,7 +159,8 @@ public class CaseMessageService {
                 analyst == null ? null : analyst.getName() + " " + analyst.getSurname(),
                 caseRecord.getClaimCause().getBranch().getName(),
                 caseRecord.getClaimCause().getName(),
-                caseRecord.getStatus(),
+                party == StatusChangeActor.INSURED ? null : caseRecord.getStatus(),
+                InsuredStatusResponse.from(caseRecord.getCurrentStatus()),
                 last == null ? null : last.getBody(),
                 last == null ? null : last.getSenderRole().name(),
                 last == null ? null : last.getCreatedAt(),

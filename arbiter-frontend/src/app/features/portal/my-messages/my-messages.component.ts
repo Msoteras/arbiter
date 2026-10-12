@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 
 import { CaseMessageInboxItem } from '../../../core/models/case-message';
-import { isFinalStatus } from '../../../core/models/case-status';
+import { isFinalInsuredStatus } from '../../../core/models/insured-status';
 import { chatListStamp } from '../../../core/util/datetime';
 import { CaseMessagesService } from '../../cases/case-messages.service';
 import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
@@ -242,7 +242,7 @@ export class MyMessagesComponent {
   }
 
   protected isClosed(item: CaseMessageInboxItem): boolean {
-    return isFinalStatus(item.status);
+    return isFinalInsuredStatus(item.insuredStatus.code);
   }
 
   protected readonly preview = insuredPreview;
