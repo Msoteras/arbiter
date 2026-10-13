@@ -1,6 +1,16 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
-import { Observable, finalize, forkJoin, of, switchMap, tap } from 'rxjs';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  effect,
+  inject,
+  signal,
+  untracked,
+} from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { ActivatedRoute, ParamMap } from '@angular/router';
+import { Observable, finalize, forkJoin, of, skip, switchMap, tap } from 'rxjs';
 
 import {
   Coverage,
@@ -56,7 +66,10 @@ import { TableComponent } from '../../../shared/ui/table/table.component';
 import { CheckboxComponent } from '../../../shared/ui/checkbox/checkbox.component';
 import { SelectComponent, SelectOption } from '../../../shared/ui/select/select.component';
 import { ToastService } from '../../../shared/ui/toast/toast.service';
+import { ONBOARDING_STEP_LINE, onboardingStepArea } from '../../../core/onboarding/onboarding';
+import { OnboardingService } from '../../../core/onboarding/onboarding.service';
 import { accordion, fadeInUp, listStagger, staggerReveal } from '../../../shared/animations';
+import { OnboardingTargetDirective } from '../../../core/onboarding/onboarding-target.directive';
 
 type TabId = 'coverages' | 'exclusions' | 'fastTrack' | 'documents' | 'rules';
 
@@ -72,6 +85,7 @@ type GeneralView =
 @Component({
   selector: 'app-rules',
   imports: [
+    OnboardingTargetDirective,
     ButtonComponent,
     CardComponent,
     EmptyStateComponent,
@@ -108,6 +122,10 @@ export class RulesComponent {
   private readonly documentsService = inject(DocumentRulesService);
   private readonly rulesTextService = inject(BusinessRulesTextService);
   private readonly toastService = inject(ToastService);
+  private readonly route = inject(ActivatedRoute);
+  private readonly onboarding = inject(OnboardingService);
+  /** A request older than this screen was already handled by the address it opened with. */
+  private reopenedFocusId = this.onboarding.focusRequest()?.id ?? null;
 
   protected readonly ftSaving = signal(false);
   protected readonly ftError = signal<string | null>(null);
@@ -152,6 +170,9 @@ export class RulesComponent {
   protected readonly editingName = signal(false);
   /** Renames ask for confirmation: the name changes everywhere the insurer sees the branch. */
   protected readonly showRenameConfirm = signal(false);
+
+  /** Section tooltips: the same line the setup checklist shows for each step. */
+  protected readonly stepLine = ONBOARDING_STEP_LINE;
 
   protected readonly tabs: { id: TabId; label: string }[] = [
     { id: 'coverages', label: 'Coberturas' },
@@ -264,7 +285,7 @@ export class RulesComponent {
         this.branches.set(shells);
         this.branchesLoading.set(false);
         this.applyCoverageCounts();
-        if (shells.length > 0) {
+        if (!this.openLinkedView(this.route.snapshot.queryParamMap) && shells.length > 0) {
           this.select(shells[0]);
         }
       },
@@ -272,6 +293,61 @@ export class RulesComponent {
     });
     this.refreshCoverageSummary();
     this.loadInsurerHardRules();
+
+    // A link arriving while the screen is already open, e.g. "Siguiente" on the setup toast.
+    this.route.queryParamMap.pipe(skip(1), takeUntilDestroyed()).subscribe((params) => {
+      if (!this.branchesLoading()) {
+        this.leaveCurrentView(() => this.openLinkedView(params));
+      }
+    });
+
+    // The same link again, e.g. after moving to another tab by hand: the address does not change,
+    // so nothing above fires and the step is reopened from the request itself.
+    effect(() => {
+      const request = this.onboarding.focusRequest();
+      if (
+        !request?.sameUrl ||
+        request.id === this.reopenedFocusId ||
+        onboardingStepArea(request.step) !== 'rules' ||
+        this.branchesLoading()
+      ) {
+        return;
+      }
+      this.reopenedFocusId = request.id;
+      untracked(() =>
+        this.leaveCurrentView(() => this.openLinkedView(this.route.snapshot.queryParamMap)),
+      );
+    });
+  }
+
+  /**
+   * Opens what a setup checklist link points at: `?seccion=` for a general section, or
+   * `?ramo=` and `?solapa=` for a branch tab. Without `ramo`, the first branch. False when the
+   * link names nothing, so the caller falls back to its default.
+   */
+  private openLinkedView(params: ParamMap): boolean {
+    const section = params.get('seccion');
+    if (section && this.generalSections.some((g) => g.id === section)) {
+      this.selectGeneral(section as GeneralView);
+      return true;
+    }
+    const branchId = params.get('ramo');
+    const tab = params.get('solapa');
+    if (!branchId && !tab) {
+      return false;
+    }
+    const branch = this.branches().find((b) => b.id === branchId) ?? this.branches()[0];
+    if (!branch) {
+      return false;
+    }
+    // Already open: only the tab changes, without reloading the branch.
+    if (this.view() !== 'branch' || this.selectedId() !== branch.id) {
+      this.select(branch);
+    }
+    if (tab && this.tabs.some((t) => t.id === tab)) {
+      this.setTab(tab as TabId);
+    }
+    return true;
   }
 
   /** Also called after saving coverages, since adding or removing one changes the count. */
@@ -328,14 +404,6 @@ export class RulesComponent {
         return null;
     }
   }
-
-  /** Points from a branch's first coverages to its document schedule while that is incomplete. */
-  protected readonly showNextToDocuments = computed(
-    () =>
-      (this.draft()?.coverages.length ?? 0) > 0 &&
-      !this.covDirty() &&
-      this.tabStatus('documents') === 'pending',
-  );
 
   private beginDetailLoad(rulesId: string): void {
     this.detailToken = rulesId;

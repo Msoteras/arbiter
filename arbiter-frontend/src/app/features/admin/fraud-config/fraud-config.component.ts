@@ -15,6 +15,8 @@ import { SaveBarComponent } from '../../../shared/ui/save-bar/save-bar.component
 import { SwitchComponent } from '../../../shared/ui/switch/switch.component';
 
 import { fadeInUp } from '../../../shared/animations';
+import { ONBOARDING_STEP_LINE } from '../../../core/onboarding/onboarding';
+import { OnboardingTargetDirective } from '../../../core/onboarding/onboarding-target.directive';
 
 /**
  * Fraud record policy. Whether a record adds to the risk level is configured in scoring, not here.
@@ -22,6 +24,7 @@ import { fadeInUp } from '../../../shared/animations';
 @Component({
   selector: 'app-fraud-config',
   imports: [
+    OnboardingTargetDirective,
     CardComponent,
     InputComponent,
     InfoTipComponent,
@@ -35,6 +38,8 @@ import { fadeInUp } from '../../../shared/animations';
   styleUrl: './fraud-config.component.scss',
 })
 export class FraudConfigComponent {
+  protected readonly stepLine = ONBOARDING_STEP_LINE;
+
   private readonly service = inject(FraudRuleService);
 
   protected readonly rule = signal<FraudRecordRule | null>(null);

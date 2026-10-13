@@ -6,8 +6,8 @@
 
 .at-head {
   display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
+  align-items: center;
+  gap: var(--space-2);
 }
 .at-section-head {
   display: flex;

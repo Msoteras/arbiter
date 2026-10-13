@@ -16,6 +16,9 @@ import { InputComponent } from '../../../shared/ui/input/input.component';
 import { SelectComponent, SelectOption } from '../../../shared/ui/select/select.component';
 import { EmptyStateComponent } from '../../../shared/ui/empty-state/empty-state.component';
 import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
+import { ONBOARDING_STEP_LINE } from '../../../core/onboarding/onboarding';
+import { InfoTipComponent } from '../../../shared/ui/info-tip/info-tip.component';
+import { OnboardingTargetDirective } from '../../../core/onboarding/onboarding-target.directive';
 
 /** `id` null = new provider. */
 interface ProviderDraft extends ProviderRequest {
@@ -29,6 +32,8 @@ interface ProviderDraft extends ProviderRequest {
 @Component({
   selector: 'app-providers-config',
   imports: [
+    OnboardingTargetDirective,
+    InfoTipComponent,
     ButtonComponent,
     CardComponent,
     CheckboxComponent,
@@ -42,6 +47,8 @@ interface ProviderDraft extends ProviderRequest {
   styleUrl: './providers-config.component.scss',
 })
 export class ProvidersConfigComponent {
+  protected readonly stepLine = ONBOARDING_STEP_LINE;
+
   private readonly providersService = inject(ProvidersService);
   private readonly branchesService = inject(BranchesService);
 

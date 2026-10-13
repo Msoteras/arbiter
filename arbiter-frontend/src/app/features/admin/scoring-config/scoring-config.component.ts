@@ -13,6 +13,8 @@ import { InfoTipComponent } from '../../../shared/ui/info-tip/info-tip.component
 import { InputComponent } from '../../../shared/ui/input/input.component';
 import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
 import { fadeInUp } from '../../../shared/animations';
+import { ONBOARDING_STEP_LINE } from '../../../core/onboarding/onboarding';
+import { OnboardingTargetDirective } from '../../../core/onboarding/onboarding-target.directive';
 
 /**
  * One scoring config per insurer, not per branch, hence outside the branch master-detail.
@@ -21,6 +23,7 @@ import { fadeInUp } from '../../../shared/animations';
 @Component({
   selector: 'app-scoring-config',
   imports: [
+    OnboardingTargetDirective,
     BadgeComponent,
     SwitchComponent,
     CardComponent,
@@ -35,6 +38,8 @@ import { fadeInUp } from '../../../shared/animations';
   styleUrl: './scoring-config.component.scss',
 })
 export class ScoringConfigComponent {
+  protected readonly stepLine = ONBOARDING_STEP_LINE;
+
   private readonly scoringService = inject(ScoringRulesService);
 
   protected readonly riskFactors = RISK_FACTORS;

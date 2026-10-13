@@ -14,6 +14,7 @@ import { filter, interval, map } from 'rxjs';
 import { AuthSessionService } from './core/auth/auth-session.service';
 import { AppReadyService } from './core/app-ready.service';
 import { NotificationsService } from './core/notifications/notifications.service';
+import { OnboardingService } from './core/onboarding/onboarding.service';
 import { CaseMessagesService } from './features/cases/case-messages.service';
 import { NewClaimModalService } from './features/cases/new-claim-modal.service';
 import { userRoleLabel } from './core/models/user-role';
@@ -23,6 +24,7 @@ import { ModalComponent } from './shared/ui/modal/modal.component';
 import { LoadingComponent } from './shared/ui/loading/loading.component';
 import { NotificationsPanelComponent } from './core/notifications/notifications-panel.component';
 import { ToastStackComponent } from './shared/ui/toast/toast-stack.component';
+import { ToastService } from './shared/ui/toast/toast.service';
 import { NewClaimComponent } from './features/cases/new-claim/new-claim.component';
 import { GlobalSearchComponent } from './features/cases/global-search/global-search.component';
 
@@ -60,6 +62,8 @@ export class App {
   protected readonly notifications = inject(NotificationsService);
   protected readonly messages = inject(CaseMessagesService);
   protected readonly newClaim = inject(NewClaimModalService);
+  protected readonly onboarding = inject(OnboardingService);
+  private readonly toast = inject(ToastService);
   private readonly appReady = inject(AppReadyService);
 
   private readonly reduceMotionMql =
@@ -85,6 +89,16 @@ export class App {
 
     // Tied to the session and not to the constructor: the session lives in memory, so on reload
     // it's null for an instant and the count would come back empty.
+    // The setup checklist is the referent's only: it feeds the home card, the menu dots and the
+    // "step complete" toast.
+    effect(() => {
+      if (this.session.session()?.rol === 'REFERENTE_ASEGURADORA') {
+        this.onboarding.load();
+      } else {
+        this.onboarding.clear();
+      }
+    });
+
     effect(() => {
       if (this.session.session()) {
         this.notifications.refreshUnreadCount();
@@ -262,6 +276,33 @@ export class App {
 
   protected initials(firstName: string, lastName: string): string {
     return `${firstName?.[0] ?? ''}${lastName?.[0] ?? ''}`.toUpperCase() || '—';
+  }
+
+  /** Testing aid: walks the setup checklist again without touching the configuration. */
+  protected readonly showOnboardingReset = signal(false);
+  protected readonly resettingOnboarding = signal(false);
+
+  protected requestOnboardingReset(): void {
+    this.profileOpen.set(false);
+    this.showOnboardingReset.set(true);
+  }
+
+  protected cancelOnboardingReset(): void {
+    this.showOnboardingReset.set(false);
+  }
+
+  protected confirmOnboardingReset(): void {
+    this.resettingOnboarding.set(true);
+    this.onboarding.reset().subscribe({
+      next: () => {
+        this.resettingOnboarding.set(false);
+        this.showOnboardingReset.set(false);
+      },
+      error: () => {
+        this.resettingOnboarding.set(false);
+        this.toast.show('No se pudo reiniciar la puesta en marcha.', 'danger');
+      },
+    });
   }
 
   protected readonly showLogoutConfirm = signal(false);

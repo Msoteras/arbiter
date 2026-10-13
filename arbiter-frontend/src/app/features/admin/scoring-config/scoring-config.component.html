@@ -1,9 +1,10 @@
 @if (loading()) {
   <app-inline-loading [size]="26" message="Cargando puntaje de riesgo…" />
 } @else {
-  <app-card @fadeInUp>
+  <app-card @fadeInUp appOnboardingTarget="SCORING">
     <div class="sc-head">
       <h2 class="card-title">Puntaje de riesgo</h2>
+      <app-info-tip>{{ stepLine.SCORING }}</app-info-tip>
       <app-badge variant="solid">Toda la aseguradora</app-badge>
     </div>
 

@@ -1,8 +1,13 @@
 <app-card>
   <div class="sc-section-head">
-    <span class="t-section-label">Peritos y servicios técnicos</span>
+    <span class="provider-title">
+      <span class="t-section-label">Peritos y servicios técnicos</span>
+      <app-info-tip>{{ stepLine.PROVIDERS }}</app-info-tip>
+    </span>
     @if (!draft()) {
-      <app-button variant="secondary" (click)="add()">+ Agregar proveedor</app-button>
+      <app-button variant="secondary" appOnboardingTarget="PROVIDERS" (click)="add()"
+        >+ Agregar proveedor</app-button
+      >
     }
   </div>
 

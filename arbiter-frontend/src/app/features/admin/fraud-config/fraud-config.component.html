@@ -3,9 +3,10 @@
 } @else if (rule(); as r) {
   <header class="gf-head" @fadeInUp>
     <h2 class="t-section-label">Gestión de fraude</h2>
+    <app-info-tip>{{ stepLine.FRAUD }}</app-info-tip>
   </header>
 
-  <app-card class="gf-card" @fadeInUp>
+  <app-card class="gf-card" @fadeInUp appOnboardingTarget="FRAUD">
     <div class="sc-section-head">
       <span class="t-section-label">Antecedente de reincidencia</span>
       <app-info-tip>

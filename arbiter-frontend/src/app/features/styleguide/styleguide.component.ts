@@ -351,7 +351,14 @@ interface Swatch {
           >
             Disparar warning
           </app-button>
+          <app-button variant="secondary" (click)="showToastWithAction()">
+            Disparar con acción
+          </app-button>
         </div>
+        <p class="sg-p">
+          Con <span class="mono">action</span> ofrece un solo paso siguiente; al usarlo, el toast se
+          cierra.
+        </p>
       </section>
 
       <section class="sg-block">
@@ -1365,6 +1372,13 @@ export class StyleguideComponent {
 
   private readonly doc = inject(DOCUMENT);
   protected readonly toastService = inject(ToastService);
+
+  protected showToastWithAction(): void {
+    this.toastService.show('Paso completo: Armá la agenda documental', 'ok', 6000, {
+      label: 'Siguiente',
+      run: () => this.toastService.show('Acción ejecutada.', 'info'),
+    });
+  }
 
   protected readonly modalOpen = signal(false);
   protected readonly sidePanelOpen = signal(false);

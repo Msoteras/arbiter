@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 
-import { ToastService } from './toast.service';
+import { ToastAction, ToastService } from './toast.service';
 
 /** Mounted once in `app.html`. Tone shows only as a colored border, never a saturated fill. */
 @Component({
@@ -11,6 +11,11 @@ import { ToastService } from './toast.service';
       @for (t of service.toasts(); track t.id) {
         <div class="toast" [class]="'tone-' + t.tone" role="alert">
           <span class="msg">{{ t.message }}</span>
+          @if (t.action; as action) {
+            <button type="button" class="action" (click)="runAction(t.id, action)">
+              {{ action.label }}
+            </button>
+          }
           <button
             type="button"
             class="dismiss"
@@ -67,6 +72,26 @@ import { ToastService } from './toast.service';
       font-size: var(--font-size-sm);
       line-height: 1.4;
     }
+    .action {
+      flex-shrink: 0;
+      padding: 0;
+      border: none;
+      background: none;
+      color: var(--accent-fg);
+      font: inherit;
+      font-size: var(--font-size-sm);
+      font-weight: var(--font-weight-medium);
+      line-height: 1.4;
+      cursor: pointer;
+    }
+    .action:hover {
+      text-decoration: underline;
+    }
+    .action:focus-visible {
+      outline: none;
+      box-shadow: var(--focus-ring);
+      border-radius: var(--radius-ctl);
+    }
     .dismiss {
       flex-shrink: 0;
       display: inline-flex;
@@ -92,4 +117,9 @@ import { ToastService } from './toast.service';
 })
 export class ToastStackComponent {
   protected readonly service = inject(ToastService);
+
+  protected runAction(id: number, action: ToastAction): void {
+    this.service.dismiss(id);
+    action.run();
+  }
 }

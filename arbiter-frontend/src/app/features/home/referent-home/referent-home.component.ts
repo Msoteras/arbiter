@@ -16,6 +16,7 @@ import { EmptyStateComponent } from '../../../shared/ui/empty-state/empty-state.
 import { LoadingComponent } from '../../../shared/ui/loading/loading.component';
 import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
 import { AppReadyService } from '../../../core/app-ready.service';
+import { SetupCardComponent } from './setup-card/setup-card.component';
 import { growBar, listStagger, staggerReveal } from '../../../shared/animations';
 
 interface Counts {
@@ -43,6 +44,7 @@ type WorkloadState =
     EmptyStateComponent,
     LoadingComponent,
     InlineLoadingComponent,
+    SetupCardComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   animations: [staggerReveal, listStagger, growBar],

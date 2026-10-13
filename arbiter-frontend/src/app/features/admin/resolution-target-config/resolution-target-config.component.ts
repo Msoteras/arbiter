@@ -13,6 +13,9 @@ import {
   TARGET_DAYS_MIN,
 } from '../resolution-target.service';
 import { fadeInUp } from '../../../shared/animations';
+import { ONBOARDING_STEP_LINE } from '../../../core/onboarding/onboarding';
+import { InfoTipComponent } from '../../../shared/ui/info-tip/info-tip.component';
+import { OnboardingTargetDirective } from '../../../core/onboarding/onboarding-target.directive';
 
 /**
  * Insurer-wide resolution goal: a management target, not the legal deadline. The rules engine
@@ -21,6 +24,8 @@ import { fadeInUp } from '../../../shared/animations';
 @Component({
   selector: 'app-resolution-target-config',
   imports: [
+    OnboardingTargetDirective,
+    InfoTipComponent,
     CardComponent,
     InlineLoadingComponent,
     InputComponent,
@@ -33,9 +38,10 @@ import { fadeInUp } from '../../../shared/animations';
     @if (loading()) {
       <app-inline-loading [size]="26" message="Cargando el objetivo…" />
     } @else {
-      <app-card @fadeInUp>
+      <app-card @fadeInUp appOnboardingTarget="TARGET">
         <div class="head">
           <h2 class="card-title">Objetivo de resolución</h2>
+          <app-info-tip>{{ stepLine.TARGET }}</app-info-tip>
         </div>
 
         <label class="row">
@@ -119,6 +125,8 @@ import { fadeInUp } from '../../../shared/animations';
   `,
 })
 export class ResolutionTargetConfigComponent {
+  protected readonly stepLine = ONBOARDING_STEP_LINE;
+
   private readonly service = inject(ResolutionTargetService);
 
   protected readonly MIN = TARGET_DAYS_MIN;

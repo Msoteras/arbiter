@@ -3,9 +3,10 @@
 } @else {
   <header class="at-head" @fadeInUp>
     <h2 class="t-section-label">Atribuciones de liquidación</h2>
+    <app-info-tip>{{ stepLine.AUTHORITIES }}</app-info-tip>
   </header>
 
-  <app-card @fadeInUp>
+  <app-card @fadeInUp appOnboardingTarget="AUTHORITIES">
     <div class="at-section-head">
       <span class="t-section-label">Tope por ramo</span>
       <app-info-tip>Sin tope, el analista autoriza cualquier monto.</app-info-tip>

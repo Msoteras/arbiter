@@ -104,13 +104,10 @@
         @if (hardStopLoading()) {
           <app-inline-loading [size]="26" message="Cargando Hard Stop…" />
         } @else {
-          <app-card @fadeInUp>
+          <app-card @fadeInUp appOnboardingTarget="HARD_STOP">
             <div class="ft-head">
               <h2 class="card-title">Hard Stop</h2>
-              <app-info-tip>
-                Se evalúa en el alta de la denuncia. Si la regla no se cumple, la denuncia no se
-                crea.
-              </app-info-tip>
+              <app-info-tip>{{ stepLine.HARD_STOP }}</app-info-tip>
             </div>
 
             <ul class="hs-rules">
@@ -268,9 +265,14 @@
             } @else {
               <div class="tab-panel" @fadeInUp>
                 <app-card heading="Coberturas">
+                  <app-info-tip cardAside>{{ stepLine.COVERAGES }}</app-info-tip>
                   <!-- Only with coverages: empty, the empty state below carries the one action. -->
                   @if (d.coverages.length > 0) {
-                    <app-button cardAside variant="secondary" (click)="addCoverage()"
+                    <app-button
+                      cardAside
+                      variant="secondary"
+                      appOnboardingTarget="COVERAGES"
+                      (click)="addCoverage()"
                       >+ Agregar cobertura</app-button
                     >
                   }
@@ -563,17 +565,12 @@
                         />
                       </svg>
                       <p class="cov-empty-title">Este ramo todavía no tiene coberturas</p>
-                      <app-button (click)="addCoverage()">+ Agregar primera cobertura</app-button>
-                    </div>
-                  }
-
-                  @if (showNextToDocuments()) {
-                    <div class="next-step">
-                      <app-button variant="secondary" (click)="setTab('documents')"
-                        >Siguiente: Documentación</app-button
+                      <app-button appOnboardingTarget="COVERAGES" (click)="addCoverage()"
+                        >+ Agregar primera cobertura</app-button
                       >
                     </div>
                   }
+
                   <app-save-bar
                     [dirty]="covDirty()"
                     [canSave]="covCanSave()"
@@ -594,11 +591,11 @@
               <app-inline-loading [size]="26" message="Cargando exclusiones…" />
             } @else {
               <div class="tab-panel" @fadeInUp>
-                <app-card heading="Exclusiones comunes del ramo">
-                  <app-info-tip cardAside>
-                    Valen para todo el ramo. Las exclusiones de cada cobertura se configuran en
-                    Coberturas.
-                  </app-info-tip>
+                <app-card
+                  heading="Exclusiones comunes del ramo"
+                  appOnboardingTarget="COMMON_EXCLUSIONS"
+                >
+                  <app-info-tip cardAside>{{ stepLine.COMMON_EXCLUSIONS }}</app-info-tip>
                   <app-string-list-editor
                     [items]="d.commonExclusions"
                     (itemsChange)="setCommonExclusions($event)"
@@ -641,7 +638,8 @@
               <app-inline-loading [size]="26" message="Cargando Fast Track…" />
             } @else {
               <div class="tab-panel" @fadeInUp>
-                <app-card heading="Fast Track">
+                <app-card heading="Fast Track" appOnboardingTarget="FAST_TRACK">
+                  <app-info-tip cardAside>{{ stepLine.FAST_TRACK }}</app-info-tip>
                   <!-- Fast Track can't be turned off: it's part of the analysis. -->
                   <app-badge cardAside variant="solid" tone="ok">Siempre activo</app-badge>
 
@@ -857,9 +855,10 @@
               <app-inline-loading [size]="26" message="Cargando documentación…" />
             } @else {
               <div class="tab-panel" @fadeInUp>
-                <app-card heading="Agenda documental">
+                <app-card heading="Agenda documental" appOnboardingTarget="DOCUMENTS">
                   <app-info-tip cardAside>
-                    Si falta un documento marcado, el expediente queda en Falta documentación.
+                    {{ stepLine.DOCUMENTS }} Si falta un documento marcado, el expediente queda en
+                    Falta documentación.
                   </app-info-tip>
                   @if (claimCauses().length === 0) {
                     <p class="section-hint">
@@ -928,7 +927,8 @@
               <app-inline-loading [size]="26" message="Cargando reglas de negocio…" />
             } @else {
               <div class="tab-panel" @fadeInUp>
-                <app-card heading="Reglas de negocio">
+                <app-card heading="Reglas de negocio" appOnboardingTarget="BUSINESS_RULES">
+                  <app-info-tip cardAside>{{ stepLine.BUSINESS_RULES }}</app-info-tip>
                   <app-string-list-editor
                     [items]="d.businessRules"
                     (itemsChange)="setBusinessRules($event)"

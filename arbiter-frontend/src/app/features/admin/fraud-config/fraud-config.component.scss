@@ -6,8 +6,8 @@
 
 .gf-head {
   display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
+  align-items: center;
+  gap: var(--space-2);
 }
 .gf-head h2 {
   margin: 0;
