@@ -2,6 +2,8 @@ package ar.edu.utn.frba.arbiter.cases.services;
 
 import ar.edu.utn.frba.arbiter.cases.config.tenant.TenantContext;
 import ar.edu.utn.frba.arbiter.cases.exceptions.RulesUnavailableException;
+import ar.edu.utn.frba.arbiter.common.dto.OnboardingTouch;
+import ar.edu.utn.frba.arbiter.common.enums.OnboardingStep;
 import ar.edu.utn.frba.arbiter.common.security.JwtSupport;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -36,6 +38,24 @@ public class RulesServiceClient {
     ) {
         this.restClient = restClientBuilder.baseUrl(rulesServiceUrl).build();
         this.jwtKey = JwtSupport.key(jwtSecret);
+    }
+
+    /**
+     * Tells rules-service a step of the setup checklist was saved here. Best-effort: the checklist
+     * is a guide, so a failure is logged and never fails the save.
+     */
+    public void recordOnboardingSave(OnboardingStep step, Long branchId) {
+        try {
+            String serviceToken = JwtSupport.issueServiceToken(jwtKey, "cases-service-onboarding", TenantContext.get());
+            restClient.post()
+                    .uri("/api/v1/rules/internal/onboarding/touches")
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + serviceToken)
+                    .body(new OnboardingTouch(step, branchId))
+                    .retrieve()
+                    .toBodilessEntity();
+        } catch (Exception e) {
+            log.warn("Could not record a save of onboarding step {} (branch {}): {}", step, branchId, e.getMessage());
+        }
     }
 
     /** No configuration means {@code enabled=false}: arrears isn't evaluated. */

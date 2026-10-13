@@ -22,4 +22,6 @@ public interface ServiceProviderRepository extends JpaRepository<ServiceProvider
             """)
     List<ServiceProvider> findAvailableForBranch(@Param("branchId") Long branchId,
                                             @Param("providerType") ProviderType providerType);
+
+    long countByActiveTrue();
 }

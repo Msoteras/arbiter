@@ -22,6 +22,7 @@ import ar.edu.utn.frba.arbiter.auth.models.repositories.RoleRepository;
 import ar.edu.utn.frba.arbiter.auth.models.repositories.UserInsurerRepository;
 import ar.edu.utn.frba.arbiter.auth.models.repositories.UserRepository;
 import ar.edu.utn.frba.arbiter.common.email.SendGridAdapter;
+import ar.edu.utn.frba.arbiter.common.enums.OnboardingStep;
 import ar.edu.utn.frba.arbiter.common.enums.UserRole;
 import ar.edu.utn.frba.arbiter.common.enums.UserStatus;
 import lombok.RequiredArgsConstructor;
@@ -60,6 +61,7 @@ public class UserService {
     private final PasswordCipher passwordCipher;
     private final InsuredProvisioningService insuredProvisioningService;
     private final AuthService authService;
+    private final RulesServiceClient rulesServiceClient;
 
     @Value("${arbiter.frontend.base-url:http://localhost:4200}")
     private String frontendBaseUrl;
@@ -111,6 +113,7 @@ public class UserService {
             throw e;
         }
 
+        rulesServiceClient.recordOnboardingSave(OnboardingStep.ANALYSTS);
         return toResponse(saved, request.nombre(), request.apellido(), UserRole.ANALISTA_SINIESTROS);
     }
 
@@ -125,6 +128,7 @@ public class UserService {
                 .orElseThrow(() -> new IllegalStateException("Referent without an assigned insurer: " + callerEmail));
 
         insuredProvisioningService.provisionAsync(TenantContext.get(), insurerId);
+        rulesServiceClient.recordOnboardingSave(OnboardingStep.INSURED);
     }
 
     /**

@@ -36,6 +36,9 @@ spring:
           jdbc_metadata_extraction_strategy: individually
 
 arbiter:
+  # Only for reporting checklist saves (RulesServiceClient).
+  rules-service:
+    url: ${RULES_SERVICE_URL:http://localhost:8081}
   auth:
     provider: ${AUTH_PROVIDER:auth0}
     jwt:

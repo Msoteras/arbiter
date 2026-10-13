@@ -1,5 +1,6 @@
 package ar.edu.utn.frba.arbiter.cases.services;
 
+import ar.edu.utn.frba.arbiter.common.enums.OnboardingStep;
 import ar.edu.utn.frba.arbiter.cases.adapters.InsurerAdapter;
 import ar.edu.utn.frba.arbiter.cases.dto.CoverageDetailResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CoverageOption;
@@ -35,6 +36,7 @@ public class CoverageService {
     private final CoverageRepository coverageRepository;
     private final BranchRepository branchRepository;
     private final InsurerAdapter insurerAdapter;
+    private final OnboardingNotifier onboardingNotifier;
 
     @Transactional(readOnly = true)
     public List<CoverageOption> listByBranch(Long branchId) {
@@ -79,6 +81,7 @@ public class CoverageService {
                 .individual(true)
                 .build();
         applyRequest(coverage, request);
+        onboardingNotifier.saved(OnboardingStep.COVERAGES, branchId);
         return toDetail(coverageRepository.save(coverage));
     }
 
@@ -87,15 +90,16 @@ public class CoverageService {
         Coverage coverage = coverageRepository.findById(coverageId)
                 .orElseThrow(() -> new CoverageNotFoundException(coverageId));
         applyRequest(coverage, request);
+        onboardingNotifier.saved(OnboardingStep.COVERAGES, coverage.getBranchId());
         return toDetail(coverageRepository.save(coverage));
     }
 
     @Transactional
     public void delete(Long coverageId) {
-        if (!coverageRepository.existsById(coverageId)) {
-            throw new CoverageNotFoundException(coverageId);
-        }
-        coverageRepository.deleteById(coverageId);
+        Coverage coverage = coverageRepository.findById(coverageId)
+                .orElseThrow(() -> new CoverageNotFoundException(coverageId));
+        onboardingNotifier.saved(OnboardingStep.COVERAGES, coverage.getBranchId());
+        coverageRepository.delete(coverage);
     }
 
     private void applyRequest(Coverage coverage, CoverageUpsertRequest request) {

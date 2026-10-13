@@ -38,6 +38,9 @@ arbiter:
   auth:
     jwt:
       secret: ${JWT_SECRET:}
+  # Only the setup checklist reads it (OnboardingService).
+  cases-service:
+    url: ${CASES_SERVICE_URL:http://localhost:8083}
 
 management:
   endpoints:

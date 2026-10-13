@@ -478,6 +478,29 @@ BEGIN
             CONSTRAINT settlement_authority_amount_check CHECK (max_amount >= 0)
         )$ddl$, p_schema, p_schema);
 
+    -- ─── onboarding_step + onboarding_reset ──────────────────────────────────────
+    -- The referent's setup checklist (rules-service). A step's state is derived from the
+    -- configuration itself; these tables only keep what the configuration can't tell:
+    -- steps the insurer marked as not used, the last save of each step, and when a referent
+    -- restarted the checklist to walk it again. step_key is the step name, plus ':<branch_id>'
+    -- for the per-branch coverages step.
+    EXECUTE format($ddl$
+        CREATE TABLE %I.onboarding_step (
+            step_key    VARCHAR(40) PRIMARY KEY,
+            skipped     BOOLEAN     NOT NULL DEFAULT FALSE,
+            touched_at  TIMESTAMPTZ
+        )$ddl$, p_schema);
+
+    -- A single row: after a restart, a step only counts once it is saved again.
+    EXECUTE format($ddl$
+        CREATE TABLE %I.onboarding_reset (
+            id        SMALLINT    PRIMARY KEY DEFAULT 1,
+            reset_at  TIMESTAMPTZ NOT NULL,
+            reset_by  BIGINT      REFERENCES arbiter_common.users(id),
+
+            CONSTRAINT onboarding_reset_single_row CHECK (id = 1)
+        )$ddl$, p_schema);
+
     -- ─── cases ───────────────────────────────────────────────────────────────────
     -- classification_id closes a cycle cases → case_classification → llm_analysis →
     -- cases, so its FK is added by ALTER TABLE once every table exists.

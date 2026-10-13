@@ -1,5 +1,6 @@
 package ar.edu.utn.frba.arbiter.cases.services;
 
+import ar.edu.utn.frba.arbiter.common.enums.OnboardingStep;
 import ar.edu.utn.frba.arbiter.cases.dto.ServiceProviderRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.ProviderType;
 import ar.edu.utn.frba.arbiter.cases.dto.ServiceProviderResponse;
@@ -33,6 +34,7 @@ public class ServiceProviderService {
     private final ServiceProviderRepository serviceProviderRepository;
     private final CaseReferralRepository caseReferralRepository;
     private final BranchRepository branchRepository;
+    private final OnboardingNotifier onboardingNotifier;
 
     /** Inactive ones included: the referent manages the full catalog. */
     @Transactional(readOnly = true)
@@ -53,6 +55,7 @@ public class ServiceProviderService {
                 .active(request.active())
                 .providerType(typeOf(request))
                 .build();
+        onboardingNotifier.saved(OnboardingStep.PROVIDERS, null);
         return ServiceProviderResponse.from(serviceProviderRepository.save(provider));
     }
 
@@ -66,6 +69,7 @@ public class ServiceProviderService {
         provider.setBranches(resolveBranches(request.branchIds()));
         provider.setActive(request.active());
         provider.setProviderType(typeOf(request));
+        onboardingNotifier.saved(OnboardingStep.PROVIDERS, null);
         return ServiceProviderResponse.from(serviceProviderRepository.save(provider));
     }
 
@@ -80,6 +84,7 @@ public class ServiceProviderService {
         if (caseReferralRepository.existsByProvider_Id(id)) {
             throw new ServiceProviderInUseException(id);
         }
+        onboardingNotifier.saved(OnboardingStep.PROVIDERS, null);
         serviceProviderRepository.delete(provider);
     }
 

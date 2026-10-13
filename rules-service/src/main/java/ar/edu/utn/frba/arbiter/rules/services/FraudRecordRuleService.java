@@ -1,5 +1,6 @@
 package ar.edu.utn.frba.arbiter.rules.services;
 
+import ar.edu.utn.frba.arbiter.common.enums.OnboardingStep;
 import ar.edu.utn.frba.arbiter.common.enums.RuleType;
 import ar.edu.utn.frba.arbiter.rules.dto.FraudRecordRuleConfig;
 import ar.edu.utn.frba.arbiter.rules.dto.FraudRecordRuleDto;
@@ -41,6 +42,7 @@ public class FraudRecordRuleService {
     private final InsurerRuleRepository ruleRepository;
     private final InsurerRuleHistoryRepository historyRepository;
     private final RuleAuthorResolver authorResolver;
+    private final OnboardingTracker onboardingTracker;
 
     @Transactional(readOnly = true)
     public FraudRecordRuleDto get() {
@@ -56,6 +58,7 @@ public class FraudRecordRuleService {
 
     @Transactional
     public FraudRecordRuleDto upsert(FraudRecordRuleDto requested, String actorEmail) {
+        onboardingTracker.touch(OnboardingStep.FRAUD, null);
         int windowMonths = requested.windowMonths() == null
                 ? FraudRecordRuleDto.DEFAULT_WINDOW_MONTHS
                 : requested.windowMonths();
