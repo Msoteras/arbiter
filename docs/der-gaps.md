@@ -228,9 +228,25 @@ Es el código que recibe el asegurado en lugar del nombre interno del estado; `e
 
 **Acción:** agregarla al DER.
 
+### 23 · `requisito_documental.obligatorio` — sobra
+
+La columna se borró del esquema (`2026-10-13-borrar-obligatorio-de-la-agenda.sql`): siempre valió
+`TRUE` y ninguna lectura la miraba. Lo que una denuncia puede presentar con menos documentos es la
+lista de Fast Track, que vive en la configuración de esa regla.
+
+**Acción:** dropear `obligatorio` de `requisito_documental`.
+
 ---
 
 ## Decisiones pendientes antes de tocar el `.mdj`
+
+### 24 · `requisito_documental.banda_riesgo` — está en el esquema y nadie la usa
+
+Siempre vale `NULL` y ninguna lectura la mira. Exigir un documento según la banda tiene problemas de
+fondo: la banda recién existe después de clasificar, y pedirle un papel más solo al asegurado
+marcado como riesgoso le revela esa marca.
+
+**Decisión:** implementarla o dropearla del esquema y del DER. Pendiente de discutir con el equipo.
 
 ### 13 · `cobertura.es_individual` y `expediente.destino` — están en el esquema y no en el DER
 

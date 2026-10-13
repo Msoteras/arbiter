@@ -1,0 +1,83 @@
+@if (loading()) {
+  <app-inline-loading [size]="26" message="Cargando derivaciones…" />
+} @else if (loadFailed()) {
+  <app-card heading="Derivaciones" headingSize="md">
+    <p class="warn-note" role="alert">No se pudieron cargar las derivaciones.</p>
+    <app-button variant="secondary" size="sm" (click)="reload()">Reintentar</app-button>
+  </app-card>
+} @else if (draft(); as d) {
+  <app-card heading="Derivaciones" headingSize="md" @fadeInUp>
+    <ul class="rule-rows">
+      <li class="rule-row" [class.off]="!d.expertEnabled">
+        <app-switch
+          [checked]="d.expertEnabled"
+          ariaLabel="Derivación a peritaje"
+          (checkedChange)="toggleExpert()"
+        />
+        <div class="rule-text">
+          <label class="t-field-label" for="expert-min-amount">Derivación a peritaje</label>
+          <!-- Outside the label: a click on the tip would otherwise land on the amount field. -->
+          <app-info-tip>
+            Monto reclamado a partir del cual se puede derivar a peritaje antes de liquidar.
+          </app-info-tip>
+        </div>
+        @if (d.expertEnabled) {
+          <div class="rule-value">
+            <app-input
+              id="expert-min-amount"
+              prefix="$"
+              align="end"
+              inputmode="decimal"
+              placeholder="Monto mínimo"
+              [normalize]="amountInputDisplay"
+              [value]="expertAmountLabel()"
+              (valueChange)="setExpertAmount($event)"
+            />
+          </div>
+        } @else {
+          <span class="rule-off-note t-note">No se deriva</span>
+        }
+      </li>
+      @if (expertInvalid()) {
+        <li class="rule-row detail">
+          <p class="warn-note">Indicá desde qué monto se deriva a peritaje.</p>
+        </li>
+      }
+
+      <!-- Off the screen until the team decides whether repair becomes a property of the claim cause. Needs CheckboxComponent back in the imports.
+      <li class="rule-row">
+        <div class="rule-text">
+          <span class="t-field-label">Derivación a reparación</span>
+          <p class="rule-hint">Hechos generadores que se pueden derivar a un servicio técnico.</p>
+        </div>
+      </li>
+      <li class="rule-row detail flush">
+        @if (claimCauses().length === 0) {
+          <p class="t-note">No hay hechos generadores en este ramo.</p>
+        } @else {
+          <fieldset class="causes">
+            <legend class="sr-only">Hechos generadores que se derivan a reparación</legend>
+            @for (cause of claimCauses(); track cause.id) {
+              <app-checkbox
+                [checked]="isRepairCause(cause.id)"
+                (checkedChange)="toggleRepairCause(cause.id, $event)"
+              >
+                {{ cause.name }}
+              </app-checkbox>
+            }
+          </fieldset>
+        }
+      </li>
+      -->
+    </ul>
+
+    <app-save-bar
+      [dirty]="dirty()"
+      [saving]="saving()"
+      [error]="error()"
+      [canSave]="!expertInvalid()"
+      (save)="save()"
+      (discard)="discard()"
+    />
+  </app-card>
+}

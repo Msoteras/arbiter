@@ -44,6 +44,7 @@ import { SettlementAuthoritiesConfigComponent } from '../settlement-authorities-
 import { ScoringConfigComponent } from '../scoring-config/scoring-config.component';
 import { FraudConfigComponent } from '../fraud-config/fraud-config.component';
 import { ProvidersConfigComponent } from '../providers-config/providers-config.component';
+import { DerivationsConfigComponent } from '../derivations-config/derivations-config.component';
 import { ResolutionTargetConfigComponent } from '../resolution-target-config/resolution-target-config.component';
 import { RuleHistoryComponent } from '../rule-history/rule-history.component';
 import { SaveBarComponent } from '../../../shared/ui/save-bar/save-bar.component';
@@ -59,7 +60,7 @@ import { SelectComponent, SelectOption } from '../../../shared/ui/select/select.
 import { ToastService } from '../../../shared/ui/toast/toast.service';
 import { accordion, fadeInUp, listStagger, staggerReveal } from '../../../shared/animations';
 
-type TabId = 'coverages' | 'exclusions' | 'fastTrack' | 'documents' | 'rules';
+type TabId = 'coverages' | 'exclusions' | 'fastTrack' | 'documents' | 'derivations' | 'rules';
 
 /** The backend stores whole months; a typed fraction (1,5 años is fine, 1,5 meses isn't) is rounded. */
 function wholeMonths(months: number | null): number | null {
@@ -86,6 +87,7 @@ type GeneralView =
     ScoringConfigComponent,
     FraudConfigComponent,
     ProvidersConfigComponent,
+    DerivationsConfigComponent,
     SettlementAuthoritiesConfigComponent,
     ResolutionTargetConfigComponent,
     RuleHistoryComponent,
@@ -165,6 +167,7 @@ export class RulesComponent {
     { id: 'exclusions', label: 'Exclusiones comunes' },
     { id: 'fastTrack', label: 'Fast Track' },
     { id: 'documents', label: 'Documentación' },
+    { id: 'derivations', label: 'Derivaciones' },
     { id: 'rules', label: 'Reglas de negocio' },
   ];
   private static readonly LAST_TAB_KEY = 'arbiter.reglas.lastTab';
@@ -692,6 +695,12 @@ export class RulesComponent {
       },
     });
   }
+
+  /** Null while the selected branch has no id of its own yet. */
+  protected readonly selectedBranchId = computed(() => {
+    const d = this.draft();
+    return d ? this.branchIdOf(d) : null;
+  });
 
   private branchIdOf(r: BranchRules): number | null {
     const n = Number(r.id);

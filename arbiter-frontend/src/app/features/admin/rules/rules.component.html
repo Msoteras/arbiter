@@ -223,6 +223,16 @@
           }
         </nav>
 
+        <!-- ============ DERIVATIONS ============ -->
+        <!-- Outside the switch and only hidden: it owns its draft, which leaving the tab would drop. -->
+        @if (selectedBranchId(); as branchId) {
+          <app-derivations-config
+            [hidden]="activeTab() !== 'derivations'"
+            [branchId]="branchId"
+            [claimCauses]="claimCauses()"
+          />
+        }
+
         @switch (activeTab()) {
           <!-- ============ COVERAGES ============ -->
           <!-- Accordion: one coverage open at a time. -->

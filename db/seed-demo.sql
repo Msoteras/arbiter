@@ -204,41 +204,41 @@ BEGIN
     -- connection only for Celulares. Damage asks for proof of purchase, repair quote and a
     -- photo of the item.
     EXECUTE format($ddl$
-        INSERT INTO %I.document_requirement (id, document_type, mandatory, risk_band, branch_id, claim_cause_id) VALUES
+        INSERT INTO %I.document_requirement (id, document_type, risk_band, branch_id, claim_cause_id) VALUES
             -- Celulares · Robo en vía pública
-            ( 1, 'police_report',       TRUE, NULL, 1, 2),
-            ( 2, 'purchase_proof',      TRUE, NULL, 1, 2),
-            ( 3, 'imei_deregistration', TRUE, NULL, 1, 2),
-            ( 4, 'last_connection',     TRUE, NULL, 1, 2),
+            ( 1, 'police_report',       NULL, 1, 2),
+            ( 2, 'purchase_proof',      NULL, 1, 2),
+            ( 3, 'imei_deregistration', NULL, 1, 2),
+            ( 4, 'last_connection',     NULL, 1, 2),
             -- Celulares · Hurto
-            ( 5, 'police_report',       TRUE, NULL, 1, 3),
-            ( 6, 'purchase_proof',      TRUE, NULL, 1, 3),
-            ( 7, 'imei_deregistration', TRUE, NULL, 1, 3),
-            ( 8, 'last_connection',     TRUE, NULL, 1, 3),
+            ( 5, 'police_report',       NULL, 1, 3),
+            ( 6, 'purchase_proof',      NULL, 1, 3),
+            ( 7, 'imei_deregistration', NULL, 1, 3),
+            ( 8, 'last_connection',     NULL, 1, 3),
             -- Celulares · Caída
-            ( 9, 'purchase_proof',      TRUE, NULL, 1, 4),
-            (10, 'repair_quote',        TRUE, NULL, 1, 4),
-            (11, 'item_photo',          TRUE, NULL, 1, 4),
+            ( 9, 'purchase_proof',      NULL, 1, 4),
+            (10, 'repair_quote',        NULL, 1, 4),
+            (11, 'item_photo',          NULL, 1, 4),
             -- Celulares · Rotura accidental
-            (12, 'purchase_proof',      TRUE, NULL, 1, 1),
-            (13, 'repair_quote',        TRUE, NULL, 1, 1),
-            (14, 'item_photo',          TRUE, NULL, 1, 1),
+            (12, 'purchase_proof',      NULL, 1, 1),
+            (13, 'repair_quote',        NULL, 1, 1),
+            (14, 'item_photo',          NULL, 1, 1),
             -- Tecnología Portátil · Rotura accidental
-            (15, 'purchase_proof',      TRUE, NULL, 2, 6),
-            (16, 'repair_quote',        TRUE, NULL, 2, 6),
-            (17, 'item_photo',          TRUE, NULL, 2, 6),
+            (15, 'purchase_proof',      NULL, 2, 6),
+            (16, 'repair_quote',        NULL, 2, 6),
+            (17, 'item_photo',          NULL, 2, 6),
             -- Tecnología Portátil · Robo en vía pública
-            (18, 'police_report',       TRUE, NULL, 2, 7),
-            (19, 'purchase_proof',      TRUE, NULL, 2, 7),
-            (20, 'item_photo',          TRUE, NULL, 2, 7),
+            (18, 'police_report',       NULL, 2, 7),
+            (19, 'purchase_proof',      NULL, 2, 7),
+            (20, 'item_photo',          NULL, 2, 7),
             -- Tecnología Portátil · Hurto
-            (21, 'police_report',       TRUE, NULL, 2, 8),
-            (22, 'purchase_proof',      TRUE, NULL, 2, 8),
-            (23, 'item_photo',          TRUE, NULL, 2, 8),
+            (21, 'police_report',       NULL, 2, 8),
+            (22, 'purchase_proof',      NULL, 2, 8),
+            (23, 'item_photo',          NULL, 2, 8),
             -- Tecnología Portátil · Caída
-            (24, 'purchase_proof',      TRUE, NULL, 2, 9),
-            (25, 'repair_quote',        TRUE, NULL, 2, 9),
-            (26, 'item_photo',          TRUE, NULL, 2, 9)
+            (24, 'purchase_proof',      NULL, 2, 9),
+            (25, 'repair_quote',        NULL, 2, 9),
+            (26, 'item_photo',          NULL, 2, 9)
         $ddl$, p_schema);
 
     -- Shared by both demo insurers, with what they added to the reference config

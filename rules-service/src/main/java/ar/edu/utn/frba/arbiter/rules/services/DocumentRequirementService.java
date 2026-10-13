@@ -79,14 +79,13 @@ public class DocumentRequirementService {
         List<DocumentRequirement> requirements = documentTypes.stream()
                 .map(type -> DocumentRequirement.builder()
                         .documentType(type)
-                        .mandatory(true)
                         .branch(branch)
                         .claimCause(claimCause)
                         .build())
                 .toList();
         return documentRequirementRepository.saveAll(requirements).stream()
                 .map(saved -> new DocumentRequirementDto(
-                        saved.getId(), saved.getDocumentType(), saved.getClaimCause().getId(), saved.isMandatory()))
+                        saved.getId(), saved.getDocumentType(), saved.getClaimCause().getId()))
                 .toList();
     }
 }

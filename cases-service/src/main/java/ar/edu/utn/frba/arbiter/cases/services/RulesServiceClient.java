@@ -95,7 +95,7 @@ public class RulesServiceClient {
     }
 
     /**
-     * The whole schedule is mandatory: every row saved from the panel is persisted as required.
+     * The whole schedule is mandatory: it has no optional rows.
      *
      * <p>Returns {@code null} when the schedule couldn't be read, which is not the same as an empty
      * list ("no documents needed"). On null the caller files the claim anyway and marks it for
