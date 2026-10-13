@@ -2,11 +2,9 @@
   <header class="dash-head">
     <div class="dash-head-text">
       <h1 class="t-page-title">Dashboard de métricas</h1>
-      @if (data(); as m) {
-        <p class="dash-sub">
-          Cartera de la aseguradora · {{ m.from | date: 'dd/MM/yy' }} –
-          {{ m.to | date: 'dd/MM/yy' }} · {{ comparisonLabel() }}
-        </p>
+      @if (data()) {
+        <p class="dash-period">{{ periodRange() }}</p>
+        <p class="dash-sub">{{ comparisonNote() }}</p>
       } @else {
         <p class="dash-sub">Rendimiento operativo de la aseguradora</p>
       }

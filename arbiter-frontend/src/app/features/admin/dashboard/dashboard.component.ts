@@ -1,4 +1,4 @@
-import { DatePipe, formatNumber } from '@angular/common';
+import { formatNumber } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   DestroyRef,
@@ -26,7 +26,7 @@ import { caseStatusLabel, caseStatusTone } from '../../../core/models/case-statu
 import { RiskBand, riskBandLabel } from '../../../core/models/risk-band';
 import { ruleTypeDescription, ruleTypeLabel } from '../../../core/models/rule-type';
 import { StatusTone } from '../../../core/models/status-tone';
-import { todayIso } from '../../../core/util/datetime';
+import { formatDateRange, todayIso } from '../../../core/util/datetime';
 import { formatRate } from '../../../core/util/percent';
 import { formatMoney } from '../../../core/util/money';
 import { percentagePoints, trendText } from '../../../core/util/trend';
@@ -113,7 +113,6 @@ function legalTone(rate: number | null): StatusTone {
     ButtonComponent,
     CardComponent,
     ChartComponent,
-    DatePipe,
     EmptyStateComponent,
     InfoTipComponent,
     InputComponent,
@@ -345,12 +344,33 @@ export class DashboardComponent {
     return !!summary && summary.reportedCases === 0 && summary.resolvedCases === 0;
   });
 
-  protected readonly comparisonLabel = computed(() => {
+  protected readonly periodRange = computed(() => {
+    const metrics = this.data();
+    return metrics ? formatDateRange(metrics.from, metrics.to) : '';
+  });
+
+  protected readonly comparisonNote = computed(() => {
     const metrics = this.data();
     if (!metrics) {
       return '';
     }
-    return `comparado con ${shortDate(metrics.comparison.from)} – ${shortDate(metrics.comparison.to)}`;
+    const { comparison } = metrics;
+    // The year is left out when it is the same as the period's, which sits right above.
+    const sameYear =
+      comparison.from.slice(0, 4) === metrics.to.slice(0, 4) &&
+      comparison.to.slice(0, 4) === metrics.to.slice(0, 4);
+    const range = formatDateRange(comparison.from, comparison.to, !sameYear);
+    switch (comparison.mode) {
+      case 'PREVIOUS_PERIOD': {
+        const days = daysIn(metrics.from, metrics.to);
+        const what = days === 1 ? 'el día anterior' : `los ${days} días anteriores`;
+        return `Comparado con ${what} · ${range}`;
+      }
+      case 'SAME_PERIOD_LAST_YEAR':
+        return `Comparado con el mismo período del año pasado · ${range}`;
+      default:
+        return `Comparado con ${range}`;
+    }
   });
 
   protected readonly funnel = computed<FunnelStep[]>(() => {
@@ -774,7 +794,7 @@ function isoDaysAgo(days: number): string {
   return date.toISOString().slice(0, 10);
 }
 
-function shortDate(iso: string): string {
-  const [year, month, day] = iso.split('-');
-  return `${day}/${month}/${year.slice(2)}`;
+/** Both ends included. In UTC: local midnights across a DST change are 23 or 25 hours apart. */
+function daysIn(fromIso: string, toIso: string): number {
+  return (Date.parse(`${toIso}T00:00:00Z`) - Date.parse(`${fromIso}T00:00:00Z`)) / 86_400_000 + 1;
 }

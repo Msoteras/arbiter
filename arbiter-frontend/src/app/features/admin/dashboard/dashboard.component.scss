@@ -27,6 +27,13 @@
   gap: var(--space-1);
 }
 
+.dash-period {
+  margin: 0;
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-secondary);
+}
+
 .dash-sub {
   margin: 0;
   font-size: var(--font-size-sm);
