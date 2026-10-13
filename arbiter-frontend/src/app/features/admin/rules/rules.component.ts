@@ -36,9 +36,11 @@ import {
 import { DocumentRulesService } from '../document-rules.service';
 import { BusinessRulesTextService } from '../business-rules-text.service';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
+import { IconButtonComponent } from '../../../shared/ui/icon-button/icon-button.component';
 import { CardComponent } from '../../../shared/ui/card/card.component';
 import { EmptyStateComponent } from '../../../shared/ui/empty-state/empty-state.component';
 import { InputComponent } from '../../../shared/ui/input/input.component';
+import { TextareaComponent } from '../../../shared/ui/textarea/textarea.component';
 import { ModalComponent } from '../../../shared/ui/modal/modal.component';
 import { SettlementAuthoritiesConfigComponent } from '../settlement-authorities-config/settlement-authorities-config.component';
 import { ScoringConfigComponent } from '../scoring-config/scoring-config.component';
@@ -55,6 +57,7 @@ import { InfoTipComponent } from '../../../shared/ui/info-tip/info-tip.component
 import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
 import { SwitchComponent } from '../../../shared/ui/switch/switch.component';
 import { TableComponent } from '../../../shared/ui/table/table.component';
+import { TabOption, TabsComponent } from '../../../shared/ui/tabs/tabs.component';
 import { CheckboxComponent } from '../../../shared/ui/checkbox/checkbox.component';
 import { SelectComponent, SelectOption } from '../../../shared/ui/select/select.component';
 import { ToastService } from '../../../shared/ui/toast/toast.service';
@@ -80,9 +83,11 @@ type GeneralView =
   selector: 'app-rules',
   imports: [
     ButtonComponent,
+    IconButtonComponent,
     CardComponent,
     EmptyStateComponent,
     InputComponent,
+    TextareaComponent,
     ModalComponent,
     ScoringConfigComponent,
     FraudConfigComponent,
@@ -99,6 +104,7 @@ type GeneralView =
     BadgeComponent,
     SwitchComponent,
     TableComponent,
+    TabsComponent,
     CheckboxComponent,
     SelectComponent,
   ],
@@ -162,7 +168,7 @@ export class RulesComponent {
   /** Renames ask for confirmation: the name changes everywhere the insurer sees the branch. */
   protected readonly showRenameConfirm = signal(false);
 
-  protected readonly tabs: { id: TabId; label: string }[] = [
+  protected readonly tabs: (TabOption & { id: TabId })[] = [
     { id: 'coverages', label: 'Coberturas' },
     { id: 'exclusions', label: 'Exclusiones comunes' },
     { id: 'fastTrack', label: 'Fast Track' },
@@ -565,6 +571,7 @@ export class RulesComponent {
       id: String(c.id),
       name: c.name,
       clause: c.clause ?? '',
+      description: c.description ?? '',
       insuredAmount: null,
       deductibleRatio: c.deductibleRatio,
       deductibleBasis: c.deductibleBasis ?? 'SUM_INSURED',
@@ -707,9 +714,13 @@ export class RulesComponent {
     return Number.isInteger(n) && n > 0 ? n : null;
   }
 
-  protected setTab(t: TabId): void {
-    this.activeTab.set(t);
-    localStorage.setItem(RulesComponent.LAST_TAB_KEY, t);
+  protected setTab(id: string): void {
+    const tab = this.tabs.find((t) => t.id === id);
+    if (!tab) {
+      return;
+    }
+    this.activeTab.set(tab.id);
+    localStorage.setItem(RulesComponent.LAST_TAB_KEY, tab.id);
   }
 
   /** Falls back to Coberturas when nothing valid is stored. */
@@ -804,6 +815,7 @@ export class RulesComponent {
       id: `cov-${Date.now()}`,
       name: '',
       clause: '',
+      description: '',
       insuredAmount: null,
       deductibleRatio: null,
       deductibleBasis: 'SUM_INSURED',
@@ -1460,6 +1472,7 @@ export class RulesComponent {
     return {
       name: c.name,
       clause: c.clause || null,
+      description: c.description.trim() || null,
       deductibleRatio: c.deductibleRatio,
       deductibleBasis: c.deductibleBasis,
       reportingWindowDays: c.reportingWindowDays,

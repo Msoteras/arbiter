@@ -15,6 +15,8 @@ export interface Coverage {
   name: string;
   /** General conditions clause code (e.g. "340"). */
   clause: string;
+  /** What the coverage is for, in the insurer's words. */
+  description: string;
   /** Null when it comes from the policy. */
   insuredAmount: number | null;
   /** Fraction (0..1) of the amount. */

@@ -190,62 +190,9 @@
   color: var(--text-primary);
   overflow-wrap: anywhere;
 }
-.rename-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex: none;
-  padding: var(--space-2);
-  background: none;
-  border: 1px solid var(--border-control);
-  border-radius: var(--radius-ctl);
-  color: var(--accent-fg);
-  cursor: pointer;
-}
-.rename-btn svg {
-  width: var(--font-size-lg);
-  height: var(--font-size-lg);
-}
-.rename-btn:hover {
-  border-color: var(--selected-border);
-  background: var(--selected-bg);
-}
-.rename-btn:focus-visible {
-  outline: none;
-  border-color: var(--border-focus);
-  box-shadow: var(--focus-ring);
-}
-
 .saved-note {
   color: var(--status-ok);
   font-size: var(--font-size-sm);
-}
-
-/* Tabs */
-.tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-1);
-  border-bottom: 1px solid var(--border-default);
-}
-.tab {
-  font: inherit;
-  font-size: var(--font-size-sm);
-  padding: var(--space-2) var(--space-3);
-  border: none;
-  background: none;
-  color: var(--text-secondary);
-  cursor: pointer;
-  border-bottom: 2px solid transparent;
-  margin-bottom: -1px;
-}
-.tab:hover {
-  color: var(--text-primary);
-}
-.tab.active {
-  color: var(--accent-fg);
-  border-bottom-color: var(--accent-fill);
-  font-weight: var(--font-weight-medium);
 }
 
 .tab-panel {

@@ -280,7 +280,6 @@ BEGIN
             covers_family_group             BOOLEAN       NOT NULL DEFAULT FALSE,
             deductible                      NUMERIC(15,2),           -- percentage points: 10.00 = 10%%
             claim_exhausts_coverage         BOOLEAN       NOT NULL DEFAULT FALSE,
-            is_individual                   BOOLEAN       NOT NULL DEFAULT TRUE,
             waiting_period_days             INTEGER,
             branch_id                       BIGINT        NOT NULL REFERENCES %I.branch(id),
             clause                          VARCHAR(20),

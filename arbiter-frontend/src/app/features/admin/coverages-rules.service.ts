@@ -17,6 +17,7 @@ export interface CoverageDetail {
   id: number;
   name: string;
   clause: string | null;
+  description: string | null;
   deductibleRatio: number | null;
   deductibleBasis: DeductibleBasis;
   reportingWindowDays: number | null;
@@ -42,6 +43,7 @@ export interface CoverageSummary {
 export interface CoverageUpsertRequest {
   name: string;
   clause: string | null;
+  description: string | null;
   deductibleRatio: number | null;
   deductibleBasis: DeductibleBasis;
   reportingWindowDays: number | null;

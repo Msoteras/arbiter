@@ -7,6 +7,7 @@ import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -15,6 +16,8 @@ import java.util.List;
 public record CoverageUpsertRequest(
         @NotBlank String name,
         String clause,
+        /** What the coverage is for, as the referente and the analyst read it. Blank means none. */
+        @Size(max = 2000) String description,
         @DecimalMin(value = "0.0") @DecimalMax(value = "1.0") BigDecimal deductibleRatio,
         /** What the deductible applies to. Null means {@code SUM_INSURED}. */
         DeductibleBasis deductibleBasis,

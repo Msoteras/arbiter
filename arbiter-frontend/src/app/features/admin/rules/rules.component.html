@@ -185,23 +185,7 @@
           } @else {
             <div class="branch-heading">
               <h2 class="branch-title">{{ renameFrom() }}</h2>
-              <button
-                type="button"
-                class="rename-btn"
-                aria-label="Renombrar el ramo"
-                title="Renombrar"
-                (click)="startNameEdit()"
-              >
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="1.8"
-                  aria-hidden="true"
-                >
-                  <path d="M4 20h4L19 9l-4-4L4 16v4z" stroke-linejoin="round" />
-                </svg>
-              </button>
+              <app-icon-button icon="edit" label="Renombrar el ramo" (click)="startNameEdit()" />
             </div>
             @if (renameSaved()) {
               <span class="saved-note">✓ Nombre guardado</span>
@@ -209,19 +193,12 @@
           }
         </div>
 
-        <nav class="tabs" role="tablist">
-          @for (t of tabs; track t.id) {
-            <button
-              role="tab"
-              class="tab"
-              [class.active]="activeTab() === t.id"
-              [attr.aria-selected]="activeTab() === t.id"
-              (click)="setTab(t.id)"
-            >
-              {{ t.label }}
-            </button>
-          }
-        </nav>
+        <app-tabs
+          [tabs]="tabs"
+          [value]="activeTab()"
+          (valueChange)="setTab($event)"
+          ariaLabel="Secciones del ramo"
+        />
 
         <!-- ============ DERIVATIONS ============ -->
         <!-- Outside the switch and only hidden: it owns its draft, which leaving the tab would drop. -->
@@ -331,26 +308,29 @@
                               </span>
                             </label>
                           </div>
+                          <label class="fieldset">
+                            <span class="t-field-label">Descripción</span>
+                            <app-textarea
+                              [rows]="2"
+                              [value]="c.description"
+                              (valueChange)="setCoverageField(c.id, { description: $event })"
+                              placeholder="Qué cubre, en una o dos frases"
+                            />
+                          </label>
 
-                          <div class="chips">
-                            <button
-                              type="button"
-                              class="chip"
-                              [class.active]="c.coversFamilyGroup"
-                              [attr.aria-pressed]="c.coversFamilyGroup"
-                              (click)="toggleCoverageFamilyGroup(c)"
+                          <div class="check-list">
+                            <app-checkbox
+                              [checked]="c.coversFamilyGroup"
+                              (checkedChange)="toggleCoverageFamilyGroup(c)"
                             >
                               Alcanza al grupo familiar
-                            </button>
-                            <button
-                              type="button"
-                              class="chip"
-                              [class.active]="c.claimExhaustsCoverage"
-                              [attr.aria-pressed]="c.claimExhaustsCoverage"
-                              (click)="toggleCoverageExhausts(c)"
+                            </app-checkbox>
+                            <app-checkbox
+                              [checked]="c.claimExhaustsCoverage"
+                              (checkedChange)="toggleCoverageExhausts(c)"
                             >
                               Un siniestro agota la cobertura
-                            </button>
+                            </app-checkbox>
                           </div>
 
                           <div class="cov-section">
@@ -501,17 +481,14 @@
                             } @else if (claimCauses().length === 0) {
                               <p class="t-note">No hay hechos generadores en este ramo.</p>
                             } @else {
-                              <div class="chips">
+                              <div class="check-list">
                                 @for (cause of claimCauses(); track cause.id) {
-                                  <button
-                                    type="button"
-                                    class="chip"
-                                    [class.active]="isCauseCovered(c, cause.id)"
-                                    [attr.aria-pressed]="isCauseCovered(c, cause.id)"
-                                    (click)="toggleExcludedCause(c.id, cause.id)"
+                                  <app-checkbox
+                                    [checked]="isCauseCovered(c, cause.id)"
+                                    (checkedChange)="toggleExcludedCause(c.id, cause.id)"
                                   >
                                     {{ cause.name }}
-                                  </button>
+                                  </app-checkbox>
                                 }
                               </div>
                               <!-- Warns, doesn't block: covering the whole branch can be correct. -->
@@ -790,17 +767,14 @@
                             agenda documental completa.
                           </app-info-tip>
                         </span>
-                        <div class="chips">
+                        <div class="check-list">
                           @for (doc of docTypes; track doc.code) {
-                            <button
-                              type="button"
-                              class="chip"
-                              [class.active]="isFtDoc(doc.code)"
-                              [attr.aria-pressed]="isFtDoc(doc.code)"
-                              (click)="toggleFtDoc(doc.code)"
+                            <app-checkbox
+                              [checked]="isFtDoc(doc.code)"
+                              (checkedChange)="toggleFtDoc(doc.code)"
                             >
                               {{ doc.label }}
-                            </button>
+                            </app-checkbox>
                           }
                         </div>
                       </div>

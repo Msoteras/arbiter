@@ -32,19 +32,29 @@
             </span>
           </div>
           <div class="provider-actions">
-            <app-button variant="secondary" (click)="edit(p)">Editar</app-button>
-            <button type="button" class="danger-btn" (click)="remove(p)">Borrar</button>
+            <app-icon-button icon="edit" [label]="'Editar ' + p.name" (click)="edit(p)" />
+            <app-icon-button icon="delete" [label]="'Borrar ' + p.name" (click)="remove(p)" />
           </div>
         </li>
       }
     </ul>
   }
 
+  @if (error() && !draft()) {
+    <p class="t-note error" role="alert">{{ error() }}</p>
+  }
+</app-card>
+
+<!-- Not dismissable: a stray click on the backdrop would drop a half-typed provider. -->
+<app-modal
+  [open]="draft() !== null"
+  [heading]="draft()?.id == null ? 'Nuevo proveedor' : 'Editar proveedor'"
+  variant="side"
+  [dismissable]="false"
+  (close)="cancel()"
+>
   @if (draft(); as d) {
     <div class="provider-form">
-      <span class="t-section-label">{{
-        d.id == null ? 'Nuevo proveedor' : 'Editando proveedor'
-      }}</span>
       <label class="fieldset">
         <span class="t-field-label">Tipo</span>
         <app-select
@@ -76,13 +86,15 @@
           @default {
             @for (b of branches(); track b.id) {
               <app-checkbox
-                [checked]="d.branchIds.includes(b.id)"
+                [checked]="checkedBranchIds().includes(b.id)"
                 (checkedChange)="toggleBranch(b.id, $event)"
               >
                 {{ b.name }}
               </app-checkbox>
             }
-            <p class="t-note">Sin ninguno marcado, cubre todos los ramos.</p>
+            @if (noBranchChecked()) {
+              <p class="t-note error">Elegí al menos un ramo.</p>
+            }
           }
         }
       </fieldset>
@@ -97,19 +109,16 @@
       <app-checkbox [checked]="d.active" (checkedChange)="setField('active', $event)">
         Activo
       </app-checkbox>
-      <div class="provider-form-actions">
-        <app-button variant="secondary" (click)="cancel()">Cancelar</app-button>
-        <app-button [disabled]="!canSave() || saving()" (click)="save()">
-          {{ saving() ? 'Guardando…' : 'Guardar' }}
-        </app-button>
-      </div>
+      @if (error()) {
+        <p class="t-note error" role="alert">{{ error() }}</p>
+      }
     </div>
   }
-
-  @if (error()) {
-    <p class="t-note error">{{ error() }}</p>
-  }
-</app-card>
+  <ng-container modalActions>
+    <app-button variant="secondary" [disabled]="saving()" (click)="cancel()">Cancelar</app-button>
+    <app-button [disabled]="!canSave()" [loading]="saving()" (click)="save()">Guardar</app-button>
+  </ng-container>
+</app-modal>
 
 <app-modal
   [open]="providerToDelete() !== null"
@@ -128,8 +137,8 @@
     <app-button variant="secondary" [disabled]="deleting()" (click)="cancelDelete()"
       >Cancelar</app-button
     >
-    <app-button [disabled]="deleting()" (click)="confirmDelete()">
-      {{ deleting() ? 'Borrando…' : 'Sí, borrar proveedor' }}
+    <app-button variant="secondary" tone="danger" [loading]="deleting()" (click)="confirmDelete()">
+      Sí, borrar proveedor
     </app-button>
   </ng-container>
 </app-modal>

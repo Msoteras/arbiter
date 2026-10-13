@@ -197,6 +197,10 @@
   .rule-row {
     flex-wrap: wrap;
   }
+  /* Basis 0, or a long hint claims the whole line and pushes the switch above the title. */
+  .rule-text {
+    flex: 1 1 0;
+  }
   .rule-value {
     width: 100%;
     padding-left: calc(36px + var(--space-3));
@@ -217,32 +221,15 @@
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
 }
 
-.chips {
+/* Several of a set, all in view. */
+.check-list {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-2);
+  gap: var(--space-2) var(--space-5);
 }
 
 .cov-warning {
   margin-top: var(--space-3);
-}
-.chip {
-  font: inherit;
-  font-size: var(--font-size-sm);
-  padding: var(--space-1) var(--space-3);
-  border: 1px solid var(--border-control);
-  border-radius: var(--radius-pill);
-  background: var(--surface);
-  color: var(--text-secondary);
-  cursor: pointer;
-}
-.chip:hover {
-  border-color: var(--border-strong);
-}
-.chip.active {
-  background: var(--selected-bg);
-  border-color: var(--selected-border);
-  color: var(--accent-fg);
 }
 
 // Mirrors string-list-editor's empty box, so every tab of a branch starts the same way.

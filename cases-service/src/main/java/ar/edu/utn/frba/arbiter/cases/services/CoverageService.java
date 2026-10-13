@@ -58,7 +58,6 @@ public class CoverageService {
                 .branchId(branchId)
                 .coversFamilyGroup(false)
                 .claimExhaustsCoverage(false)
-                .individual(true)
                 .build();
         applyRequest(coverage, request);
         // Starts equal to the name and never changes again: it is what the insurer database calls
@@ -86,6 +85,8 @@ public class CoverageService {
     private void applyRequest(Coverage coverage, CoverageUpsertRequest request) {
         coverage.setName(request.name());
         coverage.setClause(request.clause());
+        coverage.setDescription(request.description() == null || request.description().isBlank()
+                ? null : request.description().strip());
         coverage.setExclusions(request.exclusions());
         coverage.setDeductible(request.deductibleRatio() == null
                 ? null : request.deductibleRatio().multiply(HUNDRED));
@@ -113,6 +114,7 @@ public class CoverageService {
                 coverage.getId(),
                 coverage.getName(),
                 coverage.getClause(),
+                coverage.getDescription(),
                 coverage.getDeductible() == null
                         ? null : coverage.getDeductible().divide(HUNDRED),
                 coverage.getDeductibleBasis(),

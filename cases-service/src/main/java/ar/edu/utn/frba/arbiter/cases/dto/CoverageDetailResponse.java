@@ -12,6 +12,7 @@ public record CoverageDetailResponse(
         Long id,
         String name,
         String clause,
+        String description,
         BigDecimal deductibleRatio,
         DeductibleBasis deductibleBasis,
         Integer reportingWindowDays,

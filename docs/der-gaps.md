@@ -248,14 +248,17 @@ marcado como riesgoso le revela esa marca.
 
 **Decisión:** implementarla o dropearla del esquema y del DER. Pendiente de discutir con el equipo.
 
-### 13 · `cobertura.es_individual` y `expediente.destino` — están en el esquema y no en el DER
+### 13 · `expediente.destino` — está en el esquema y no en el DER
 
 | Tabla | Columna | Tipo de dato | Nulo | Por qué no se suma directo |
 |---|---|---|---|---|
-| `cobertura` | `es_individual` (`is_individual`) | BOOLEAN | no | el alta la guarda siempre en `TRUE` y nada la lee |
 | `expediente` | `destino` (`destination`) | VARCHAR(40) | sí | nada la escribe; sus valores nunca se definieron |
 
-**Decisión:** sumarlas al DER con una semántica definida, o dropearlas del esquema y de las entidades.
+**Decisión:** sumarla al DER con una semántica definida, o dropearla del esquema y de la entidad.
+
+`cobertura.es_individual`, que compartía esta entrada, se borró del esquema
+(`2026-10-13-borrar-es-individual-de-cobertura.sql`): repetía `cubre_grupo_familiar` y nada la leía.
+Nunca estuvo en el DER, así que no hay nada que editar en el `.mdj`.
 
 ### 14 · `aseguradora.logo` — está en el DER y no en el esquema
 

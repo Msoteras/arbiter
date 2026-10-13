@@ -10,6 +10,7 @@ import {
   branchesLabel,
 } from '../../../core/models/derivation';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
+import { IconButtonComponent } from '../../../shared/ui/icon-button/icon-button.component';
 import { CardComponent } from '../../../shared/ui/card/card.component';
 import { CheckboxComponent } from '../../../shared/ui/checkbox/checkbox.component';
 import { InputComponent } from '../../../shared/ui/input/input.component';
@@ -19,9 +20,13 @@ import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline
 import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
 import { ModalComponent } from '../../../shared/ui/modal/modal.component';
 
-/** `id` null = new provider. */
+/**
+ * `id` null = new provider. `coversAll` keeps every branch checked without listing them, so it
+ * holds while the branches are still loading; the first box touched turns it into `branchIds`.
+ */
 interface ProviderDraft extends ProviderRequest {
   id: number | null;
+  coversAll: boolean;
 }
 
 /**
@@ -32,6 +37,7 @@ interface ProviderDraft extends ProviderRequest {
   selector: 'app-providers-config',
   imports: [
     ButtonComponent,
+    IconButtonComponent,
     CardComponent,
     CheckboxComponent,
     InputComponent,
@@ -104,6 +110,7 @@ export class ProvidersConfigComponent {
       email: '',
       zone: '',
       branchIds: [],
+      coversAll: true,
       active: true,
       providerType: 'ESTUDIO_LIQUIDADOR',
     });
@@ -117,6 +124,8 @@ export class ProvidersConfigComponent {
       email: provider.email,
       zone: provider.zone ?? '',
       branchIds: provider.branches.map((b) => b.id),
+      // Stored with no branches means a generalist: it shows with all of them checked.
+      coversAll: provider.branches.length === 0,
       active: provider.active,
       providerType: provider.providerType,
     });
@@ -137,21 +146,42 @@ export class ProvidersConfigComponent {
     this.setField('providerType', value as ProviderType);
   }
 
-  /** None checked is a valid answer: a generalist covering every branch. */
+  /** The boxes as shown: every branch for a generalist, the listed ones otherwise. */
+  protected readonly checkedBranchIds = computed(() => {
+    const d = this.draft();
+    if (!d) {
+      return [];
+    }
+    return d.coversAll ? this.branches().map((b) => b.id) : d.branchIds;
+  });
+
   protected toggleBranch(branchId: number, checked: boolean): void {
     const current = this.draft();
     if (!current) {
       return;
     }
-    const others = current.branchIds.filter((id) => id !== branchId);
-    this.setField('branchIds', checked ? [...others, branchId] : others);
+    const others = this.checkedBranchIds().filter((id) => id !== branchId);
+    this.draft.set({
+      ...current,
+      branchIds: checked ? [...others, branchId] : others,
+      coversAll: false,
+    });
   }
+
+  /** With none checked the provider would cover nothing, and saving it empty would mean "all". */
+  protected readonly noBranchChecked = computed(
+    () => this.branchesState() === 'ok' && this.checkedBranchIds().length === 0,
+  );
 
   protected readonly canSave = computed(() => {
     const d = this.draft();
     // Email is the only channel to the provider: without it a referral goes nowhere.
     return (
-      !!d && d.name.trim().length > 0 && d.email.trim().length > 0 && this.branchesState() === 'ok'
+      !!d &&
+      d.name.trim().length > 0 &&
+      d.email.trim().length > 0 &&
+      this.branchesState() === 'ok' &&
+      !this.noBranchChecked()
     );
   });
 
@@ -160,11 +190,14 @@ export class ProvidersConfigComponent {
     if (!d || !this.canSave()) {
       return;
     }
+    const checked = this.checkedBranchIds();
     const request: ProviderRequest = {
       name: d.name.trim(),
       email: d.email.trim(),
       zone: d.zone?.trim() || null,
-      branchIds: d.branchIds,
+      // Always the explicit list, even with every branch checked: a branch added later is not
+      // covered until someone checks it here.
+      branchIds: checked,
       active: d.active,
       providerType: d.providerType,
     };
