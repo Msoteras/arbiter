@@ -80,7 +80,7 @@
          consume the animation before the cards arrive. -->
     <div class="body" [class.stale]="loading()" @staggerReveal>
       <!-- ─── Funnel ───────────────────────────────────────────────────────────── -->
-      <app-card heading="Embudo del período">
+      <app-card heading="Embudo de lo denunciado en el período">
         <p class="funnel-note">{{ stillOpenNote() }}</p>
         <ol class="funnel">
           @for (step of funnel(); track step.label) {
@@ -123,8 +123,9 @@
 
       @if (fastTrackComparison(); as comparison) {
         <p class="breakdown">
-          Fast Track: <strong>{{ comparison }}</strong
-          >. Son dos promedios medidos sobre {{ fastTrackBase() }}, no un ahorro estimado.
+          Resolución de los decididos en el período: <strong>{{ comparison.fastTrack }}</strong> con
+          Fast Track ({{ comparison.fastTrackDecided }}) y
+          <strong>{{ comparison.standard }}</strong> el resto ({{ comparison.standardDecided }}).
         </p>
       }
 
@@ -224,7 +225,8 @@
                         }
                       }
                       @if (item.remaining > 0) {
-                        <a
+                        <!-- &ngsp; survives Angular's whitespace removal, a plain space doesn't. -->
+                        &ngsp;<a
                           class="att-more"
                           [routerLink]="['/inbox']"
                           [queryParams]="item.queryParams"
