@@ -12,9 +12,9 @@ describe('resolutionTimeLabel', () => {
     expect(resolutionTimeLabel(23.9)).toBe('24 h');
   });
 
-  it('reads in days with one decimal from a day on', () => {
-    expect(resolutionTimeLabel(24)).toBe('1.0 d');
-    expect(resolutionTimeLabel(739.2)).toBe('30.8 d');
+  it('reads in days with one decimal, written with a comma, from a day on', () => {
+    expect(resolutionTimeLabel(24)).toBe('1,0 d');
+    expect(resolutionTimeLabel(739.2)).toBe('30,8 d');
   });
 });
 

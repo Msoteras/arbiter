@@ -451,7 +451,7 @@ export class DashboardComponent {
         sub:
           metrics.legalDeadline.decided === 0
             ? 'nada decidido en el período'
-            : `${metrics.legalDeadline.onTime} de ${metrics.legalDeadline.decided} en término`,
+            : `${metrics.legalDeadline.onTime} de ${metrics.legalDeadline.decided} decididos en término`,
         trend: '',
         progress: metrics.legalDeadline.rate,
         tone: legalTone(metrics.legalDeadline.rate),
@@ -540,24 +540,18 @@ export class DashboardComponent {
     return `${resolutionTimeLabel(own)} de gestión · ${resolutionTimeLabel(waiting)} esperando a terceros`;
   });
 
-  /** Empty unless both sides exist: one average alone compares with nothing. */
+  /** null unless both sides exist: one average alone compares with nothing. */
   protected readonly fastTrackComparison = computed(() => {
     const impact = this.data()?.fastTrack;
     if (!impact || impact.fastTrackHours == null || impact.standardHours == null) {
-      return '';
+      return null;
     }
-    return (
-      `Fast Track: ${resolutionTimeLabel(impact.fastTrackHours)} · ` +
-      `Resto: ${resolutionTimeLabel(impact.standardHours)}`
-    );
-  });
-
-  protected readonly fastTrackBase = computed(() => {
-    const impact = this.data()?.fastTrack;
-    if (!impact) {
-      return '';
-    }
-    return `${impact.fastTrackDecided} y ${impact.standardDecided} expedientes decididos`;
+    return {
+      fastTrack: resolutionTimeLabel(impact.fastTrackHours),
+      standard: resolutionTimeLabel(impact.standardHours),
+      fastTrackDecided: impact.fastTrackDecided,
+      standardDecided: impact.standardDecided,
+    };
   });
 
   /** null when nothing was settled: the section is hidden instead of showing a row of zeros. */
