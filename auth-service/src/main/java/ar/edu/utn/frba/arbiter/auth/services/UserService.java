@@ -346,6 +346,7 @@ public class UserService {
                 apellido,
                 rol,
                 user.isActivated() ? UserStatus.ACTIVE : UserStatus.PENDING,
-                user.getCreatedAt());
+                user.getCreatedAt(),
+                user.getLastAccessAt());
     }
 }

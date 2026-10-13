@@ -162,6 +162,11 @@ export class CaseTrackingComponent {
 
   protected readonly occurredOn = computed(() => formatDateTime(this.data()?.eventDate));
 
+  protected readonly policeReportOn = computed(() => {
+    const at = this.data()?.policeReportAt;
+    return at ? formatDateTime(at) : null;
+  });
+
   protected goToDocuments(): void {
     // Forward `insurer`, or the documents screen resolves the case against the default tenant.
     const insurer = this.route.snapshot.queryParamMap.get('insurer');

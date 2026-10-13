@@ -1,7 +1,7 @@
 -- =============================================================================
 -- Arbiter — DB initialization script (multi-tenant by schema)
 --
--- 52 tables: 8 shared + 39 per tenant + 5 per simulated insurer DB. Risk factors are
+-- 53 tables: 9 shared + 39 per tenant + 5 per simulated insurer DB. Risk factors are
 -- not a table: their codes live in classification-service's RiskFactorIds.
 --
 -- One schema per insurer, with NO tenant discriminator column anywhere in a tenant
@@ -37,7 +37,7 @@ BEGIN;
 CREATE SCHEMA arbiter_common;
 
 -- =============================================================================
--- ARBITER_COMMON — 8 tables
+-- ARBITER_COMMON — 9 tables
 -- Tenant registry, centralized identity, RBAC and the platform-wide catalogs that
 -- are identical for every insurer.
 -- =============================================================================
@@ -119,6 +119,16 @@ CREATE TABLE arbiter_common.case_status (
     insured_status  VARCHAR(60)  NOT NULL,
     insured_status_code VARCHAR(40) NOT NULL,       -- matches common-lib's InsuredStatus
     is_final        BOOLEAN      NOT NULL DEFAULT FALSE
+);
+
+-- ─── shedlock ────────────────────────────────────────────────────────────────
+-- Not domain data: one row per scheduled sweep of cases-service, so that with several
+-- instances only one runs each sweep at a time. Name and columns are ShedLock's own.
+CREATE TABLE arbiter_common.shedlock (
+    name        VARCHAR(64)  PRIMARY KEY,
+    lock_until  TIMESTAMP    NOT NULL,
+    locked_at   TIMESTAMP    NOT NULL,
+    locked_by   VARCHAR(255) NOT NULL
 );
 
 -- =============================================================================

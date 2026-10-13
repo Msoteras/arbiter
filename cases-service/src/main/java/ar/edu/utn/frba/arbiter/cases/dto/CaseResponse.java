@@ -41,6 +41,8 @@ public record CaseResponse(
         String policyNumber,
         String description,
         LocalDateTime eventDate,
+        /** When the insured says they filed the police report; null when the claim has none. */
+        LocalDateTime policeReportAt,
         String eventLocation,
         BigDecimal claimedAmount,
         Classification analysisClassification,
@@ -93,7 +95,7 @@ public record CaseResponse(
         return new CaseResponse(
                 id, insurerSlug, insurerName, null, insuredStatus, branch, product, claimCause, coverage,
                 insuredItem, insuredId, insuredName, pep, policyNumber, description, eventDate,
-                eventLocation, claimedAmount,
+                policeReportAt, eventLocation, claimedAmount,
                 null, false, 0.0, List.of(), null, null, null,
                 null, null, List.of(), null,
                 assignedAnalystId, assignedAnalystName, createdAt, updatedAt, responseDeadline,

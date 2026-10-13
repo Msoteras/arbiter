@@ -20,6 +20,9 @@
       >#{{ row.caseId }} · {{ row.insuredName }}</a
     >
     <span class="cell-sub">{{ row.claimCause }} · {{ row.branch }} · {{ row.analystName }}</span>
+    @if (row.justification) {
+      <q class="cell-quote">{{ row.justification }}</q>
+    }
   </ng-template>
 
   <!-- The whole bar is the amount: grey up to the analyst's cap, status color for the excess. -->
@@ -42,6 +45,9 @@
         · ajustado sobre {{ formatAmount(row.calculatedAmount) }}
       }
     </span>
+    @if (row.adjustmentReason) {
+      <q class="cell-quote">{{ row.adjustmentReason }}</q>
+    }
   </ng-template>
 
   @if (error()) {
@@ -163,6 +169,10 @@
         row.caseId
       }}, {{ formatAmount(row.excess) }} por encima del tope del ramo.
     </p>
+    @if (row.justification) {
+      <p class="t-field-label">Justificación de {{ row.analystName }}</p>
+      <q class="cell-quote">{{ row.justification }}</q>
+    }
     <p class="t-note">El expediente queda aprobado y se le avisa al asegurado.</p>
   }
   <ng-container modalActions>

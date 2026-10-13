@@ -1519,6 +1519,7 @@ class CaseServiceImplTest {
         entity.setRiskScore(0.82);
         entity.setRiskBand(RiskBand.CRITICAL);
         entity.setForensicReport(FORENSIC_REPORT);
+        entity.setPoliceReportAt(LocalDateTime.of(2026, 6, 14, 9, 40));
         return entity;
     }
 
@@ -1588,6 +1589,8 @@ class CaseServiceImplTest {
         // No internal status literal anywhere in what travels.
         assertThat(response.toString()).doesNotContain("PENDING_", "CLASSIFICATION_FAILED");
         assertThat(response.description()).isEqualTo("Me robaron el celular en la estación de subte");
+        // Their own statement, so it stays.
+        assertThat(response.policeReportAt()).isEqualTo(LocalDateTime.of(2026, 6, 14, 9, 40));
         verifyNoInteractions(claimsAnalysisClient);
     }
 

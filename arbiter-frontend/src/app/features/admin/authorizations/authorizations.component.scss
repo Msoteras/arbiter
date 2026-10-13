@@ -40,6 +40,17 @@
   font-size: var(--font-size-2xs);
   color: var(--text-muted);
 }
+/* The analyst's own words, set apart from the row's data like the history's observations.
+   Wraps on purpose: table cells don't, and a sentence on one line pushes the other columns out. */
+.cell-quote {
+  display: block;
+  max-width: 44ch;
+  white-space: normal;
+  margin-top: var(--space-1);
+  font-size: var(--font-size-sm);
+  font-style: italic;
+  color: var(--text-secondary);
+}
 
 .amount-col {
   min-width: 14rem;

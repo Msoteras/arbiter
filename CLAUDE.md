@@ -164,7 +164,7 @@ Estas decisiones están **cerradas y aprobadas** (doc v1.0, 27/05/2026). No las 
     - **Ya está decidido e implementado: CLIP ViT-B-32 en el sidecar `embedding-service`** (Python/FastAPI), 512 dimensiones por imagen. `classification-service` lo consume por REST interno y persiste los vectores en PostgreSQL. Esto ya no es una opción abierta.
     - Si la comparación interna **no** encuentra coincidencia, recién ahí se puede consultar Google Vision (ver decisión #1).
 12. **Reglas de negocio dinámicas en BD**, administradas por el referente. **No** implementar Strategy en código para variar por aseguradora — eso requiere redeploy por cada cambio.
-13. ~~**API REST stateless.**~~ **Quitada el 31/08/2026:** el chat entrega por WebSocket. Sigue vigente lo que citan los `SecurityConfig`: sesión en el JWT, sin sesión de servidor ni CSRF. Con el broker en memoria, `cases-service` corre en una sola instancia.
+13. ~~**API REST stateless.**~~ **Quitada el 31/08/2026:** el chat entrega por WebSocket. Sigue vigente lo que citan los `SecurityConfig`: sesión en el JWT, sin sesión de servidor ni CSRF. Con el broker en memoria (el default, `STOMP_RELAY_HOST` vacío) `cases-service` corre en una sola instancia; para dos o más, el chat entrega por un broker STOMP externo (RabbitMQ, `enableStompBrokerRelay`) y los barridos programados llevan `@SchedulerLock` (ShedLock, tabla `arbiter_common.shedlock`) para que los corra una sola a la vez. Barrido nuevo → lleva su `@SchedulerLock`.
 14. **Nginx como reverse proxy + terminación SSL.** Centraliza certificados. El backend no se expone directo a internet.
 15. **Despliegue en Docker** sobre Railway/AWS. RDS para Postgres, S3 (+ Glacier a 30d, borrado a 180d) para adjuntos, ECR para imágenes.
 

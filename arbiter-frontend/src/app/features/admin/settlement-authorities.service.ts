@@ -25,6 +25,8 @@ export interface PendingSettlement {
   calculatedAmount: number;
   settledAmount: number;
   adjustmentReason: string | null;
+  /** Why the analyst wants to approve. */
+  justification: string | null;
   authorityLimit: number | null;
   /** Amount over the cap, already computed by the backend. */
   excess: number | null;

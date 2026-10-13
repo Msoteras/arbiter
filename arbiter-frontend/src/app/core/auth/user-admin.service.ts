@@ -32,6 +32,8 @@ export interface UserResponse {
   rol: UserRole;
   estado: UserStatus;
   createdAt: string;
+  /** Last successful login; null when none was recorded. */
+  lastAccessAt: string | null;
 }
 
 @Injectable({ providedIn: 'root' })
