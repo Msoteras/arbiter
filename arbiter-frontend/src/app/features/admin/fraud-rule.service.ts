@@ -1,8 +1,9 @@
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpContext } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 
 import { environment } from '../../../environments/environment';
+import { CacheReadOptions, QueryCache } from '../../core/cache/query-cache';
 
 /**
  * Mirrors rules-service FraudRecordRuleDto. Insurer-wide: a fraud record belongs to the person, not
@@ -26,9 +27,17 @@ export class FraudRuleService {
   private readonly http = inject(HttpClient);
   private readonly base = `${environment.apiBaseUrl}/rules/fraud-record-rule`;
 
+  private readonly cache = inject(QueryCache);
+  private readonly fetch = (context: HttpContext) =>
+    this.http.get<FraudRecordRule>(this.base, { context });
+
   /** An insurer that never configured it gets the default rule, not a 404. */
-  get(): Observable<FraudRecordRule> {
-    return this.http.get<FraudRecordRule>(this.base);
+  get(options?: CacheReadOptions): Observable<FraudRecordRule> {
+    return this.cache.read('rules:fraud', this.fetch, options);
+  }
+
+  prefetch(): void {
+    this.cache.prefetch('rules:fraud', this.fetch);
   }
 
   save(rule: FraudRecordRule): Observable<FraudRecordRule> {

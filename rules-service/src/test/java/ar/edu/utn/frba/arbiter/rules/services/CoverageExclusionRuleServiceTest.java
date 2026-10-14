@@ -1,5 +1,6 @@
 package ar.edu.utn.frba.arbiter.rules.services;
 
+import ar.edu.utn.frba.arbiter.common.enums.OnboardingStep;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Branch;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.ClaimCause;
 import ar.edu.utn.frba.arbiter.rules.dto.CatalogOption;
@@ -35,8 +36,9 @@ class CoverageExclusionRuleServiceTest {
     private final BranchRepository branchRepository = mock(BranchRepository.class);
     private final ClaimCauseRepository claimCauseRepository = mock(ClaimCauseRepository.class);
 
+    private final OnboardingTracker tracker = mock(OnboardingTracker.class);
     private final CoverageExclusionRuleService service = new CoverageExclusionRuleService(
-            ruleRepository, historyRepository, branchRepository, claimCauseRepository, mock(RuleAuthorResolver.class));
+            ruleRepository, historyRepository, branchRepository, claimCauseRepository, mock(RuleAuthorResolver.class), tracker);
 
     @Test
     void getReturnsConfiguredExclusions() {
@@ -83,6 +85,7 @@ class CoverageExclusionRuleServiceTest {
         assertThat(saved.getRuleType()).isEqualTo("COVERAGE_EXCLUSION");
         assertThat(saved.isBlocksFastTrack()).isTrue();
         assertThat(saved.getConfiguration()).contains("\"excludedClaimCauseIds\"").contains("3");
+        verify(tracker).touch(OnboardingStep.COVERAGES, 1L);
     }
 
     @Test

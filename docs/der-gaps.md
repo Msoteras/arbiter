@@ -82,7 +82,11 @@ Apuntan a `usuario` y no a `referente_aseguradora` a propósito.
 | `peritaje.perito_id` | `derivacion_expediente.proveedor_id` (`provider_id`) | BIGINT | sí | FK → `proveedor_externo.id` |
 | `antecedente_fraude.peritaje_id` | `antecedente_fraude.derivacion_expediente_id` (`case_referral_id`) | BIGINT | sí | FK → `derivacion_expediente.id` |
 
-Un proveedor sin filas en `proveedor_externo_rama` cubre todos los ramos.
+Un proveedor cubre solo los ramos con fila en `proveedor_externo_rama`, y tiene al menos una. La
+migración pasa cada `rama_id` no nulo a una fila de la tabla nueva. Hasta el 10/10/2026, un
+proveedor sin filas era generalista; la migración `2026-10-10-proveedores-con-ramos.sql` le asignó
+todos los ramos de su aseguradora. `veredicto`, `monto_indemnizable`,
+`resultado_reparacion` y `costo_reparacion` no cambian: ya son propios de un tipo de proveedor.
 
 **Acción:** renombrar las dos entidades y sus columnas, sacar `rama_id` de `proveedor_externo` y
 agregar `proveedor_externo_rama` como N:M entre `proveedor_externo` y `rama`. La nota de la entrada

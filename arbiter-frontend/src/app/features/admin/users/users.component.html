@@ -2,10 +2,16 @@
   <header class="page-head">
     <h1 class="t-page-title">Usuarios</h1>
     <div class="head-actions">
-      <app-button variant="secondary" (click)="showProvisionConfirm.set(true)">
+      <app-button
+        variant="secondary"
+        appOnboardingTarget="INSURED"
+        (click)="showProvisionConfirm.set(true)"
+      >
         Dar de alta asegurados
       </app-button>
-      <app-button (click)="showCreatePanel.set(true)">+ Nuevo analista</app-button>
+      <app-button appOnboardingTarget="ANALYSTS" (click)="showCreatePanel.set(true)"
+        >+ Nuevo analista</app-button
+      >
     </div>
   </header>
 

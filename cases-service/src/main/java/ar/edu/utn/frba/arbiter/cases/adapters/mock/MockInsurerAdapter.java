@@ -105,4 +105,15 @@ public class MockInsurerAdapter implements InsurerAdapter {
                 .coverages(policy.coverages())
                 .build();
     }
+
+    @Override
+    public List<String> findCoverageNames(String branchExternalName) {
+        return POLICIES.stream()
+                .filter(policy -> branchExternalName.equals(policy.branch()))
+                .flatMap(policy -> policy.coverages().stream())
+                .map(PolicyResponse.Coverage::description)
+                .distinct()
+                .sorted()
+                .toList();
+    }
 }

@@ -1,5 +1,6 @@
 package ar.edu.utn.frba.arbiter.rules.services;
 
+import ar.edu.utn.frba.arbiter.common.enums.OnboardingStep;
 import ar.edu.utn.frba.arbiter.common.enums.RuleType;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Branch;
 import ar.edu.utn.frba.arbiter.rules.dto.HardRuleDto;
@@ -37,8 +38,9 @@ class HardRuleServiceTest {
     private final BranchRepository branchRepository = mock(BranchRepository.class);
     private final RuleAuthorResolver authorResolver = mock(RuleAuthorResolver.class);
 
+    private final OnboardingTracker tracker = mock(OnboardingTracker.class);
     private final HardRuleService service =
-            new HardRuleService(ruleRepository, historyRepository, branchRepository, authorResolver);
+            new HardRuleService(ruleRepository, historyRepository, branchRepository, authorResolver, tracker);
 
     /**
      * The panel always shows every coverage-scoped rule, so an unconfigured one comes back disabled
@@ -115,6 +117,7 @@ class HardRuleServiceTest {
         // Doesn't reject on its own: a failed hard rule derives to the analyst (human-in-the-loop).
         assertThat(saved.getEffect()).isEqualTo("DERIVAR");
         assertThat(saved.getConfiguration()).contains("\"deadlineHours\":96");
+        verify(tracker).touch(OnboardingStep.COVERAGES, 1L);
     }
 
     @Test

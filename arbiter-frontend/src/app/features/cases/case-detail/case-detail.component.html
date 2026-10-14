@@ -117,6 +117,26 @@
               <p class="decision-reason">{{ why }}</p>
             }
           }
+          @case ('prescribed') {
+            <p class="registered rejected">
+              Rechazado por prescripción{{ resolution() ? ' el ' + resolution()?.at : '' }}
+            </p>
+            @if (resolution()?.justification; as why) {
+              <p class="decision-reason">{{ why }}</p>
+            }
+          }
+          @case ('withdrawn') {
+            <p class="registered">Cerrado por desistimiento</p>
+            @if (closureNote(); as why) {
+              <p class="decision-reason">{{ why }}</p>
+            }
+          }
+          @case ('voided') {
+            <p class="registered">Dado de baja por error de carga</p>
+            @if (closureNote(); as why) {
+              <p class="decision-reason">{{ why }}</p>
+            }
+          }
           @case ('lapsed') {
             <p class="registered">Cerrado por caducidad</p>
             <p class="rcard-note">
@@ -228,6 +248,17 @@
                         >Derivar a…</app-menu-button
                       >
                     }
+                    <!-- Not a verdict, hence no tone and last in the column. -->
+                    @if (canClose()) {
+                      <app-menu-button
+                        [block]="true"
+                        [items]="closeMenuItems"
+                        [disabled]="decisionSaving()"
+                        align="end"
+                        (itemSelected)="onCloseMenu($event)"
+                        >Cerrar expediente</app-menu-button
+                      >
+                    }
                   </div>
                 } @else if (!isAssigned() && canTake()) {
                   <app-button
@@ -301,6 +332,17 @@
               <p class="nodata">Sin clasificación disponible todavía</p>
             }
           }
+        }
+        <!-- Waiting on the insured or failed: no verdict buttons, but the case can still close. -->
+        @if (canClose() && decisionState() !== 'pending') {
+          <div class="decision-btns">
+            <app-menu-button
+              [items]="closeMenuItems"
+              [disabled]="closing()"
+              (itemSelected)="onCloseMenu($event)"
+              >Cerrar expediente</app-menu-button
+            >
+          </div>
         }
         @if (canReopen()) {
           <!-- Reopening doesn't revert the previous decision (its record is immutable). -->
@@ -1241,6 +1283,17 @@
     }
   }
 
+  @if (pendingDecision() === 'reject') {
+    <div class="reject-ground">
+      <span class="t-field-label" id="reject-ground-label">Rechazo por</span>
+      <app-chip-group
+        ariaLabel="Rechazo por"
+        [options]="rejectGroundOptions"
+        [value]="rejectGround()"
+        (valueChange)="setRejectGround($event)"
+      />
+    </div>
+  }
   <label class="justification">
     <span class="t-field-label"
       >Justificación <span class="required" aria-hidden="true">*</span></span
@@ -1297,6 +1350,34 @@
     <app-button variant="secondary" (click)="cancelSign()">Cancelar</app-button>
     <app-button [disabled]="!returnReason().trim() || signing()" (click)="confirmReturn()">
       {{ signing() ? 'Devolviendo…' : 'Devolver' }}
+    </app-button>
+  </ng-container>
+</app-modal>
+
+<!-- The reason is mandatory: the history keeps it, and the insured only sees "Cerrado". -->
+<app-modal
+  [open]="pendingClosure() !== null"
+  [heading]="closureHeading()"
+  (close)="cancelClosure()"
+>
+  <label class="justification">
+    <span class="t-field-label">Motivo <span class="required" aria-hidden="true">*</span></span>
+    <app-textarea [rows]="3" placeholder="Por qué se cierra…" [(value)]="closureReason" />
+  </label>
+  <p class="t-note">El asegurado ve el expediente como Cerrado.</p>
+  @if (closureError()) {
+    <p class="rcard-note error">{{ closureError() }}</p>
+  }
+  <ng-container modalActions>
+    <app-button variant="secondary" (click)="cancelClosure()">Cancelar</app-button>
+    <app-button [disabled]="!closureReason().trim() || closing()" (click)="confirmClosure()">
+      {{
+        closing()
+          ? 'Cerrando…'
+          : pendingClosure() === 'VOIDED'
+            ? 'Dar de baja'
+            : 'Cerrar expediente'
+      }}
     </app-button>
   </ng-container>
 </app-modal>

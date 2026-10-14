@@ -13,6 +13,9 @@ import {
   TARGET_DAYS_MIN,
 } from '../resolution-target.service';
 import { fadeInUp } from '../../../shared/animations';
+import { ONBOARDING_STEP_LINE } from '../../../core/onboarding/onboarding';
+import { InfoTipComponent } from '../../../shared/ui/info-tip/info-tip.component';
+import { OnboardingTargetDirective } from '../../../core/onboarding/onboarding-target.directive';
 
 /**
  * Insurer-wide resolution goal: a management target, not the legal deadline. The rules engine
@@ -21,6 +24,8 @@ import { fadeInUp } from '../../../shared/animations';
 @Component({
   selector: 'app-resolution-target-config',
   imports: [
+    OnboardingTargetDirective,
+    InfoTipComponent,
     CardComponent,
     InlineLoadingComponent,
     InputComponent,
@@ -33,7 +38,13 @@ import { fadeInUp } from '../../../shared/animations';
     @if (loading()) {
       <app-inline-loading [size]="26" message="Cargando el objetivo…" />
     } @else {
-      <app-card heading="Objetivo de resolución" headingSize="lg" @fadeInUp>
+      <app-card
+        heading="Objetivo de resolución"
+        headingSize="lg"
+        @fadeInUp
+        appOnboardingTarget="TARGET"
+      >
+        <app-info-tip cardAside>{{ stepLine.TARGET }}</app-info-tip>
         <label class="row">
           <app-switch [(checked)]="enabled" ariaLabel="Fijar un objetivo de resolución" />
           <span class="row-text">
@@ -103,6 +114,8 @@ import { fadeInUp } from '../../../shared/animations';
   `,
 })
 export class ResolutionTargetConfigComponent {
+  protected readonly stepLine = ONBOARDING_STEP_LINE;
+
   private readonly service = inject(ResolutionTargetService);
 
   protected readonly MIN = TARGET_DAYS_MIN;
@@ -140,7 +153,8 @@ export class ResolutionTargetConfigComponent {
   }
 
   private load(): void {
-    this.service.get().subscribe({
+    // With unsaved changes a refresh stays in the cache; discarding picks it up (L1).
+    this.service.get({ apply: () => !this.dirty() }).subscribe({
       next: (target) => {
         this.apply(target);
         this.loading.set(false);
@@ -182,5 +196,6 @@ export class ResolutionTargetConfigComponent {
   protected discard(): void {
     this.apply(this.saved());
     this.error.set(null);
+    this.load();
   }
 }

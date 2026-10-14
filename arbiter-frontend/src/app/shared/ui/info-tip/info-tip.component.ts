@@ -1,10 +1,18 @@
-import { ChangeDetectionStrategy, Component, ElementRef, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  ElementRef,
+  inject,
+  input,
+  signal,
+} from '@angular/core';
 
 import { OverlayPosition, anchorToTrigger } from '../overlay-position';
 
 /**
  * Toggles on click rather than hover so it works on touch and keyboard. The bubble is `fixed` and
- * anchored with {@link anchorToTrigger} so overflow ancestors do not clip it.
+ * anchored with {@link anchorToTrigger} so overflow ancestors do not clip it. `tone="warning"` is for
+ * a caveat about what is on screen (a triangle in the warning color); the default, for help.
  */
 @Component({
   selector: 'app-info-tip',
@@ -17,15 +25,35 @@ import { OverlayPosition, anchorToTrigger } from '../overlay-position';
       <button
         type="button"
         class="trigger"
+        [class.warning]="tone() === 'warning'"
         [attr.aria-expanded]="open()"
-        [attr.aria-label]="open() ? 'Ocultar información' : 'Más información'"
+        [attr.aria-label]="
+          open()
+            ? 'Ocultar información'
+            : tone() === 'warning'
+              ? 'Ver advertencia'
+              : 'Más información'
+        "
         (click)="toggle($event)"
       >
-        <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
-          <circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.3" />
-          <path d="M8 7.2v4.1" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" />
-          <circle cx="8" cy="4.9" r="0.9" fill="currentColor" />
-        </svg>
+        @if (tone() === 'warning') {
+          <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path
+              d="M8 2.2 14.3 13.3H1.7L8 2.2Z"
+              stroke="currentColor"
+              stroke-width="1.3"
+              stroke-linejoin="round"
+            />
+            <path d="M8 6.4v3.4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" />
+            <circle cx="8" cy="11.4" r="0.8" fill="currentColor" />
+          </svg>
+        } @else {
+          <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.3" />
+            <path d="M8 7.2v4.1" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" />
+            <circle cx="8" cy="4.9" r="0.9" fill="currentColor" />
+          </svg>
+        }
       </button>
       @if (open()) {
         <span
@@ -64,6 +92,11 @@ import { OverlayPosition, anchorToTrigger } from '../overlay-position';
     .trigger[aria-expanded='true'] {
       color: var(--text-secondary);
     }
+    .trigger.warning,
+    .trigger.warning:hover,
+    .trigger.warning[aria-expanded='true'] {
+      color: var(--status-warning);
+    }
     .trigger:focus-visible {
       outline: none;
       box-shadow: var(--focus-ring);
@@ -96,6 +129,8 @@ import { OverlayPosition, anchorToTrigger } from '../overlay-position';
   `,
 })
 export class InfoTipComponent {
+  readonly tone = input<'info' | 'warning'>('info');
+
   /** Used to pick the opening side without measuring the bubble first. */
   private static readonly ESTIMATED_HEIGHT = 140;
 

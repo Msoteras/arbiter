@@ -14,4 +14,12 @@ public interface InsurerAdapter {
      *                       true for the insured's profile, where seeing it expired is the point.
      */
     List<PolicyResponse> findPoliciesByInsured(String insuredId, boolean includeExpired);
+
+    /**
+     * Distinct coverage names on the resolved tenant's policies of a branch, spelled as the insurer
+     * database spells them: they are what a coverage in Arbiter has to be called to match.
+     *
+     * @param branchExternalName the branch as the insurer database names it ({@code poliza.rama})
+     */
+    List<String> findCoverageNames(String branchExternalName);
 }

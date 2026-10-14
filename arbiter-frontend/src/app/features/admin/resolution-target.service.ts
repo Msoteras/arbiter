@@ -1,8 +1,9 @@
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpContext } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 
 import { environment } from '../../../environments/environment';
+import { CacheReadOptions, QueryCache } from '../../core/cache/query-cache';
 
 /** Backend bounds. A 0-day target could never be met. */
 export const TARGET_DAYS_MIN = 1;
@@ -23,8 +24,16 @@ export class ResolutionTargetService {
   private readonly http = inject(HttpClient);
   private readonly base = `${environment.apiBaseUrl}/rules/resolution-target`;
 
-  get(): Observable<ResolutionTarget> {
-    return this.http.get<ResolutionTarget>(this.base);
+  private readonly cache = inject(QueryCache);
+  private readonly fetch = (context: HttpContext) =>
+    this.http.get<ResolutionTarget>(this.base, { context });
+
+  get(options?: CacheReadOptions): Observable<ResolutionTarget> {
+    return this.cache.read('rules:target', this.fetch, options);
+  }
+
+  prefetch(): void {
+    this.cache.prefetch('rules:target', this.fetch);
   }
 
   save(target: ResolutionTarget): Observable<ResolutionTarget> {

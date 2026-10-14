@@ -323,6 +323,14 @@
   background: var(--accent);
 }
 
+/* Setup checklist: this screen still has pending steps. */
+.nav-pending {
+  margin-left: auto;
+  width: var(--space-2);
+  height: var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--status-warning);
+}
 .nav-badge {
   margin-left: auto;
   min-width: var(--space-4);

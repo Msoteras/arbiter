@@ -6,7 +6,12 @@ package ar.edu.utn.frba.arbiter.reports.dto;
  *
  * <p>Rates are fractions between 0 and 1, and null rather than zero when there is nothing to divide.
  *
- * @param approvalRate           approved over decided; lapsed claims are out of both, nobody decided them
+ * @param prescribedCases        rejected because the claim prescribed, apart from {@code rejectedCases}
+ *                               (rejected on the merits)
+ * @param withdrawnCases         closed because the insured abandoned the claim; nobody decided them
+ * @param voidedCases            closed because the claim never should have existed; nobody decided them
+ * @param approvalRate           approved over decided (approved, rejected and prescribed); lapsed,
+ *                               withdrawn and voided claims are out of both, nobody decided them
  * @param fastTrackRate          over claims filed in the period, since Fast Track is a property of intake
  * @param averageResolutionHours over claims decided in the period; lapsed ones excluded so months of an
  *                               unresponsive insured don't swamp the average
@@ -20,6 +25,9 @@ public record MetricsSummary(
         long approvedCases,
         long rejectedCases,
         long lapsedCases,
+        long prescribedCases,
+        long withdrawnCases,
+        long voidedCases,
         Double approvalRate,
         Double rejectionRate,
         Double fastTrackRate,

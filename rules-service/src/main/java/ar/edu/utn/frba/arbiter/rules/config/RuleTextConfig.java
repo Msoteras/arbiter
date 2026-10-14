@@ -1,9 +1,11 @@
 package ar.edu.utn.frba.arbiter.rules.config;
 
+import ar.edu.utn.frba.arbiter.common.enums.OnboardingStep;
 import ar.edu.utn.frba.arbiter.common.enums.RuleType;
 import ar.edu.utn.frba.arbiter.rules.models.repositories.BranchRepository;
 import ar.edu.utn.frba.arbiter.rules.models.repositories.InsurerRuleHistoryRepository;
 import ar.edu.utn.frba.arbiter.rules.models.repositories.InsurerRuleRepository;
+import ar.edu.utn.frba.arbiter.rules.services.OnboardingTracker;
 import ar.edu.utn.frba.arbiter.rules.services.RuleAuthorResolver;
 import ar.edu.utn.frba.arbiter.rules.services.RuleTextService;
 import org.springframework.context.annotation.Bean;
@@ -21,8 +23,10 @@ public class RuleTextConfig {
             InsurerRuleRepository ruleRepository,
             InsurerRuleHistoryRepository historyRepository,
             BranchRepository branchRepository,
-            RuleAuthorResolver authorResolver) {
-        return new RuleTextService(RuleType.EXCLUSIONS.name(), "Exclusiones comunes", ruleRepository, historyRepository, branchRepository, authorResolver);
+            RuleAuthorResolver authorResolver,
+            OnboardingTracker onboardingTracker) {
+        return new RuleTextService(RuleType.EXCLUSIONS.name(), "Exclusiones comunes", ruleRepository, historyRepository, branchRepository, authorResolver,
+                OnboardingStep.COMMON_EXCLUSIONS, onboardingTracker);
     }
 
     @Bean
@@ -30,7 +34,9 @@ public class RuleTextConfig {
             InsurerRuleRepository ruleRepository,
             InsurerRuleHistoryRepository historyRepository,
             BranchRepository branchRepository,
-            RuleAuthorResolver authorResolver) {
-        return new RuleTextService(RuleType.BUSINESS_RULES.name(), "Reglas de negocio", ruleRepository, historyRepository, branchRepository, authorResolver);
+            RuleAuthorResolver authorResolver,
+            OnboardingTracker onboardingTracker) {
+        return new RuleTextService(RuleType.BUSINESS_RULES.name(), "Reglas de negocio", ruleRepository, historyRepository, branchRepository, authorResolver,
+                OnboardingStep.BUSINESS_RULES, onboardingTracker);
     }
 }

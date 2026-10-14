@@ -1,21 +1,27 @@
 @if (loading()) {
   <app-inline-loading [size]="26" message="Cargando gestión de fraude…" />
 } @else if (rule(); as r) {
-  <app-card class="gf-card" heading="Gestión de fraude" headingSize="lg" @fadeInUp>
+  <app-card
+    class="gf-card"
+    heading="Gestión de fraude"
+    headingSize="lg"
+    @fadeInUp
+    appOnboardingTarget="FRAUD"
+  >
+    <app-info-tip cardAside>{{ stepLine.FRAUD }}</app-info-tip>
     <div class="sc-section-head">
       <span class="t-section-label">
         Antecedente de reincidencia
-        <app-info-tip
-          >Qué pasa cuando alguien que ya cometió fraude vuelve a denunciar.</app-info-tip
-        >
+        <app-info-tip>
+          Un analista registra el antecedente desde el expediente. Solo cuenta si tiene peritaje.
+        </app-info-tip>
       </span>
     </div>
 
     <ul class="rule-rows">
       <li class="rule-row">
         <div class="rule-text">
-          <label class="t-field-label" for="ant-ventana">Vigencia del antecedente</label>
-          <p class="rule-hint">Qué tanto suma se configura en Puntaje de riesgo.</p>
+          <label class="t-field-label" for="ant-ventana">¿Cuánto tiempo sigue pesando?</label>
         </div>
         <div class="rule-value">
           <app-months-input
@@ -36,14 +42,13 @@
       <li class="rule-row" [class.off]="!r.blocksFastTrack">
         <app-switch
           [checked]="r.blocksFastTrack"
-          ariaLabel="Quita el Fast Track a la denuncia nueva"
+          ariaLabel="¿Le quita el Fast Track a la denuncia nueva?"
           (checkedChange)="setBlocksFastTrack($event)"
         />
         <div class="rule-text">
-          <span class="t-field-label" id="ant-ft">Quita el Fast Track a la denuncia nueva</span>
-          <p class="rule-hint">
-            No rechaza: la denuncia la revisa un analista en vez de ir por Fast Track.
-          </p>
+          <span class="t-field-label" id="ant-ft"
+            >¿Le quita el Fast Track a la denuncia nueva?</span
+          >
         </div>
         @if (!r.blocksFastTrack) {
           <span class="rule-off-note t-note">No lo quita</span>

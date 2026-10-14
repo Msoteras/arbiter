@@ -9,7 +9,8 @@ export type InsuredStatusCode =
   | 'UNDER_REPAIR'
   | 'APPROVED'
   | 'REJECTED'
-  | 'LAPSED';
+  | 'LAPSED'
+  | 'CLOSED';
 
 /** Mirrors cases-service's InsuredStatusResponse; `label` comes from the backend ready to show. */
 export interface InsuredStatus {
@@ -26,7 +27,7 @@ export interface InsuredMovement {
   changedAt: string;
 }
 
-const FINAL: readonly InsuredStatusCode[] = ['APPROVED', 'REJECTED', 'LAPSED'];
+const FINAL: readonly InsuredStatusCode[] = ['APPROVED', 'REJECTED', 'LAPSED', 'CLOSED'];
 
 export function isFinalInsuredStatus(code: InsuredStatusCode): boolean {
   return FINAL.includes(code);
@@ -40,6 +41,7 @@ const TONES: Record<InsuredStatusCode, StatusTone> = {
   APPROVED: 'ok',
   REJECTED: 'danger',
   LAPSED: 'danger',
+  CLOSED: 'neutral',
 };
 
 export function insuredStatusTone(code: InsuredStatusCode): StatusTone {
@@ -59,6 +61,8 @@ const NEXT_STEPS: Record<InsuredStatusCode, string> = {
   APPROVED: 'Te enviamos un correo con el detalle de la resolución. No quedan pasos pendientes.',
   REJECTED: 'Te enviamos un correo con los motivos del rechazo. No quedan pasos pendientes.',
   LAPSED: 'No quedan pasos pendientes: el expediente se cerró por caducidad.',
+  CLOSED:
+    'No quedan pasos pendientes. Si querés continuar con el reclamo, comunicate con nosotros.',
 };
 
 export function insuredNextStep(code: InsuredStatusCode): string {
@@ -73,6 +77,8 @@ const TITLES: Record<InsuredStatusCode, string> = {
   APPROVED: 'Tu siniestro fue aprobado',
   REJECTED: 'Tu siniestro fue rechazado',
   LAPSED: 'Tu siniestro caducó',
+  // Withdrawn or voided: the insured never learns which, only that it ended.
+  CLOSED: 'Cerramos tu denuncia',
 };
 
 // Must NEVER mention the model's classification, fraud scoring or internal statuses.
@@ -87,6 +93,7 @@ const DESCRIPTIONS: Record<InsuredStatusCode, string> = {
   REJECTED: 'Tu siniestro fue rechazado. Te enviamos los motivos por correo electrónico.',
   LAPSED:
     'Cerramos tu siniestro por falta de la documentación que te pedimos. Te enviamos el detalle por correo electrónico.',
+  CLOSED: 'Cerramos la denuncia de tu siniestro. Te enviamos el detalle por correo electrónico.',
 };
 
 const DOCUMENTATION_REWORK_TITLE = 'Recibimos tu documentación';
@@ -163,5 +170,7 @@ export function insuredMovementLabel(movement: InsuredMovement): string {
       return 'Siniestro rechazado';
     case 'LAPSED':
       return 'Siniestro caducado por falta de documentación';
+    case 'CLOSED':
+      return 'Denuncia cerrada';
   }
 }

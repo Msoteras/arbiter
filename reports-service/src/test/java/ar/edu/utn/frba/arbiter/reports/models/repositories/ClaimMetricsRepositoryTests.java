@@ -38,6 +38,8 @@ import static ar.edu.utn.frba.arbiter.reports.support.CaseTables.JUAN;
 import static ar.edu.utn.frba.arbiter.reports.support.CaseTables.LAURA;
 import static ar.edu.utn.frba.arbiter.reports.support.CaseTables.PENDING_REVIEW;
 import static ar.edu.utn.frba.arbiter.reports.support.CaseTables.REJECTED;
+import static ar.edu.utn.frba.arbiter.reports.support.CaseTables.PRESCRIBED;
+import static ar.edu.utn.frba.arbiter.reports.support.CaseTables.WITHDRAWN;
 import static ar.edu.utn.frba.arbiter.reports.support.CaseTables.PHONES_ROBBERY;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -160,6 +162,29 @@ class ClaimMetricsRepositoryTests extends AbstractPersistenceIT {
         assertThat(repository.resolvedTotals(AUGUST_FROM, AUGUST_TO, NONE)).containsExactlyInAnyOrder(
                 new ResolvedTotals("APPROVED", 1, (double) (2 * 86_400 + 9_000)),
                 new ResolvedTotals("REJECTED", 1, (double) 86_400));
+    }
+
+    /**
+     * A prescription is a verdict and joins the decided population; a withdrawal is not. The fraud
+     * savings count only a rejection on the merits.
+     */
+    @Test
+    void theDecidedPopulation_takesPrescriptionsAndLeavesWithdrawalsOut() {
+        // Rejected on the merits with fraud, 1 day.
+        tables.insertCase(1, "2026-08-01T10:00:00Z", REJECTED, PHONES_ROBBERY, false, LAURA, null);
+        tables.transition(1, PENDING_REVIEW, REJECTED, "2026-08-02T10:00:00Z");
+        tables.fraudDetermined(1);
+        // Prescribed with fraud, 3 days: decided, but not money saved by the fraud finding.
+        tables.insertCase(2, "2026-08-01T10:00:00Z", PRESCRIBED, PHONES_ROBBERY, false, LAURA, null);
+        tables.transition(2, PENDING_REVIEW, PRESCRIBED, "2026-08-04T10:00:00Z");
+        tables.fraudDetermined(2);
+        // Withdrawn after 20 days: nobody decided it.
+        tables.insertCase(3, "2026-08-01T10:00:00Z", WITHDRAWN, PHONES_ROBBERY, false, LAURA, null);
+        tables.transition(3, PENDING_REVIEW, WITHDRAWN, "2026-08-21T10:00:00Z");
+
+        assertThat(repository.fraudDetection(AUGUST_FROM, AUGUST_TO, NONE).decided()).isEqualTo(2);
+        assertThat(repository.resolutionSplit(AUGUST_FROM, AUGUST_TO, NONE).totalSeconds())
+                .isEqualTo((double) (2 * 86_400));
     }
 
     @Test

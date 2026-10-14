@@ -6,13 +6,20 @@
         <p class="t-note">{{ pendingSummary() }}</p>
       }
     </div>
-    <app-chip-group
-      size="sm"
-      ariaLabel="Qué liquidaciones ver"
-      [options]="tabOptions()"
-      [value]="tab()"
-      (valueChange)="setTab($event)"
-    />
+    <div class="head-actions">
+      @if (tab() === 'pending' && hasNewerPending()) {
+        <app-button variant="secondary" size="sm" (click)="applyNewerPending()"
+          >Actualizar</app-button
+        >
+      }
+      <app-chip-group
+        size="sm"
+        ariaLabel="Qué liquidaciones ver"
+        [options]="tabOptions()"
+        [value]="tab()"
+        (valueChange)="setTab($event)"
+      />
+    </div>
   </header>
 
   <ng-template #caseCell let-row>

@@ -1,0 +1,122 @@
+@if (visible()) {
+  <section class="setup" [class.is-collapsed]="collapsed()" aria-labelledby="setup-title">
+    @if (failed()) {
+      <h2 id="setup-title" class="setup-title">Puesta en marcha</h2>
+      <div class="setup-error">
+        <p class="t-note">No se pudo cargar la puesta en marcha.</p>
+        <app-button variant="secondary" size="sm" (click)="retry()">Reintentar</app-button>
+      </div>
+    } @else if (steps() === null) {
+      <app-inline-loading [size]="22" message="Cargando la puesta en marcha…" />
+    } @else {
+      <h2 id="setup-title" class="setup-heading">
+        <button
+          type="button"
+          class="setup-toggle"
+          [attr.aria-expanded]="!collapsed()"
+          aria-controls="setup-body"
+          (click)="toggleCollapsed()"
+        >
+          <span class="setup-title">Puesta en marcha</span>
+          <span class="setup-count tabular" aria-hidden="true">{{ done() }} de {{ total() }}</span>
+          <span class="sr-only">{{ done() }} de {{ total() }} pasos completos</span>
+          <span class="setup-chevron" aria-hidden="true">{{ collapsed() ? '▾' : '▴' }}</span>
+        </button>
+      </h2>
+      <div class="setup-bar" aria-hidden="true">
+        <span class="setup-bar-fill" [style.width.%]="progressPct()"></span>
+      </div>
+
+      @if (!collapsed()) {
+        <div class="setup-body" id="setup-body">
+          @for (group of visibleGroups(); track group.level) {
+            <div class="setup-group">
+              @if (group.level === 'OPTIONAL') {
+                <button
+                  type="button"
+                  class="group-toggle"
+                  [attr.aria-expanded]="optionalOpen()"
+                  (click)="optionalOpen.set(!optionalOpen())"
+                >
+                  <span class="t-section-label">{{ group.label }}</span>
+                  <span class="group-count tabular">
+                    {{ group.completed.length }}/{{ group.pending.length + group.completed.length }}
+                  </span>
+                  <span aria-hidden="true">{{ optionalOpen() ? '▾' : '▸' }}</span>
+                </button>
+              } @else {
+                <span class="t-section-label">{{ group.label }}</span>
+              }
+
+              @if (groupOpen(group)) {
+                <ul class="steps">
+                  @for (s of group.pending; track key(s)) {
+                    <li class="step">
+                      <a
+                        class="step-link"
+                        [routerLink]="route(s).path"
+                        [queryParams]="route(s).queryParams"
+                        (click)="pointAt(s)"
+                      >
+                        <span class="step-mark" aria-hidden="true"></span>
+                        <span class="step-text">
+                          <span class="step-title">{{ title(s) }}</span>
+                          <span class="step-line">{{ line(s) }}</span>
+                        </span>
+                        <span class="sr-only">Ir a: {{ title(s) }}</span>
+                        <span class="step-go" aria-hidden="true">›</span>
+                      </a>
+                      @if (s.level !== 'REQUIRED') {
+                        <app-button
+                          variant="secondary"
+                          size="sm"
+                          [loading]="busyKey() === key(s)"
+                          (click)="setSkipped(s, true)"
+                          >Descartar</app-button
+                        >
+                      }
+                    </li>
+                  }
+                  @if (showCompleted()) {
+                    @for (s of group.completed; track key(s)) {
+                      <li class="step done">
+                        <span class="step-mark is-done" aria-hidden="true">✓</span>
+                        <span class="step-text">
+                          <span class="step-title">{{ title(s) }}</span>
+                          @if (s.status === 'SKIPPED') {
+                            <span class="step-line">Descartado</span>
+                          } @else {
+                            <span class="step-line">{{ summary(s) }}</span>
+                          }
+                        </span>
+                        @if (s.status === 'SKIPPED') {
+                          <app-button
+                            variant="secondary"
+                            size="sm"
+                            [loading]="busyKey() === key(s)"
+                            (click)="setSkipped(s, false)"
+                            >Deshacer</app-button
+                          >
+                        }
+                      </li>
+                    }
+                  }
+                </ul>
+              }
+            </div>
+          }
+
+          @if (done() > 0) {
+            <button
+              type="button"
+              class="completed-toggle"
+              (click)="showCompleted.set(!showCompleted())"
+            >
+              {{ showCompleted() ? 'Ocultar completados' : 'Ver completados (' + done() + ')' }}
+            </button>
+          }
+        </div>
+      }
+    }
+  </section>
+}

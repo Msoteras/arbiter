@@ -1,6 +1,7 @@
 import { TestBed, fakeAsync, tick } from '@angular/core/testing';
 import {
   HttpClient,
+  HttpContext,
   HttpErrorResponse,
   HttpHeaders,
   provideHttpClient,
@@ -9,6 +10,7 @@ import {
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 
 import { ToastService } from '../../shared/ui/toast/toast.service';
+import { SILENT_RETRY } from '../cache/query-cache';
 import {
   RETRY_DELAYS_MS,
   UPSTREAM_UNREACHABLE_HEADER,
@@ -52,6 +54,17 @@ describe('upstreamRetryInterceptor', () => {
     controller.expectOne(url).flush({ token: 'x' });
 
     expect(body).toEqual({ token: 'x' });
+  }));
+
+  it('retries a prefetch without the toast: nobody is waiting for it', fakeAsync(() => {
+    const context = new HttpContext().set(SILENT_RETRY, true);
+    http.get(url, { context }).subscribe();
+
+    controller.expectOne(url).flush(null, unreachable);
+    tick(RETRY_DELAYS_MS[0]);
+    controller.expectOne(url).flush({});
+
+    expect(toastShow).not.toHaveBeenCalled();
   }));
 
   it('gives up after the last delay and surfaces the error', fakeAsync(() => {

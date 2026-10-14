@@ -1,5 +1,8 @@
+import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
+import { provideRouter } from '@angular/router';
 import { of } from 'rxjs';
 
 import { RulesComponent } from './rules.component';
@@ -44,6 +47,10 @@ describe('RulesComponent', () => {
       imports: [RulesComponent],
       providers: [
         provideNoopAnimations(),
+        // The first-setup guide reads the route and asks the backend for its progress.
+        provideRouter([]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
         {
           provide: BranchesService,
           useValue: {
@@ -56,7 +63,11 @@ describe('RulesComponent', () => {
         },
         {
           provide: CoveragesRulesService,
-          useValue: { summary: () => of([]), listDetailed: () => of(coverages) },
+          useValue: {
+            summary: () => of([]),
+            listDetailed: () => of(coverages),
+            insurerNames: () => of(coverages.map((c) => c.name)),
+          },
         },
         {
           provide: CoverageExclusionsService,
@@ -100,14 +111,19 @@ describe('RulesComponent', () => {
     fixture.detectChanges();
   }
 
+  /** The label alone: a tab with a status also carries "(falta configurar)" for screen readers. */
+  function labelOf(tab: Element | null | undefined): string | undefined {
+    return tab?.textContent?.replace(/\s*\([^)]*\)\s*$/, '').trim();
+  }
+
   function tab(label: string): HTMLButtonElement {
     return [...el().querySelectorAll<HTMLButtonElement>('app-tabs [role="tab"]')].find(
-      (t) => t.textContent?.trim() === label,
+      (t) => labelOf(t) === label,
     )!;
   }
 
   function activeTab(): string | undefined {
-    return el().querySelector('app-tabs .tab.active')?.textContent?.trim();
+    return labelOf(el().querySelector('app-tabs .tab.active'));
   }
 
   function branch(name: string): HTMLButtonElement {

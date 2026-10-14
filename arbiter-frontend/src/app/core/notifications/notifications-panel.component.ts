@@ -17,6 +17,10 @@ const NOTIFICATION_TITLES: Record<string, string> = {
   APPROVED: 'Tu siniestro fue aprobado',
   REJECTED: 'Novedades sobre tu siniestro',
   LAPSED: 'Tu siniestro caducó',
+  // For the insured a prescription is a rejection, and a withdrawal or a voiding only a closing.
+  PRESCRIBED: 'Novedades sobre tu siniestro',
+  WITHDRAWN: 'Cerramos tu denuncia',
+  VOIDED: 'Cerramos tu denuncia',
   // Not a CaseStatus: a reopening lands in PENDING_ANALYST_REVIEW, so the backend gives it its own type.
   REOPENED: 'Reabrimos tu siniestro',
 };

@@ -10,6 +10,8 @@ import {
 export interface TabOption {
   id: string;
   label: string;
+  /** A dot after the label: `required` is something missing, `pending` something incomplete. */
+  status?: 'required' | 'pending' | null;
 }
 
 /**
@@ -34,6 +36,16 @@ export interface TabOption {
           (keydown)="onKeydown($event)"
         >
           {{ tab.label }}
+          @switch (tab.status) {
+            @case ('required') {
+              <span class="tab-dot is-required" aria-hidden="true"></span>
+              <span class="sr-only">(falta configurar)</span>
+            }
+            @case ('pending') {
+              <span class="tab-dot" aria-hidden="true"></span>
+              <span class="sr-only">(incompleto)</span>
+            }
+          }
         </button>
       }
     </div>
@@ -72,6 +84,18 @@ export interface TabOption {
     .tab:focus-visible {
       outline: none;
       box-shadow: var(--focus-ring);
+    }
+    .tab-dot {
+      display: inline-block;
+      width: var(--space-2);
+      height: var(--space-2);
+      margin-left: var(--space-1);
+      vertical-align: middle;
+      border-radius: var(--radius-pill);
+      background: var(--text-tertiary);
+    }
+    .tab-dot.is-required {
+      background: var(--status-warning);
     }
     .tab.active {
       color: var(--accent-fg);

@@ -21,6 +21,11 @@
   gap: var(--space-4);
   flex-wrap: wrap;
 }
+.head-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
 .page-head p {
   margin: var(--space-1) 0 0;
 }
