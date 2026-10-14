@@ -43,6 +43,7 @@ public class FastTrackRuleService {
     private final BranchRepository branchRepository;
     private final CoverageRepository coverageRepository;
     private final RuleAuthorResolver authorResolver;
+    private final DocumentTypeService documentTypes;
 
     @Transactional(readOnly = true)
     public FastTrackConfigDto get(Long branchId, Long coverageId) {
@@ -62,6 +63,9 @@ public class FastTrackRuleService {
     @Transactional
     public FastTrackRuleResponse upsert(Long branchId, Long coverageId, FastTrackConfigDto config, String actorEmail) {
         requireCoverageInBranch(branchId, coverageId);
+        if (config.requiredDocumentTypes() != null) {
+            documentTypes.requireOfBranch(branchId, config.requiredDocumentTypes());
+        }
         String json = serialize(config);
         Instant now = Instant.now();
 

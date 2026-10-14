@@ -312,6 +312,15 @@ class DocumentInconsistencyEvaluatorTest {
                 .doesNotContain("police_report");
     }
 
+    /** The names come with the rules; a type the catalog doesn't name still shows, by its code. */
+    @Test
+    void aDocumentTheCatalogDoesNotName_isShownByItsCode() {
+        Contribution c = evaluator.evaluate(context(laptopPolicy(),
+                Map.of("warranty_card", withFields(itemFields("Asus", "VivoBook 15")))));
+
+        assertThat(c.rationale()).contains("Marca del documento \"warranty_card\"");
+    }
+
     // ─── Item attributes of the policy against the document ──────────────────────
 
     @Test
