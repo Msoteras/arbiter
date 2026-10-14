@@ -82,7 +82,7 @@ export class InsuredHomeComponent {
         if (!insuredId) {
           return of<LoadState>({ status: 'idle' });
         }
-        return this.service.list({ insuredId, page: 0, size: 100 }).pipe(
+        return this.service.cachedList({ insuredId, page: 0, size: 100 }).pipe(
           map((page): LoadState => ({ status: 'ok', data: page.content })),
           startWith<LoadState>({ status: 'loading' }),
           catchError(() => of<LoadState>({ status: 'error' })),

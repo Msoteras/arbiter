@@ -101,7 +101,7 @@ export class AnalystHomeComponent {
   // Sort by the entity property `reportedAt`: the DTO's `eventDate` is rejected by Spring Data.
   private readonly actionState = toSignal(
     this.service
-      .list({
+      .cachedList({
         assignedToMe: true,
         status: 'PENDING_ANALYST_REVIEW',
         sort: 'reportedAt,asc',

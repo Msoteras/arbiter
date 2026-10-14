@@ -236,7 +236,7 @@ export class CaseService {
     return this.http.get<CaseResponse>(`${this.baseUrl}/${id}`, options);
   }
 
-  /** Not cached: searches and one-off counts. The screens use `cachedList`. */
+  /** Not cached: searches and exports. The screens use `cachedList`. */
   list(params: CaseListParams = {}): Observable<PagedResponse<CaseResponse>> {
     return this.http.get<PagedResponse<CaseResponse>>(this.baseUrl, {
       params: this.listQuery(params),
@@ -545,6 +545,8 @@ export class CaseService {
   }
 
   assignedSummary(): Observable<AssignedCaseSummary> {
-    return this.http.get<AssignedCaseSummary>(`${this.baseUrl}/assigned/summary`);
+    return this.cache.read('cases:assigned-summary', (context) =>
+      this.http.get<AssignedCaseSummary>(`${this.baseUrl}/assigned/summary`, { context }),
+    );
   }
 }
