@@ -507,6 +507,14 @@
                                 El asegurado solo puede iniciar un expediente por estos hechos con
                                 esta cobertura.
                               </app-info-tip>
+                              <!-- Warns, doesn't block: covering the whole branch can be correct. -->
+                              @if (claimCauses().length > 0 && !hasExcludedCauses(c)) {
+                                <app-info-tip tone="warning">
+                                  Cubre {{ coveredCausesLabel() }} del ramo. Si una póliza contrata
+                                  varias coberturas, esta responde por todos, y el siniestro se
+                                  liquida con su suma asegurada y su franquicia.
+                                </app-info-tip>
+                              }
                             </span>
                             @if (claimCauses().length === 0) {
                               <p class="t-note">No hay hechos generadores en este ramo.</p>
@@ -524,15 +532,6 @@
                                   </button>
                                 }
                               </div>
-                              <!-- Warns, doesn't block: covering the whole branch can be correct. -->
-                              @if (!hasExcludedCauses(c)) {
-                                <p class="warn-note cov-warning measure" role="status">
-                                  Cubre {{ coveredCausesLabel() }} del ramo. Si una póliza contrata
-                                  varias coberturas, esta responde por todos, y el siniestro se
-                                  liquida con <strong>su</strong> suma asegurada y
-                                  <strong>su</strong> franquicia.
-                                </p>
-                              }
                             }
                           </div>
 

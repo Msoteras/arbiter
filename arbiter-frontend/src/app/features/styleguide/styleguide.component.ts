@@ -319,6 +319,19 @@ interface Swatch {
             </app-info-tip>
           </span>
         </div>
+        <p class="sg-p">
+          Con <span class="mono">tone="warning"</span>: una advertencia sobre lo que está en
+          pantalla, que no bloquea nada. Triángulo en el color de advertencia.
+        </p>
+        <div class="row">
+          <span class="t-field-label">
+            Hechos generadores que cubre
+            <app-info-tip tone="warning">
+              Cubre los 4 hechos generadores del ramo. Si una póliza contrata varias coberturas,
+              esta responde por todos.
+            </app-info-tip>
+          </span>
+        </div>
       </section>
 
       <section class="sg-block">
