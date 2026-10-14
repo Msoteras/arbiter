@@ -1,5 +1,6 @@
 package ar.edu.utn.frba.arbiter.rules.services;
 
+import ar.edu.utn.frba.arbiter.common.enums.OnboardingStep;
 import ar.edu.utn.frba.arbiter.common.enums.RuleType;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Branch;
 import ar.edu.utn.frba.arbiter.rules.dto.FastTrackConfigDto;
@@ -44,6 +45,7 @@ public class FastTrackRuleService {
     private final CoverageRepository coverageRepository;
     private final RuleAuthorResolver authorResolver;
     private final DocumentTypeService documentTypes;
+    private final OnboardingTracker onboardingTracker;
 
     @Transactional(readOnly = true)
     public FastTrackConfigDto get(Long branchId, Long coverageId) {
@@ -62,6 +64,7 @@ public class FastTrackRuleService {
 
     @Transactional
     public FastTrackRuleResponse upsert(Long branchId, Long coverageId, FastTrackConfigDto config, String actorEmail) {
+        onboardingTracker.touch(OnboardingStep.FAST_TRACK, null);
         requireCoverageInBranch(branchId, coverageId);
         if (config.requiredDocumentTypes() != null) {
             documentTypes.requireOfBranch(branchId, config.requiredDocumentTypes());

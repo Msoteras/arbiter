@@ -1,5 +1,6 @@
 package ar.edu.utn.frba.arbiter.auth.services;
 
+import ar.edu.utn.frba.arbiter.common.enums.OnboardingStep;
 import ar.edu.utn.frba.arbiter.auth.dto.CreateUserRequest;
 import ar.edu.utn.frba.arbiter.auth.dto.LoginResponse;
 import ar.edu.utn.frba.arbiter.auth.dto.UserResponse;
@@ -89,6 +90,9 @@ class UserServiceTest {
     @Mock
     private AuthService authService;
 
+    @Mock
+    private RulesServiceClient rulesServiceClient;
+
     private UserService userService;
 
     /** Passes the password through (sealing is PasswordCipherTest's job). Lenient: most tests never reach it. */
@@ -102,7 +106,7 @@ class UserServiceTest {
         return new UserService(userRepository, claimsAnalystRepository, roleRepository,
                 userInsurerRepository, tenantResolver, tenantProfileService, provisioner,
                 emailDomainValidator, sendGridAdapter, passwordCipher, insuredProvisioningService,
-                authService);
+                authService, rulesServiceClient);
     }
 
     private CreateUserRequest analystRequest() {
@@ -153,6 +157,7 @@ class UserServiceTest {
         verify(userInsurerRepository).save(any(UserInsurer.class));
         verify(tenantProfileService).createClaimsAnalyst(saved, "Lucas", "Gómez", "nuevo.analista@arbiter.test");
         verify(sendGridAdapter).send(eq("nuevo.analista@arbiter.test"), anyString(), anyString());
+        verify(rulesServiceClient).recordOnboardingSave(OnboardingStep.ANALYSTS);
     }
 
     @Test
@@ -206,6 +211,19 @@ class UserServiceTest {
         ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
         verify(userRepository).delete(captor.capture());
         assertThat(captor.getValue().getId()).isEqualTo(42L);
+        verify(rulesServiceClient, never()).recordOnboardingSave(any());
+    }
+
+    /** The provisioning runs in the background: starting it is what the checklist records. */
+    @Test
+    void provisionInsuredAccounts_recordsTheChecklistStep() {
+        userService = userService(Optional.empty());
+        stubCaller();
+
+        userService.provisionInsuredAccounts("referente@arbiter.test");
+
+        verify(insuredProvisioningService).provisionAsync(any(), any());
+        verify(rulesServiceClient).recordOnboardingSave(OnboardingStep.INSURED);
     }
 
     private LoginResponse dummySession() {

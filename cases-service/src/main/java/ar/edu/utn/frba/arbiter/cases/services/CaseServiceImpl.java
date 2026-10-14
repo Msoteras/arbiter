@@ -758,6 +758,8 @@ public class CaseServiceImpl implements CaseService {
         CaseStatus targetStatus = switch (request.decision() == null ? "" : request.decision().trim().toUpperCase()) {
             case "APPROVE", "APROBAR" -> CaseStatus.APPROVED;
             case "REJECT", "RECHAZAR" -> CaseStatus.REJECTED;
+            // A rejection on legal grounds (art. 58), told apart from one on the merits.
+            case "PRESCRIBE" -> CaseStatus.PRESCRIBED;
             default -> throw new InvalidAnalystDecisionException(request.decision());
         };
 
@@ -767,26 +769,14 @@ public class CaseServiceImpl implements CaseService {
             throw new InvalidStatusTransitionException(entity.getStatus(), targetStatus);
         }
 
-        // Resolved from the JWT, never the body, so a decision can't be attributed to someone else.
-        String callerEmail = SecurityContextHolder.getContext().getAuthentication().getName();
-        ClaimsAnalyst analyst = claimsAnalystRepository.findByEmail(callerEmail)
-                .orElseThrow(() -> new AnalystProfileNotFoundException(callerEmail));
-
-        // Only the assigned analyst decides; @PreAuthorize only checks the role. Assign comes
-        // first, so a decision never acts as an implicit assignment.
-        if (entity.getAnalyst() == null) {
-            throw new CaseNotAssignedException(caseId);
-        }
-        if (!entity.getAnalyst().getId().equals(analyst.getId())) {
-            throw new CaseAssignedToAnotherAnalystException(caseId);
-        }
+        ClaimsAnalyst analyst = requireAssignedAnalyst(entity);
 
         // Approving includes the amount. Validated before forwarding anything, so a decision that
         // is going to fail never reaches the audit log.
         if (targetStatus == CaseStatus.APPROVED && request.settlement() == null) {
             throw InvalidSettlementException.missing();
         }
-        if (targetStatus == CaseStatus.REJECTED && request.settlement() != null) {
+        if (targetStatus != CaseStatus.APPROVED && request.settlement() != null) {
             throw InvalidSettlementException.notApplicable();
         }
 
@@ -809,13 +799,64 @@ public class CaseServiceImpl implements CaseService {
         resolve(entity, targetStatus, analyst.getId(), request.decision(), request.justification());
     }
 
+    /**
+     * The caller, resolved from the JWT and never from the body, so nothing can be attributed to
+     * someone else. Only the assigned analyst decides or closes; @PreAuthorize only checks the role.
+     * Assign comes first, so neither acts as an implicit assignment.
+     */
+    private ClaimsAnalyst requireAssignedAnalyst(Case entity) {
+        String callerEmail = SecurityContextHolder.getContext().getAuthentication().getName();
+        ClaimsAnalyst analyst = claimsAnalystRepository.findByEmail(callerEmail)
+                .orElseThrow(() -> new AnalystProfileNotFoundException(callerEmail));
+        if (entity.getAnalyst() == null) {
+            throw new CaseNotAssignedException(entity.getId());
+        }
+        if (!entity.getAnalyst().getId().equals(analyst.getId())) {
+            throw new CaseAssignedToAnotherAnalystException(entity.getId());
+        }
+        return analyst;
+    }
+
+    /**
+     * Withdrawn or voided: the analyst ends the case without a verdict. The reason is mandatory and
+     * goes on the history row. The audit gets the closure too, when there is a classification to
+     * attach it to; a case that never got one has nothing there to account for.
+     */
+    @Override
+    @Transactional
+    public CaseResponse closeCase(Long caseId, CaseStatus closure, String reason) {
+        if (!CaseStatusService.CLOSURES.contains(closure)) {
+            throw new IllegalArgumentException("Not a closure: " + closure);
+        }
+        Case entity = caseRepository.findById(caseId)
+                .orElseThrow(() -> new CaseNotFoundException(caseId));
+        caseStatusService.assertCanMove(entity.getStatus(), closure);
+        ClaimsAnalyst analyst = requireAssignedAnalyst(entity);
+
+        if (entity.getStatus() != CaseStatus.CLASSIFICATION_FAILED) {
+            AnalystDecisionRequest audited = new AnalystDecisionRequest(
+                    analyst.getId(), closure == CaseStatus.WITHDRAWN ? "WITHDRAW" : "VOID", reason.trim(),
+                    entity.getClassificationAttempts(), null);
+            entity.setClassificationId(claimsAnalysisClient.forwardAnalystDecision(entity.getId(), audited));
+        }
+
+        caseStatusService.transition(entity, closure, StatusChangeActor.ANALYST,
+                closure == CaseStatus.WITHDRAWN
+                        ? "expediente cerrado: el asegurado desistió"
+                        : "expediente cerrado: baja por error de carga",
+                reason.trim());
+        return loadCase(caseId);
+    }
+
     /** Shared by the direct approval and the referent's later authorization, so both leave the same trail. */
     private void resolve(Case entity, CaseStatus targetStatus, Long analystId,
                          String decision, String justification) {
         // The attempt count lives here and the audit record keeps its final value. The settlement
         // isn't sent: classification-service audits the verdict, the money stays in this module.
+        // A prescription is audited as the rejection it is; the status keeps the reason.
+        String auditedDecision = targetStatus == CaseStatus.PRESCRIBED ? "REJECT" : decision;
         AnalystDecisionRequest audited = new AnalystDecisionRequest(
-                analystId, decision, justification, entity.getClassificationAttempts(), null);
+                analystId, auditedDecision, justification, entity.getClassificationAttempts(), null);
 
         // The decision row is created there, so its id only exists after the call. Storing it
         // links the case to the model run the verdict was based on.
@@ -831,8 +872,10 @@ public class CaseServiceImpl implements CaseService {
                 .orElseThrow(() -> new CaseNotFoundException(caseId));
         accessPolicy.assertCanRead(entity);
 
+        // Verdicts only: a closure's reason is on the history, and a lapsed case has no decision.
         boolean resolved = entity.getStatus() == CaseStatus.APPROVED
-                || entity.getStatus() == CaseStatus.REJECTED;
+                || entity.getStatus() == CaseStatus.REJECTED
+                || entity.getStatus() == CaseStatus.PRESCRIBED;
         if (!resolved || entity.getClassificationId() == null) {
             return Optional.empty();
         }
@@ -930,6 +973,7 @@ public class CaseServiceImpl implements CaseService {
                 entity.getPolicy().getExternalPolicyNumber(),
                 entity.getDescription(),
                 entity.getOccurredAt(),
+                entity.getPoliceReportAt(),
                 entity.getEventAddress(),
                 entity.getClaimedAmount(),
                 classificationOf(entity, current),

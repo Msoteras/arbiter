@@ -1,5 +1,6 @@
 package ar.edu.utn.frba.arbiter.rules.services;
 
+import ar.edu.utn.frba.arbiter.common.enums.OnboardingStep;
 import ar.edu.utn.frba.arbiter.common.enums.RuleType;
 import ar.edu.utn.frba.arbiter.rules.dto.InsurerHardRuleConfig;
 import ar.edu.utn.frba.arbiter.rules.dto.InsurerHardRuleDto;
@@ -43,6 +44,7 @@ public class InsurerHardRuleService {
     private final InsurerRuleRepository ruleRepository;
     private final InsurerRuleHistoryRepository historyRepository;
     private final RuleAuthorResolver authorResolver;
+    private final OnboardingTracker onboardingTracker;
 
     /** Both insurer-scoped rules, always both: the one with no row comes back disabled. */
     @Transactional(readOnly = true)
@@ -78,6 +80,7 @@ public class InsurerHardRuleService {
 
     @Transactional
     public List<InsurerHardRuleDto> upsert(List<InsurerHardRuleDto> requested, String actorEmail) {
+        onboardingTracker.touch(OnboardingStep.HARD_STOP, null);
         requested.forEach(rule -> upsertOne(rule, actorEmail));
         return get();
     }

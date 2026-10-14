@@ -2,11 +2,13 @@ package ar.edu.utn.frba.arbiter.cases.adapters.db;
 
 import ar.edu.utn.frba.arbiter.cases.adapters.InsurerAdapter;
 import ar.edu.utn.frba.arbiter.cases.adapters.db.CallerInsurerDatabases.InsurerDatabase;
+import ar.edu.utn.frba.arbiter.cases.config.tenant.TenantContext;
 import ar.edu.utn.frba.arbiter.cases.dto.PolicyResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.PolicyResponse.Coverage;
 import ar.edu.utn.frba.arbiter.cases.dto.PolicyResponse.Validity;
 import ar.edu.utn.frba.arbiter.common.tenant.InsurerBranchNames;
 import ar.edu.utn.frba.arbiter.common.tenant.InsurerCoverageNames;
+import ar.edu.utn.frba.arbiter.common.tenant.InsurerDbSchema;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Primary;
 import org.springframework.context.annotation.Profile;
@@ -61,6 +63,19 @@ public class InsurerDatabaseAdapter implements InsurerAdapter {
             }
         }
         return Optional.empty();
+    }
+
+    /** The referent configures their own insurer, so the resolved tenant picks the database. */
+    @Override
+    public List<String> findCoverageNames(String branchExternalName) {
+        String schema = InsurerDbSchema.forTenant(TenantContext.get());
+        return jdbc.queryForList("""
+                SELECT DISTINCT c.nombre
+                FROM %1$s.cobertura c
+                JOIN %1$s.poliza p ON p.id = c.poliza_id
+                WHERE p.rama = ?
+                ORDER BY c.nombre
+                """.formatted(schema), String.class, branchExternalName);
     }
 
     /**

@@ -43,8 +43,7 @@ public class ServiceProviderController {
     @PostMapping
     @PreAuthorize("hasRole('REFERENTE_ASEGURADORA')")
     @Operation(summary = "Agregar un perito",
-            description = "`branchId` null = generalista (cubre todos los ramos). Un ramo que no "
-                    + "existe da 422.")
+            description = "`branchIds` exige al menos un ramo. Un ramo que no existe da 422.")
     public ResponseEntity<ServiceProviderResponse> create(@RequestBody @Valid ServiceProviderRequest request) {
         return ResponseEntity.ok(serviceProviderService.create(request));
     }

@@ -18,15 +18,14 @@ import { SelectComponent, SelectOption } from '../../../shared/ui/select/select.
 import { EmptyStateComponent } from '../../../shared/ui/empty-state/empty-state.component';
 import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
 import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
+import { ONBOARDING_STEP_LINE } from '../../../core/onboarding/onboarding';
+import { InfoTipComponent } from '../../../shared/ui/info-tip/info-tip.component';
+import { OnboardingTargetDirective } from '../../../core/onboarding/onboarding-target.directive';
 import { ModalComponent } from '../../../shared/ui/modal/modal.component';
 
-/**
- * `id` null = new provider. `coversAll` keeps every branch checked without listing them, so it
- * holds while the branches are still loading; the first box touched turns it into `branchIds`.
- */
+/** `id` null = new provider. */
 interface ProviderDraft extends ProviderRequest {
   id: number | null;
-  coversAll: boolean;
 }
 
 /**
@@ -36,6 +35,8 @@ interface ProviderDraft extends ProviderRequest {
 @Component({
   selector: 'app-providers-config',
   imports: [
+    OnboardingTargetDirective,
+    InfoTipComponent,
     ButtonComponent,
     IconButtonComponent,
     CardComponent,
@@ -52,6 +53,8 @@ interface ProviderDraft extends ProviderRequest {
   styleUrl: './providers-config.component.scss',
 })
 export class ProvidersConfigComponent {
+  protected readonly stepLine = ONBOARDING_STEP_LINE;
+
   private readonly providersService = inject(ProvidersService);
   private readonly branchesService = inject(BranchesService);
 
@@ -109,8 +112,8 @@ export class ProvidersConfigComponent {
       name: '',
       email: '',
       zone: '',
-      branchIds: [],
-      coversAll: true,
+      // Starts with every branch: the referente unchecks the ones it doesn't cover.
+      branchIds: this.branches().map((b) => b.id),
       active: true,
       providerType: 'ESTUDIO_LIQUIDADOR',
     });
@@ -124,8 +127,6 @@ export class ProvidersConfigComponent {
       email: provider.email,
       zone: provider.zone ?? '',
       branchIds: provider.branches.map((b) => b.id),
-      // Stored with no branches means a generalist: it shows with all of them checked.
-      coversAll: provider.branches.length === 0,
       active: provider.active,
       providerType: provider.providerType,
     });
@@ -146,36 +147,24 @@ export class ProvidersConfigComponent {
     this.setField('providerType', value as ProviderType);
   }
 
-  /** The boxes as shown: every branch for a generalist, the listed ones otherwise. */
-  protected readonly checkedBranchIds = computed(() => {
-    const d = this.draft();
-    if (!d) {
-      return [];
-    }
-    return d.coversAll ? this.branches().map((b) => b.id) : d.branchIds;
-  });
-
   protected toggleBranch(branchId: number, checked: boolean): void {
     const current = this.draft();
     if (!current) {
       return;
     }
-    const others = this.checkedBranchIds().filter((id) => id !== branchId);
-    this.draft.set({
-      ...current,
-      branchIds: checked ? [...others, branchId] : others,
-      coversAll: false,
-    });
+    const others = current.branchIds.filter((id) => id !== branchId);
+    this.setField('branchIds', checked ? [...others, branchId] : others);
   }
 
-  /** With none checked the provider would cover nothing, and saving it empty would mean "all". */
+  /** A provider with no branch covers nothing: the backend rejects it. */
   protected readonly noBranchChecked = computed(
-    () => this.branchesState() === 'ok' && this.checkedBranchIds().length === 0,
+    () => this.branchesState() === 'ok' && (this.draft()?.branchIds.length ?? 0) === 0,
   );
 
   protected readonly canSave = computed(() => {
     const d = this.draft();
-    // Email is the only channel to the provider: without it a referral goes nowhere.
+    // Email is the only channel to the provider: without it a referral goes nowhere. With no
+    // branch it would never be offered to an analyst.
     return (
       !!d &&
       d.name.trim().length > 0 &&
@@ -190,14 +179,11 @@ export class ProvidersConfigComponent {
     if (!d || !this.canSave()) {
       return;
     }
-    const checked = this.checkedBranchIds();
     const request: ProviderRequest = {
       name: d.name.trim(),
       email: d.email.trim(),
       zone: d.zone?.trim() || null,
-      // Always the explicit list, even with every branch checked: a branch added later is not
-      // covered until someone checks it here.
-      branchIds: checked,
+      branchIds: d.branchIds,
       active: d.active,
       providerType: d.providerType,
     };

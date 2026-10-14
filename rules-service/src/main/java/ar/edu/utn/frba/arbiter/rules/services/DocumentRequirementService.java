@@ -1,5 +1,6 @@
 package ar.edu.utn.frba.arbiter.rules.services;
 
+import ar.edu.utn.frba.arbiter.common.enums.OnboardingStep;
 import ar.edu.utn.frba.arbiter.common.models.entities.DocumentType;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Branch;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.ClaimCause;
@@ -26,6 +27,7 @@ public class DocumentRequirementService {
     private final ClaimCauseRepository claimCauseRepository;
     private final BranchRepository branchRepository;
     private final DocumentTypeService documentTypes;
+    private final OnboardingTracker onboardingTracker;
 
     @Transactional(readOnly = true)
     public List<String> get(Long branchId, Long claimCauseId) {
@@ -71,6 +73,7 @@ public class DocumentRequirementService {
     /** Rejects the whole list when one of the documents isn't among the branch's. */
     @Transactional
     public List<DocumentRequirementDto> upsert(Long branchId, Long claimCauseId, List<String> documentTypeCodes) {
+        onboardingTracker.touch(OnboardingStep.DOCUMENTS, null);
         Branch branch = branchRepository.findById(branchId)
                 .orElseThrow(() -> new BranchNotFoundException(branchId));
         ClaimCause claimCause = claimCauseRepository.findById(claimCauseId)

@@ -1,9 +1,10 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
-import { catchError, forkJoin, map, of, startWith } from 'rxjs';
+import { catchError, combineLatest, map, of, startWith } from 'rxjs';
 
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
+import { PrefetchService } from '../prefetch.service';
 import { AnalystWorkload, CaseService } from '../../cases/case.service';
 import { CaseResponse } from '../../../core/models/case';
 import { caseStatusTone, workStatusLabel } from '../../../core/models/case-status';
@@ -16,6 +17,7 @@ import { EmptyStateComponent } from '../../../shared/ui/empty-state/empty-state.
 import { LoadingComponent } from '../../../shared/ui/loading/loading.component';
 import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
 import { AppReadyService } from '../../../core/app-ready.service';
+import { SetupCardComponent } from './setup-card/setup-card.component';
 import { growBar, listStagger, staggerReveal } from '../../../shared/animations';
 
 interface Counts {
@@ -43,6 +45,7 @@ type WorkloadState =
     EmptyStateComponent,
     LoadingComponent,
     InlineLoadingComponent,
+    SetupCardComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   animations: [staggerReveal, listStagger, growBar],
@@ -59,18 +62,17 @@ export class ReferentHomeComponent {
   protected readonly firstName = computed(() => this.session.session()?.nombre ?? '');
 
   // No `assignedToMe`: the referente sees the whole insurer's operation.
+  // combineLatest, not forkJoin: each count shows its cached value at once and forkJoin would wait
+  // for every refresh to finish.
   private readonly countsState = toSignal(
-    forkJoin({
+    combineLatest({
       total: this.count({}),
-      approved: this.count({ status: 'APPROVED' }),
-      rejected: this.count({ status: 'REJECTED' }),
-      // LAPSED is terminal: count it as resolved, not active.
-      lapsed: this.count({ status: 'LAPSED' }),
+      // Every terminal status, whatever closed it; the backend owns the list.
+      resolved: this.count({ scope: 'CLOSED' }),
       high: this.count({ riskBand: 'HIGH' }),
       critical: this.count({ riskBand: 'CRITICAL' }),
     }).pipe(
-      map(({ total, approved, rejected, lapsed, high, critical }): CountsState => {
-        const resolved = approved + rejected + lapsed;
+      map(({ total, resolved, high, critical }): CountsState => {
         return {
           status: 'ok',
           counts: {
@@ -88,15 +90,18 @@ export class ReferentHomeComponent {
   );
 
   protected readonly countsLoading = computed(() => this.countsState().status === 'loading');
+
+  /** Once the home has loaded, warms the screens this role opens most (`PrefetchService`). */
+  private readonly warmUp = inject(PrefetchService).afterHomeLoads(() => !this.countsLoading());
   protected readonly counts = computed<Counts | null>(() => {
     const s = this.countsState();
     return s.status === 'ok' ? s.counts : null;
   });
 
   private readonly alertState = toSignal(
-    forkJoin({
-      critical: this.service.list({ riskBand: 'CRITICAL', sort: 'id,desc', size: 5 }),
-      high: this.service.list({ riskBand: 'HIGH', sort: 'id,desc', size: 5 }),
+    combineLatest({
+      critical: this.service.cachedList({ riskBand: 'CRITICAL', sort: 'id,desc', size: 5 }),
+      high: this.service.cachedList({ riskBand: 'HIGH', sort: 'id,desc', size: 5 }),
     }).pipe(
       map(({ critical, high }): AlertState => ({
         status: 'ok',
@@ -119,7 +124,9 @@ export class ReferentHomeComponent {
   );
 
   private count(params: Parameters<CaseService['list']>[0]) {
-    return this.service.list({ ...params, page: 0, size: 1 }).pipe(map((p) => p.totalElements));
+    return this.service
+      .cachedList({ ...params, page: 0, size: 1 })
+      .pipe(map((p) => p.totalElements));
   }
 
   private readonly workloadState = toSignal(

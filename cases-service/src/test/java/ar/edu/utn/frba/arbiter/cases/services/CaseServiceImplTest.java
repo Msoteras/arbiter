@@ -931,6 +931,121 @@ class CaseServiceImplTest {
                 .isInstanceOf(InvalidStatusTransitionException.class);
     }
 
+    /** A prescription is a rejection on legal grounds: the audit says REJECT, the status says why. */
+    @Test
+    void recordAnalystDecision_prescribe_closesAsPrescribedAndAuditsARejection() {
+        Case entity = assignedCase(1L, CaseStatus.PENDING_ANALYST_REVIEW);
+
+        caseService.recordAnalystDecision(1L,
+                new AnalystDecisionRequest(null, "PRESCRIBE", "El hecho ocurrió hace 14 meses", null, null));
+
+        ArgumentCaptor<AnalystDecisionRequest> audited = ArgumentCaptor.forClass(AnalystDecisionRequest.class);
+        verify(claimsAnalysisClient).forwardAnalystDecision(eq(1L), audited.capture());
+        assertThat(audited.getValue().decision()).isEqualTo("REJECT");
+        verify(caseStatusService).transition(eq(entity), eq(CaseStatus.PRESCRIBED),
+                eq(StatusChangeActor.ANALYST), any());
+    }
+
+    @Test
+    void recordAnalystDecision_prescribeWithSettlement_throwsBeforeForwarding() {
+        assignedCase(1L, CaseStatus.PENDING_ANALYST_REVIEW);
+
+        assertThatThrownBy(() -> caseService.recordAnalystDecision(1L,
+                new AnalystDecisionRequest(null, "PRESCRIBE", "Prescripto",
+                        null, new SettlementDecisionRequest(null, new BigDecimal("100"), null))))
+                .isInstanceOf(InvalidSettlementException.class);
+
+        verify(claimsAnalysisClient, never()).forwardAnalystDecision(any(), any());
+    }
+
+    @Test
+    void closeCase_withdrawn_auditsTheClosureAndKeepsTheReasonOnTheHistory() {
+        Case entity = assignedCase(1L, CaseStatus.AWAITING_DOCUMENTATION);
+
+        caseService.closeCase(1L, CaseStatus.WITHDRAWN, "  El asegurado avisó que no sigue  ");
+
+        ArgumentCaptor<AnalystDecisionRequest> audited = ArgumentCaptor.forClass(AnalystDecisionRequest.class);
+        verify(claimsAnalysisClient).forwardAnalystDecision(eq(1L), audited.capture());
+        assertThat(audited.getValue().decision()).isEqualTo("WITHDRAW");
+        assertThat(audited.getValue().justification()).isEqualTo("El asegurado avisó que no sigue");
+        verify(caseStatusService).transition(entity, CaseStatus.WITHDRAWN, StatusChangeActor.ANALYST,
+                "expediente cerrado: el asegurado desistió", "El asegurado avisó que no sigue");
+    }
+
+    @Test
+    void closeCase_voided_isAuditedAsVoid() {
+        Case entity = assignedCase(1L, CaseStatus.PENDING_ANALYST_REVIEW);
+
+        caseService.closeCase(1L, CaseStatus.VOIDED, "Denuncia duplicada de la #12");
+
+        ArgumentCaptor<AnalystDecisionRequest> audited = ArgumentCaptor.forClass(AnalystDecisionRequest.class);
+        verify(claimsAnalysisClient).forwardAnalystDecision(eq(1L), audited.capture());
+        assertThat(audited.getValue().decision()).isEqualTo("VOID");
+        verify(caseStatusService).transition(entity, CaseStatus.VOIDED, StatusChangeActor.ANALYST,
+                "expediente cerrado: baja por error de carga", "Denuncia duplicada de la #12");
+    }
+
+    /** No classification, nothing to account for in the audit; the history still records it. */
+    @Test
+    void closeCase_withoutAClassification_closesWithoutAuditing() {
+        Case entity = assignedCase(1L, CaseStatus.CLASSIFICATION_FAILED);
+
+        caseService.closeCase(1L, CaseStatus.VOIDED, "Póliza equivocada");
+
+        verify(claimsAnalysisClient, never()).forwardAnalystDecision(any(), any());
+        verify(caseStatusService).transition(eq(entity), eq(CaseStatus.VOIDED), eq(StatusChangeActor.ANALYST),
+                any(), eq("Póliza equivocada"));
+    }
+
+    /** Checked before the audit call: a refused closure never leaves a decision behind. */
+    @Test
+    void closeCase_fromAStatusThatCannotClose_throwsBeforeAuditing() {
+        Case entity = caseRecord(1L, CaseStatus.PENDING_CLASSIFICATION);
+        when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
+        doThrow(new InvalidStatusTransitionException(CaseStatus.PENDING_CLASSIFICATION, CaseStatus.WITHDRAWN))
+                .when(caseStatusService).assertCanMove(CaseStatus.PENDING_CLASSIFICATION, CaseStatus.WITHDRAWN);
+
+        assertThatThrownBy(() -> caseService.closeCase(1L, CaseStatus.WITHDRAWN, "motivo"))
+                .isInstanceOf(InvalidStatusTransitionException.class);
+
+        verify(claimsAnalysisClient, never()).forwardAnalystDecision(any(), any());
+        verify(caseStatusService, never()).transition(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void closeCase_notAssigned_throwsBeforeAuditing() {
+        Case entity = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
+        when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
+        authenticateAs("analista@example.com");
+        when(claimsAnalystRepository.findByEmail("analista@example.com"))
+                .thenReturn(Optional.of(ClaimsAnalyst.builder().id(7L).build()));
+
+        assertThatThrownBy(() -> caseService.closeCase(1L, CaseStatus.WITHDRAWN, "motivo"))
+                .isInstanceOf(CaseNotAssignedException.class);
+
+        verify(claimsAnalysisClient, never()).forwardAnalystDecision(any(), any());
+    }
+
+    /** Prescription is a decision, not a closure: it goes through recordAnalystDecision. */
+    @Test
+    void closeCase_withAStatusThatIsNotAClosure_isRefused() {
+        assertThatThrownBy(() -> caseService.closeCase(1L, CaseStatus.PRESCRIBED, "motivo"))
+                .isInstanceOf(IllegalArgumentException.class);
+
+        verify(caseRepository, never()).findById(any());
+    }
+
+    /** A case in {@code status}, assigned to analyst 7, who is the one calling. */
+    private Case assignedCase(Long id, CaseStatus status) {
+        Case entity = caseRecord(id, status);
+        entity.setAnalyst(ClaimsAnalyst.builder().id(7L).build());
+        when(caseRepository.findById(id)).thenReturn(Optional.of(entity));
+        authenticateAs("analista@example.com");
+        when(claimsAnalystRepository.findByEmail("analista@example.com"))
+                .thenReturn(Optional.of(ClaimsAnalyst.builder().id(7L).build()));
+        return entity;
+    }
+
     private static ClaimsAnalyst analyst(Long id, String name, String surname) {
         return ClaimsAnalyst.builder()
                 .id(id)
@@ -1519,6 +1634,7 @@ class CaseServiceImplTest {
         entity.setRiskScore(0.82);
         entity.setRiskBand(RiskBand.CRITICAL);
         entity.setForensicReport(FORENSIC_REPORT);
+        entity.setPoliceReportAt(LocalDateTime.of(2026, 6, 14, 9, 40));
         return entity;
     }
 
@@ -1588,6 +1704,8 @@ class CaseServiceImplTest {
         // No internal status literal anywhere in what travels.
         assertThat(response.toString()).doesNotContain("PENDING_", "CLASSIFICATION_FAILED");
         assertThat(response.description()).isEqualTo("Me robaron el celular en la estación de subte");
+        // Their own statement, so it stays.
+        assertThat(response.policeReportAt()).isEqualTo(LocalDateTime.of(2026, 6, 14, 9, 40));
         verifyNoInteractions(claimsAnalysisClient);
     }
 

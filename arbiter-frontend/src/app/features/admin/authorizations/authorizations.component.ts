@@ -109,9 +109,17 @@ export class AuthorizationsComponent {
     });
   }
 
+  /** The cache holds a newer list than the one on screen. */
+  protected readonly hasNewerPending = computed(() => this.service.hasNewerPending());
+
+  protected applyNewerPending(): void {
+    this.load();
+  }
+
   private load(): void {
     this.loading.set(true);
-    this.service.pending().subscribe({
+    // Other analysts add to this list: a refresh waits for "Actualizar" instead of moving rows.
+    this.service.pending({ apply: () => false }).subscribe({
       next: (list) => {
         this.pending.set(list);
         this.loading.set(false);

@@ -44,6 +44,15 @@ public class CoverageController {
         return coverageService.listByBranch(branchId);
     }
 
+    @GetMapping("/insurer-names")
+    @PreAuthorize("hasRole('REFERENTE_ASEGURADORA')")
+    @Operation(summary = "Nombres de cobertura de las pólizas de un ramo",
+            description = "Los nombres distintos de cobertura que aparecen en las pólizas del ramo en la "
+                    + "BD de la aseguradora. Una cobertura con otro nombre no se empareja con ninguna póliza.")
+    public List<String> insurerNames(@RequestParam Long branchId) {
+        return coverageService.insurerCoverageNames(branchId);
+    }
+
     @GetMapping("/detailed")
     @PreAuthorize("hasRole('REFERENTE_ASEGURADORA')")
     @Operation(summary = "Coberturas de un ramo, con detalle",

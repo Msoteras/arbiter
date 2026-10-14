@@ -12,5 +12,7 @@ public record UserResponse(
         String apellido,
         UserRole rol,
         UserStatus estado,
-        Instant createdAt
+        Instant createdAt,
+        /** Last successful login; null for an account that never signed in since it is recorded. */
+        Instant lastAccessAt
 ) {}

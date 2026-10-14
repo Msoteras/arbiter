@@ -5,6 +5,8 @@ import {
   insuredNextStep,
   insuredStatusDescription,
   insuredStatusTitle,
+  insuredStatusTone,
+  isFinalInsuredStatus,
 } from './insured-status';
 
 const CODES: InsuredStatusCode[] = [
@@ -15,6 +17,7 @@ const CODES: InsuredStatusCode[] = [
   'APPROVED',
   'REJECTED',
   'LAPSED',
+  'CLOSED',
 ];
 
 function movement(
@@ -130,5 +133,19 @@ describe('insuredStatusTitle', () => {
     ];
 
     expect(insuredStatusTitle('APPROVED', history)).toBe('Tu siniestro fue aprobado');
+  });
+
+  it('tells the insured a closed claim ended, without the internal reason', () => {
+    expect(isFinalInsuredStatus('CLOSED')).toBeTrue();
+    expect(insuredStatusTone('CLOSED')).toBe('neutral');
+    expect(insuredStatusTitle('CLOSED')).toBe('Cerramos tu denuncia');
+    expect(
+      insuredMovementLabel({
+        fromInsuredStatus: { code: 'UNDER_ANALYSIS', label: 'En análisis' },
+        toInsuredStatus: { code: 'CLOSED', label: 'Cerrado' },
+        actor: null,
+        changedAt: '2026-10-14T12:00:00Z',
+      }),
+    ).toBe('Denuncia cerrada');
   });
 });

@@ -12,7 +12,6 @@ import io.jsonwebtoken.Jwts;
 import lombok.RequiredArgsConstructor;
 import org.springframework.messaging.Message;
 import org.springframework.messaging.MessageChannel;
-import org.springframework.messaging.simp.stomp.StompCommand;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.messaging.support.ChannelInterceptor;
 import org.springframework.messaging.support.MessageHeaderAccessor;
@@ -52,10 +51,13 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
         if (accessor == null || accessor.getCommand() == null) {
             return message;
         }
-        if (accessor.getCommand() == StompCommand.CONNECT) {
-            authenticate(accessor);
-        } else if (accessor.getCommand() == StompCommand.SUBSCRIBE) {
-            authorizeSubscription(accessor);
+        switch (accessor.getCommand()) {
+            case CONNECT, STOMP -> authenticate(accessor);
+            case SUBSCRIBE -> authorizeSubscription(accessor);
+            case UNSUBSCRIBE, DISCONNECT -> { }
+            // The broker delivers a client's SEND to every subscriber of the destination, which
+            // would let any session write into any thread past the checks of the POST.
+            default -> throw new StompAccessDeniedException("Command not allowed.");
         }
         return message;
     }
@@ -73,6 +75,8 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
         } catch (JwtException | IllegalArgumentException ex) {
             throw new StompAccessDeniedException("Invalid or expired token.");
         }
+        // With a broker relay the CONNECT frame is forwarded as is; the token stays in this process.
+        accessor.removeNativeHeader(AUTH_HEADER);
 
         String rol = claims.get("rol", String.class);
         var authentication = new UsernamePasswordAuthenticationToken(

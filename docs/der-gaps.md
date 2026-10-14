@@ -82,7 +82,11 @@ Apuntan a `usuario` y no a `referente_aseguradora` a propósito.
 | `peritaje.perito_id` | `derivacion_expediente.proveedor_id` (`provider_id`) | BIGINT | sí | FK → `proveedor_externo.id` |
 | `antecedente_fraude.peritaje_id` | `antecedente_fraude.derivacion_expediente_id` (`case_referral_id`) | BIGINT | sí | FK → `derivacion_expediente.id` |
 
-Un proveedor sin filas en `proveedor_externo_rama` cubre todos los ramos.
+Un proveedor cubre solo los ramos con fila en `proveedor_externo_rama`, y tiene al menos una. La
+migración pasa cada `rama_id` no nulo a una fila de la tabla nueva. Hasta el 10/10/2026, un
+proveedor sin filas era generalista; la migración `2026-10-10-proveedores-con-ramos.sql` le asignó
+todos los ramos de su aseguradora. `veredicto`, `monto_indemnizable`,
+`resultado_reparacion` y `costo_reparacion` no cambian: ya son propios de un tipo de proveedor.
 
 **Acción:** renombrar las dos entidades y sus columnas, sacar `rama_id` de `proveedor_externo` y
 agregar `proveedor_externo_rama` como N:M entre `proveedor_externo` y `rama`. La nota de la entrada
@@ -240,16 +244,48 @@ lista de Fast Track, que vive en la configuración de esa regla.
 
 La columna se borró del esquema (`2026-10-13-borrar-activo-de-banda-de-puntaje.sql`): las bandas se
 borran y se vuelven a escribir en cada guardado del puntaje, siempre en `TRUE`, y ninguna lectura
-filtraba por ella. Apagar el puntaje entero es `configuracion_scoring.activa`, que queda.
+filtraba por ella.
 
 **Acción:** dropear `activo` de `configuracion_banda`.
 
-### 26, 27 y 28 · Tipos de documento en la base, por ramo
+### 26 · `configuracion_scoring.activa` — sobra
+
+La columna se borró del esquema (`2026-10-14-borrar-activo-de-configuracion-de-puntaje.sql`): el
+puntaje de riesgo está siempre activo (decidido el 14/10), la pantalla nunca dejó apagarlo y se
+guardaba siempre en `TRUE`. El motor puntúa siempre que la aseguradora tenga una configuración
+usable.
+
+**Acción:** dropear `activa` de `configuracion_scoring`.
+
+### 27 · `cobertura.siniestro_agota_cobertura` — sobra
+
+La columna se borró del esquema (`2026-10-14-borrar-un-siniestro-agota-la-cobertura.sql`): decía lo
+mismo que `max_eventos_por_anio = 1`. La migración le pasa ese tope a toda cobertura que la tenía
+prendida. Nunca estuvo en el DER.
+
+**Acción:** ninguna en el `.mdj`.
+
+### 28 · `shedlock` — tabla nueva en el esquema común
+
+| Tabla | Columna | Tipo de dato | Nulo | Restricciones |
+|---|---|---|---|---|
+| `shedlock` | `name` | VARCHAR(64) | no | PK |
+| `shedlock` | `lock_until` | TIMESTAMP | no | |
+| `shedlock` | `locked_at` | TIMESTAMP | no | |
+| `shedlock` | `locked_by` | VARCHAR(255) | no | |
+
+No es dato de negocio: una fila por barrido programado de `cases-service`, para que con varias
+instancias lo corra una sola a la vez. La tabla y las columnas llevan los nombres de la librería
+(ShedLock), por eso quedan en inglés. Migración: `2026-10-12-lock-de-barridos.sql`.
+
+**Acción:** agregarla en `arbiter_common` como entidad suelta, sin relaciones.
+
+### 29, 30 y 31 · Tipos de documento en la base, por ramo
 
 Migración: `2026-10-14-tipos-de-documento.sql`. Los tipos de documento dejan de estar fijos en el
 front.
 
-**26 · `tipo_documento` (`arbiter_common.document_type`) — tabla nueva del esquema común**
+**29 · `tipo_documento` (`arbiter_common.document_type`) — tabla nueva del esquema común**
 
 | Columna | Tipo de dato | Nulo | Restricciones |
 |---|---|---|---|
@@ -257,7 +293,7 @@ front.
 | `codigo` (`code`) | VARCHAR(50) | no | UNIQUE |
 | `nombre` (`name`) | VARCHAR(100) | no | — |
 
-**27 · `ramo_tipo_documento` (`branch_document_type`) — tabla nueva por aseguradora**
+**30 · `ramo_tipo_documento` (`branch_document_type`) — tabla nueva por aseguradora**
 
 | Columna | Tipo de dato | Nulo | Restricciones |
 |---|---|---|---|
@@ -267,7 +303,7 @@ front.
 
 UNIQUE compuesta `(ramo_id, tipo_documento_id)`: va como nota de texto.
 
-**28 · `requisito_documental.tipo_documento` — pasa de texto a FK**
+**31 · `requisito_documental.tipo_documento` — pasa de texto a FK**
 
 | Columna | Tipo de dato | Nulo | Restricciones |
 |---|---|---|---|
@@ -282,14 +318,6 @@ La FK compuesta impide que la agenda de un ramo pida un documento que no es suyo
 ---
 
 ## Decisiones pendientes antes de tocar el `.mdj`
-
-### 24 · `requisito_documental.banda_riesgo` — está en el esquema y nadie la usa
-
-Siempre vale `NULL` y ninguna lectura la mira. Exigir un documento según la banda tiene problemas de
-fondo: la banda recién existe después de clasificar, y pedirle un papel más solo al asegurado
-marcado como riesgoso le revela esa marca.
-
-**Decisión:** implementarla o dropearla del esquema y del DER. Pendiente de discutir con el equipo.
 
 ### 13 · `expediente.destino` — está en el esquema y no en el DER
 

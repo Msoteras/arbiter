@@ -27,11 +27,13 @@ import {
   CaseService,
   AnalystDecision,
   AnalystDecisionRequest,
+  CaseClosure,
   ClaimCauseOption,
   Settlement,
   SettlementLine,
 } from '../case.service';
 import { DocumentAgendaService } from '../document-agenda.service';
+import { ChipGroupComponent, ChipOption } from '../../../shared/ui/chip-group/chip-group.component';
 import { CaseNavigationService } from '../case-navigation.service';
 import { CaseMessagesService } from '../case-messages.service';
 import { CaseMessage } from '../../../core/models/case-message';
@@ -178,6 +180,7 @@ interface BriefAlert {
 @Component({
   selector: 'app-case-detail',
   imports: [
+    ChipGroupComponent,
     RouterLink,
     FraudGaugeComponent,
     InfoTipComponent,
@@ -432,6 +435,10 @@ export class CaseDetailComponent {
             label: 'Fecha y hora de ocurrencia',
             value: d?.eventDate ? formatDateTime(d.eventDate) : null,
           },
+          // Only claims with a police report carry it; an empty row would read as missing data.
+          ...(d?.policeReportAt
+            ? [{ label: 'Denuncia policial', value: formatDateTime(d.policeReportAt) }]
+            : []),
           { label: 'Ubicación', value: d?.eventLocation ?? null },
         ],
       },
@@ -780,13 +787,27 @@ export class CaseDetailComponent {
 
   /** Derived from the backend status, not a local flag. */
   protected readonly decisionState = computed<
-    'pending' | 'approved' | 'rejected' | 'lapsed' | 'not-ready'
+    | 'pending'
+    | 'approved'
+    | 'rejected'
+    | 'prescribed'
+    | 'lapsed'
+    | 'withdrawn'
+    | 'voided'
+    | 'not-ready'
   >(() => {
     switch (this.data()?.status) {
       case 'APPROVED':
         return 'approved';
       case 'REJECTED':
         return 'rejected';
+      case 'PRESCRIBED':
+        return 'prescribed';
+      // Closed by the analyst without a verdict; the reason is on the history row.
+      case 'WITHDRAWN':
+        return 'withdrawn';
+      case 'VOIDED':
+        return 'voided';
       // Terminal without a decision: closed by the system after the insured's inactivity.
       case 'LAPSED':
         return 'lapsed';
@@ -823,6 +844,20 @@ export class CaseDetailComponent {
   );
 
   protected readonly pendingDecision = signal<Verb | null>(null);
+  /** On a rejection: on the merits, or because the claim prescribed (art. 58). */
+  protected readonly rejectGround = signal<'merits' | 'prescription'>('merits');
+  protected readonly rejectGroundOptions: ChipOption[] = [
+    { value: 'merits', label: 'El fondo del siniestro' },
+    { value: 'prescription', label: 'Prescripción' },
+  ];
+  /** The rules engine found the claim prescribed: the rejection starts with that ground chosen. */
+  private readonly prescriptionFlagged = computed(() =>
+    this.ruleResults().some((r) => r.ruleType === 'PRESCRIPTION' && r.result === 'FAIL'),
+  );
+
+  protected setRejectGround(value: string): void {
+    this.rejectGround.set(value === 'prescription' ? 'prescription' : 'merits');
+  }
   protected readonly showJustify = signal(false);
   protected readonly justification = signal('');
   protected readonly decisionError = signal<string | null>(null);
@@ -848,6 +883,7 @@ export class CaseDetailComponent {
 
   askDecision(v: Verb): void {
     this.pendingDecision.set(v);
+    this.rejectGround.set(this.prescriptionFlagged() ? 'prescription' : 'merits');
     this.justification.set('');
     this.decisionError.set(null);
     // Reset the settlement draft so a cancelled approval doesn't reappear.
@@ -883,7 +919,12 @@ export class CaseDetailComponent {
     }
 
     const decisionPayload: AnalystDecisionRequest = {
-      decision: verb === 'approve' ? 'APPROVE' : 'REJECT',
+      decision:
+        verb === 'approve'
+          ? 'APPROVE'
+          : this.rejectGround() === 'prescription'
+            ? 'PRESCRIBE'
+            : 'REJECT',
       justification: this.justification().trim(),
       // The backend rejects a settlement on a rejection.
       settlement:
@@ -1196,6 +1237,73 @@ export class CaseDetailComponent {
         this.signing.set(false);
         this.cancelSign();
         this.signError.set(err.error?.detail || fallbackError);
+      },
+    });
+  }
+
+  // ── Closing without a verdict: withdrawn or voided, by the assigned analyst ──
+
+  protected readonly pendingClosure = signal<CaseClosure | null>(null);
+  protected readonly closureReason = signal('');
+  protected readonly closing = signal(false);
+  protected readonly closureError = signal<string | null>(null);
+
+  /** Same statuses the backend allows (D2 in docs/estados-de-cierre-decisiones.md). */
+  protected readonly canClose = computed(
+    () =>
+      this.canDecide() &&
+      !this.awaitingAuthorization() &&
+      ['PENDING_ANALYST_REVIEW', 'AWAITING_DOCUMENTATION', 'CLASSIFICATION_FAILED'].includes(
+        this.data()?.status ?? '',
+      ),
+  );
+
+  protected readonly closeMenuItems: MenuItem[] = [
+    { value: 'WITHDRAWN', label: 'El asegurado desistió' },
+    { value: 'VOIDED', label: 'Baja por error de carga' },
+  ];
+
+  protected readonly closureHeading = computed(() =>
+    this.pendingClosure() === 'VOIDED'
+      ? '¿Dar de baja el expediente por error?'
+      : '¿Cerrar el expediente por desistimiento?',
+  );
+
+  /** What the analyst wrote when closing it, from the history row that closed it. */
+  protected readonly closureNote = computed(() => {
+    const status = this.data()?.status;
+    const row = [...this.history()].reverse().find((h) => h.toStatus === status);
+    return row?.observation ?? null;
+  });
+
+  protected onCloseMenu(value: string): void {
+    this.pendingClosure.set(value === 'VOIDED' ? 'VOIDED' : 'WITHDRAWN');
+    this.closureReason.set('');
+    this.closureError.set(null);
+  }
+
+  protected cancelClosure(): void {
+    this.pendingClosure.set(null);
+  }
+
+  protected confirmClosure(): void {
+    const d = this.data();
+    const closure = this.pendingClosure();
+    const reason = this.closureReason().trim();
+    if (!d || !closure || !reason || this.closing()) {
+      return;
+    }
+    this.closing.set(true);
+    this.closureError.set(null);
+    this.service.close(d.id, closure, reason).subscribe({
+      next: () => {
+        this.pendingClosure.set(null);
+        this.closing.set(false);
+        this.reloadTrigger.update((v) => v + 1);
+      },
+      error: (err: HttpErrorResponse) => {
+        this.closing.set(false);
+        this.closureError.set(err.error?.detail || 'No se pudo cerrar el expediente.');
       },
     });
   }

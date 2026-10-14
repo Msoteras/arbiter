@@ -38,6 +38,10 @@ const RULE_TYPE_INFO: Record<string, { label: string; description: string }> = {
     label: 'Mora de la póliza',
     description: 'La póliza no está al día con sus pagos al momento del hecho.',
   },
+  PRESCRIPTION: {
+    label: 'Prescripción (art. 58)',
+    description: 'La denuncia se presentó más de un año después del hecho.',
+  },
   FRAUD_RECORD: {
     label: 'Antecedente de fraude',
     description:
@@ -48,6 +52,7 @@ const RULE_TYPE_INFO: Record<string, { label: string; description: string }> = {
     description:
       'El damnificado no es el titular ni el grupo familiar conviviente que alcanza la cobertura.',
   },
+  // No longer evaluated: kept so the rows written before 14/10/2026 still read.
   CLAIM_EXHAUSTS_COVERAGE: {
     label: 'Cobertura agotada',
     description: 'La cobertura ya se agotó por siniestros anteriores en el período vigente.',

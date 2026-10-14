@@ -56,6 +56,16 @@ public class CaseNotificationService {
      */
     private static final int PANEL_LIMIT = 12;
 
+    private static final Message REJECTED_MESSAGE = new Message(
+            "Novedades sobre tu siniestro",
+            "Revisamos tu siniestro y no fue aprobado. Si querés conocer los motivos o no "
+                    + "estás de acuerdo, podés comunicarte con nosotros.");
+
+    private static final Message CLOSED_MESSAGE = new Message(
+            "Cerramos tu denuncia",
+            "Cerramos la denuncia de tu siniestro. Si querés continuar con el reclamo, "
+                    + "comunicate con nosotros.");
+
     /**
      * Separate from the frontend's status labels, which collapse APPROVED and REJECTED into one —
      * precisely the distinction that matters in an email.
@@ -74,15 +84,18 @@ public class CaseNotificationService {
                     "Revisamos tu siniestro y fue aprobado. Vas a recibir la información sobre "
                             + "los pasos siguientes."),
             // The amount is appended separately in approvedAmountLine(), since it may be missing.
-            CaseStatus.REJECTED, new Message(
-                    "Novedades sobre tu siniestro",
-                    "Revisamos tu siniestro y no fue aprobado. Si querés conocer los motivos o no "
-                            + "estás de acuerdo, podés comunicarte con nosotros."),
+            CaseStatus.REJECTED, REJECTED_MESSAGE,
             CaseStatus.LAPSED, new Message(
                     "Tu siniestro caducó por falta de documentación",
                     "Cerramos tu siniestro porque pasaron más de 18 meses desde la denuncia sin que "
                             + "recibiéramos la documentación que te habíamos pedido. Si todavía "
-                            + "querés continuar con el reclamo, comunicate con nosotros."));
+                            + "querés continuar con el reclamo, comunicate con nosotros."),
+            // For the insured a prescription is a rejection: the same message, no internal reason.
+            CaseStatus.PRESCRIBED, REJECTED_MESSAGE,
+            // Withdrawn and voided say the same: the reason is internal (D7 in
+            // docs/estados-de-cierre-decisiones.md).
+            CaseStatus.WITHDRAWN, CLOSED_MESSAGE,
+            CaseStatus.VOIDED, CLOSED_MESSAGE);
 
     /**
      * Not in {@link #MESSAGES}, keyed by destination: a reopened case lands where any classification does.

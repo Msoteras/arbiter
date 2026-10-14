@@ -2,11 +2,12 @@ package ar.edu.utn.frba.arbiter.cases.dto;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotEmpty;
 
 import java.util.List;
 
 /**
- * @param branchIds empty or null means a generalist provider that covers every branch
+ * @param branchIds the branches it takes cases from; at least one
  * @param active    deactivating retires a provider without erasing the derivations already made to it
  */
 public record ServiceProviderRequest(
@@ -15,7 +16,7 @@ public record ServiceProviderRequest(
         @NotBlank(message = "email is required")
         @Email(message = "email must be a valid address") String email,
         String zone,
-        List<Long> branchIds,
+        @NotEmpty(message = "Elegí al menos un ramo.") List<Long> branchIds,
         boolean active,
         ProviderType providerType
 ) {}

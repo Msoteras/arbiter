@@ -12,6 +12,8 @@ import { InputComponent } from '../../../shared/ui/input/input.component';
 import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
 import { SaveBarComponent } from '../../../shared/ui/save-bar/save-bar.component';
 import { fadeInUp } from '../../../shared/animations';
+import { ONBOARDING_STEP_LINE } from '../../../core/onboarding/onboarding';
+import { OnboardingTargetDirective } from '../../../core/onboarding/onboarding-target.directive';
 
 /**
  * How much an analyst may authorize alone per branch; above it the settlement waits for the
@@ -20,6 +22,7 @@ import { fadeInUp } from '../../../shared/animations';
 @Component({
   selector: 'app-settlement-authorities-config',
   imports: [
+    OnboardingTargetDirective,
     CardComponent,
     InfoTipComponent,
     InputComponent,
@@ -32,6 +35,8 @@ import { fadeInUp } from '../../../shared/animations';
   styleUrl: './settlement-authorities-config.component.scss',
 })
 export class SettlementAuthoritiesConfigComponent {
+  protected readonly stepLine = ONBOARDING_STEP_LINE;
+
   private readonly service = inject(SettlementAuthoritiesService);
   private static readonly thousands = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 0 });
 
@@ -55,7 +60,8 @@ export class SettlementAuthoritiesConfigComponent {
 
   private load(): void {
     this.loading.set(true);
-    this.service.list().subscribe({
+    // With unsaved changes a refresh stays in the cache; discarding picks it up (L1).
+    this.service.list({ apply: () => !this.dirty() }).subscribe({
       next: (list) => {
         this.authorities.set(list);
         this.resetDrafts(list);
@@ -88,6 +94,7 @@ export class SettlementAuthoritiesConfigComponent {
   protected discard(): void {
     this.error.set(null);
     this.resetDrafts(this.authorities());
+    this.load();
   }
 
   protected save(): void {

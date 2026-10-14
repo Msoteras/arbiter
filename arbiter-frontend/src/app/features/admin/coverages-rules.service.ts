@@ -1,8 +1,9 @@
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpContext } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 
 import { environment } from '../../../environments/environment';
+import { QueryCache } from '../../core/cache/query-cache';
 
 /** How the coverage's payable ceiling is computed. */
 export type SettlementBasis = 'SUM_INSURED' | 'LESSER_OF_SUM_AND_REPLACEMENT';
@@ -24,7 +25,6 @@ export interface CoverageDetail {
   maxAnnualClaims: number | null;
   waitingPeriodDays: number | null;
   coversFamilyGroup: boolean;
-  claimExhaustsCoverage: boolean;
   settlementFormula: SettlementFormula;
   settlementBasis: SettlementBasis;
   /** 0..1 fraction like `deductibleRatio` (0.5 = 50%). `null` = the 2nd event isn't reduced. */
@@ -50,7 +50,6 @@ export interface CoverageUpsertRequest {
   maxAnnualClaims: number | null;
   waitingPeriodDays: number | null;
   coversFamilyGroup: boolean;
-  claimExhaustsCoverage: boolean;
   settlementFormula: SettlementFormula;
   settlementBasis: SettlementBasis;
   secondEventRatio: number | null;
@@ -74,9 +73,24 @@ export class CoveragesRulesService {
     });
   }
 
+  private readonly cache = inject(QueryCache);
+  private readonly fetchSummary = (context: HttpContext) =>
+    this.http.get<CoverageSummary[]>(`${this.base}/summary`, { context });
+
   /** Coverage counts for every branch in one call, so the branch list doesn't fetch each one. */
   summary(): Observable<CoverageSummary[]> {
-    return this.http.get<CoverageSummary[]>(`${this.base}/summary`);
+    return this.cache.read('rules:coverage-summary', this.fetchSummary);
+  }
+
+  prefetch(): void {
+    this.cache.prefetch('rules:coverage-summary', this.fetchSummary);
+  }
+
+  /** Coverage names on the insurer's policies of the branch: a coverage must be named one of them. */
+  insurerNames(branchId: number): Observable<string[]> {
+    return this.http.get<string[]>(`${this.base}/insurer-names`, {
+      params: { branchId: String(branchId) },
+    });
   }
 
   create(branchId: number, request: CoverageUpsertRequest): Observable<CoverageDetail> {

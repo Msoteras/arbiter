@@ -11,6 +11,19 @@ Idioma: respondé y escribí commits/docs en **español rioplatense**. En el có
 
 La sección "Modelo de dominio — vocabulario" más abajo es la excepción: ahí los términos quedan en **español**, porque documentan el vocabulario de negocio real (relevamiento BBVA) tal como lo usa el analista — es prosa de negocio, no identificadores de código.
 
+### Redacción en español
+
+Aplica a las respuestas al equipo y a todo texto que ve el usuario (UI, avisos, tooltips, mails).
+
+1. **Estilo ASD-STE100 en español.** Frases cortas (unas 20 palabras como máximo), una idea por frase, voz activa, verbos simples y un solo término por concepto. Pasos en listas verticales. Nada de metáforas, modismos ni frases encadenadas. Lenguaje técnico y simple: los usuarios conocen el negocio, así que se usan los términos de la UI tal cual (Fast Track, Hard Stop, hecho generador).
+2. **Nada de texto descriptivo en la UI.** Sin párrafos de ayuda, aclaraciones ni subtítulos que expliquen. Si algo necesita explicación, va en un tooltip (`app-info-tip`), escrito para el usuario final: lo ayuda a decidir o a actuar, nunca explica cómo está hecho el sistema. Avisos: una frase con lo que pasó y, solo si no es obvio, qué hacer (ver la regla 8 del Design System).
+3. **El texto de un paso dice qué hace el usuario**, no describe la función. ❌ "Revisan y resuelven los expedientes." ✅ "Dá de alta a los analistas." Concreto: ❌ "Define qué documentos pide…" ✅ "Marcá los documentos necesarios para denunciar cada hecho generador."
+4. **Construcciones que no van:**
+   - Plurales sin artículo. ❌ "Agregá peritos" ✅ "Agregá los peritos".
+   - "Lo que / los que + verbo + sujeto pospuesto" cuando el sujeto puede leerse como objeto. ❌ "Lo que no cubre ninguna cobertura del ramo" ✅ "Situaciones no contempladas en ninguna cobertura del ramo".
+   - Verbo y sustantivo de la misma raíz en la misma frase (cubrir/cobertura, excluir/exclusión).
+   - Prueba: reescribir la frase como sujeto, verbo y objeto. Si cambia quién hace qué, o repite la raíz, reformularla.
+
 ---
 
 ## Arquitectura — leer antes de tocar nada
@@ -102,7 +115,7 @@ Estos términos vienen del relevamiento de una aseguradora real (BBVA Seguros, A
 | **Adjunto**          | `CaseDocument` | Archivo subido por el asegurado (PDF, imagen). Cumple un item de la agenda documental. | `cases`       |
 | **Clasificación**    | `Classification` | Resultado del análisis (`FAST_TRACK` / `FALTA_DOCUMENTACION` / `LLM_RECOMIENDA_APROBAR` / `LLM_NO_RECOMIENDA_APROBAR` / `LLM_SOLICITA_REVISION_MANUAL`) + factores. Solo `FAST_TRACK` es determinístico (gate de reglas, no LLM); los otros 4 son recomendaciones no vinculantes del LLM. | `classification` |
 | **Registro de la clasificación** | `LlmAnalysis`, `RuleResult`, `CaseClassification` | Registro inmutable y auditable de cada clasificación (input, output, decisión). En el esquema: `llm_analysis`, `rule_result` y `case_classification`. | `classification` |
-| **Proveedor externo** | `ServiceProvider` | Estudio liquidador (perito) o servicio técnico al que se deriva un expediente. Catálogo por aseguradora, con ramos N:M (sin ramos = generalista). | `cases` |
+| **Proveedor externo** | `ServiceProvider` | Estudio liquidador (perito) o servicio técnico al que se deriva un expediente. Catálogo por aseguradora, con ramos N:M: cubre solo los ramos marcados, y tiene al menos uno. | `cases` |
 | **Derivación**       | `CaseReferral` | El envío de un expediente a un proveedor y su respuesta (veredicto del perito o resultado de la reparación). | `cases` |
 | **Liquidación**      | `CaseSettlement` | Cálculo del monto a pagar al aprobar; si supera la atribución del analista, la autoriza el referente. | `cases` |
 | **Antecedente de fraude** | `InsuredFraudRecord` | Fraude registrado sobre un asegurado; pesa en sus denuncias siguientes dentro de la ventana que configura la aseguradora. | `classification` |
@@ -165,7 +178,7 @@ Estas decisiones están **cerradas y aprobadas** (doc v1.0, 27/05/2026). No las 
     - **Ya está decidido e implementado: CLIP ViT-B-32 en el sidecar `embedding-service`** (Python/FastAPI), 512 dimensiones por imagen. `classification-service` lo consume por REST interno y persiste los vectores en PostgreSQL. Esto ya no es una opción abierta.
     - Si la comparación interna **no** encuentra coincidencia, recién ahí se puede consultar Google Vision (ver decisión #1).
 12. **Reglas de negocio dinámicas en BD**, administradas por el referente. **No** implementar Strategy en código para variar por aseguradora — eso requiere redeploy por cada cambio.
-13. ~~**API REST stateless.**~~ **Quitada el 31/08/2026:** el chat entrega por WebSocket. Sigue vigente lo que citan los `SecurityConfig`: sesión en el JWT, sin sesión de servidor ni CSRF. Con el broker en memoria, `cases-service` corre en una sola instancia.
+13. ~~**API REST stateless.**~~ **Quitada el 31/08/2026:** el chat entrega por WebSocket. Sigue vigente lo que citan los `SecurityConfig`: sesión en el JWT, sin sesión de servidor ni CSRF. Con el broker en memoria (el default, `STOMP_RELAY_HOST` vacío) `cases-service` corre en una sola instancia; para dos o más, el chat entrega por un broker STOMP externo (RabbitMQ, `enableStompBrokerRelay`) y los barridos programados llevan `@SchedulerLock` (ShedLock, tabla `arbiter_common.shedlock`) para que los corra una sola a la vez. Barrido nuevo → lleva su `@SchedulerLock`.
 14. **Nginx como reverse proxy + terminación SSL.** Centraliza certificados. El backend no se expone directo a internet.
 15. **Despliegue en Docker** sobre Railway/AWS. RDS para Postgres, S3 (+ Glacier a 30d, borrado a 180d) para adjuntos, ECR para imágenes.
 
@@ -226,7 +239,7 @@ Antes de escribir markup de UI, usá los componentes que ya existen en vez de re
 | `app-save-bar` | pie de una sección editable (guardar/descartar). |
 | `app-info-tip` | ayuda que se abre con clic (funciona con touch y teclado). |
 | `app-empty-state`, `app-inline-loading`, `app-loading`, `app-spinner` | estados vacío y de carga (`app-loading` es solo el de pantalla completa del inicio). |
-| toasts (`ToastService` + `app-toast-stack`) | avisos efímeros; el stack se monta una vez en `app.html`. |
+| toasts (`ToastService` + `app-toast-stack`) | avisos efímeros, estilo Sonner: apilados, se despliegan y pausan al pasar el mouse, se descartan deslizando hacia abajo. `show(mensaje, tono, ms, { description, action })`. El stack se monta una vez en `app.html`. |
 | `app-logo`, `app-file-preview` | logo de Arbiter y vista previa de un archivo antes de subirlo. |
 | `app-fraud-gauge`, `app-severity-label`, `app-status-timeline`, `app-doc-upload`, `app-policy-card` | componentes de dominio ya construidos. |
 
@@ -242,6 +255,33 @@ Antes de escribir markup de UI, usá los componentes que ya existen en vez de re
 8. **Textos de UI cortos.** Avisos, tooltips, aclaraciones y factores que lee el analista: **una frase**, lo que pasó y, solo si no es obvio, qué hacer. No repitas lo que ya dice el título o el badge, no aclares lo que el usuario no preguntó ("esto no cambia la clasificación", "por sí solo no prueba nada") y no enumeres entre paréntesis. Ej.: bajo el título "Para revisar antes de resolver", ~~"El modelo notó señales de posible adulteración. Nada de esto cambia la clasificación: revisalo antes de decidir."~~ → "Hay señales de adulteración en la documentación."
 
 ---
+
+## Cache del frontend
+
+Volver a una pantalla muestra sus datos al instante y los refresca detrás. Lo hace `QueryCache`
+(`core/cache/query-cache.ts`), un helper propio sin librería. El mapa de decisiones está en
+`docs/cache-frontend-mapa.md`.
+
+- **La lectura pasa por el service, no por el componente.** El service guarda la función que pide
+  (recibe el `HttpContext`) y expone `get`/`list` con `this.cache.read(clave, fetch, options)`, más un
+  `prefetch()` cuando el inicio lo precarga. Las claves llevan el área adelante (`users:`, `cases:`,
+  `rules:`, `insured:`); una lista con filtros arma la clave con `paramsKey(query)`.
+- **`read` emite dos veces**: lo guardado, al instante, y lo nuevo si cambió. Un `forkJoin` espera al
+  segundo valor y pierde lo instantáneo; usar `switchMap` o `subscribe`.
+- **Pantalla editable** (tiene `dirty()`): `read(..., { apply: () => !this.dirty() })`, y "Descartar"
+  vuelve a leer, así toma lo que llegó mientras se editaba. Un refresco nunca pisa un borrador.
+- **Listas que cambian otras personas** (Bandeja, Liquidaciones pendientes): `apply: () => false` y un
+  botón "Actualizar" que aparece con `cache.hasNewer(clave)`.
+- **Cada escritura invalida lo que afecta**, en `core/http/cache-invalidation.interceptor.ts`: una
+  tabla URL → prefijos. Endpoint nuevo que escribe: sumarle su fila. Lo invalidado y leído en los
+  últimos 5 minutos se vuelve a pedir enseguida.
+- **Solo en memoria.** Un F5 lo vacía, y también el fin de la sesión o el cambio de usuario. Nada
+  personal queda en el navegador.
+- **No mutar lo recibido.** En desarrollo el cache congela lo que guarda, y una mutación tira error.
+  Copiar (`{ ...x }`, `structuredClone`) antes de editar.
+- **Precarga** (`features/home/prefetch.service.ts`): cuando termina de cargar el inicio, según el rol.
+  Va marcada con `SILENT_RETRY`: despierta los módulos dormidos de Railway sin el toast "El sistema se
+  está iniciando…". Nunca Tablero ni Reportes.
 
 ## Requisitos No Funcionales — números que importan
 

@@ -16,6 +16,8 @@ public record PendingSettlementResponse(
         BigDecimal calculatedAmount,
         BigDecimal settledAmount,
         String adjustmentReason,
+        /** Why the analyst wants to approve: what the referent is asked to sign off on. */
+        String justification,
         BigDecimal authorityLimit,
         BigDecimal excess,
         Instant confirmedAt,

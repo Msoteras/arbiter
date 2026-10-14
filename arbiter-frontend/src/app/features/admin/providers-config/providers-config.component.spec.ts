@@ -1,5 +1,8 @@
+import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
+import { provideRouter } from '@angular/router';
 import { of } from 'rxjs';
 
 import { ProvidersConfigComponent } from './providers-config.component';
@@ -42,6 +45,10 @@ describe('ProvidersConfigComponent', () => {
       imports: [ProvidersConfigComponent],
       providers: [
         provideNoopAnimations(),
+        // The first-setup guide reads the route and asks the backend for its progress.
+        provideRouter([]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
         { provide: ProvidersService, useValue: providersService },
         { provide: BranchesService, useValue: { list: () => of(BRANCHES) } },
       ],
@@ -133,7 +140,7 @@ describe('ProvidersConfigComponent', () => {
     expect(saveButton().disabled).toBeTrue();
   });
 
-  /** A branch added later must not be covered until someone checks it: the list is always explicit. */
+  /** A branch added later is not covered until someone checks it. */
   it('saves every checked branch as an explicit list', async () => {
     await mount();
     openNew();
@@ -161,13 +168,14 @@ describe('ProvidersConfigComponent', () => {
     );
   });
 
-  /** Stored with no branches means it covers all of them, and that is how it has to read. */
-  it('opens a provider stored without branches with all of them checked', async () => {
+  /** A provider without branches covers none: it can't be saved until one is checked. */
+  it('opens a provider stored without branches with none checked', async () => {
     await mount([provider({ branches: [] })]);
 
     openEdit();
 
-    expect(branchBoxes().map((b) => b.checked)).toEqual([true, true]);
+    expect(branchBoxes().map((b) => b.checked)).toEqual([false, false]);
+    expect(saveButton().disabled).toBeTrue();
   });
 
   it('opens a provider of one branch with only that one checked', async () => {

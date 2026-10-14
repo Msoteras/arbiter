@@ -53,6 +53,7 @@ import {
   MetricCount,
   MetricsFilter,
   MetricsRange,
+  MetricsSummary,
   TimelinePoint,
   providerLabel,
   resolutionTimeLabel,
@@ -406,8 +407,8 @@ export class DashboardComponent {
       return [];
     }
     const { summary, comparisonSummary, agreement } = metrics;
-    const decided = summary.approvedCases + summary.rejectedCases;
-    const previousDecided = comparisonSummary.approvedCases + comparisonSummary.rejectedCases;
+    const decided = decidedCases(summary);
+    const previousDecided = decidedCases(comparisonSummary);
     return [
       {
         label: 'Tiempo prom. de resolución',
@@ -777,4 +778,9 @@ function isoDaysAgo(days: number): string {
 function shortDate(iso: string): string {
   const [year, month, day] = iso.split('-');
   return `${day}/${month}/${year.slice(2)}`;
+}
+
+/** Same cut as the backend's `CaseStatus.decided()`: verdicts only, prescriptions included. */
+function decidedCases(summary: MetricsSummary): number {
+  return summary.approvedCases + summary.rejectedCases + summary.prescribedCases;
 }

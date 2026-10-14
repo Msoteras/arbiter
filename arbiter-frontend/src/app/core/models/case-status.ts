@@ -10,7 +10,10 @@ export type CaseStatus =
   | 'PENDING_REPAIR'
   | 'APPROVED'
   | 'REJECTED'
-  | 'LAPSED';
+  | 'LAPSED'
+  | 'PRESCRIBED'
+  | 'WITHDRAWN'
+  | 'VOIDED';
 
 const LABELS: Record<CaseStatus, string> = {
   PENDING_CLASSIFICATION: 'Pendiente de clasificación',
@@ -22,6 +25,9 @@ const LABELS: Record<CaseStatus, string> = {
   APPROVED: 'Aprobado',
   REJECTED: 'Rechazado',
   LAPSED: 'Caducado',
+  PRESCRIBED: 'Prescripto',
+  WITHDRAWN: 'Desistido',
+  VOIDED: 'Baja por error',
 };
 
 export function caseStatusLabel(value: string): string {
@@ -38,11 +44,15 @@ export function workStatusLabel(status: string, settlementStatus?: string | null
     : caseStatusLabel(status);
 }
 
-/**
- * Mirrors `case_status.is_final` and the backend's `CaseServiceImpl.FINAL_STATUS_NAMES`.
- * Exported as a list because dashboards count "resolved" cases by summing these statuses.
- */
-export const FINAL_STATUSES: readonly CaseStatus[] = ['APPROVED', 'REJECTED', 'LAPSED'];
+/** Mirrors `case_status.is_final` and common-lib's `CaseStatus.terminal()`. */
+export const FINAL_STATUSES: readonly CaseStatus[] = [
+  'APPROVED',
+  'REJECTED',
+  'LAPSED',
+  'PRESCRIBED',
+  'WITHDRAWN',
+  'VOIDED',
+];
 
 export function isFinalStatus(value: string): boolean {
   return (FINAL_STATUSES as readonly string[]).includes(value);
@@ -59,6 +69,10 @@ const TONES: Record<CaseStatus, StatusTone> = {
   APPROVED: 'ok',
   REJECTED: 'danger',
   LAPSED: 'danger',
+  PRESCRIBED: 'danger',
+  // Closed without a verdict: neither good nor bad news, so no accent.
+  WITHDRAWN: 'neutral',
+  VOIDED: 'neutral',
 };
 
 export function caseStatusTone(value: string): StatusTone {

@@ -21,7 +21,7 @@ public final class CaseStates {
                 .description(status.name())
                 .insuredState("En análisis")
                 .insuredStatusCode(insuredStatusOf(status))
-                .isFinal(status == CaseStatus.APPROVED || status == CaseStatus.REJECTED)
+                .isFinal(CaseStatus.terminal().contains(status))
                 .build();
     }
 
@@ -34,8 +34,9 @@ public final class CaseStates {
             case PENDING_EXPERT_REPORT -> InsuredStatus.UNDER_VERIFICATION;
             case PENDING_REPAIR -> InsuredStatus.UNDER_REPAIR;
             case APPROVED -> InsuredStatus.APPROVED;
-            case REJECTED -> InsuredStatus.REJECTED;
+            case REJECTED, PRESCRIBED -> InsuredStatus.REJECTED;
             case LAPSED -> InsuredStatus.LAPSED;
+            case WITHDRAWN, VOIDED -> InsuredStatus.CLOSED;
         };
     }
 }

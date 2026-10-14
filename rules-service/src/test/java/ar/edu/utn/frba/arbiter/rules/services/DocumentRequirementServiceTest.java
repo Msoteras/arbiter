@@ -37,7 +37,8 @@ class DocumentRequirementServiceTest {
     private final BranchRepository branchRepository = mock(BranchRepository.class);
     private final DocumentTypeService documentTypes = mock(DocumentTypeService.class);
     private final DocumentRequirementService service = new DocumentRequirementService(
-            requirementRepository, claimCauseRepository, branchRepository, documentTypes);
+            requirementRepository, claimCauseRepository, branchRepository, documentTypes,
+            mock(OnboardingTracker.class));
 
     @BeforeEach
     void theftBelongsToTheBranch() {

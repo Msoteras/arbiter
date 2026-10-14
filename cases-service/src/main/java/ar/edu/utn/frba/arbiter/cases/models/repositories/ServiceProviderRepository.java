@@ -12,15 +12,16 @@ import java.util.List;
 @Repository
 public interface ServiceProviderRepository extends JpaRepository<ServiceProvider, Long> {
 
-    /** Specialists in the branch plus generalists (no branches); inactive providers are left out. */
+    /** Providers that cover the branch; inactive ones are left out. */
     @Query("""
             SELECT p FROM ServiceProvider p
             WHERE p.active = true AND p.providerType = :providerType
-              AND (p.branches IS EMPTY
-                   OR EXISTS (SELECT 1 FROM ServiceProvider sp JOIN sp.branches b
-                              WHERE sp = p AND b.id = :branchId))
+              AND EXISTS (SELECT 1 FROM ServiceProvider sp JOIN sp.branches b
+                          WHERE sp = p AND b.id = :branchId)
             ORDER BY p.name
             """)
     List<ServiceProvider> findAvailableForBranch(@Param("branchId") Long branchId,
                                             @Param("providerType") ProviderType providerType);
+
+    long countByActiveTrue();
 }

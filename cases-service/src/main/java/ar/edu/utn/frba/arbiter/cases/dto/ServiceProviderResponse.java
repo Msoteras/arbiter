@@ -6,7 +6,7 @@ import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Branch;
 import java.util.Comparator;
 import java.util.List;
 
-/** {@code branches} is empty for a generalist provider. */
+/** {@code branches} are the ones it takes cases from. */
 public record ServiceProviderResponse(
         Long id,
         String name,

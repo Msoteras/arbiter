@@ -1,5 +1,6 @@
 package ar.edu.utn.frba.arbiter.cases.services;
 
+import ar.edu.utn.frba.arbiter.common.enums.OnboardingStep;
 import ar.edu.utn.frba.arbiter.cases.dto.SettlementAuthorityResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.SettlementAuthorityUpsertRequest;
 import ar.edu.utn.frba.arbiter.cases.models.entities.SettlementAuthority;
@@ -32,6 +33,7 @@ public class SettlementAuthorityService {
     private final SettlementAuthorityRepository authorityRepository;
     private final BranchRepository branchRepository;
     private final UserRepository userRepository;
+    private final OnboardingNotifier onboardingNotifier;
 
     /** One row per branch, including those with no ceiling (null {@code maxAmount}). */
     @Transactional(readOnly = true)
@@ -56,6 +58,7 @@ public class SettlementAuthorityService {
     /** A null amount deletes the row — no limit, not a zero. */
     @Transactional
     public void set(Long branchId, SettlementAuthorityUpsertRequest request) {
+        onboardingNotifier.saved(OnboardingStep.AUTHORITIES, null);
         Optional<SettlementAuthority> existing = authorityRepository.findByBranchId(branchId);
 
         if (request.maxAmount() == null) {

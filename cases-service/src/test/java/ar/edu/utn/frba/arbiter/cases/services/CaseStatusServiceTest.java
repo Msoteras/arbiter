@@ -239,12 +239,51 @@ class CaseStatusServiceTest {
         verifyNoInteractions(clock);
     }
 
+    /** Terminal means terminal: the only event a closed case takes is the reopening. */
+    @ParameterizedTest
+    @EnumSource(value = CaseStatus.class, names = {"PRESCRIBED", "WITHDRAWN", "VOIDED"})
+    void transition_aNewClosingStatusTakesNoEventButTheReopening(CaseStatus terminal) {
+        for (CaseStatus to : CaseStatus.values()) {
+            if (to == CaseStatus.PENDING_ANALYST_REVIEW) {
+                continue;
+            }
+            Case entity = caseRecord(1L, terminal);
+            assertThatThrownBy(() -> caseStatusService.transition(entity, to, StatusChangeActor.ANALYST, "x"))
+                    .as("%s → %s", terminal, to)
+                    .isInstanceOf(InvalidStatusTransitionException.class);
+        }
+    }
+
+    /** The closures an analyst can make, and from where (D2 in docs/estados-de-cierre-decisiones.md). */
+    @ParameterizedTest
+    @EnumSource(value = CaseStatus.class, names = {"PENDING_ANALYST_REVIEW", "AWAITING_DOCUMENTATION",
+            "CLASSIFICATION_FAILED"})
+    void assertCanMove_allowsClosingFromWhereTheCaseWaitsOnTheInsurerOrTheInsured(CaseStatus from) {
+        caseStatusService.assertCanMove(from, CaseStatus.WITHDRAWN);
+        caseStatusService.assertCanMove(from, CaseStatus.VOIDED);
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = CaseStatus.class, names = {"PENDING_CLASSIFICATION", "PENDING_EXPERT_REPORT",
+            "PENDING_REPAIR"})
+    void assertCanMove_refusesClosingWhileSomethingElseIsStillRunning(CaseStatus from) {
+        assertThatThrownBy(() -> caseStatusService.assertCanMove(from, CaseStatus.WITHDRAWN))
+                .isInstanceOf(InvalidStatusTransitionException.class);
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = CaseStatus.class, names = {"PRESCRIBED", "WITHDRAWN", "VOIDED"})
+    void isDeadlineRunning_stopsOnEveryClosingStatus(CaseStatus terminal) {
+        assertThat(CaseStatusService.isDeadlineRunning(terminal)).isFalse();
+    }
+
     /**
-     * Reopening: all three terminal statuses go back to the analyst. Without it an analyst's mistake,
+     * Reopening: every terminal status goes back to the analyst. Without it an analyst's mistake,
      * or documents the insured brings late, can't be fixed within the system.
      */
     @ParameterizedTest
-    @EnumSource(value = CaseStatus.class, names = {"APPROVED", "REJECTED", "LAPSED"})
+    @EnumSource(value = CaseStatus.class, names = {"APPROVED", "REJECTED", "LAPSED", "PRESCRIBED",
+            "WITHDRAWN", "VOIDED"})
     void transition_reopensAClosedCaseBackToTheAnalyst(CaseStatus terminal) {
         Case entity = caseRecord(1L, terminal);
         entity.setResponseDeadline(LocalDate.of(2020, 1, 1));

@@ -38,14 +38,8 @@ public enum RuleType {
     /** Without an active row fraud records are ignored; {@code windowMonths} sets how long one counts. */
     FRAUD_RECORD,
 
-    /**
-     * Like {@link #CLAIM_EXHAUSTS_COVERAGE}, a {@code coverage} column with no rule row, hence the
-     * nullable {@code rule_result.rule_id}.
-     */
+    /** A {@code coverage} column with no rule row, hence the nullable {@code rule_result.rule_id}. */
     COVERS_FAMILY_GROUP,
-
-    /** Counted per policy, not per insured. */
-    CLAIM_EXHAUSTS_COVERAGE,
 
     /** {@code FT_*} criteria carry no {@code rule_id}, so the threshold goes in {@code evaluated_value}. */
     FT_AMOUNT_RATIO,
