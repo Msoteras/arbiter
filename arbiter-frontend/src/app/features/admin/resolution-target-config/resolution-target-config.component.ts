@@ -38,12 +38,13 @@ import { OnboardingTargetDirective } from '../../../core/onboarding/onboarding-t
     @if (loading()) {
       <app-inline-loading [size]="26" message="Cargando el objetivo…" />
     } @else {
-      <app-card @fadeInUp appOnboardingTarget="TARGET">
-        <div class="head">
-          <h2 class="card-title">Objetivo de resolución</h2>
-          <app-info-tip>{{ stepLine.TARGET }}</app-info-tip>
-        </div>
-
+      <app-card
+        heading="Objetivo de resolución"
+        headingSize="lg"
+        @fadeInUp
+        appOnboardingTarget="TARGET"
+      >
+        <app-info-tip cardAside>{{ stepLine.TARGET }}</app-info-tip>
         <label class="row">
           <app-switch [(checked)]="enabled" ariaLabel="Fijar un objetivo de resolución" />
           <span class="row-text">
@@ -84,18 +85,6 @@ import { OnboardingTargetDirective } from '../../../core/onboarding/onboarding-t
   styles: `
     :host {
       display: block;
-    }
-    .head {
-      display: flex;
-      align-items: center;
-      gap: var(--space-2);
-      margin-bottom: var(--space-4);
-    }
-    .card-title {
-      margin: 0;
-      font-size: var(--font-size-lg);
-      font-weight: var(--font-weight-bold);
-      color: var(--text-primary);
     }
     .row {
       display: flex;

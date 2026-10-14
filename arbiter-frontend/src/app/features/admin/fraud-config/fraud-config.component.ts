@@ -8,7 +8,6 @@ import {
   WINDOW_MONTHS_MIN,
 } from '../fraud-rule.service';
 import { CardComponent } from '../../../shared/ui/card/card.component';
-import { InputComponent } from '../../../shared/ui/input/input.component';
 import { InfoTipComponent } from '../../../shared/ui/info-tip/info-tip.component';
 import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
 import { SaveBarComponent } from '../../../shared/ui/save-bar/save-bar.component';
@@ -17,6 +16,7 @@ import { SwitchComponent } from '../../../shared/ui/switch/switch.component';
 import { fadeInUp } from '../../../shared/animations';
 import { ONBOARDING_STEP_LINE } from '../../../core/onboarding/onboarding';
 import { OnboardingTargetDirective } from '../../../core/onboarding/onboarding-target.directive';
+import { MonthsInputComponent } from '../rules/months-input.component';
 
 /**
  * Fraud record policy. Whether a record adds to the risk level is configured in scoring, not here.
@@ -26,8 +26,8 @@ import { OnboardingTargetDirective } from '../../../core/onboarding/onboarding-t
   imports: [
     OnboardingTargetDirective,
     CardComponent,
-    InputComponent,
     InfoTipComponent,
+    MonthsInputComponent,
     InlineLoadingComponent,
     SaveBarComponent,
     SwitchComponent,
@@ -66,30 +66,16 @@ export class FraudConfigComponent {
     );
   });
 
-  protected readonly windowMin = WINDOW_MONTHS_MIN;
   protected readonly windowMax = WINDOW_MONTHS_MAX;
-  /** app-input works with strings. */
-  protected readonly windowMaxAttr = String(WINDOW_MONTHS_MAX);
-  protected readonly windowValue = computed(() => String(this.rule()?.windowMonths ?? ''));
-
-  /** The field is in months (what's stored); the years equivalent is only a reading aid. */
-  protected readonly windowEquivalent = computed(() => {
-    const months = this.rule()?.windowMonths ?? 0;
-    if (months < 12) {
-      return months === 1 ? '1 mes' : `${months} meses`;
-    }
-    const years = Math.floor(months / 12);
-    const rest = months % 12;
-    const yearsLabel = years === 1 ? '1 año' : `${years} años`;
-    if (rest === 0) {
-      return yearsLabel;
-    }
-    return `${yearsLabel} y ${rest === 1 ? '1 mes' : `${rest} meses`}`;
-  });
 
   protected readonly windowInvalid = computed(() => {
     const months = this.rule()?.windowMonths;
-    return months == null || months < WINDOW_MONTHS_MIN || months > WINDOW_MONTHS_MAX;
+    return (
+      months == null ||
+      !Number.isInteger(months) ||
+      months < WINDOW_MONTHS_MIN ||
+      months > WINDOW_MONTHS_MAX
+    );
   });
 
   constructor() {
@@ -116,11 +102,9 @@ export class FraudConfigComponent {
     this.patch({ blocksFastTrack });
   }
 
-  protected setWindow(value: string): void {
-    // Empty isn't zero (0 would expire every record at birth): keep the previous value and let save
-    // validate.
-    const months = Number(value);
-    this.patch({ windowMonths: Number.isFinite(months) ? months : this.rule()!.windowMonths });
+  /** An empty amount arrives as null and is stored as NaN: `windowInvalid` blocks the save. */
+  protected setWindow(months: number | null): void {
+    this.patch({ windowMonths: months ?? Number.NaN });
   }
 
   private patch(change: Partial<FraudRecordRule>): void {

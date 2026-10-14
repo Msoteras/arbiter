@@ -2,75 +2,34 @@
    `anyComponentStyle` budget. Both are concatenated in `styleUrls` order, so the cascade is the same
    as a single file: moving a block between them can change which rule wins. */
 
-/* ───────── Hard Stop ───────── */
-/* Red, unlike Fast Track's: the only rules that can stop the insured from filing a claim. */
-.hs-rules {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-}
-.hs-rule {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--space-4);
-  padding: var(--space-4);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-card);
-}
-.hs-rule.on {
-  border-left: 3px solid var(--accent-fg);
-  background: var(--surface-soft);
-}
-.hs-rule-text {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  align-items: flex-start;
-}
-.hs-rule-switch {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-.hs-arrears {
-  max-width: 260px;
-}
+@use 'media';
 
-/* Red only when it actually blocks. */
-.hs-effect {
+/* ───────── Hard Stop ───────── */
+/* Red on purpose: the only rules that can stop the insured from filing a claim. */
+.hs-banner {
+  display: flex;
+  gap: var(--space-3);
+  margin: 0 0 var(--space-4);
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--status-danger) 35%, transparent);
+  border-radius: var(--radius-ctl);
+  background: color-mix(in srgb, var(--status-danger) 7%, transparent);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+}
+.hs-banner-icon {
+  flex: 0 0 auto;
+  width: var(--icon-lg);
+  height: var(--icon-lg);
   display: inline-flex;
   align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-1) var(--space-3);
+  justify-content: center;
   border-radius: var(--radius-pill);
-  border: 1px solid var(--border-control);
-  background: var(--surface);
-  color: var(--text-muted);
-  font-size: var(--font-size-xs);
+  background: var(--status-danger);
+  color: var(--text-on-emphasis);
+  font-size: var(--font-size-2xs);
+  font-weight: var(--font-weight-bold);
 }
-.hs-effect::before {
-  content: '';
-  width: 6px;
-  height: 6px;
-  border-radius: var(--radius-pill);
-  background: var(--text-tertiary);
-}
-/* Accent, not red: it states the configured (active) state; the banner already warns. */
-.hs-effect.blocks {
-  border-color: var(--selected-border);
-  background: var(--selected-bg);
-  color: var(--accent-fg);
-}
-.hs-effect.blocks::before {
-  background: var(--accent-fg);
-}
-
 /* ───────── Document agenda: document × claim cause matrix ───────── */
 /* With `table-layout: fixed`, fixing the first column's width spreads the rest evenly. */
 .doc-col {
@@ -130,8 +89,8 @@
   gap: var(--space-2);
 }
 .doc-legend-box {
-  width: 14px;
-  height: 14px;
+  width: var(--icon-sm);
+  height: var(--icon-sm);
   border: 1px solid var(--border-control);
   border-radius: 3px;
   background: var(--surface);
@@ -154,16 +113,6 @@
 }
 
 /* ───────── Fast Track ───────── */
-.ft-head {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  flex-wrap: wrap;
-  margin-bottom: var(--space-3);
-}
-.ft-head .card-title {
-  margin: 0;
-}
 .ft-sections {
   display: flex;
   flex-direction: column;
@@ -215,7 +164,23 @@
   flex: 0 0 auto;
 }
 .rule-value app-input {
-  width: 88px;
+  width: var(--control-w-number);
+}
+.rule-value > .t-note {
+  min-width: var(--unit-label-w);
+}
+/* A choice between sentences rather than a number. */
+.rule-value.choice app-select {
+  width: 18rem;
+}
+/* A field with its unit beside it, inside a labelled fieldset. */
+.with-unit {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.with-unit app-input {
+  flex: 1 1 auto;
 }
 /* Dimmed, not hidden: the threshold stays editable before enabling the rule. */
 .rule-row.off .rule-text,
@@ -223,7 +188,7 @@
   opacity: 0.55;
 }
 
-@media (max-width: 640px) {
+@include media.phone {
   .rule-row {
     flex-wrap: wrap;
   }

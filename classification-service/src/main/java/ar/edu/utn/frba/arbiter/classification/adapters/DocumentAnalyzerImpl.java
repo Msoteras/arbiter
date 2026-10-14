@@ -23,8 +23,10 @@ import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -53,6 +55,8 @@ public class DocumentAnalyzerImpl implements DocumentAnalyzer {
 
     private static final String CATALOG_PLACEHOLDER = "{{claimCauseCatalog}}";
 
+    private static final String ITEM_ATTRIBUTES_PLACEHOLDER = "{{itemAttributes}}";
+
     private final LlmClient client;
     private final ObjectMapper objectMapper;
     private final String documentExtractionPrompt;
@@ -60,7 +64,7 @@ public class DocumentAnalyzerImpl implements DocumentAnalyzer {
     public DocumentAnalyzerImpl(
             LlmClient client,
             ObjectMapper objectMapper,
-            @Value("classpath:prompts/extraccion-documento-v7.md") Resource documentExtractionPromptResource
+            @Value("classpath:prompts/extraccion-documento-v8.md") Resource documentExtractionPromptResource
     ) throws IOException {
         this.client = client;
         this.objectMapper = objectMapper;
@@ -69,65 +73,78 @@ public class DocumentAnalyzerImpl implements DocumentAnalyzer {
 
     /**
      * Forcing the shape keeps the two halves apart: as prose, an "observación:" line inside the
-     * transcription reads as if the document said it. Built per call because {@code describedClaimCause}
-     * is an enum of the branch's own catalog, plus null: most documents narrate no event.
+     * transcription reads as if the document said it. Built per call for two reasons:
+     * {@code describedClaimCause} is an enum of the branch's own catalog, plus null (most documents
+     * narrate no event), and {@code itemAttributes} has one property per name the policy identifies
+     * its item by, so the model can't answer under a name nobody will look up.
      */
-    private static Map<String, Object> outputSchema(List<String> claimCauses) {
-        List<String> causeValues = new ArrayList<>(claimCauses);
+    private static Map<String, Object> outputSchema(Request request) {
+        List<String> causeValues = new ArrayList<>(request.claimCauses());
         causeValues.add(null);
+
+        // All nullable and none required, so the model doesn't invent what's missing.
+        Map<String, Object> fields = new LinkedHashMap<>();
+        fields.put("documentDate", Map.of("type", List.of("string", "null")));
+        fields.put("amount", Map.of("type", List.of("number", "null")));
+        fields.put("itemDescription", Map.of("type", List.of("string", "null")));
+        // Left out when the policy names no attribute: an object with no properties is an invalid schema.
+        if (!request.itemAttributes().isEmpty()) {
+            Map<String, Object> attributes = new LinkedHashMap<>();
+            request.itemAttributes().forEach(name -> attributes.put(name, Map.of("type", List.of("string", "null"))));
+            fields.put("itemAttributes", Map.of("type", "object", "properties", attributes));
+        }
+        fields.put("affectedParty", Map.of("enum", List.of("TITULAR", "FAMILIAR", "TERCERO", "DESCONOCIDO")));
+        fields.put("describedClaimCause", Map.of("enum", causeValues));
+        // Both required: half a detail says nothing and risks a row that can't be stored.
+        fields.put("details", Map.of(
+                "type", "array",
+                "items", Map.of(
+                        "type", "object",
+                        "properties", Map.of(
+                                "name", Map.of("type", "string"),
+                                "value", Map.of("type", "string")),
+                        "required", List.of("name", "value"))));
+
         return Map.of(
                 "type", "object",
                 "properties", Map.of(
                         "transcription", Map.of("type", "string"),
                         "visualFindings", Map.of("type", "array", "items", Map.of("type", "string")),
-                        // All nullable and none required, so the model doesn't invent what's missing.
-                        // Map.ofEntries: Map.of stops at ten pairs.
-                        "fields", Map.of(
-                                "type", "object",
-                                "properties", Map.ofEntries(
-                                        Map.entry("documentDate", Map.of("type", List.of("string", "null"))),
-                                        Map.entry("amount", Map.of("type", List.of("number", "null"))),
-                                        Map.entry("itemDescription", Map.of("type", List.of("string", "null"))),
-                                        Map.entry("brand", Map.of("type", List.of("string", "null"))),
-                                        Map.entry("model", Map.of("type", List.of("string", "null"))),
-                                        Map.entry("imei", Map.of("type", List.of("string", "null"))),
-                                        Map.entry("affectedParty", Map.of("enum",
-                                                List.of("TITULAR", "FAMILIAR", "TERCERO", "DESCONOCIDO"))),
-                                        Map.entry("describedClaimCause", Map.of("enum", causeValues)),
-                                        // Both required: half a detail says nothing and risks a row
-                                        // that can't be stored.
-                                        Map.entry("details", Map.of(
-                                                "type", "array",
-                                                "items", Map.of(
-                                                        "type", "object",
-                                                        "properties", Map.of(
-                                                                "name", Map.of("type", "string"),
-                                                                "value", Map.of("type", "string")),
-                                                        "required", List.of("name", "value"))))
-                                ))
-                ),
+                        "fields", Map.of("type", "object", "properties", fields)),
                 "required", List.of("transcription", "visualFindings")
         );
     }
 
-    /** An empty catalog says so, and the schema then only allows null. */
-    private String promptFor(List<String> claimCauses) {
-        String catalog = claimCauses.isEmpty()
+    /** An empty list says so in the prompt, and the schema then leaves no room for a value. */
+    private String promptFor(Request request) {
+        String catalog = request.claimCauses().isEmpty()
                 ? "(no hay catálogo disponible: devolvé `describedClaimCause` en null)"
-                : String.join("\n", claimCauses.stream().map(cause -> "- " + cause).toList());
-        return documentExtractionPrompt.replace(CATALOG_PLACEHOLDER, catalog);
+                : bulleted(request.claimCauses());
+        String attributes = request.itemAttributes().isEmpty()
+                ? "(esta póliza no declara datos del bien: no devuelvas `itemAttributes`)"
+                : bulleted(request.itemAttributes().stream().map(name -> "`" + name + "`").toList());
+        return documentExtractionPrompt
+                .replace(CATALOG_PLACEHOLDER, catalog)
+                .replace(ITEM_ATTRIBUTES_PLACEHOLDER, attributes);
+    }
+
+    private static String bulleted(List<String> lines) {
+        return String.join("\n", lines.stream().map(line -> "- " + line).toList());
     }
 
     @Override
-    public DocumentExtraction extract(byte[] content, String contentType, List<String> claimCauses) {
+    public DocumentExtraction extract(
+            byte[] content, String contentType, List<String> claimCauses, List<String> itemAttributes) {
         log.info("[LLM] Starting document analysis — model={} contentType={} sizeBytes={} magicBytes={} decodableByJava={}",
                 client.model(), contentType, content.length, magicBytesHex(content), isDecodableImage(content));
 
-        List<String> causes = claimCauses == null ? List.of() : claimCauses;
+        Request request = new Request(
+                claimCauses == null ? List.of() : claimCauses,
+                itemAttributes == null ? List.of() : itemAttributes);
         if (isPdf(contentType, content)) {
-            return extractFromPdf(content, causes);
+            return extractFromPdf(content, request);
         }
-        return extractFromImage(content, causes);
+        return extractFromImage(content, request);
     }
 
     private boolean isPdf(String contentType, byte[] content) {
@@ -157,7 +174,7 @@ public class DocumentAnalyzerImpl implements DocumentAnalyzer {
     }
 
     /** Findings are prefixed with their page so the analyst knows which page to open. */
-    private DocumentExtraction extractFromPdf(byte[] content, List<String> claimCauses) {
+    private DocumentExtraction extractFromPdf(byte[] content, Request request) {
         try (PDDocument document = Loader.loadPDF(content)) {
             PDFRenderer renderer = new PDFRenderer(document);
             int pageCount = Math.min(document.getNumberOfPages(), MAX_PDF_PAGES);
@@ -174,7 +191,7 @@ public class DocumentAnalyzerImpl implements DocumentAnalyzer {
             for (int page = 0; page < pageCount; page++) {
                 log.info("[LLM] Rendering and reading page {}/{}...", page + 1, pageCount);
                 BufferedImage image = renderer.renderImageWithDPI(page, 150);
-                DocumentExtraction pageExtraction = extractFromImage(toPng(image), claimCauses);
+                DocumentExtraction pageExtraction = extractFromImage(toPng(image), request);
 
                 if (pageCount > 1) {
                     transcription.append("--- Página ").append(page + 1).append(" ---\n");
@@ -203,13 +220,17 @@ public class DocumentAnalyzerImpl implements DocumentAnalyzer {
                 accumulated.documentDate() != null ? accumulated.documentDate() : page.documentDate(),
                 accumulated.amount() != null ? accumulated.amount() : page.amount(),
                 accumulated.itemDescription() != null ? accumulated.itemDescription() : page.itemDescription(),
-                accumulated.brand() != null ? accumulated.brand() : page.brand(),
-                accumulated.model() != null ? accumulated.model() : page.model(),
-                accumulated.imei() != null ? accumulated.imei() : page.imei(),
+                mergeItemAttributes(accumulated.itemAttributes(), page.itemAttributes()),
                 accumulated.affectedParty() != null ? accumulated.affectedParty() : page.affectedParty(),
                 accumulated.describedClaimCause() != null
                         ? accumulated.describedClaimCause() : page.describedClaimCause(),
                 mergeDetails(accumulated.details(), page.details()));
+    }
+
+    private Map<String, String> mergeItemAttributes(Map<String, String> accumulated, Map<String, String> page) {
+        Map<String, String> merged = new LinkedHashMap<>(accumulated);
+        page.forEach(merged::putIfAbsent);
+        return merged;
     }
 
     /**
@@ -236,14 +257,14 @@ public class DocumentAnalyzerImpl implements DocumentAnalyzer {
      * A broken answer (cut by the token cap, or stuck repeating digits) is retried: the fields it loses
      * are what the consistency rules compare.
      */
-    private DocumentExtraction extractFromImage(byte[] imageContent, List<String> claimCauses) {
+    private DocumentExtraction extractFromImage(byte[] imageContent, Request request) {
         String base64 = Base64.getEncoder().encodeToString(imageContent);
 
         String content = "";
         for (int attempt = 1; attempt <= MAX_EXTRACTION_ATTEMPTS; attempt++) {
             // No thinking: transcription is mechanical, and reasoning would eat the output budget.
-            content = client.chat(promptFor(claimCauses), List.of(base64), outputSchema(claimCauses), false);
-            DocumentExtraction extraction = parse(content, claimCauses);
+            content = client.chat(promptFor(request), List.of(base64), outputSchema(request), false);
+            DocumentExtraction extraction = parse(content, request);
             if (extraction != null) {
                 log.info("[LLM] Document analysis done — {} chars transcribed, {} visual finding(s)",
                         extraction.transcription().length(), extraction.visualFindings().size());
@@ -258,7 +279,7 @@ public class DocumentAnalyzerImpl implements DocumentAnalyzer {
     }
 
     /** Null when the answer isn't the requested JSON, so the caller can retry. */
-    private DocumentExtraction parse(String contentJson, List<String> claimCauses) {
+    private DocumentExtraction parse(String contentJson, Request request) {
         if (contentJson.isEmpty()) {
             return null;
         }
@@ -269,7 +290,7 @@ public class DocumentAnalyzerImpl implements DocumentAnalyzer {
                     : output.visualFindings().stream().map(this::clean).filter(f -> f != null && !f.isBlank()).toList();
             return new DocumentExtraction(
                     transcription == null || transcription.isBlank() ? UNREADABLE : transcription,
-                    findings, toFields(output.fields(), claimCauses));
+                    findings, toFields(output.fields(), request));
         } catch (Exception e) {
             log.debug("[LLM] Could not parse document extraction: {}", e.getMessage());
             return null;
@@ -327,7 +348,7 @@ public class DocumentAnalyzerImpl implements DocumentAnalyzer {
     }
 
     /** Uninterpretable fields stay null; downstream, null means "not stated", never "inconsistent". */
-    private DocumentExtraction.Fields toFields(ModelFields fields, List<String> claimCauses) {
+    private DocumentExtraction.Fields toFields(ModelFields fields, Request request) {
         if (fields == null) {
             return DocumentExtraction.Fields.none();
         }
@@ -335,12 +356,30 @@ public class DocumentAnalyzerImpl implements DocumentAnalyzer {
                 parseDate(fields.documentDate()),
                 fields.amount(),
                 blankToNull(fields.itemDescription()),
-                blankToNull(fields.brand()),
-                blankToNull(fields.model()),
-                normalizeImei(fields.imei()),
+                toItemAttributes(fields.itemAttributes(), request.itemAttributes()),
                 parseAffectedParty(fields.affectedParty()),
-                matchClaimCause(fields.describedClaimCause(), claimCauses),
+                matchClaimCause(fields.describedClaimCause(), request.claimCauses()),
                 toDetails(fields.details()));
+    }
+
+    /**
+     * Only the names that were asked for, back under the spelling they were asked with: a provider
+     * ignoring the schema could answer under any name, and the comparison looks them up by the policy's.
+     */
+    private Map<String, String> toItemAttributes(Map<String, String> answered, List<String> asked) {
+        if (answered == null) {
+            return Map.of();
+        }
+        Map<String, String> attributes = new LinkedHashMap<>();
+        for (String name : asked) {
+            answered.entrySet().stream()
+                    .filter(entry -> name.equalsIgnoreCase(entry.getKey()))
+                    .map(entry -> blankToNull(entry.getValue()))
+                    .filter(Objects::nonNull)
+                    .findFirst()
+                    .ifPresent(value -> attributes.put(name, value));
+        }
+        return attributes;
     }
 
     /**
@@ -407,14 +446,6 @@ public class DocumentAnalyzerImpl implements DocumentAnalyzer {
         }
     }
 
-    private String normalizeImei(String raw) {
-        if (raw == null) {
-            return null;
-        }
-        String digits = raw.replaceAll("\\D", "");
-        return digits.isEmpty() ? null : digits;
-    }
-
     private String blankToNull(String raw) {
         String cleaned = clean(raw);
         return cleaned == null || cleaned.isBlank() ? null : cleaned.trim();
@@ -429,7 +460,10 @@ public class DocumentAnalyzerImpl implements DocumentAnalyzer {
 
     private record ModelDetail(String name, String value) {}
 
-    private record ModelFields(String documentDate, BigDecimal amount, String itemDescription, String brand,
-                               String model, String imei, String affectedParty, String describedClaimCause,
-                               List<ModelDetail> details) {}
+    private record ModelFields(String documentDate, BigDecimal amount, String itemDescription,
+                               Map<String, String> itemAttributes, String affectedParty,
+                               String describedClaimCause, List<ModelDetail> details) {}
+
+    /** What one extraction is asked for; the same for every page of a document. */
+    private record Request(List<String> claimCauses, List<String> itemAttributes) {}
 }

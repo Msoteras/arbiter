@@ -388,6 +388,18 @@ interface Swatch {
               las plegables.
             </p>
           </app-card>
+          <app-card heading="Título de panel" headingSize="lg">
+            <p class="sg-p">
+              Con <span class="mono">headingSize="lg"</span> el encabezado es el título del panel,
+              para una card que ocupa toda la sección.
+            </p>
+          </app-card>
+          <app-card heading="Título de panel secundario" headingSize="md">
+            <p class="sg-p">
+              Con <span class="mono">headingSize="md"</span>, cuando la página ya muestra un título
+              arriba de la card.
+            </p>
+          </app-card>
           <app-card heading="Plegable" [collapsible]="true">
             <p class="sg-p">
               Con <span class="mono">collapsible</span> la cabecera pliega el cuerpo. Para pantallas

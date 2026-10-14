@@ -204,9 +204,6 @@ public class ClassificationOrchestrator {
         row.setDocumentDate(fields.documentDate());
         row.setAmount(fields.amount());
         row.setItemDescription(fields.itemDescription());
-        row.setBrand(fields.brand());
-        row.setModel(fields.model());
-        row.setImei(fields.imei());
         // NOT NULL column: a null from the extraction means the same as DESCONOCIDO.
         row.setAffectedParty(fields.affectedParty() == null
                 ? DocumentExtraction.AffectedParty.DESCONOCIDO
@@ -215,6 +212,7 @@ public class ClassificationOrchestrator {
         row.setExtractionStatus(extraction.status());
         row.setExtractedAt(Instant.now());
         extraction.visualFindings().forEach(row::addVisualFinding);
+        fields.itemAttributes().forEach(row::addItemAttribute);
         // Both columns are NOT NULL: one incomplete detail would fail the whole insert.
         fields.details().stream()
                 .filter(detail -> StringUtils.hasText(detail.name()) && StringUtils.hasText(detail.value()))
@@ -298,10 +296,13 @@ public class ClassificationOrchestrator {
         // cause a document narrates), the consistency check and the LLM prompt need the coverage flag.
         List<ClassificationRequest.ClaimCauseOption> catalog = claimCauseCatalog(claim, ctx.rules());
         List<String> causeNames = catalog.stream().map(ClassificationRequest.ClaimCauseOption::name).toList();
+        // The documents are read for the same attributes the policy identifies its item by, so the
+        // two can be compared name by name.
+        List<String> itemAttributes = itemAttributeNames(ctx.policy());
 
         List<String> requiredForGate = requiredDocumentTypes(ctx.rules());
         Map<String, DocumentExtraction> gateExtractions =
-                extractRequiredDocuments(documents, requiredForGate, causeNames);
+                extractRequiredDocuments(documents, requiredForGate, causeNames, itemAttributes);
 
         TemporalRuleEvaluator.Result temporal =
                 temporalRuleEvaluator.evaluate(claim, ctx.policy(), ctx.history(), ctx.rules());
@@ -326,7 +327,7 @@ public class ClassificationOrchestrator {
             // Per-insurer: read everything and run the image cascade even on Fast Track, for a complete score.
             boolean fullAnalysis = fullAnalysisOnFastTrack(ctx.rules());
             Map<String, DocumentExtraction> fastTrackExtractions = fullAnalysis
-                    ? extractAllAttachments(documents, gateExtractions, causeNames)
+                    ? extractAllAttachments(documents, gateExtractions, causeNames, itemAttributes)
                     : gateExtractions;
             // With the full analysis on, every attachment was read: compare against all of them.
             ClaimCauseConsistencyEvaluator.Result fastTrackCauseMatch = fullAnalysis
@@ -358,7 +359,8 @@ public class ClassificationOrchestrator {
         log.info("[Orchestrator] Not Fast Track (fastTrack={}, temporalBlock={}, scopeBlock={}, fraudBlock={}). "
                         + "Extracting remaining document(s)...",
                 fastTrack.reasons(), temporal.reasons(), scope.reasons(), fraud.blocksFastTrack());
-        Map<String, DocumentExtraction> extractions = extractAllAttachments(documents, gateExtractions, causeNames);
+        Map<String, DocumentExtraction> extractions =
+                extractAllAttachments(documents, gateExtractions, causeNames, itemAttributes);
         ClaimReport claimWithOcr = withAttachmentsOcr(claim, renderAttachments(documents, extractions));
 
         // Re-evaluated with every document read: the affected party can be in any of them.
@@ -694,8 +696,16 @@ public class ClassificationOrchestrator {
         return thresholds.requiredDocumentTypes();
     }
 
+    private static List<String> itemAttributeNames(InsuredPolicy policy) {
+        if (policy == null || policy.itemAttributes() == null) {
+            return List.of();
+        }
+        return List.copyOf(policy.itemAttributes().keySet());
+    }
+
     private Map<String, DocumentExtraction> extractRequiredDocuments(
-            List<AttachmentDocument> documents, List<String> requiredTypes, List<String> causeNames) {
+            List<AttachmentDocument> documents, List<String> requiredTypes, List<String> causeNames,
+            List<String> itemAttributes) {
         if (requiredTypes.isEmpty()) {
             return Map.of();
         }
@@ -708,7 +718,8 @@ public class ClassificationOrchestrator {
         for (int i = 0; i < toExtract.size(); i++) {
             AttachmentDocument doc = toExtract.get(i);
             log.info("[Orchestrator] Reading document {}/{} with Ollama: '{}'...", i + 1, toExtract.size(), doc.type());
-            extractions.put(doc.type(), documentAnalyzer.extract(doc.content(), doc.contentType(), causeNames));
+            extractions.put(doc.type(),
+                    documentAnalyzer.extract(doc.content(), doc.contentType(), causeNames, itemAttributes));
         }
         log.info("[Orchestrator] Done reading the required document(s)");
         return extractions;
@@ -717,7 +728,7 @@ public class ClassificationOrchestrator {
     /** Reuses the gate's extractions. Keyed by type: the flow assumes one document per type. */
     private Map<String, DocumentExtraction> extractAllAttachments(
             List<AttachmentDocument> documents, Map<String, DocumentExtraction> alreadyExtracted,
-            List<String> causeNames) {
+            List<String> causeNames, List<String> itemAttributes) {
         log.info("[Orchestrator] Reading {} attachment(s) with Ollama: {}",
                 documents.size(), documents.stream().map(AttachmentDocument::type).toList());
         Map<String, DocumentExtraction> extractions = new LinkedHashMap<>();
@@ -730,7 +741,8 @@ public class ClassificationOrchestrator {
             } else {
                 log.info("[Orchestrator] Reading attachment {}/{} with Ollama: '{}'...",
                         i + 1, documents.size(), doc.type());
-                extractions.put(doc.type(), documentAnalyzer.extract(doc.content(), doc.contentType(), causeNames));
+                extractions.put(doc.type(),
+                        documentAnalyzer.extract(doc.content(), doc.contentType(), causeNames, itemAttributes));
             }
         }
         log.info("[Orchestrator] Done reading the attachment(s)");

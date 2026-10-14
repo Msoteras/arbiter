@@ -1,13 +1,14 @@
 @if (loading()) {
   <app-inline-loading [size]="26" message="Cargando puntaje de riesgo…" />
+} @else if (loadFailed()) {
+  <app-card heading="Puntaje de riesgo" headingSize="lg">
+    <p class="t-note load-error" role="alert">No se pudo cargar el puntaje de riesgo.</p>
+    <app-button variant="secondary" size="sm" (click)="load(true)">Reintentar</app-button>
+  </app-card>
 } @else {
-  <app-card @fadeInUp appOnboardingTarget="SCORING">
-    <div class="sc-head">
-      <h2 class="card-title">Puntaje de riesgo</h2>
-      <app-info-tip>{{ stepLine.SCORING }}</app-info-tip>
-      <app-badge variant="solid">Toda la aseguradora</app-badge>
-    </div>
-
+  <app-card heading="Puntaje de riesgo" headingSize="lg" @fadeInUp appOnboardingTarget="SCORING">
+    <app-info-tip cardAside>{{ stepLine.SCORING }}</app-info-tip>
+    <app-badge cardAside variant="solid">Toda la aseguradora</app-badge>
     <div class="sc-section">
       <div class="sc-section-head">
         <span class="t-section-label">Factores y pesos</span>
@@ -15,9 +16,9 @@
       </div>
 
       @for (group of factorGroups; track group.title) {
-        <p class="sc-group">
-          {{ group.title }} <span class="sc-group-hint">· {{ group.hint }}</span>
-        </p>
+        <h3 class="sc-group">
+          {{ group.title }} <span class="sc-group-hint">{{ group.hint }}</span>
+        </h3>
         @if (group.heavy) {
           <!-- Inside the group it affects, not in the branch's Fast Track tab: the flag is
              insurer-wide, saved with scoring, and only decides whether these factors run. -->
@@ -58,7 +59,6 @@
                     [value]="factorWeightPct(f.id)"
                     (valueChange)="setFactorWeight(f.id, $event)"
                   />
-                  <span class="t-note">%</span>
                 </div>
               } @else {
                 <span class="rule-off-note t-note">No se evalúa</span>
@@ -97,7 +97,6 @@
                 [value]="band === 'LOW' ? '0' : bandCutPct(band)"
                 (valueChange)="setBandCut(band, $event)"
               />
-              <span class="t-note">%</span>
             </label>
           </li>
         }

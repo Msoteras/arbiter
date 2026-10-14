@@ -4,14 +4,6 @@
   gap: var(--space-4);
 }
 
-.gf-head {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-.gf-head h2 {
-  margin: 0;
-}
 .sc-section-head {
   display: flex;
   align-items: center;
@@ -20,8 +12,6 @@
   flex-wrap: wrap;
   margin-bottom: var(--space-2);
 }
-
-/* No max-width on purpose: the hint uses the card's full width like the rest of the rules screen. */
 
 /* Same row classes as the other rule tabs; view encapsulation forces repeating them here. */
 .rule-rows {
@@ -50,22 +40,12 @@
   gap: var(--space-2);
   flex: 0 0 auto;
 }
+.rule-off-note {
+  flex: 0 0 auto;
+  font-style: italic;
+}
 .rule-row.off .rule-text {
   opacity: 0.55;
-}
-
-/* Limit the input's width, not the row's, or the label wraps with half the card free. */
-.window app-input {
-  width: 88px;
-}
-/* The years equivalent goes below the unit: inline it pushed the field. */
-.window {
-  flex-wrap: wrap;
-  justify-content: flex-end;
-}
-.window-eq {
-  flex-basis: 100%;
-  text-align: right;
 }
 
 .warn-note {

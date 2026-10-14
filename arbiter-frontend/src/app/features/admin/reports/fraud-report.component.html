@@ -198,7 +198,13 @@
                        signals. -->
                   <div class="signals">
                     @for (indicator of indicators(row); track indicator) {
-                      <app-badge>{{ indicator }}</app-badge>
+                      <!-- The document note is a sentence, sometimes several: a badge never wraps
+                           and it ran over the next column. -->
+                      @if (indicator === row.documentInconsistencyNote) {
+                        <span class="signal-note">{{ indicator }}</span>
+                      } @else {
+                        <app-badge>{{ indicator }}</app-badge>
+                      }
                     }
                   </div>
                   @if (row.fraudDetermined) {

@@ -17,6 +17,7 @@ import ar.edu.utn.frba.arbiter.cases.config.tenant.CallerContext;
 import ar.edu.utn.frba.arbiter.cases.support.CaseFixtures;
 import ar.edu.utn.frba.arbiter.cases.support.CaseStates;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
+import ar.edu.utn.frba.arbiter.common.enums.InsuredStatus;
 import ar.edu.utn.frba.arbiter.common.models.entities.CaseState;
 import ar.edu.utn.frba.arbiter.common.models.entities.User;
 import org.junit.jupiter.api.AfterEach;
@@ -272,6 +273,7 @@ class CaseMessageServiceTest {
         assertThat(inbox.get(0).lastMessageBody()).isEqualTo("¿Cómo viene?");
         assertThat(inbox.get(0).unreadCount()).isEqualTo(1);
         assertThat(inbox.get(1).unreadCount()).isZero();
+        assertThat(inbox.get(0).status()).isEqualTo(CaseStatus.AWAITING_DOCUMENTATION);
     }
 
     /** Each claim is a conversation, written on or not; messages are looked up in each insurer's schema. */
@@ -296,6 +298,10 @@ class CaseMessageServiceTest {
         assertThat(inbox.get(0).unreadCount()).isEqualTo(1);
         assertThat(inbox.get(1).lastMessageBody()).isNull();
         assertThat(inbox.get(1).unreadCount()).isZero();
+        // The insured reads their own status, never the internal one.
+        assertThat(inbox).extracting(CaseMessageInboxItemResponse::status).containsOnlyNulls();
+        assertThat(inbox).extracting(row -> row.insuredStatus().code())
+                .containsExactly(InsuredStatus.UNDER_VERIFICATION, InsuredStatus.UNDER_ANALYSIS);
     }
 
     @Test

@@ -57,6 +57,7 @@ import { ProvidersConfigComponent } from '../providers-config/providers-config.c
 import { ResolutionTargetConfigComponent } from '../resolution-target-config/resolution-target-config.component';
 import { RuleHistoryComponent } from '../rule-history/rule-history.component';
 import { SaveBarComponent } from '../../../shared/ui/save-bar/save-bar.component';
+import { MonthsInputComponent } from './months-input.component';
 import { StringListEditorComponent } from './string-list-editor.component';
 import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
 import { InfoTipComponent } from '../../../shared/ui/info-tip/info-tip.component';
@@ -72,6 +73,11 @@ import { accordion, fadeInUp, listStagger, staggerReveal } from '../../../shared
 import { OnboardingTargetDirective } from '../../../core/onboarding/onboarding-target.directive';
 
 type TabId = 'coverages' | 'exclusions' | 'fastTrack' | 'documents' | 'rules';
+
+/** The backend stores whole months; a typed fraction (1,5 años is fine, 1,5 meses isn't) is rounded. */
+function wholeMonths(months: number | null): number | null {
+  return months == null ? null : Math.max(0, Math.round(months));
+}
 
 /** Right-panel views that don't depend on the selected branch. */
 type GeneralView =
@@ -99,6 +105,7 @@ type GeneralView =
     RuleHistoryComponent,
     SaveBarComponent,
     StringListEditorComponent,
+    MonthsInputComponent,
     InlineLoadingComponent,
     InfoTipComponent,
     BadgeComponent,
@@ -1110,12 +1117,6 @@ export class RulesComponent {
     return this.insurerHardRules().find((r) => r.ruleType === 'POLICY_IN_FORCE');
   }
 
-  /** Enabled isn't enough: with `STANDBY` the claim is created and arrears evaluated later. */
-  protected arrearsBlocks(): boolean {
-    const rule = this.policyStandingRule();
-    return rule?.enabled === true && rule.onArrears === 'REJECT';
-  }
-
   protected saveHardStop(): void {
     if (this.hardStopSaving()) {
       return;
@@ -1136,8 +1137,9 @@ export class RulesComponent {
     });
   }
 
-  protected isCauseExcluded(c: Coverage, causeId: number): boolean {
-    return (c.excludedClaimCauseIds ?? []).includes(causeId);
+  /** Stored as a deny-list; the panel shows its complement, which is what the referent thinks in. */
+  protected isCauseCovered(c: Coverage, causeId: number): boolean {
+    return !(c.excludedClaimCauseIds ?? []).includes(causeId);
   }
 
   /**
@@ -1281,15 +1283,21 @@ export class RulesComponent {
       chips.push(`Denuncia ${c.reportingWindowDays} d`);
     }
     const police = this.hardRulesOf(c).find((r) => r.ruleType === 'POLICE_DEADLINE');
-    if (police?.deadlineHours != null) {
+    if (police?.deadlineHours != null && this.coversACauseWithPoliceReport(c)) {
       chips.push(`Policial ${police.deadlineHours} h`);
     }
     if (c.maxAnnualClaims != null) {
       chips.push(`Máx. ${c.maxAnnualClaims}/año`);
     }
-    const excluded = (c.excludedClaimCauseIds ?? []).length;
-    if (excluded > 0) {
-      chips.push(excluded === 1 ? '1 hecho excluido' : `${excluded} hechos excluidos`);
+    // Covering everything already has its own badge; an unloaded catalog would read as "none".
+    const causes = this.claimCauses();
+    if (this.hasExcludedCauses(c) && causes.length > 0) {
+      const covered = causes.filter((cause) => this.isCauseCovered(c, cause.id));
+      chips.push(
+        covered.length > 0
+          ? `Cubre ${covered.map((cause) => cause.name).join(', ')}`
+          : 'No cubre ningún hecho',
+      );
     }
     return chips;
   }
@@ -1302,11 +1310,26 @@ export class RulesComponent {
     'MAX_EVENTS_YEAR',
   ];
 
+  /** The police deadline is left out when the coverage has no police report to time. */
   protected orderedHardRules(c: Coverage): HardRule[] {
     const rules = this.hardRulesOf(c);
-    return RulesComponent.HARD_RULE_ORDER.map((type) =>
-      rules.find((r) => r.ruleType === type),
-    ).filter((r): r is HardRule => r != null);
+    const policeReportApplies = this.coversACauseWithPoliceReport(c);
+    return RulesComponent.HARD_RULE_ORDER.filter(
+      (type) => type !== 'POLICE_DEADLINE' || policeReportApplies,
+    )
+      .map((type) => rules.find((r) => r.ruleType === type))
+      .filter((r): r is HardRule => r != null);
+  }
+
+  /**
+   * Read off the drafts of both tabs, so the rule shows up as the referent picks the covered causes
+   * or edits the document schedule. The engine applies the same test to each claim.
+   */
+  private coversACauseWithPoliceReport(c: Coverage): boolean {
+    return this.claimCauses().some(
+      (cause) =>
+        this.isCauseCovered(c, cause.id) && this.isDocRequiredFor(cause.id, 'police_report'),
+    );
   }
 
   protected hardRuleUnit(type: HardRuleType): string {
@@ -1468,16 +1491,16 @@ export class RulesComponent {
     }
   }
 
-  protected setMinPolicyAge(v: string): void {
-    this.patchFastTrack((ft) => ({ ...ft, minPolicyAgeMonths: this.intFromStr(v) }));
+  protected setMinPolicyAge(months: number | null): void {
+    this.patchFastTrack((ft) => ({ ...ft, minPolicyAgeMonths: wholeMonths(months) }));
   }
 
   protected setMaxPriorClaims(v: string): void {
     this.patchFastTrack((ft) => ({ ...ft, maxPriorClaims: this.intFromStr(v) }));
   }
 
-  protected setPriorClaimsWindow(v: string): void {
-    this.patchFastTrack((ft) => ({ ...ft, priorClaimsWindowMonths: this.intFromStr(v) }));
+  protected setPriorClaimsWindow(months: number | null): void {
+    this.patchFastTrack((ft) => ({ ...ft, priorClaimsWindowMonths: wholeMonths(months) }));
   }
 
   protected setFtMaxRatio(v: string): void {
@@ -1536,14 +1559,8 @@ export class RulesComponent {
     this.patchFastTrack((ft) => ({ ...ft, criteria: items }));
   }
 
-  protected ftMinAgeStr(): string {
-    return this.intStr(this.draft()?.fastTrack.minPolicyAgeMonths);
-  }
   protected ftMaxPriorStr(): string {
     return this.intStr(this.draft()?.fastTrack.maxPriorClaims);
-  }
-  protected ftWindowStr(): string {
-    return this.intStr(this.draft()?.fastTrack.priorClaimsWindowMonths);
   }
   protected ftMaxRatioPct(): string {
     return this.pctFromRatio(this.draft()?.fastTrack.maxClaimedAmountRatio ?? null);

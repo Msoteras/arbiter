@@ -8,6 +8,7 @@ import ar.edu.utn.frba.arbiter.cases.models.entities.CaseSettlement;
 import ar.edu.utn.frba.arbiter.cases.models.entities.CaseReferral;
 import ar.edu.utn.frba.arbiter.cases.services.CaseStatusService;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
+import ar.edu.utn.frba.arbiter.common.enums.InsuredStatus;
 import ar.edu.utn.frba.arbiter.common.enums.RiskBand;
 import ar.edu.utn.frba.arbiter.common.enums.SettlementStatus;
 import jakarta.persistence.criteria.Predicate;
@@ -87,6 +88,12 @@ public final class CaseSpecifications {
             Predicate closed = root.get("currentStatus").get("name").in(terminal);
             return scope == CaseScope.CLOSED ? closed : cb.not(closed);
         };
+    }
+
+    /** By what the insured is told, so their own filter never names an internal status. */
+    public static Specification<Case> insuredStatus(List<InsuredStatus> statuses) {
+        return statuses == null || statuses.isEmpty() ? null
+                : (root, query, cb) -> root.get("currentStatus").get("insuredStatusCode").in(statuses);
     }
 
     public static Specification<Case> followUp(CaseFollowUp followUp) {

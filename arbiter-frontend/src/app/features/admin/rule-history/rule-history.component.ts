@@ -43,8 +43,10 @@ const LIST_FIELDS = new Set([
   'configuration',
 ]);
 
-/** Fractions the configuration screens edit as percentages: Fast Track cap, factor weight, band cut. */
-const PERCENT_FIELDS = new Set(['maxClaimedAmountRatio', 'weight', 'minScoreInclusive']);
+/** Fractions the configuration screens edit as percentages: the Fast Track cap. */
+const PERCENT_FIELDS = new Set(['maxClaimedAmountRatio']);
+
+const SCALED_FIELDS = new Set(['weight', 'minScoreInclusive']);
 
 /** Keys that identify a list element; the element is already named by the row's qualifier. */
 const IDENTITY_FIELDS = new Set(['factorId', 'band']);
@@ -294,10 +296,13 @@ export class RuleHistoryComponent {
     if (value === null || value === '') {
       return '—';
     }
-    // Stored as fractions (0..1); the configuration screens show them as percentages.
+    // Stored as fractions (0..1); the configuration screens show them out of 100.
     const n = Number(value);
     if (PERCENT_FIELDS.has(field) && Number.isFinite(n)) {
       return `${Math.round(n * 1000) / 10}%`;
+    }
+    if (SCALED_FIELDS.has(field) && Number.isFinite(n)) {
+      return (n * 100).toLocaleString('es-AR', { maximumFractionDigits: 1 });
     }
     if (value === 'true') {
       return 'Sí';

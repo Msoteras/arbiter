@@ -1,12 +1,14 @@
 @if (loading()) {
   <app-inline-loading [size]="26" message="Cargando atribuciones…" />
 } @else {
-  <header class="at-head" @fadeInUp>
-    <h2 class="t-section-label">Atribuciones de liquidación</h2>
-    <app-info-tip>{{ stepLine.AUTHORITIES }}</app-info-tip>
-  </header>
+  <app-card
+    heading="Atribuciones de liquidación"
+    headingSize="lg"
+    @fadeInUp
+    appOnboardingTarget="AUTHORITIES"
+  >
+    <app-info-tip cardAside>{{ stepLine.AUTHORITIES }}</app-info-tip>
 
-  <app-card @fadeInUp appOnboardingTarget="AUTHORITIES">
     <div class="at-section-head">
       <span class="t-section-label">Tope por ramo</span>
       <app-info-tip>Sin tope, el analista autoriza cualquier monto.</app-info-tip>

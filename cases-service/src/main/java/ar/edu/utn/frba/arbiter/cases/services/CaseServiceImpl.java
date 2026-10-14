@@ -1,6 +1,9 @@
 package ar.edu.utn.frba.arbiter.cases.services;
 
+import org.springframework.data.domain.Sort;
+import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseStateRepository;
 import ar.edu.utn.frba.arbiter.cases.dto.AnalystDecisionRequest;
+import ar.edu.utn.frba.arbiter.cases.dto.AnalystDecisionResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.AnalystWorkloadResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.AssignedCaseSummaryResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseDocumentResponse;
@@ -10,6 +13,7 @@ import ar.edu.utn.frba.arbiter.cases.dto.CaseRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.DocumentAnalysisSummary;
 import ar.edu.utn.frba.arbiter.cases.dto.EligibilityCheckRequest;
+import ar.edu.utn.frba.arbiter.cases.dto.InsuredStatusResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.IntakeDocumentsResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.EligibilityCheckResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.LensSummaryResponse;
@@ -30,6 +34,7 @@ import ar.edu.utn.frba.arbiter.cases.exceptions.CaseNotAssignedException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CaseNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CoverageNotConfiguredException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.DocumentNotFoundException;
+import ar.edu.utn.frba.arbiter.cases.exceptions.DocumentTypeNotAllowedException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.DocumentReadException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.InsuredIdentityMismatchException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.RulesUnavailableException;
@@ -60,6 +65,7 @@ import ar.edu.utn.frba.arbiter.cases.models.repositories.UserRepository;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.ClaimsAnalyst;
 import ar.edu.utn.frba.arbiter.common.dto.RuleResultResponse;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
+import ar.edu.utn.frba.arbiter.common.enums.InsuredStatus;
 import ar.edu.utn.frba.arbiter.common.enums.CauseConsistency;
 import ar.edu.utn.frba.arbiter.common.enums.ClassificationFailureReason;
 import ar.edu.utn.frba.arbiter.common.enums.SettlementStatus;
@@ -77,6 +83,8 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.math.BigDecimal;
+import java.text.NumberFormat;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -84,11 +92,15 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 @Service
@@ -113,6 +125,7 @@ public class CaseServiceImpl implements CaseService {
     private final SettlementService settlementService;
     private final UserRepository userRepository;
     private final InsurerRepository insurerRepository;
+    private final CaseStateRepository caseStateRepository;
     private final PolicyService policyService;
     private final InsurerTenantScope tenantScope;
     // Same clock as DeadlineSweepScheduler, so the read model and the sweep agree on priorities.
@@ -162,6 +175,7 @@ public class CaseServiceImpl implements CaseService {
     private CaseResponse createCaseInIssuingTenant(CaseRequest request, Map<String, MultipartFile> documents) {
         // Validated rather than silently overwritten: a mismatch means the client sent something wrong.
         assertFilingOwnClaim(request.insuredId());
+        assertUploadableByTheInsured(documents);
 
         // The insured resolves first: an unsynced policy imported from the insurer DB needs a holder.
         Insured insured = referenceResolver.applyDeclaredDetails(
@@ -337,6 +351,7 @@ public class CaseServiceImpl implements CaseService {
         return tenantScope.forCase(caseId, insurerSlug, () -> {
             // An insured may only add documents to their own case.
             Case entity = readableCase(caseId);
+            assertUploadableByTheInsured(documents);
 
             storeDocuments(caseId, documents);
 
@@ -376,8 +391,34 @@ public class CaseServiceImpl implements CaseService {
         return toResponse(entity);
     }
 
+    private static final Locale AR = Locale.forLanguageTag("es-AR");
+
     /** The multipart part carrying the case JSON itself; never stored or sent to OCR as a document. */
     private static final String CASE_PAYLOAD_KEY = "case";
+
+    /** Answers to a referral, attached by the analyst: internal to the insurer like the referral itself. */
+    private static final Set<String> PROVIDER_REPORT_TYPES = Set.of(
+            CaseReferralService.REPORT_DOCUMENT_TYPE, CaseReferralService.REPAIR_DOCUMENT_TYPE);
+
+    private boolean hiddenFromCaller(CaseDocument document) {
+        return accessPolicy.currentUserIsInsured() && PROVIDER_REPORT_TYPES.contains(document.getType());
+    }
+
+    /**
+     * Documents are upserted by type, so a part keyed as a provider's report would replace it.
+     * Checked before anything is stored, so a rejected upload leaves no document behind.
+     */
+    private static void assertUploadableByTheInsured(Map<String, MultipartFile> documents) {
+        if (documents == null) {
+            return;
+        }
+        documents.keySet().stream()
+                .filter(PROVIDER_REPORT_TYPES::contains)
+                .findFirst()
+                .ifPresent(type -> {
+                    throw new DocumentTypeNotAllowedException(type);
+                });
+    }
 
     /** Replaces any prior document of the same type. */
     private void storeDocuments(Long caseId, Map<String, MultipartFile> documents) {
@@ -431,16 +472,19 @@ public class CaseServiceImpl implements CaseService {
     }
 
     @Override
-    public Page<CaseResponse> listCases(List<CaseStatus> status, String claimCause, String policyNumber,
+    public Page<CaseResponse> listCases(List<CaseStatus> status, List<InsuredStatus> insuredStatus,
+                                         String claimCause, String policyNumber,
                                          String insuredId, LocalDate eventDateFrom, LocalDate eventDateTo,
                                          String q, RiskBand riskBand, Long analystId, boolean assignedToMe,
                                          boolean unassigned, boolean fraudAlert, boolean assigned,
                                          boolean dueSoon, CaseFollowUp followUp, Integer staleDays,
                                          CaseScope scope, Long insurerId, Pageable pageable) {
         if (accessPolicy.currentUserIsInsured()) {
-            // Across all of the insured's insurers; the inbox lenses don't apply to them.
+            // Across all of the insured's insurers; the inbox lenses don't apply to them. Nor do
+            // the risk band and the internal status: filtering by either would tell them their own.
+            // They filter by the status they are told instead.
             return toInsuredResponses(insuredCaseAggregator.findOwnCases(
-                    status, claimCause, policyNumber, eventDateFrom, eventDateTo, q, riskBand, scope,
+                    insuredStatus, claimCause, policyNumber, eventDateFrom, eventDateTo, q, null, scope,
                     insurerId, pageable));
         }
 
@@ -459,7 +503,23 @@ public class CaseServiceImpl implements CaseService {
                 ownerId, unassigned, fraudAlert, assigned), dueSoon), CaseSpecifications.scope(scope));
         spec = and(spec, withStale(staleDays));
         spec = and(spec, CaseSpecifications.followUp(followUp));
+        spec = and(spec, CaseSpecifications.insuredStatus(insuredStatus));
         return toResponses(caseRepository.findAll(spec, pageable));
+    }
+
+    /** One entry per code, in the enum's order (the life of a claim); statuses sharing a code share its label. */
+    @Override
+    public List<InsuredStatusResponse> insuredStatuses() {
+        return caseStateRepository.findAll(Sort.by("id")).stream()
+                .map(InsuredStatusResponse::from)
+                .filter(distinctBy(InsuredStatusResponse::code))
+                .sorted(Comparator.comparing(InsuredStatusResponse::code))
+                .toList();
+    }
+
+    private static <T, K> Predicate<T> distinctBy(Function<T, K> key) {
+        Set<K> seen = new HashSet<>();
+        return item -> seen.add(key.apply(item));
     }
 
     private static Specification<Case> and(Specification<Case> base, Specification<Case> extra) {
@@ -647,6 +707,7 @@ public class CaseServiceImpl implements CaseService {
         return tenantScope.forCase(caseId, insurerSlug, () -> {
             readableCase(caseId);
             return caseDocumentRepository.findByCaseId(caseId).stream()
+                    .filter(doc -> !hiddenFromCaller(doc))
                     .map(CaseDocumentResponse::from)
                     .toList();
         });
@@ -663,6 +724,8 @@ public class CaseServiceImpl implements CaseService {
             readableCase(caseId);
             return caseDocumentRepository.findById(documentId)
                     .filter(doc -> doc.getCaseId().equals(caseId))
+                    // 404, as if it didn't exist: a 403 would confirm the case went to an expert.
+                    .filter(doc -> !hiddenFromCaller(doc))
                     .orElseThrow(() -> new DocumentNotFoundException(caseId, documentId));
         });
     }
@@ -733,6 +796,12 @@ public class CaseServiceImpl implements CaseService {
             CaseSettlement settlement = settlementService.confirm(
                     entity, analyst.getId(), request.justification(), request.settlement());
             if (settlement.getStatus() == SettlementStatus.PENDING_AUTHORIZATION) {
+                // The case doesn't move, so without this row the history never says why it waits.
+                caseStatusService.recordNote(entity, StatusChangeActor.ANALYST,
+                        "liquidación de %s enviada al referente: supera la atribución del ramo (%s)"
+                                .formatted(money(settlement.getSettledAmount()),
+                                        money(settlement.getAuthorityLimit())),
+                        null);
                 return;
             }
         }
@@ -756,6 +825,22 @@ public class CaseServiceImpl implements CaseService {
                 StatusChangeActor.ANALYST, "decisión del analista: " + decision);
     }
 
+    @Override
+    public Optional<AnalystDecisionResponse> getAnalystDecision(Long caseId) {
+        Case entity = caseRepository.findById(caseId)
+                .orElseThrow(() -> new CaseNotFoundException(caseId));
+        accessPolicy.assertCanRead(entity);
+
+        boolean resolved = entity.getStatus() == CaseStatus.APPROVED
+                || entity.getStatus() == CaseStatus.REJECTED;
+        if (!resolved || entity.getClassificationId() == null) {
+            return Optional.empty();
+        }
+        return caseAnalysisRepository.findDecision(entity.getClassificationId())
+                .map(decision -> new AnalystDecisionResponse(
+                        decision.decision(), decision.justification(), decision.decidedAt()));
+    }
+
     /** Records the held decision with its justification, then approves the case (which emails the amount). */
     @Override
     @Transactional
@@ -769,6 +854,8 @@ public class CaseServiceImpl implements CaseService {
         Long analystId = pending.getAnalystId();
 
         settlementService.markAuthorized(caseId, currentUserId());
+        caseStatusService.recordNote(entity, StatusChangeActor.REFERENT,
+                "liquidación autorizada por el referente", null);
         resolve(entity, CaseStatus.APPROVED, analystId, "APPROVE", justification);
     }
 
@@ -776,7 +863,15 @@ public class CaseServiceImpl implements CaseService {
     @Override
     @Transactional
     public void returnSettlement(Long caseId, String reason) {
+        Case entity = caseRepository.findById(caseId)
+                .orElseThrow(() -> new CaseNotFoundException(caseId));
         settlementService.returnToAnalyst(caseId, currentUserId(), reason);
+        caseStatusService.recordNote(entity, StatusChangeActor.REFERENT,
+                "liquidación devuelta por el referente", reason.trim());
+    }
+
+    private static String money(BigDecimal amount) {
+        return amount == null ? "—" : NumberFormat.getCurrencyInstance(AR).format(amount);
     }
 
     private Long currentUserId() {
@@ -818,11 +913,12 @@ public class CaseServiceImpl implements CaseService {
                 ? CaseAnalysis.none()
                 : analysis;
 
-        return new CaseResponse(
+        CaseResponse response = new CaseResponse(
                 entity.getId(),
                 insurerSlug,
                 insurerName,
                 entity.getStatus(),
+                InsuredStatusResponse.from(entity.getCurrentStatus()),
                 entity.getClaimCause().getBranch().getName(),
                 entity.getPolicy().getProduct(),
                 entity.getClaimCause().getName(),
@@ -860,6 +956,8 @@ public class CaseServiceImpl implements CaseService {
                 traceability.policySnapshot(),
                 repairProvider
         );
+        // Trimmed here, where every case response is built, so no endpoint can skip it.
+        return accessPolicy.currentUserIsInsured() ? response.forInsured() : response;
     }
 
     /** Only while the item is at the repair shop, and only in the detail since it costs a query. */
@@ -887,7 +985,7 @@ public class CaseServiceImpl implements CaseService {
         }
     }
 
-    /** Empty for the insured: this is the analyst's audit trail. */
+    /** Skipped for the insured, who never gets it: saves the round trip to classification-service. */
     private Traceability traceabilityOf(Case entity) {
         if (accessPolicy.currentUserIsInsured()) {
             return Traceability.none();

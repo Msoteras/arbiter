@@ -233,13 +233,13 @@ const HURTO = {
   },
 };
 
-// ── Daño accidental ──────────────────────────────────────────────────────────
+// ── Rotura accidental (cobertura Daño accidental) ──────────────────────────────────────────────────────────
 // El hecho generador propio del ramo: sin denuncia policial y con el presupuesto de reparación como
 // documento central. El monto reclamado ya no es el valor del equipo sino el costo de arreglarlo.
 const DANIO_EVENT = ayerA(10, 15);
 const DANIO = {
   folder: 'danio_acc',
-  claimCause: 'Daño accidental',
+  claimCause: 'Rotura accidental',
   documents: ['purchase_proof', 'repair_quote'],
   event: DANIO_EVENT,
   claimedAmount: 757000,

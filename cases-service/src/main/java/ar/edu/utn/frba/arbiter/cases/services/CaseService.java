@@ -1,12 +1,14 @@
 package ar.edu.utn.frba.arbiter.cases.services;
 
 import ar.edu.utn.frba.arbiter.cases.dto.AnalystDecisionRequest;
+import ar.edu.utn.frba.arbiter.cases.dto.AnalystDecisionResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.AnalystWorkloadResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.AssignedCaseSummaryResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseDocumentResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseFollowUp;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseScope;
 import ar.edu.utn.frba.arbiter.cases.dto.EligibilityCheckRequest;
+import ar.edu.utn.frba.arbiter.cases.dto.InsuredStatusResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.IntakeDocumentsResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.EligibilityCheckResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.LensSummaryResponse;
@@ -15,6 +17,7 @@ import ar.edu.utn.frba.arbiter.cases.dto.CaseResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.PolicyResponse;
 import ar.edu.utn.frba.arbiter.cases.models.entities.CaseDocument;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
+import ar.edu.utn.frba.arbiter.common.enums.InsuredStatus;
 import ar.edu.utn.frba.arbiter.common.enums.RiskBand;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -23,6 +26,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 public interface CaseService {
 
@@ -62,7 +66,8 @@ public interface CaseService {
      * with no analyst profile gets an empty page, not everything. {@code analystId} is the referent's
      * filter.
      */
-    Page<CaseResponse> listCases(List<CaseStatus> status, String claimCause, String policyNumber, String insuredId,
+    Page<CaseResponse> listCases(List<CaseStatus> status, List<InsuredStatus> insuredStatus,
+                                  String claimCause, String policyNumber, String insuredId,
                                   LocalDate eventDateFrom, LocalDate eventDateTo, String q, RiskBand riskBand,
                                   Long analystId, boolean assignedToMe, boolean unassigned, boolean fraudAlert,
                                   boolean assigned, boolean dueSoon, CaseFollowUp followUp, Integer staleDays,
@@ -71,9 +76,12 @@ public interface CaseService {
     default Page<CaseResponse> listCases(List<CaseStatus> status, String claimCause, String policyNumber, String insuredId,
                                           LocalDate eventDateFrom, LocalDate eventDateTo, String q, RiskBand riskBand,
                                           boolean assignedToMe, Pageable pageable) {
-        return listCases(status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
+        return listCases(status, null, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
                 null, assignedToMe, false, false, false, false, null, null, CaseScope.ALL, null, pageable);
     }
+
+    /** The statuses an insured can be told, each with its label, for their filter. */
+    List<InsuredStatusResponse> insuredStatuses();
 
     /** All lens counts at once, over the same filters as the listing, using {@code count(spec)}. */
     LensSummaryResponse lensSummary(List<CaseStatus> status, String claimCause, String policyNumber,
@@ -105,6 +113,12 @@ public interface CaseService {
     void recordAnalystDecision(Long caseId, AnalystDecisionRequest request);
 
     void authorizeSettlement(Long caseId);
+
+    /**
+     * Empty unless the case is resolved: a reopened case still points at its previous verdict, which
+     * is no longer what it stands on.
+     */
+    Optional<AnalystDecisionResponse> getAnalystDecision(Long caseId);
 
     /** The case doesn't move: it never left the analyst's review. */
     void returnSettlement(Long caseId, String reason);

@@ -123,7 +123,7 @@ class CaseControllerTest {
     void listCases_noFilters_returnsPagedContent() throws Exception {
         CaseResponse case1 = caseResponse(2L, CaseStatus.PENDING_ANALYST_REVIEW);
         CaseResponse case2 = caseResponse(1L, CaseStatus.APPROVED);
-        when(caseService.listCases(isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), eq(false), eq(false), eq(false), eq(false), eq(false), isNull(), isNull(), eq(CaseScope.ALL), isNull(), eq(DEFAULT_PAGEABLE)))
+        when(caseService.listCases(isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), eq(false), eq(false), eq(false), eq(false), eq(false), isNull(), isNull(), eq(CaseScope.ALL), isNull(), eq(DEFAULT_PAGEABLE)))
                 .thenReturn(new PageImpl<>(List.of(case1, case2), DEFAULT_PAGEABLE, 2));
 
         mockMvc.perform(get("/api/v1/cases"))
@@ -137,7 +137,7 @@ class CaseControllerTest {
     @Test
     void listCases_sortByResponseDeadline_isAccepted() throws Exception {
         Pageable byDeadline = PageRequest.of(0, 20, Sort.by(Sort.Direction.ASC, "responseDeadline"));
-        when(caseService.listCases(isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
+        when(caseService.listCases(isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
                 isNull(), isNull(), eq(false), eq(false), eq(false), eq(false), eq(false), isNull(), isNull(), eq(CaseScope.ALL), isNull(), eq(byDeadline)))
                 .thenReturn(new PageImpl<>(List.of(caseResponse(1L, CaseStatus.PENDING_ANALYST_REVIEW)),
                         byDeadline, 1));
@@ -150,7 +150,7 @@ class CaseControllerTest {
     @Test
     void listCases_withStatusFilter_passesStatusThrough() throws Exception {
         CaseResponse response = caseResponse(1L, CaseStatus.PENDING_ANALYST_REVIEW);
-        when(caseService.listCases(eq(List.of(CaseStatus.PENDING_ANALYST_REVIEW)), isNull(), isNull(), isNull(),
+        when(caseService.listCases(eq(List.of(CaseStatus.PENDING_ANALYST_REVIEW)), isNull(), isNull(), isNull(), isNull(),
                 isNull(), isNull(), isNull(), isNull(), isNull(), eq(false), eq(false), eq(false), eq(false), eq(false), isNull(), isNull(), eq(CaseScope.ALL), isNull(), eq(DEFAULT_PAGEABLE)))
                 .thenReturn(new PageImpl<>(List.of(response), DEFAULT_PAGEABLE, 1));
 
@@ -163,7 +163,7 @@ class CaseControllerTest {
     @Test
     void listCases_withInsuredIdFilter_passesInsuredIdThrough() throws Exception {
         CaseResponse response = caseResponse(1L, CaseStatus.PENDING_CLASSIFICATION);
-        when(caseService.listCases(isNull(), isNull(), isNull(), eq("40.123.456"), isNull(), isNull(), isNull(), isNull(), isNull(), eq(false), eq(false), eq(false), eq(false), eq(false), isNull(), isNull(), eq(CaseScope.ALL), isNull(), eq(DEFAULT_PAGEABLE)))
+        when(caseService.listCases(isNull(), isNull(), isNull(), isNull(), eq("40.123.456"), isNull(), isNull(), isNull(), isNull(), isNull(), eq(false), eq(false), eq(false), eq(false), eq(false), isNull(), isNull(), eq(CaseScope.ALL), isNull(), eq(DEFAULT_PAGEABLE)))
                 .thenReturn(new PageImpl<>(List.of(response), DEFAULT_PAGEABLE, 1));
 
         mockMvc.perform(get("/api/v1/cases").param("insuredId", "40.123.456"))
@@ -175,7 +175,7 @@ class CaseControllerTest {
     @Test
     void listCases_withRiskBandFilter_passesRiskBandThrough() throws Exception {
         CaseResponse response = caseResponse(1L, CaseStatus.PENDING_ANALYST_REVIEW);
-        when(caseService.listCases(isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
+        when(caseService.listCases(isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
                 eq(RiskBand.HIGH), isNull(), eq(false), eq(false), eq(false), eq(false), eq(false), isNull(), isNull(), eq(CaseScope.ALL), isNull(), eq(DEFAULT_PAGEABLE)))
                 .thenReturn(new PageImpl<>(List.of(response), DEFAULT_PAGEABLE, 1));
 
@@ -189,7 +189,7 @@ class CaseControllerTest {
         // "Mine" travels as a flag: the service resolves "me" from the token, because the analyst
         // id is local to each insurer's schema.
         CaseResponse response = caseResponse(1L, CaseStatus.PENDING_ANALYST_REVIEW);
-        when(caseService.listCases(isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
+        when(caseService.listCases(isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
                 isNull(), isNull(), eq(true), eq(false), eq(false), eq(false), eq(false), isNull(), isNull(), eq(CaseScope.ALL), isNull(), eq(DEFAULT_PAGEABLE)))
                 .thenReturn(new PageImpl<>(List.of(response), DEFAULT_PAGEABLE, 1));
 
@@ -201,7 +201,7 @@ class CaseControllerTest {
     @Test
     void listCases_withFollowUp_passesTheFilterThrough() throws Exception {
         CaseResponse response = caseResponse(1L, CaseStatus.PENDING_ANALYST_REVIEW);
-        when(caseService.listCases(isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
+        when(caseService.listCases(isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
                 isNull(), isNull(), eq(false), eq(false), eq(false), eq(false), eq(false),
                 eq(CaseFollowUp.EXPERT_REPORT_RECEIVED), isNull(), eq(CaseScope.ALL), isNull(), eq(DEFAULT_PAGEABLE)))
                 .thenReturn(new PageImpl<>(List.of(response), DEFAULT_PAGEABLE, 1));
@@ -230,7 +230,7 @@ class CaseControllerTest {
     void messagesInbox_returns200WithTheServicesList() throws Exception {
         CaseMessageInboxItemResponse item = new CaseMessageInboxItemResponse(
                 48L, null, null, "Camila Ferreyra", "Lucía Gómez", "Celulares", "Robo en vía pública",
-                CaseStatus.AWAITING_DOCUMENTATION, "¿La captura de Google sirve?", "INSURED",
+                CaseStatus.AWAITING_DOCUMENTATION, null, "¿La captura de Google sirve?", "INSURED",
                 Instant.parse("2026-09-25T09:12:00Z"), 1);
         when(messageService.inbox()).thenReturn(List.of(item));
 
@@ -244,7 +244,7 @@ class CaseControllerTest {
     @Test
     void listCases_withFreeTextSearch_passesQThrough() throws Exception {
         CaseResponse response = caseResponse(1L, CaseStatus.PENDING_ANALYST_REVIEW);
-        when(caseService.listCases(isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), eq("POL-CEL"), isNull(), isNull(), eq(false), eq(false), eq(false), eq(false), eq(false), isNull(), isNull(), eq(CaseScope.ALL), isNull(), eq(DEFAULT_PAGEABLE)))
+        when(caseService.listCases(isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), eq("POL-CEL"), isNull(), isNull(), eq(false), eq(false), eq(false), eq(false), eq(false), isNull(), isNull(), eq(CaseScope.ALL), isNull(), eq(DEFAULT_PAGEABLE)))
                 .thenReturn(new PageImpl<>(List.of(response), DEFAULT_PAGEABLE, 1));
 
         mockMvc.perform(get("/api/v1/cases").param("q", "POL-CEL"))
@@ -255,7 +255,7 @@ class CaseControllerTest {
     @Test
     void listCases_withClaimCausePolicyNumberAndDateRange_passesFiltersThrough() throws Exception {
         CaseResponse response = caseResponse(1L, CaseStatus.APPROVED);
-        when(caseService.listCases(isNull(), eq("Robo en vía pública"), eq("POL-CEL-2024-001"), isNull(),
+        when(caseService.listCases(isNull(), isNull(), eq("Robo en vía pública"), eq("POL-CEL-2024-001"), isNull(),
                 eq(LocalDate.of(2026, 6, 1)), eq(LocalDate.of(2026, 6, 30)), isNull(), isNull(), isNull(), eq(false), eq(false), eq(false), eq(false), eq(false), isNull(), isNull(), eq(CaseScope.ALL), isNull(), eq(DEFAULT_PAGEABLE)))
                 .thenReturn(new PageImpl<>(List.of(response), DEFAULT_PAGEABLE, 1));
 
@@ -272,7 +272,7 @@ class CaseControllerTest {
     void listCases_withPageParams_passesPageableThrough() throws Exception {
         CaseResponse response = caseResponse(1L, CaseStatus.APPROVED);
         Pageable pageable = PageRequest.of(1, 5, Sort.by(Sort.Direction.DESC, "id"));
-        when(caseService.listCases(isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), eq(false), eq(false), eq(false), eq(false), eq(false), isNull(), isNull(), eq(CaseScope.ALL), isNull(), eq(pageable)))
+        when(caseService.listCases(isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), eq(false), eq(false), eq(false), eq(false), eq(false), isNull(), isNull(), eq(CaseScope.ALL), isNull(), eq(pageable)))
                 .thenReturn(new PageImpl<>(List.of(response), pageable, 6));
 
         mockMvc.perform(get("/api/v1/cases").param("page", "1").param("size", "5"))
@@ -283,7 +283,7 @@ class CaseControllerTest {
 
     @Test
     void listCases_noResults_returnsEmptyContent() throws Exception {
-        when(caseService.listCases(isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), eq(false), eq(false), eq(false), eq(false), eq(false), isNull(), isNull(), eq(CaseScope.ALL), isNull(), eq(DEFAULT_PAGEABLE)))
+        when(caseService.listCases(isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), eq(false), eq(false), eq(false), eq(false), eq(false), isNull(), isNull(), eq(CaseScope.ALL), isNull(), eq(DEFAULT_PAGEABLE)))
                 .thenReturn(new PageImpl<>(List.of(), DEFAULT_PAGEABLE, 0));
 
         mockMvc.perform(get("/api/v1/cases"))
@@ -321,7 +321,7 @@ class CaseControllerTest {
     @Test
     void getCase_withClassificationResult_returnsFullResponse() throws Exception {
         CaseResponse response = new CaseResponse(
-                1L, null, null, CaseStatus.PENDING_ANALYST_REVIEW,
+                1L, null, null, CaseStatus.PENDING_ANALYST_REVIEW, null,
                 "Celulares", "Celular Protegido Básico", "Robo en vía pública", "Robo de celular",
                 "Motorola Edge 50 Pro", "40.123.456", "Laura Fernández", false, "POL-CEL-2024-001",
                 "Me robaron el celular",
@@ -336,20 +336,23 @@ class CaseControllerTest {
                 LocalDate.of(2026, 7, 13), DeadlinePriority.NONE,
                 null,
                 List.of(
-                        new StatusTransitionResponse(null, CaseStatus.PENDING_CLASSIFICATION,
+                        new StatusTransitionResponse(null, CaseStatus.PENDING_CLASSIFICATION, null, null,
                                 StatusChangeActor.INSURED, "denuncia registrada", null,
                                 Instant.parse("2026-06-13T22:50:00Z")),
                         new StatusTransitionResponse(CaseStatus.PENDING_CLASSIFICATION,
-                                CaseStatus.PENDING_ANALYST_REVIEW,
+                                CaseStatus.PENDING_ANALYST_REVIEW, null, null,
                                 StatusChangeActor.SYSTEM, "clasificación: FAST_TRACK", null,
                                 Instant.parse("2026-06-13T22:55:00Z"))
                 ),
-                // One field read (amount) and one the document doesn't carry (IMEI): the null must
-                // reach the frontend as null, shown as "not applicable", never as a mismatch.
+                // Only the item attributes the document states: the IMEI it doesn't carry is
+                // simply absent, never a mismatch.
                 List.of(new DocumentAnalysisSummary(
                         "purchase_proof", "Factura de compra…",
                         LocalDate.of(2026, 5, 30), new BigDecimal("150000"),
-                        "Motorola Edge 50 Pro", "Motorola", "Edge 50 Pro", null, "TITULAR",
+                        "Motorola Edge 50 Pro",
+                        List.of(new DocumentAnalysisSummary.Detail("marca", "Motorola"),
+                                new DocumentAnalysisSummary.Detail("modelo", "Edge 50 Pro")),
+                        "TITULAR",
                         List.of("La tipografía del encabezado no coincide con el resto"),
                         List.of(new DocumentAnalysisSummary.Detail("N° de factura", "0001-00034521")),
                         "COMPLETE")),
@@ -372,7 +375,9 @@ class CaseControllerTest {
                 .andExpect(jsonPath("$.documentAnalyses.length()").value(1))
                 .andExpect(jsonPath("$.documentAnalyses[0].documentType").value("purchase_proof"))
                 .andExpect(jsonPath("$.documentAnalyses[0].amount").value(150000))
-                .andExpect(jsonPath("$.documentAnalyses[0].imei").doesNotExist())
+                .andExpect(jsonPath("$.documentAnalyses[0].itemAttributes.length()").value(2))
+                .andExpect(jsonPath("$.documentAnalyses[0].itemAttributes[0].name").value("marca"))
+                .andExpect(jsonPath("$.documentAnalyses[0].itemAttributes[0].value").value("Motorola"))
                 .andExpect(jsonPath("$.documentAnalyses[0].visualFindings.length()").value(1));
     }
 
@@ -475,7 +480,7 @@ class CaseControllerTest {
 
     private CaseResponse caseResponse(Long id, CaseStatus status) {
         return new CaseResponse(
-                id, null, null, status,
+                id, null, null, status, null,
                 "Celulares", "Celular Protegido Básico", "Robo en vía pública", "Robo de celular",
                 "Motorola Edge 50 Pro", "40.123.456", "Laura Fernández", false, "POL-CEL-2024-001",
                 "Me robaron el celular",

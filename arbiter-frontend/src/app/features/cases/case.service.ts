@@ -4,6 +4,7 @@ import { Observable } from 'rxjs';
 
 import { environment } from '../../../environments/environment';
 import { CacheReadOptions, QueryCache, paramsKey } from '../../core/cache/query-cache';
+import { InsuredStatus, InsuredStatusCode } from '../../core/models/insured-status';
 import { CaseResponse } from '../../core/models/case';
 import { CaseDocument } from '../../core/models/case-document';
 import { Policy } from '../../core/models/policy';
@@ -88,6 +89,13 @@ export interface SettlementLine {
   amount: number;
 }
 
+/** Mirrors cases-service's AnalystDecisionResponse: the verdict a resolved case stands on. */
+export interface AnalystDecision {
+  decision: string;
+  justification: string | null;
+  decidedAt: string;
+}
+
 /** Either the authorized settlement or a proposal to confirm. */
 export interface Settlement {
   formula: SettlementFormula;
@@ -139,6 +147,8 @@ export interface PagedResponse<T> {
 
 export interface CaseListParams {
   status?: string | string[];
+  /** The insured's filter: the backend ignores `status` for them. */
+  insuredStatus?: InsuredStatusCode[];
   claimCause?: string;
   policyNumber?: string;
   insuredId?: string;
@@ -269,6 +279,7 @@ export class CaseService {
   private listQuery(params: CaseListParams): Record<string, string | string[]> {
     const query: Record<string, string | string[]> = {};
     if (params.status?.length) query['status'] = params.status;
+    if (params.insuredStatus?.length) query['insuredStatus'] = params.insuredStatus;
     if (params.claimCause) query['claimCause'] = params.claimCause;
     if (params.policyNumber) query['policyNumber'] = params.policyNumber;
     if (params.insuredId) query['insuredId'] = params.insuredId;
@@ -289,6 +300,11 @@ export class CaseService {
     if (params.staleDays != null) query['staleDays'] = String(params.staleDays);
     if (params.insurerId != null) query['insurerId'] = String(params.insurerId);
     return query;
+  }
+
+  /** Every status an insured can be told, with its label, for their filter. */
+  insuredStatuses(): Observable<InsuredStatus[]> {
+    return this.http.get<InsuredStatus[]>(`${this.baseUrl}/insured-statuses`);
   }
 
   /** Same gate `create` runs (term, waiting period, arrears) without creating anything. */
@@ -357,6 +373,11 @@ export class CaseService {
     const params =
       replacementValue == null ? undefined : { replacementValue: String(replacementValue) };
     return this.http.get<Settlement>(`${this.baseUrl}/${caseId}/settlement`, { params });
+  }
+
+  /** Null (204) while the case isn't approved or rejected. */
+  decision(caseId: number): Observable<AnalystDecision | null> {
+    return this.http.get<AnalystDecision | null>(`${this.baseUrl}/${caseId}/decision`);
   }
 
   /** Only valid from CLASSIFICATION_FAILED (409 otherwise). */

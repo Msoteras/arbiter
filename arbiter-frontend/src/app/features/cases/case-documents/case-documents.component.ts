@@ -303,9 +303,12 @@ export class CaseDocumentsComponent {
       },
       { label: 'Importe', value: doc.amount == null ? null : `$${doc.amount.toLocaleString()}` },
       { label: 'Bien que nombra', value: doc.itemDescription },
-      { label: 'Marca', value: doc.brand },
-      { label: 'Modelo', value: doc.model },
-      { label: 'IMEI', value: doc.imei, mono: true },
+      // Named by the policy, so they vary with the line of insurance. All-digit ones are identifiers.
+      ...(doc.itemAttributes ?? []).map((attribute) => ({
+        label: attribute.name.charAt(0).toUpperCase() + attribute.name.slice(1),
+        value: attribute.value,
+        mono: /^\d+$/.test(attribute.value),
+      })),
       { label: 'Damnificado', value: this.affectedPartyLabel(doc.affectedParty) },
       // Untyped extras exist only when the document carries them, so they never render "No aplica".
       ...(doc.details ?? []).map((detail) => ({ label: detail.name, value: detail.value })),

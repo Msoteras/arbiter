@@ -46,6 +46,11 @@ public class CaseExceptionHandler extends ResponseEntityExceptionHandler {
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(404), ex.getMessage());
     }
 
+    @ExceptionHandler(DocumentTypeNotAllowedException.class)
+    public ProblemDetail handleDocumentTypeNotAllowed(DocumentTypeNotAllowedException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(400), ex.getMessage());
+    }
+
     @ExceptionHandler(DocumentReadException.class)
     public ProblemDetail handleDocumentRead(DocumentReadException ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(422), ex.getMessage());
@@ -118,7 +123,8 @@ public class CaseExceptionHandler extends ResponseEntityExceptionHandler {
 
     @ExceptionHandler(ServiceProviderNotFoundException.class)
     public ProblemDetail handleServiceProviderNotFound(ServiceProviderNotFoundException ex) {
-        return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(404), ex.getMessage());
+        return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(404),
+                "Ese proveedor ya no está en el catálogo. Recargá la página.");
     }
 
     @ExceptionHandler(ClosedConversationException.class)

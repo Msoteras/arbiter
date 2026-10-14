@@ -1,6 +1,8 @@
 package ar.edu.utn.frba.arbiter.cases.controllers;
 
+import ar.edu.utn.frba.arbiter.cases.dto.InsuredStatusResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.AnalystDecisionRequest;
+import ar.edu.utn.frba.arbiter.cases.dto.AnalystDecisionResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.AnalystWorkloadResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.AssignAnalystRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.AssignedCaseSummaryResponse;
@@ -29,6 +31,7 @@ import ar.edu.utn.frba.arbiter.cases.services.CaseService;
 import ar.edu.utn.frba.arbiter.cases.services.ClaimCauseCorrectionService;
 import ar.edu.utn.frba.arbiter.cases.services.SettlementService;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
+import ar.edu.utn.frba.arbiter.common.enums.InsuredStatus;
 import ar.edu.utn.frba.arbiter.common.enums.RiskBand;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -117,6 +120,15 @@ public class CaseController {
         return ResponseEntity.ok(caseService.intakeDocuments(policyNumber, branch, claimCause));
     }
 
+    @GetMapping("/insured-statuses")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Statuses an insured can be told",
+            description = "Each code with its label, for the insured's own filter (`insuredStatus` on the "
+                    + "listing). Several internal statuses share one.")
+    public ResponseEntity<List<InsuredStatusResponse>> insuredStatuses() {
+        return ResponseEntity.ok(caseService.insuredStatuses());
+    }
+
     @GetMapping("/{caseId}")
     @PreAuthorize("isAuthenticated()")
     @Operation(summary = "Get case by id",
@@ -126,6 +138,13 @@ public class CaseController {
                     their own cases: CaseAccessPolicy.assertCanRead matches the caller's national ID against
                     the case's insured and 404s otherwise. Analyst and insurer lead see every case in
                     their tenant.
+
+                    The insured gets a trimmed view (CaseResponse.forInsured): no classification,
+                    risk score, forensic report, rule results, policy snapshot or document readings.
+                    `status` is null and `insuredStatus` carries what they are told instead; the
+                    history only has the moves that changed it, without `reason` or `observation`.
+                    The listing trims the same way, and ignores `status` and `riskBand` for them:
+                    their filter is `insuredStatus` (see GET /cases/insured-statuses).
                     """)
     public ResponseEntity<CaseResponse> getCase(
             @PathVariable Long caseId,
@@ -182,6 +201,7 @@ public class CaseController {
                     """)
     public ResponseEntity<Page<CaseResponse>> listCases(
             @RequestParam(required = false) List<CaseStatus> status,
+            @RequestParam(required = false) List<InsuredStatus> insuredStatus,
             @RequestParam(required = false) String claimCause,
             @RequestParam(required = false) String policyNumber,
             @RequestParam(required = false) String insuredId,
@@ -202,7 +222,7 @@ public class CaseController {
             @PageableDefault(size = 20, sort = "id", direction = Sort.Direction.DESC) Pageable pageable
     ) {
         Page<CaseResponse> response = caseService.listCases(
-                status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
+                status, insuredStatus, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
                 analystId, assignedToMe, unassigned, fraudAlert, assigned, dueSoon, followUp, staleDays, scope,
                 insurerId,
                 pageable);
@@ -366,6 +386,9 @@ public class CaseController {
                     the document represents — e.g. `police_report`, `invoice`, `item_photo`),
                     filename, content type, size in bytes, and upload timestamp. Does NOT
                     return the binary content — use the per-document download endpoint for that.
+
+                    For the insured it leaves out the providers' reports (`expert_report`,
+                    `repair_report`), and downloading one answers 404.
                     """)
     public ResponseEntity<List<CaseDocumentResponse>> listDocuments(
             @PathVariable Long caseId,
@@ -529,6 +552,19 @@ public class CaseController {
     ) {
         caseService.returnSettlement(caseId, request.reason());
         return ResponseEntity.ok(new CaseActionResponse(caseId, "settlement-returned"));
+    }
+
+    // Staff only: the justification is the analyst's reasoning, not what the insured is told.
+    @GetMapping("/{caseId}/decision")
+    @PreAuthorize("hasAnyRole('ANALISTA_SINIESTROS', 'REFERENTE_ASEGURADORA')")
+    @Operation(summary = "The decision a resolved case stands on",
+            description = "The analyst's verdict with its justification and date, read from the audit "
+                    + "record. 204 while the case isn't APPROVED or REJECTED — including a reopened "
+                    + "case, whose previous verdict stays in the audit trail but no longer applies.")
+    public ResponseEntity<AnalystDecisionResponse> decision(@PathVariable Long caseId) {
+        return caseService.getAnalystDecision(caseId)
+                .map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.noContent().build());
     }
 
     // @PreAuthorize only filters by role; the service also checks the caller is the assigned analyst.

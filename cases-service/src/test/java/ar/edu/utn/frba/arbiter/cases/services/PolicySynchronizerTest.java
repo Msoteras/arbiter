@@ -52,7 +52,7 @@ class PolicySynchronizerTest {
     void importsThePolicyFromTheInsurerDatabase() {
         givenRemotePolicy(LocalDate.now().minusMonths(6), LocalDate.now().plusMonths(6), "Daño accidental");
         Coverage coverage = coverage(3L, "Daño accidental");
-        when(coverageRepository.findByName("Daño accidental")).thenReturn(Optional.of(coverage));
+        when(coverageRepository.findByName("Daño accidental")).thenReturn(List.of(coverage));
         savesWhatItIsGiven();
 
         Policy saved = synchronizer.importFromInsurer(POLICY_NUMBER, 1L);
@@ -74,8 +74,8 @@ class PolicySynchronizerTest {
         givenRemotePolicyWithCoverages(
                 coverageResponse("Robo de celular", "1300000"),
                 coverageResponse("Hurto", "650000"));
-        when(coverageRepository.findByName("Robo de celular")).thenReturn(Optional.of(coverage(1L, "Robo de celular")));
-        when(coverageRepository.findByName("Hurto")).thenReturn(Optional.of(coverage(2L, "Hurto")));
+        when(coverageRepository.findByName("Robo de celular")).thenReturn(List.of(coverage(1L, "Robo de celular")));
+        when(coverageRepository.findByName("Hurto")).thenReturn(List.of(coverage(2L, "Hurto")));
         savesWhatItIsGiven();
 
         synchronizer.importFromInsurer(POLICY_NUMBER, 1L);
@@ -96,8 +96,8 @@ class PolicySynchronizerTest {
         givenRemotePolicyWithCoverages(
                 coverageResponse("Robo de celular", "1300000"),
                 coverageResponse("Hurto", "650000"));
-        when(coverageRepository.findByName("Robo de celular")).thenReturn(Optional.of(coverage(1L, "Robo de celular")));
-        when(coverageRepository.findByName("Hurto")).thenReturn(Optional.empty());
+        when(coverageRepository.findByName("Robo de celular")).thenReturn(List.of(coverage(1L, "Robo de celular")));
+        when(coverageRepository.findByName("Hurto")).thenReturn(List.of());
         savesWhatItIsGiven();
 
         synchronizer.importFromInsurer(POLICY_NUMBER, 1L);
@@ -110,7 +110,7 @@ class PolicySynchronizerTest {
     @Test
     void anExpiredPolicyIsImportedAsNotInForce() {
         givenRemotePolicy(LocalDate.now().minusYears(2), LocalDate.now().minusDays(1), "Robo de celular");
-        when(coverageRepository.findByName("Robo de celular")).thenReturn(Optional.of(coverage(1L, "Robo de celular")));
+        when(coverageRepository.findByName("Robo de celular")).thenReturn(List.of(coverage(1L, "Robo de celular")));
         savesWhatItIsGiven();
 
         assertThat(synchronizer.importFromInsurer(POLICY_NUMBER, 1L).isInForce()).isFalse();
@@ -133,7 +133,7 @@ class PolicySynchronizerTest {
     @Test
     void aCoverageTheTenantHasNotConfigured_throwsCoverageNotConfigured() {
         givenRemotePolicy(LocalDate.now().minusMonths(6), LocalDate.now().plusMonths(6), "Daño accidental");
-        when(coverageRepository.findByName("Daño accidental")).thenReturn(Optional.empty());
+        when(coverageRepository.findByName("Daño accidental")).thenReturn(List.of());
         savesWhatItIsGiven();
 
         assertThatThrownBy(() -> synchronizer.importFromInsurer(POLICY_NUMBER, 1L))
@@ -151,8 +151,8 @@ class PolicySynchronizerTest {
     }
 
     /**
-     * The name alone can't resolve a coverage: the insurer DB only has three coverage names, so a
-     * portable-tech policy reports its robbery as "Robo de celular" and must not get the phone one.
+     * The name alone can't resolve a coverage: it is unique per branch only, so a portable-tech
+     * policy's robbery must not get the phone coverage that happens to share its name.
      */
     @Test
     void doesNotAttachACoverageFromAnotherBranch() {
@@ -167,9 +167,9 @@ class PolicySynchronizerTest {
                 .build()));
         when(branchRepository.findByName("Tecnología Portátil")).thenReturn(Optional.of(branch(2L)));
         when(coverageRepository.findByName("Robo de celular"))
-                .thenReturn(Optional.of(coverage(1L, "Robo de celular", 1L)));
+                .thenReturn(List.of(coverage(1L, "Robo de celular", 1L)));
         when(coverageRepository.findByName("Daño accidental"))
-                .thenReturn(Optional.of(coverage(3L, "Daño accidental", 2L)));
+                .thenReturn(List.of(coverage(3L, "Daño accidental", 2L)));
         savesWhatItIsGiven();
 
         synchronizer.importFromInsurer(POLICY_NUMBER, 1L);
@@ -183,7 +183,7 @@ class PolicySynchronizerTest {
     void resyncBringsTheLocalCopyBackInLineWithTheCompany() {
         givenRemotePolicyWithCoverages(coverageResponse("Hurto", "360000"));
         Coverage theft = coverage(2L, "Hurto", 1L);
-        when(coverageRepository.findByName("Hurto")).thenReturn(Optional.of(theft));
+        when(coverageRepository.findByName("Hurto")).thenReturn(List.of(theft));
         PolicyCoverage stale = PolicyCoverage.builder()
                 .id(7L).policyId(1L).coverage(theft).displayOrder(1)
                 .sumInsured(new BigDecimal("450000")).deductiblePct(new BigDecimal("10.00"))
@@ -205,7 +205,7 @@ class PolicySynchronizerTest {
     void resyncOfAnAlreadyAlignedPolicyChangesNothing() {
         givenRemotePolicyWithCoverages(coverageResponse("Hurto", "360000"));
         Coverage theft = coverage(2L, "Hurto", 1L);
-        when(coverageRepository.findByName("Hurto")).thenReturn(Optional.of(theft));
+        when(coverageRepository.findByName("Hurto")).thenReturn(List.of(theft));
         PolicyCoverage aligned = PolicyCoverage.builder()
                 .id(7L).policyId(1L).coverage(theft).displayOrder(1)
                 .sumInsured(new BigDecimal("360000.00")).deductiblePct(new BigDecimal("10.00"))
@@ -224,7 +224,7 @@ class PolicySynchronizerTest {
         givenRemotePolicyWithCoverages(coverageResponse("Robo de celular", "900000"));
         Coverage robbery = coverage(1L, "Robo de celular", 1L);
         Coverage theft = coverage(2L, "Hurto", 1L);
-        when(coverageRepository.findByName("Robo de celular")).thenReturn(Optional.of(robbery));
+        when(coverageRepository.findByName("Robo de celular")).thenReturn(List.of(robbery));
         PolicyCoverage noLongerOffered = PolicyCoverage.builder()
                 .id(8L).policyId(1L).coverage(theft).displayOrder(2)
                 .sumInsured(new BigDecimal("450000")).deductiblePct(new BigDecimal("10.00"))

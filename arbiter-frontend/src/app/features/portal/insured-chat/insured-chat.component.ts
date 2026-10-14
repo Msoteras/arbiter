@@ -12,14 +12,14 @@ import {
 
 import { CaseMessageInboxItem, ChatEvent } from '../../../core/models/case-message';
 import { CaseResponse } from '../../../core/models/case';
-import { insuredMovementLabel } from '../../../core/models/case-status';
+import { insuredMovementLabel } from '../../../core/models/insured-status';
 import { CaseMessagesService } from '../../cases/case-messages.service';
 import { CaseService } from '../../cases/case.service';
 import { CaseChatPopupComponent } from '../../cases/case-chat-popup/case-chat-popup.component';
 
 /**
  * The insured's side of the case chat: talks to the analyst who holds the case, and interleaves the
- * claim's milestones. Built from the status, never the history `reason`, which is internal.
+ * claim's milestones, named from the status the insured is told.
  */
 export function insuredChatEvents(c: CaseResponse): ChatEvent[] {
   const docsAction = {
@@ -27,27 +27,13 @@ export function insuredChatEvents(c: CaseResponse): ChatEvent[] {
     link: ['/portal/cases', c.id, 'documents'],
     queryParams: c.insurerSlug ? { insurer: c.insurerSlug } : undefined,
   };
-  return (
-    (c.statusHistory ?? [])
-      .map((h) => ({
-        at: h.changedAt,
-        toStatus: h.toStatus,
-        label: insuredMovementLabel(h.toStatus, h.fromStatus),
-      }))
-      .filter((e): e is { at: string; toStatus: string; label: string } => e.label !== null)
-      // Consecutive repeats (e.g. classification retries) are one milestone.
-      .filter((e, i, all) => i === all.length - 1 || all[i + 1].label !== e.label)
-      .map((e) =>
-        e.toStatus === 'AWAITING_DOCUMENTATION'
-          ? {
-              at: e.at,
-              label: e.label,
-              tone: c.status === 'AWAITING_DOCUMENTATION' ? ('warning' as const) : undefined,
-              action: docsAction,
-            }
-          : { at: e.at, label: e.label },
-      )
-  );
+  const awaitingDocs = c.insuredStatus.code === 'AWAITING_DOCUMENTATION';
+  return (c.statusHistory ?? []).map((h) => {
+    const event = { at: h.changedAt, label: insuredMovementLabel(h) };
+    return h.toInsuredStatus.code === 'AWAITING_DOCUMENTATION'
+      ? { ...event, tone: awaitingDocs ? ('warning' as const) : undefined, action: docsAction }
+      : event;
+  });
 }
 
 export function analystFirstName(item: CaseMessageInboxItem | null): string | null {

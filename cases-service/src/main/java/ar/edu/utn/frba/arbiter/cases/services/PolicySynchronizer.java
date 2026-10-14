@@ -210,21 +210,22 @@ public class PolicySynchronizer {
     }
 
     /**
-     * Null if the referent hasn't configured it. Matched by name and by branch: insurer coverage
-     * names are shared across branches (a laptop policy's theft cover is also named "Robo de
-     * celular"), so name alone could attach the wrong branch's coverage and rules.
+     * Null if the referent hasn't configured it. The name arrives already translated from the
+     * insurer's (see {@code InsurerCoverageNames}) and is matched within the policy's branch: a
+     * coverage name is unique per branch only, and each branch's coverage has its own rules.
      */
     private Coverage resolve(PolicyResponse.Coverage remoteCoverage, Long branchId) {
         String name = remoteCoverage.description();
         if (name == null) {
             return null;
         }
-        Coverage catalogued = coverageRepository.findByName(name).orElse(null);
-        if (catalogued == null) {
-            return null;
+        List<Coverage> sameName = coverageRepository.findByName(name);
+        if (branchId != null) {
+            return sameName.stream().filter(c -> branchId.equals(c.getBranchId())).findFirst().orElse(null);
         }
-        // With no branch resolved the check is skipped rather than dropping every coverage.
-        return branchId == null || branchId.equals(catalogued.getBranchId()) ? catalogued : null;
+        // With no branch resolved, a name only one branch uses still resolves rather than dropping
+        // every coverage.
+        return sameName.size() == 1 ? sameName.getFirst() : null;
     }
 
     private Long branchId(PolicyResponse remote) {

@@ -23,7 +23,14 @@ import {
   switchMap,
 } from 'rxjs';
 
-import { CaseService, AnalystDecisionRequest, ClaimCauseOption, Settlement } from '../case.service';
+import {
+  CaseService,
+  AnalystDecision,
+  AnalystDecisionRequest,
+  ClaimCauseOption,
+  Settlement,
+  SettlementLine,
+} from '../case.service';
 import { DocumentAgendaService } from '../document-agenda.service';
 import { CaseNavigationService } from '../case-navigation.service';
 import { CaseMessagesService } from '../case-messages.service';
@@ -86,8 +93,7 @@ import {
   fraudRecordOriginLabel,
 } from '../../../core/models/fraud-record';
 import {
-  caseStatusLabel,
-  simplifiedStatusLabel,
+  workStatusLabel,
   caseStatusTone,
   isFinalStatus,
   riskBandEmptyLabel,
@@ -285,7 +291,7 @@ export class CaseDetailComponent {
 
   protected readonly statusLabel = computed(() => {
     const d = this.data();
-    return d ? caseStatusLabel(d.status) : '';
+    return d ? workStatusLabel(d.status, this.settlement()?.status) : '';
   });
 
   protected readonly statusTone = computed<StatusTone>(() => {
@@ -295,7 +301,7 @@ export class CaseDetailComponent {
 
   protected readonly simplifiedStatusLabel = computed(() => {
     const d = this.data();
-    return d ? simplifiedStatusLabel(d.status) : '';
+    return d ? d.insuredStatus.label : '';
   });
 
   private static readonly RISK_BAND_GAUGE: Record<string, 1 | 2 | 3 | 4> = {
@@ -346,6 +352,11 @@ export class CaseDetailComponent {
 
   protected factorLabel(factorId: string): string {
     return riskFactorLabel(factorId);
+  }
+
+  /** Rationales name documents by their code ("…documento 'police_report'…"), like the reasons. */
+  protected factorRationale(rationale: string): string {
+    return withDocumentLabels(rationale);
   }
 
   protected pct(value: number): number {
@@ -789,6 +800,31 @@ export class CaseDetailComponent {
     }
   });
 
+  /** Refetched with the case, so it shows up right after deciding. A 403 (insured) yields null. */
+  private readonly decisionFetch = toSignal(
+    combineLatest([
+      this.route.paramMap.pipe(map((params) => params.get('id') ?? '')),
+      toObservable(this.reloadTrigger),
+    ]).pipe(
+      switchMap(([id]) =>
+        this.service
+          .decision(id as unknown as number)
+          .pipe(catchError(() => of<AnalystDecision | null>(null))),
+      ),
+    ),
+    { initialValue: null },
+  );
+
+  /** When the case was resolved and what the analyst wrote, from the audited decision. */
+  protected readonly resolution = computed<{ at: string; justification: string | null } | null>(
+    () => {
+      const decision = this.decisionFetch();
+      return decision
+        ? { at: formatDateTime(decision.decidedAt), justification: decision.justification }
+        : null;
+    },
+  );
+
   protected readonly pendingDecision = signal<Verb | null>(null);
   protected readonly showJustify = signal(false);
   protected readonly justification = signal('');
@@ -957,6 +993,20 @@ export class CaseDetailComponent {
   });
 
   /**
+   * The amount the calculation starts from hasn't been entered yet, so everything derived from it
+   * came back as zero. Those zeros mean "not computed", not "nothing to pay".
+   */
+  protected readonly baseAmountMissing = computed(() => {
+    const value = this.settlement()?.replacementValue;
+    return this.needsAccreditedAmount() && !(value != null && value > 0);
+  });
+
+  /** Null = nothing to show yet. A deduction that doesn't depend on the base keeps its figure. */
+  protected sheetAmount(line: SettlementLine): string | null {
+    return this.baseAmountMissing() && line.amount === 0 ? null : this.exactAmount(line.amount);
+  }
+
+  /**
    * Offered only until a value is entered. A document amount was read by the model, so it waits
    * for the click; a provider's is prefilled by `prefillProviderAmount`.
    */
@@ -1072,6 +1122,10 @@ export class CaseDetailComponent {
     }
     if (this.needsReplacementValue() && this.replacementApplied() == null) {
       return 'Cargá cuánto cuesta hoy reponer el bien.';
+    }
+    // The quote is the base of a repair: without it the amount is a zero nobody calculated.
+    if (this.settlement()?.formula === 'REPAIR' && this.baseAmountMissing()) {
+      return 'Cargá el presupuesto de reparación.';
     }
     if (this.amountToAuthorize() == null) {
       return 'El monto a pagar tiene que ser un número.';
@@ -1734,7 +1788,7 @@ export class CaseDetailComponent {
 
   protected readonly chosenOriginEffect = computed(() =>
     this.chosenOrigin() === 'EXPERT_BACKED'
-      ? 'Va a sumar al nivel de riesgo de sus próximas denuncias y, si la aseguradora lo configuró así, a impedirles la vía rápida.'
+      ? 'Va a sumar al nivel de riesgo de sus próximas denuncias y, si la aseguradora lo configuró así, a impedirles el Fast Track.'
       : 'Va a aparecer como alerta en sus próximas denuncias, pero no suma al nivel de riesgo: sin peritaje detrás, una sospecha que mueve el score termina alimentándose sola.',
   );
 

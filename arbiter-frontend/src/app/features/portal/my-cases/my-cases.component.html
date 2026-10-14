@@ -39,7 +39,7 @@
         <span class="t-field-label">Estado</span>
         <app-select
           [(value)]="statusFilter"
-          [options]="statusOptions"
+          [options]="statusOptions()"
           placeholder="Todos"
           (valueChange)="onFilterChange()"
         />
@@ -102,12 +102,14 @@
                     <span class="case-insurer">· {{ c.insurerName }}</span>
                   }
                 </span>
-                @if (isFinal(c.status)) {
-                  <app-badge variant="strong" [tone]="statusTone(c.status)">{{
-                    statusLabel(c.status)
+                @if (isFinal(c.insuredStatus.code)) {
+                  <app-badge variant="strong" [tone]="statusTone(c.insuredStatus.code)">{{
+                    c.insuredStatus.label
                   }}</app-badge>
                 } @else {
-                  <app-badge [tone]="statusTone(c.status)">{{ statusLabel(c.status) }}</app-badge>
+                  <app-badge [tone]="statusTone(c.insuredStatus.code)">{{
+                    c.insuredStatus.label
+                  }}</app-badge>
                 }
               </div>
               <div class="case-fields">
@@ -117,7 +119,7 @@
               </div>
               <div class="case-next">
                 <span class="next-tag">Próximo paso</span>
-                <span class="next-text">{{ nextStep(c.status) }}</span>
+                <span class="next-text">{{ nextStep(c.insuredStatus.code) }}</span>
                 <span class="next-arrow" aria-hidden="true">→</span>
               </div>
             </a>

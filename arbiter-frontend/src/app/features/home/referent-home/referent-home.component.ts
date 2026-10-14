@@ -7,7 +7,7 @@ import { AuthSessionService } from '../../../core/auth/auth-session.service';
 import { PrefetchService } from '../prefetch.service';
 import { AnalystWorkload, CaseService } from '../../cases/case.service';
 import { CaseResponse } from '../../../core/models/case';
-import { caseStatusLabel, caseStatusTone } from '../../../core/models/case-status';
+import { caseStatusTone, workStatusLabel } from '../../../core/models/case-status';
 import { StatusTone } from '../../../core/models/status-tone';
 import { longDate, greetingForTimeOfDay } from '../../../core/util/datetime';
 import { CardComponent } from '../../../shared/ui/card/card.component';
@@ -168,8 +168,8 @@ export class ReferentHomeComponent {
     return Math.round((activeCases / this.maxLoad()) * 100);
   }
 
-  protected caseStatusLabel(status: string): string {
-    return caseStatusLabel(status);
+  protected workStatusLabel(c: CaseResponse): string {
+    return workStatusLabel(c.status, c.settlementStatus);
   }
 
   protected caseStatusTone(status: string): StatusTone {
