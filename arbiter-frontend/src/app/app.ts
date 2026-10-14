@@ -6,6 +6,7 @@ import {
   effect,
   inject,
   signal,
+  untracked,
 } from '@angular/core';
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
@@ -17,7 +18,7 @@ import { NotificationsService } from './core/notifications/notifications.service
 import { OnboardingService } from './core/onboarding/onboarding.service';
 import { CaseMessagesService } from './features/cases/case-messages.service';
 import { NewClaimModalService } from './features/cases/new-claim-modal.service';
-import { userRoleLabel } from './core/models/user-role';
+import { homeRouteFor, userRoleLabel } from './core/models/user-role';
 import { LogoComponent } from './shared/ui/logo/logo.component';
 import { ButtonComponent } from './shared/ui/button/button.component';
 import { ModalComponent } from './shared/ui/modal/modal.component';
@@ -138,6 +139,17 @@ export class App {
     ),
     { initialValue: this.router.url },
   );
+
+  // The full-viewport loader is for a session that starts on its home. Landing on any other screen
+  // (a reload on Reglas, a link) means the app is already up: a later trip home must not cover the
+  // whole window, nav included, with it.
+  private readonly readyOffHome = effect(() => {
+    const session = this.session.session();
+    const path = this.currentUrl().split('?')[0];
+    if (session && path !== homeRouteFor(session.rol) && !App.CHROMELESS_ROUTES.includes(path)) {
+      untracked(() => this.appReady.markReady());
+    }
+  });
 
   // Matched by path without the query (activation and reset carry the token in the URL).
   // Onboarding has a session but no chrome: onboardingGuard bounces every portal link back to it.

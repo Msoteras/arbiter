@@ -6,6 +6,7 @@ import { Observable, map, tap } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import { ToastService } from '../../shared/ui/toast/toast.service';
 import {
+  ONBOARDING_STEP_LINE,
   OnboardingRoute,
   OnboardingStep,
   OnboardingStepId,
@@ -47,6 +48,9 @@ export class OnboardingService {
   readonly steps = signal<OnboardingStep[] | null>(null);
   readonly failed = signal(false);
   private refreshTimer: ReturnType<typeof setTimeout> | null = null;
+  /** One refresh at a time: two in flight would both see the step pending and both announce it. */
+  private refreshing = false;
+  private refreshAgain = false;
 
   /** The last step opened from the checklist or the toast; the screens watch it. */
   readonly focusRequest = signal<OnboardingFocus | null>(null);
@@ -87,11 +91,11 @@ export class OnboardingService {
    * Goes to a step's screen and points at its control. The highlight also covers the case where
    * the screen is already open at that same address, so the navigation itself changes nothing.
    */
-  open(step: OnboardingStep): void {
+  open(step: OnboardingStep): Promise<boolean> {
     const route = this.routeOf(step);
     const target = this.router.createUrlTree([route.path], { queryParams: route.queryParams });
     this.requestFocus(step.step, this.router.url === this.router.serializeUrl(target));
-    void this.router.navigateByUrl(target);
+    return this.router.navigateByUrl(target);
   }
 
   /** For links that navigate on their own (`routerLink`): only the pointing part of `open`. */
@@ -137,12 +141,32 @@ export class OnboardingService {
     }
     this.refreshTimer = setTimeout(() => {
       this.refreshTimer = null;
-      const before = new Map((this.steps() ?? []).map((s) => [onboardingStepKey(s), s.status]));
-      this.fetch().subscribe({
-        next: (after) => this.announceCompleted(before, after),
-        error: () => undefined,
-      });
+      this.runRefresh();
     }, REFRESH_DEBOUNCE_MS);
+  }
+
+  private runRefresh(): void {
+    if (this.refreshing) {
+      // A save landed while the previous read was on its way: read again once it is back.
+      this.refreshAgain = true;
+      return;
+    }
+    this.refreshing = true;
+    const before = new Map((this.steps() ?? []).map((s) => [onboardingStepKey(s), s.status]));
+    const done = () => {
+      this.refreshing = false;
+      if (this.refreshAgain) {
+        this.refreshAgain = false;
+        this.runRefresh();
+      }
+    };
+    this.fetch().subscribe({
+      next: (after) => {
+        this.announceCompleted(before, after);
+        done();
+      },
+      error: () => done(),
+    });
   }
 
   private fetch(): Observable<OnboardingStep[]> {
@@ -165,6 +189,17 @@ export class OnboardingService {
       this.toast.show(message, 'ok');
       return;
     }
-    this.toast.show(message, 'ok', 8000, { label: 'Siguiente', run: () => this.open(next) });
+    this.toast.show(message, 'ok', 8000, {
+      action: { label: 'Siguiente', run: () => this.goToNext(next) },
+    });
+  }
+
+  /** Lands on the next step and says what to do there, with the checklist's own words. */
+  private goToNext(step: OnboardingStep): void {
+    void this.open(step).then(() =>
+      this.toast.show(onboardingStepTitle(step), 'info', 10000, {
+        description: ONBOARDING_STEP_LINE[step.step],
+      }),
+    );
   }
 }

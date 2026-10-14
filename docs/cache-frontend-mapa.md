@@ -116,6 +116,9 @@ pide en la próxima visita.
 - Reglas guarda el refresco de la lista de ramos sin aplicarlo: aplicarlo vuelve a seleccionar un ramo.
 - Se precargan las dos listas de pólizas del asegurado (con y sin vencidas): "Mis pólizas" y el paso 1
   de la denuncia piden listas distintas.
+- Los tres inicios también leen del cache (agregado el 14/10, a pedido de Valentina): volver al Inicio
+  pasó de ~2,5 s a ~30 ms. Sus conteos usan `combineLatest`, no `forkJoin`, para mostrar lo guardado
+  sin esperar los refrescos. La primera carga no cambia: es lo primero que se pide.
 
 ## Para retomar
 Implementado. La validación está en `docs/validacion-cache-frontend.md`.

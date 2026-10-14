@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
-import { catchError, forkJoin, map, of, startWith } from 'rxjs';
+import { catchError, combineLatest, map, of, startWith } from 'rxjs';
 
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
 import { PrefetchService } from '../prefetch.service';
@@ -62,8 +62,10 @@ export class ReferentHomeComponent {
   protected readonly firstName = computed(() => this.session.session()?.nombre ?? '');
 
   // No `assignedToMe`: the referente sees the whole insurer's operation.
+  // combineLatest, not forkJoin: each count shows its cached value at once and forkJoin would wait
+  // for every refresh to finish.
   private readonly countsState = toSignal(
-    forkJoin({
+    combineLatest({
       total: this.count({}),
       // Every terminal status, whatever closed it; the backend owns the list.
       resolved: this.count({ scope: 'CLOSED' }),
@@ -97,9 +99,9 @@ export class ReferentHomeComponent {
   });
 
   private readonly alertState = toSignal(
-    forkJoin({
-      critical: this.service.list({ riskBand: 'CRITICAL', sort: 'id,desc', size: 5 }),
-      high: this.service.list({ riskBand: 'HIGH', sort: 'id,desc', size: 5 }),
+    combineLatest({
+      critical: this.service.cachedList({ riskBand: 'CRITICAL', sort: 'id,desc', size: 5 }),
+      high: this.service.cachedList({ riskBand: 'HIGH', sort: 'id,desc', size: 5 }),
     }).pipe(
       map(({ critical, high }): AlertState => ({
         status: 'ok',
@@ -122,7 +124,9 @@ export class ReferentHomeComponent {
   );
 
   private count(params: Parameters<CaseService['list']>[0]) {
-    return this.service.list({ ...params, page: 0, size: 1 }).pipe(map((p) => p.totalElements));
+    return this.service
+      .cachedList({ ...params, page: 0, size: 1 })
+      .pipe(map((p) => p.totalElements));
   }
 
   private readonly workloadState = toSignal(
