@@ -68,6 +68,39 @@ public final class CaseSpecifications {
     }
 
     /**
+     * Cases whose art. 56 term is running and whose deadline falls within the bounds (either may be
+     * null for open-ended). Same running-term rule as {@link #dueSoonBefore}.
+     */
+    public static Specification<Case> runningTermDue(LocalDate from, LocalDate to) {
+        List<String> notTicking = names(Stream.concat(
+                CaseStatusService.TERMINAL_STATUSES.stream(), CaseStatusService.PAUSING_STATUSES.stream()));
+        return (root, query, cb) -> {
+            Predicate running = cb.not(root.get("currentStatus").get("name").in(notTicking));
+            if (from != null) {
+                running = cb.and(running, cb.greaterThanOrEqualTo(root.get("responseDeadline"), from));
+            }
+            if (to != null) {
+                running = cb.and(running, cb.lessThanOrEqualTo(root.get("responseDeadline"), to));
+            }
+            return running;
+        };
+    }
+
+    /** Cases in a status that freezes the art. 56 term. */
+    public static Specification<Case> pausedTerm() {
+        List<String> pausing = names(CaseStatusService.PAUSING_STATUSES.stream());
+        return (root, query, cb) -> root.get("currentStatus").get("name").in(pausing);
+    }
+
+    public static Specification<Case> ownedBy(Long analystId) {
+        return (root, query, cb) -> cb.equal(root.get("analyst").get("id"), analystId);
+    }
+
+    public static Specification<Case> withoutAnalyst() {
+        return (root, query, cb) -> cb.isNull(root.get("analyst"));
+    }
+
+    /**
      * Open cases untouched since {@code threshold}. Measured on {@code updatedAt}, not the last status
      * transition: any change (e.g. an assignment) counts, and it avoids a subquery per page.
      */
