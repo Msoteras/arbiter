@@ -40,9 +40,6 @@ public class DocumentRequirement {
     @Column(name = "risk_band", length = 20)
     private String riskBand;
 
-    @Column(nullable = false)
-    private boolean mandatory;
-
     @Column(name = "document_type", nullable = false)
     private String documentType;
 

@@ -1,8 +1,9 @@
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpContext } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 
 import { environment } from '../../../environments/environment';
+import { QueryCache } from '../cache/query-cache';
 import { UserRole } from '../models/user-role';
 import { UserStatus } from '../models/user-status';
 
@@ -32,6 +33,8 @@ export interface UserResponse {
   rol: UserRole;
   estado: UserStatus;
   createdAt: string;
+  /** Last successful login; null when none was recorded. */
+  lastAccessAt: string | null;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -43,13 +46,27 @@ export class UserAdminService {
     return this.http.post<UserResponse>(this.baseUrl, request);
   }
 
+  private readonly cache = inject(QueryCache);
+  private readonly fetchList = (context: HttpContext) =>
+    this.http.get<UserResponse[]>(this.baseUrl, { context });
+  private readonly fetchAnalysts = (context: HttpContext) =>
+    this.http.get<AnalystResponse[]>(`${this.baseUrl}/analysts`, { context });
+
   list(): Observable<UserResponse[]> {
-    return this.http.get<UserResponse[]>(this.baseUrl);
+    return this.cache.read('users:list', this.fetchList);
   }
 
   /** Unlike `list()`, analysts may call it too. The `id` is what `POST /cases/{id}/assign` expects. */
   listAnalysts(): Observable<AnalystResponse[]> {
-    return this.http.get<AnalystResponse[]>(`${this.baseUrl}/analysts`);
+    return this.cache.read('users:analysts', this.fetchAnalysts);
+  }
+
+  prefetchList(): void {
+    this.cache.prefetch('users:list', this.fetchList);
+  }
+
+  prefetchAnalysts(): void {
+    this.cache.prefetch('users:analysts', this.fetchAnalysts);
   }
 
   updateRole(id: number, rol: UserRole): Observable<UserResponse> {

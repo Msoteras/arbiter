@@ -31,7 +31,7 @@ describe('CaseChatComponent · messages over the socket', () => {
     unread: 0,
     canPost: true,
     closedNotice: null,
-    topic: '/topic/cases/bbva/29',
+    topic: '/topic/cases.bbva.29',
     viewerSide: 'INSURED',
   };
 

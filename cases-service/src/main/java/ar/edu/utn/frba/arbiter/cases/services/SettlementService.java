@@ -321,6 +321,7 @@ public class SettlementService {
                 settlement.getCalculatedAmount(),
                 settlement.getSettledAmount(),
                 settlement.getAdjustmentReason(),
+                settlement.getPendingJustification(),
                 limit,
                 // The excess over the limit is what the referent is judging.
                 limit == null ? null : settlement.getSettledAmount().subtract(limit),

@@ -117,9 +117,10 @@ export class ResolutionReportComponent extends ReportTab<
     }
     const { summary, comparisonSummary } = current;
     const reference = comparisonReference(current.comparison.mode);
-    const lapsed = summary.totalCases - summary.decidedCases;
-    // Only mention lapsed cases when there are some: "0 caducados" is noise.
-    const detail = lapsed === 0 ? '' : `${summary.decidedCases} decididos · ${lapsed} caducados`;
+    const undecided = summary.totalCases - summary.decidedCases;
+    // Only mention them when there are some: "0 sin decisión" is noise.
+    const detail =
+      undecided === 0 ? '' : `${summary.decidedCases} decididos · ${undecided} sin decisión`;
     return [resolvedTrend(summary, comparisonSummary, reference), detail]
       .filter(Boolean)
       .join(' · ');

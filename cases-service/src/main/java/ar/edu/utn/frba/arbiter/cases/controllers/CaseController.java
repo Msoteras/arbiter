@@ -15,6 +15,7 @@ import ar.edu.utn.frba.arbiter.cases.dto.CaseMessageInboxItemResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseScope;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseResponse;
+import ar.edu.utn.frba.arbiter.cases.dto.CloseCaseRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.PendingSettlementResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.AuthorizedSettlementResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.PolicyResponse;
@@ -186,7 +187,7 @@ public class CaseController {
                     deadline, or already overdue) — the "Due soon" lens.
 
                     `scope` filters by lifecycle: `OPEN` (the five non-terminal statuses), `CLOSED`
-                    (APPROVED/REJECTED/LAPSED) or `ALL`. Defaults to `ALL`: the cut belongs to the
+                    (APPROVED/REJECTED/LAPSED/PRESCRIBED/WITHDRAWN/VOIDED) or `ALL`. Defaults to `ALL`: the cut belongs to the
                     screen asking for it, not to the endpoint — the insured's portal consumes this
                     same listing and must keep seeing their resolved claims. An overdue case is
                     still `OPEN`.
@@ -257,9 +258,9 @@ public class CaseController {
     @PreAuthorize("hasAnyRole('ANALISTA_SINIESTROS', 'REFERENTE_ASEGURADORA')")
     @Operation(summary = "Reopen a closed case",
             description = """
-                    Sends a case that was already closed — APPROVED, REJECTED or LAPSED — back to
+                    Sends a case that was already closed (any terminal status) back to
                     the analyst's desk (PENDING_ANALYST_REVIEW). It is the "rehabilitation" step of
-                    the claims procedure: without it the three terminal statuses are dead ends, and
+                    the claims procedure: without it the terminal statuses are dead ends, and
                     neither an analyst's mistake nor documentation the insured brings after the case
                     lapsed can be fixed within the system.
 
@@ -281,6 +282,26 @@ public class CaseController {
             @RequestBody @Valid ReopenCaseRequest request
     ) {
         return ResponseEntity.ok(caseService.reopenCase(caseId, request.reason()));
+    }
+
+    @PostMapping("/{caseId}/closures")
+    @PreAuthorize("hasRole('ANALISTA_SINIESTROS')")
+    @Operation(summary = "Close the case without a verdict",
+            description = """
+                    Ends the case as WITHDRAWN (the insured abandoned the claim) or VOIDED (the claim
+                    never should have existed: a duplicate, the wrong policy). Both are terminal: the
+                    case takes no other event until someone reopens it (`POST /{id}/reopen`).
+
+                    Only the assigned analyst, like a decision. Allowed from PENDING_ANALYST_REVIEW,
+                    AWAITING_DOCUMENTATION and CLASSIFICATION_FAILED; anything else returns 409.
+                    `reason` is mandatory and goes on the history. The insured sees "Cerrado", never
+                    the reason.
+                    """)
+    public ResponseEntity<CaseResponse> closeCase(
+            @PathVariable Long caseId,
+            @RequestBody @Valid CloseCaseRequest request
+    ) {
+        return ResponseEntity.ok(caseService.closeCase(caseId, request.closure().status(), request.reason()));
     }
 
     @DeleteMapping("/{caseId}/assign")

@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, input, output, signal } from '@angular/core';
 
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
+import { IconButtonComponent } from '../../../shared/ui/icon-button/icon-button.component';
 import { InputComponent } from '../../../shared/ui/input/input.component';
 
 /**
@@ -10,7 +11,7 @@ import { InputComponent } from '../../../shared/ui/input/input.component';
  */
 @Component({
   selector: 'app-string-list-editor',
-  imports: [ButtonComponent, InputComponent],
+  imports: [IconButtonComponent, ButtonComponent, InputComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (items().length === 0 && emptyTitle()) {
@@ -35,22 +36,7 @@ import { InputComponent } from '../../../shared/ui/input/input.component';
                 (valueChange)="update($index, $event)"
                 [placeholder]="placeholder()"
               />
-              <button
-                type="button"
-                class="icon-btn confirm"
-                [attr.aria-label]="'Listo'"
-                (click)="stopEditing($index)"
-              >
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2.2"
-                  aria-hidden="true"
-                >
-                  <path d="M5 13l4 4L19 7" stroke-linecap="round" stroke-linejoin="round" />
-                </svg>
-              </button>
+              <app-icon-button icon="confirm" label="Listo" (click)="stopEditing($index)" />
             } @else {
               @if (marker()) {
                 <span class="row-marker" aria-hidden="true">
@@ -64,42 +50,8 @@ import { InputComponent } from '../../../shared/ui/input/input.component';
                 <p class="item-text">{{ item || placeholder() }}</p>
               </div>
               <div class="row-actions">
-                <button
-                  type="button"
-                  class="icon-btn"
-                  [attr.aria-label]="'Editar'"
-                  (click)="startEditing($index)"
-                >
-                  <svg
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="1.8"
-                    aria-hidden="true"
-                  >
-                    <path d="M4 20h4L19 9l-4-4L4 16v4z" stroke-linejoin="round" />
-                  </svg>
-                </button>
-                <button
-                  type="button"
-                  class="icon-btn danger"
-                  [attr.aria-label]="'Quitar'"
-                  (click)="remove($index)"
-                >
-                  <svg
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="1.8"
-                    aria-hidden="true"
-                  >
-                    <path
-                      d="M5 7h14M10 7V5h4v2M6 7l1 13h10l1-13"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    />
-                  </svg>
-                </button>
+                <app-icon-button icon="edit" label="Editar" (click)="startEditing($index)" />
+                <app-icon-button icon="delete" label="Quitar" (click)="remove($index)" />
               </div>
             }
           </li>
@@ -177,40 +129,6 @@ import { InputComponent } from '../../../shared/ui/input/input.component';
       width: var(--icon-sm);
       height: var(--icon-sm);
     }
-    .icon-btn {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      width: var(--icon-btn);
-      height: var(--icon-btn);
-      padding: 0;
-      background: none;
-      border: 1px solid var(--border-control);
-      border-radius: var(--radius-ctl);
-      color: var(--accent-fg);
-      cursor: pointer;
-    }
-    .icon-btn:hover {
-      border-color: var(--selected-border);
-      background: var(--selected-bg);
-    }
-    .icon-btn.danger {
-      color: var(--status-danger);
-    }
-    .icon-btn.danger:hover {
-      border-color: var(--status-danger);
-      background: none;
-    }
-    .icon-btn:focus-visible {
-      outline: none;
-      border-color: var(--border-focus);
-      box-shadow: var(--focus-ring);
-    }
-    .icon-btn svg {
-      width: var(--icon-md);
-      height: var(--icon-md);
-    }
-
     .empty-box {
       display: flex;
       flex-direction: column;

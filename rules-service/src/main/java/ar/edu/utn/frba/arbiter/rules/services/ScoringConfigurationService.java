@@ -1,5 +1,6 @@
 package ar.edu.utn.frba.arbiter.rules.services;
 
+import ar.edu.utn.frba.arbiter.common.enums.OnboardingStep;
 import ar.edu.utn.frba.arbiter.rules.dto.FactorWeightDto;
 import ar.edu.utn.frba.arbiter.rules.dto.ScoreBandCutDto;
 import ar.edu.utn.frba.arbiter.rules.dto.ScoringConfigDto;
@@ -39,6 +40,7 @@ public class ScoringConfigurationService {
     private final ScoreBandRepository scoreBandRepository;
     private final ScoringConfigurationHistoryRepository historyRepository;
     private final RuleAuthorResolver authorResolver;
+    private final OnboardingTracker onboardingTracker;
 
     @Transactional(readOnly = true)
     public ScoringConfigDto get() {
@@ -49,13 +51,13 @@ public class ScoringConfigurationService {
 
     @Transactional
     public ScoringConfigResponse upsert(ScoringConfigDto dto, String actorEmail) {
+        onboardingTracker.touch(OnboardingStep.SCORING, null);
         ScoringConfiguration config = scoringConfigurationRepository.findFirstByOrderByIdAsc().orElse(null);
         Instant now = Instant.now();
 
         if (config == null) {
             config = ScoringConfiguration.builder()
                     .name("Scoring de la aseguradora")
-                    .active(dto.enabled())
                     .fullAnalysisOnFastTrack(dto.fullAnalysisOnFastTrack())
                     .validFrom(now)
                     .createdBy(authorResolver.userIdOf(actorEmail))
@@ -77,7 +79,6 @@ public class ScoringConfigurationService {
 
         factorWeightRepository.deleteByScoringConfiguration_Id(config.getId());
         scoreBandRepository.deleteByScoringConfiguration_Id(config.getId());
-        config.setActive(dto.enabled());
         config.setFullAnalysisOnFastTrack(dto.fullAnalysisOnFastTrack());
         config.setValidFrom(now);
         scoringConfigurationRepository.save(config);
@@ -97,7 +98,6 @@ public class ScoringConfigurationService {
             scoreBandRepository.save(ScoreBand.builder()
                     .band(b.band())
                     .minScoreInclusive(b.minScoreInclusive())
-                    .active(true)
                     .scoringConfiguration(config)
                     .build());
         }
@@ -106,7 +106,6 @@ public class ScoringConfigurationService {
     private ScoringConfigDto toDto(ScoringConfiguration config) {
         return new ScoringConfigDto(
                 config.getId(),
-                config.isActive(),
                 config.isFullAnalysisOnFastTrack(),
                 factorWeightRepository.findByScoringConfiguration_Id(config.getId()).stream()
                         .map(f -> new FactorWeightDto(f.getFactorCode(), f.getWeight()))

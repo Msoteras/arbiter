@@ -15,6 +15,8 @@ export interface Coverage {
   name: string;
   /** General conditions clause code (e.g. "340"). */
   clause: string;
+  /** What the coverage is for, in the insurer's words. */
+  description: string;
   /** Null when it comes from the policy. */
   insuredAmount: number | null;
   /** Fraction (0..1) of the amount. */
@@ -26,7 +28,6 @@ export interface Coverage {
   /** Days after policy start before the coverage applies. null = none. */
   waitingPeriodDays: number | null;
   coversFamilyGroup: boolean;
-  claimExhaustsCoverage: boolean;
   /** Total loss extinguishes the policy; repair does not. */
   settlementFormula: SettlementFormula;
   /** Only applies to total loss. */
@@ -71,7 +72,6 @@ export interface RiskBandCut {
 
 /** Single per-insurer fraud scoring config (not per branch), served at `/api/v1/rules/scoring`. */
 export interface ScoringConfig {
-  enabled: boolean;
   /** Whether Fast Track still runs OCR and image fraud for a complete score. Never vetoes Fast Track. */
   fullAnalysisOnFastTrack: boolean;
   factors: FactorWeight[];

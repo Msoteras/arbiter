@@ -27,6 +27,8 @@ import { SpinnerComponent } from '../../shared/ui/spinner/spinner.component';
 import { InlineLoadingComponent } from '../../shared/ui/inline-loading/inline-loading.component';
 import { SaveBarComponent } from '../../shared/ui/save-bar/save-bar.component';
 import { ChipGroupComponent, ChipOption } from '../../shared/ui/chip-group/chip-group.component';
+import { TabOption, TabsComponent } from '../../shared/ui/tabs/tabs.component';
+import { IconButtonComponent } from '../../shared/ui/icon-button/icon-button.component';
 import { SwitchComponent } from '../../shared/ui/switch/switch.component';
 import {
   DistributionComponent,
@@ -63,6 +65,8 @@ interface Swatch {
   imports: [
     RatePipe,
     ChipGroupComponent,
+    TabsComponent,
+    IconButtonComponent,
     ButtonComponent,
     BadgeComponent,
     InfoTipComponent,
@@ -285,6 +289,24 @@ interface Swatch {
       </section>
 
       <section class="sg-block">
+        <h3 class="sg-h3">Icon button</h3>
+        <p class="sg-p">
+          Acciones propias de una fila —editar, quitar— donde un botón con texto por fila llenaría
+          la lista. <span class="mono">label</span> es obligatorio: es el nombre accesible y el
+          tooltip, las únicas palabras que tiene la acción. Los íconos son un conjunto cerrado
+          (<span class="mono">edit</span>, <span class="mono">delete</span>,
+          <span class="mono">confirm</span>) para que la misma acción se vea siempre igual;
+          <span class="mono">delete</span> va en tono peligro, sin relleno.
+        </p>
+        <div class="row">
+          <app-icon-button icon="edit" label="Editar" />
+          <app-icon-button icon="delete" label="Quitar" />
+          <app-icon-button icon="confirm" label="Listo" />
+          <app-icon-button icon="edit" label="Editar" [disabled]="true" />
+        </div>
+      </section>
+
+      <section class="sg-block">
         <h3 class="sg-h3">Badge</h3>
         <div class="row">
           <app-badge variant="solid">Estado técnico</app-badge>
@@ -316,6 +338,19 @@ interface Swatch {
             <app-info-tip>
               Durante la carencia la cobertura todavía no aplica, aunque la póliza esté vigente: un
               siniestro dentro de ese plazo no se cubre.
+            </app-info-tip>
+          </span>
+        </div>
+        <p class="sg-p">
+          Con <span class="mono">tone="warning"</span>: una advertencia sobre lo que está en
+          pantalla, que no bloquea nada. Triángulo en el color de advertencia.
+        </p>
+        <div class="row">
+          <span class="t-field-label">
+            Hechos generadores que cubre
+            <app-info-tip tone="warning">
+              Cubre los 4 hechos generadores del ramo. Si una póliza contrata varias coberturas,
+              esta responde por todos.
             </app-info-tip>
           </span>
         </div>
@@ -351,7 +386,21 @@ interface Swatch {
           >
             Disparar warning
           </app-button>
+          <app-button variant="secondary" (click)="showToastWithAction()">
+            Disparar con acción
+          </app-button>
+          <app-button variant="secondary" (click)="showToastWithDescription()">
+            Disparar con descripción
+          </app-button>
+          <app-button variant="secondary" (click)="showToastStack()">Disparar tres</app-button>
         </div>
+        <p class="sg-p">
+          Basado en Sonner: el más nuevo adelante y los anteriores asomando detrás. Al pasar el
+          mouse (o con el foco) se despliegan y sus tiempos se pausan. Se descarta deslizándolo
+          hacia abajo. <span class="mono">description</span> agrega una segunda línea;
+          <span class="mono">action</span> ofrece un solo paso siguiente y, al usarlo, el toast se
+          cierra.
+        </p>
       </section>
 
       <section class="sg-block">
@@ -843,6 +892,23 @@ interface Swatch {
             [(value)]="timeSlotDemoValue"
             ariaLabel="Franja horaria de ejemplo"
           />
+        </div>
+      </section>
+
+      <section class="sg-block">
+        <h3 class="sg-h3">Tabs</h3>
+        <p class="sg-p">
+          Cambia entre secciones de una misma pantalla, como las solapas de un ramo en Reglas. Solo
+          dibuja la tira: el contenido de la solapa activa lo renderiza quien la usa, a partir de
+          <span class="mono">value</span>.
+        </p>
+        <p class="sg-p">
+          Es un <span class="mono">tablist</span> real: las flechas, Inicio y Fin mueven la
+          selección, y solo la solapa activa queda en el orden de tabulación. La activa se distingue
+          por subrayado y peso además del color.
+        </p>
+        <div class="row">
+          <app-tabs [tabs]="tabsDemo" [(value)]="tabsDemoValue" ariaLabel="Solapas de ejemplo" />
         </div>
       </section>
 
@@ -1367,6 +1433,13 @@ export class StyleguideComponent {
   ];
   protected readonly timeSlotDemoValue = signal('afternoon');
 
+  protected readonly tabsDemo: readonly TabOption[] = [
+    { id: 'coverages', label: 'Coberturas' },
+    { id: 'fastTrack', label: 'Fast Track' },
+    { id: 'documents', label: 'Documentación' },
+  ];
+  protected readonly tabsDemoValue = signal('coverages');
+
   protected readonly claimTypeDemo: readonly ChipOption[] = [
     { value: 'street-robbery', label: 'Robo en vía pública' },
     { value: 'theft', label: 'Hurto' },
@@ -1377,6 +1450,28 @@ export class StyleguideComponent {
 
   private readonly doc = inject(DOCUMENT);
   protected readonly toastService = inject(ToastService);
+
+  protected showToastWithAction(): void {
+    this.toastService.show('Paso completo: Armá la agenda documental', 'ok', 6000, {
+      action: {
+        label: 'Siguiente',
+        run: () => this.toastService.show('Acción ejecutada.', 'info'),
+      },
+    });
+  }
+
+  protected showToastWithDescription(): void {
+    this.toastService.show('Configurá el Fast Track', 'info', 8000, {
+      description: 'Definí las condiciones de una denuncia para ser considerada Fast Track.',
+    });
+  }
+
+  /** Three at once: the stack, and how it spreads out on hover. */
+  protected showToastStack(): void {
+    this.toastService.show('Cambios guardados en el motor.', 'ok');
+    setTimeout(() => this.toastService.show('rules-service tardó en responder.', 'warning'), 300);
+    setTimeout(() => this.toastService.show('No se pudo guardar el cambio.', 'danger'), 600);
+  }
 
   protected readonly modalOpen = signal(false);
   protected readonly sidePanelOpen = signal(false);

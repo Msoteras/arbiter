@@ -23,9 +23,12 @@ final class MetricsSummaries {
         long approved = countOf(byStatus, CaseStatus.APPROVED);
         long rejected = countOf(byStatus, CaseStatus.REJECTED);
         long lapsed = countOf(byStatus, CaseStatus.LAPSED);
+        long prescribed = countOf(byStatus, CaseStatus.PRESCRIBED);
+        long withdrawn = countOf(byStatus, CaseStatus.WITHDRAWN);
+        long voided = countOf(byStatus, CaseStatus.VOIDED);
         long resolvedCases = resolved.stream().mapToLong(ResolvedTotals::count).sum();
-        // Decided, not resolved: a lapsed claim closed without anyone deciding it.
-        long decided = approved + rejected;
+        // Decided, not resolved: a lapsed, withdrawn or voided claim closed without anyone deciding it.
+        long decided = approved + rejected + prescribed;
 
         return new MetricsSummary(
                 intake.reported(),
@@ -34,6 +37,9 @@ final class MetricsSummaries {
                 approved,
                 rejected,
                 lapsed,
+                prescribed,
+                withdrawn,
+                voided,
                 rate(approved, decided),
                 rate(rejected, decided),
                 rate(intake.fastTrack(), intake.reported()),
@@ -54,7 +60,7 @@ final class MetricsSummaries {
     private static Double averageHours(Map<String, ResolvedTotals> byStatus) {
         double weightedSeconds = 0;
         long decided = 0;
-        for (CaseStatus status : List.of(CaseStatus.APPROVED, CaseStatus.REJECTED)) {
+        for (CaseStatus status : CaseStatus.decided()) {
             ResolvedTotals totals = byStatus.get(status.name());
             if (totals != null && totals.averageSeconds() != null) {
                 weightedSeconds += totals.averageSeconds() * totals.count();

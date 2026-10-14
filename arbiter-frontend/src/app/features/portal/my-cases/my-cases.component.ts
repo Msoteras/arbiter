@@ -118,7 +118,7 @@ export class MyCasesComponent {
         if (!insuredId) {
           return of<LoadState>({ status: 'idle' });
         }
-        return this.service.list({ insuredId, ...filters }).pipe(
+        return this.service.cachedList({ insuredId, ...filters }).pipe(
           map((page): LoadState => ({
             status: 'ok',
             data: page.content,

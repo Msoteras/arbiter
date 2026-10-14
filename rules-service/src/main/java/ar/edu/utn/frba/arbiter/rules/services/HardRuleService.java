@@ -1,5 +1,6 @@
 package ar.edu.utn.frba.arbiter.rules.services;
 
+import ar.edu.utn.frba.arbiter.common.enums.OnboardingStep;
 import ar.edu.utn.frba.arbiter.common.enums.RuleType;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Branch;
 import ar.edu.utn.frba.arbiter.rules.dto.HardRuleConfig;
@@ -55,6 +56,7 @@ public class HardRuleService {
     private final InsurerRuleHistoryRepository historyRepository;
     private final BranchRepository branchRepository;
     private final RuleAuthorResolver authorResolver;
+    private final OnboardingTracker onboardingTracker;
 
     /** Always the whole catalog: a rule with no row comes back disabled, which to the engine is the same. */
     @Transactional(readOnly = true)
@@ -76,6 +78,7 @@ public class HardRuleService {
     /** A partial request leaves the rules it doesn't mention untouched. */
     @Transactional
     public List<HardRuleDto> upsert(Long branchId, Long coverageId, List<HardRuleDto> requested, String actorEmail) {
+        onboardingTracker.touch(OnboardingStep.COVERAGES, branchId);
         requested.forEach(rule -> upsertOne(branchId, coverageId, rule, actorEmail));
         return get(branchId, coverageId);
     }

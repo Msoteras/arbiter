@@ -10,6 +10,7 @@ import {
   branchesLabel,
 } from '../../../core/models/derivation';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
+import { IconButtonComponent } from '../../../shared/ui/icon-button/icon-button.component';
 import { CardComponent } from '../../../shared/ui/card/card.component';
 import { CheckboxComponent } from '../../../shared/ui/checkbox/checkbox.component';
 import { InputComponent } from '../../../shared/ui/input/input.component';
@@ -17,6 +18,9 @@ import { SelectComponent, SelectOption } from '../../../shared/ui/select/select.
 import { EmptyStateComponent } from '../../../shared/ui/empty-state/empty-state.component';
 import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
 import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
+import { ONBOARDING_STEP_LINE } from '../../../core/onboarding/onboarding';
+import { InfoTipComponent } from '../../../shared/ui/info-tip/info-tip.component';
+import { OnboardingTargetDirective } from '../../../core/onboarding/onboarding-target.directive';
 import { ModalComponent } from '../../../shared/ui/modal/modal.component';
 
 /** `id` null = new provider. */
@@ -31,7 +35,10 @@ interface ProviderDraft extends ProviderRequest {
 @Component({
   selector: 'app-providers-config',
   imports: [
+    OnboardingTargetDirective,
+    InfoTipComponent,
     ButtonComponent,
+    IconButtonComponent,
     CardComponent,
     CheckboxComponent,
     InputComponent,
@@ -46,6 +53,8 @@ interface ProviderDraft extends ProviderRequest {
   styleUrl: './providers-config.component.scss',
 })
 export class ProvidersConfigComponent {
+  protected readonly stepLine = ONBOARDING_STEP_LINE;
+
   private readonly providersService = inject(ProvidersService);
   private readonly branchesService = inject(BranchesService);
 
@@ -103,7 +112,8 @@ export class ProvidersConfigComponent {
       name: '',
       email: '',
       zone: '',
-      branchIds: [],
+      // Starts with every branch: the referente unchecks the ones it doesn't cover.
+      branchIds: this.branches().map((b) => b.id),
       active: true,
       providerType: 'ESTUDIO_LIQUIDADOR',
     });
@@ -137,7 +147,6 @@ export class ProvidersConfigComponent {
     this.setField('providerType', value as ProviderType);
   }
 
-  /** None checked is a valid answer: a generalist covering every branch. */
   protected toggleBranch(branchId: number, checked: boolean): void {
     const current = this.draft();
     if (!current) {
@@ -147,11 +156,21 @@ export class ProvidersConfigComponent {
     this.setField('branchIds', checked ? [...others, branchId] : others);
   }
 
+  /** A provider with no branch covers nothing: the backend rejects it. */
+  protected readonly noBranchChecked = computed(
+    () => this.branchesState() === 'ok' && (this.draft()?.branchIds.length ?? 0) === 0,
+  );
+
   protected readonly canSave = computed(() => {
     const d = this.draft();
-    // Email is the only channel to the provider: without it a referral goes nowhere.
+    // Email is the only channel to the provider: without it a referral goes nowhere. With no
+    // branch it would never be offered to an analyst.
     return (
-      !!d && d.name.trim().length > 0 && d.email.trim().length > 0 && this.branchesState() === 'ok'
+      !!d &&
+      d.name.trim().length > 0 &&
+      d.email.trim().length > 0 &&
+      this.branchesState() === 'ok' &&
+      !this.noBranchChecked()
     );
   });
 

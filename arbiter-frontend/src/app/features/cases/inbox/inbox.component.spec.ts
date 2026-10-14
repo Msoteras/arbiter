@@ -8,6 +8,8 @@ import { AuthSessionService } from '../../../core/auth/auth-session.service';
 import { UserAdminService } from '../../../core/auth/user-admin.service';
 import { CaseNavigationService } from '../case-navigation.service';
 import { CaseListParams, CaseService } from '../case.service';
+import { INBOX_FIRST_PAGE } from '../../home/prefetch.service';
+import { paramsKey } from '../../../core/cache/query-cache';
 
 /**
  * The lifecycle scope must travel in the request params: filtering the fetched page client-side
@@ -36,6 +38,15 @@ describe('InboxComponent · lifecycle scope', () => {
     lensCalls = [];
     navigateCalls = [];
 
+    const listPage = (params: CaseListParams) => {
+      listCalls.push(params);
+      return of({
+        ...emptyPage,
+        content,
+        totalElements: content.length,
+        totalPages: content.length ? 1 : 0,
+      });
+    };
     await TestBed.configureTestingModule({
       imports: [InboxComponent],
       providers: [
@@ -43,15 +54,9 @@ describe('InboxComponent · lifecycle scope', () => {
         {
           provide: CaseService,
           useValue: {
-            list: (params: CaseListParams) => {
-              listCalls.push(params);
-              return of({
-                ...emptyPage,
-                content,
-                totalElements: content.length,
-                totalPages: content.length ? 1 : 0,
-              });
-            },
+            list: (params: CaseListParams) => listPage(params),
+            cachedList: (params: CaseListParams) => listPage(params),
+            hasNewerList: () => false,
             lensSummary: (params: CaseListParams) => {
               lensCalls.push(params);
               return of(summary);
@@ -122,6 +127,19 @@ describe('InboxComponent · lifecycle scope', () => {
     await mount();
 
     expect(listCalls[0].scope).toBe('OPEN');
+  });
+
+  it('asks first for the page the analyst home prefetches', async () => {
+    await mount();
+
+    // The cache key ignores false and empty filters, and so does this comparison.
+    const asked: Record<string, unknown> = { ...listCalls[0] };
+    delete asked['reload'];
+    const asStrings = (p: object) =>
+      Object.fromEntries(
+        Object.entries(p).map(([k, v]) => [k, typeof v === 'number' ? String(v) : v]),
+      );
+    expect(paramsKey(asStrings(asked))).toBe(paramsKey(asStrings(INBOX_FIRST_PAGE)));
   });
 
   it('starts the same way for the referent', async () => {

@@ -8,6 +8,7 @@ import ar.edu.utn.frba.arbiter.cases.models.repositories.InsurerRepository;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 import ar.edu.utn.frba.arbiter.common.models.entities.Insurer;
 import lombok.RequiredArgsConstructor;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -38,6 +39,7 @@ public class LapseSweepScheduler {
     private final Clock clock;
 
     @Scheduled(cron = "${arbiter.lapse-sweep.cron:0 30 8 * * *}")
+    @SchedulerLock(name = "lapse-sweep")
     public void sweepLapsedCases() {
         Instant threshold = LocalDateTime.now(clock).minusMonths(INACTION_MONTHS).toInstant(ZoneOffset.UTC);
         for (Insurer insurer : insurerRepository.findByActiveTrue()) {

@@ -12,5 +12,7 @@ public enum InsuredStatus {
     UNDER_REPAIR,
     APPROVED,
     REJECTED,
-    LAPSED
+    LAPSED,
+    /** Withdrawn or voided: closed without a verdict, and the insured isn't told the internal reason. */
+    CLOSED
 }

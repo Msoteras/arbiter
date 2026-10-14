@@ -33,7 +33,7 @@ export interface MetricCount {
  */
 export interface ResolutionSummary {
   totalCases: number;
-  /** The rest are lapsed cases. */
+  /** The rest closed without a verdict: lapsed, withdrawn or voided. */
   decidedCases: number;
   /** Over DECIDED cases only, like the dashboard: a lapsed case measures the insured's silence. */
   averageMinutes: number | null;

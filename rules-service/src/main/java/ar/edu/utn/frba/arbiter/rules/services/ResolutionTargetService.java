@@ -1,5 +1,6 @@
 package ar.edu.utn.frba.arbiter.rules.services;
 
+import ar.edu.utn.frba.arbiter.common.enums.OnboardingStep;
 import ar.edu.utn.frba.arbiter.common.enums.RuleType;
 import ar.edu.utn.frba.arbiter.rules.dto.InsurerRuleSnapshot;
 import ar.edu.utn.frba.arbiter.rules.dto.ResolutionTargetDto;
@@ -37,6 +38,7 @@ public class ResolutionTargetService {
     private final InsurerRuleRepository ruleRepository;
     private final InsurerRuleHistoryRepository historyRepository;
     private final RuleAuthorResolver authorResolver;
+    private final OnboardingTracker onboardingTracker;
 
     @Transactional(readOnly = true)
     public ResolutionTargetDto get() {
@@ -54,6 +56,7 @@ public class ResolutionTargetService {
 
     @Transactional
     public ResolutionTargetDto upsert(ResolutionTargetDto requested, String actorEmail) {
+        onboardingTracker.touch(OnboardingStep.TARGET, null);
         if (requested.enabled() && requested.targetDays() == null) {
             throw new InvalidRuleConfigurationException(
                     "A resolution target that is on needs targetDays");

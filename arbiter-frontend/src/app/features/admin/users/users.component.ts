@@ -5,6 +5,7 @@ import { AuthSessionService } from '../../../core/auth/auth-session.service';
 import { UserAdminService, UserResponse } from '../../../core/auth/user-admin.service';
 import { UserRole, userRoleLabel } from '../../../core/models/user-role';
 import { userStatusLabel, userStatusTone } from '../../../core/models/user-status';
+import { formatDateTime } from '../../../core/util/datetime';
 import { CreateUserComponent } from '../create-user/create-user.component';
 import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
@@ -17,11 +18,13 @@ import { SelectComponent, SelectOption } from '../../../shared/ui/select/select.
 import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
 import { ToastService } from '../../../shared/ui/toast/toast.service';
 import { fadeStagger, staggerReveal } from '../../../shared/animations';
+import { OnboardingTargetDirective } from '../../../core/onboarding/onboarding-target.directive';
 
 /** The referente can't change their own role: the backend enforces it, the UI just disables it. */
 @Component({
   selector: 'app-users',
   imports: [
+    OnboardingTargetDirective,
     CreateUserComponent,
     BadgeComponent,
     ButtonComponent,
@@ -95,6 +98,10 @@ export class UsersComponent {
   }
 
   /** The backend answers 202 and keeps working, so there's no summary: only "started". */
+  protected lastAccess(user: UserResponse): string {
+    return formatDateTime(user.lastAccessAt, 'Sin registro');
+  }
+
   protected confirmProvision(): void {
     this.provisioning.set(true);
     this.service.provisionInsured().subscribe({

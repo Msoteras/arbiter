@@ -14,6 +14,8 @@ import { SaveBarComponent } from '../../../shared/ui/save-bar/save-bar.component
 import { SwitchComponent } from '../../../shared/ui/switch/switch.component';
 
 import { fadeInUp } from '../../../shared/animations';
+import { ONBOARDING_STEP_LINE } from '../../../core/onboarding/onboarding';
+import { OnboardingTargetDirective } from '../../../core/onboarding/onboarding-target.directive';
 import { MonthsInputComponent } from '../rules/months-input.component';
 
 /**
@@ -22,6 +24,7 @@ import { MonthsInputComponent } from '../rules/months-input.component';
 @Component({
   selector: 'app-fraud-config',
   imports: [
+    OnboardingTargetDirective,
     CardComponent,
     InfoTipComponent,
     MonthsInputComponent,
@@ -35,6 +38,8 @@ import { MonthsInputComponent } from '../rules/months-input.component';
   styleUrl: './fraud-config.component.scss',
 })
 export class FraudConfigComponent {
+  protected readonly stepLine = ONBOARDING_STEP_LINE;
+
   private readonly service = inject(FraudRuleService);
 
   protected readonly rule = signal<FraudRecordRule | null>(null);
@@ -44,14 +49,19 @@ export class FraudConfigComponent {
   protected readonly saving = signal(false);
   protected readonly error = signal<string | null>(null);
 
-  /** Compares whole objects rather than tracking a flag, so reverting a value disables save again. */
+  /**
+   * Compares whole objects rather than tracking a flag, so reverting a value disables save again.
+   * A policy never saved (`ruleId` null) shows the default and counts as unsaved: otherwise a
+   * referent who agrees with the default has no way to save it.
+   */
   protected readonly dirty = computed(() => {
     const current = this.rule();
     const saved = this.persisted();
     return (
       current != null &&
       saved != null &&
-      (current.windowMonths !== saved.windowMonths ||
+      (saved.ruleId == null ||
+        current.windowMonths !== saved.windowMonths ||
         current.blocksFastTrack !== saved.blocksFastTrack)
     );
   });
@@ -74,9 +84,10 @@ export class FraudConfigComponent {
 
   private reload(): void {
     this.loading.set(true);
-    this.service.get().subscribe({
+    // With unsaved changes a refresh stays in the cache; discarding picks it up (L1).
+    this.service.get({ apply: () => !this.dirty() }).subscribe({
       next: (rule) => {
-        this.rule.set(rule);
+        this.rule.set({ ...rule });
         this.persisted.set({ ...rule });
         this.loading.set(false);
       },
@@ -107,6 +118,7 @@ export class FraudConfigComponent {
       this.rule.set({ ...saved });
     }
     this.error.set(null);
+    this.reload();
   }
 
   protected save(): void {
@@ -118,7 +130,7 @@ export class FraudConfigComponent {
     this.error.set(null);
     this.service.save(rule).subscribe({
       next: (saved) => {
-        this.rule.set(saved);
+        this.rule.set({ ...saved });
         this.persisted.set({ ...saved });
         this.saving.set(false);
       },

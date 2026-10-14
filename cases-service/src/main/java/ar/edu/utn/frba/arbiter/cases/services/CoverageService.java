@@ -1,13 +1,18 @@
 package ar.edu.utn.frba.arbiter.cases.services;
 
+import ar.edu.utn.frba.arbiter.common.enums.OnboardingStep;
+import ar.edu.utn.frba.arbiter.cases.adapters.InsurerAdapter;
 import ar.edu.utn.frba.arbiter.cases.dto.CoverageDetailResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CoverageOption;
 import ar.edu.utn.frba.arbiter.cases.dto.CoverageSummary;
 import ar.edu.utn.frba.arbiter.cases.dto.CoverageUpsertRequest;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CoverageNotFoundException;
+import ar.edu.utn.frba.arbiter.cases.exceptions.UnresolvedCaseReferenceException;
+import ar.edu.utn.frba.arbiter.cases.models.repositories.BranchRepository;
 import ar.edu.utn.frba.arbiter.common.enums.DeductibleBasis;
 import ar.edu.utn.frba.arbiter.common.enums.SettlementBasis;
 import ar.edu.utn.frba.arbiter.common.enums.SettlementFormula;
+import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Branch;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Coverage;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CoverageRepository;
 import lombok.RequiredArgsConstructor;
@@ -29,12 +34,27 @@ public class CoverageService {
     private static final long HOURS_PER_DAY = 24L;
 
     private final CoverageRepository coverageRepository;
+    private final BranchRepository branchRepository;
+    private final InsurerAdapter insurerAdapter;
+    private final OnboardingNotifier onboardingNotifier;
 
     @Transactional(readOnly = true)
     public List<CoverageOption> listByBranch(Long branchId) {
         return coverageRepository.findByBranchIdOrderByNameAsc(branchId).stream()
                 .map(coverage -> new CoverageOption(coverage.getId(), coverage.getName()))
                 .toList();
+    }
+
+    /**
+     * What the referent can name a coverage of the branch: the names on the insurer's policies. A
+     * coverage named otherwise never matches a policy, and no claim can be filed under it.
+     */
+    @Transactional(readOnly = true)
+    public List<String> insurerCoverageNames(Long branchId) {
+        Branch branch = branchRepository.findById(branchId)
+                .orElseThrow(() -> new UnresolvedCaseReferenceException("ramo", String.valueOf(branchId)));
+        String externalName = branch.getExternalName() != null ? branch.getExternalName() : branch.getName();
+        return insurerAdapter.findCoverageNames(externalName);
     }
 
     @Transactional(readOnly = true)
@@ -57,13 +77,12 @@ public class CoverageService {
         Coverage coverage = Coverage.builder()
                 .branchId(branchId)
                 .coversFamilyGroup(false)
-                .claimExhaustsCoverage(false)
-                .individual(true)
                 .build();
         applyRequest(coverage, request);
         // Starts equal to the name and never changes again: it is what the insurer database calls
         // the coverage, and the key its policies are matched by.
         coverage.setExternalName(request.name());
+        onboardingNotifier.saved(OnboardingStep.COVERAGES, branchId);
         return toDetail(coverageRepository.save(coverage));
     }
 
@@ -72,20 +91,23 @@ public class CoverageService {
         Coverage coverage = coverageRepository.findById(coverageId)
                 .orElseThrow(() -> new CoverageNotFoundException(coverageId));
         applyRequest(coverage, request);
+        onboardingNotifier.saved(OnboardingStep.COVERAGES, coverage.getBranchId());
         return toDetail(coverageRepository.save(coverage));
     }
 
     @Transactional
     public void delete(Long coverageId) {
-        if (!coverageRepository.existsById(coverageId)) {
-            throw new CoverageNotFoundException(coverageId);
-        }
-        coverageRepository.deleteById(coverageId);
+        Coverage coverage = coverageRepository.findById(coverageId)
+                .orElseThrow(() -> new CoverageNotFoundException(coverageId));
+        onboardingNotifier.saved(OnboardingStep.COVERAGES, coverage.getBranchId());
+        coverageRepository.delete(coverage);
     }
 
     private void applyRequest(Coverage coverage, CoverageUpsertRequest request) {
         coverage.setName(request.name());
         coverage.setClause(request.clause());
+        coverage.setDescription(request.description() == null || request.description().isBlank()
+                ? null : request.description().strip());
         coverage.setExclusions(request.exclusions());
         coverage.setDeductible(request.deductibleRatio() == null
                 ? null : request.deductibleRatio().multiply(HUNDRED));
@@ -96,7 +118,6 @@ public class CoverageService {
         coverage.setMaxEventsPerYear(request.maxAnnualClaims());
         coverage.setWaitingPeriodDays(request.waitingPeriodDays());
         coverage.setCoversFamilyGroup(request.coversFamilyGroup());
-        coverage.setClaimExhaustsCoverage(request.claimExhaustsCoverage());
         // Never null: the columns are NOT NULL and every coverage settles in some way.
         coverage.setSettlementFormula(request.settlementFormula() == null
                 ? SettlementFormula.TOTAL_LOSS : request.settlementFormula());
@@ -113,6 +134,7 @@ public class CoverageService {
                 coverage.getId(),
                 coverage.getName(),
                 coverage.getClause(),
+                coverage.getDescription(),
                 coverage.getDeductible() == null
                         ? null : coverage.getDeductible().divide(HUNDRED),
                 coverage.getDeductibleBasis(),
@@ -121,7 +143,6 @@ public class CoverageService {
                 coverage.getMaxEventsPerYear(),
                 coverage.getWaitingPeriodDays(),
                 coverage.isCoversFamilyGroup(),
-                coverage.isClaimExhaustsCoverage(),
                 coverage.getSettlementFormula(),
                 coverage.getSettlementBasis(),
                 coverage.getSecondEventPercentage() == null
