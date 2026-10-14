@@ -11,6 +11,19 @@ Idioma: respondé y escribí commits/docs en **español rioplatense**. En el có
 
 La sección "Modelo de dominio — vocabulario" más abajo es la excepción: ahí los términos quedan en **español**, porque documentan el vocabulario de negocio real (relevamiento BBVA) tal como lo usa el analista — es prosa de negocio, no identificadores de código.
 
+### Redacción en español
+
+Aplica a las respuestas al equipo y a todo texto que ve el usuario (UI, avisos, tooltips, mails).
+
+1. **Estilo ASD-STE100 en español.** Frases cortas (unas 20 palabras como máximo), una idea por frase, voz activa, verbos simples y un solo término por concepto. Pasos en listas verticales. Nada de metáforas, modismos ni frases encadenadas. Lenguaje técnico y simple: los usuarios conocen el negocio, así que se usan los términos de la UI tal cual (Fast Track, Hard Stop, hecho generador).
+2. **Nada de texto descriptivo en la UI.** Sin párrafos de ayuda, aclaraciones ni subtítulos que expliquen. Si algo necesita explicación, va en un tooltip (`app-info-tip`), escrito para el usuario final: lo ayuda a decidir o a actuar, nunca explica cómo está hecho el sistema. Avisos: una frase con lo que pasó y, solo si no es obvio, qué hacer (ver la regla 8 del Design System).
+3. **El texto de un paso dice qué hace el usuario**, no describe la función. ❌ "Revisan y resuelven los expedientes." ✅ "Dá de alta a los analistas." Concreto: ❌ "Define qué documentos pide…" ✅ "Marcá los documentos necesarios para denunciar cada hecho generador."
+4. **Construcciones que no van:**
+   - Plurales sin artículo. ❌ "Agregá peritos" ✅ "Agregá los peritos".
+   - "Lo que / los que + verbo + sujeto pospuesto" cuando el sujeto puede leerse como objeto. ❌ "Lo que no cubre ninguna cobertura del ramo" ✅ "Situaciones no contempladas en ninguna cobertura del ramo".
+   - Verbo y sustantivo de la misma raíz en la misma frase (cubrir/cobertura, excluir/exclusión).
+   - Prueba: reescribir la frase como sujeto, verbo y objeto. Si cambia quién hace qué, o repite la raíz, reformularla.
+
 ---
 
 ## Arquitectura — leer antes de tocar nada
