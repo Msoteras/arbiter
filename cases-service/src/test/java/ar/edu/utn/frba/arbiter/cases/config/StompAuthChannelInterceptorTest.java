@@ -31,6 +31,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.function.Supplier;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -103,7 +104,7 @@ class StompAuthChannelInterceptorTest {
     void insuredSubscribingToSomeoneElsesCase_isRejected() {
         Map<String, Object> session = sessionOf("ASEGURADO", "11.222.333");
 
-        assertThatThrownBy(() -> send(subscribe("/topic/cases/bbva/" + CASE_ID, session)))
+        assertThatThrownBy(() -> send(subscribe("/topic/cases.bbva." + CASE_ID, session)))
                 .isInstanceOf(StompAccessDeniedException.class);
     }
 
@@ -111,7 +112,7 @@ class StompAuthChannelInterceptorTest {
     void insuredSubscribingToTheirOwnCase_passes() {
         Map<String, Object> session = sessionOf("ASEGURADO", OWNER_DNI);
 
-        assertThatCode(() -> send(subscribe("/topic/cases/bbva/" + CASE_ID, session)))
+        assertThatCode(() -> send(subscribe("/topic/cases.bbva." + CASE_ID, session)))
                 .doesNotThrowAnyException();
     }
 
@@ -119,7 +120,7 @@ class StompAuthChannelInterceptorTest {
     void analystSubscribingToAnyCaseOfTheirTenant_passes() {
         Map<String, Object> session = sessionOf("ANALISTA_SINIESTROS", null);
 
-        assertThatCode(() -> send(subscribe("/topic/cases/bbva/" + CASE_ID, session)))
+        assertThatCode(() -> send(subscribe("/topic/cases.bbva." + CASE_ID, session)))
                 .doesNotThrowAnyException();
     }
 
@@ -127,16 +128,47 @@ class StompAuthChannelInterceptorTest {
     void subscribingToAnythingElse_isRejected() {
         Map<String, Object> session = sessionOf("ANALISTA_SINIESTROS", null);
 
-        assertThatThrownBy(() -> send(subscribe("/topic/cases/bbva/no-es-un-id", session)))
+        assertThatThrownBy(() -> send(subscribe("/topic/cases.bbva.no-es-un-id", session)))
                 .isInstanceOf(StompAccessDeniedException.class);
         assertThatThrownBy(() -> send(subscribe("/topic/otra-cosa", session)))
                 .isInstanceOf(StompAccessDeniedException.class);
     }
 
+    /** On RabbitMQ's topic exchange these would match every thread, or every thread of an insurer. */
+    @Test
+    void subscribingWithAWildcard_isRejected() {
+        Map<String, Object> session = sessionOf("ANALISTA_SINIESTROS", null);
+
+        assertThatThrownBy(() -> send(subscribe("/topic/cases.#", session)))
+                .isInstanceOf(StompAccessDeniedException.class);
+        assertThatThrownBy(() -> send(subscribe("/topic/cases.bbva.*", session)))
+                .isInstanceOf(StompAccessDeniedException.class);
+        assertThatThrownBy(() -> send(subscribe("/topic/cases.*." + CASE_ID, session)))
+                .isInstanceOf(StompAccessDeniedException.class);
+    }
+
+    /** The broker would hand it to every subscriber, skipping the POST that checks who writes. */
+    @Test
+    void sendingToATopic_isRejected_evenOnTheSendersOwnCase() {
+        Map<String, Object> session = sessionOf("ASEGURADO", OWNER_DNI);
+
+        assertThatThrownBy(() -> send(frame(StompCommand.SEND, "/topic/cases.bbva." + CASE_ID, session)))
+                .isInstanceOf(StompAccessDeniedException.class);
+    }
+
+    @Test
+    void theToken_isNotForwardedToTheBroker() {
+        Message<byte[]> connect = connect("Bearer " + tokenFor("ASEGURADO", OWNER_DNI));
+
+        send(connect);
+
+        assertThat(StompHeaderAccessor.wrap(connect).getFirstNativeHeader("Authorization")).isNull();
+    }
+
     /** Without a CONNECT there is no identity to evaluate. */
     @Test
     void subscribingWithoutHavingConnected_isRejected() {
-        assertThatThrownBy(() -> send(subscribe("/topic/cases/bbva/" + CASE_ID, new HashMap<>())))
+        assertThatThrownBy(() -> send(subscribe("/topic/cases.bbva." + CASE_ID, new HashMap<>())))
                 .isInstanceOf(StompAccessDeniedException.class);
     }
 
@@ -155,7 +187,11 @@ class StompAuthChannelInterceptorTest {
     }
 
     private Message<byte[]> subscribe(String destination, Map<String, Object> session) {
-        StompHeaderAccessor accessor = StompHeaderAccessor.create(StompCommand.SUBSCRIBE);
+        return frame(StompCommand.SUBSCRIBE, destination, session);
+    }
+
+    private Message<byte[]> frame(StompCommand command, String destination, Map<String, Object> session) {
+        StompHeaderAccessor accessor = StompHeaderAccessor.create(command);
         accessor.setLeaveMutable(true);
         accessor.setDestination(destination);
         accessor.setSessionAttributes(session);

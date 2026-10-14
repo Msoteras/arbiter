@@ -11,6 +11,7 @@ import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.ClaimCause;
 import ar.edu.utn.frba.arbiter.common.models.entities.Insurer;
 import lombok.RequiredArgsConstructor;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -50,6 +51,7 @@ public class DocumentRecheckScheduler {
     private final InsurerRepository insurerRepository;
 
     @Scheduled(fixedDelayString = "${arbiter.document-recheck.interval-ms:300000}")
+    @SchedulerLock(name = "document-recheck")
     public void recheckUnverifiedCases() {
         for (Insurer insurer : insurerRepository.findByActiveTrue()) {
             try {

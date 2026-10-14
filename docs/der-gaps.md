@@ -265,6 +265,21 @@ prendida. Nunca estuvo en el DER.
 
 **Acción:** ninguna en el `.mdj`.
 
+### 28 · `shedlock` — tabla nueva en el esquema común
+
+| Tabla | Columna | Tipo de dato | Nulo | Restricciones |
+|---|---|---|---|---|
+| `shedlock` | `name` | VARCHAR(64) | no | PK |
+| `shedlock` | `lock_until` | TIMESTAMP | no | |
+| `shedlock` | `locked_at` | TIMESTAMP | no | |
+| `shedlock` | `locked_by` | VARCHAR(255) | no | |
+
+No es dato de negocio: una fila por barrido programado de `cases-service`, para que con varias
+instancias lo corra una sola a la vez. La tabla y las columnas llevan los nombres de la librería
+(ShedLock), por eso quedan en inglés. Migración: `2026-10-12-lock-de-barridos.sql`.
+
+**Acción:** agregarla en `arbiter_common` como entidad suelta, sin relaciones.
+
 ---
 
 ## Decisiones pendientes antes de tocar el `.mdj`
