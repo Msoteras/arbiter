@@ -73,7 +73,7 @@ export interface Provider {
 }
 
 export function branchesLabel(branches: BranchRef[]): string {
-  return branches.length === 0 ? 'Todos los ramos' : branches.map((b) => b.name).join(', ');
+  return branches.length === 0 ? 'Sin ramos' : branches.map((b) => b.name).join(', ');
 }
 
 /**

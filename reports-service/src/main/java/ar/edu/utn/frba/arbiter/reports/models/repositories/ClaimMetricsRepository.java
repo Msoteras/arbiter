@@ -46,6 +46,9 @@ import java.util.function.Function;
 @RequiredArgsConstructor
 public class ClaimMetricsRepository {
 
+    /** Decided, not resolved: {@link CaseStatus#decided()}. */
+    private static final List<String> DECIDED = CaseStatus.decided().stream().map(Enum::name).toList();
+
     /** The newest model run per case; analyses are append-only. */
     static final String LATEST_LLM_CTE = """
             latest_llm AS (
@@ -196,11 +199,10 @@ public class ClaimMetricsRepository {
                   JOIN resolution r  ON r.case_id = c.id
                   LEFT JOIN waiting wt ON wt.case_id = c.id
                  WHERE r.resolved_at >= :from AND r.resolved_at < :to
-                   AND s.name IN (:approved, :rejected)"""
+                   AND s.name IN (:decided)"""
                 + filters(filter);
         MapSqlParameterSource params = period(from, to, filter)
-                .addValue("approved", CaseStatus.APPROVED.name())
-                .addValue("rejected", CaseStatus.REJECTED.name())
+                .addValue("decided", DECIDED)
                 .addValue("pausing", CaseStatus.pausingTheTerm().stream().map(Enum::name).toList());
         return query(template -> template.queryForObject(sql, params, (rs, rowNum) -> {
             double total = rs.getDouble("total_seconds");
@@ -227,14 +229,13 @@ public class ClaimMetricsRepository {
                   JOIN resolution r  ON r.case_id = c.id
                   LEFT JOIN waiting wt ON wt.case_id = c.id
                  WHERE r.resolved_at >= :from AND r.resolved_at < :to
-                   AND s.name IN (:approved, :rejected)
+                   AND s.name IN (:decided)
                    AND (r.resolved_at - c.reported_at)
                        - make_interval(secs => COALESCE(wt.waiting_seconds, 0))
                        > make_interval(days => :targetDays)"""
                 + filters(filter);
         MapSqlParameterSource params = period(from, to, filter)
-                .addValue("approved", CaseStatus.APPROVED.name())
-                .addValue("rejected", CaseStatus.REJECTED.name())
+                .addValue("decided", DECIDED)
                 .addValue("pausing", CaseStatus.pausingTheTerm().stream().map(Enum::name).toList())
                 .addValue("targetDays", targetDays);
         Long total = query(template -> template.queryForObject(sql, params, Long.class));
@@ -259,11 +260,10 @@ public class ClaimMetricsRepository {
                   JOIN case_status s ON s.id = c.current_status_id AND s.is_final
                   JOIN resolution r  ON r.case_id = c.id
                  WHERE r.resolved_at >= :from AND r.resolved_at < :to
-                   AND s.name IN (:approved, :rejected)"""
+                   AND s.name IN (:decided)"""
                 + filters(filter);
         MapSqlParameterSource params = period(from, to, filter)
-                .addValue("approved", CaseStatus.APPROVED.name())
-                .addValue("rejected", CaseStatus.REJECTED.name())
+                .addValue("decided", DECIDED)
                 .addValue("zone", zone.getId());
         return query(template -> template.queryForObject(sql, params, (rs, rowNum) ->
                 LegalDeadline.of(rs.getLong("decided"), rs.getLong("on_time"))));
@@ -346,10 +346,11 @@ public class ClaimMetricsRepository {
                   JOIN case_status s ON s.id = c.current_status_id AND s.is_final
                   JOIN resolution r  ON r.case_id = c.id
                  WHERE r.resolved_at >= :from AND r.resolved_at < :to
-                   AND s.name IN (:approved, :rejected)"""
+                   AND s.name IN (:decided)"""
                 + filters(filter);
         MapSqlParameterSource params = period(from, to, filter)
-                .addValue("approved", CaseStatus.APPROVED.name())
+                .addValue("decided", DECIDED)
+                // Rejected on the merits only: a prescribed claim wasn't stopped by the fraud finding.
                 .addValue("rejected", CaseStatus.REJECTED.name())
                 .addValue("fraudConfirmed", ExpertVerdict.FRAUD_CONFIRMED.name());
         return query(template -> template.queryForObject(sql, params, (rs, rowNum) -> new FraudDetection(
@@ -376,11 +377,10 @@ public class ClaimMetricsRepository {
                   JOIN case_status s ON s.id = c.current_status_id AND s.is_final
                   JOIN resolution r  ON r.case_id = c.id
                  WHERE r.resolved_at >= :from AND r.resolved_at < :to
-                   AND s.name IN (:approved, :rejected)"""
+                   AND s.name IN (:decided)"""
                 + filters(filter);
         MapSqlParameterSource params = period(from, to, filter)
-                .addValue("approved", CaseStatus.APPROVED.name())
-                .addValue("rejected", CaseStatus.REJECTED.name());
+                .addValue("decided", DECIDED);
         return query(template -> template.queryForObject(sql, params, (rs, rowNum) -> {
             // wasNull() refers to the last column read, so each average is checked as soon as it is read.
             long fastTrackDecided = rs.getLong("fast_track_decided");

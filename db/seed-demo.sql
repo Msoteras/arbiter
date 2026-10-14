@@ -596,9 +596,9 @@ INSERT INTO arbiter_bbva.service_provider (id, name, email, zone, active, provid
     (2, 'Peritajes Tecnológicos SA',  'perito.arbiter@gmail.com', 'CABA',       TRUE, 'ESTUDIO_LIQUIDADOR'),
     (3, 'TecnoFix Servicio Técnico',  'perito.arbiter@gmail.com', 'CABA',       TRUE, 'SERVICIO_TECNICO');
 
--- Estudio Verifica has no rows: a generalist.
+-- Estudio Verifica takes both branches; the other two, only Celulares.
 INSERT INTO arbiter_bbva.service_provider_branch (service_provider_id, branch_id) VALUES
-    (2, 1), (3, 1);
+    (1, 1), (1, 2), (2, 1), (3, 1);
 
 SELECT setval(pg_get_serial_sequence('arbiter_bbva.service_provider','id'),
               (SELECT MAX(id) FROM arbiter_bbva.service_provider));
@@ -854,6 +854,9 @@ INSERT INTO arbiter_provincia.case_status_history (reason, observation, actor, c
 INSERT INTO arbiter_provincia.service_provider (id, name, email, zone, active, provider_type) VALUES
     (1, 'Peritos del Sur S.A.',     'perito.arbiter@gmail.com', 'La Plata', TRUE, 'ESTUDIO_LIQUIDADOR'),
     (2, 'Reparaciones del Plata',   'perito.arbiter@gmail.com', 'La Plata', TRUE, 'SERVICIO_TECNICO');
+
+INSERT INTO arbiter_provincia.service_provider_branch (service_provider_id, branch_id) VALUES
+    (1, 1), (1, 2), (2, 1), (2, 2);
 
 SELECT setval(pg_get_serial_sequence('arbiter_provincia.service_provider','id'),
               (SELECT MAX(id) FROM arbiter_provincia.service_provider));

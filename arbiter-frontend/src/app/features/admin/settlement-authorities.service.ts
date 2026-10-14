@@ -1,8 +1,9 @@
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpContext } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 
 import { environment } from '../../../environments/environment';
+import { CacheReadOptions, QueryCache } from '../../core/cache/query-cache';
 
 /**
  * How much an analyst may authorize alone in a branch. A null `maxAmount` means no cap (any amount),
@@ -52,14 +53,28 @@ export interface AuthorizedSettlement {
 }
 
 /** Per-branch settlement authority caps, and the queue of settlements that exceeded them. */
+const PENDING_SETTLEMENTS_KEY = 'cases:settlements:pending';
+
 @Injectable({ providedIn: 'root' })
 export class SettlementAuthoritiesService {
   private readonly http = inject(HttpClient);
   private readonly base = environment.apiBaseUrl;
 
+  private readonly cache = inject(QueryCache);
+  private readonly fetchList = (context: HttpContext) =>
+    this.http.get<SettlementAuthority[]>(`${this.base}/settlement-authorities`, { context });
+  private readonly fetchAuthorized = (context: HttpContext) =>
+    this.http.get<AuthorizedSettlement[]>(`${this.base}/cases/settlements/authorized`, {
+      context,
+    });
+  private readonly fetchPending = (context: HttpContext) =>
+    this.http.get<PendingSettlement[]>(`${this.base}/cases/settlements/pending-authorization`, {
+      context,
+    });
+
   /** Every branch, including uncapped ones (`maxAmount: null`). */
-  list(): Observable<SettlementAuthority[]> {
-    return this.http.get<SettlementAuthority[]>(`${this.base}/settlement-authorities`);
+  list(options?: CacheReadOptions): Observable<SettlementAuthority[]> {
+    return this.cache.read('rules:authorities', this.fetchList, options);
   }
 
   /** A null `maxAmount` removes the cap. */
@@ -69,13 +84,22 @@ export class SettlementAuthoritiesService {
 
   /** Latest 50, most recent first. */
   authorized(): Observable<AuthorizedSettlement[]> {
-    return this.http.get<AuthorizedSettlement[]>(`${this.base}/cases/settlements/authorized`);
+    return this.cache.read('cases:settlements:authorized', this.fetchAuthorized);
   }
 
-  pending(): Observable<PendingSettlement[]> {
-    return this.http.get<PendingSettlement[]>(
-      `${this.base}/cases/settlements/pending-authorization`,
-    );
+  /** Others change this list too: the screen holds a refresh until "Actualizar" (`hasNewer`). */
+  pending(options?: CacheReadOptions): Observable<PendingSettlement[]> {
+    return this.cache.read(PENDING_SETTLEMENTS_KEY, this.fetchPending, options);
+  }
+
+  hasNewerPending(): boolean {
+    return this.cache.hasNewer(PENDING_SETTLEMENTS_KEY);
+  }
+
+  prefetch(): void {
+    this.cache.prefetch('rules:authorities', this.fetchList);
+    this.cache.prefetch('cases:settlements:authorized', this.fetchAuthorized);
+    this.cache.prefetch(PENDING_SETTLEMENTS_KEY, this.fetchPending);
   }
 
   authorize(caseId: number): Observable<unknown> {

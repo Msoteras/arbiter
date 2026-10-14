@@ -134,6 +134,9 @@ public interface CaseService {
      */
     CaseResponse reopenCase(Long caseId, String reason);
 
+    /** Withdrawn or voided, by the assigned analyst, with a mandatory reason. */
+    CaseResponse closeCase(Long caseId, CaseStatus closure, String reason);
+
     /** Every analyst of the tenant with their active case count, zero included, busiest first. */
     List<AnalystWorkloadResponse> analystWorkload();
 

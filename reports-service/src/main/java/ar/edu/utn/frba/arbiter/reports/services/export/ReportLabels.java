@@ -45,6 +45,9 @@ final class ReportLabels {
             case APPROVED -> "Aprobado";
             case REJECTED -> "Rechazado";
             case LAPSED -> "Caducado";
+            case PRESCRIBED -> "Prescripto";
+            case WITHDRAWN -> "Desistido";
+            case VOIDED -> "Baja por error";
         };
     }
 
@@ -69,6 +72,8 @@ final class ReportLabels {
         return switch (decision) {
             case "APPROVE", "APROBAR" -> "Aprobó";
             case "REJECT", "RECHAZAR" -> "Rechazó";
+            case "WITHDRAW" -> "Cerró por desistimiento";
+            case "VOID" -> "Cerró por baja por error";
             default -> decision;
         };
     }

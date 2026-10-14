@@ -3,6 +3,7 @@ import { Injectable, inject } from '@angular/core';
 import { retry, throwError, timer } from 'rxjs';
 
 import { ToastService } from '../../shared/ui/toast/toast.service';
+import { SILENT_RETRY } from '../cache/query-cache';
 
 /** Set by nginx (nginx.conf.template) only when the request never reached the backend. */
 export const UPSTREAM_UNREACHABLE_HEADER = 'X-Upstream-Unreachable';
@@ -33,7 +34,8 @@ export const upstreamRetryInterceptor: HttpInterceptorFn = (req, next) => {
       count: RETRY_DELAYS_MS.length,
       delay: (error: unknown, retryCount: number) => {
         if (!neverReachedTheBackend(error)) return throwError(() => error);
-        notice.show();
+        // A prefetch wakes the module just the same, but nobody is waiting for it (D9).
+        if (!req.context.get(SILENT_RETRY)) notice.show();
         return timer(RETRY_DELAYS_MS[retryCount - 1]);
       },
     }),

@@ -184,7 +184,11 @@ INSERT INTO arbiter_common.case_status (id, name, description, insured_status, i
     -- Closed after 18 months without activity from the insured; unlike a rejection, shown to them.
     (8, 'LAPSED',                 'Caducado por 18 meses de inacción del asegurado',  'Caducado',              'LAPSED',                 TRUE),
     -- Shown to the insured: a repair reveals no suspicion and explains why the case is idle.
-    (9, 'PENDING_REPAIR',         'Derivado a servicio técnico, esperando su respuesta', 'En reparación',      'UNDER_REPAIR',           FALSE);
+    (9, 'PENDING_REPAIR',         'Derivado a servicio técnico, esperando su respuesta', 'En reparación',      'UNDER_REPAIR',           FALSE),
+    -- Closing statuses (2026-10-14): the insured sees "Cerrado" or "Rechazado", never the internal reason.
+    (10, 'WITHDRAWN',             'El asegurado desistió del reclamo',                'Cerrado',               'CLOSED',                 TRUE),
+    (11, 'VOIDED',                'Denuncia dada de baja por error de carga',         'Cerrado',               'CLOSED',                 TRUE),
+    (12, 'PRESCRIBED',            'Rechazado por prescripción (art. 58, Ley 17.418)', 'Rechazado',             'REJECTED',               TRUE);
 
 SELECT setval(pg_get_serial_sequence('arbiter_common.case_status', 'id'),
               (SELECT MAX(id) FROM arbiter_common.case_status));
@@ -484,6 +488,29 @@ BEGIN
             CONSTRAINT settlement_authority_branch_unique UNIQUE (branch_id),
             CONSTRAINT settlement_authority_amount_check CHECK (max_amount >= 0)
         )$ddl$, p_schema, p_schema);
+
+    -- ─── onboarding_step + onboarding_reset ──────────────────────────────────────
+    -- The referent's setup checklist (rules-service). A step's state is derived from the
+    -- configuration itself; these tables only keep what the configuration can't tell:
+    -- steps the insurer marked as not used, the last save of each step, and when a referent
+    -- restarted the checklist to walk it again. step_key is the step name, plus ':<branch_id>'
+    -- for the per-branch coverages step.
+    EXECUTE format($ddl$
+        CREATE TABLE %I.onboarding_step (
+            step_key    VARCHAR(40) PRIMARY KEY,
+            skipped     BOOLEAN     NOT NULL DEFAULT FALSE,
+            touched_at  TIMESTAMPTZ
+        )$ddl$, p_schema);
+
+    -- A single row: after a restart, a step only counts once it is saved again.
+    EXECUTE format($ddl$
+        CREATE TABLE %I.onboarding_reset (
+            id        SMALLINT    PRIMARY KEY DEFAULT 1,
+            reset_at  TIMESTAMPTZ NOT NULL,
+            reset_by  BIGINT      REFERENCES arbiter_common.users(id),
+
+            CONSTRAINT onboarding_reset_single_row CHECK (id = 1)
+        )$ddl$, p_schema);
 
     -- ─── cases ───────────────────────────────────────────────────────────────────
     -- classification_id closes a cycle cases → case_classification → llm_analysis →

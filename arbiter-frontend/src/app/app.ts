@@ -6,6 +6,7 @@ import {
   effect,
   inject,
   signal,
+  untracked,
 } from '@angular/core';
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
@@ -14,15 +15,17 @@ import { filter, interval, map } from 'rxjs';
 import { AuthSessionService } from './core/auth/auth-session.service';
 import { AppReadyService } from './core/app-ready.service';
 import { NotificationsService } from './core/notifications/notifications.service';
+import { OnboardingService } from './core/onboarding/onboarding.service';
 import { CaseMessagesService } from './features/cases/case-messages.service';
 import { NewClaimModalService } from './features/cases/new-claim-modal.service';
-import { userRoleLabel } from './core/models/user-role';
+import { homeRouteFor, userRoleLabel } from './core/models/user-role';
 import { LogoComponent } from './shared/ui/logo/logo.component';
 import { ButtonComponent } from './shared/ui/button/button.component';
 import { ModalComponent } from './shared/ui/modal/modal.component';
 import { LoadingComponent } from './shared/ui/loading/loading.component';
 import { NotificationsPanelComponent } from './core/notifications/notifications-panel.component';
 import { ToastStackComponent } from './shared/ui/toast/toast-stack.component';
+import { ToastService } from './shared/ui/toast/toast.service';
 import { NewClaimComponent } from './features/cases/new-claim/new-claim.component';
 import { GlobalSearchComponent } from './features/cases/global-search/global-search.component';
 
@@ -60,6 +63,8 @@ export class App {
   protected readonly notifications = inject(NotificationsService);
   protected readonly messages = inject(CaseMessagesService);
   protected readonly newClaim = inject(NewClaimModalService);
+  protected readonly onboarding = inject(OnboardingService);
+  private readonly toast = inject(ToastService);
   private readonly appReady = inject(AppReadyService);
 
   private readonly reduceMotionMql =
@@ -85,6 +90,16 @@ export class App {
 
     // Tied to the session and not to the constructor: the session lives in memory, so on reload
     // it's null for an instant and the count would come back empty.
+    // The setup checklist is the referent's only: it feeds the home card, the menu dots and the
+    // "step complete" toast.
+    effect(() => {
+      if (this.session.session()?.rol === 'REFERENTE_ASEGURADORA') {
+        this.onboarding.load();
+      } else {
+        this.onboarding.clear();
+      }
+    });
+
     effect(() => {
       if (this.session.session()) {
         this.notifications.refreshUnreadCount();
@@ -124,6 +139,17 @@ export class App {
     ),
     { initialValue: this.router.url },
   );
+
+  // The full-viewport loader is for a session that starts on its home. Landing on any other screen
+  // (a reload on Reglas, a link) means the app is already up: a later trip home must not cover the
+  // whole window, nav included, with it.
+  private readonly readyOffHome = effect(() => {
+    const session = this.session.session();
+    const path = this.currentUrl().split('?')[0];
+    if (session && path !== homeRouteFor(session.rol) && !App.CHROMELESS_ROUTES.includes(path)) {
+      untracked(() => this.appReady.markReady());
+    }
+  });
 
   // Matched by path without the query (activation and reset carry the token in the URL).
   // Onboarding has a session but no chrome: onboardingGuard bounces every portal link back to it.
@@ -262,6 +288,33 @@ export class App {
 
   protected initials(firstName: string, lastName: string): string {
     return `${firstName?.[0] ?? ''}${lastName?.[0] ?? ''}`.toUpperCase() || '—';
+  }
+
+  /** Testing aid: walks the setup checklist again without touching the configuration. */
+  protected readonly showOnboardingReset = signal(false);
+  protected readonly resettingOnboarding = signal(false);
+
+  protected requestOnboardingReset(): void {
+    this.profileOpen.set(false);
+    this.showOnboardingReset.set(true);
+  }
+
+  protected cancelOnboardingReset(): void {
+    this.showOnboardingReset.set(false);
+  }
+
+  protected confirmOnboardingReset(): void {
+    this.resettingOnboarding.set(true);
+    this.onboarding.reset().subscribe({
+      next: () => {
+        this.resettingOnboarding.set(false);
+        this.showOnboardingReset.set(false);
+      },
+      error: () => {
+        this.resettingOnboarding.set(false);
+        this.toast.show('No se pudo reiniciar la puesta en marcha.', 'danger');
+      },
+    });
   }
 
   protected readonly showLogoutConfirm = signal(false);

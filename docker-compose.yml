@@ -78,6 +78,8 @@ services:
       DB_USER: ${DB_USER:-arbiter}
       DB_PASSWORD: ${DB_PASSWORD:-arbiter}
       JWT_SECRET: ${JWT_SECRET:-+CV3wiE5lScQGEx1PvKLNuWmaqxixDsm8EIFifgfq8thgguF84p+GI10Rs/1wSTl}
+      # Reports saves of the setup checklist steps auth-service owns.
+      RULES_SERVICE_URL: http://rules-service:8081
       # Without it, bulk insured provisioning silently falls back to the mock adapter.
       SPRING_PROFILES_ACTIVE: ${AUTH_PROFILES:-insurer-db}
       AUTH_PROVIDER: ${AUTH_PROVIDER:-auth0}
@@ -187,6 +189,8 @@ services:
       DB_PASSWORD: ${DB_PASSWORD:-arbiter}
       # Required at startup by the JWT filter, as in every module.
       JWT_SECRET: ${JWT_SECRET:-+CV3wiE5lScQGEx1PvKLNuWmaqxixDsm8EIFifgfq8thgguF84p+GI10Rs/1wSTl}
+      # The setup checklist reads coverage, provider and cap counts from cases-service.
+      CASES_SERVICE_URL: http://cases-service:8083
     depends_on:
       postgres:
         condition: service_healthy

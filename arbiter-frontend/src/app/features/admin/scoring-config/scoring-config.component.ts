@@ -6,13 +6,17 @@ import { RISK_FACTORS, ScoringConfig } from '../../../core/models/business-rules
 import { RISK_BANDS, RiskBand, riskBandLabel } from '../../../core/models/risk-band';
 import { formatRate } from '../../../core/util/percent';
 import { ScoringConfigDto, ScoringRulesService } from '../scoring-rules.service';
+import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
 import { SwitchComponent } from '../../../shared/ui/switch/switch.component';
 import { CardComponent } from '../../../shared/ui/card/card.component';
 import { SaveBarComponent } from '../../../shared/ui/save-bar/save-bar.component';
+import { InfoTipComponent } from '../../../shared/ui/info-tip/info-tip.component';
 import { InputComponent } from '../../../shared/ui/input/input.component';
 import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { fadeInUp } from '../../../shared/animations';
+import { ONBOARDING_STEP_LINE } from '../../../core/onboarding/onboarding';
+import { OnboardingTargetDirective } from '../../../core/onboarding/onboarding-target.directive';
 
 /**
  * One scoring config per insurer, not per branch, hence outside the branch master-detail.
@@ -21,8 +25,11 @@ import { fadeInUp } from '../../../shared/animations';
 @Component({
   selector: 'app-scoring-config',
   imports: [
+    OnboardingTargetDirective,
+    BadgeComponent,
     SwitchComponent,
     CardComponent,
+    InfoTipComponent,
     InputComponent,
     InlineLoadingComponent,
     SaveBarComponent,
@@ -34,6 +41,8 @@ import { fadeInUp } from '../../../shared/animations';
   styleUrl: './scoring-config.component.scss',
 })
 export class ScoringConfigComponent {
+  protected readonly stepLine = ONBOARDING_STEP_LINE;
+
   private readonly scoringService = inject(ScoringRulesService);
 
   protected readonly riskFactors = RISK_FACTORS;
@@ -63,6 +72,7 @@ export class ScoringConfigComponent {
       this.draft.set(structuredClone(base));
     }
     this.error.set(null);
+    this.load();
   }
 
   /**
@@ -193,8 +203,9 @@ export class ScoringConfigComponent {
       this.loading.set(true);
       this.loadFailed.set(false);
     }
+    // With unsaved changes a refresh stays in the cache; discarding picks it up (L1).
     this.scoringService
-      .get()
+      .get({ apply: () => !this.dirty() })
       .pipe(finalize(() => this.loading.set(false)))
       .subscribe({
         next: (dto) => {

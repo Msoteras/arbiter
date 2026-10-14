@@ -1,5 +1,6 @@
 package ar.edu.utn.frba.arbiter.rules.services;
 
+import ar.edu.utn.frba.arbiter.common.enums.OnboardingStep;
 import ar.edu.utn.frba.arbiter.common.enums.RuleType;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Branch;
 import ar.edu.utn.frba.arbiter.rules.dto.CatalogOption;
@@ -45,6 +46,7 @@ public class CoverageExclusionRuleService {
     private final BranchRepository branchRepository;
     private final ClaimCauseRepository claimCauseRepository;
     private final RuleAuthorResolver authorResolver;
+    private final OnboardingTracker onboardingTracker;
 
     @Transactional(readOnly = true)
     public List<CatalogOption> listClaimCauses(Long branchId) {
@@ -62,6 +64,7 @@ public class CoverageExclusionRuleService {
 
     @Transactional
     public CoverageExclusionResponse upsert(Long branchId, Long coverageId, CoverageExclusionConfig config, String actorEmail) {
+        onboardingTracker.touch(OnboardingStep.COVERAGES, branchId);
         String json = serialize(config);
         Instant now = Instant.now();
 

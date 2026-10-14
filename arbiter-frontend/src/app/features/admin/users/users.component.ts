@@ -17,11 +17,13 @@ import { SelectComponent, SelectOption } from '../../../shared/ui/select/select.
 import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
 import { ToastService } from '../../../shared/ui/toast/toast.service';
 import { fadeStagger, staggerReveal } from '../../../shared/animations';
+import { OnboardingTargetDirective } from '../../../core/onboarding/onboarding-target.directive';
 
 /** The referente can't change their own role: the backend enforces it, the UI just disables it. */
 @Component({
   selector: 'app-users',
   imports: [
+    OnboardingTargetDirective,
     CreateUserComponent,
     BadgeComponent,
     ButtonComponent,

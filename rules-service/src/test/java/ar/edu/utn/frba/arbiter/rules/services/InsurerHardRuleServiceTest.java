@@ -1,5 +1,6 @@
 package ar.edu.utn.frba.arbiter.rules.services;
 
+import ar.edu.utn.frba.arbiter.common.enums.OnboardingStep;
 import ar.edu.utn.frba.arbiter.common.enums.RuleType;
 import ar.edu.utn.frba.arbiter.rules.dto.InsurerHardRuleDto;
 import ar.edu.utn.frba.arbiter.rules.exceptions.InvalidRuleConfigurationException;
@@ -32,8 +33,9 @@ class InsurerHardRuleServiceTest {
     private final InsurerRuleRepository ruleRepository = mock(InsurerRuleRepository.class);
     private final InsurerRuleHistoryRepository historyRepository = mock(InsurerRuleHistoryRepository.class);
 
+    private final OnboardingTracker tracker = mock(OnboardingTracker.class);
     private final InsurerHardRuleService service =
-            new InsurerHardRuleService(ruleRepository, historyRepository, mock(RuleAuthorResolver.class));
+            new InsurerHardRuleService(ruleRepository, historyRepository, mock(RuleAuthorResolver.class), tracker);
 
     /**
      * The panel always shows both rules: an unconfigured one comes back disabled, and arrears
@@ -112,6 +114,7 @@ class InsurerHardRuleServiceTest {
         assertThat(saved.getBranch()).isNull();
         assertThat(saved.getCoverageId()).isNull();
         assertThat(saved.getConfiguration()).contains("\"onArrears\":\"REJECT\"");
+        verify(tracker).touch(OnboardingStep.HARD_STOP, null);
     }
 
     @Test

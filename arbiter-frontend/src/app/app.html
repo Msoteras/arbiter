@@ -240,6 +240,16 @@
                     <span class="profile-name">{{ s.nombre }} {{ s.apellido }}</span>
                     <span class="profile-role">{{ roleLabel(s.rol) }}</span>
                   </div>
+                  @if (showAdminNav()) {
+                    <button
+                      type="button"
+                      role="menuitem"
+                      class="profile-item"
+                      (click)="requestOnboardingReset()"
+                    >
+                      Reiniciar puesta en marcha
+                    </button>
+                  }
                   <button
                     type="button"
                     role="menuitem"
@@ -298,11 +308,19 @@
 
             <p class="navpanel-group">Gestión</p>
             <a routerLink="/insurer/users" routerLinkActive="active"
-              ><span class="nav-dot"></span>Usuarios</a
-            >
+              ><span class="nav-dot"></span>Usuarios
+              @if (onboarding.pendingAreas().has('users')) {
+                <span class="nav-pending" aria-hidden="true"></span>
+                <span class="sr-only">(pasos pendientes)</span>
+              }
+            </a>
             <a routerLink="/insurer/rules" routerLinkActive="active"
-              ><span class="nav-dot"></span>Reglas</a
-            >
+              ><span class="nav-dot"></span>Reglas
+              @if (onboarding.pendingAreas().has('rules')) {
+                <span class="nav-pending" aria-hidden="true"></span>
+                <span class="sr-only">(pasos pendientes)</span>
+              }
+            </a>
             <a routerLink="/insurer/settlements" routerLinkActive="active"
               ><span class="nav-dot"></span>Autorizaciones</a
             >
@@ -337,6 +355,28 @@
       }
     </app-modal>
   }
+
+  <app-modal
+    [open]="showOnboardingReset()"
+    heading="¿Reiniciar la puesta en marcha?"
+    (close)="cancelOnboardingReset()"
+  >
+    <p class="t-body">
+      Todos los pasos vuelven a quedar pendientes. La configuración no cambia. Un paso se completa
+      cuando guardás un cambio en su sección.
+    </p>
+    <ng-container modalActions>
+      <app-button
+        variant="secondary"
+        [disabled]="resettingOnboarding()"
+        (click)="cancelOnboardingReset()"
+        >Cancelar</app-button
+      >
+      <app-button [loading]="resettingOnboarding()" (click)="confirmOnboardingReset()"
+        >Reiniciar</app-button
+      >
+    </ng-container>
+  </app-modal>
 
   <app-modal [open]="showLogoutConfirm()" heading="Cerrar sesión" (close)="cancelLogout()">
     <p class="t-body">¿Seguro que querés finalizar tu sesión?</p>

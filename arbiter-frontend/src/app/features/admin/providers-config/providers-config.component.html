@@ -1,6 +1,13 @@
 <app-card heading="Proveedores externos" headingSize="lg">
+  <app-info-tip cardAside>{{ stepLine.PROVIDERS }}</app-info-tip>
   @if (!draft()) {
-    <app-button cardAside variant="secondary" size="sm" (click)="add()">
+    <app-button
+      cardAside
+      variant="secondary"
+      size="sm"
+      appOnboardingTarget="PROVIDERS"
+      (click)="add()"
+    >
       + Agregar proveedor
     </app-button>
   }

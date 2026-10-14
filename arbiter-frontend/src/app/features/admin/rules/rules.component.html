@@ -18,10 +18,19 @@
                   type="button"
                   class="branch-item"
                   [class.active]="isSelected(r)"
-                  (click)="select(r); revealEditor(menu, editor)"
+                  (click)="goToBranch(r, menu, editor)"
                 >
                   <span class="branch-name">{{ r.name }}</span>
-                  <span class="branch-meta">{{ r.coverageCount }} coberturas</span>
+                  @if (r.coverageCount === 0) {
+                    <span class="branch-meta is-required">
+                      <span class="status-dot" aria-hidden="true"></span>Sin coberturas
+                    </span>
+                  } @else {
+                    <span class="branch-meta"
+                      >{{ r.coverageCount }}
+                      {{ r.coverageCount === 1 ? 'cobertura' : 'coberturas' }}</span
+                    >
+                  }
                 </button>
               </li>
             } @empty {
@@ -40,7 +49,7 @@
                 type="button"
                 class="branch-item general"
                 [class.active]="view() === s.id"
-                (click)="selectGeneral(s.id); revealEditor(menu, editor)"
+                (click)="goToGeneral(s.id, menu, editor)"
               >
                 <span class="branch-name">{{ s.label }}</span>
               </button>
@@ -57,7 +66,7 @@
           type="button"
           class="audit-entry"
           [class.active]="view() === 'history'"
-          (click)="selectGeneral('history'); revealEditor(menu, editor)"
+          (click)="goToGeneral('history', menu, editor)"
         >
           <svg
             class="audit-icon"
@@ -95,7 +104,8 @@
         @if (hardStopLoading()) {
           <app-inline-loading [size]="26" message="Cargando Hard Stop…" />
         } @else {
-          <app-card heading="Hard Stop" headingSize="lg" @fadeInUp>
+          <app-card heading="Hard Stop" headingSize="lg" @fadeInUp appOnboardingTarget="HARD_STOP">
+            <app-info-tip cardAside>{{ stepLine.HARD_STOP }}</app-info-tip>
             <p class="hs-banner">
               <span class="hs-banner-icon" aria-hidden="true">!</span>
               <span
@@ -112,7 +122,6 @@
                 />
                 <div class="rule-text">
                   <span class="t-field-label">Vigencia de la póliza</span>
-                  <p class="rule-hint">El hecho ocurrió fuera de la vigencia de la póliza.</p>
                 </div>
                 @if (!policyInForceRule()?.enabled) {
                   <span class="rule-off-note t-note">No bloquea</span>
@@ -129,9 +138,6 @@
                 />
                 <div class="rule-text">
                   <span class="t-field-label">Mora de la póliza</span>
-                  <p class="rule-hint">
-                    La póliza tiene cuotas vencidas al momento de la denuncia.
-                  </p>
                 </div>
                 @if (policyStandingRule()?.enabled) {
                   <div class="rule-value choice">
@@ -219,6 +225,16 @@
               (click)="setTab(t.id)"
             >
               {{ t.label }}
+              @switch (tabStatus(t.id)) {
+                @case ('required') {
+                  <span class="tab-dot is-required" aria-hidden="true"></span>
+                  <span class="sr-only">(falta configurar)</span>
+                }
+                @case ('pending') {
+                  <span class="tab-dot" aria-hidden="true"></span>
+                  <span class="sr-only">(incompleto)</span>
+                }
+              }
             </button>
           }
         </nav>
@@ -232,9 +248,16 @@
             } @else {
               <div class="tab-panel" @fadeInUp>
                 <app-card [heading]="'Coberturas (' + d.coverages.length + ')'" headingSize="md">
+                  <app-info-tip cardAside>{{ stepLine.COVERAGES }}</app-info-tip>
                   <!-- Only with coverages: empty, the empty state below carries the one action. -->
                   @if (d.coverages.length > 0) {
-                    <app-button cardAside variant="secondary" size="sm" (click)="addCoverage()">
+                    <app-button
+                      cardAside
+                      variant="secondary"
+                      size="sm"
+                      appOnboardingTarget="COVERAGES"
+                      (click)="addCoverage()"
+                    >
                       + Agregar cobertura
                     </app-button>
                   }
@@ -272,15 +295,6 @@
                             </span>
                           }
                         </button>
-                        <app-button
-                          class="remove-cov"
-                          variant="secondary"
-                          size="sm"
-                          tone="danger"
-                          (click)="removeCoverage(c.id)"
-                        >
-                          Quitar cobertura
-                        </app-button>
                       </div>
 
                       @if (isCoverageOpen(c)) {
@@ -289,11 +303,25 @@
                           <div class="cov-fields">
                             <label class="fieldset grow">
                               <span class="t-field-label">Nombre</span>
-                              <app-input
+                              <!-- Picked from the insurer's policies: a typed name rarely matches one. -->
+                              <app-select
+                                [options]="coverageNameOptions(c)"
                                 [value]="c.name"
+                                [disabled]="(insurerCoverageNames() ?? []).length === 0 && !c.name"
+                                [placeholder]="
+                                  insurerCoverageNames() === null
+                                    ? 'Cargando coberturas…'
+                                    : (insurerCoverageNames() ?? []).length === 0
+                                      ? 'No hay pólizas en este ramo'
+                                      : 'Elegí una cobertura'
+                                "
                                 (valueChange)="setCoverageField(c.id, { name: $event })"
-                                placeholder="Nombre de la cobertura"
                               />
+                              @if (coverageNameUnmatched(c)) {
+                                <span class="field-error" role="alert">
+                                  Ninguna póliza de este ramo tiene esta cobertura.
+                                </span>
+                              }
                             </label>
                             <label class="fieldset">
                               <span class="t-field-label">Cláusula</span>
@@ -345,18 +373,18 @@
 
                           <div class="cov-section">
                             <span class="t-section-label">Reglas que evalúa el motor</span>
-                            @if (!canEditExclusions(c)) {
-                              <p class="t-note">
-                                Guardá la cobertura primero para configurar sus reglas.
-                              </p>
-                            } @else if (orderedHardRules(c).length === 0) {
+                            @if (orderedHardRules(c).length === 0) {
                               <p class="t-note">
                                 No se pudieron cargar las reglas de esta cobertura.
                               </p>
                             } @else {
                               <ul class="rule-rows">
                                 @for (rule of orderedHardRules(c); track rule.ruleType) {
-                                  <li class="rule-row" [class.off]="!rule.enabled">
+                                  <li
+                                    class="rule-row"
+                                    [class.off]="!rule.enabled"
+                                    [class.missing]="ruleMissingValue(c, rule)"
+                                  >
                                     <app-switch
                                       [checked]="rule.enabled"
                                       [ariaLabel]="hardRuleLabel(rule.ruleType)"
@@ -366,7 +394,6 @@
                                       <span class="t-field-label">{{
                                         hardRuleLabel(rule.ruleType)
                                       }}</span>
-                                      <p class="rule-hint">{{ hardRuleHint(rule.ruleType) }}</p>
                                     </div>
                                     <div class="rule-value">
                                       <app-input
@@ -378,6 +405,11 @@
                                       />
                                       <span class="t-note">{{ hardRuleUnit(rule.ruleType) }}</span>
                                     </div>
+                                    @if (ruleMissingValue(c, rule)) {
+                                      <p class="rule-missing" role="alert">
+                                        Escribí un valor o apagá la regla.
+                                      </p>
+                                    }
                                   </li>
                                 }
                               </ul>
@@ -441,10 +473,6 @@
                                   />
                                   <div class="rule-text">
                                     <span class="t-field-label">Descontar las cuotas a vencer</span>
-                                    <p class="rule-hint">
-                                      La pérdida total extingue la póliza, así que el premio que
-                                      resta del año se cobra de la indemnización.
-                                    </p>
                                   </div>
                                 </li>
                               }
@@ -456,10 +484,6 @@
                                 />
                                 <div class="rule-text">
                                   <span class="t-field-label">Descontar la deuda vencida</span>
-                                  <p class="rule-hint">
-                                    Saldo impago del contrato a la fecha del siniestro (cláusula
-                                    102, art. 5).
-                                  </p>
                                 </div>
                               </li>
                             </ul>
@@ -483,12 +507,16 @@
                                 El asegurado solo puede iniciar un expediente por estos hechos con
                                 esta cobertura.
                               </app-info-tip>
+                              <!-- Warns, doesn't block: covering the whole branch can be correct. -->
+                              @if (claimCauses().length > 0 && !hasExcludedCauses(c)) {
+                                <app-info-tip tone="warning">
+                                  Cubre {{ coveredCausesLabel() }} del ramo. Si una póliza contrata
+                                  varias coberturas, esta responde por todos, y el siniestro se
+                                  liquida con su suma asegurada y su franquicia.
+                                </app-info-tip>
+                              }
                             </span>
-                            @if (!canEditExclusions(c)) {
-                              <p class="t-note">
-                                Guardá la cobertura primero para elegir qué hechos cubre.
-                              </p>
-                            } @else if (claimCauses().length === 0) {
+                            @if (claimCauses().length === 0) {
                               <p class="t-note">No hay hechos generadores en este ramo.</p>
                             } @else {
                               <div class="chips">
@@ -504,16 +532,18 @@
                                   </button>
                                 }
                               </div>
-                              <!-- Warns, doesn't block: covering the whole branch can be correct. -->
-                              @if (!hasExcludedCauses(c)) {
-                                <p class="warn-note cov-warning measure" role="status">
-                                  Cubre {{ coveredCausesLabel() }} del ramo. Si una póliza contrata
-                                  varias coberturas, esta responde por todos, y el siniestro se
-                                  liquida con <strong>su</strong> suma asegurada y
-                                  <strong>su</strong> franquicia.
-                                </p>
-                              }
                             }
+                          </div>
+
+                          <div class="remove-cov">
+                            <app-button
+                              variant="secondary"
+                              size="sm"
+                              tone="danger"
+                              (click)="coverageToRemove.set(c)"
+                            >
+                              Quitar cobertura
+                            </app-button>
                           </div>
                         </div>
                       }
@@ -537,12 +567,15 @@
                         />
                       </svg>
                       <p class="cov-empty-title">Este ramo todavía no tiene coberturas</p>
-                      <app-button (click)="addCoverage()">+ Agregar primera cobertura</app-button>
+                      <app-button appOnboardingTarget="COVERAGES" (click)="addCoverage()"
+                        >+ Agregar primera cobertura</app-button
+                      >
                     </div>
                   }
 
                   <app-save-bar
                     [dirty]="covDirty()"
+                    [canSave]="covCanSave()"
                     [saving]="covSaving()"
                     [error]="covError()"
                     (save)="saveCoverages()"
@@ -560,11 +593,12 @@
               <app-inline-loading [size]="26" message="Cargando exclusiones…" />
             } @else {
               <div class="tab-panel" @fadeInUp>
-                <app-card heading="Exclusiones comunes del ramo" headingSize="md">
-                  <app-info-tip cardAside>
-                    Situaciones que ninguna cobertura del ramo cubre. Por ejemplo: «Daño estético
-                    que no afecta el funcionamiento del equipo».
-                  </app-info-tip>
+                <app-card
+                  heading="Exclusiones comunes del ramo"
+                  headingSize="md"
+                  appOnboardingTarget="COMMON_EXCLUSIONS"
+                >
+                  <app-info-tip cardAside>{{ stepLine.COMMON_EXCLUSIONS }}</app-info-tip>
                   <app-string-list-editor
                     [items]="d.commonExclusions"
                     (itemsChange)="setCommonExclusions($event)"
@@ -606,10 +640,10 @@
               <app-inline-loading [size]="26" message="Cargando Fast Track…" />
             } @else {
               <div class="tab-panel" @fadeInUp>
-                <app-card heading="Fast Track" headingSize="md">
-                  <app-info-tip cardAside>
-                    Decide si el expediente va por Fast Track; siempre lo revisa un analista.
-                  </app-info-tip>
+                <app-card heading="Fast Track" headingSize="md" appOnboardingTarget="FAST_TRACK">
+                  <app-info-tip cardAside>{{ stepLine.FAST_TRACK }}</app-info-tip>
+                  <!-- Fast Track can't be turned off: it's part of the analysis. -->
+                  <app-badge cardAside variant="solid" tone="ok">Siempre activo</app-badge>
 
                   <!-- Fast Track is one rule PER COVERAGE (each demands its own documents), so
                      the tab edits one coverage at a time. Locked while there are unsaved changes:
@@ -625,14 +659,11 @@
                           (valueChange)="selectFtCoverage($event)"
                         />
                       </label>
-                      <p class="section-hint">
-                        @if (ftDirty()) {
+                      @if (ftDirty()) {
+                        <p class="section-hint">
                           Guardá o descartá los cambios para pasar a otra cobertura.
-                        } @else {
-                          Cada cobertura tiene su propio Fast Track: lo que guardes acá no cambia
-                          las demás.
-                        }
-                      </p>
+                        </p>
+                      }
                     </div>
                   }
 
@@ -711,10 +742,6 @@
                             <li class="rule-row nested" @accordion>
                               <div class="rule-text">
                                 <span class="t-field-label">Ventana de siniestros previos</span>
-                                <p class="rule-hint">
-                                  Cuánto tiempo hacia atrás se cuentan esos siniestros; vacío, todo
-                                  el historial.
-                                </p>
                               </div>
                               <div class="rule-value">
                                 <app-months-input
@@ -734,9 +761,6 @@
                             />
                             <div class="rule-text">
                               <span class="t-field-label">Monto reclamado máximo</span>
-                              <p class="rule-hint">
-                                Tope del reclamo, como porcentaje de la suma asegurada.
-                              </p>
                             </div>
                             @if (ftActive('maxClaimedAmountRatio')) {
                               <div class="rule-value">
@@ -761,9 +785,6 @@
                             />
                             <div class="rule-text">
                               <span class="t-field-label">Exige póliza al día</span>
-                              <p class="rule-hint">
-                                La póliza no puede tener cuotas vencidas al momento del hecho.
-                              </p>
                             </div>
                             <span class="rule-off-note t-note">
                               {{ d.fastTrack.requiresUpToDatePolicy ? 'Sí' : 'No se exige' }}
@@ -780,19 +801,29 @@
                             agenda documental completa.
                           </app-info-tip>
                         </span>
-                        <div class="chips">
-                          @for (doc of docTypes; track doc.code) {
-                            <button
-                              type="button"
-                              class="chip"
-                              [class.active]="isFtDoc(doc.code)"
-                              [attr.aria-pressed]="isFtDoc(doc.code)"
-                              (click)="toggleFtDoc(doc.code)"
-                            >
-                              {{ doc.label }}
-                            </button>
+                        @if (ftDocOptions().length === 0) {
+                          <p class="t-note">Esta cobertura no tiene documentos en la agenda.</p>
+                        } @else {
+                          <div class="chips">
+                            @for (doc of ftDocOptions(); track doc.code) {
+                              <button
+                                type="button"
+                                class="chip"
+                                [class.active]="isFtDoc(doc.code)"
+                                [class.stale]="doc.outsideSchedule"
+                                [attr.aria-pressed]="isFtDoc(doc.code)"
+                                (click)="toggleFtDoc(doc.code)"
+                              >
+                                {{ doc.label }}
+                              </button>
+                            }
+                          </div>
+                          @if (ftHasStaleDocs()) {
+                            <span class="field-error" role="alert">
+                              Quitá los documentos que ya no están en la agenda.
+                            </span>
                           }
-                        </div>
+                        }
                       </div>
 
                       <div class="cov-section">
@@ -809,6 +840,7 @@
 
                     <app-save-bar
                       [dirty]="ftDirty()"
+                      [canSave]="!ftHasStaleDocs()"
                       [saving]="ftSaving()"
                       [error]="ftError()"
                       (save)="saveFastTrack()"
@@ -827,10 +859,14 @@
               <app-inline-loading [size]="26" message="Cargando documentación…" />
             } @else {
               <div class="tab-panel" @fadeInUp>
-                <app-card heading="Agenda documental" headingSize="md">
+                <app-card
+                  heading="Agenda documental"
+                  headingSize="md"
+                  appOnboardingTarget="DOCUMENTS"
+                >
                   <app-info-tip cardAside>
-                    Se exigen cuando el expediente no va por Fast Track: si falta alguno, queda en
-                    "Falta documentación" hasta que el asegurado lo suba.
+                    {{ stepLine.DOCUMENTS }} Si falta un documento marcado, el expediente queda en
+                    Falta documentación.
                   </app-info-tip>
                   @if (claimCauses().length === 0) {
                     <p class="section-hint">
@@ -899,12 +935,12 @@
               <app-inline-loading [size]="26" message="Cargando reglas de negocio…" />
             } @else {
               <div class="tab-panel" @fadeInUp>
-                <app-card heading="Reglas de negocio" headingSize="md">
-                  <app-info-tip cardAside>
-                    Criterios en texto libre que orientan al analista y al modelo al evaluar el
-                    siniestro. Por ejemplo: «Si el asegurado tuvo 2 o más robos en los últimos 12
-                    meses, derivar a un analista senior».
-                  </app-info-tip>
+                <app-card
+                  heading="Reglas de negocio"
+                  headingSize="md"
+                  appOnboardingTarget="BUSINESS_RULES"
+                >
+                  <app-info-tip cardAside>{{ stepLine.BUSINESS_RULES }}</app-info-tip>
                   <app-string-list-editor
                     [items]="d.businessRules"
                     (itemsChange)="setBusinessRules($event)"
@@ -958,5 +994,28 @@
       >Cancelar</app-button
     >
     <app-button [disabled]="renaming()" (click)="confirmRename()">Sí, renombrar</app-button>
+  </ng-container>
+</app-modal>
+
+<app-modal
+  [open]="coverageToRemove() !== null"
+  [heading]="'¿Quitar ' + (coverageToRemove()?.name || 'la cobertura') + '?'"
+  (close)="coverageToRemove.set(null)"
+>
+  <p class="t-body">Se borra al guardar los cambios.</p>
+  <ng-container modalActions>
+    <app-button variant="secondary" (click)="coverageToRemove.set(null)">Cancelar</app-button>
+    <app-button (click)="confirmRemoveCoverage()">Quitar cobertura</app-button>
+  </ng-container>
+</app-modal>
+
+<app-modal
+  [open]="pendingNavigation() !== null"
+  heading="¿Descartar los cambios sin guardar?"
+  (close)="keepEditing()"
+>
+  <ng-container modalActions>
+    <app-button variant="secondary" (click)="keepEditing()">Seguir editando</app-button>
+    <app-button (click)="discardAndLeave()">Descartar cambios</app-button>
   </ng-container>
 </app-modal>
