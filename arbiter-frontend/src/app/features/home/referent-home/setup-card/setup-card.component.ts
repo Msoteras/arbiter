@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, input, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 
 import { OnboardingService } from '../../../../core/onboarding/onboarding.service';
@@ -24,10 +24,29 @@ interface StepGroup {
 
 const LEVELS: OnboardingLevel[] = ['REQUIRED', 'RECOMMENDED', 'OPTIONAL'];
 
+const COLLAPSED_KEY = 'arbiter.setup-card.collapsed';
+
+/** A per-viewer convenience: an unreadable storage just means the default. */
+function readCollapsed(): boolean | null {
+  try {
+    const raw = localStorage.getItem(COLLAPSED_KEY);
+    return raw === null ? null : raw === 'true';
+  } catch {
+    return null;
+  }
+}
+
+function writeCollapsed(collapsed: boolean): void {
+  try {
+    localStorage.setItem(COLLAPSED_KEY, String(collapsed));
+  } catch {
+    /* blocked storage: the choice lasts until the page reloads */
+  }
+}
+
 /**
- * "Puesta en marcha" on the referent's home. Full at the top while a required step is pending;
- * one line under the stats once only recommended or optional steps remain; gone when nothing is
- * pending. The home places it: `placement` says which spot this instance is for.
+ * "Puesta en marcha" on the referent's home: a side column on wide screens, on top otherwise.
+ * Collapsible to its title, count and bar. Gone when nothing is pending.
  */
 @Component({
   selector: 'app-setup-card',
@@ -40,8 +59,6 @@ export class SetupCardComponent {
   private readonly onboarding = inject(OnboardingService);
   private readonly toast = inject(ToastService);
 
-  readonly placement = input.required<'top' | 'below'>();
-
   protected readonly steps = this.onboarding.steps;
   protected readonly failed = this.onboarding.failed;
 
@@ -52,17 +69,23 @@ export class SetupCardComponent {
     (this.steps() ?? []).some((s) => s.status === 'PENDING'),
   );
 
-  /** Whether this instance shows anything at all. */
-  protected readonly visible = computed(() => {
-    if (this.placement() === 'top') {
-      // Loading and errors show up top: there is no telling yet where the card belongs.
-      return this.steps() === null || this.requiredPending();
-    }
-    return this.steps() !== null && !this.requiredPending() && this.anyPending();
-  });
+  /** Gone once nothing is pending; loading and errors show, there is no telling yet. */
+  protected readonly visible = computed(
+    () => this.failed() || this.steps() === null || this.anyPending(),
+  );
 
-  protected readonly compact = computed(() => this.placement() === 'below');
-  protected readonly expanded = signal(false);
+  /** The viewer's own choice, kept in the browser; until they make one, the default below. */
+  private readonly collapsedChoice = signal<boolean | null>(readCollapsed());
+
+  /** Open while a required step is pending; with only recommended or optional ones left, closed. */
+  protected readonly collapsed = computed(() => this.collapsedChoice() ?? !this.requiredPending());
+
+  protected toggleCollapsed(): void {
+    const next = !this.collapsed();
+    this.collapsedChoice.set(next);
+    writeCollapsed(next);
+  }
+
   protected readonly showCompleted = signal(false);
   protected readonly optionalOpen = signal(false);
   protected readonly busyKey = signal<string | null>(null);

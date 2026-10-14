@@ -83,6 +83,8 @@
   /* ===== Chrome layout =====
      Global because any sticky header on an internal screen must anchor below the fixed topbar. */
   --appbar-h: 56px;
+  /* The referent home's setup checklist when it sits beside the main content. */
+  --setup-column-w: 360px;
 
   /* Minimum height of a tappable control on touch layouts (WCAG 2.5.5). */
   --touch-target: 44px;

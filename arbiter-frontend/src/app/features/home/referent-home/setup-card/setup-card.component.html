@@ -1,5 +1,5 @@
 @if (visible()) {
-  <section class="setup" [class.compact]="compact()" aria-labelledby="setup-title">
+  <section class="setup" [class.is-collapsed]="collapsed()" aria-labelledby="setup-title">
     @if (failed()) {
       <h2 id="setup-title" class="setup-title">Puesta en marcha</h2>
       <div class="setup-error">
@@ -9,37 +9,26 @@
     } @else if (steps() === null) {
       <app-inline-loading [size]="22" message="Cargando la puesta en marcha…" />
     } @else {
-      <header class="setup-head">
-        @if (compact()) {
-          <button
-            type="button"
-            class="setup-toggle"
-            [attr.aria-expanded]="expanded()"
-            aria-controls="setup-body"
-            (click)="expanded.set(!expanded())"
-          >
-            <h2 id="setup-title" class="setup-title">Puesta en marcha</h2>
-            <span class="setup-count tabular" aria-hidden="true"
-              >{{ done() }} de {{ total() }}</span
-            >
-            <span class="sr-only">{{ done() }} de {{ total() }} pasos completos</span>
-            <span class="setup-more"
-              >Ver pasos <span aria-hidden="true">{{ expanded() ? '▴' : '▾' }}</span></span
-            >
-          </button>
-        } @else {
-          <h2 id="setup-title" class="setup-title">Puesta en marcha</h2>
+      <h2 id="setup-title" class="setup-heading">
+        <button
+          type="button"
+          class="setup-toggle"
+          [attr.aria-expanded]="!collapsed()"
+          aria-controls="setup-body"
+          (click)="toggleCollapsed()"
+        >
+          <span class="setup-title">Puesta en marcha</span>
           <span class="setup-count tabular" aria-hidden="true">{{ done() }} de {{ total() }}</span>
           <span class="sr-only">{{ done() }} de {{ total() }} pasos completos</span>
-        }
-      </header>
+          <span class="setup-chevron" aria-hidden="true">{{ collapsed() ? '▾' : '▴' }}</span>
+        </button>
+      </h2>
+      <div class="setup-bar" aria-hidden="true">
+        <span class="setup-bar-fill" [style.width.%]="progressPct()"></span>
+      </div>
 
-      @if (!compact() || expanded()) {
+      @if (!collapsed()) {
         <div class="setup-body" id="setup-body">
-          <div class="setup-bar" aria-hidden="true">
-            <span class="setup-bar-fill" [style.width.%]="progressPct()"></span>
-          </div>
-
           @for (group of visibleGroups(); track group.level) {
             <div class="setup-group">
               @if (group.level === 'OPTIONAL') {

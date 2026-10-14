@@ -37,7 +37,6 @@ describe('SetupCardComponent', () => {
       ],
     });
     const fixture = TestBed.createComponent(SetupCardComponent);
-    fixture.componentRef.setInput('placement', 'top');
     fixture.detectChanges();
     return fixture.nativeElement as HTMLElement;
   }
