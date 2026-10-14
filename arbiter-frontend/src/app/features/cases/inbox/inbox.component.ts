@@ -99,7 +99,16 @@ const NO_COUNTS: LensCounts = { total: 0, mine: 0, assigned: 0, unassigned: 0, f
 
 const NO_SUMMARY: LensSummary = { open: NO_COUNTS, closed: NO_COUNTS, all: NO_COUNTS };
 
-const LINK_PARAMS = ['scope', 'unassigned', 'fraudAlert', 'status', 'staleDays'];
+const LINK_PARAMS = [
+  'scope',
+  'unassigned',
+  'fraudAlert',
+  'status',
+  'staleDays',
+  'followUp',
+  'dueSoon',
+  'mine',
+];
 
 @Component({
   selector: 'app-inbox',
@@ -200,11 +209,16 @@ export class InboxComponent {
         ? 'unassigned'
         : params.get('fraudAlert') === 'true'
           ? 'fraud'
-          : null,
+          : params.get('mine') === 'true'
+            ? 'mine'
+            : null,
     );
     this.statusFilter.set(params.get('status') ?? '');
     const staleDays = Number(params.get('staleDays'));
     this.staleDaysFilter.set(staleDays > 0 ? staleDays : null);
+    const followUp = params.get('followUp') ?? '';
+    this.followUpFilter.set(this.followUpOptions.some((o) => o.value === followUp) ? followUp : '');
+    this.dueSoonFilter.set(params.get('dueSoon') === 'true');
     this.page.set(0);
     this.router.navigate([], {
       relativeTo: this.route,
@@ -222,6 +236,8 @@ export class InboxComponent {
   protected readonly eventDateTo = signal('');
   protected readonly followUpFilter = signal('');
   protected readonly staleDaysFilter = signal<number | null>(null);
+  /** Only reachable from a link (the home's "Plazo por vencer"); removed through its chip. */
+  protected readonly dueSoonFilter = signal(false);
   protected readonly qDraft = signal('');
   protected readonly sortField = signal<SortField>('id');
   protected readonly sortDir = signal<SortDir>('desc');
@@ -245,6 +261,7 @@ export class InboxComponent {
     q: this.qDebounced() || undefined,
     followUp: (this.followUpFilter() || undefined) as CaseListParams['followUp'],
     staleDays: this.staleDaysFilter() ?? undefined,
+    dueSoon: this.dueSoonFilter() || undefined,
   }));
 
   /** Picking a status leaves the lifecycle tabs; otherwise e.g. "Aprobado" under "En curso" is always empty. */
@@ -377,6 +394,7 @@ export class InboxComponent {
         this.followUpFilter() ||
         this.analystFilter() ||
         this.staleDaysFilter() ||
+        this.dueSoonFilter() ||
         this.qDebounced()
       ),
   );
@@ -572,6 +590,7 @@ export class InboxComponent {
     const staleDays = this.staleDaysFilter();
     if (staleDays)
       chips.push({ key: 'staleDays', label: `Sin movimiento hace más de ${staleDays} días` });
+    if (this.dueSoonFilter()) chips.push({ key: 'dueSoon', label: 'Plazo por vencer o vencido' });
     return chips;
   });
 
@@ -601,6 +620,9 @@ export class InboxComponent {
       case 'staleDays':
         this.staleDaysFilter.set(null);
         break;
+      case 'dueSoon':
+        this.dueSoonFilter.set(false);
+        break;
     }
     this.page.set(0);
   }
@@ -623,6 +645,7 @@ export class InboxComponent {
     this.eventDateTo.set('');
     this.followUpFilter.set('');
     this.staleDaysFilter.set(null);
+    this.dueSoonFilter.set(false);
     this.page.set(0);
   }
 

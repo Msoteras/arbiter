@@ -1,0 +1,231 @@
+// Shared by the analyst's and the referente's home: same frame, different content. Both are built
+// to fit one laptop screen with no scrolling, so the first look already says how the day stands.
+@use 'media';
+
+@mixin layout {
+  .home {
+    box-sizing: border-box;
+    min-height: calc(100dvh - var(--appbar-h));
+    padding: var(--space-4) var(--space-6) var(--space-5);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+
+    @include media.phone {
+      padding: var(--space-4);
+    }
+  }
+
+  // `.fit`: exactly one screen tall, so a card can fill the height left instead of growing it.
+  // By width only, not pointer: a touch laptop has the same columns and needs the same height.
+  .home.fit {
+    height: calc(100dvh - var(--appbar-h));
+
+    @include media.phone {
+      height: auto;
+    }
+  }
+  .home.fit .cols,
+  .home.fit .col {
+    min-height: 0;
+  }
+  // The columns can wrap, and a wrapping row sizes its line by its content, not by the screen:
+  // capped here, the measured height is the screen's. The side column scrolls if the setup
+  // checklist is open and doesn't fit; the main one is fitted, so it never needs to.
+  .home.fit .col {
+    max-height: 100%;
+
+    @include media.phone {
+      max-height: none;
+    }
+  }
+  .home.fit .col-main {
+    overflow: hidden;
+
+    @include media.phone {
+      overflow: visible;
+    }
+  }
+  .home.fit .col-side {
+    overflow-y: auto;
+
+    @include media.phone {
+      overflow-y: visible;
+    }
+  }
+
+  // Wraps to one column on its own when the main column can't keep its minimum width.
+  .cols {
+    flex: 1;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-4);
+    align-items: stretch;
+  }
+  .col {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    min-width: 0;
+  }
+  .col-main {
+    flex: 999 1 calc(var(--space-7) * 14);
+  }
+  // Wide enough for "Tu bandeja"'s two lists side by side; the main column takes the rest.
+  .col-side {
+    flex: 1 1 calc(var(--space-7) * 10);
+  }
+  // The last card of a column takes what's left, so both columns end level.
+  .grow {
+    flex: 1;
+  }
+}
+
+@mixin hero {
+  .hero {
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    padding: var(--space-4) var(--space-6);
+    border-radius: var(--radius-card);
+    background: var(--brand-panel-bg);
+    color: var(--brand-panel-fg);
+    box-shadow: var(--shadow-card);
+
+    @include media.phone {
+      padding: var(--space-4);
+    }
+  }
+  .hero-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4);
+  }
+  .hero-text {
+    min-width: 0;
+  }
+  .hero .t-hero-title {
+    color: var(--brand-panel-fg);
+  }
+  .hero-sub {
+    margin: var(--space-1) 0 0;
+    font-size: var(--font-size-body);
+    color: color-mix(in srgb, var(--brand-panel-fg) 85%, transparent);
+  }
+  .hero-sub strong {
+    color: var(--brand-panel-fg);
+  }
+  .hero-cta {
+    flex: none;
+    text-decoration: none;
+  }
+
+  .shortcuts {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(calc(var(--space-7) * 3.5), 1fr));
+    gap: var(--space-3) var(--space-5);
+    padding-top: var(--space-3);
+    border-top: 1px solid color-mix(in srgb, var(--brand-panel-fg) 22%, transparent);
+  }
+  .shortcut {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    color: var(--brand-panel-fg);
+    text-decoration: none;
+    border-radius: var(--radius-ctl);
+  }
+  .shortcut:hover .shortcut-label {
+    text-decoration: underline;
+  }
+  .shortcut:focus-visible {
+    outline: 2px solid var(--brand-panel-fg);
+    outline-offset: var(--space-1);
+  }
+  .shortcut-top {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+  .shortcut-value {
+    font-size: var(--font-size-2xl);
+    font-weight: var(--font-weight-bold);
+    line-height: 1;
+  }
+  .shortcut-flag {
+    padding: 0 var(--space-2);
+    border-radius: var(--radius-pill);
+    background: var(--surface);
+    color: var(--text-primary);
+    font-size: var(--font-size-2xs);
+    font-weight: var(--font-weight-bold);
+  }
+  .shortcut-label {
+    font-size: var(--font-size-sm);
+    color: color-mix(in srgb, var(--brand-panel-fg) 85%, transparent);
+  }
+}
+
+@mixin rows {
+  .see-all {
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+    color: var(--accent-fg);
+    text-decoration: none;
+    white-space: nowrap;
+  }
+  .see-all:hover {
+    text-decoration: underline;
+  }
+  .card-foot {
+    display: block;
+    padding: var(--space-3) var(--space-4);
+    border-top: 1px solid var(--border-subtle);
+    background: var(--surface-head);
+    border-radius: 0 0 var(--radius-card) var(--radius-card);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+    color: var(--accent-fg);
+    text-align: right;
+    text-decoration: none;
+  }
+  .card-foot:hover {
+    text-decoration: underline;
+  }
+  .card-aside-note {
+    font-size: var(--font-size-sm);
+    color: var(--text-muted);
+  }
+  .pad {
+    padding: 0 var(--space-4) var(--space-4);
+  }
+
+  // Status dot: the semaphore only ever as a point of color.
+  .dot {
+    display: inline-block;
+    flex: none;
+    width: var(--space-2);
+    height: var(--space-2);
+    border-radius: var(--radius-pill);
+    background: var(--border-strong);
+  }
+  .dot.tone-ok {
+    background: var(--status-ok);
+  }
+  .dot.tone-warning {
+    background: var(--status-warning);
+  }
+  .dot.tone-risk {
+    background: var(--status-risk);
+  }
+  .dot.tone-danger {
+    background: var(--status-danger);
+  }
+  .dot.tone-info {
+    background: var(--status-info);
+  }
+}

@@ -360,6 +360,36 @@ describe('InboxComponent · lifecycle scope', () => {
 
       expect(lastList().staleDays).toBeUndefined();
     });
+
+    it("opens the analyst's own cases with a due deadline, counts included", async () => {
+      await mount(
+        'ANALISTA_SINIESTROS',
+        [],
+        new Map([
+          ['mine', 'true'],
+          ['dueSoon', 'true'],
+        ]),
+      );
+
+      expect(lastList().assignedToMe).toBeTrue();
+      expect(lastList().dueSoon).toBeTrue();
+      expect(lensCalls[lensCalls.length - 1].dueSoon).toBeTrue();
+
+      call('clearAllChips');
+      fixture.detectChanges();
+      await fixture.whenStable();
+
+      expect(lastList().dueSoon).toBeUndefined();
+    });
+
+    it('takes a follow-up link and ignores an unknown one', async () => {
+      await mount('ANALISTA_SINIESTROS', [], new Map([['followUp', 'EXPERT_REPORT_RECEIVED']]));
+      expect(lastList().followUp).toBe('EXPERT_REPORT_RECEIVED');
+
+      TestBed.resetTestingModule();
+      await mount('ANALISTA_SINIESTROS', [], new Map([['followUp', 'SOMETHING_ELSE']]));
+      expect(lastList().followUp).toBeUndefined();
+    });
   });
 
   describe('follow-up filter', () => {
