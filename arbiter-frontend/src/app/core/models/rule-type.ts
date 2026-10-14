@@ -52,6 +52,7 @@ const RULE_TYPE_INFO: Record<string, { label: string; description: string }> = {
     description:
       'El damnificado no es el titular ni el grupo familiar conviviente que alcanza la cobertura.',
   },
+  // No longer evaluated: kept so the rows written before 14/10/2026 still read.
   CLAIM_EXHAUSTS_COVERAGE: {
     label: 'Cobertura agotada',
     description: 'La cobertura ya se agotó por siniestros anteriores en el período vigente.',

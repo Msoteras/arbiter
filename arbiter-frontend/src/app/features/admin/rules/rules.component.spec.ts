@@ -32,7 +32,6 @@ describe('RulesComponent', () => {
     maxAnnualClaims: 2,
     waitingPeriodDays: 30,
     coversFamilyGroup: false,
-    claimExhaustsCoverage: false,
     settlementFormula: 'REPAIR',
     settlementBasis: 'LESSER_OF_SUM_AND_REPLACEMENT',
     secondEventRatio: null,
@@ -195,7 +194,7 @@ describe('RulesComponent', () => {
     );
   });
 
-  it('offers the coverage flags and the covered claim causes as checkboxes', async () => {
+  it('offers only the covered claim causes as checkboxes', async () => {
     localStorage.removeItem(LAST_TAB_KEY);
     await mount([coverage()]);
 
@@ -204,11 +203,7 @@ describe('RulesComponent', () => {
     const labels = [...el().querySelectorAll('.cov-body .check-list app-checkbox')].map((c) =>
       c.textContent?.trim(),
     );
-    expect(labels).toEqual([
-      'Alcanza al grupo familiar',
-      'Un siniestro agota la cobertura',
-      'Caída',
-    ]);
+    expect(labels).toEqual(['Caída']);
   });
 
   it('marks the coverages as changed once the description is edited', async () => {

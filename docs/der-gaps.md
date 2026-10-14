@@ -244,21 +244,30 @@ lista de Fast Track, que vive en la configuración de esa regla.
 
 La columna se borró del esquema (`2026-10-13-borrar-activo-de-banda-de-puntaje.sql`): las bandas se
 borran y se vuelven a escribir en cada guardado del puntaje, siempre en `TRUE`, y ninguna lectura
-filtraba por ella. Apagar el puntaje entero es `configuracion_scoring.activa`, que queda.
+filtraba por ella.
 
 **Acción:** dropear `activo` de `configuracion_banda`.
+
+### 26 · `configuracion_scoring.activa` — sobra
+
+La columna se borró del esquema (`2026-10-14-borrar-activo-de-configuracion-de-puntaje.sql`): el
+puntaje de riesgo está siempre activo (decidido el 14/10), la pantalla nunca dejó apagarlo y se
+guardaba siempre en `TRUE`. El motor puntúa siempre que la aseguradora tenga una configuración
+usable.
+
+**Acción:** dropear `activa` de `configuracion_scoring`.
+
+### 27 · `cobertura.siniestro_agota_cobertura` — sobra
+
+La columna se borró del esquema (`2026-10-14-borrar-un-siniestro-agota-la-cobertura.sql`): decía lo
+mismo que `max_eventos_por_anio = 1`. La migración le pasa ese tope a toda cobertura que la tenía
+prendida. Nunca estuvo en el DER.
+
+**Acción:** ninguna en el `.mdj`.
 
 ---
 
 ## Decisiones pendientes antes de tocar el `.mdj`
-
-### 24 · `requisito_documental.banda_riesgo` — está en el esquema y nadie la usa
-
-Siempre vale `NULL` y ninguna lectura la mira. Exigir un documento según la banda tiene problemas de
-fondo: la banda recién existe después de clasificar, y pedirle un papel más solo al asegurado
-marcado como riesgoso le revela esa marca.
-
-**Decisión:** implementarla o dropearla del esquema y del DER. Pendiente de discutir con el equipo.
 
 ### 13 · `expediente.destino` — está en el esquema y no en el DER
 

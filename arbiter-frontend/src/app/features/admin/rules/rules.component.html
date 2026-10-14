@@ -336,21 +336,6 @@
                             />
                           </label>
 
-                          <div class="check-list">
-                            <app-checkbox
-                              [checked]="c.coversFamilyGroup"
-                              (checkedChange)="toggleCoverageFamilyGroup(c)"
-                            >
-                              Alcanza al grupo familiar
-                            </app-checkbox>
-                            <app-checkbox
-                              [checked]="c.claimExhaustsCoverage"
-                              (checkedChange)="toggleCoverageExhausts(c)"
-                            >
-                              Un siniestro agota la cobertura
-                            </app-checkbox>
-                          </div>
-
                           <div class="cov-section">
                             <span class="t-section-label">Reglas que evalúa el motor</span>
                             @if (orderedHardRules(c).length === 0) {

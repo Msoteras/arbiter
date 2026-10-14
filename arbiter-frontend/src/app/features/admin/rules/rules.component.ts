@@ -758,7 +758,6 @@ export class RulesComponent {
       maxAnnualClaims: c.maxAnnualClaims,
       waitingPeriodDays: c.waitingPeriodDays,
       coversFamilyGroup: c.coversFamilyGroup,
-      claimExhaustsCoverage: c.claimExhaustsCoverage,
       settlementFormula: c.settlementFormula ?? 'TOTAL_LOSS',
       settlementBasis: c.settlementBasis ?? 'SUM_INSURED',
       secondEventRatio: c.secondEventRatio,
@@ -1002,7 +1001,6 @@ export class RulesComponent {
       maxAnnualClaims: null,
       waitingPeriodDays: null,
       coversFamilyGroup: false,
-      claimExhaustsCoverage: false,
       // Default: ceiling = sum insured, no deductions beyond the deductible. Enabling deductions
       // changes what the insured gets paid, so it must be an explicit choice.
       settlementFormula: 'TOTAL_LOSS',
@@ -1405,14 +1403,6 @@ export class RulesComponent {
     }
   }
 
-  protected toggleCoverageFamilyGroup(c: Coverage): void {
-    this.setCoverageField(c.id, { coversFamilyGroup: !c.coversFamilyGroup });
-  }
-
-  protected toggleCoverageExhausts(c: Coverage): void {
-    this.setCoverageField(c.id, { claimExhaustsCoverage: !c.claimExhaustsCoverage });
-  }
-
   protected readonly settlementFormulaOptions: SelectOption[] = [
     { value: 'TOTAL_LOSS', label: 'Pérdida total' },
     { value: 'REPAIR', label: 'Reparación' },
@@ -1755,7 +1745,6 @@ export class RulesComponent {
       maxAnnualClaims: c.maxAnnualClaims,
       waitingPeriodDays: c.waitingPeriodDays,
       coversFamilyGroup: c.coversFamilyGroup,
-      claimExhaustsCoverage: c.claimExhaustsCoverage,
       settlementFormula: c.settlementFormula,
       settlementBasis: c.settlementBasis,
       secondEventRatio: c.secondEventRatio,

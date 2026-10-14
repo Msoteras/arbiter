@@ -170,7 +170,7 @@ public class OnboardingService {
         int activeFactors = scoring.factors() == null ? 0 : (int) scoring.factors().stream()
                 .filter(f -> f.weight() != null && f.weight().compareTo(BigDecimal.ZERO) > 0)
                 .count();
-        boolean scoringUsable = scoring.enabled() && activeFactors > 0
+        boolean scoringUsable = activeFactors > 0
                 && scoring.bands() != null && !scoring.bands().isEmpty();
 
         int fastTrack = (int) coverages.stream()

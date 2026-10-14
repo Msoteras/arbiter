@@ -65,9 +65,6 @@ public class Coverage {
 
     private BigDecimal deductible;
 
-    @Column(name = "claim_exhausts_coverage", nullable = false)
-    private boolean claimExhaustsCoverage;
-
     @Column(name = "waiting_period_days")
     private Integer waitingPeriodDays;
 

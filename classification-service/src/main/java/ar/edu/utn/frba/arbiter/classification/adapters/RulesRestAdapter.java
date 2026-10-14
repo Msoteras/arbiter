@@ -109,7 +109,7 @@ public class RulesRestAdapter implements RulesAdapter {
                 .build();
     }
 
-    /** One config per insurer; without an enabled, usable one the claim isn't scored. */
+    /** One config per insurer, always on; without a usable one the claim isn't scored. */
     private BusinessRules overlayScoring(BusinessRules rules) {
         try {
             ScoringResponse scoring = restClient.get()
@@ -117,10 +117,10 @@ public class RulesRestAdapter implements RulesAdapter {
                     .header(HttpHeaders.AUTHORIZATION, serviceToken())
                     .retrieve()
                     .body(ScoringResponse.class);
-            if (scoring == null || !scoring.enabled()
+            if (scoring == null
                     || scoring.factors() == null || scoring.factors().isEmpty()
                     || scoring.bands() == null || scoring.bands().isEmpty()) {
-                log.debug("[RulesRestAdapter] No scoring config in DB (or disabled) — not scored");
+                log.debug("[RulesRestAdapter] No scoring config in DB — not scored");
                 return rules;
             }
             BusinessRules.ScoringConfig mapped = scoring.toScoringConfig();
@@ -157,7 +157,6 @@ public class RulesRestAdapter implements RulesAdapter {
                 .maxEventsPerYear(limits.maxEventsPerYear())
                 .waitingPeriodDays(limits.waitingPeriodDays())
                 .coversFamilyGroup(limits.coversFamilyGroup())
-                .claimExhaustsCoverage(limits.claimExhaustsCoverage())
                 .build();
     }
 
@@ -303,16 +302,16 @@ public class RulesRestAdapter implements RulesAdapter {
     /** Mirrors rules-service's CoverageLimitsDto. */
     private record CoverageLimitsResponse(
             Long reportDeadlineHours, Integer maxEventsPerYear, Integer waitingPeriodDays,
-            Boolean coversFamilyGroup, Boolean claimExhaustsCoverage) {
+            Boolean coversFamilyGroup) {
 
         boolean isEmpty() {
             return reportDeadlineHours == null && maxEventsPerYear == null && waitingPeriodDays == null
-                    && coversFamilyGroup == null && claimExhaustsCoverage == null;
+                    && coversFamilyGroup == null;
         }
     }
 
     /** Mirrors rules-service's ScoringConfigDto. */
-    private record ScoringResponse(Long id, boolean enabled, boolean fullAnalysisOnFastTrack,
+    private record ScoringResponse(Long id, boolean fullAnalysisOnFastTrack,
                                    List<ScoringFactorJson> factors, List<ScoringBandJson> bands) {
 
         /** Maps to classification's ScoringConfig; null if any band isn't a valid RiskBand. */
