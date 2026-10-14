@@ -92,6 +92,8 @@ export interface CaseResponse {
   policyNumber: string;
   description: string;
   eventDate: string;
+  /** When the insured says they filed the police report; null when the claim has none. */
+  policeReportAt: string | null;
   eventLocation: string;
   claimedAmount: number | null;
   riskBand: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' | null;

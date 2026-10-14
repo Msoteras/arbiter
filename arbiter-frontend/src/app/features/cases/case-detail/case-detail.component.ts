@@ -438,6 +438,10 @@ export class CaseDetailComponent {
             label: 'Fecha y hora de ocurrencia',
             value: d?.eventDate ? formatDateTime(d.eventDate) : null,
           },
+          // Only claims with a police report carry it; an empty row would read as missing data.
+          ...(d?.policeReportAt
+            ? [{ label: 'Denuncia policial', value: formatDateTime(d.policeReportAt) }]
+            : []),
           { label: 'Ubicación', value: d?.eventLocation ?? null },
         ],
       },

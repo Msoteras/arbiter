@@ -69,6 +69,7 @@ const ANALYST_NEXT_STEP: Partial<Record<CaseStatus, string>> = {
             </div>
             <div class="meta">
               <span class="actor">{{ actor(h.actor) }}</span>
+              <span class="sep" aria-hidden="true">·</span>
               <span class="reason">{{ reasonNote(h.reason) }}</span>
             </div>
             @if (h.observation) {
@@ -169,12 +170,10 @@ const ANALYST_NEXT_STEP: Partial<Record<CaseStatus, string>> = {
     .arrow {
       color: var(--text-muted);
     }
+    /* Inline, not flex: a long reason wraps under the actor instead of dropping to its own line
+       and leaving the separator dangling. */
     .meta {
       margin-top: var(--space-1);
-      display: flex;
-      gap: var(--space-2);
-      align-items: baseline;
-      flex-wrap: wrap;
     }
     .actor {
       font-size: var(--font-size-2xs);
@@ -182,6 +181,11 @@ const ANALYST_NEXT_STEP: Partial<Record<CaseStatus, string>> = {
       text-transform: uppercase;
       letter-spacing: 0.04em;
       color: var(--text-tertiary);
+    }
+    .sep {
+      margin: 0 var(--space-2);
+      font-size: var(--font-size-sm);
+      color: var(--text-muted);
     }
     .reason {
       font-size: var(--font-size-sm);

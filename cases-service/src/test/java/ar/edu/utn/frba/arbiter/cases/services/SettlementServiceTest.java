@@ -715,6 +715,25 @@ class SettlementServiceTest {
         assertThat(saved.getReturnReason()).isNull();
     }
 
+    /** The referent signs off on the analyst's reasoning, so the queue has to carry it. */
+    @Test
+    void thePendingQueueCarriesTheAnalystsJustification() {
+        when(settlementRepository.findByStatusOrderByConfirmedAtAsc(SettlementStatus.PENDING_AUTHORIZATION))
+                .thenReturn(List.of(CaseSettlement.builder()
+                        .id(55L).caseId(1L)
+                        .status(SettlementStatus.PENDING_AUTHORIZATION)
+                        .calculatedAmount(new BigDecimal("608000.00"))
+                        .settledAmount(new BigDecimal("608000.00"))
+                        .authorityLimit(new BigDecimal("500000.00"))
+                        .pendingJustification("Robo con denuncia y factura")
+                        .build()));
+
+        assertThat(settlementService.pendingAuthorization()).singleElement().satisfies(row -> {
+            assertThat(row.justification()).isEqualTo("Robo con denuncia y factura");
+            assertThat(row.excess()).isEqualByComparingTo("108000.00");
+        });
+    }
+
     @Test
     void authorizingRecordsWhoSignedAndReleasesTheHeldJustification() {
         when(settlementRepository.findByCaseId(1L)).thenReturn(Optional.of(CaseSettlement.builder()
