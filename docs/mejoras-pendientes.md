@@ -19,6 +19,13 @@ Anotadas durante la validación del 14/10/2026. Ninguna está implementada.
 - **En el teléfono, "Descartar" ocupa una fila entera debajo de cada paso.** Se podría llevar a la
   misma línea que la flecha.
 
+## Del cache
+
+- **El bundle inicial pasa el presupuesto de 500 kB por 247 bytes.** Es una advertencia del build. Se
+  puede subir el presupuesto o sacar del bundle principal algo que no haga falta al arrancar.
+- **Liquidaciones pendientes no tuvo prueba en el navegador**: La Segunda no tiene liquidaciones por
+  autorizar. Usa el mismo mecanismo que la Bandeja, que sí se probó.
+
 ## Otras pantallas
 
 - **"Ninguna póliza de este ramo tiene esta cobertura."** La cobertura Robo de Celulares en La Segunda
