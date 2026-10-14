@@ -61,28 +61,19 @@ export class ReferentHomeComponent {
   protected readonly today = longDate();
   protected readonly firstName = computed(() => this.session.session()?.nombre ?? '');
 
-  // No `assignedToMe`: the referente sees the whole insurer's operation.
-  // combineLatest, not forkJoin: each count shows its cached value at once and forkJoin would wait
-  // for every refresh to finish.
+  // The same counts as the inbox tabs (Abiertos, Riesgo de fraude, Cerrados, Todos), so both
+  // screens always agree. No `assignedToMe`: the referente sees the whole insurer's operation.
   private readonly countsState = toSignal(
-    combineLatest({
-      total: this.count({}),
-      // Every terminal status, whatever closed it; the backend owns the list.
-      resolved: this.count({ scope: 'CLOSED' }),
-      high: this.count({ riskBand: 'HIGH' }),
-      critical: this.count({ riskBand: 'CRITICAL' }),
-    }).pipe(
-      map(({ total, resolved, high, critical }): CountsState => {
-        return {
-          status: 'ok',
-          counts: {
-            total,
-            resolved,
-            alerts: high + critical,
-            active: Math.max(0, total - resolved),
-          },
-        };
-      }),
+    this.service.lensSummary().pipe(
+      map(({ open, closed, all }): CountsState => ({
+        status: 'ok',
+        counts: {
+          active: open.total,
+          alerts: open.fraud,
+          resolved: closed.total,
+          total: all.total,
+        },
+      })),
       startWith<CountsState>({ status: 'loading' }),
       catchError(() => of<CountsState>({ status: 'error' })),
     ),
@@ -100,8 +91,13 @@ export class ReferentHomeComponent {
 
   private readonly alertState = toSignal(
     combineLatest({
-      critical: this.service.cachedList({ riskBand: 'CRITICAL', sort: 'id,desc', size: 5 }),
-      high: this.service.cachedList({ riskBand: 'HIGH', sort: 'id,desc', size: 5 }),
+      critical: this.service.cachedList({
+        riskBand: 'CRITICAL',
+        scope: 'OPEN',
+        sort: 'id,desc',
+        size: 5,
+      }),
+      high: this.service.cachedList({ riskBand: 'HIGH', scope: 'OPEN', sort: 'id,desc', size: 5 }),
     }).pipe(
       map(({ critical, high }): AlertState => ({
         status: 'ok',
@@ -122,12 +118,6 @@ export class ReferentHomeComponent {
   protected readonly alertEmpty = computed(
     () => this.alertState().status === 'ok' && this.alertItems().length === 0,
   );
-
-  private count(params: Parameters<CaseService['list']>[0]) {
-    return this.service
-      .cachedList({ ...params, page: 0, size: 1 })
-      .pipe(map((p) => p.totalElements));
-  }
 
   private readonly workloadState = toSignal(
     this.service.analystWorkload().pipe(

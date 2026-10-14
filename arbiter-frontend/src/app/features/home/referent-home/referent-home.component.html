@@ -32,12 +32,12 @@
             [value]="counts()?.alerts ?? 0"
             [tone]="(counts()?.alerts ?? 0) > 0 ? 'danger' : 'default'"
             label="Alertas de fraude"
-            sub="riesgo alto o crítico"
+            sub="abiertos con riesgo alto o crítico"
           />
           <app-stat-tile
             [loading]="countsLoading()"
             [value]="counts()?.resolved ?? 0"
-            label="Resueltos"
+            label="Cerrados"
             sub="en total"
           />
           <app-stat-tile
@@ -82,7 +82,9 @@
                   </li>
                 }
               </ul>
-              <a routerLink="/inbox" class="see-all">Ver todos los expedientes ›</a>
+              <a routerLink="/inbox" [queryParams]="{ fraudAlert: true }" class="see-all"
+                >Ver todos en la bandeja ›</a
+              >
             }
           </app-card>
 
