@@ -62,8 +62,7 @@ public final class ResolutionSummaries {
             return ResolutionSummary.EMPTY;
         }
         List<DailyResolution> decided = days.stream()
-                .filter(day -> CaseStatus.APPROVED.name().equals(day.status())
-                        || CaseStatus.REJECTED.name().equals(day.status()))
+                .filter(day -> CaseStatus.decided().stream().anyMatch(s -> s.name().equals(day.status())))
                 .toList();
         long decidedCases = decided.stream().mapToLong(DailyResolution::resolved).sum();
         long fastTrack = days.stream().mapToLong(DailyResolution::fastTrack).sum();
@@ -114,9 +113,9 @@ public final class ResolutionSummaries {
         return points;
     }
 
-    /** Same cut as the dashboard's {@code resolutionSplit}: closed APPROVED or REJECTED. */
+    /** Same cut as the dashboard's {@code resolutionSplit}: {@link CaseStatus#decided()}. */
     private static boolean decided(ResolutionReportRow row) {
-        return row.finalStatus() == CaseStatus.APPROVED || row.finalStatus() == CaseStatus.REJECTED;
+        return CaseStatus.decided().contains(row.finalStatus());
     }
 
     private static Double average(List<ResolutionReportRow> rows,

@@ -184,7 +184,11 @@ INSERT INTO arbiter_common.case_status (id, name, description, insured_status, i
     -- Closed after 18 months without activity from the insured; unlike a rejection, shown to them.
     (8, 'LAPSED',                 'Caducado por 18 meses de inacción del asegurado',  'Caducado',              'LAPSED',                 TRUE),
     -- Shown to the insured: a repair reveals no suspicion and explains why the case is idle.
-    (9, 'PENDING_REPAIR',         'Derivado a servicio técnico, esperando su respuesta', 'En reparación',      'UNDER_REPAIR',           FALSE);
+    (9, 'PENDING_REPAIR',         'Derivado a servicio técnico, esperando su respuesta', 'En reparación',      'UNDER_REPAIR',           FALSE),
+    -- Closing statuses (2026-10-14): the insured sees "Cerrado" or "Rechazado", never the internal reason.
+    (10, 'WITHDRAWN',             'El asegurado desistió del reclamo',                'Cerrado',               'CLOSED',                 TRUE),
+    (11, 'VOIDED',                'Denuncia dada de baja por error de carga',         'Cerrado',               'CLOSED',                 TRUE),
+    (12, 'PRESCRIBED',            'Rechazado por prescripción (art. 58, Ley 17.418)', 'Rechazado',             'REJECTED',               TRUE);
 
 SELECT setval(pg_get_serial_sequence('arbiter_common.case_status', 'id'),
               (SELECT MAX(id) FROM arbiter_common.case_status));

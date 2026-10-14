@@ -357,6 +357,13 @@ app-textarea {
 }
 
 /* Explicit color so it doesn't inherit from the block above. */
+.reject-ground {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+
 .justification-hint {
   font-size: var(--font-size-2xs);
   color: var(--text-muted);

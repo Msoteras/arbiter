@@ -57,9 +57,13 @@ export interface IntakeDocumentsResponse {
   fastTrackOnly: boolean;
 }
 
+/** The closures without a verdict (`POST /cases/{id}/closures`). */
+export type CaseClosure = 'WITHDRAWN' | 'VOIDED';
+
 // No analystId: cases-service takes it from the caller's JWT.
 export interface AnalystDecisionRequest {
-  decision: 'APPROVE' | 'REJECT';
+  /** PRESCRIBE is a rejection under art. 58: the case ends as PRESCRIBED, not REJECTED. */
+  decision: 'APPROVE' | 'REJECT' | 'PRESCRIBE';
   justification: string;
   /** Required when approving, forbidden when rejecting. */
   settlement?: SettlementDecisionRequest | null;
@@ -403,6 +407,11 @@ export class CaseService {
   /** Back to analyst review without reverting the previous decision. 409 from a non-terminal status. */
   reopen(caseId: number, reason: string): Observable<CaseResponse> {
     return this.http.post<CaseResponse>(`${this.baseUrl}/${caseId}/reopen`, { reason });
+  }
+
+  /** Withdrawn or voided, by the assigned analyst. 409 from a status that can't close. */
+  close(caseId: number, closure: CaseClosure, reason: string): Observable<CaseResponse> {
+    return this.http.post<CaseResponse>(`${this.baseUrl}/${caseId}/closures`, { closure, reason });
   }
 
   unassign(caseId: number): Observable<CaseResponse> {

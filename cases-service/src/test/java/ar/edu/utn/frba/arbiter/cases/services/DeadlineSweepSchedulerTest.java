@@ -62,7 +62,7 @@ class DeadlineSweepSchedulerTest {
 
         verify(caseRepository).findUnansweredDueBy(eq(TODAY.plusDays(2)), excludedStatuses.capture());
         assertThat(excludedStatuses.getValue()).containsExactlyInAnyOrder(
-                "APPROVED", "REJECTED", "LAPSED",
+                "APPROVED", "REJECTED", "LAPSED", "PRESCRIBED", "WITHDRAWN", "VOIDED",
                 "AWAITING_DOCUMENTATION", "PENDING_EXPERT_REPORT", "PENDING_REPAIR");
         verifyNoInteractions(analystNotificationService);
     }

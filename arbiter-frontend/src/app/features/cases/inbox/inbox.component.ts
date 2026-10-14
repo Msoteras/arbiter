@@ -414,6 +414,9 @@ export class InboxComponent {
     'APPROVED',
     'REJECTED',
     'LAPSED',
+    'PRESCRIBED',
+    'WITHDRAWN',
+    'VOIDED',
   ];
 
   protected readonly statusOptions: SelectOption[] = InboxComponent.STATUS_VALUES.map((s) => ({

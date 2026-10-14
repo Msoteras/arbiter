@@ -252,8 +252,7 @@ public class PdfFraudReportExporter implements FraudReportExporter {
     }
 
     private static boolean open(CaseStatus status) {
-        return status != CaseStatus.APPROVED && status != CaseStatus.REJECTED
-                && status != CaseStatus.LAPSED;
+        return !CaseStatus.terminal().contains(status);
     }
 
     private static ReportTheme.Rgb alertTone(String bucket) {

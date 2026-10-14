@@ -65,15 +65,12 @@ export class ReferentHomeComponent {
   private readonly countsState = toSignal(
     forkJoin({
       total: this.count({}),
-      approved: this.count({ status: 'APPROVED' }),
-      rejected: this.count({ status: 'REJECTED' }),
-      // LAPSED is terminal: count it as resolved, not active.
-      lapsed: this.count({ status: 'LAPSED' }),
+      // Every terminal status, whatever closed it; the backend owns the list.
+      resolved: this.count({ scope: 'CLOSED' }),
       high: this.count({ riskBand: 'HIGH' }),
       critical: this.count({ riskBand: 'CRITICAL' }),
     }).pipe(
-      map(({ total, approved, rejected, lapsed, high, critical }): CountsState => {
-        const resolved = approved + rejected + lapsed;
+      map(({ total, resolved, high, critical }): CountsState => {
         return {
           status: 'ok',
           counts: {

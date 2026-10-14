@@ -420,8 +420,7 @@ public class PdfResolutionReportExporter implements ResolutionReportExporter {
 
     private static List<ResolutionReportRow> decided(List<ResolutionReportRow> rows) {
         return rows.stream()
-                .filter(row -> row.finalStatus() == CaseStatus.APPROVED
-                        || row.finalStatus() == CaseStatus.REJECTED)
+                .filter(row -> CaseStatus.decided().contains(row.finalStatus()))
                 .toList();
     }
 
@@ -447,7 +446,9 @@ public class PdfResolutionReportExporter implements ResolutionReportExporter {
     private static ReportTheme.Rgb tone(CaseStatus status) {
         return switch (status) {
             case APPROVED -> ReportTheme.STATUS_OK;
-            case REJECTED, LAPSED -> ReportTheme.STATUS_DANGER;
+            case REJECTED, LAPSED, PRESCRIBED -> ReportTheme.STATUS_DANGER;
+            // Closed without a verdict: neither good nor bad news.
+            case WITHDRAWN, VOIDED -> ReportTheme.MUTED;
             case AWAITING_DOCUMENTATION, CLASSIFICATION_FAILED -> ReportTheme.STATUS_WARNING;
             case PENDING_CLASSIFICATION, PENDING_ANALYST_REVIEW, PENDING_EXPERT_REPORT,
                  PENDING_REPAIR -> ReportTheme.STATUS_INFO;
