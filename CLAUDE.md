@@ -225,7 +225,7 @@ Antes de escribir markup de UI, usá los componentes que ya existen en vez de re
 | `app-save-bar` | pie de una sección editable (guardar/descartar). |
 | `app-info-tip` | ayuda que se abre con clic (funciona con touch y teclado). |
 | `app-empty-state`, `app-inline-loading`, `app-loading`, `app-spinner` | estados vacío y de carga (`app-loading` es solo el de pantalla completa del inicio). |
-| toasts (`ToastService` + `app-toast-stack`) | avisos efímeros; el stack se monta una vez en `app.html`. |
+| toasts (`ToastService` + `app-toast-stack`) | avisos efímeros, estilo Sonner: apilados, se despliegan y pausan al pasar el mouse, se descartan deslizando hacia abajo. `show(mensaje, tono, ms, { description, action })`. El stack se monta una vez en `app.html`. |
 | `app-logo`, `app-file-preview` | logo de Arbiter y vista previa de un archivo antes de subirlo. |
 | `app-fraud-gauge`, `app-severity-label`, `app-status-timeline`, `app-doc-upload`, `app-policy-card` | componentes de dominio ya construidos. |
 

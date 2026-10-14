@@ -367,9 +367,16 @@ interface Swatch {
           <app-button variant="secondary" (click)="showToastWithAction()">
             Disparar con acción
           </app-button>
+          <app-button variant="secondary" (click)="showToastWithDescription()">
+            Disparar con descripción
+          </app-button>
+          <app-button variant="secondary" (click)="showToastStack()">Disparar tres</app-button>
         </div>
         <p class="sg-p">
-          Con <span class="mono">action</span> ofrece un solo paso siguiente; al usarlo, el toast se
+          Basado en Sonner: el más nuevo adelante y los anteriores asomando detrás. Al pasar el
+          mouse (o con el foco) se despliegan y sus tiempos se pausan. Se descarta deslizándolo
+          hacia abajo. <span class="mono">description</span> agrega una segunda línea;
+          <span class="mono">action</span> ofrece un solo paso siguiente y, al usarlo, el toast se
           cierra.
         </p>
       </section>
@@ -1400,9 +1407,24 @@ export class StyleguideComponent {
 
   protected showToastWithAction(): void {
     this.toastService.show('Paso completo: Armá la agenda documental', 'ok', 6000, {
-      label: 'Siguiente',
-      run: () => this.toastService.show('Acción ejecutada.', 'info'),
+      action: {
+        label: 'Siguiente',
+        run: () => this.toastService.show('Acción ejecutada.', 'info'),
+      },
     });
+  }
+
+  protected showToastWithDescription(): void {
+    this.toastService.show('Configurá el Fast Track', 'info', 8000, {
+      description: 'Definí las condiciones de una denuncia para ser considerada Fast Track.',
+    });
+  }
+
+  /** Three at once: the stack, and how it spreads out on hover. */
+  protected showToastStack(): void {
+    this.toastService.show('Cambios guardados en el motor.', 'ok');
+    setTimeout(() => this.toastService.show('rules-service tardó en responder.', 'warning'), 300);
+    setTimeout(() => this.toastService.show('No se pudo guardar el cambio.', 'danger'), 600);
   }
 
   protected readonly modalOpen = signal(false);
