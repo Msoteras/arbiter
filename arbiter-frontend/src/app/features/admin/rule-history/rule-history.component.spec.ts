@@ -5,6 +5,7 @@ import { of } from 'rxjs';
 import { RuleHistoryComponent } from './rule-history.component';
 import { BranchesService } from '../branches.service';
 import { RuleChangeEntry, RuleHistoryService } from '../rule-history.service';
+import { provideDocumentTypesStub } from '../../../core/testing/document-types';
 
 /**
  * Covers what the component adds to the backend response: field labels, list diffs, and the
@@ -36,6 +37,7 @@ describe('RuleHistoryComponent', () => {
     await TestBed.configureTestingModule({
       imports: [RuleHistoryComponent],
       providers: [
+        provideDocumentTypesStub(),
         provideNoopAnimations(),
         {
           provide: RuleHistoryService,

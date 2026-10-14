@@ -44,7 +44,8 @@ import {
   RiskBreakdownItem,
   StatusTransition,
 } from '../../../core/models/case';
-import { withDocumentLabels, riskFactorLabel } from '../../../core/models/business-rules';
+import { riskFactorLabel } from '../../../core/models/business-rules';
+import { DocumentTypeService } from '../../../core/services/document-type.service';
 import { Policy } from '../../../core/models/policy';
 import {
   PolicySnapshot,
@@ -58,12 +59,7 @@ import {
   ruleResultTone,
   ruleTypeLabel,
 } from '../../../core/models/traceability';
-import {
-  CASE_DOCUMENT_TYPES,
-  CaseDocument,
-  CaseDocumentType,
-  documentTypeLabel,
-} from '../../../core/models/case-document';
+import { CaseDocument, CaseDocumentType } from '../../../core/models/case-document';
 import { classificationLabel, classificationTone } from '../../../core/models/classification';
 import { forensicAlertLevel } from '../../../core/models/forensic';
 import {
@@ -216,6 +212,7 @@ export class CaseDetailComponent {
   private readonly caseNav = inject(CaseNavigationService);
   private readonly session = inject(AuthSessionService);
   private readonly users = inject(UserAdminService);
+  private readonly documentTypes = inject(DocumentTypeService);
   private readonly settlementAuthorities = inject(SettlementAuthoritiesService);
   private readonly messages = inject(CaseMessagesService);
 
@@ -356,7 +353,7 @@ export class CaseDetailComponent {
 
   /** Rationales name documents by their code ("…documento 'police_report'…"), like the reasons. */
   protected factorRationale(rationale: string): string {
-    return withDocumentLabels(rationale);
+    return this.documentTypes.withLabels(rationale);
   }
 
   protected pct(value: number): number {
@@ -405,7 +402,7 @@ export class CaseDetailComponent {
 
   /** Empty for Fast Track, missing documentation or before classification; the tab is hidden then. */
   protected readonly analysisReasons = computed<string[]>(() =>
-    (this.data()?.analysisReasons ?? []).map(withDocumentLabels),
+    (this.data()?.analysisReasons ?? []).map((reason) => this.documentTypes.withLabels(reason)),
   );
 
   /** Empty until classified, or when no document was read. */
@@ -414,7 +411,7 @@ export class CaseDetailComponent {
   );
 
   protected documentLabel(type: string): string {
-    return documentTypeLabel(type);
+    return this.documentTypes.label(type);
   }
 
   /**
@@ -1841,7 +1838,9 @@ export class CaseDetailComponent {
   ruleResultTone = ruleResultTone;
   advisoryResultLabel = advisoryResultLabel;
   advisoryResultTone = advisoryResultTone;
-  ruleEvaluationText = ruleEvaluationText;
+  ruleEvaluationText(ruleType: string, evaluatedValue: string | null): string {
+    return ruleEvaluationText(ruleType, evaluatedValue, this.documentTypes.definitions());
+  }
 
   private formatAmount(amount: number): string {
     return new Intl.NumberFormat('es-AR', {
@@ -2103,14 +2102,8 @@ export class CaseDetailComponent {
         branch: this.data()?.branch ?? null,
         claimCause: this.data()?.claimCause ?? null,
       })),
-    ).pipe(
-      switchMap(({ branch, claimCause }) =>
-        branch && claimCause
-          ? this.agenda.slotsForBranch(branch, claimCause)
-          : of(CASE_DOCUMENT_TYPES),
-      ),
-    ),
-    { initialValue: CASE_DOCUMENT_TYPES as readonly CaseDocumentType[] },
+    ).pipe(switchMap(({ branch, claimCause }) => this.agenda.slotsFor(branch, claimCause))),
+    { initialValue: [] as readonly CaseDocumentType[] },
   );
 
   protected readonly missingDocLabels = computed(() => {

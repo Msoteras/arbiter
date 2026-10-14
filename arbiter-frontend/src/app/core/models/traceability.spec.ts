@@ -8,6 +8,7 @@ import {
   ruleResultTone,
   ruleTypeLabel,
 } from './traceability';
+import { NAMED_DOCUMENT_TYPES_FIXTURE as TYPES } from '../testing/document-types';
 
 describe('traceability', () => {
   describe('ruleResultTone / ruleResultLabel', () => {
@@ -51,12 +52,14 @@ describe('traceability', () => {
         ruleEvaluationText(
           'CLAIM_CAUSE_MATCH',
           'declared=Robo en vía pública described=Hurto documents=police_report',
+          TYPES,
         ),
       ).toBe('Denuncia policial: narra Hurto · se declaró Robo en vía pública');
       expect(
         ruleEvaluationText(
           'CLAIM_CAUSE_MATCH',
           'declared=Hurto described=Hurto documents=police_report',
+          TYPES,
         ),
       ).toBe('Denuncia policial: narra el hecho declarado (Hurto)');
     });
@@ -64,7 +67,7 @@ describe('traceability', () => {
     it('treats tampering signs as advisory too, and says where the detail is', () => {
       expect(isAdvisoryCheck('VISUAL_TAMPERING')).toBe(true);
       expect(ruleTypeLabel('VISUAL_TAMPERING')).toBe('Señales de adulteración en la documentación');
-      expect(ruleEvaluationText('VISUAL_TAMPERING', 'documents=police_report signs=1')).toBe(
+      expect(ruleEvaluationText('VISUAL_TAMPERING', 'documents=police_report signs=1', TYPES)).toBe(
         'Denuncia policial: 1 señal · ver Documentación',
       );
     });
@@ -191,13 +194,14 @@ describe('traceability', () => {
     });
 
     it('translates document codes into what the analyst knows', () => {
-      expect(ruleEvaluationText('FT_REQUIRED_DOCS', 'required=police_report missing=ninguno')).toBe(
-        'Presente: Denuncia policial',
-      );
+      expect(
+        ruleEvaluationText('FT_REQUIRED_DOCS', 'required=police_report missing=ninguno', TYPES),
+      ).toBe('Presente: Denuncia policial');
       expect(
         ruleEvaluationText(
           'FT_REQUIRED_DOCS',
           'required=police_report,item_photo missing=item_photo',
+          TYPES,
         ),
       ).toBe('Falta: Foto del bien');
     });

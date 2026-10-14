@@ -11,6 +11,12 @@ import { DerivationRulesService } from '../derivation-rules.service';
 import { DocumentRulesService } from '../document-rules.service';
 import { FastTrackRulesService } from '../fast-track-rules.service';
 import { HardRulesService } from '../hard-rules.service';
+import { DocumentTypeDef } from '../../../core/models/business-rules';
+import { DocumentTypeService } from '../../../core/services/document-type.service';
+import {
+  DOCUMENT_TYPES_FIXTURE,
+  DocumentTypeServiceStub,
+} from '../../../core/testing/document-types';
 
 const LAST_TAB_KEY = 'arbiter.reglas.lastTab';
 
@@ -39,10 +45,22 @@ describe('RulesComponent', () => {
     ...over,
   });
 
+  let branchDocuments: Record<number, readonly DocumentTypeDef[]>;
+
+  beforeEach(() => {
+    branchDocuments = { 1: DOCUMENT_TYPES_FIXTURE, 2: DOCUMENT_TYPES_FIXTURE };
+  });
+
   async function mount(coverages: CoverageDetail[] = []): Promise<void> {
     await TestBed.configureTestingModule({
       imports: [RulesComponent],
       providers: [
+        {
+          provide: DocumentTypeService,
+          useValue: Object.assign(new DocumentTypeServiceStub(), {
+            forBranch: (branchId: number) => of(branchDocuments[branchId] ?? []),
+          }),
+        },
         provideNoopAnimations(),
         {
           provide: BranchesService,
@@ -144,6 +162,29 @@ describe('RulesComponent', () => {
     click(tab('Fast Track'));
 
     expect(localStorage.getItem(LAST_TAB_KEY)).toBe('fastTrack');
+  });
+
+  it('lists in the agenda only the documents the branch may ask for', async () => {
+    branchDocuments[2] = [
+      { code: 'purchase_proof', label: 'Comprobante de compra' },
+      { code: 'item_photo', label: 'Foto del bien' },
+    ];
+    localStorage.setItem(LAST_TAB_KEY, 'documents');
+    await mount();
+
+    click(branch('Tecnología Portátil'));
+
+    const rows = [...el().querySelectorAll('.doc-row-name')].map((r) => r.textContent?.trim());
+    expect(rows).toEqual(['Comprobante de compra', 'Foto del bien']);
+  });
+
+  it('says so when the branch has no documents enabled', async () => {
+    branchDocuments[1] = [];
+    localStorage.setItem(LAST_TAB_KEY, 'documents');
+    await mount();
+
+    expect(el().textContent).toContain('Este ramo todavía no tiene documentos habilitados.');
+    expect(el().querySelector('.doc-row-name')).toBeNull();
   });
 
   /** It used to jump back to Coberturas on every branch, which made the stored tab useless. */

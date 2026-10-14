@@ -10,6 +10,7 @@ import {
 } from '@angular/core';
 
 import { CaseService } from '../../case.service';
+import { DocumentTypeService } from '../../../../core/services/document-type.service';
 import {
   ImageForensicFinding,
   ImageForensicInternalMatch,
@@ -22,13 +23,6 @@ import { CardComponent } from '../../../../shared/ui/card/card.component';
 import { EmptyStateComponent } from '../../../../shared/ui/empty-state/empty-state.component';
 import { SeverityLabelComponent } from '../../../../shared/ui/severity-label/severity-label.component';
 import { SpinnerComponent } from '../../../../shared/ui/spinner/spinner.component';
-
-const DOC_TYPE_LABELS: Record<string, string> = {
-  police_report: 'Denuncia policial',
-  item_photo: 'Foto del bien',
-  invoice: 'Factura de compra',
-  quote: 'Presupuesto de reparación',
-};
 
 /**
  * Shows each analyzed image next to its matches: internal matches side by side with the earlier
@@ -49,6 +43,7 @@ const DOC_TYPE_LABELS: Record<string, string> = {
 })
 export class ForensicAnalysisComponent implements OnDestroy {
   private readonly service = inject(CaseService);
+  private readonly documentTypes = inject(DocumentTypeService);
 
   readonly caseId = input.required<number>();
   readonly report = input.required<ImageForensicReport | null>();
@@ -79,7 +74,7 @@ export class ForensicAnalysisComponent implements OnDestroy {
   protected readonly isClean = forensicFindingIsClean;
 
   protected docLabel(type: string): string {
-    return DOC_TYPE_LABELS[type] ?? type;
+    return this.documentTypes.label(type);
   }
 
   protected webFound(web: ImageForensicWebFinding | null): boolean {

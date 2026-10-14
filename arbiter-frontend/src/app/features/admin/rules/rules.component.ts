@@ -5,7 +5,7 @@ import { Observable, finalize, forkJoin, of } from 'rxjs';
 import {
   Coverage,
   DeductibleBasis,
-  DOCUMENT_TYPES,
+  DocumentTypeDef,
   FastTrackConfig,
   BranchRules,
   SettlementBasis,
@@ -34,6 +34,7 @@ import {
   OnArrears,
 } from '../hard-rules.service';
 import { DocumentRulesService } from '../document-rules.service';
+import { DocumentTypeService } from '../../../core/services/document-type.service';
 import { BusinessRulesTextService } from '../business-rules-text.service';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { IconButtonComponent } from '../../../shared/ui/icon-button/icon-button.component';
@@ -121,6 +122,7 @@ export class RulesComponent {
   private readonly exclusionsService = inject(CoverageExclusionsService);
   private readonly hardRulesService = inject(HardRulesService);
   private readonly documentsService = inject(DocumentRulesService);
+  private readonly documentTypesService = inject(DocumentTypeService);
   private readonly rulesTextService = inject(BusinessRulesTextService);
   private readonly toastService = inject(ToastService);
 
@@ -155,7 +157,8 @@ export class RulesComponent {
   protected readonly rulesSaving = signal(false);
   protected readonly rulesError = signal<string | null>(null);
 
-  protected readonly docTypes = DOCUMENT_TYPES;
+  // Documents the selected branch may ask for: the rows of the Documents matrix and the Fast Track list.
+  protected readonly docTypes = signal<readonly DocumentTypeDef[]>([]);
   // Claim causes of the selected branch: used by the coverage exclusions and the Documents matrix.
   protected readonly claimCauses = signal<ClaimCauseOption[]>([]);
 
@@ -414,10 +417,25 @@ export class RulesComponent {
     this.editingName.set(false);
     this.beginDetailLoad(r.id);
     this.loadClaimCauses(r);
+    this.loadDocumentTypes(r);
     this.loadFastTrackFromBackend(r);
     this.loadCoveragesFromBackend(r);
     this.loadBusinessRulesFromBackend(r);
     this.settleDetailLoad();
+  }
+
+  private loadDocumentTypes(r: BranchRules): void {
+    this.docTypes.set([]);
+    const branchId = this.branchIdOf(r);
+    if (branchId == null) {
+      return;
+    }
+    this.trackDetail(r.id, this.documentTypesService.forBranch(branchId)).subscribe({
+      next: (types) => this.docTypes.set(types),
+      error: () => {
+        /* best-effort: no document can be picked */
+      },
+    });
   }
 
   private loadClaimCauses(r: BranchRules): void {
