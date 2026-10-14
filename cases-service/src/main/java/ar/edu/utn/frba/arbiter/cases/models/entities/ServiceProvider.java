@@ -51,10 +51,7 @@ public class ServiceProvider {
     @Column(nullable = false)
     private boolean active = true;
 
-    /**
-     * Empty means a generalist that covers every branch, including the ones added later: a new
-     * branch is served by the generalists without editing them one by one.
-     */
+    /** The branches it takes cases from; at least one, enforced on the request. */
     @Builder.Default
     @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(name = "service_provider_branch",

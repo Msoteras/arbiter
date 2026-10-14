@@ -71,6 +71,7 @@
   --font-size-body: 13px;
   --font-size-md: 14px;
   --font-size-lg: 16px;
+  --font-size-title: 19px; /* panel titles */
   --font-size-xl: 22px; /* page titles */
   --font-size-2xl: 28px; /* hero titles (login, portal) */
 
@@ -82,9 +83,23 @@
   /* ===== Chrome layout =====
      Global because any sticky header on an internal screen must anchor below the fixed topbar. */
   --appbar-h: 56px;
+  /* Toast width (same as Sonner's): fits a title, a description line and an action. */
+  --toast-w: 356px;
+  /* Narrowest the referent home's setup checklist gets when it sits beside the main content. */
+  --setup-column-min: 400px;
 
   /* Minimum height of a tappable control on touch layouts (WCAG 2.5.5). */
   --touch-target: 44px;
+  /* Inline icons and the square button that holds one. */
+  --icon-sm: 14px;
+  --icon-md: 16px;
+  --icon-lg: 18px;
+  --icon-btn: 32px;
+  /* Short fields: a number, and the unit selector next to it. */
+  --control-w-number: 88px;
+  --control-w-unit: 112px;
+  --unit-label-w: 56px;
+  --doc-file-w: 300px;
 
   /* Dashboard chart heights; the tall one gives the timeline room to separate its two series. */
   --chart-h: 240px;

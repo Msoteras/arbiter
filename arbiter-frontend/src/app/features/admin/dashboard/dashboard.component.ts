@@ -53,6 +53,7 @@ import {
   MetricCount,
   MetricsFilter,
   MetricsRange,
+  MetricsSummary,
   TimelinePoint,
   providerLabel,
   resolutionTimeLabel,
@@ -426,8 +427,8 @@ export class DashboardComponent {
       return [];
     }
     const { summary, comparisonSummary, agreement } = metrics;
-    const decided = summary.approvedCases + summary.rejectedCases;
-    const previousDecided = comparisonSummary.approvedCases + comparisonSummary.rejectedCases;
+    const decided = decidedCases(summary);
+    const previousDecided = decidedCases(comparisonSummary);
     return [
       {
         label: 'Tiempo prom. de resolución',
@@ -791,4 +792,9 @@ function isoDaysAgo(days: number): string {
 /** Both ends included. In UTC: local midnights across a DST change are 23 or 25 hours apart. */
 function daysIn(fromIso: string, toIso: string): number {
   return (Date.parse(`${toIso}T00:00:00Z`) - Date.parse(`${fromIso}T00:00:00Z`)) / 86_400_000 + 1;
+}
+
+/** Same cut as the backend's `CaseStatus.decided()`: verdicts only, prescriptions included. */
+function decidedCases(summary: MetricsSummary): number {
+  return summary.approvedCases + summary.rejectedCases + summary.prescribedCases;
 }

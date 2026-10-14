@@ -29,6 +29,13 @@ public class ImageReuseEvaluator implements RiskFactorEvaluator {
                 .max()
                 .orElse(0.0);
 
+        boolean anyNotCompared = fraud.findings().stream()
+                .anyMatch(f -> Boolean.TRUE.equals(f.internalCheckFailed()));
+        if (maxSimilarity <= 0.0 && anyNotCompared) {
+            return Contribution.notEvaluable(factorId(),
+                    "No se pudieron comparar las imágenes con adjuntos de siniestros previos — factor no evaluable");
+        }
+
         if (maxSimilarity <= 0.0) {
             // Analyzed with no match: a real, evaluable 0.
             return new Contribution(factorId(), 0.0,

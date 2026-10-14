@@ -38,6 +38,10 @@ const RULE_TYPE_INFO: Record<string, { label: string; description: string }> = {
     label: 'Mora de la póliza',
     description: 'La póliza no está al día con sus pagos al momento del hecho.',
   },
+  PRESCRIPTION: {
+    label: 'Prescripción (art. 58)',
+    description: 'La denuncia se presentó más de un año después del hecho.',
+  },
   FRAUD_RECORD: {
     label: 'Antecedente de fraude',
     description:

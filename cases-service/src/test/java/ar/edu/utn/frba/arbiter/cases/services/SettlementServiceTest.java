@@ -221,6 +221,16 @@ class SettlementServiceTest {
                 .hasMessageContaining("reponer el bien");
     }
 
+    @Test
+    void approvingARepairWithoutAQuoteIsRejected() {
+        claim.setCoverage(repairCoverage());
+
+        assertThatThrownBy(() -> settlementService.confirm(claim, 7L, "Documentación completa",
+                new SettlementDecisionRequest(null, new BigDecimal("150000.00"), "Vale eso")))
+                .isInstanceOf(InvalidSettlementException.class)
+                .hasMessageContaining("presupuesto de reparación");
+    }
+
     /** The expert's valuation is what the item is worth, so it fills the replacement value. */
     @Test
     void theExpertValuationIsSuggestedAsTheReplacementValue() {
@@ -537,7 +547,7 @@ class SettlementServiceTest {
     }
 
     private DocumentAnalysisSummary document(String type, BigDecimal amount) {
-        return new DocumentAnalysisSummary(type, "…", null, amount, null, null, null, null, "TITULAR",
+        return new DocumentAnalysisSummary(type, "…", null, amount, null, List.of(), "TITULAR",
                 List.of(), List.of(), "COMPLETE");
     }
 

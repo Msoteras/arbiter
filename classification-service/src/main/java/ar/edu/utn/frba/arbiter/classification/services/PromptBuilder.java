@@ -29,15 +29,19 @@ public class PromptBuilder {
      * mixed with the insurer's. Translated here, not in the DTO, because the rules compare the raw
      * literals. {@code APPROVED} is not "liquidado": approval doesn't mean it was paid.
      */
-    private static final Map<String, String> READABLE_STATUS = Map.of(
-            "PENDING_CLASSIFICATION", "en análisis",
-            "CLASSIFICATION_FAILED", "en análisis",
-            "PENDING_ANALYST_REVIEW", "en revisión del analista",
-            "AWAITING_DOCUMENTATION", "esperando documentación del asegurado",
-            "PENDING_EXPERT_REPORT", "en verificación con un perito",
-            "APPROVED", "aprobado por el analista (pendiente de liquidación)",
-            "REJECTED", "rechazado",
-            "LAPSED", "caducado por falta de documentación");
+    private static final Map<String, String> READABLE_STATUS = Map.ofEntries(
+            Map.entry("PENDING_CLASSIFICATION", "en análisis"),
+            Map.entry("CLASSIFICATION_FAILED", "en análisis"),
+            Map.entry("PENDING_ANALYST_REVIEW", "en revisión del analista"),
+            Map.entry("AWAITING_DOCUMENTATION", "esperando documentación del asegurado"),
+            Map.entry("PENDING_EXPERT_REPORT", "en verificación con un perito"),
+            Map.entry("PENDING_REPAIR", "en reparación con un servicio técnico"),
+            Map.entry("APPROVED", "aprobado por el analista (pendiente de liquidación)"),
+            Map.entry("REJECTED", "rechazado"),
+            Map.entry("LAPSED", "caducado por falta de documentación"),
+            Map.entry("PRESCRIBED", "rechazado por prescripción"),
+            Map.entry("WITHDRAWN", "cerrado: el asegurado desistió del reclamo"),
+            Map.entry("VOIDED", "dado de baja por error de carga"));
 
     /** Unknown values (the insurer's own vocabulary) pass through untouched. */
     private static String readableStatus(String status) {
@@ -144,6 +148,9 @@ public class PromptBuilder {
 
         sb.append("REGLAS DE LA ASEGURADORA (ramo: %s, hecho generador: %s):\n"
                 .formatted(rules.branchId(), rules.claimCauseId()));
+        if (rules.rules().isEmpty()) {
+            sb.append("- La aseguradora no cargó reglas propias para este caso.\n");
+        }
         rules.rules().forEach(r -> sb.append("- ").append(r).append("\n"));
 
         if (!rules.exclusions().isEmpty()) {

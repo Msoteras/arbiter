@@ -176,6 +176,16 @@
   font-weight: var(--font-weight-medium);
   color: var(--accent-fg);
 }
+.registered.rejected {
+  color: var(--status-danger);
+}
+/* The analyst's own words: body color, so it doesn't read as one more muted note. */
+.decision-reason {
+  margin: var(--space-1) 0 0;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
 .brief,
 .brief-alerts {
   margin: 0;
@@ -215,6 +225,9 @@
 .brief-link span {
   color: var(--text-secondary);
   font-size: var(--font-size-2xs);
+}
+.brief-link span.is-danger {
+  color: var(--status-danger);
 }
 .brief-link:focus-visible {
   outline: none;

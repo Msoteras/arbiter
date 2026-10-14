@@ -5,6 +5,7 @@ import lombok.Builder;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 @Builder
 public record InsuredPolicy(
@@ -15,7 +16,12 @@ public record InsuredPolicy(
         String product,
         /** As the insurer has it, not as the insured declared it. */
         String insuredItem,
-        String imei,
+        /**
+         * What identifies the insured item, as name → value rows of the insurer database ("marca" →
+         * "Samsung", "IMEI" → "35…"). Which names exist depends on the line of insurance, so nothing
+         * here lists them.
+         */
+        Map<String, String> itemAttributes,
         // Date and time: policies start at an exact hour, and comparing dates only accepts
         // same-day claims made before coverage started.
         LocalDateTime effectiveFrom,
@@ -59,7 +65,7 @@ public record InsuredPolicy(
                         .branch(branch)
                         .product(product)
                         .insuredItem(insuredItem)
-                        .imei(imei)
+                        .itemAttributes(itemAttributes)
                         .effectiveFrom(effectiveFrom)
                         .effectiveTo(effectiveTo)
                         .upToDate(upToDate)

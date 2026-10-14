@@ -15,6 +15,15 @@ $phone-max: 639.98px;
   }
 }
 
+/* Room for a side column next to the main content (the referent home's setup checklist). */
+$wide-min: 1180px;
+
+@mixin wide {
+  @media (min-width: $wide-min) {
+    @content;
+  }
+}
+
 @mixin desktop {
   @media (min-width: 640px) and (pointer: fine) {
     @content;

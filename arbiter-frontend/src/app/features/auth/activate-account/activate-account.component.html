@@ -3,7 +3,6 @@
     <div class="brand-pane-inner">
       <app-logo variant="symbol" class="brand-mark" />
       <h1 class="brand-title">{{ copy.brandTitle }}</h1>
-      <p class="brand-tag">{{ copy.brandTag }}</p>
     </div>
   </section>
 
@@ -17,7 +16,6 @@
       } @else {
         <form (submit)="$event.preventDefault(); submit()">
           <h2 class="t-page-title">{{ copy.formTitle }}</h2>
-          <p class="t-note">{{ copy.formNote }}</p>
 
           <label class="field-label" for="activate-password">Contraseña</label>
           <app-input
@@ -27,23 +25,18 @@
             [value]="password()"
             (valueChange)="password.set($event)"
           />
-          <p class="t-note">
-            Mínimo 8 caracteres, al menos 3 de estos 4 tipos (minúsculas, mayúsculas, números,
-            símbolos), y sin 3 caracteres iguales seguidos.
-          </p>
-          @if (password().length > 0 && !passwordValid()) {
-            <ul class="error password-issues">
-              @if (!passwordRequirements().minLength) {
-                <li>Falta longitud: al menos 8 caracteres.</li>
-              }
-              @if (!passwordRequirements().variety) {
-                <li>Falta variedad: combiná al menos 3 tipos de carácter.</li>
-              }
-              @if (!passwordRequirements().noRepeats) {
-                <li>No repitas el mismo carácter 3 veces seguidas.</li>
-              }
-            </ul>
-          }
+          <!-- One list instead of a rules note plus errors: each item ticks as it's met. -->
+          <ul class="password-reqs" aria-live="polite">
+            @for (req of passwordChecklist(); track req.label) {
+              <li [class.met]="req.met">
+                <span class="req-mark" aria-hidden="true">{{ req.met ? '✓' : '•' }}</span>
+                {{ req.label }}
+                @if (req.met) {
+                  <span class="sr-only">(cumplido)</span>
+                }
+              </li>
+            }
+          </ul>
 
           <label class="field-label" for="activate-confirm-password">Repetí la contraseña</label>
           <app-input

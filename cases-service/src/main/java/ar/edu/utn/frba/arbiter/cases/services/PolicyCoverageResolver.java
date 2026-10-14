@@ -1,10 +1,12 @@
 package ar.edu.utn.frba.arbiter.cases.services;
 
 import ar.edu.utn.frba.arbiter.cases.exceptions.UnresolvedCaseReferenceException;
+import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
 import ar.edu.utn.frba.arbiter.cases.models.entities.PolicyCoverage;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.ClaimCauseRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.PolicyCoverageRepository;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.ClaimCause;
+import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Coverage;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -49,28 +51,21 @@ public class PolicyCoverageResolver {
      * @throws UnresolvedCaseReferenceException 422 when the policy has no coverage on file at all
      */
     public PolicyCoverage resolveFor(Long policyId, Long claimCauseId) {
-        List<PolicyCoverage> contracted = contractedCoverages(policyId);
-        if (contracted.isEmpty()) {
-            throw new UnresolvedCaseReferenceException("coverage for policy", String.valueOf(policyId));
-        }
+        List<PolicyCoverage> contracted = contractedCoveragesOrThrow(policyId);
         if (claimCauseId == null) {
             return contracted.getFirst();
         }
 
-        // A coverage of another branch never answers for this cause: with an empty exclusion list
-        // it would otherwise read as "covers everything" and win by display_order alone.
-        Long causeBranchId = claimCauseRepository.findById(claimCauseId)
-                .map(cc -> cc.getBranch().getId())
-                .orElse(null);
-        List<PolicyCoverage> sameBranch = causeBranchId == null
-                ? contracted
-                : contracted.stream().filter(pc -> causeBranchId.equals(pc.getCoverage().getBranchId())).toList();
+        List<PolicyCoverage> sameBranch = sameBranchAs(contracted, claimCauseId);
         if (sameBranch.isEmpty()) {
             log.warn("[PolicyCoverageResolver] Policy {}: none of its {} contracted coverage(s) belong to "
                             + "claim cause {}'s branch — a synced policy_coverage row is likely pointing at the "
                             + "wrong branch's coverage. Falling back to the first for the eligibility check to report it.",
                     policyId, contracted.size(), claimCauseId);
             return contracted.getFirst();
+        }
+        if (sameBranch.size() == 1) {
+            return sameBranch.getFirst();
         }
 
         List<PolicyCoverage> candidates = sameBranch.stream()
@@ -89,6 +84,40 @@ public class PolicyCoverageResolver {
                     policyId, candidates.size(), claimCauseId);
         }
         return candidates.getFirst();
+    }
+
+    public Optional<Coverage> reverifiedCoverage(Case caseRecord) {
+        if (caseRecord.getDocumentsUnverifiedSince() == null) {
+            return Optional.empty();
+        }
+        return Optional.of(resolveFor(caseRecord.getPolicy().getId(), caseRecord.getClaimCause().getId()).getCoverage());
+    }
+
+    public PolicyCoverage provisionalFor(Long policyId, Long claimCauseId) {
+        List<PolicyCoverage> contracted = contractedCoveragesOrThrow(policyId);
+        List<PolicyCoverage> sameBranch = claimCauseId == null ? List.of() : sameBranchAs(contracted, claimCauseId);
+        return sameBranch.isEmpty() ? contracted.getFirst() : sameBranch.getFirst();
+    }
+
+    private List<PolicyCoverage> contractedCoveragesOrThrow(Long policyId) {
+        List<PolicyCoverage> contracted = contractedCoverages(policyId);
+        if (contracted.isEmpty()) {
+            throw new UnresolvedCaseReferenceException("coverage for policy", String.valueOf(policyId));
+        }
+        return contracted;
+    }
+
+    /**
+     * A coverage of another branch never answers for this cause: with an empty exclusion list it
+     * would otherwise read as "covers everything" and win by display_order alone.
+     */
+    private List<PolicyCoverage> sameBranchAs(List<PolicyCoverage> contracted, Long claimCauseId) {
+        Long causeBranchId = claimCauseRepository.findById(claimCauseId)
+                .map(cc -> cc.getBranch().getId())
+                .orElse(null);
+        return causeBranchId == null
+                ? contracted
+                : contracted.stream().filter(pc -> causeBranchId.equals(pc.getCoverage().getBranchId())).toList();
     }
 
     /**

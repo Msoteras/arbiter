@@ -1,5 +1,6 @@
 package ar.edu.utn.frba.arbiter.rules.services;
 
+import ar.edu.utn.frba.arbiter.common.enums.OnboardingStep;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Branch;
 import ar.edu.utn.frba.arbiter.rules.dto.InsurerRuleSnapshot;
 import ar.edu.utn.frba.arbiter.rules.dto.RuleTextResponse;
@@ -37,6 +38,8 @@ public class RuleTextService {
     private final InsurerRuleHistoryRepository historyRepository;
     private final BranchRepository branchRepository;
     private final RuleAuthorResolver authorResolver;
+    private final OnboardingStep onboardingStep;
+    private final OnboardingTracker onboardingTracker;
 
     @Transactional(readOnly = true)
     public List<String> get(Long branchId) {
@@ -47,6 +50,7 @@ public class RuleTextService {
 
     @Transactional
     public RuleTextResponse upsert(Long branchId, List<String> items, String actorEmail) {
+        onboardingTracker.touch(onboardingStep, null);
         String json = serialize(items);
         Instant now = Instant.now();
 

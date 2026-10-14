@@ -4,7 +4,6 @@ import ar.edu.utn.frba.arbiter.cases.dto.ClaimCauseCorrectionRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.ClaimCauseOption;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CaseAssignedToAnotherAnalystException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.ClaimCauseCorrectionNotAllowedException;
-import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidStatusTransitionException;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
 import ar.edu.utn.frba.arbiter.cases.models.entities.CaseSettlement;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Policy;
@@ -166,7 +165,18 @@ class ClaimCauseCorrectionServiceTest {
         claim.setCurrentStatus(CaseState.builder().name("AWAITING_DOCUMENTATION").build());
 
         assertThatThrownBy(() -> service.correct(26L, new ClaimCauseCorrectionRequest(4L, "motivo")))
-                .isInstanceOf(InvalidStatusTransitionException.class);
+                .isInstanceOf(ClaimCauseCorrectionNotAllowedException.class)
+                .hasMessage("Solo se puede corregir el hecho generador mientras el expediente está en revisión.");
+    }
+
+    /** What the analyst hits by correcting twice: the first correction already sent it to be classified. */
+    @Test
+    void whileReclassifying_saysToWaitForIt() {
+        claim.setCurrentStatus(CaseState.builder().name("PENDING_CLASSIFICATION").build());
+
+        assertThatThrownBy(() -> service.correct(26L, new ClaimCauseCorrectionRequest(4L, "motivo")))
+                .isInstanceOf(ClaimCauseCorrectionNotAllowedException.class)
+                .hasMessage("Este expediente se está reclasificando. Esperá a que termine para corregirlo.");
     }
 
     @Test

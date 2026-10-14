@@ -21,8 +21,8 @@ import java.util.Set;
 
 /**
  * Escalating cascade: internal CLIP/pgvector comparison first; the web search (third party, costs
- * money, image leaves our infrastructure) only for images with no internal match. Failures degrade
- * to an empty finding and never break the classification.
+ * money, image leaves our infrastructure) only for images with no internal match. Failures never
+ * break the classification.
  */
 @Service
 @RequiredArgsConstructor
@@ -66,7 +66,7 @@ public class ImageFraudAnalysisService {
                 }
             }
 
-            findings.add(new ImageFinding(label, doc.type(), internalMatches, webFinding));
+            findings.add(new ImageFinding(label, doc.type(), internalMatches, webFinding, outcome.comparisonFailed()));
         }
 
         log.info("[ImageFraud] caseId={} images={} webSearches={} consent={}",
@@ -84,7 +84,9 @@ public class ImageFraudAnalysisService {
                         f.documentType(), m.similarity() * 100, m.matchedCaseId(), m.matchedFilename())));
                 continue;
             }
-            traces.add(String.format("Imagen '%s': sin coincidencias con adjuntos de siniestros previos", f.documentType()));
+            traces.add(String.format(Boolean.TRUE.equals(f.internalCheckFailed())
+                    ? "⚠ Imagen '%s': no se pudo comparar con adjuntos de siniestros previos"
+                    : "Imagen '%s': sin coincidencias con adjuntos de siniestros previos", f.documentType()));
 
             if (f.webFinding() == null) {
                 // Only an explicit refusal is explained ("not allowed to look" vs "no evidence");
@@ -118,7 +120,7 @@ public class ImageFraudAnalysisService {
             return imageEmbeddingService.processAndFindDuplicates(caseId, caseDocumentId, label, imageBase64);
         } catch (Exception e) {
             log.warn("[ImageFraud] Internal check failed for '{}' — {}", label, e.getMessage());
-            return ImageAnalysisOutcome.none();
+            return ImageAnalysisOutcome.failed();
         }
     }
 

@@ -7,6 +7,7 @@ const DECISION_LABELS: Record<string, string> = {
   REJECT: 'Rechazado',
   APROBAR: 'Aprobado',
   RECHAZAR: 'Rechazado',
+  PRESCRIBE: 'Rechazado por prescripción',
 };
 
 const TOKEN = /[A-Z][A-Z_]{3,}/g;

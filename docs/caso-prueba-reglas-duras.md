@@ -28,7 +28,7 @@ nueva. Los ids de §1 reflejan Railway tal como quedó, no los del script.
 | Tenant | `arbiter_bbva` | `init-multitenant.sql` |
 | Asegurado | **Martina Soteras**, DNI `42.987.654` — `asegurado.arbiter@gmail.com` | `arbiter_bbva.insured` id 1 |
 | Póliza | **`POL-CEL-2026-042`**, vigencia **01/01/2026 → 01/01/2027**, al día, 0 siniestros previos | `aseguradora.poliza` id 1 |
-| Cobertura | `coverage` id **1** = "Robo de celular", suma asegurada **$1.300.000**, carencia **30 días**, plazo denuncia 72 hs, tope 2 eventos/año | `arbiter_bbva.coverage` |
+| Cobertura | `coverage` id **1** = "Robo", suma asegurada **$1.300.000**, carencia **30 días**, plazo denuncia 72 hs, tope 2 eventos/año | `arbiter_bbva.coverage` |
 | Ramo / hecho generador | Celulares (`branch` 1) / "Robo en vía pública" (`claim_cause` **2**) | `arbiter_common` |
 | Reglas duras | `insurer_rule` **5, 6, 7, 8** para la cobertura 1 (por cobertura) + **14** vigencia (toda la aseguradora) (ver §1) | seed nuevo |
 | Referente | `referente.arbiter@gmail.com` | — |
@@ -77,7 +77,7 @@ umbral es la columna de `coverage`, no la regla. La segunda trae una sola fila: 
 `POLICY_IN_FORCE`, `active = true` — `POLICY_STANDING` no aparece, arranca sin sembrar (§9).
 
 **Criterio 1 (parte a):** como referente, ir a **Reglas → Celulares → solapa Coberturas**. Dentro de
-la card de "Robo de celular", abajo de las exclusiones, tiene que estar el bloque *"Reglas duras que
+la card de "Robo", abajo de las exclusiones, tiene que estar el bloque *"Reglas duras que
 evalúa el motor"* con los **cuatro** chips en activo (carencia, plazo de denuncia, plazo policial,
 tope de eventos) y el campo **"Plazo de la denuncia policial (horas)"** en 72. Vigencia y mora **no**
 están acá: son de toda la aseguradora, no del ramo, así que viven en su propio recuadro del
@@ -94,7 +94,7 @@ Login como `referente.arbiter@gmail.com`.
 
 ### 2.1 · Coberturas — ampliar el plazo de denuncia a la aseguradora
 
-Solapa **Coberturas**, cobertura "Robo de celular": **Plazo de denuncia (días) = 30**.
+Solapa **Coberturas**, cobertura "Robo": **Plazo de denuncia (días) = 30**.
 
 > Por qué: el plazo de denuncia a la aseguradora (D11) y el de la denuncia policial (D12) son dos
 > reglas distintas con dos relojes distintos, y las dos arrancan en 72 hs. Con las dos en 72 es
@@ -304,15 +304,18 @@ arriba:
    veces, backoff 2s/4s/8s) y después se rinde. **No** debe aparecer ninguna fila nueva en
    `llm_analysis` ni en `rule_result` para ese caso: es la prueba de que no se coló el baseline del
    mock disfrazado de resultado real.
-4. Con `arbiter.classification-refresh.interval-ms`/`max-attempts` en los valores del
-   `application.yml` (20000 ms / 540), el expediente recién pasa a `CLASSIFICATION_FAILED` a las
-   **3 horas** — la ventana se agrandó porque corriendo Ollama por CPU hay clasificaciones de 20
-   minutos a más de una hora y el scheduler las daba por fallidas mientras seguían en curso. Para
-   no esperar tanto en la prueba manual, bajar `max-attempts` a algo chico (ej. 3) vía variable de
-   entorno antes de levantar cases-service.
+4. Cuando classification se rinde, le avisa a cases-service y el expediente pasa enseguida a
+   `CLASSIFICATION_FAILED` con motivo `infrastructure`. Mientras rules-service siga caído, la
+   recuperación lo reencola como mucho cada 30 min (`requeue-cooldown`) y vuelve a fallar.
 5. Levantar rules-service de nuevo y, como analista o referente,
    `POST /api/v1/cases/{id}/retry-classification`. **Esperado:** esta vez sí clasifica con las
    reglas reales de la BD (no el mock), y quedan las filas de `rule_result` correspondientes.
+
+**Póliza con varias coberturas del ramo** (la mayoría en BBVA): sin las exclusiones de rules no se
+sabe cuál responde por el hecho. La denuncia igual entra (la caída es nuestra, como en la #162), con
+la primera cobertura del ramo como **provisoria** y marcada sin verificar, y no se manda a clasificar:
+queda `CLASSIFICATION_FAILED` con motivo `infrastructure`. Cuando rules vuelve, la recuperación (o el
+reintento del analista) resuelve la cobertura de verdad y recién ahí clasifica.
 
 ## 9 · Mora — sexta regla dura, alcance aseguradora (nuevo, 13-15/08)
 
@@ -447,10 +450,10 @@ abierto, y el gate real del submit sigue estando.
 
 ### Caso de prueba — hechos generadores recortados por cobertura
 
-1. Asegurado: iniciar denuncia con `POL-CEL-2026-042` (cobertura "Robo de celular", branch
+1. Asegurado: iniciar denuncia con `POL-CEL-2026-042` (cobertura "Robo", branch
    Celulares).
 2. En "¿Qué te pasó?", revisar las opciones ofrecidas.
-3. **Esperado:** **"Hurto" no aparece** en la lista — la cobertura "Robo de celular" lo excluye
+3. **Esperado:** **"Hurto" no aparece** en la lista — la cobertura "Robo" lo excluye
    (`insurer_rule` id 3 del seed, `COVERAGE_EXCLUSION`, ver `db/init-multitenant.sql` línea ~737).
    El resto de los hechos generadores del ramo Celulares sí aparecen (la exclusión es lista negra,
    no blanca).

@@ -39,6 +39,7 @@ import {
 import {
   CaseStatus,
   caseStatusLabel,
+  workStatusLabel,
   caseStatusTone,
   riskBandEmptyLabel,
 } from '../../../core/models/case-status';
@@ -278,7 +279,9 @@ export class InboxComponent {
   private readonly state = toSignal(
     toObservable(this.requestParams).pipe(
       switchMap((params) =>
-        this.service.list(params).pipe(
+        // Others change the inbox all the time: a refresh waits for "Actualizar" instead of
+        // moving rows under the cursor.
+        this.service.cachedList(params, { apply: () => false }).pipe(
           map((page): LoadState => ({
             status: 'ok',
             data: page.content,
@@ -292,6 +295,13 @@ export class InboxComponent {
     ),
     { initialValue: { status: 'loading' } as LoadState },
   );
+
+  /** The cache holds a newer version of the page on screen. */
+  protected readonly hasNewer = computed(() => this.service.hasNewerList(this.requestParams()));
+
+  protected applyNewer(): void {
+    this.reloadTrigger.update((n) => n + 1);
+  }
 
   protected readonly loading = computed(() => this.state().status === 'loading');
   protected readonly hasError = computed(() => this.state().status === 'error');
@@ -404,6 +414,9 @@ export class InboxComponent {
     'APPROVED',
     'REJECTED',
     'LAPSED',
+    'PRESCRIBED',
+    'WITHDRAWN',
+    'VOIDED',
   ];
 
   protected readonly statusOptions: SelectOption[] = InboxComponent.STATUS_VALUES.map((s) => ({
@@ -731,8 +744,8 @@ export class InboxComponent {
     });
   }
 
-  protected caseStatusLabel(status: string): string {
-    return caseStatusLabel(status);
+  protected workStatusLabel(c: CaseResponse): string {
+    return workStatusLabel(c.status, c.settlementStatus);
   }
 
   protected caseStatusTone(status: string): StatusTone {
@@ -891,7 +904,7 @@ export class InboxComponent {
   private toRowCells(c: CaseResponse): string[] {
     return [
       String(c.id),
-      caseStatusLabel(c.status),
+      workStatusLabel(c.status, c.settlementStatus),
       this.displayInsured(c),
       c.policyNumber,
       c.claimCause,

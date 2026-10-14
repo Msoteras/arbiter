@@ -36,7 +36,7 @@ class PurchaseToReportTimeEvaluatorTest {
 
     private DocumentExtraction dated(LocalDate date) {
         return new DocumentExtraction("texto de la factura", List.of(), new DocumentExtraction.Fields(
-                date, null, null, null, null, null, null, null, List.of()));
+                date, null, null, null, null, null, List.of()));
     }
 
     @Test

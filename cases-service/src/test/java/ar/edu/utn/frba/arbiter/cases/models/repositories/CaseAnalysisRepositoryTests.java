@@ -5,6 +5,7 @@ import ar.edu.utn.frba.arbiter.cases.models.entities.Policy;
 import ar.edu.utn.frba.arbiter.cases.support.AbstractPersistenceIT;
 import ar.edu.utn.frba.arbiter.cases.support.CaseFixtures;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
+import ar.edu.utn.frba.arbiter.common.enums.InsuredStatus;
 import ar.edu.utn.frba.arbiter.common.enums.Classification;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Branch;
 import ar.edu.utn.frba.arbiter.common.models.entities.CaseState;
@@ -122,7 +123,7 @@ class CaseAnalysisRepositoryTests extends AbstractPersistenceIT {
                 .orElseGet(() -> caseStateRepository.save(CaseState.builder()
                         .name(status.name())
                         .description(status.name())
-                        .insuredState("En análisis")
+                        .insuredState("En análisis").insuredStatusCode(InsuredStatus.UNDER_ANALYSIS)
                         .isFinal(false)
                         .build()));
     }
@@ -270,7 +271,7 @@ class CaseAnalysisRepositoryTests extends AbstractPersistenceIT {
     }
 
     private Coverage testCoverage() {
-        return coverageRepository.findByName("Cobertura Celulares")
+        return coverageRepository.findByName("Cobertura Celulares").stream().findFirst()
                 .orElseGet(() -> coverageRepository.save(CaseFixtures.coverage("Celulares")));
     }
 

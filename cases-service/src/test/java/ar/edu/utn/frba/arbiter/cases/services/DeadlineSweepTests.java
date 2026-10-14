@@ -19,6 +19,7 @@ import ar.edu.utn.frba.arbiter.cases.support.AbstractPersistenceIT;
 import ar.edu.utn.frba.arbiter.cases.support.CaseFixtures;
 import ar.edu.utn.frba.arbiter.common.email.SendGridAdapter;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
+import ar.edu.utn.frba.arbiter.common.enums.InsuredStatus;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Branch;
 import ar.edu.utn.frba.arbiter.common.models.entities.CaseState;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.ClaimCause;
@@ -155,7 +156,7 @@ class DeadlineSweepTests extends AbstractPersistenceIT {
         return caseStateRepository.findByName(status.name())
                 .orElseGet(() -> caseStateRepository.save(CaseState.builder()
                         .name(status.name()).description(status.name())
-                        .insuredState("En análisis").isFinal(false).build()));
+                        .insuredState("En análisis").insuredStatusCode(InsuredStatus.UNDER_ANALYSIS).isFinal(false).build()));
     }
 
     private ClaimCause claimCause() {
@@ -183,7 +184,7 @@ class DeadlineSweepTests extends AbstractPersistenceIT {
     }
 
     private Coverage testCoverage() {
-        return coverageRepository.findByName("Cobertura Celulares")
+        return coverageRepository.findByName("Cobertura Celulares").stream().findFirst()
                 .orElseGet(() -> coverageRepository.save(CaseFixtures.coverage("Celulares")));
     }
 

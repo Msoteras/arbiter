@@ -33,4 +33,14 @@ public class RulesExceptionHandler {
     public ProblemDetail handleBranchInUse(BranchInUseException ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(409), ex.getMessage());
     }
+
+    @ExceptionHandler(OnboardingUnavailableException.class)
+    public ProblemDetail handleOnboardingUnavailable(OnboardingUnavailableException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(503), ex.getMessage());
+    }
+
+    @ExceptionHandler(OnboardingStepNotSkippableException.class)
+    public ProblemDetail handleOnboardingStepNotSkippable(OnboardingStepNotSkippableException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(422), ex.getMessage());
+    }
 }

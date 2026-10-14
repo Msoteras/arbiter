@@ -14,14 +14,11 @@ import {
 import { InsuredSessionService } from '../../../core/auth/insured-session.service';
 import { CaseResponse } from '../../../core/models/case';
 import {
-  SIMPLIFIED_STATUSES,
-  SimplifiedStatus,
-  insuredStatusBadgeLabel,
-  caseStatusTone,
-  statusesInBucket,
-  isFinalStatus,
-  nextStepLabel,
-} from '../../../core/models/case-status';
+  InsuredStatusCode,
+  insuredNextStep,
+  insuredStatusTone,
+  isFinalInsuredStatus,
+} from '../../../core/models/insured-status';
 import { Policy } from '../../../core/models/policy';
 import { StatusTone } from '../../../core/models/status-tone';
 import { CaseService } from '../../cases/case.service';
@@ -68,14 +65,21 @@ export class MyCasesComponent {
   protected readonly identityInput = signal('');
 
   protected readonly qDraft = signal('');
-  protected readonly statusFilter = signal<SimplifiedStatus | ''>('');
+  protected readonly statusFilter = signal<InsuredStatusCode | ''>('');
   protected readonly dateFrom = signal('');
   protected readonly dateTo = signal('');
   protected readonly insurerFilter = signal('');
   protected readonly page = signal(0);
   protected readonly size = signal(10);
 
-  protected readonly statusOptions: SelectOption[] = SIMPLIFIED_STATUSES;
+  // The same statuses the cards show, with the backend's labels.
+  protected readonly statusOptions = toSignal(
+    this.service.insuredStatuses().pipe(
+      map((statuses) => statuses.map((s): SelectOption => ({ value: s.code, label: s.label }))),
+      catchError(() => of<SelectOption[]>([])),
+    ),
+    { initialValue: [] as SelectOption[] },
+  );
 
   private readonly qDebounced = toSignal(
     toObservable(this.qDraft).pipe(debounceTime(350), distinctUntilChanged()),
@@ -100,9 +104,7 @@ export class MyCasesComponent {
   private readonly params = computed(() => ({
     insuredId: this.session.insuredId(),
     q: this.qDebounced() || undefined,
-    status: this.statusFilter()
-      ? statusesInBucket(this.statusFilter() as SimplifiedStatus)
-      : undefined,
+    insuredStatus: this.statusFilter() ? [this.statusFilter() as InsuredStatusCode] : undefined,
     eventDateFrom: this.dateFrom() || undefined,
     eventDateTo: this.dateTo() || undefined,
     insurerId: this.insurerFilter() ? Number(this.insurerFilter()) : undefined,
@@ -116,7 +118,7 @@ export class MyCasesComponent {
         if (!insuredId) {
           return of<LoadState>({ status: 'idle' });
         }
-        return this.service.list({ insuredId, ...filters }).pipe(
+        return this.service.cachedList({ insuredId, ...filters }).pipe(
           map((page): LoadState => ({
             status: 'ok',
             data: page.content,
@@ -202,20 +204,16 @@ export class MyCasesComponent {
     this.newClaim.open();
   }
 
-  protected statusLabel(status: string): string {
-    return insuredStatusBadgeLabel(status);
+  protected statusTone(code: InsuredStatusCode): StatusTone {
+    return insuredStatusTone(code);
   }
 
-  protected statusTone(status: string): StatusTone {
-    return caseStatusTone(status);
+  protected nextStep(code: InsuredStatusCode): string {
+    return insuredNextStep(code);
   }
 
-  protected nextStep(status: string): string {
-    return nextStepLabel(status);
-  }
-
-  protected isFinal(status: string): boolean {
-    return isFinalStatus(status);
+  protected isFinal(code: InsuredStatusCode): boolean {
+    return isFinalInsuredStatus(code);
   }
 
   protected reportedOn(c: CaseResponse): string {

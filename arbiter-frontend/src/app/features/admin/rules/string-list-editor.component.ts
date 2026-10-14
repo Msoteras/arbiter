@@ -2,16 +2,15 @@ import { ChangeDetectionStrategy, Component, input, output, signal } from '@angu
 
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { InputComponent } from '../../../shared/ui/input/input.component';
-import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
 
 /**
  * Emits the whole list on every change; the parent keeps it in its draft. Local to the rules
- * feature, not a kit primitive. Rows are read-only and edited one at a time.
+ * feature, not a kit primitive. Rows are read-only until edited; several can be open at once.
  * With `emptyTitle` the empty list shows the full empty state; without it, just the `emptyText` line.
  */
 @Component({
   selector: 'app-string-list-editor',
-  imports: [ButtonComponent, InputComponent, BadgeComponent],
+  imports: [ButtonComponent, InputComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (items().length === 0 && emptyTitle()) {
@@ -28,8 +27,8 @@ import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
     } @else {
       <ul class="items">
         @for (item of items(); track $index) {
-          <li class="item" [class.editing]="editing() === $index">
-            @if (editing() === $index) {
+          <li class="item" [class.editing]="editing().has($index)">
+            @if (editing().has($index)) {
               <app-input
                 class="grow"
                 [value]="item"
@@ -40,7 +39,7 @@ import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
                 type="button"
                 class="icon-btn confirm"
                 [attr.aria-label]="'Listo'"
-                (click)="stopEditing()"
+                (click)="stopEditing($index)"
               >
                 <svg
                   viewBox="0 0 24 24"
@@ -63,9 +62,6 @@ import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
               }
               <div class="text">
                 <p class="item-text">{{ item || placeholder() }}</p>
-                @if (badge()) {
-                  <app-badge variant="solid">{{ badge() }}</app-badge>
-                }
               </div>
               <div class="row-actions">
                 <button
@@ -178,15 +174,15 @@ import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
       color: var(--status-danger);
     }
     .row-marker svg {
-      width: 14px;
-      height: 14px;
+      width: var(--icon-sm);
+      height: var(--icon-sm);
     }
     .icon-btn {
       display: flex;
       align-items: center;
       justify-content: center;
-      width: 32px;
-      height: 32px;
+      width: var(--icon-btn);
+      height: var(--icon-btn);
       padding: 0;
       background: none;
       border: 1px solid var(--border-control);
@@ -211,8 +207,8 @@ import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
       box-shadow: var(--focus-ring);
     }
     .icon-btn svg {
-      width: 16px;
-      height: 16px;
+      width: var(--icon-md);
+      height: var(--icon-md);
     }
 
     .empty-box {
@@ -259,28 +255,30 @@ export class StringListEditorComponent {
   readonly emptyHint = input('');
   /** Empty-state button text; defaults to `addLabel`. */
   readonly emptyCta = input('');
-  /** Same badge on every row: who consumes these texts (engine, analyst, LLM). */
-  readonly badge = input('');
   /** Decorative leading mark on each row (the "not covered" ✗ in exclusions). */
   readonly marker = input(false);
 
   readonly itemsChange = output<string[]>();
 
-  /** Row being edited; null = all read-only. One at a time. */
-  protected readonly editing = signal<number | null>(null);
+  /** Rows open for editing. A set: adding a row must not close the one still being typed. */
+  protected readonly editing = signal<ReadonlySet<number>>(new Set());
 
   protected startEditing(index: number): void {
-    this.editing.set(index);
+    this.editing.update((open) => new Set(open).add(index));
   }
 
-  protected stopEditing(): void {
-    this.editing.set(null);
+  /** Confirming a blank row discards it: it would otherwise show the placeholder as if it were text. */
+  protected stopEditing(index: number): void {
+    if (!this.items()[index]?.trim()) {
+      this.remove(index);
+      return;
+    }
+    this.editing.update((open) => new Set([...open].filter((i) => i !== index)));
   }
 
   protected add(): void {
     const next = [...this.items(), ''];
-    // A new row starts in edit mode.
-    this.editing.set(next.length - 1);
+    this.startEditing(next.length - 1);
     this.itemsChange.emit(next);
   }
 
@@ -289,7 +287,10 @@ export class StringListEditorComponent {
   }
 
   protected remove(index: number): void {
-    this.editing.set(null);
+    // Rows below the removed one shift up, and so do their indexes.
+    this.editing.update(
+      (open) => new Set([...open].filter((i) => i !== index).map((i) => (i > index ? i - 1 : i))),
+    );
     this.itemsChange.emit(this.items().filter((_, i) => i !== index));
   }
 }

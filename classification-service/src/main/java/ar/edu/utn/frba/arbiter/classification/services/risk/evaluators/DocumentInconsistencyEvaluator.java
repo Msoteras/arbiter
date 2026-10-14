@@ -7,10 +7,17 @@ import ar.edu.utn.frba.arbiter.classification.services.risk.RiskFactorIds;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
+import java.text.NumberFormat;
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import java.util.regex.Pattern;
 
 /**
  * Contradictions between the documents' typed fields and the claim: the model reads, the code
@@ -35,6 +42,30 @@ public class DocumentInconsistencyEvaluator implements RiskFactorEvaluator {
     /** On a damage claim, the document that sets what is being claimed. */
     private static final String REPAIR_QUOTE_TYPE = "repair_quote";
 
+    /**
+     * What a provider answers a referral with. The analyst uploads them, not the insured, so they
+     * say nothing about the insured's documentation.
+     */
+    private static final Set<String> PROVIDER_REPORT_TYPES = Set.of("expert_report", "repair_report");
+
+    /**
+     * The analyst reads the finding, so it names the document as the screen does. The frontend's
+     * labels can't be reused: this text also goes out as is in the fraud report's CSV and PDF.
+     */
+    private static final Map<String, String> DOCUMENT_LABELS = Map.of(
+            POLICE_REPORT_TYPE, "Denuncia policial",
+            PURCHASE_PROOF_TYPE, "Comprobante de compra",
+            REPAIR_QUOTE_TYPE, "Presupuesto de reparación",
+            "imei_deregistration", "Baja de IMEI",
+            "last_connection", "Captura de última conexión",
+            "item_photo", "Foto del bien");
+
+    private static final DateTimeFormatter DISPLAY_DATE = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+
+    private static final Locale AR = Locale.forLanguageTag("es-AR");
+
+    private static final Pattern NOT_A_WORD = Pattern.compile("[^\\p{L}\\d]+");
+
     @Override
     public String factorId() {
         return RiskFactorIds.DOCUMENT_INCONSISTENCY;
@@ -50,8 +81,10 @@ public class DocumentInconsistencyEvaluator implements RiskFactorEvaluator {
 
         List<String> findings = new ArrayList<>();
         documents.forEach((type, extraction) -> {
-            checkImei(context, type, extraction.fields(), findings);
-            checkBrandAndModel(context, type, extraction.fields(), findings);
+            if (PROVIDER_REPORT_TYPES.contains(type)) {
+                return;
+            }
+            checkItemAttributes(context, type, extraction.fields(), findings);
             checkDocumentDate(context, type, extraction.fields(), findings);
         });
         checkAmount(context, documents, findings);
@@ -65,42 +98,86 @@ public class DocumentInconsistencyEvaluator implements RiskFactorEvaluator {
         return new Contribution(factorId(), score, String.join(" · ", findings));
     }
 
-    /** Only runs when the policy has an IMEI (cellphone branch). */
-    private void checkImei(
+    /**
+     * Each attribute the policy states about the insured item against the same one read from the
+     * document. Driven by the policy's rows, and the extraction is asked for those same names, so a
+     * line of insurance with other attributes needs no code here. At most one finding per document:
+     * a wrong make comes with a wrong model, and reporting both would count one contradiction twice.
+     */
+    private void checkItemAttributes(
             RiskContext context, String type, DocumentExtraction.Fields fields, List<String> findings) {
-        String insuredImei = context.policy() == null ? null : context.policy().imei();
-        if (insuredImei == null || fields.imei() == null) {
+        Map<String, String> insured = context.policy() == null ? null : context.policy().itemAttributes();
+        if (insured == null) {
             return;
         }
-        if (!insuredImei.equals(fields.imei())) {
+        for (Map.Entry<String, String> attribute : insured.entrySet()) {
+            String read = readFromDocument(fields, attribute.getKey());
+            if (read == null || attribute.getValue() == null || sameValue(read, attribute.getValue())) {
+                continue;
+            }
             findings.add(String.format(
-                    "El IMEI del documento '%s' (%s) no coincide con el del bien asegurado (%s)",
-                    type, fields.imei(), insuredImei));
+                    "%s del documento \"%s\" (%s) no coincide con la póliza (%s)",
+                    capitalized(attribute.getKey()), label(type), read, attribute.getValue()));
+            return;
         }
     }
 
+    private static String readFromDocument(DocumentExtraction.Fields fields, String name) {
+        return fields.itemAttributes().entrySet().stream()
+                .filter(entry -> name.equalsIgnoreCase(entry.getKey()))
+                .map(Map.Entry::getValue)
+                .findFirst()
+                .orElse(null);
+    }
+
     /**
-     * The insured item is free text, so this only flags a make (or, once the make matched, a model)
-     * that is <b>absent</b> from it; a present one proves nothing on its own.
+     * Compared by words, never as literal text: a document spells a value out further than the
+     * policy does ("Galaxy A56 5G — 256 GB" for an insured "Galaxy A56"), and that is detail, not a
+     * contradiction. Words carrying a digit are what tells two items apart ("A56", a plate), so when
+     * both sides have them one set has to contain the other; otherwise sharing a word is enough.
+     * An identifier is one such word, so two of them only match when they are the same one, however
+     * each side spaces or hyphenates it.
      */
-    private void checkBrandAndModel(
-            RiskContext context, String type, DocumentExtraction.Fields fields, List<String> findings) {
-        String insuredItem = context.policy() == null ? null : context.policy().insuredItem();
-        if (insuredItem == null || insuredItem.isBlank() || fields.brand() == null) {
-            return;
+    private static boolean sameValue(String onDocument, String insured) {
+        if (compact(onDocument).equals(compact(insured))) {
+            return true;
         }
-        String haystack = insuredItem.toLowerCase();
-        if (!haystack.contains(fields.brand().toLowerCase().trim())) {
-            findings.add(String.format(
-                    "La marca del documento '%s' (%s) no aparece en el bien asegurado (%s)",
-                    type, fields.brand(), insuredItem));
-            return;
+        Set<String> documentWords = words(onDocument);
+        Set<String> insuredWords = words(insured);
+        Set<String> documentCodes = codes(documentWords);
+        Set<String> insuredCodes = codes(insuredWords);
+        if (!documentCodes.isEmpty() && !insuredCodes.isEmpty()) {
+            return documentCodes.containsAll(insuredCodes) || insuredCodes.containsAll(documentCodes);
         }
-        if (fields.model() != null && !haystack.contains(fields.model().toLowerCase().trim())) {
-            findings.add(String.format(
-                    "El modelo del documento '%s' (%s) no aparece en el bien asegurado (%s)",
-                    type, fields.model(), insuredItem));
+        return documentWords.isEmpty() || !Collections.disjoint(documentWords, insuredWords);
+    }
+
+    private static String compact(String text) {
+        return NOT_A_WORD.matcher(text.toLowerCase()).replaceAll("");
+    }
+
+    private static Set<String> words(String text) {
+        Set<String> words = new HashSet<>();
+        for (String word : NOT_A_WORD.split(text.toLowerCase())) {
+            if (!word.isEmpty()) {
+                words.add(word);
+            }
         }
+        return words;
+    }
+
+    private static Set<String> codes(Set<String> words) {
+        Set<String> codes = new HashSet<>();
+        for (String word : words) {
+            if (word.chars().anyMatch(Character::isDigit)) {
+                codes.add(word);
+            }
+        }
+        return codes;
+    }
+
+    private static String capitalized(String name) {
+        return name.substring(0, 1).toUpperCase() + name.substring(1);
     }
 
     /**
@@ -117,8 +194,8 @@ public class DocumentInconsistencyEvaluator implements RiskFactorEvaluator {
         LocalDate earliestAccepted = eventDate.minusDays(DOCUMENT_DATE_TOLERANCE_DAYS);
         if (fields.documentDate().isBefore(earliestAccepted)) {
             findings.add(String.format(
-                    "El documento '%s' está fechado el %s, anterior al hecho (%s)",
-                    type, fields.documentDate(), eventDate));
+                    "El documento \"%s\" está fechado el %s, anterior al hecho (%s)",
+                    label(type), displayDate(fields.documentDate()), displayDate(eventDate)));
         }
     }
 
@@ -137,7 +214,7 @@ public class DocumentInconsistencyEvaluator implements RiskFactorEvaluator {
         if (!onPaper.equals(declared)) {
             findings.add(String.format(
                     "La constancia policial está fechada el %s, pero el asegurado declaró haber denunciado el %s",
-                    onPaper, declared));
+                    displayDate(onPaper), displayDate(declared)));
         }
     }
 
@@ -162,8 +239,24 @@ public class DocumentInconsistencyEvaluator implements RiskFactorEvaluator {
         BigDecimal difference = fields.amount().subtract(claimed).abs();
         if (difference.compareTo(tolerance) > 0) {
             findings.add(String.format(
-                    "El importe del documento '%s' ($%s) difiere del monto reclamado ($%s)",
-                    type, fields.amount(), claimed));
+                    "El importe del documento \"%s\" (%s) difiere del monto reclamado (%s)",
+                    label(type), displayAmount(fields.amount()), displayAmount(claimed)));
         }
+    }
+
+    /** A type with no label is shown as it came rather than hidden. */
+    private static String label(String type) {
+        return DOCUMENT_LABELS.getOrDefault(type, type);
+    }
+
+    private static String displayDate(LocalDate date) {
+        return DISPLAY_DATE.format(date);
+    }
+
+    /** Cents only when the amount has them: "$ 589.999", not "$ 589.999,00". */
+    private static String displayAmount(BigDecimal amount) {
+        NumberFormat format = NumberFormat.getNumberInstance(AR);
+        format.setMaximumFractionDigits(2);
+        return "$ " + format.format(amount);
     }
 }

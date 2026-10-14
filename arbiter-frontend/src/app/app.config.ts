@@ -13,6 +13,9 @@ import { provideEchartsCore } from 'ngx-echarts';
 
 import { routes } from './app.routes';
 import { authInterceptor } from './core/http/auth.interceptor';
+import { onboardingInterceptor } from './core/http/onboarding.interceptor';
+import { cacheInvalidationInterceptor } from './core/http/cache-invalidation.interceptor';
+import { upstreamRetryInterceptor } from './core/http/upstream-retry.interceptor';
 
 // Without this Angular's pipes (percent, number, date) format as en-US — "14.3%" next to the
 // "12,5%" that the Intl-based helpers already print.
@@ -24,7 +27,14 @@ export const appConfig: ApplicationConfig = {
     provideBrowserGlobalErrorListeners(),
     provideZoneChangeDetection({ eventCoalescing: true }),
     provideRouter(routes),
-    provideHttpClient(withInterceptors([authInterceptor])),
+    provideHttpClient(
+      withInterceptors([
+        authInterceptor,
+        upstreamRetryInterceptor,
+        cacheInvalidationInterceptor,
+        onboardingInterceptor,
+      ]),
+    ),
     provideAnimations(),
     // Lazy import keeps ECharts out of the initial bundle; echarts-core registers only the chart
     // types in use.

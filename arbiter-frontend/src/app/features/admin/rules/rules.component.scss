@@ -45,9 +45,6 @@
 }
 
 /* ───────── Master: branches and general rules ───────── */
-.list-sub {
-  margin: calc(var(--space-2) * -1) 0 var(--space-3);
-}
 .branch-item.general {
   flex-direction: row;
   align-items: center;
@@ -188,7 +185,7 @@
 }
 .branch-title {
   margin: 0;
-  font-size: var(--font-size-lg);
+  font-size: var(--font-size-title);
   font-weight: var(--font-weight-bold);
   color: var(--text-primary);
   overflow-wrap: anywhere;
@@ -279,17 +276,6 @@
   flex: 1 1 auto;
 }
 /* ───────── Coverages: accordion ───────── */
-.cov-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  margin-bottom: var(--space-2);
-}
-.cov-count {
-  margin: 0;
-}
-
 .cov-card {
   margin-bottom: var(--space-3);
 }
@@ -357,4 +343,30 @@
 }
 .cov-section .section-hint {
   margin: 0;
+}
+
+// ─── First-setup cues ─────────────────────────────────────────────────────────
+// A branch with no coverage can't take claims: the one required setting, so it carries the
+// warning tone. Optional tabs left empty get a neutral dot.
+.branch-meta.is-required {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--status-warning);
+}
+.status-dot,
+.tab-dot {
+  display: inline-block;
+  width: var(--space-2);
+  height: var(--space-2);
+  border-radius: var(--radius-pill);
+  background: currentColor;
+}
+.tab-dot {
+  margin-left: var(--space-1);
+  vertical-align: middle;
+  background: var(--text-tertiary);
+}
+.tab-dot.is-required {
+  background: var(--status-warning);
 }

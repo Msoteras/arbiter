@@ -52,6 +52,7 @@ class StoredPeriodMetricsTests extends AbstractPersistenceIT {
 
     private static final ReportPeriod AUGUST = new ReportPeriod(LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 31));
     private static final long CLASSIFYING = 1;
+    private static final long CLASSIFICATION_FAILED = 4;
 
     @TestConfiguration
     static class FixedClock {
@@ -92,6 +93,9 @@ class StoredPeriodMetricsTests extends AbstractPersistenceIT {
         jdbcTemplate.update(
                 "INSERT INTO case_status (id, name, is_final) VALUES (?, 'PENDING_CLASSIFICATION', FALSE)",
                 CLASSIFYING);
+        jdbcTemplate.update(
+                "INSERT INTO case_status (id, name, is_final) VALUES (?, 'CLASSIFICATION_FAILED', FALSE)",
+                CLASSIFICATION_FAILED);
     }
 
     @AfterEach
@@ -200,6 +204,14 @@ class StoredPeriodMetricsTests extends AbstractPersistenceIT {
 
         assertThat(dailyMetricsService.covers(AUGUST)).isTrue();
         assertThat(stored.summary(AUGUST, MetricsFilter.NONE).fastTrackCases()).isEqualTo(1);
+    }
+
+    @Test
+    void aDayWithAClaimWhoseClassificationFailed_isLeftUnstored() {
+        tables.insertCase(1, "2026-08-04T15:00:00Z", CLASSIFICATION_FAILED, PHONES_ROBBERY, false, null, null);
+
+        assertThat(dailyMetricsService.covers(AUGUST)).isFalse();
+        assertThat(storedDays()).isEqualTo(30);
     }
 
     /** Above the analyst's cap, it is not a payment yet; authorized later, it must not be missed. */

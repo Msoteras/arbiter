@@ -47,13 +47,16 @@ arbiter:
   rules-service:
     url: ${RULES_SERVICE_URL:http://localhost:8081}
   classification-refresh:
-    # 20s x 540 = a 3h window: Ollama on CPU can take over an hour, and giving up early marks as
-    # failed a classification that later succeeds. Same criterion as OllamaClient's timeout.
-    interval-ms: 20000
-    max-attempts: 540
-    # Requeues CLASSIFICATION_FAILED cases whose reason was INFRASTRUCTURE. Much sparser than
-    # interval-ms: retries already ran for minutes, so requeuing sooner would hammer a service still down.
+    # Only a safety net for lost notices: classification-service tells cases-service when a run ends.
+    interval-ms: ${CLASSIFICATION_REFRESH_INTERVAL_MS:600000}
+    # Ollama on CPU can take over an hour, and giving up early marks as failed a classification that
+    # later succeeds. Same criterion as OllamaClient's timeout.
+    give-up-after: 3h
+    # Requeues CLASSIFICATION_FAILED cases whose reason was INFRASTRUCTURE. Not sooner: retries
+    # already ran for minutes, so requeuing at once would hammer a service still down.
     recovery-interval-ms: 300000
+    # Paces the automatic requeues of one case while a dependency of classification stays down.
+    requeue-cooldown: 30m
   document-recheck:
     # Rechecks claims filed while rules-service was down. Sparse for the same reason as recovery.
     interval-ms: ${DOCUMENT_RECHECK_INTERVAL_MS:300000}

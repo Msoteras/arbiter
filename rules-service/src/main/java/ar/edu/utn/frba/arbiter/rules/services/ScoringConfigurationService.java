@@ -1,5 +1,6 @@
 package ar.edu.utn.frba.arbiter.rules.services;
 
+import ar.edu.utn.frba.arbiter.common.enums.OnboardingStep;
 import ar.edu.utn.frba.arbiter.rules.dto.FactorWeightDto;
 import ar.edu.utn.frba.arbiter.rules.dto.ScoreBandCutDto;
 import ar.edu.utn.frba.arbiter.rules.dto.ScoringConfigDto;
@@ -39,6 +40,7 @@ public class ScoringConfigurationService {
     private final ScoreBandRepository scoreBandRepository;
     private final ScoringConfigurationHistoryRepository historyRepository;
     private final RuleAuthorResolver authorResolver;
+    private final OnboardingTracker onboardingTracker;
 
     @Transactional(readOnly = true)
     public ScoringConfigDto get() {
@@ -49,6 +51,7 @@ public class ScoringConfigurationService {
 
     @Transactional
     public ScoringConfigResponse upsert(ScoringConfigDto dto, String actorEmail) {
+        onboardingTracker.touch(OnboardingStep.SCORING, null);
         ScoringConfiguration config = scoringConfigurationRepository.findFirstByOrderByIdAsc().orElse(null);
         Instant now = Instant.now();
 

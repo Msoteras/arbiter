@@ -131,6 +131,10 @@ public class SettlementService {
         if (needsReplacementValue(settlement) && !isPositive(request.replacementValue())) {
             throw InvalidSettlementException.missingReplacementValue();
         }
+        if (settlement.getFormula() == SettlementFormula.REPAIR
+                && !isPositive(request.replacementValue())) {
+            throw InvalidSettlementException.missingRepairQuote();
+        }
 
         BigDecimal authorized = request.settledAmount();
         if (authorized.compareTo(settlement.getSumInsured()) > 0) {
@@ -449,8 +453,7 @@ public class SettlementService {
         // Checked against the applied formula, not the coverage's: an irreparable item no longer
         // settles by repair.
         if (formula == SettlementFormula.REPAIR && !accredited) {
-            warnings.add("La cobertura liquida por reparación y no hay presupuesto acreditado: sin él "
-                    + "no hay monto que pagar. Cargá el presupuesto del expediente.");
+            warnings.add("Cargá el presupuesto de reparación: sin él no se puede aprobar.");
         }
         if (needsReplacementValue(proposal) && !accredited) {
             warnings.add("Cargá cuánto cuesta hoy reponer el bien: sin ese valor no se puede aprobar.");

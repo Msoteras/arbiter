@@ -36,6 +36,11 @@ export interface MetricsSummary {
   rejectedCases: number;
   /** Excluded from rates and averages: nobody decided them. */
   lapsedCases: number;
+  /** Rejected under art. 58, apart from `rejectedCases` (rejected on the merits). Decided. */
+  prescribedCases: number;
+  /** Closed without a verdict, like lapsed: out of rates and averages. */
+  withdrawnCases: number;
+  voidedCases: number;
   approvalRate: number | null;
   rejectionRate: number | null;
   fastTrackRate: number | null;

@@ -23,7 +23,11 @@ class ImageEvaluatorsTest {
     }
 
     private static ImageFinding finding(List<InternalMatch> internal, WebFinding webFinding) {
-        return new ImageFinding("damage_photo-0", "damage_photo", internal, webFinding);
+        return new ImageFinding("damage_photo-0", "damage_photo", internal, webFinding, false);
+    }
+
+    private static ImageFinding notCompared() {
+        return new ImageFinding("damage_photo-0", "damage_photo", List.of(), null, true);
     }
 
     // ── image_reuse ──────────────────────────────────────────────────────────
@@ -43,6 +47,27 @@ class ImageEvaluatorsTest {
         // Analyzed with no reuse: an evaluable 0.
         assertThat(c.evaluable()).isTrue();
         assertThat(c.score()).isZero();
+    }
+
+    @Test
+    void reuse_notEvaluableWhenTheComparisonFailed() {
+        ImageForensicReport report = new ImageForensicReport(1, 0, true, List.of(notCompared()));
+
+        Contribution c = reuse.evaluate(ctx(report));
+
+        assertThat(c.evaluable()).isFalse();
+        assertThat(c.rationale()).contains("no evaluable");
+    }
+
+    @Test
+    void reuse_aMatchOnAnotherImageStillScores_evenIfOneComparisonFailed() {
+        ImageForensicReport report = new ImageForensicReport(2, 0, true, List.of(
+                notCompared(),
+                finding(List.of(new InternalMatch(9002L, "item_photo", "b.jpg", 0.96)), null)));
+
+        Contribution c = reuse.evaluate(ctx(report));
+
+        assertThat(c.score()).isEqualTo(0.96);
     }
 
     @Test

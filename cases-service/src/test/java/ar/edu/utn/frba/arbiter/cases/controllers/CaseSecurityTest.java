@@ -14,6 +14,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Date;
+import java.util.List;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -245,6 +246,41 @@ class CaseSecurityTest extends AbstractPersistenceIT {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"providerId": 1, "reason": "banda crítica"}
+                                """))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void classificationFinished_withoutToken_returns401() throws Exception {
+        mockMvc.perform(post("/api/v1/cases/999999/classification-finished")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"outcome": "COMPLETED"}
+                                """))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void classificationFinished_withAUserToken_returns403() throws Exception {
+        for (String rol : List.of("ASEGURADO", "ANALISTA_SINIESTROS", "REFERENTE_ASEGURADORA")) {
+            mockMvc.perform(post("/api/v1/cases/999999/classification-finished")
+                            .header("Authorization", "Bearer " + tokenFor(rol))
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                    {"outcome": "FAILED"}
+                                    """))
+                    .andExpect(status().isForbidden());
+        }
+    }
+
+    @Test
+    void classificationFinished_withAServiceToken_passesTheGate() throws Exception {
+        String serviceToken = JwtSupport.issueServiceToken(JwtSupport.key(SECRET), "classification-service");
+        mockMvc.perform(post("/api/v1/cases/999999/classification-finished")
+                        .header("Authorization", "Bearer " + serviceToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"outcome": "COMPLETED"}
                                 """))
                 .andExpect(status().isNotFound());
     }

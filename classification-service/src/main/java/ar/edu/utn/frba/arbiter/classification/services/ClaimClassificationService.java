@@ -1,14 +1,17 @@
 package ar.edu.utn.frba.arbiter.classification.services;
 
+import ar.edu.utn.frba.arbiter.classification.adapters.CasesServiceNotifier;
 import ar.edu.utn.frba.arbiter.classification.dto.AttachmentDocument;
 import ar.edu.utn.frba.arbiter.classification.dto.ClassificationResponse;
 import ar.edu.utn.frba.arbiter.classification.models.repositories.CaseOutcomeRepository;
 import ar.edu.utn.frba.arbiter.common.dto.ClaimReport;
+import ar.edu.utn.frba.arbiter.common.dto.ClassificationFinished;
 import ar.edu.utn.frba.arbiter.common.enums.ClassificationFailureReason;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.retry.annotation.Backoff;
+import org.springframework.retry.annotation.Recover;
 import org.springframework.retry.annotation.Retryable;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
@@ -26,6 +29,7 @@ public class ClaimClassificationService {
     private final ClassificationOrchestrator classificationOrchestrator;
     private final ClassificationResultsService resultsService;
     private final CaseOutcomeRepository caseOutcomeRepository;
+    private final CasesServiceNotifier casesServiceNotifier;
 
     /**
      * The retry window is deliberately wide (minutes, not seconds) so a dependency that is restarting
@@ -63,6 +67,13 @@ public class ClaimClassificationService {
             caseOutcomeRepository.recordClassificationFailure(caseId, classifyFailure(e), e.getMessage());
             throw new RuntimeException("Classification failed for case " + caseId + " after retries", e);
         }
+
+        casesServiceNotifier.classificationFinished(caseId, ClassificationFinished.Outcome.COMPLETED);
+    }
+
+    @Recover
+    public void notifyFailure(RuntimeException e, Long caseId, ClaimReport claim, List<AttachmentDocument> documents) {
+        casesServiceNotifier.classificationFinished(caseId, ClassificationFinished.Outcome.FAILED);
     }
 
     /**

@@ -221,7 +221,7 @@ describe('ResolutionReportComponent', () => {
     click('Ver vista previa');
 
     const text = (fixture.nativeElement as HTMLElement).textContent!.replace(/\s+/g, ' ');
-    expect(text).toContain('3 decididos · 1 caducados');
+    expect(text).toContain('3 decididos · 1 sin decisión');
     expect(text).toContain('de gestión · 10 h esperando a terceros');
   });
 

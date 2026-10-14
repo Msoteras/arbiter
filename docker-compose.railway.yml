@@ -85,6 +85,8 @@ services:
       DB_USER: ${DB_USER:?falta DB_USER en .env}
       DB_PASSWORD: ${DB_PASSWORD:?falta DB_PASSWORD en .env}
       JWT_SECRET: ${JWT_SECRET:?falta JWT_SECRET en .env}
+      # Reports saves of the setup checklist steps auth-service owns.
+      RULES_SERVICE_URL: http://rules-service:8081
       JWT_EXPIRATION_MINUTES: ${JWT_EXPIRATION_MINUTES:-60}
       # Without it, bulk insured provisioning silently falls back to the mock adapter.
       SPRING_PROFILES_ACTIVE: ${AUTH_PROFILES:-insurer-db}
@@ -131,6 +133,7 @@ services:
       JWT_SECRET: ${JWT_SECRET:?falta JWT_SECRET en .env}
       # The yml default is localhost, which inside a container is the container itself.
       RULES_SERVICE_URL: http://rules-service:8081
+      CASES_SERVICE_URL: http://cases-service:8083
     depends_on:
       ollama-init:
         condition: service_completed_successfully
@@ -184,6 +187,8 @@ services:
       DB_PASSWORD: ${DB_PASSWORD:?falta DB_PASSWORD en .env}
       # Required at startup by the JWT filter, as in every module.
       JWT_SECRET: ${JWT_SECRET:?falta JWT_SECRET en .env}
+      # The setup checklist reads coverage, provider and cap counts from cases-service.
+      CASES_SERVICE_URL: http://cases-service:8083
     restart: on-failure
 
   reports-service:

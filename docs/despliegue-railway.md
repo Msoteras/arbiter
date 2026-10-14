@@ -191,6 +191,7 @@ declara módulo por módulo. En Railway se cargan las mismas, con estas diferenc
 | `DB_URL` / `DB_USER` / `DB_PASSWORD` | La base vive en el Postgres de Railway. **`DB_URL` va por la red privada**: `jdbc:postgresql://${{Postgres.RAILWAY_PRIVATE_DOMAIN}}:5432/railway?sslmode=require`. El proxy público (`*.proxy.rlwy.net`) es solo para conectarse desde afuera (scripts, `psql`): usado desde los servicios, cada consulta sale a internet y vuelve, y se cobra como egress |
 | `RULES_SERVICE_URL` | `http://rules-service.railway.internal:8081` |
 | `CLASSIFICATION_SERVICE_URL` | `http://classification-service.railway.internal:8082` |
+| `CASES_SERVICE_URL` | **En `classification-service`**: `http://cases-service.railway.internal:8083`. Es a donde avisa que terminó una clasificación. Si falta, el aviso no llega y cases se entera recién con el polling de respaldo (cada 10 min); el log de classification dice `Could not notify cases-service` |
 | `EMBEDDING_SERVICE_URL` | `http://clip-embedding.railway.internal:8000` |
 | `LLM_PROVIDER` | **`gemini`** — ver abajo |
 | `OLLAMA_BASE_URL` | No se setea: no hay Ollama en Railway |
@@ -380,6 +381,48 @@ simplemente falla los primeros health checks y Railway lo reintenta.
 6. `reports-service` — necesita `rules-service`; el resto lo lee directo de la base.
 7. `arbiter-frontend` — necesita a los cinco. Es el que recibe el dominio público.
 
+## Servicios dormidos (Serverless)
+
+Con Serverless, Railway duerme un servicio tras 10 min sin tráfico saliente. Por el dominio público
+lo despierta reteniendo el pedido, pero **por la red privada (`*.railway.internal`) no**: el primer
+pedido recibe `connection refused` y recién ahí el servicio arranca. Un módulo Spring Boot tarda
+5-7 s; `clip-embedding`, 20-40 s, porque carga torch y los pesos de CLIP. Se vio el 27/09: nginx →
+`auth-service` dio 502 al instante y a los segundos respondió normal.
+
+Cómo lo tolera cada tramo:
+
+- **Entre módulos** (`ConnectionRetryInterceptor`, en `common-lib`): reintenta solo cuando el pedido
+  no llegó (conexión rechazada, nombre que no resuelve o timeout de conexión), ~23 s en total. Una respuesta HTTP, 5xx
+  incluido, no se reintenta nunca: el pedido ya llegó y repetirlo podría correr un POST dos veces.
+  Lo usan todas las llamadas de `cases-service` a classification y rules, las de `reports-service` y
+  `classification-service` a rules, el aviso de `classification-service` a `cases-service` y
+  `classification-service` → `clip-embedding` (este con ~54 s).
+  El envío de la denuncia a classification (hasta 30 MB de adjuntos) no pasa por el interceptor,
+  que guardaría el cuerpo entero en memoria para poder reenviarlo: se manda de a partes y se
+  reintenta la llamada completa (`call`). Con el `-Xmx384m` de cases, esa copia de más es la
+  diferencia entre que dos denuncias grandes a la vez entren o no.
+- **Si classification no toma una denuncia** ni con los reintentos, el expediente queda en
+  `CLASSIFICATION_FAILED` con motivo `INFRASTRUCTURE` y el barrido de recuperación lo reencola. El
+  usuario no ve un error, así no la vuelve a cargar.
+- **Si el aviso de fin de clasificación no llega a cases** ni con los reintentos, el expediente lo
+  levanta el polling de respaldo de cases, que corre cada 10 min (`CLASSIFICATION_REFRESH_INTERVAL_MS`).
+- **Si `clip-embedding` no responde**, la clasificación sigue: la imagen queda como "no se pudo
+  comparar" y el factor de reutilización de imágenes queda no evaluable, en vez de leerse como "sin
+  coincidencias".
+- **Navegador → backend**: el nginx del frontend convierte en `503` con `X-Upstream-Unreachable` el
+  502 (conexión rechazada) o el 504 (timeout de conexión) de un pedido que nunca llegó al backend.
+  El front reintenta solo esos (~20 s) y avisa que el sistema se está iniciando. Un 502 o 504 de un
+  pedido que sí llegó se devuelve tal cual.
+
+Con esto `classification-service` puede volver a tener Serverless (estaba apagado porque la primera
+denuncia después de un rato sin uso fallaba).
+
+**`cases-service` tiene que tener Serverless apagado.** Railway lo duerme aunque reciba pedidos y
+consulte la base todo el tiempo: el log del front del 8/10 muestra un 502 de cases cada 10 min justos
+con una pestaña abierta pidiéndole datos cada 30 s. Dormido, no corren sus crons diarios (pólizas
+3:00, vencimientos 8:00, caducidad 8:30) ni los barridos de clasificación y documentos, y el chat
+pierde el WebSocket.
+
 ---
 
 ## Ya hecho en el repo
@@ -393,8 +436,8 @@ simplemente falla los primeros health checks y Railway lo reintenta.
 - El pool **se vacía cuando no hay tráfico** (`minimum-idle: 0`, `idle-timeout` 60 s,
   `keepalive-time: 0`). Serverless solo duerme un servicio tras 10 min sin tráfico saliente, y con
   los defaults de Hikari 7 (5 conexiones fijas, keepalive cada 2 min) ningún backend llegaba nunca,
-  ni la base con 25 conexiones abiertas. `cases-service` igual no duerme: sus schedulers consultan
-  la base cada 20 s.
+  ni la base con 25 conexiones abiertas. Que consulte la base no impide que Railway duerma un
+  servicio: por eso `cases-service` va con Serverless apagado (ver "Servicios dormidos").
 - Todas las imágenes corren con usuario sin privilegios.
 - Timezone fijada a `America/Argentina/Buenos_Aires` en las imágenes Java. **No es cosmético**: los
   contenedores corren en UTC, las máquinas del equipo en UTC-3, y hay `ZoneId.systemDefault()` en
@@ -406,7 +449,8 @@ simplemente falla los primeros health checks y Railway lo reintenta.
   detalle: con un `proxy_pass` a un hostname literal, nginx resuelve una sola vez al iniciar y
   **se niega a levantar** si el nombre no resuelve — o sea que el frontend entraba en crash-loop
   si arrancaba antes que los backends, o mientras alguno estuviera caído. Verificado: con los
-  cinco backends ausentes, la SPA sirve 200 y solo las rutas `/api/v1/*` dan 502.
+  cinco backends ausentes, la SPA sirve 200 y solo las rutas `/api/v1/*` fallan (503 con
+  `X-Upstream-Unreachable`, ver "Servicios dormidos").
 - **No hay `railway.json`**: se borraron (30/08) al quedar Config as Code deprecado sin que
   pudiéramos habilitarlo. Toda la configuración de despliegue vive en el dashboard de Railway y
   está documentada acá — este archivo es la única fuente de verdad.

@@ -23,6 +23,16 @@ class ReportLabelsTest {
         assertThat(ReportLabels.duration(minutes)).isEqualTo(expected);
     }
 
+    /** The closing statuses read as what ended the case, not as a generic rejection. */
+    @Test
+    void closingStatusesAndClosuresHaveTheirOwnLabel() {
+        assertThat(ReportLabels.status(CaseStatus.PRESCRIBED)).isEqualTo("Prescripto");
+        assertThat(ReportLabels.status(CaseStatus.WITHDRAWN)).isEqualTo("Desistido");
+        assertThat(ReportLabels.status(CaseStatus.VOIDED)).isEqualTo("Baja por error");
+        assertThat(ReportLabels.decision("WITHDRAW")).isEqualTo("Cerró por desistimiento");
+        assertThat(ReportLabels.decision("VOID")).isEqualTo("Cerró por baja por error");
+    }
+
     @Test
     void missingValuesReadAsTheirAbsence() {
         assertThat(ReportLabels.classification(null)).isEqualTo("Sin clasificación");

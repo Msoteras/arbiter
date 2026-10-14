@@ -32,6 +32,8 @@ public class TemporalRuleEvaluator {
 
     private static final Logger log = LoggerFactory.getLogger(TemporalRuleEvaluator.class);
 
+    private static final String POLICE_REPORT_TYPE = "police_report";
+
     /** Policy validity carries a time of day, so it's displayed. */
     private static final DateTimeFormatter DISPLAY_FORMAT = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
 
@@ -52,7 +54,7 @@ public class TemporalRuleEvaluator {
         evaluatePolicyInForce(active.get(RuleType.POLICY_IN_FORCE), claim, policy, outcome);
         evaluateWaitingPeriod(active.get(RuleType.WAITING_PERIOD), claim, policy, rules, outcome);
         evaluateReportDeadline(active.get(RuleType.REPORT_DEADLINE), claim, rules, outcome);
-        evaluatePoliceReportDeadline(active.get(RuleType.POLICE_DEADLINE), claim, outcome);
+        evaluatePoliceReportDeadline(active.get(RuleType.POLICE_DEADLINE), claim, rules, outcome);
         evaluateMaxAnnualEvents(active.get(RuleType.MAX_EVENTS_YEAR), claim, history, rules, outcome);
         evaluatePolicyStanding(active.get(RuleType.POLICY_STANDING), policy, outcome);
 
@@ -128,12 +130,15 @@ public class TemporalRuleEvaluator {
 
     /**
      * Against the <b>declared</b> date; a mismatch with the certificate is DocumentInconsistencyEvaluator's.
-     * Without a declared report the rule doesn't take part: not every claim cause requires one.
+     * Without a declared report the rule doesn't take part: not every claim cause requires one. Nor
+     * when the claim cause's document schedule doesn't ask for one: the rule is switched on per
+     * coverage, and a coverage can answer for causes with nothing to report to the police (a drop).
      */
     private void evaluatePoliceReportDeadline(
-            BusinessRules.EvaluableRule rule, ClaimReport claim, Outcome outcome) {
+            BusinessRules.EvaluableRule rule, ClaimReport claim, BusinessRules rules, Outcome outcome) {
         if (rule == null || rule.deadlineHours() == null
-                || claim.policeReportAt() == null || claim.eventDate() == null) {
+                || claim.policeReportAt() == null || claim.eventDate() == null
+                || !requiresPoliceReport(rules)) {
             return;
         }
         long hours = Duration.between(claim.eventDate(), claim.policeReportAt()).toHours();
@@ -146,6 +151,12 @@ public class TemporalRuleEvaluator {
         outcome.record(rule, hours <= rule.deadlineHours(), evaluatedValue,
                 String.format("Denuncia policial fuera de plazo: %d hs desde el hecho, sobre un máximo de %d hs",
                         hours, rule.deadlineHours()));
+    }
+
+    /** An unknown schedule doesn't switch the rule off. */
+    private static boolean requiresPoliceReport(BusinessRules rules) {
+        return rules.requiredDocumentTypes() == null
+                || rules.requiredDocumentTypes().contains(POLICE_REPORT_TYPE);
     }
 
     private void evaluateReportDeadline(

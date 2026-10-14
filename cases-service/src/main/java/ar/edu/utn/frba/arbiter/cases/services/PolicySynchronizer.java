@@ -2,6 +2,7 @@ package ar.edu.utn.frba.arbiter.cases.services;
 
 import ar.edu.utn.frba.arbiter.cases.adapters.InsurerAdapter;
 import ar.edu.utn.frba.arbiter.cases.dto.PolicyResponse;
+import ar.edu.utn.frba.arbiter.cases.exceptions.CoverageNotConfiguredException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.UnresolvedCaseReferenceException;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Policy;
 import ar.edu.utn.frba.arbiter.cases.models.entities.PolicyCoverage;
@@ -47,8 +48,8 @@ public class PolicySynchronizer {
 
     /**
      * @param insuredId id of the tenant's {@code insured} who holds the policy
-     * @throws UnresolvedCaseReferenceException 422, if the insurer doesn't have it either, or if
-     *         none of its coverages is configured on this tenant
+     * @throws UnresolvedCaseReferenceException 422, if the insurer doesn't have it either
+     * @throws CoverageNotConfiguredException if none of its coverages is configured on this tenant
      */
     @Transactional
     public Policy importFromInsurer(String policyNumber, Long insuredId) {
@@ -100,10 +101,12 @@ public class PolicySynchronizer {
                     + "skipped: {}", remote.policyNumber(), unresolved.size(), unresolved);
         }
         if (saved.isEmpty()) {
-            // Names the coverages when there are any: what's missing is their configuration.
-            throw unresolved.isEmpty()
-                    ? new UnresolvedCaseReferenceException("coverage for policy", remote.policyNumber())
-                    : new UnresolvedCaseReferenceException("coverage", String.join(", ", unresolved));
+            // With coverages on file, what's missing is their configuration in Arbiter; the warning
+            // above names them. Without any, the insurer data itself is incomplete.
+            if (unresolved.isEmpty()) {
+                throw new UnresolvedCaseReferenceException("coverage for policy", remote.policyNumber());
+            }
+            throw new CoverageNotConfiguredException();
         }
         return saved;
     }
@@ -207,21 +210,22 @@ public class PolicySynchronizer {
     }
 
     /**
-     * Null if the referent hasn't configured it. Matched by name and by branch: insurer coverage
-     * names are shared across branches (a laptop policy's theft cover is also named "Robo de
-     * celular"), so name alone could attach the wrong branch's coverage and rules.
+     * Null if the referent hasn't configured it. The name arrives already translated from the
+     * insurer's (see {@code InsurerCoverageNames}) and is matched within the policy's branch: a
+     * coverage name is unique per branch only, and each branch's coverage has its own rules.
      */
     private Coverage resolve(PolicyResponse.Coverage remoteCoverage, Long branchId) {
         String name = remoteCoverage.description();
         if (name == null) {
             return null;
         }
-        Coverage catalogued = coverageRepository.findByName(name).orElse(null);
-        if (catalogued == null) {
-            return null;
+        List<Coverage> sameName = coverageRepository.findByName(name);
+        if (branchId != null) {
+            return sameName.stream().filter(c -> branchId.equals(c.getBranchId())).findFirst().orElse(null);
         }
-        // With no branch resolved the check is skipped rather than dropping every coverage.
-        return branchId == null || branchId.equals(catalogued.getBranchId()) ? catalogued : null;
+        // With no branch resolved, a name only one branch uses still resolves rather than dropping
+        // every coverage.
+        return sameName.size() == 1 ? sameName.getFirst() : null;
     }
 
     private Long branchId(PolicyResponse remote) {

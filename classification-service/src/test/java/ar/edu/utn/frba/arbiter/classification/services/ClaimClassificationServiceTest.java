@@ -1,13 +1,16 @@
 package ar.edu.utn.frba.arbiter.classification.services;
 
+import ar.edu.utn.frba.arbiter.classification.adapters.CasesServiceNotifier;
 import ar.edu.utn.frba.arbiter.classification.dto.ClassificationResponse;
 import ar.edu.utn.frba.arbiter.classification.models.repositories.CaseOutcomeRepository;
 import ar.edu.utn.frba.arbiter.common.dto.ClaimReport;
+import ar.edu.utn.frba.arbiter.common.dto.ClassificationFinished.Outcome;
 import ar.edu.utn.frba.arbiter.common.enums.Classification;
 import ar.edu.utn.frba.arbiter.common.enums.ClassificationFailureReason;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
@@ -19,10 +22,13 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
@@ -41,6 +47,9 @@ class ClaimClassificationServiceTest {
     @Mock
     private CaseOutcomeRepository caseOutcomeRepository;
 
+    @Mock
+    private CasesServiceNotifier casesServiceNotifier;
+
     private ClaimClassificationService service;
 
     private final ClaimReport claim = ClaimReport.builder()
@@ -50,7 +59,8 @@ class ClaimClassificationServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new ClaimClassificationService(classificationOrchestrator, resultsService, caseOutcomeRepository);
+        service = new ClaimClassificationService(
+                classificationOrchestrator, resultsService, caseOutcomeRepository, casesServiceNotifier);
     }
 
     @Test
@@ -103,5 +113,40 @@ class ClaimClassificationServiceTest {
         service.processClaimClassification(7L, claim, List.of());
 
         verify(caseOutcomeRepository, never()).recordClassificationFailure(eq(7L), any(), anyString());
+    }
+
+    @Test
+    void success_notifiesCasesOnceTheResultIsSaved() {
+        ClassificationResponse response = ClassificationResponse.builder()
+                .classification(Classification.FAST_TRACK)
+                .factors(List.of("ok"))
+                .confidence(1.0)
+                .resolvedByRules(true)
+                .build();
+        when(classificationOrchestrator.classify(eq(7L), eq(claim), anyList())).thenReturn(response);
+
+        service.processClaimClassification(7L, claim, List.of());
+
+        InOrder inOrder = inOrder(resultsService, casesServiceNotifier);
+        inOrder.verify(resultsService).saveResult(eq(7L), eq(response), any(), anyLong());
+        inOrder.verify(casesServiceNotifier).classificationFinished(7L, Outcome.COMPLETED);
+    }
+
+    @Test
+    void failedAttempt_leavesTheNoticeToTheRecovery() {
+        when(classificationOrchestrator.classify(eq(7L), eq(claim), anyList()))
+                .thenThrow(new ResourceAccessException("Connection refused"));
+
+        assertThatThrownBy(() -> service.processClaimClassification(7L, claim, List.of()))
+                .isInstanceOf(RuntimeException.class);
+
+        verifyNoInteractions(casesServiceNotifier);
+    }
+
+    @Test
+    void recovery_notifiesCasesThatTheClassificationFailed() {
+        service.notifyFailure(new RuntimeException("Classification failed"), 7L, claim, List.of());
+
+        verify(casesServiceNotifier).classificationFinished(7L, Outcome.FAILED);
     }
 }

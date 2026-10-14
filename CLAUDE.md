@@ -11,6 +11,19 @@ Idioma: respondé y escribí commits/docs en **español rioplatense**. En el có
 
 La sección "Modelo de dominio — vocabulario" más abajo es la excepción: ahí los términos quedan en **español**, porque documentan el vocabulario de negocio real (relevamiento BBVA) tal como lo usa el analista — es prosa de negocio, no identificadores de código.
 
+### Redacción en español
+
+Aplica a las respuestas al equipo y a todo texto que ve el usuario (UI, avisos, tooltips, mails).
+
+1. **Estilo ASD-STE100 en español.** Frases cortas (unas 20 palabras como máximo), una idea por frase, voz activa, verbos simples y un solo término por concepto. Pasos en listas verticales. Nada de metáforas, modismos ni frases encadenadas. Lenguaje técnico y simple: los usuarios conocen el negocio, así que se usan los términos de la UI tal cual (Fast Track, Hard Stop, hecho generador).
+2. **Nada de texto descriptivo en la UI.** Sin párrafos de ayuda, aclaraciones ni subtítulos que expliquen. Si algo necesita explicación, va en un tooltip (`app-info-tip`), escrito para el usuario final: lo ayuda a decidir o a actuar, nunca explica cómo está hecho el sistema. Avisos: una frase con lo que pasó y, solo si no es obvio, qué hacer (ver la regla 8 del Design System).
+3. **El texto de un paso dice qué hace el usuario**, no describe la función. ❌ "Revisan y resuelven los expedientes." ✅ "Dá de alta a los analistas." Concreto: ❌ "Define qué documentos pide…" ✅ "Marcá los documentos necesarios para denunciar cada hecho generador."
+4. **Construcciones que no van:**
+   - Plurales sin artículo. ❌ "Agregá peritos" ✅ "Agregá los peritos".
+   - "Lo que / los que + verbo + sujeto pospuesto" cuando el sujeto puede leerse como objeto. ❌ "Lo que no cubre ninguna cobertura del ramo" ✅ "Situaciones no contempladas en ninguna cobertura del ramo".
+   - Verbo y sustantivo de la misma raíz en la misma frase (cubrir/cobertura, excluir/exclusión).
+   - Prueba: reescribir la frase como sujeto, verbo y objeto. Si cambia quién hace qué, o repite la raíz, reformularla.
+
 ---
 
 ## Arquitectura — leer antes de tocar nada
@@ -102,7 +115,7 @@ Estos términos vienen del relevamiento de una aseguradora real (BBVA Seguros, A
 | **Adjunto**          | `CaseDocument` | Archivo subido por el asegurado (PDF, imagen). Cumple un item de la agenda documental. | `cases`       |
 | **Clasificación**    | `Classification` | Resultado del análisis (`FAST_TRACK` / `FALTA_DOCUMENTACION` / `LLM_RECOMIENDA_APROBAR` / `LLM_NO_RECOMIENDA_APROBAR` / `LLM_SOLICITA_REVISION_MANUAL`) + factores. Solo `FAST_TRACK` es determinístico (gate de reglas, no LLM); los otros 4 son recomendaciones no vinculantes del LLM. | `classification` |
 | **Registro de la clasificación** | `LlmAnalysis`, `RuleResult`, `CaseClassification` | Registro inmutable y auditable de cada clasificación (input, output, decisión). En el esquema: `llm_analysis`, `rule_result` y `case_classification`. | `classification` |
-| **Proveedor externo** | `ServiceProvider` | Estudio liquidador (perito) o servicio técnico al que se deriva un expediente. Catálogo por aseguradora, con ramos N:M (sin ramos = generalista). | `cases` |
+| **Proveedor externo** | `ServiceProvider` | Estudio liquidador (perito) o servicio técnico al que se deriva un expediente. Catálogo por aseguradora, con ramos N:M: cubre solo los ramos marcados, y tiene al menos uno. | `cases` |
 | **Derivación**       | `CaseReferral` | El envío de un expediente a un proveedor y su respuesta (veredicto del perito o resultado de la reparación). | `cases` |
 | **Liquidación**      | `CaseSettlement` | Cálculo del monto a pagar al aprobar; si supera la atribución del analista, la autoriza el referente. | `cases` |
 | **Antecedente de fraude** | `InsuredFraudRecord` | Fraude registrado sobre un asegurado; pesa en sus denuncias siguientes dentro de la ventana que configura la aseguradora. | `classification` |
@@ -225,7 +238,7 @@ Antes de escribir markup de UI, usá los componentes que ya existen en vez de re
 | `app-save-bar` | pie de una sección editable (guardar/descartar). |
 | `app-info-tip` | ayuda que se abre con clic (funciona con touch y teclado). |
 | `app-empty-state`, `app-inline-loading`, `app-loading`, `app-spinner` | estados vacío y de carga (`app-loading` es solo el de pantalla completa del inicio). |
-| toasts (`ToastService` + `app-toast-stack`) | avisos efímeros; el stack se monta una vez en `app.html`. |
+| toasts (`ToastService` + `app-toast-stack`) | avisos efímeros, estilo Sonner: apilados, se despliegan y pausan al pasar el mouse, se descartan deslizando hacia abajo. `show(mensaje, tono, ms, { description, action })`. El stack se monta una vez en `app.html`. |
 | `app-logo`, `app-file-preview` | logo de Arbiter y vista previa de un archivo antes de subirlo. |
 | `app-fraud-gauge`, `app-severity-label`, `app-status-timeline`, `app-doc-upload`, `app-policy-card` | componentes de dominio ya construidos. |
 
@@ -241,6 +254,33 @@ Antes de escribir markup de UI, usá los componentes que ya existen en vez de re
 8. **Textos de UI cortos.** Avisos, tooltips, aclaraciones y factores que lee el analista: **una frase**, lo que pasó y, solo si no es obvio, qué hacer. No repitas lo que ya dice el título o el badge, no aclares lo que el usuario no preguntó ("esto no cambia la clasificación", "por sí solo no prueba nada") y no enumeres entre paréntesis. Ej.: bajo el título "Para revisar antes de resolver", ~~"El modelo notó señales de posible adulteración. Nada de esto cambia la clasificación: revisalo antes de decidir."~~ → "Hay señales de adulteración en la documentación."
 
 ---
+
+## Cache del frontend
+
+Volver a una pantalla muestra sus datos al instante y los refresca detrás. Lo hace `QueryCache`
+(`core/cache/query-cache.ts`), un helper propio sin librería. El mapa de decisiones está en
+`docs/cache-frontend-mapa.md`.
+
+- **La lectura pasa por el service, no por el componente.** El service guarda la función que pide
+  (recibe el `HttpContext`) y expone `get`/`list` con `this.cache.read(clave, fetch, options)`, más un
+  `prefetch()` cuando el inicio lo precarga. Las claves llevan el área adelante (`users:`, `cases:`,
+  `rules:`, `insured:`); una lista con filtros arma la clave con `paramsKey(query)`.
+- **`read` emite dos veces**: lo guardado, al instante, y lo nuevo si cambió. Un `forkJoin` espera al
+  segundo valor y pierde lo instantáneo; usar `switchMap` o `subscribe`.
+- **Pantalla editable** (tiene `dirty()`): `read(..., { apply: () => !this.dirty() })`, y "Descartar"
+  vuelve a leer, así toma lo que llegó mientras se editaba. Un refresco nunca pisa un borrador.
+- **Listas que cambian otras personas** (Bandeja, Liquidaciones pendientes): `apply: () => false` y un
+  botón "Actualizar" que aparece con `cache.hasNewer(clave)`.
+- **Cada escritura invalida lo que afecta**, en `core/http/cache-invalidation.interceptor.ts`: una
+  tabla URL → prefijos. Endpoint nuevo que escribe: sumarle su fila. Lo invalidado y leído en los
+  últimos 5 minutos se vuelve a pedir enseguida.
+- **Solo en memoria.** Un F5 lo vacía, y también el fin de la sesión o el cambio de usuario. Nada
+  personal queda en el navegador.
+- **No mutar lo recibido.** En desarrollo el cache congela lo que guarda, y una mutación tira error.
+  Copiar (`{ ...x }`, `structuredClone`) antes de editar.
+- **Precarga** (`features/home/prefetch.service.ts`): cuando termina de cargar el inicio, según el rol.
+  Va marcada con `SILENT_RETRY`: despierta los módulos dormidos de Railway sin el toast "El sistema se
+  está iniciando…". Nunca Tablero ni Reportes.
 
 ## Requisitos No Funcionales — números que importan
 
@@ -312,11 +352,11 @@ ollama serve                                          # default: http://localhos
 - **Endpoints REST en plural y kebab-case si aplica**: `/api/v1/cases`, `/api/v1/cases/{caseId}/fraud-record`.
 - **Tipos compartidos** (DTOs públicos entre módulos, enums de dominio, excepciones base) van a `common-lib`. Lo interno de un módulo NO.
 - **Las entidades JPA del esquema común van a `common-lib`**, en `common/models/entities/`. Son las 8 tablas de `arbiter_common` (`insurer`, `users`, `user_insurer`, `role`, `permission`, `role_permission`, `user_role`, `case_status`): no son de ningún módulo, son de la plataforma, y varios módulos necesitan leerlas. Definirlas una sola vez evita que se desincronicen — `Insurer` llegó a estar duplicada en `auth-service` y `rules-service`. **Los repositories NO se comparten**: cada módulo declara el suyo con las queries que necesita, apuntando a la entidad de `common-lib`.
-- **Las entidades de un esquema de aseguradora son del módulo dueño**, con una excepción acotada: cuando **más de un módulo** necesita la misma tabla de tenant, va a `common/models/entities/tenant/` (ver el `package-info` de ese paquete). Hoy son `Insured`, `ClaimsAnalyst`, `InsurerReferent`, `Coverage`, `Branch` y `ClaimCause` (`Insured` fue la primera: auth-service y cases-service la declaraban por separado y ya habían divergido). **Los ramos y los hechos generadores son de cada aseguradora**: sus ids se repiten entre esquemas, así que un `branch_id` solo identifica algo junto con su tenant. `branch.external_name` es el nombre con que la BD Aseguradora llama al ramo (`poliza.rama`) y es la clave de cruce con las pólizas — un rename toca solo `name`; la traducción la hace `InsurerBranchNames` en el borde, y de ahí para adentro todo resuelve por el nombre propio. La distinción entre los dos paquetes importa: el padre son tablas con **una sola fila para toda la plataforma**; `tenant/` son tablas que existen **una vez por aseguradora**, y qué fila se lee depende del tenant resuelto. No sumes entidades ahí por las dudas: si la usa un solo módulo, va en ese módulo.
+- **Las entidades de un esquema de aseguradora son del módulo dueño**, con una excepción acotada: cuando **más de un módulo** necesita la misma tabla de tenant, va a `common/models/entities/tenant/` (ver el `package-info` de ese paquete). Hoy son `Insured`, `ClaimsAnalyst`, `InsurerReferent`, `Coverage`, `Branch` y `ClaimCause` (`Insured` fue la primera: auth-service y cases-service la declaraban por separado y ya habían divergido). **Los ramos y los hechos generadores son de cada aseguradora**: sus ids se repiten entre esquemas, así que un `branch_id` solo identifica algo junto con su tenant. `branch.external_name` es el nombre con que la BD Aseguradora llama al ramo (`poliza.rama`) y es la clave de cruce con las pólizas — un rename toca solo `name`; la traducción la hace `InsurerBranchNames` en el borde, y de ahí para adentro todo resuelve por el nombre propio. Las coberturas siguen el mismo esquema: `coverage.external_name` es `cobertura.nombre` de la BD Aseguradora, lo traduce `InsurerCoverageNames`, y tanto `name` como `external_name` son únicos **por ramo** (esa base repite "Robo de celular" entre ramos). La distinción entre los dos paquetes importa: el padre son tablas con **una sola fila para toda la plataforma**; `tenant/` son tablas que existen **una vez por aseguradora**, y qué fila se lee depende del tenant resuelto. No sumes entidades ahí por las dudas: si la usa un solo módulo, va en ese módulo.
 - **Tests**: JUnit 5 + Spring Boot Test. Testcontainers para PostgreSQL y, cuando aplique, para Ollama. Mockito para mocks.
 - **Trazabilidad de cada clasificación**: registro inmutable, separado del expediente, en las tablas de `classification-service` (`llm_analysis` con modelo, `prompt_version`, salida y factores; `rule_result` con cada regla evaluada; `case_classification` con el resultado y la decisión del analista). No se actualizan: cada análisis es una fila nueva.
 - **Multi-tenant**: cada request lleva el `tenant_id` (id de aseguradora) en el JWT. Resolver el esquema PostgreSQL en una `ConnectionProvider` o `Interceptor` de Hibernate al inicio del request. No hardcodear el schema en queries.
-- **Comunicación entre módulos**: REST interno por HTTP (sin TLS, dentro del host). Cliente: `RestClient` de Spring 6+ (no `RestTemplate`). DTOs del request/response en `common-lib`. Configurar URLs base por `application.yml` (`arbiter.rules-service.url`, `arbiter.classification-service.url`) con default a localhost. Timeouts cortos y manejo de error explícito — no asumir que el otro módulo siempre responde.
+- **Comunicación entre módulos**: REST interno por HTTP (sin TLS, dentro del host). Cliente: `RestClient` de Spring 6+ (no `RestTemplate`). DTOs del request/response en `common-lib`. Configurar URLs base por `application.yml` (`arbiter.rules-service.url`, `arbiter.classification-service.url`) con default a localhost. Timeouts cortos y manejo de error explícito — no asumir que el otro módulo siempre responde. **Todo `RestClient` entre módulos lleva `ConnectionRetryInterceptor`** (`common-lib`): en Railway un módulo dormido rechaza la conexión hasta que arranca, y el interceptor reintenta solo cuando el pedido no llegó (ver "Servicios dormidos" en `docs/despliegue-railway.md`). Para un cuerpo grande (los adjuntos de una denuncia) se usa su `call(...)` alrededor de la llamada, sin el interceptor: como interceptor guarda el cuerpo entero en memoria para poder reenviarlo.
 - **Propagar el JWT** entre módulos cuando una request es por cuenta de un usuario. El módulo destino valida con Auth0 igual que si viniera del frontend. Para llamadas sistema-a-sistema (jobs internos), evaluar service account o token de servicio aparte.
 - **Naming de clases de servicio**: sin adjetivos ni prefijos que describan el mecanismo (`Real`, `Database`, `Default`, `Internal`). Si hay interfaz + implementación única, la implementación lleva sufijo `Impl` (ej. `CaseService` → `CaseServiceImpl`). Si hay varias implementaciones, nombrarlas por **lo que las diferencia funcionalmente**, no por tecnología (ej. `MockClaimClassifier` / `OllamaClaimClassifier`, no `RealClaimClassifier`).
 - **Enum literals en inglés** (salvo los de contrato que lista la sección de idioma, arriba de todo). El mapeo a labels en español es responsabilidad exclusiva del frontend (ver `case-status.ts` como referencia). No mezclar idiomas dentro de un mismo enum.
@@ -360,10 +400,14 @@ Asegurado registra denuncia (frontend, wizard con catálogos en cascada)
   ├─> si no califica: OCR de adjuntos + embedding de la imagen (pgvector) + prompt con campos
   │   ESTRUCTURADOS (ramo, producto, hecho generador, bien, relato, OCR, imagen, reglas, historial)
   ├─> LlmClient (Ollama por default, Gemini opt-in) → valida la salida contra el JSON schema
-  └─> persiste llm_analysis / rule_result / case_classification (inmutables)
+  ├─> persiste llm_analysis / rule_result / case_classification (inmutables)
+  └─> POST /api/v1/cases/{caseId}/classification-finished (cases-service, token de servicio)
+        ├─> si terminó bien: lee GET /api/v1/claims/{caseId} y pasa a PENDING_ANALYST_REVIEW,
+        │   o a AWAITING_DOCUMENTATION si falta algo de la agenda documental
+        └─> si falló: CLASSIFICATION_FAILED en el momento
 
-cases-service (ClassificationRefreshScheduler) consulta GET /api/v1/claims/{caseId}
-  └─> PENDING_ANALYST_REVIEW, o AWAITING_DOCUMENTATION si falta algo de la agenda documental
+cases-service (ClassificationRefreshScheduler): red de seguridad para avisos perdidos, consulta
+GET /api/v1/claims/{caseId} cada 10 min y da el expediente por fallido a las 3 h sin resultado
 
 Analista revisa y decide (frontend)
   └─> POST /api/v1/cases/{caseId}/decision
@@ -375,7 +419,7 @@ Analista revisa y decide (frontend)
 ### Dónde está cada cosa
 
 - **Prompts versionados** en `classification-service/src/main/resources/prompts/`. La versión vigente la fija
-  `arbiter.llm.prompt-version` (hoy `classification-v6`; el de OCR es `extraccion-documento-v7`) y se
+  `arbiter.llm.prompt-version` (hoy `classification-v7`; el de OCR es `extraccion-documento-v8`) y se
   persiste en `llm_analysis.prompt_version`. Las versiones anteriores se conservan para poder auditar
   análisis viejos. Plantilla (markdown) separada de la inyección de datos: nada de concatenar strings.
 - **Variables de entorno**: la lista completa y comentada está en `.env.example`. Nunca en un yml versionado.

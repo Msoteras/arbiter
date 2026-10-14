@@ -87,7 +87,7 @@ public class DailyMetricsRepository {
             return true;
         }
         MapSqlParameterSource params = window(period, zone)
-                .addValue("classifying", CaseStatus.PENDING_CLASSIFICATION.name())
+                .addValue("unclassified", List.of(CaseStatus.PENDING_CLASSIFICATION.name(), CaseStatus.CLASSIFICATION_FAILED.name()))
                 .addValue("pendingAuthorization", SettlementStatus.PENDING_AUTHORIZATION.name());
         List<LocalDate> claimed = query(template -> template.queryForList("""
                 INSERT INTO metrics_day (day)
@@ -98,7 +98,7 @@ public class DailyMetricsRepository {
                            SELECT (c.reported_at AT TIME ZONE :zone)::date
                              FROM cases c
                              JOIN case_status s ON s.id = c.current_status_id
-                            WHERE s.name = :classifying
+                            WHERE s.name IN (:unclassified)
                               AND c.reported_at >= :from AND c.reported_at < :to)
                    AND d::date NOT IN (
                            SELECT (st.confirmed_at AT TIME ZONE :zone)::date

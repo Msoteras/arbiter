@@ -17,6 +17,8 @@ public final class CaseTables {
     public static final long APPROVED = 5;
     public static final long REJECTED = 6;
     public static final long LAPSED = 8;
+    public static final long WITHDRAWN = 10;
+    public static final long PRESCRIBED = 12;
 
     public static final long PHONES_BRANCH = 1;
     public static final long PORTABLE_TECH_BRANCH = 2;
@@ -208,7 +210,8 @@ public final class CaseTables {
                 INSERT INTO case_status (id, name, is_final) VALUES
                     (2, 'PENDING_ANALYST_REVIEW', FALSE), (3, 'AWAITING_DOCUMENTATION', FALSE),
                     (5, 'APPROVED', TRUE),
-                    (6, 'REJECTED', TRUE), (8, 'LAPSED', TRUE);
+                    (6, 'REJECTED', TRUE), (8, 'LAPSED', TRUE),
+                    (10, 'WITHDRAWN', TRUE), (11, 'VOIDED', TRUE), (12, 'PRESCRIBED', TRUE);
                 INSERT INTO branch (id, name) VALUES (1, 'Celulares'), (2, 'Tecnología Portátil');
                 INSERT INTO claim_cause (id, name, branch_id) VALUES
                     (2, 'Robo en vía pública', 1), (3, 'Hurto', 1), (8, 'Hurto', 2);

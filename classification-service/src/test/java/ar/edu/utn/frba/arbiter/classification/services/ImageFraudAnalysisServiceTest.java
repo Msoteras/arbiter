@@ -145,7 +145,18 @@ class ImageFraudAnalysisServiceTest {
         ImageForensicReport report = service.analyze(1L, List.of(image("damage_photo")), true);
 
         assertThat(report.findings().getFirst().internalMatches()).isEmpty();
+        assertThat(report.findings().getFirst().internalCheckFailed()).isTrue();
         assertThat(report.webSearchesPerformed()).isEqualTo(1);
+    }
+
+    @Test
+    void renderTracesSaysTheImageWasNotCompared_whenTheInternalCheckFailed() {
+        when(imageEmbeddingService.processAndFindDuplicates(eq(1L), any(), anyString(), anyString()))
+                .thenThrow(new RuntimeException("Connection refused"));
+
+        List<String> traces = service.renderTraces(service.analyze(1L, List.of(image("damage_photo")), false));
+
+        assertThat(traces.getFirst()).contains("no se pudo comparar").doesNotContain("sin coincidencias");
     }
 
     @Test
@@ -166,7 +177,7 @@ class ImageFraudAnalysisServiceTest {
                 // 1st image: internal hit
                 .thenReturn(new ImageAnalysisOutcome(7L, List.of(new DuplicateImageMatch(9L, 556L, "p", "a.jpg", 0.99))))
                 // 2nd image: no hit
-                .thenReturn(ImageAnalysisOutcome.none());
+                .thenReturn(new ImageAnalysisOutcome(8L, List.of()));
         when(googleVisionClient.isEnabled()).thenReturn(true);
         when(googleVisionClient.detectWebMatches(anyString())).thenReturn(WebImageMatch.none());
 

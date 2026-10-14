@@ -14,7 +14,7 @@ import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** With real Postgres: the generalist/specialist split is a subquery over the join table. */
+/** With real Postgres: the branch filter is a subquery over the join table. */
 @SpringBootTest
 @Transactional
 class ServiceProviderRepositoryTests extends AbstractPersistenceIT {
@@ -22,22 +22,23 @@ class ServiceProviderRepositoryTests extends AbstractPersistenceIT {
     @Autowired private ServiceProviderRepository serviceProviderRepository;
     @Autowired private BranchRepository branchRepository;
 
+    /** A provider with no branches covers none: the referent picks every branch it takes. */
     @Test
-    void offersTheBranchSpecialistsAndTheGeneralists() {
+    void offersOnlyTheProvidersThatCoverTheBranch() {
         Branch phones = branchRepository.save(Branch.builder().name("Celulares SP").build());
         Branch laptops = branchRepository.save(Branch.builder().name("Notebooks SP").build());
         Branch home = branchRepository.save(Branch.builder().name("Hogar SP").build());
 
         ServiceProvider multi = save("A · Celulares y notebooks", Set.of(phones, laptops), true);
-        ServiceProvider generalist = save("B · Generalista", Set.of(), true);
+        ServiceProvider noBranches = save("B · Sin ramos", Set.of(), true);
         ServiceProvider other = save("C · Solo hogar", Set.of(home), true);
         ServiceProvider inactive = save("D · Inactivo", Set.of(phones), false);
 
         assertThat(serviceProviderRepository.findAvailableForBranch(
                         laptops.getId(), ProviderType.ESTUDIO_LIQUIDADOR))
                 .extracting(ServiceProvider::getId)
-                .contains(multi.getId(), generalist.getId())
-                .doesNotContain(other.getId(), inactive.getId());
+                .contains(multi.getId())
+                .doesNotContain(noBranches.getId(), other.getId(), inactive.getId());
     }
 
     /** One row per provider even when it covers several branches: the join must not duplicate it. */

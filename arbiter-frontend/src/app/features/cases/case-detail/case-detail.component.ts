@@ -23,8 +23,17 @@ import {
   switchMap,
 } from 'rxjs';
 
-import { CaseService, AnalystDecisionRequest, ClaimCauseOption, Settlement } from '../case.service';
+import {
+  CaseService,
+  AnalystDecision,
+  AnalystDecisionRequest,
+  CaseClosure,
+  ClaimCauseOption,
+  Settlement,
+  SettlementLine,
+} from '../case.service';
 import { DocumentAgendaService } from '../document-agenda.service';
+import { ChipGroupComponent, ChipOption } from '../../../shared/ui/chip-group/chip-group.component';
 import { CaseNavigationService } from '../case-navigation.service';
 import { CaseMessagesService } from '../case-messages.service';
 import { CaseMessage } from '../../../core/models/case-message';
@@ -86,8 +95,7 @@ import {
   fraudRecordOriginLabel,
 } from '../../../core/models/fraud-record';
 import {
-  caseStatusLabel,
-  simplifiedStatusLabel,
+  workStatusLabel,
   caseStatusTone,
   isFinalStatus,
   riskBandEmptyLabel,
@@ -169,11 +177,14 @@ interface BriefAlert {
   label: string;
   /** 'chat' opens the chat popup instead of a tab. */
   tab: TabId | 'chat';
+  /** Strong fraud signal: only the ▲ turns red, the label keeps its color. */
+  danger?: boolean;
 }
 
 @Component({
   selector: 'app-case-detail',
   imports: [
+    ChipGroupComponent,
     RouterLink,
     FraudGaugeComponent,
     InfoTipComponent,
@@ -283,7 +294,7 @@ export class CaseDetailComponent {
 
   protected readonly statusLabel = computed(() => {
     const d = this.data();
-    return d ? caseStatusLabel(d.status) : '';
+    return d ? workStatusLabel(d.status, this.settlement()?.status) : '';
   });
 
   protected readonly statusTone = computed<StatusTone>(() => {
@@ -293,7 +304,7 @@ export class CaseDetailComponent {
 
   protected readonly simplifiedStatusLabel = computed(() => {
     const d = this.data();
-    return d ? simplifiedStatusLabel(d.status) : '';
+    return d ? d.insuredStatus.label : '';
   });
 
   private static readonly RISK_BAND_GAUGE: Record<string, 1 | 2 | 3 | 4> = {
@@ -344,6 +355,11 @@ export class CaseDetailComponent {
 
   protected factorLabel(factorId: string): string {
     return riskFactorLabel(factorId);
+  }
+
+  /** Rationales name documents by their code ("…documento 'police_report'…"), like the reasons. */
+  protected factorRationale(rationale: string): string {
+    return withDocumentLabels(rationale);
   }
 
   protected pct(value: number): number {
@@ -417,7 +433,7 @@ export class CaseDetailComponent {
       {
         heading: 'Siniestro',
         fields: [
-          { label: 'Causa', value: d?.claimCause ?? null },
+          { label: 'Hecho generador', value: d?.claimCause ?? null },
           {
             label: 'Fecha y hora de ocurrencia',
             value: d?.eventDate ? formatDateTime(d.eventDate) : null,
@@ -450,7 +466,7 @@ export class CaseDetailComponent {
           { label: 'Asegurado', value: d?.insuredName ?? null },
           { label: 'DNI', value: d?.insuredId ?? null, mono: true },
           // "No" is a value, not missing data, so it skips the `?? null` "Sin datos" path.
-          { label: 'PEP (declarativo)', value: d ? (d.pep ? 'Sí' : 'No') : null },
+          { label: 'PEP', value: d ? (d.pep ? 'Sí' : 'No') : null },
           { label: 'N° de póliza', value: d?.policyNumber ?? null, mono: true },
           { label: 'Producto', value: d?.product ?? null },
           { label: 'Rama', value: d?.branch ?? null },
@@ -666,6 +682,17 @@ export class CaseDetailComponent {
   );
 
   /** Medium or high findings only; flagging "low" ones would turn the dot into noise. */
+  private readonly imageMatchedAnotherClaim = computed(() =>
+    (this.data()?.forensicReport?.findings ?? []).some((f) => f.internalMatches.length > 0),
+  );
+
+  /** Same threshold as forensicAlertLevel: a page that only mentions the image is too weak. */
+  private readonly imageFoundOnline = computed(() =>
+    (this.data()?.forensicReport?.findings ?? []).some(
+      (f) => !!f.webFinding && (f.webFinding.fullMatches > 0 || f.webFinding.partialMatches > 0),
+    ),
+  );
+
   private readonly hasImageMatches = computed(() =>
     (this.data()?.forensicReport?.findings ?? []).some((f) => {
       const level = forensicAlertLevel(f);
@@ -759,13 +786,27 @@ export class CaseDetailComponent {
 
   /** Derived from the backend status, not a local flag. */
   protected readonly decisionState = computed<
-    'pending' | 'approved' | 'rejected' | 'lapsed' | 'not-ready'
+    | 'pending'
+    | 'approved'
+    | 'rejected'
+    | 'prescribed'
+    | 'lapsed'
+    | 'withdrawn'
+    | 'voided'
+    | 'not-ready'
   >(() => {
     switch (this.data()?.status) {
       case 'APPROVED':
         return 'approved';
       case 'REJECTED':
         return 'rejected';
+      case 'PRESCRIBED':
+        return 'prescribed';
+      // Closed by the analyst without a verdict; the reason is on the history row.
+      case 'WITHDRAWN':
+        return 'withdrawn';
+      case 'VOIDED':
+        return 'voided';
       // Terminal without a decision: closed by the system after the insured's inactivity.
       case 'LAPSED':
         return 'lapsed';
@@ -776,7 +817,46 @@ export class CaseDetailComponent {
     }
   });
 
+  /** Refetched with the case, so it shows up right after deciding. A 403 (insured) yields null. */
+  private readonly decisionFetch = toSignal(
+    combineLatest([
+      this.route.paramMap.pipe(map((params) => params.get('id') ?? '')),
+      toObservable(this.reloadTrigger),
+    ]).pipe(
+      switchMap(([id]) =>
+        this.service
+          .decision(id as unknown as number)
+          .pipe(catchError(() => of<AnalystDecision | null>(null))),
+      ),
+    ),
+    { initialValue: null },
+  );
+
+  /** When the case was resolved and what the analyst wrote, from the audited decision. */
+  protected readonly resolution = computed<{ at: string; justification: string | null } | null>(
+    () => {
+      const decision = this.decisionFetch();
+      return decision
+        ? { at: formatDateTime(decision.decidedAt), justification: decision.justification }
+        : null;
+    },
+  );
+
   protected readonly pendingDecision = signal<Verb | null>(null);
+  /** On a rejection: on the merits, or because the claim prescribed (art. 58). */
+  protected readonly rejectGround = signal<'merits' | 'prescription'>('merits');
+  protected readonly rejectGroundOptions: ChipOption[] = [
+    { value: 'merits', label: 'El fondo del siniestro' },
+    { value: 'prescription', label: 'Prescripción' },
+  ];
+  /** The rules engine found the claim prescribed: the rejection starts with that ground chosen. */
+  private readonly prescriptionFlagged = computed(() =>
+    this.ruleResults().some((r) => r.ruleType === 'PRESCRIPTION' && r.result === 'FAIL'),
+  );
+
+  protected setRejectGround(value: string): void {
+    this.rejectGround.set(value === 'prescription' ? 'prescription' : 'merits');
+  }
   protected readonly showJustify = signal(false);
   protected readonly justification = signal('');
   protected readonly decisionError = signal<string | null>(null);
@@ -802,6 +882,7 @@ export class CaseDetailComponent {
 
   askDecision(v: Verb): void {
     this.pendingDecision.set(v);
+    this.rejectGround.set(this.prescriptionFlagged() ? 'prescription' : 'merits');
     this.justification.set('');
     this.decisionError.set(null);
     // Reset the settlement draft so a cancelled approval doesn't reappear.
@@ -837,7 +918,12 @@ export class CaseDetailComponent {
     }
 
     const decisionPayload: AnalystDecisionRequest = {
-      decision: verb === 'approve' ? 'APPROVE' : 'REJECT',
+      decision:
+        verb === 'approve'
+          ? 'APPROVE'
+          : this.rejectGround() === 'prescription'
+            ? 'PRESCRIBE'
+            : 'REJECT',
       justification: this.justification().trim(),
       // The backend rejects a settlement on a rejection.
       settlement:
@@ -942,6 +1028,20 @@ export class CaseDetailComponent {
     const s = this.settlement();
     return s?.formula === 'TOTAL_LOSS' && s.settlementBasis === 'LESSER_OF_SUM_AND_REPLACEMENT';
   });
+
+  /**
+   * The amount the calculation starts from hasn't been entered yet, so everything derived from it
+   * came back as zero. Those zeros mean "not computed", not "nothing to pay".
+   */
+  protected readonly baseAmountMissing = computed(() => {
+    const value = this.settlement()?.replacementValue;
+    return this.needsAccreditedAmount() && !(value != null && value > 0);
+  });
+
+  /** Null = nothing to show yet. A deduction that doesn't depend on the base keeps its figure. */
+  protected sheetAmount(line: SettlementLine): string | null {
+    return this.baseAmountMissing() && line.amount === 0 ? null : this.exactAmount(line.amount);
+  }
 
   /**
    * Offered only until a value is entered. A document amount was read by the model, so it waits
@@ -1060,6 +1160,10 @@ export class CaseDetailComponent {
     if (this.needsReplacementValue() && this.replacementApplied() == null) {
       return 'Cargá cuánto cuesta hoy reponer el bien.';
     }
+    // The quote is the base of a repair: without it the amount is a zero nobody calculated.
+    if (this.settlement()?.formula === 'REPAIR' && this.baseAmountMissing()) {
+      return 'Cargá el presupuesto de reparación.';
+    }
     if (this.amountToAuthorize() == null) {
       return 'El monto a pagar tiene que ser un número.';
     }
@@ -1132,6 +1236,73 @@ export class CaseDetailComponent {
         this.signing.set(false);
         this.cancelSign();
         this.signError.set(err.error?.detail || fallbackError);
+      },
+    });
+  }
+
+  // ── Closing without a verdict: withdrawn or voided, by the assigned analyst ──
+
+  protected readonly pendingClosure = signal<CaseClosure | null>(null);
+  protected readonly closureReason = signal('');
+  protected readonly closing = signal(false);
+  protected readonly closureError = signal<string | null>(null);
+
+  /** Same statuses the backend allows (D2 in docs/estados-de-cierre-decisiones.md). */
+  protected readonly canClose = computed(
+    () =>
+      this.canDecide() &&
+      !this.awaitingAuthorization() &&
+      ['PENDING_ANALYST_REVIEW', 'AWAITING_DOCUMENTATION', 'CLASSIFICATION_FAILED'].includes(
+        this.data()?.status ?? '',
+      ),
+  );
+
+  protected readonly closeMenuItems: MenuItem[] = [
+    { value: 'WITHDRAWN', label: 'El asegurado desistió' },
+    { value: 'VOIDED', label: 'Baja por error de carga' },
+  ];
+
+  protected readonly closureHeading = computed(() =>
+    this.pendingClosure() === 'VOIDED'
+      ? '¿Dar de baja el expediente por error?'
+      : '¿Cerrar el expediente por desistimiento?',
+  );
+
+  /** What the analyst wrote when closing it, from the history row that closed it. */
+  protected readonly closureNote = computed(() => {
+    const status = this.data()?.status;
+    const row = [...this.history()].reverse().find((h) => h.toStatus === status);
+    return row?.observation ?? null;
+  });
+
+  protected onCloseMenu(value: string): void {
+    this.pendingClosure.set(value === 'VOIDED' ? 'VOIDED' : 'WITHDRAWN');
+    this.closureReason.set('');
+    this.closureError.set(null);
+  }
+
+  protected cancelClosure(): void {
+    this.pendingClosure.set(null);
+  }
+
+  protected confirmClosure(): void {
+    const d = this.data();
+    const closure = this.pendingClosure();
+    const reason = this.closureReason().trim();
+    if (!d || !closure || !reason || this.closing()) {
+      return;
+    }
+    this.closing.set(true);
+    this.closureError.set(null);
+    this.service.close(d.id, closure, reason).subscribe({
+      next: () => {
+        this.pendingClosure.set(null);
+        this.closing.set(false);
+        this.reloadTrigger.update((v) => v + 1);
+      },
+      error: (err: HttpErrorResponse) => {
+        this.closing.set(false);
+        this.closureError.set(err.error?.detail || 'No se pudo cerrar el expediente.');
       },
     });
   }
@@ -1345,8 +1516,12 @@ export class CaseDetailComponent {
         tab: 'rules',
       });
     }
-    if (this.hasImageMatches()) {
-      alertList.push({ label: 'Imágenes con coincidencias', tab: 'images' });
+    // One alert per source, so the label says where the image was seen before.
+    if (this.imageMatchedAnotherClaim()) {
+      alertList.push({ label: 'Imagen usada en otro siniestro', tab: 'images', danger: true });
+    }
+    if (this.imageFoundOnline()) {
+      alertList.push({ label: 'Imagen encontrada en internet', tab: 'images', danger: true });
     }
     const priorCount = this.priorFraudRecords().length;
     if (priorCount > 0) {
@@ -1717,7 +1892,7 @@ export class CaseDetailComponent {
 
   protected readonly chosenOriginEffect = computed(() =>
     this.chosenOrigin() === 'EXPERT_BACKED'
-      ? 'Va a sumar al nivel de riesgo de sus próximas denuncias y, si la aseguradora lo configuró así, a impedirles la vía rápida.'
+      ? 'Va a sumar al nivel de riesgo de sus próximas denuncias y, si la aseguradora lo configuró así, a impedirles el Fast Track.'
       : 'Va a aparecer como alerta en sus próximas denuncias, pero no suma al nivel de riesgo: sin peritaje detrás, una sospecha que mueve el score termina alimentándose sola.',
   );
 

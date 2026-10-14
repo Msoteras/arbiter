@@ -2,6 +2,8 @@ package ar.edu.utn.frba.arbiter.cases.services;
 
 import ar.edu.utn.frba.arbiter.cases.config.tenant.TenantContext;
 import ar.edu.utn.frba.arbiter.cases.exceptions.RulesUnavailableException;
+import ar.edu.utn.frba.arbiter.common.dto.OnboardingTouch;
+import ar.edu.utn.frba.arbiter.common.enums.OnboardingStep;
 import ar.edu.utn.frba.arbiter.common.security.JwtSupport;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -38,14 +40,37 @@ public class RulesServiceClient {
         this.jwtKey = JwtSupport.key(jwtSecret);
     }
 
+    /**
+     * Tells rules-service a step of the setup checklist was saved here. Best-effort: the checklist
+     * is a guide, so a failure is logged and never fails the save.
+     */
+    public void recordOnboardingSave(OnboardingStep step, Long branchId) {
+        try {
+            String serviceToken = JwtSupport.issueServiceToken(jwtKey, "cases-service-onboarding", TenantContext.get());
+            restClient.post()
+                    .uri("/api/v1/rules/internal/onboarding/touches")
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + serviceToken)
+                    .body(new OnboardingTouch(step, branchId))
+                    .retrieve()
+                    .toBodilessEntity();
+        } catch (Exception e) {
+            log.warn("Could not record a save of onboarding step {} (branch {}): {}", step, branchId, e.getMessage());
+        }
+    }
+
     /** No configuration means {@code enabled=false}: arrears isn't evaluated. */
     public PolicyStandingRule policyStandingRule() {
-        String serviceToken = JwtSupport.issueServiceToken(jwtKey, "cases-service-intake", TenantContext.get());
-        return restClient.get()
-                .uri("/api/v1/rules/internal/policy-standing")
-                .header(HttpHeaders.AUTHORIZATION, "Bearer " + serviceToken)
-                .retrieve()
-                .body(PolicyStandingRule.class);
+        try {
+            String serviceToken = JwtSupport.issueServiceToken(jwtKey, "cases-service-intake", TenantContext.get());
+            return restClient.get()
+                    .uri("/api/v1/rules/internal/policy-standing")
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + serviceToken)
+                    .retrieve()
+                    .body(PolicyStandingRule.class);
+        } catch (Exception e) {
+            log.error("Could not read the policy standing rule", e);
+            throw new RulesUnavailableException(e);
+        }
     }
 
     /** Mirrors rules-service's InsurerHardRuleDto for the POLICY_STANDING row. */
@@ -61,12 +86,18 @@ public class RulesServiceClient {
      * has no {@code COVERAGE_EXCLUSION} rule.
      */
     public List<Long> excludedClaimCauseIds(Long coverageId) {
-        String serviceToken = JwtSupport.issueServiceToken(jwtKey, "cases-service-claim-causes", TenantContext.get());
-        EvaluableRulesResponse resp = restClient.get()
-                .uri(uri -> uri.path("/api/v1/rules/internal/evaluable").queryParam("coverageId", coverageId).build())
-                .header(HttpHeaders.AUTHORIZATION, "Bearer " + serviceToken)
-                .retrieve()
-                .body(EvaluableRulesResponse.class);
+        EvaluableRulesResponse resp;
+        try {
+            String serviceToken = JwtSupport.issueServiceToken(jwtKey, "cases-service-claim-causes", TenantContext.get());
+            resp = restClient.get()
+                    .uri(uri -> uri.path("/api/v1/rules/internal/evaluable").queryParam("coverageId", coverageId).build())
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + serviceToken)
+                    .retrieve()
+                    .body(EvaluableRulesResponse.class);
+        } catch (Exception e) {
+            log.error("Could not read the coverage exclusions for coverage {}", coverageId, e);
+            throw new RulesUnavailableException(e);
+        }
         if (resp == null || resp.rules() == null) {
             return List.of();
         }

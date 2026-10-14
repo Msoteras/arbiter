@@ -21,7 +21,22 @@ public enum CaseStatus {
      * Final, system-driven: closed by {@code LapseSweepScheduler} after 18 months stuck in
      * {@link #AWAITING_DOCUMENTATION} with no movement from the insured. Not the legal prescription.
      */
-    LAPSED;
+    LAPSED,
+    /**
+     * Final: the analyst closed it because the insured abandoned the claim. Nobody decided it, so it
+     * stays out of the approval and rejection rates.
+     */
+    WITHDRAWN,
+    /**
+     * Final: the claim never should have existed (a duplicate, the wrong policy). Closed by the
+     * analyst, out of the rates like {@link #WITHDRAWN}.
+     */
+    VOIDED,
+    /**
+     * Final: rejected because the claim prescribed (art. 58, Ley 17.418), not on its merits. The
+     * analyst decides it; the insured sees it as a rejection.
+     */
+    PRESCRIBED;
 
     /**
      * States where the art. 56 deadline is frozen because the case waits on someone outside the
@@ -30,5 +45,21 @@ public enum CaseStatus {
      */
     public static List<CaseStatus> pausingTheTerm() {
         return List.of(AWAITING_DOCUMENTATION, PENDING_EXPERT_REPORT, PENDING_REPAIR);
+    }
+
+    /**
+     * The statuses that close a case: they take no event until it is reopened. Same set as
+     * {@code case_status.is_final}; here for the code that branches on the enum in more than one module.
+     */
+    public static List<CaseStatus> terminal() {
+        return List.of(APPROVED, REJECTED, LAPSED, WITHDRAWN, VOIDED, PRESCRIBED);
+    }
+
+    /**
+     * The terminal statuses someone reached with a verdict. Rates and resolution times are measured
+     * over these only: a lapsed, withdrawn or voided case measures nobody's decision.
+     */
+    public static List<CaseStatus> decided() {
+        return List.of(APPROVED, REJECTED, PRESCRIBED);
     }
 }

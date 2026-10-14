@@ -39,7 +39,15 @@ a {
   text-decoration-thickness: from-font;
 }
 
-/* <button> does not inherit font-family; without `font: inherit` it falls back to the UA font. */
+/* Form controls don't inherit the family by default and fall back to the UA font (Arial). Only the
+   family: size and weight stay with each control. */
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+}
+
 .link-btn {
   border: none;
   background: none;
@@ -49,4 +57,30 @@ a {
   font-size: var(--font-size-sm);
   color: var(--text-tertiary);
   text-decoration: underline;
+}
+
+/* The control a setup checklist step points at, for a moment after arriving
+   (OnboardingTargetDirective). The radius only shapes the outline: hosts have no background. */
+.onboarding-target {
+  /* Scrolled to its top edge, it stays below the fixed topbar. */
+  scroll-margin-top: calc(var(--appbar-h) + var(--space-4));
+  border-radius: var(--radius-ctl);
+  outline: 2px solid var(--border-focus);
+  outline-offset: 4px;
+  box-shadow: var(--focus-ring);
+  animation: onboarding-target-in 0.6s ease-out 2;
+}
+app-card.onboarding-target {
+  border-radius: var(--radius-card);
+}
+@keyframes onboarding-target-in {
+  from {
+    outline-color: transparent;
+    outline-offset: 12px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .onboarding-target {
+    animation: none;
+  }
 }

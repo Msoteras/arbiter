@@ -4,9 +4,10 @@ import { RouterLink } from '@angular/router';
 import { catchError, map, of, startWith } from 'rxjs';
 
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
+import { PrefetchService } from '../prefetch.service';
 import { CaseService } from '../../cases/case.service';
 import { CaseResponse } from '../../../core/models/case';
-import { FINAL_STATUSES, caseStatusLabel, caseStatusTone } from '../../../core/models/case-status';
+import { FINAL_STATUSES, caseStatusTone, workStatusLabel } from '../../../core/models/case-status';
 import { StatusTone } from '../../../core/models/status-tone';
 import { longDate, greetingForTimeOfDay } from '../../../core/util/datetime';
 import { CardComponent } from '../../../shared/ui/card/card.component';
@@ -89,6 +90,9 @@ export class AnalystHomeComponent {
   );
 
   protected readonly countsLoading = computed(() => this.countsState().status === 'loading');
+
+  /** Once the home has loaded, warms the screens this role opens most (`PrefetchService`). */
+  private readonly warmUp = inject(PrefetchService).afterHomeLoads(() => !this.countsLoading());
   protected readonly counts = computed<Counts | null>(() => {
     const s = this.countsState();
     return s.status === 'ok' ? s.counts : null;
@@ -97,7 +101,7 @@ export class AnalystHomeComponent {
   // Sort by the entity property `reportedAt`: the DTO's `eventDate` is rejected by Spring Data.
   private readonly actionState = toSignal(
     this.service
-      .list({
+      .cachedList({
         assignedToMe: true,
         status: 'PENDING_ANALYST_REVIEW',
         sort: 'reportedAt,asc',
@@ -164,8 +168,8 @@ export class AnalystHomeComponent {
     return total > 0 ? Math.round((value / total) * 100) : 0;
   }
 
-  protected caseStatusLabel(status: string): string {
-    return caseStatusLabel(status);
+  protected workStatusLabel(c: CaseResponse): string {
+    return workStatusLabel(c.status, c.settlementStatus);
   }
 
   protected caseStatusTone(status: string): StatusTone {

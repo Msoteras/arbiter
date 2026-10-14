@@ -1,4 +1,4 @@
-import { DOCUMENT_TYPES } from './business-rules';
+import { DOCUMENT_TYPES, NON_AGENDA_DOCUMENT_TYPES } from './business-rules';
 
 /** Mirrors CaseDocumentResponse: metadata only, no content. */
 export interface CaseDocument {
@@ -24,19 +24,10 @@ export const CASE_DOCUMENT_TYPES: readonly CaseDocumentType[] = DOCUMENT_TYPES.m
   label: d.label,
 }));
 
-/**
- * Produced by the case flow itself, not required nor uploaded by the insured. Kept apart from
- * `CASE_DOCUMENT_TYPES` so they never become checklist slots or insured upload options.
- */
-export const NON_AGENDA_DOCUMENT_TYPES: readonly CaseDocumentType[] = [
-  { type: 'expert_report', label: 'Informe pericial' },
-  { type: 'repair_report', label: 'Respuesta del servicio técnico' },
-];
-
 export function documentTypeLabel(type: string): string {
   return (
     CASE_DOCUMENT_TYPES.find((t) => t.type === type)?.label ??
-    NON_AGENDA_DOCUMENT_TYPES.find((t) => t.type === type)?.label ??
+    NON_AGENDA_DOCUMENT_TYPES.find((d) => d.code === type)?.label ??
     type
   );
 }

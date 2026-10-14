@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
@@ -36,7 +37,10 @@ public class CaseStatusService {
     /** Waiting on a third party interrupts the art. 56 term. On the enum because reports-service shares it. */
     public static final Set<CaseStatus> PAUSING_STATUSES = Set.copyOf(CaseStatus.pausingTheTerm());
 
-    public static final Set<CaseStatus> TERMINAL_STATUSES = Set.of(APPROVED, REJECTED, LAPSED);
+    public static final Set<CaseStatus> TERMINAL_STATUSES = Set.copyOf(CaseStatus.terminal());
+
+    /** The closures without a verdict an analyst can make (`POST /cases/{id}/closures`). */
+    public static final Set<CaseStatus> CLOSURES = Set.of(WITHDRAWN, VOIDED);
 
     /**
      * The single definition the deadline priority, the sweep and the term reset answer to. An
@@ -47,20 +51,25 @@ public class CaseStatusService {
                 || (!PAUSING_STATUSES.contains(status) && !TERMINAL_STATUSES.contains(status));
     }
 
-    private static final Map<CaseStatus, Set<CaseStatus>> VALID_TRANSITIONS = Map.of(
-            PENDING_CLASSIFICATION,  Set.of(PENDING_ANALYST_REVIEW, AWAITING_DOCUMENTATION, CLASSIFICATION_FAILED),
-            AWAITING_DOCUMENTATION,  Set.of(PENDING_CLASSIFICATION, LAPSED),
-            PENDING_ANALYST_REVIEW,  Set.of(APPROVED, REJECTED, PENDING_CLASSIFICATION, PENDING_EXPERT_REPORT,
-                    PENDING_REPAIR),
-            CLASSIFICATION_FAILED,   Set.of(PENDING_CLASSIFICATION),
+    private static final Map<CaseStatus, Set<CaseStatus>> VALID_TRANSITIONS = Map.ofEntries(
+            Map.entry(PENDING_CLASSIFICATION, Set.of(PENDING_ANALYST_REVIEW, AWAITING_DOCUMENTATION,
+                    CLASSIFICATION_FAILED)),
+            Map.entry(AWAITING_DOCUMENTATION, Set.of(PENDING_CLASSIFICATION, LAPSED, WITHDRAWN, VOIDED)),
+            Map.entry(PENDING_ANALYST_REVIEW, Set.of(APPROVED, REJECTED, PRESCRIBED, PENDING_CLASSIFICATION,
+                    PENDING_EXPERT_REPORT, PENDING_REPAIR, WITHDRAWN, VOIDED)),
+            Map.entry(CLASSIFICATION_FAILED, Set.of(PENDING_CLASSIFICATION, WITHDRAWN, VOIDED)),
             // Back to the analyst only: a referred case can't be decided without its report.
-            PENDING_EXPERT_REPORT,   Set.of(PENDING_ANALYST_REVIEW),
+            Map.entry(PENDING_EXPERT_REPORT, Set.of(PENDING_ANALYST_REVIEW)),
             // The repair shop reports, it doesn't decide.
-            PENDING_REPAIR,          Set.of(PENDING_ANALYST_REVIEW),
-            // Reopening is not a new verdict: it only puts the case in front of an analyst again.
-            APPROVED,                Set.of(PENDING_ANALYST_REVIEW),
-            REJECTED,                Set.of(PENDING_ANALYST_REVIEW),
-            LAPSED,                  Set.of(PENDING_ANALYST_REVIEW)
+            Map.entry(PENDING_REPAIR, Set.of(PENDING_ANALYST_REVIEW)),
+            // Reopening is not a new verdict: it only puts the case in front of an analyst again. Every
+            // terminal status takes no other event, so reopening is the only way out of one.
+            Map.entry(APPROVED, Set.of(PENDING_ANALYST_REVIEW)),
+            Map.entry(REJECTED, Set.of(PENDING_ANALYST_REVIEW)),
+            Map.entry(LAPSED, Set.of(PENDING_ANALYST_REVIEW)),
+            Map.entry(PRESCRIBED, Set.of(PENDING_ANALYST_REVIEW)),
+            Map.entry(WITHDRAWN, Set.of(PENDING_ANALYST_REVIEW)),
+            Map.entry(VOIDED, Set.of(PENDING_ANALYST_REVIEW))
     );
 
     private final CaseRepository caseRepository;
@@ -89,6 +98,13 @@ public class CaseStatusService {
     @Transactional
     public Case transition(Case caseRecord, CaseStatus to, StatusChangeActor actor, String reason) {
         return transition(caseRecord, to, actor, reason, null);
+    }
+
+    /** For callers that must check before acting elsewhere (an audit call) that the move is allowed. */
+    public void assertCanMove(CaseStatus from, CaseStatus to) {
+        if (!VALID_TRANSITIONS.getOrDefault(from, Set.of()).contains(to)) {
+            throw new InvalidStatusTransitionException(from, to);
+        }
     }
 
     /** @param observation what the person wrote, kept apart from the system's {@code reason} */
@@ -169,8 +185,35 @@ public class CaseStatusService {
                 actor, reason);
     }
 
+    /**
+     * Something that happened to the case without moving it (a settlement going to the referent and
+     * coming back). Same {@code from == to} row as an assignment.
+     *
+     * @param observation what a person wrote alongside it, or null
+     */
+    @Transactional
+    public void recordNote(Case caseRecord, StatusChangeActor actor, String reason, String observation) {
+        appendHistory(caseRecord.getId(), caseRecord.getCurrentStatus(), caseRecord.getCurrentStatus(),
+                actor, reason, observation);
+    }
+
     public List<CaseStatusHistory> history(Long caseId) {
         return historyRepository.findByCaseIdOrderByChangedAtAsc(caseId);
+    }
+
+    public Instant enteredCurrentStatusAt(Case caseRecord) {
+        return historyRepository
+                .findFirstByCaseIdAndFinalStatus_IdOrderByChangedAtDesc(
+                        caseRecord.getId(), caseRecord.getCurrentStatus().getId())
+                .map(CaseStatusHistory::getChangedAt)
+                .orElse(caseRecord.getUpdatedAt());
+    }
+
+    public Optional<Instant> lastTransitionAt(Long caseId, CaseStatus from, CaseStatus to, StatusChangeActor actor) {
+        return historyRepository
+                .findFirstByCaseIdAndInitialStatus_IdAndFinalStatus_IdAndActorOrderByChangedAtDesc(
+                        caseId, caseStateCatalog.resolve(from).getId(), caseStateCatalog.resolve(to).getId(), actor)
+                .map(CaseStatusHistory::getChangedAt);
     }
 
     /**

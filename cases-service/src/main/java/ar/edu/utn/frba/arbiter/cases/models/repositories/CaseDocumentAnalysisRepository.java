@@ -43,7 +43,7 @@ public class CaseDocumentAnalysisRepository {
     private List<DocumentAnalysisSummary> query(NamedParameterJdbcTemplate jdbcTemplate, Long caseId) {
         List<Row> rows = jdbcTemplate.query("""
                 SELECT a.id, a.transcription, a.document_date, a.amount, a.item_description,
-                       a.brand, a.model, a.imei, a.affected_party, a.extraction_status, d.type
+                       a.affected_party, a.extraction_status, d.type
                   FROM document_analysis a
                   JOIN case_documents d ON d.id = a.case_document_id
                  WHERE d.case_id = :caseId
@@ -57,9 +57,6 @@ public class CaseDocumentAnalysisRepository {
                     documentDate == null ? null : documentDate.toLocalDate(),
                     rs.getBigDecimal("amount"),
                     rs.getString("item_description"),
-                    rs.getString("brand"),
-                    rs.getString("model"),
-                    rs.getString("imei"),
                     rs.getString("affected_party"),
                     rs.getString("extraction_status"));
         });
@@ -70,8 +67,10 @@ public class CaseDocumentAnalysisRepository {
 
         List<Long> analysisIds = rows.stream().map(Row::analysisId).toList();
         Map<Long, List<String>> findingsByAnalysis = findingsFor(jdbcTemplate, analysisIds);
+        Map<Long, List<DocumentAnalysisSummary.Detail>> attributesByAnalysis =
+                pairsFrom("document_attribute", jdbcTemplate, analysisIds);
         Map<Long, List<DocumentAnalysisSummary.Detail>> detailsByAnalysis =
-                detailsFor(jdbcTemplate, analysisIds);
+                pairsFrom("document_detail", jdbcTemplate, analysisIds);
 
         return rows.stream()
                 .map(row -> new DocumentAnalysisSummary(
@@ -80,9 +79,7 @@ public class CaseDocumentAnalysisRepository {
                         row.documentDate(),
                         row.amount(),
                         row.itemDescription(),
-                        row.brand(),
-                        row.model(),
-                        row.imei(),
+                        attributesByAnalysis.getOrDefault(row.analysisId(), List.of()),
                         row.affectedParty(),
                         findingsByAnalysis.getOrDefault(row.analysisId(), List.of()),
                         detailsByAnalysis.getOrDefault(row.analysisId(), List.of()),
@@ -90,16 +87,19 @@ public class CaseDocumentAnalysisRepository {
                 .toList();
     }
 
-    /** Insertion order, which is the order the model read them off the document. */
-    private Map<Long, List<DocumentAnalysisSummary.Detail>> detailsFor(
-            NamedParameterJdbcTemplate jdbcTemplate, List<Long> analysisIds) {
+    /**
+     * The name/value rows of {@code table}, in insertion order: for details, the order the model read
+     * them off the document; for item attributes, the order the policy lists them in.
+     */
+    private Map<Long, List<DocumentAnalysisSummary.Detail>> pairsFrom(
+            String table, NamedParameterJdbcTemplate jdbcTemplate, List<Long> analysisIds) {
         Map<Long, List<DocumentAnalysisSummary.Detail>> byAnalysis = new HashMap<>();
         jdbcTemplate.query("""
                 SELECT analysis_id, name, value
-                  FROM document_detail
+                  FROM %s
                  WHERE analysis_id IN (:analysisIds)
                  ORDER BY id
-                """, Map.of("analysisIds", analysisIds), (rs, rowNum) ->
+                """.formatted(table), Map.of("analysisIds", analysisIds), (rs, rowNum) ->
                 byAnalysis.computeIfAbsent(rs.getLong("analysis_id"), key -> new ArrayList<>())
                         .add(new DocumentAnalysisSummary.Detail(
                                 rs.getString("name"), rs.getString("value"))));
@@ -129,9 +129,6 @@ public class CaseDocumentAnalysisRepository {
             LocalDate documentDate,
             BigDecimal amount,
             String itemDescription,
-            String brand,
-            String model,
-            String imei,
             String affectedParty,
             String extractionStatus
     ) {

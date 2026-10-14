@@ -7,11 +7,12 @@ import ar.edu.utn.frba.arbiter.classification.dto.ImageAnalysisOutcome;
 import ar.edu.utn.frba.arbiter.classification.models.entities.ImageAnalysis;
 import ar.edu.utn.frba.arbiter.classification.models.repositories.ImageAnalysisRepository;
 import ar.edu.utn.frba.arbiter.common.dto.ImageForensicReport.WebFinding;
-import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -19,7 +20,6 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 @Service
-@RequiredArgsConstructor
 public class ImageEmbeddingService {
 
     private static final Logger log = LoggerFactory.getLogger(ImageEmbeddingService.class);
@@ -32,12 +32,27 @@ public class ImageEmbeddingService {
     private final ClipClient clipClient;
     private final ImageAnalysisRepository repository;
     private final EmbeddingProperties properties;
+    private final TransactionTemplate transactionTemplate;
+
+    public ImageEmbeddingService(
+            ClipClient clipClient,
+            ImageAnalysisRepository repository,
+            EmbeddingProperties properties,
+            PlatformTransactionManager transactionManager
+    ) {
+        this.clipClient = clipClient;
+        this.repository = repository;
+        this.properties = properties;
+        this.transactionTemplate = new TransactionTemplate(transactionManager);
+    }
 
     /**
      * The search runs before the row is saved, and excludes {@code caseId}, so an image never matches
      * itself or its siblings. With a null {@code caseDocumentId} the image is compared but not persisted.
+     *
+     * <p>CLIP is called before the transaction opens: waiting for it to boot must not hold a pooled
+     * connection.
      */
-    @Transactional
     public ImageAnalysisOutcome processAndFindDuplicates(
             Long caseId,
             Long caseDocumentId,
@@ -49,7 +64,10 @@ public class ImageEmbeddingService {
         log.info("[ImageEmbedding] Embedding generated — {} dimensions", vector.length);
 
         String vectorLiteral = toVectorLiteral(vector);
+        return transactionTemplate.execute(status -> findAndPersist(caseId, caseDocumentId, vectorLiteral));
+    }
 
+    private ImageAnalysisOutcome findAndPersist(Long caseId, Long caseDocumentId, String vectorLiteral) {
         List<DuplicateImageMatch> matches = repository.findSimilar(
                         vectorLiteral, caseId, properties.similarityThreshold(), properties.maxResults())
                 .stream()
