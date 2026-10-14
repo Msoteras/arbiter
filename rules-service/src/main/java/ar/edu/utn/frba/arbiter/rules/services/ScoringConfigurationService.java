@@ -97,7 +97,6 @@ public class ScoringConfigurationService {
             scoreBandRepository.save(ScoreBand.builder()
                     .band(b.band())
                     .minScoreInclusive(b.minScoreInclusive())
-                    .active(true)
                     .scoringConfiguration(config)
                     .build());
         }

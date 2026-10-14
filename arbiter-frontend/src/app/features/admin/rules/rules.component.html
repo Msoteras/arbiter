@@ -595,7 +595,7 @@
               <div class="tab-panel" @fadeInUp>
                 <app-card heading="Fast Track" headingSize="md">
                   <app-info-tip cardAside>
-                    Decide si el expediente va por Fast Track; siempre lo revisa un analista.
+                    Definí las condiciones para que un expediente vaya por Fast Track.
                   </app-info-tip>
 
                   <!-- Fast Track is one rule PER COVERAGE (each demands its own documents), so
@@ -612,14 +612,11 @@
                           (valueChange)="selectFtCoverage($event)"
                         />
                       </label>
-                      <p class="section-hint">
-                        @if (ftDirty()) {
+                      @if (ftDirty()) {
+                        <p class="section-hint">
                           Guardá o descartá los cambios para pasar a otra cobertura.
-                        } @else {
-                          Cada cobertura tiene su propio Fast Track: lo que guardes acá no cambia
-                          las demás.
-                        }
-                      </p>
+                        </p>
+                      }
                     </div>
                   }
 
@@ -643,7 +640,6 @@
                       <div class="cov-section">
                         <span class="t-section-label">
                           Condiciones para habilitar el Fast Track
-                          <app-info-tip>Los umbrales apagados no se evalúan.</app-info-tip>
                         </span>
 
                         <ul class="rule-rows">
@@ -760,13 +756,7 @@
                       </div>
 
                       <div class="cov-section">
-                        <span class="t-section-label">
-                          Documentos que exige el Fast Track
-                          <app-info-tip>
-                            Con estos alcanza para ir por Fast Track; si falta alguno, se exige la
-                            agenda documental completa.
-                          </app-info-tip>
-                        </span>
+                        <span class="t-section-label"> Documentos que exige el Fast Track </span>
                         <div class="check-list">
                           @for (doc of docTypes; track doc.code) {
                             <app-checkbox

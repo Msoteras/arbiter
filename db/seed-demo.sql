@@ -266,11 +266,11 @@ BEGIN
         $ddl$, p_schema);
 
     EXECUTE format($ddl$
-        INSERT INTO %I.score_band (id, band, min_score_inclusive, active, scoring_configuration_id) VALUES
-            (1, 'LOW', 0.00, TRUE, 1),
-            (2, 'MEDIUM', 0.30, TRUE, 1),
-            (3, 'HIGH', 0.60, TRUE, 1),
-            (4, 'CRITICAL', 0.80, TRUE, 1)
+        INSERT INTO %I.score_band (id, band, min_score_inclusive, scoring_configuration_id) VALUES
+            (1, 'LOW', 0.00, 1),
+            (2, 'MEDIUM', 0.30, 1),
+            (3, 'HIGH', 0.60, 1),
+            (4, 'CRITICAL', 0.80, 1)
         $ddl$, p_schema);
 
     -- Realign every identity sequence with the explicit ids seeded above.

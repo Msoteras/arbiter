@@ -117,6 +117,20 @@ describe('RuleHistoryComponent', () => {
     expect(text()).not.toContain('HIGH');
   });
 
+  it('shows an amount as money, not as a bare number', async () => {
+    await mount([
+      entry({
+        ruleType: 'EXPERT_DERIVATION',
+        changes: [{ field: 'minClaimedAmount', previousValue: '500000', newValue: '600000' }],
+      }),
+    ]);
+
+    // Intl puts a non-breaking space after the sign; only the digits are fixed.
+    expect(text()).toMatch(/\$\s?500\.000/);
+    expect(text()).toMatch(/\$\s?600\.000/);
+    expect(text()).not.toContain('500000');
+  });
+
   it('names the resolution target and its fields', async () => {
     await mount([
       entry({

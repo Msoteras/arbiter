@@ -236,6 +236,14 @@ lista de Fast Track, que vive en la configuración de esa regla.
 
 **Acción:** dropear `obligatorio` de `requisito_documental`.
 
+### 25 · `configuracion_banda.activo` — sobra
+
+La columna se borró del esquema (`2026-10-13-borrar-activo-de-banda-de-puntaje.sql`): las bandas se
+borran y se vuelven a escribir en cada guardado del puntaje, siempre en `TRUE`, y ninguna lectura
+filtraba por ella. Apagar el puntaje entero es `configuracion_scoring.activa`, que queda.
+
+**Acción:** dropear `activo` de `configuracion_banda`.
+
 ---
 
 ## Decisiones pendientes antes de tocar el `.mdj`

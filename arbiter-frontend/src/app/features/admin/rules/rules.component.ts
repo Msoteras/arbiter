@@ -400,7 +400,6 @@ export class RulesComponent {
     this.draft.set(structuredClone(r));
     this.persisted.set(structuredClone(r));
     this.expandedCoverageId.set(null);
-    this.activeTab.set('coverages');
     this.ftError.set(null);
     this.ftCoverages.set([]);
     this.ftCoverageId.set(null);

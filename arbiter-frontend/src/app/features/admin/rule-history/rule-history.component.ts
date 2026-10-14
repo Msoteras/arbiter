@@ -5,6 +5,7 @@ import { finalize } from 'rxjs';
 import { documentTypeLabel, riskFactorLabel } from '../../../core/models/business-rules';
 import { RISK_BANDS, RiskBand, riskBandLabel } from '../../../core/models/risk-band';
 import { formatDateTime } from '../../../core/util/datetime';
+import { formatMoney } from '../../../core/util/money';
 import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { CardComponent } from '../../../shared/ui/card/card.component';
@@ -47,6 +48,9 @@ const LIST_FIELDS = new Set([
 const PERCENT_FIELDS = new Set(['maxClaimedAmountRatio']);
 
 const SCALED_FIELDS = new Set(['weight', 'minScoreInclusive']);
+
+/** Amounts in pesos, stored as bare numbers. */
+const MONEY_FIELDS = new Set(['minClaimedAmount']);
 
 /** Keys that identify a list element; the element is already named by the row's qualifier. */
 const IDENTITY_FIELDS = new Set(['factorId', 'band']);
@@ -303,6 +307,9 @@ export class RuleHistoryComponent {
     }
     if (SCALED_FIELDS.has(field) && Number.isFinite(n)) {
       return (n * 100).toLocaleString('es-AR', { maximumFractionDigits: 1 });
+    }
+    if (MONEY_FIELDS.has(field) && Number.isFinite(n)) {
+      return formatMoney(n);
     }
     if (value === 'true') {
       return 'Sí';
