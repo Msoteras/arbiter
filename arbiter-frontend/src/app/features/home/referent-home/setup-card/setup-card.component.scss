@@ -184,20 +184,6 @@
   cursor: pointer;
 }
 
-/* In the side column there is no room for the button beside a two-line step. */
-@include media.wide {
-  .step {
-    flex-wrap: wrap;
-    column-gap: var(--space-2);
-  }
-  .step-link {
-    flex-basis: 100%;
-  }
-  .step > app-button {
-    margin: 0 0 var(--space-2) auto;
-  }
-}
-
 @include media.phone {
   .setup {
     padding-inline: var(--space-4);

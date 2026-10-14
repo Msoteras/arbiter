@@ -84,7 +84,8 @@
 @include media.wide {
   .home-body:has(.setup) {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) var(--setup-column-w);
+    /* 3:2, so the checklist has room for its steps and the main column still reads as the page. */
+    grid-template-columns: minmax(0, 3fr) minmax(var(--setup-column-min), 2fr);
     align-items: start;
   }
   .home-aside {
@@ -98,6 +99,13 @@
   .home-main {
     grid-column: 1;
     grid-row: 1;
+  }
+  /* Beside the checklist only three tiles fit: the total, the least urgent, goes. */
+  .home-body:has(.setup) .stats {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .home-body:has(.setup) .stat-total {
+    display: none;
   }
 }
 
