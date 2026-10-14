@@ -419,4 +419,40 @@ describe('InboxComponent · lifecycle scope', () => {
       expect(statusCell.textContent?.trim()).toBe('Pendiente de revisión');
     });
   });
+
+  describe('deadline column', () => {
+    const row = (id: number, status: string) => ({
+      id,
+      status,
+      insuredName: 'Julián Pérez',
+      claimCause: 'Robo en vía pública',
+      eventDate: '2026-09-20T19:25:00',
+      claimedAmount: 900000,
+      analysisClassification: null,
+      assignedAnalystId: null,
+      assignedAnalystName: null,
+      responseDeadline: '2026-09-18',
+      deadlinePriority: 'NONE',
+      riskBand: null,
+      riskScore: null,
+      settlementStatus: null,
+    });
+
+    function deadlineCells(): string[] {
+      return (
+        Array.from(fixture.nativeElement.querySelectorAll('tbody td:nth-child(3)')) as HTMLElement[]
+      ).map((td) => td.textContent?.trim() ?? '');
+    }
+
+    it('hides the stale date while the term is paused or the case is closed', async () => {
+      await mount('ANALISTA_SINIESTROS', [
+        row(30, 'AWAITING_DOCUMENTATION'),
+        row(31, 'PENDING_EXPERT_REPORT'),
+        row(32, 'APPROVED'),
+        row(33, 'PENDING_ANALYST_REVIEW'),
+      ]);
+
+      expect(deadlineCells()).toEqual(['En pausa', 'En pausa', '—', '18/9/2026']);
+    });
+  });
 });

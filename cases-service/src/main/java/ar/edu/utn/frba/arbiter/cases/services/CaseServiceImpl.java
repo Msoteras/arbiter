@@ -32,6 +32,7 @@ import ar.edu.utn.frba.arbiter.cases.exceptions.AnalystProfileNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CaseAssignedToAnotherAnalystException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CaseNotAssignedException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CaseNotFoundException;
+import ar.edu.utn.frba.arbiter.cases.exceptions.ClosedCaseAssignmentException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CoverageNotConfiguredException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.DocumentNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.DocumentTypeNotAllowedException;
@@ -607,6 +608,7 @@ public class CaseServiceImpl implements CaseService {
     public CaseResponse assignAnalyst(Long caseId, Long analystId) {
         Case entity = caseRepository.findById(caseId)
                 .orElseThrow(() -> new CaseNotFoundException(caseId));
+        requireOpen(entity);
 
         // Looked up in the active tenant's schema, so another insurer's analyst id simply 404s.
         ClaimsAnalyst analyst = claimsAnalystRepository.findById(analystId)
@@ -624,6 +626,7 @@ public class CaseServiceImpl implements CaseService {
     public CaseResponse unassignAnalyst(Long caseId) {
         Case entity = caseRepository.findById(caseId)
                 .orElseThrow(() -> new CaseNotFoundException(caseId));
+        requireOpen(entity);
 
         ClaimsAnalyst previous = entity.getAnalyst();
         entity.setAnalyst(null);
@@ -646,6 +649,12 @@ public class CaseServiceImpl implements CaseService {
                 accessPolicy.currentAssignmentActor(), "expediente reabierto: " + reason);
 
         return loadCase(caseId);
+    }
+
+    private static void requireOpen(Case entity) {
+        if (CaseStatusService.TERMINAL_STATUSES.contains(entity.getStatus())) {
+            throw new ClosedCaseAssignmentException(entity.getId());
+        }
     }
 
     private static String fullName(ClaimsAnalyst analyst) {

@@ -58,6 +58,20 @@ export function isFinalStatus(value: string): boolean {
   return (FINAL_STATUSES as readonly string[]).includes(value);
 }
 
+/**
+ * Mirrors common-lib's `CaseStatus.pausingTheTerm()`: the art. 56 term is frozen while the case
+ * waits on someone outside the insurer, and recalculated in full when it leaves the pause.
+ */
+const PAUSING_STATUSES: readonly CaseStatus[] = [
+  'AWAITING_DOCUMENTATION',
+  'PENDING_EXPERT_REPORT',
+  'PENDING_REPAIR',
+];
+
+export function isPausingStatus(value: string): boolean {
+  return (PAUSING_STATUSES as readonly string[]).includes(value);
+}
+
 const TONES: Record<CaseStatus, StatusTone> = {
   PENDING_CLASSIFICATION: 'info',
   PENDING_ANALYST_REVIEW: 'info',

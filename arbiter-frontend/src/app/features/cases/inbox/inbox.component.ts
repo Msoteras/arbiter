@@ -42,6 +42,8 @@ import {
   workStatusLabel,
   caseStatusTone,
   riskBandEmptyLabel,
+  isFinalStatus,
+  isPausingStatus,
 } from '../../../core/models/case-status';
 import { StatusTone } from '../../../core/models/status-tone';
 import { CardComponent } from '../../../shared/ui/card/card.component';
@@ -766,6 +768,15 @@ export class InboxComponent {
 
   protected deadlineLabel(c: CaseResponse): string {
     return deadlinePriorityLabel(c.deadlinePriority, c.responseDeadline);
+  }
+
+  protected isClosed(c: CaseResponse): boolean {
+    return isFinalStatus(c.status);
+  }
+
+  /** The stored deadline means nothing while paused: it is recalculated when the pause ends. */
+  protected isPaused(c: CaseResponse): boolean {
+    return isPausingStatus(c.status);
   }
 
   protected deadlinePrioritized(c: CaseResponse): boolean {

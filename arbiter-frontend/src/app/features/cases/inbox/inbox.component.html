@@ -284,7 +284,11 @@
                     }}</app-badge>
                   </td>
                   <td>
-                    @if (deadlinePrioritized(c)) {
+                    @if (isClosed(c)) {
+                      <span class="t-note">—</span>
+                    } @else if (isPaused(c)) {
+                      <span class="t-note">En pausa</span>
+                    } @else if (deadlinePrioritized(c)) {
                       <app-badge [tone]="deadlineTone(c.deadlinePriority)">{{
                         deadlineLabel(c)
                       }}</app-badge>
@@ -325,10 +329,10 @@
                             <span class="assignee-sub">Asignado</span>
                           </span>
                         </div>
-                      } @else if (!canAssign()) {
+                      } @else if (!canAssign() || isClosed(c)) {
                         <span class="t-note">Sin asignar</span>
                       }
-                      @if (canAssign()) {
+                      @if (canAssign() && !isClosed(c)) {
                         <div class="assign-actions" [class.fill]="!c.assignedAnalystId">
                           @if (!c.assignedAnalystId && canTake()) {
                             <app-button

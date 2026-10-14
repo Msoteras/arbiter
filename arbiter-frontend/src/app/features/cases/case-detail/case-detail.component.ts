@@ -2029,7 +2029,10 @@ export class CaseDetailComponent {
   });
 
   protected readonly canTake = computed(
-    () => this.session.session()?.rol === 'ANALISTA_SINIESTROS' && this.myAnalystId() != null,
+    () =>
+      this.session.session()?.rol === 'ANALISTA_SINIESTROS' &&
+      this.myAnalystId() != null &&
+      !isFinalStatus(this.data()?.status ?? ''),
   );
 
   /** The supervisor doesn't decide; the backend rejects it with 403. */
@@ -2043,6 +2046,11 @@ export class CaseDetailComponent {
     const userRole = this.session.session()?.rol;
     return userRole === 'ANALISTA_SINIESTROS' || userRole === 'REFERENTE_ASEGURADORA';
   });
+
+  /** A closed case keeps whoever resolved it; it has to be reopened before it changes hands. */
+  protected readonly canAssign = computed(
+    () => this.canManage() && !isFinalStatus(this.data()?.status ?? ''),
+  );
 
   protected readonly assignedName = computed(() => this.data()?.assignedAnalystName ?? null);
   protected readonly isAssigned = computed(() => this.data()?.assignedAnalystId != null);

@@ -21,6 +21,7 @@ import ar.edu.utn.frba.arbiter.cases.dto.StatusTransitionResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.EligibilityCheckResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.ProviderType;
 import ar.edu.utn.frba.arbiter.cases.dto.RepairProviderResponse;
+import ar.edu.utn.frba.arbiter.cases.exceptions.ClosedCaseAssignmentException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.AnalystNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.AnalystProfileNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CaseAssignedToAnotherAnalystException;
@@ -810,6 +811,27 @@ class CaseServiceImplTest {
 
         verify(caseStatusService).recordAssignment(entity, StatusChangeActor.REFERENT,
                 "expediente asignado a Lucas Gómez");
+    }
+
+    @Test
+    void assignAnalyst_closedCase_isRejected() {
+        Case entity = caseRecord(1L, CaseStatus.APPROVED);
+        when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
+
+        assertThatThrownBy(() -> caseService.assignAnalyst(1L, 7L))
+                .isInstanceOf(ClosedCaseAssignmentException.class);
+        verify(caseRepository, never()).save(any());
+    }
+
+    @Test
+    void unassignAnalyst_closedCase_isRejected() {
+        Case entity = caseRecord(1L, CaseStatus.REJECTED);
+        entity.setAnalyst(analyst(7L, "Lucas", "Gómez"));
+        when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
+
+        assertThatThrownBy(() -> caseService.unassignAnalyst(1L))
+                .isInstanceOf(ClosedCaseAssignmentException.class);
+        verify(caseRepository, never()).save(any());
     }
 
     @Test
