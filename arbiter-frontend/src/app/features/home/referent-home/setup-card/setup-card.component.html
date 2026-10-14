@@ -40,7 +40,7 @@
             <span class="setup-bar-fill" [style.width.%]="progressPct()"></span>
           </div>
 
-          @for (group of groups(); track group.level) {
+          @for (group of visibleGroups(); track group.level) {
             <div class="setup-group">
               @if (group.level === 'OPTIONAL') {
                 <button

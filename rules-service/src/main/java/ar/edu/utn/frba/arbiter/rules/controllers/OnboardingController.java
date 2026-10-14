@@ -47,7 +47,7 @@ public class OnboardingController {
 
     @PutMapping("/onboarding/steps/{step}")
     @PreAuthorize("hasRole('REFERENTE_ASEGURADORA')")
-    @Operation(summary = "Marcar un paso como «No se usa»",
+    @Operation(summary = "Descartar un paso o deshacer el descarte",
             description = "skipped=false lo deshace. Los pasos obligatorios responden 422.")
     public ResponseEntity<Void> setSkipped(@PathVariable OnboardingStep step,
                                            @RequestBody OnboardingSkipRequest request) {
@@ -58,7 +58,7 @@ public class OnboardingController {
     @PostMapping("/onboarding/resets")
     @PreAuthorize("hasRole('REFERENTE_ASEGURADORA')")
     @Operation(summary = "Reiniciar la puesta en marcha",
-            description = "Todos los pasos vuelven a pendiente y se borran las marcas «No se usa». "
+            description = "Todos los pasos vuelven a pendiente y se deshacen los descartes. "
                     + "La configuración no cambia. Herramienta de prueba.")
     public ResponseEntity<Void> reset(Authentication authentication) {
         service.reset(authentication.getName());

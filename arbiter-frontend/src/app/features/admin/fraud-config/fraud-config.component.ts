@@ -49,14 +49,19 @@ export class FraudConfigComponent {
   protected readonly saving = signal(false);
   protected readonly error = signal<string | null>(null);
 
-  /** Compares whole objects rather than tracking a flag, so reverting a value disables save again. */
+  /**
+   * Compares whole objects rather than tracking a flag, so reverting a value disables save again.
+   * A policy never saved (`ruleId` null) shows the default and counts as unsaved: otherwise a
+   * referent who agrees with the default has no way to save it.
+   */
   protected readonly dirty = computed(() => {
     const current = this.rule();
     const saved = this.persisted();
     return (
       current != null &&
       saved != null &&
-      (current.windowMonths !== saved.windowMonths ||
+      (saved.ruleId == null ||
+        current.windowMonths !== saved.windowMonths ||
         current.blocksFastTrack !== saved.blocksFastTrack)
     );
   });

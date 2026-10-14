@@ -33,8 +33,14 @@ export class OnboardingTargetDirective {
     // The next frame: the host was just created and may not have its final position yet.
     requestAnimationFrame(() => {
       const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-      host.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'center' });
+      // Centered, a section taller than the screen would show its middle and not its title.
+      const tall = host.getBoundingClientRect().height > window.innerHeight * 0.7;
+      // Before scrolling: the class carries the scroll margin that keeps it below the topbar.
       host.classList.add('onboarding-target');
+      host.scrollIntoView({
+        behavior: reduceMotion ? 'auto' : 'smooth',
+        block: tall ? 'start' : 'center',
+      });
       this.timer = setTimeout(() => host.classList.remove('onboarding-target'), HIGHLIGHT_MS);
     });
   }

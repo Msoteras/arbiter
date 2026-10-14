@@ -54,6 +54,8 @@ a {
 /* The control a setup checklist step points at, for a moment after arriving
    (OnboardingTargetDirective). The radius only shapes the outline: hosts have no background. */
 .onboarding-target {
+  /* Scrolled to its top edge, it stays below the fixed topbar. */
+  scroll-margin-top: calc(var(--appbar-h) + var(--space-4));
   border-radius: var(--radius-ctl);
   outline: 2px solid var(--border-focus);
   outline-offset: 4px;

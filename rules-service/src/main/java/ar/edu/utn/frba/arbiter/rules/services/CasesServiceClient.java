@@ -27,9 +27,10 @@ public class CasesServiceClient {
         this.jwtKey = JwtSupport.key(jwtSecret);
     }
 
-    public OnboardingCaseCounts onboardingCounts() {
+    /** Takes the tenant explicitly: it runs off the request thread, where {@link TenantContext} is empty. */
+    public OnboardingCaseCounts onboardingCounts(String tenantSchema) {
         try {
-            String serviceToken = JwtSupport.issueServiceToken(jwtKey, "rules-service-onboarding", TenantContext.get());
+            String serviceToken = JwtSupport.issueServiceToken(jwtKey, "rules-service-onboarding", tenantSchema);
             OnboardingCaseCounts counts = restClient.get()
                     .uri("/api/v1/onboarding/internal/counts")
                     .header(HttpHeaders.AUTHORIZATION, "Bearer " + serviceToken)

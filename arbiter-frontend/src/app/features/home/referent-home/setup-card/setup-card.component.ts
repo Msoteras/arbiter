@@ -87,6 +87,13 @@ export class SetupCardComponent {
     }).filter((g) => g.pending.length + g.completed.length > 0),
   );
 
+  /** A group with nothing to show would leave its heading alone. */
+  protected readonly visibleGroups = computed(() =>
+    this.groups().filter(
+      (g) => g.pending.length > 0 || (this.showCompleted() && g.completed.length > 0),
+    ),
+  );
+
   protected readonly title = onboardingStepTitle;
   protected readonly summary = onboardingStepSummary;
   protected readonly key = onboardingStepKey;

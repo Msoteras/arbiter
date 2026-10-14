@@ -13,6 +13,7 @@ import ar.edu.utn.frba.arbiter.rules.dto.OnboardingStepDto.Status;
 import ar.edu.utn.frba.arbiter.rules.dto.ResolutionTargetDto;
 import ar.edu.utn.frba.arbiter.rules.dto.ScoringConfigDto;
 import ar.edu.utn.frba.arbiter.rules.exceptions.OnboardingStepNotSkippableException;
+import ar.edu.utn.frba.arbiter.rules.exceptions.OnboardingUnavailableException;
 import ar.edu.utn.frba.arbiter.rules.models.entities.OnboardingReset;
 import ar.edu.utn.frba.arbiter.rules.models.entities.OnboardingStepState;
 import ar.edu.utn.frba.arbiter.rules.models.repositories.BranchRepository;
@@ -26,6 +27,7 @@ import ar.edu.utn.frba.arbiter.rules.models.repositories.OnboardingStepStateRepo
 import ar.edu.utn.frba.arbiter.rules.models.repositories.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.transaction.PlatformTransactionManager;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -64,7 +66,7 @@ class OnboardingServiceTest {
             casesClient, stateRepository, resetRepository, branchRepository, coverageRepository,
             mock(ClaimCauseRepository.class), documentRepository, analystRepository, insuredRepository,
             mock(UserRepository.class), exclusionService, fastTrackService, scoringService, hardStopService,
-            fraudService, targetService, commonExclusions, businessRules);
+            fraudService, targetService, commonExclusions, businessRules, mock(PlatformTransactionManager.class));
 
     private final List<OnboardingStepState> states = new ArrayList<>();
 
@@ -74,7 +76,7 @@ class OnboardingServiceTest {
         when(coverageRepository.findAll()).thenReturn(List.of());
         when(stateRepository.findAll()).thenReturn(states);
         when(resetRepository.findById(OnboardingReset.SINGLE_ROW_ID)).thenReturn(Optional.empty());
-        when(casesClient.onboardingCounts()).thenReturn(new OnboardingCaseCounts(List.of(1L), 0, 0));
+        when(casesClient.onboardingCounts(any())).thenReturn(new OnboardingCaseCounts(List.of(1L), 0, 0));
         when(exclusionService.get(anyLong())).thenReturn(new CoverageExclusionConfig(List.of()));
         when(fastTrackService.getByCoverage(anyLong())).thenReturn(FastTrackConfigDto.empty());
         when(scoringService.get()).thenReturn(ScoringConfigDto.empty());
@@ -145,7 +147,7 @@ class OnboardingServiceTest {
     }
 
     @Test
-    void aStepMarkedAsNotUsedIsSkipped() {
+    void aDiscardedStepIsSkipped() {
         OnboardingStepState state = new OnboardingStepState(OnboardingStep.HARD_STOP.key(null));
         state.setSkipped(true);
         states.add(state);
@@ -153,14 +155,22 @@ class OnboardingServiceTest {
         assertThat(step(OnboardingStep.HARD_STOP).status()).isEqualTo(Status.SKIPPED);
     }
 
+    /** cases-service down: the checklist answers 503 instead of guessing the steps it owns. */
     @Test
-    void aRequiredStepCannotBeMarkedAsNotUsed() {
+    void aFailedCasesServiceCallFailsTheWholeChecklist() {
+        when(casesClient.onboardingCounts(any())).thenThrow(new OnboardingUnavailableException(new RuntimeException("down")));
+
+        assertThatThrownBy(service::status).isInstanceOf(OnboardingUnavailableException.class);
+    }
+
+    @Test
+    void aRequiredStepCannotBeDiscarded() {
         assertThatThrownBy(() -> service.setSkipped(OnboardingStep.ANALYSTS, true))
                 .isInstanceOf(OnboardingStepNotSkippableException.class);
     }
 
     @Test
-    void aRestartClearsTheNotUsedMarks() {
+    void aRestartUndoesTheDiscards() {
         when(resetRepository.save(any(OnboardingReset.class))).thenAnswer(inv -> inv.getArgument(0));
 
         service.reset("referente@test.com");
@@ -178,7 +188,7 @@ class OnboardingServiceTest {
                 casesClient, stateRepository, resetRepository, branchRepository, coverageRepository, causes,
                 documentRepository, analystRepository, insuredRepository, mock(UserRepository.class),
                 exclusionService, fastTrackService, scoringService, hardStopService, fraudService, targetService,
-                commonExclusions, businessRules);
+                commonExclusions, businessRules, mock(PlatformTransactionManager.class));
         when(causes.findByBranch_IdOrderByNameAsc(1L)).thenReturn(List.of(cause(100L), cause(101L)));
         when(exclusionService.get(10L)).thenReturn(new CoverageExclusionConfig(List.of(101L)));
         when(documentRepository.findScheduledBranchAndClaimCauseIds())

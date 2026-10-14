@@ -6,6 +6,7 @@ import ar.edu.utn.frba.arbiter.common.models.entities.User;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Branch;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.ClaimCause;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Coverage;
+import ar.edu.utn.frba.arbiter.rules.config.tenant.TenantContext;
 import ar.edu.utn.frba.arbiter.rules.dto.FastTrackConfigDto;
 import ar.edu.utn.frba.arbiter.rules.dto.FraudRecordRuleDto;
 import ar.edu.utn.frba.arbiter.rules.dto.InsurerHardRuleDto;
@@ -28,16 +29,23 @@ import ar.edu.utn.frba.arbiter.rules.models.repositories.OnboardingStepStateRepo
 import ar.edu.utn.frba.arbiter.rules.models.repositories.UserRepository;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -68,6 +76,9 @@ public class OnboardingService {
     private final ResolutionTargetService resolutionTargetService;
     private final RuleTextService commonExclusionsService;
     private final RuleTextService businessRulesService;
+    private final TransactionTemplate readOnly;
+
+    private static final Executor CASES_CALL = Executors.newVirtualThreadPerTaskExecutor();
 
     public OnboardingService(
             CasesServiceClient casesServiceClient,
@@ -87,7 +98,8 @@ public class OnboardingService {
             FraudRecordRuleService fraudRecordRuleService,
             ResolutionTargetService resolutionTargetService,
             @Qualifier("commonExclusionsRuleTextService") RuleTextService commonExclusionsService,
-            @Qualifier("businessRulesRuleTextService") RuleTextService businessRulesService) {
+            @Qualifier("businessRulesRuleTextService") RuleTextService businessRulesService,
+            PlatformTransactionManager txManager) {
         this.casesServiceClient = casesServiceClient;
         this.stateRepository = stateRepository;
         this.resetRepository = resetRepository;
@@ -106,46 +118,53 @@ public class OnboardingService {
         this.resolutionTargetService = resolutionTargetService;
         this.commonExclusionsService = commonExclusionsService;
         this.businessRulesService = businessRulesService;
+        this.readOnly = new TransactionTemplate(txManager);
+        this.readOnly.setReadOnly(true);
     }
 
-    /** Not transactional: the cases-service call must not hold a database connection open. */
+    /**
+     * The cases-service counts and the database reads run at the same time, and the reads share one
+     * read-only transaction: each separate call costs a round trip to the database, and from a
+     * laptop against Railway that added up to ~15 s. The transaction closes before waiting on
+     * cases-service, so the call never holds a connection.
+     */
     public OnboardingStatusDto status() {
-        OnboardingCaseCounts caseCounts = casesServiceClient.onboardingCounts();
+        String tenant = TenantContext.get();
+        CompletableFuture<OnboardingCaseCounts> caseCounts =
+                CompletableFuture.supplyAsync(() -> casesServiceClient.onboardingCounts(tenant), CASES_CALL);
+        Snapshot snapshot = readOnly.execute(tx -> readSnapshot());
+        return assemble(snapshot, awaitCounts(caseCounts));
+    }
+
+    private static OnboardingCaseCounts awaitCounts(CompletableFuture<OnboardingCaseCounts> caseCounts) {
+        try {
+            return caseCounts.join();
+        } catch (CompletionException e) {
+            if (e.getCause() instanceof RuntimeException cause) {
+                throw cause;
+            }
+            throw e;
+        }
+    }
+
+    /** Everything the steps need from this module's tables. */
+    private record Snapshot(
+            Instant resetAt, Map<String, OnboardingStepState> states, List<Branch> branches,
+            List<Coverage> coverages, int analysts, int inactiveAnalysts, int insured,
+            DocumentCoverage documents, int activeScoringFactors, boolean scoringUsable, int fastTrack,
+            int hardStop, FraudRecordRuleDto fraud, ResolutionTargetDto target, int exclusions,
+            int businessRules) {}
+
+    private Snapshot readSnapshot() {
         Instant resetAt = resetRepository.findById(OnboardingReset.SINGLE_ROW_ID)
                 .map(OnboardingReset::getResetAt)
                 .orElse(null);
         Map<String, OnboardingStepState> states = stateRepository.findAll().stream()
                 .collect(Collectors.toMap(OnboardingStepState::getStepKey, Function.identity()));
-        StepJudge judge = new StepJudge(resetAt, states);
-
         List<Branch> branches = branchRepository.findAll().stream()
                 .sorted(Comparator.comparing(Branch::getName))
                 .toList();
         List<Coverage> coverages = coverageRepository.findAll();
-
-        List<OnboardingStepDto> steps = new ArrayList<>();
-
-        Set<Long> withPolicies = new HashSet<>(caseCounts.branchIdsWithPolicies());
-        for (Branch branch : branches) {
-            if (!withPolicies.contains(branch.getId())) {
-                continue;
-            }
-            int count = (int) coverages.stream().filter(c -> branch.getId().equals(c.getBranchId())).count();
-            steps.add(judge.step(OnboardingStep.COVERAGES, branch, count > 0, count, null));
-        }
-
-        int analysts = (int) analystRepository.count();
-        int inactive = (int) analystRepository.countByUser_ActivatedFalse();
-        steps.add(judge.step(OnboardingStep.ANALYSTS, null, analysts > 0, analysts, inactive));
-
-        // The bulk provisioning runs in the background (202), so starting it already counts.
-        int insured = (int) insuredRepository.count();
-        boolean provisioningStarted = judge.touchedAt(OnboardingStep.INSURED.key(null)) != null;
-        steps.add(judge.step(OnboardingStep.INSURED, null, insured > 0 || provisioningStarted, insured, null));
-
-        DocumentCoverage documents = documentCoverage(coverages);
-        steps.add(judge.step(OnboardingStep.DOCUMENTS, null,
-                documents.covered() > 0 && documents.scheduled() == documents.covered(), documents.scheduled(), null));
 
         ScoringConfigDto scoring = scoringService.get();
         int activeFactors = scoring.factors() == null ? 0 : (int) scoring.factors().stream()
@@ -153,33 +172,61 @@ public class OnboardingService {
                 .count();
         boolean scoringUsable = scoring.enabled() && activeFactors > 0
                 && scoring.bands() != null && !scoring.bands().isEmpty();
-        steps.add(judge.step(OnboardingStep.SCORING, null, scoringUsable, activeFactors, null));
 
         int fastTrack = (int) coverages.stream()
                 .filter(c -> isConfigured(fastTrackService.getByCoverage(c.getId())))
                 .count();
-        steps.add(judge.step(OnboardingStep.FAST_TRACK, null, fastTrack > 0, fastTrack, null));
+        int hardStop = (int) insurerHardRuleService.get().stream().filter(InsurerHardRuleDto::enabled).count();
+        int exclusions = branches.stream().mapToInt(b -> commonExclusionsService.get(b.getId()).size()).sum();
+        int businessRules = branches.stream().mapToInt(b -> businessRulesService.get(b.getId()).size()).sum();
 
+        return new Snapshot(resetAt, states, branches, coverages,
+                (int) analystRepository.count(), (int) analystRepository.countByUser_ActivatedFalse(),
+                (int) insuredRepository.count(), documentCoverage(coverages), activeFactors, scoringUsable,
+                fastTrack, hardStop, fraudRecordRuleService.get(), resolutionTargetService.get(),
+                exclusions, businessRules);
+    }
+
+    private static OnboardingStatusDto assemble(Snapshot data, OnboardingCaseCounts caseCounts) {
+        StepJudge judge = new StepJudge(data.resetAt(), data.states());
+        List<OnboardingStepDto> steps = new ArrayList<>();
+
+        Set<Long> withPolicies = new HashSet<>(caseCounts.branchIdsWithPolicies());
+        for (Branch branch : data.branches()) {
+            if (!withPolicies.contains(branch.getId())) {
+                continue;
+            }
+            int count = (int) data.coverages().stream().filter(c -> branch.getId().equals(c.getBranchId())).count();
+            steps.add(judge.step(OnboardingStep.COVERAGES, branch, count > 0, count, null));
+        }
+
+        steps.add(judge.step(OnboardingStep.ANALYSTS, null, data.analysts() > 0, data.analysts(), data.inactiveAnalysts()));
+
+        // The bulk provisioning runs in the background (202), so starting it already counts.
+        boolean provisioningStarted = judge.touchedAt(OnboardingStep.INSURED.key(null)) != null;
+        steps.add(judge.step(OnboardingStep.INSURED, null, data.insured() > 0 || provisioningStarted, data.insured(), null));
+
+        DocumentCoverage documents = data.documents();
+        steps.add(judge.step(OnboardingStep.DOCUMENTS, null,
+                documents.covered() > 0 && documents.scheduled() == documents.covered(), documents.scheduled(), null));
+
+        steps.add(judge.step(OnboardingStep.SCORING, null, data.scoringUsable(), data.activeScoringFactors(), null));
+        steps.add(judge.step(OnboardingStep.FAST_TRACK, null, data.fastTrack() > 0, data.fastTrack(), null));
         steps.add(judge.step(OnboardingStep.PROVIDERS, null,
                 caseCounts.activeProviders() > 0, caseCounts.activeProviders(), null));
         steps.add(judge.step(OnboardingStep.AUTHORITIES, null,
                 caseCounts.branchesWithSettlementCap() > 0, caseCounts.branchesWithSettlementCap(), null));
+        steps.add(judge.step(OnboardingStep.HARD_STOP, null, data.hardStop() > 0, data.hardStop(), null));
 
-        int hardStop = (int) insurerHardRuleService.get().stream().filter(InsurerHardRuleDto::enabled).count();
-        steps.add(judge.step(OnboardingStep.HARD_STOP, null, hardStop > 0, hardStop, null));
-
-        FraudRecordRuleDto fraud = fraudRecordRuleService.get();
+        FraudRecordRuleDto fraud = data.fraud();
         steps.add(judge.step(OnboardingStep.FRAUD, null, fraud.ruleId() != null, fraud.windowMonths(), null));
 
-        ResolutionTargetDto target = resolutionTargetService.get();
+        ResolutionTargetDto target = data.target();
         boolean targetSet = target.enabled() && target.targetDays() != null;
         steps.add(judge.step(OnboardingStep.TARGET, null, targetSet, target.targetDays(), null));
 
-        int exclusions = branches.stream().mapToInt(b -> commonExclusionsService.get(b.getId()).size()).sum();
-        steps.add(judge.step(OnboardingStep.COMMON_EXCLUSIONS, null, exclusions > 0, exclusions, null));
-
-        int businessRules = branches.stream().mapToInt(b -> businessRulesService.get(b.getId()).size()).sum();
-        steps.add(judge.step(OnboardingStep.BUSINESS_RULES, null, businessRules > 0, businessRules, null));
+        steps.add(judge.step(OnboardingStep.COMMON_EXCLUSIONS, null, data.exclusions() > 0, data.exclusions(), null));
+        steps.add(judge.step(OnboardingStep.BUSINESS_RULES, null, data.businessRules() > 0, data.businessRules(), null));
 
         return new OnboardingStatusDto(steps);
     }
@@ -211,12 +258,15 @@ public class OnboardingService {
      */
     private DocumentCoverage documentCoverage(List<Coverage> coverages) {
         Set<List<Long>> covered = new HashSet<>();
+        Map<Long, List<ClaimCause>> causesByBranch = new HashMap<>();
         for (Coverage coverage : coverages) {
             if (coverage.getBranchId() == null) {
                 continue;
             }
             Set<Long> excluded = new HashSet<>(coverageExclusionService.get(coverage.getId()).excludedClaimCauseIds());
-            for (ClaimCause cause : claimCauseRepository.findByBranch_IdOrderByNameAsc(coverage.getBranchId())) {
+            List<ClaimCause> causes = causesByBranch.computeIfAbsent(
+                    coverage.getBranchId(), claimCauseRepository::findByBranch_IdOrderByNameAsc);
+            for (ClaimCause cause : causes) {
                 if (!excluded.contains(cause.getId())) {
                     covered.add(List.of(coverage.getBranchId(), cause.getId()));
                 }
