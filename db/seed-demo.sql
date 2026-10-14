@@ -204,41 +204,45 @@ BEGIN
     -- connection only for Celulares. Damage asks for proof of purchase, repair quote and a
     -- photo of the item.
     EXECUTE format($ddl$
-        INSERT INTO %I.document_requirement (id, document_type, risk_band, branch_id, claim_cause_id) VALUES
-            -- Celulares · Robo en vía pública
-            ( 1, 'police_report',       NULL, 1, 2),
-            ( 2, 'purchase_proof',      NULL, 1, 2),
-            ( 3, 'imei_deregistration', NULL, 1, 2),
-            ( 4, 'last_connection',     NULL, 1, 2),
-            -- Celulares · Hurto
-            ( 5, 'police_report',       NULL, 1, 3),
-            ( 6, 'purchase_proof',      NULL, 1, 3),
-            ( 7, 'imei_deregistration', NULL, 1, 3),
-            ( 8, 'last_connection',     NULL, 1, 3),
-            -- Celulares · Caída
-            ( 9, 'purchase_proof',      NULL, 1, 4),
-            (10, 'repair_quote',        NULL, 1, 4),
-            (11, 'item_photo',          NULL, 1, 4),
-            -- Celulares · Rotura accidental
-            (12, 'purchase_proof',      NULL, 1, 1),
-            (13, 'repair_quote',        NULL, 1, 1),
-            (14, 'item_photo',          NULL, 1, 1),
-            -- Tecnología Portátil · Rotura accidental
-            (15, 'purchase_proof',      NULL, 2, 6),
-            (16, 'repair_quote',        NULL, 2, 6),
-            (17, 'item_photo',          NULL, 2, 6),
-            -- Tecnología Portátil · Robo en vía pública
-            (18, 'police_report',       NULL, 2, 7),
-            (19, 'purchase_proof',      NULL, 2, 7),
-            (20, 'item_photo',          NULL, 2, 7),
-            -- Tecnología Portátil · Hurto
-            (21, 'police_report',       NULL, 2, 8),
-            (22, 'purchase_proof',      NULL, 2, 8),
-            (23, 'item_photo',          NULL, 2, 8),
-            -- Tecnología Portátil · Caída
-            (24, 'purchase_proof',      NULL, 2, 9),
-            (25, 'repair_quote',        NULL, 2, 9),
-            (26, 'item_photo',          NULL, 2, 9)
+        INSERT INTO %I.document_requirement (id, document_type_id, branch_id, claim_cause_id)
+        SELECT r.id, dt.id, r.branch_id, r.claim_cause_id
+          FROM (VALUES
+                   -- Celulares · Robo en vía pública
+                   (  1, 'police_report',       1, 2),
+                   (  2, 'purchase_proof',      1, 2),
+                   (  3, 'imei_deregistration', 1, 2),
+                   (  4, 'last_connection',     1, 2),
+                   -- Celulares · Hurto
+                   (  5, 'police_report',       1, 3),
+                   (  6, 'purchase_proof',      1, 3),
+                   (  7, 'imei_deregistration', 1, 3),
+                   (  8, 'last_connection',     1, 3),
+                   -- Celulares · Caída
+                   (  9, 'purchase_proof',      1, 4),
+                   ( 10, 'repair_quote',        1, 4),
+                   ( 11, 'item_photo',          1, 4),
+                   -- Celulares · Rotura accidental
+                   ( 12, 'purchase_proof',      1, 1),
+                   ( 13, 'repair_quote',        1, 1),
+                   ( 14, 'item_photo',          1, 1),
+                   -- Tecnología Portátil · Rotura accidental
+                   ( 15, 'purchase_proof',      2, 6),
+                   ( 16, 'repair_quote',        2, 6),
+                   ( 17, 'item_photo',          2, 6),
+                   -- Tecnología Portátil · Robo en vía pública
+                   ( 18, 'police_report',       2, 7),
+                   ( 19, 'purchase_proof',      2, 7),
+                   ( 20, 'item_photo',          2, 7),
+                   -- Tecnología Portátil · Hurto
+                   ( 21, 'police_report',       2, 8),
+                   ( 22, 'purchase_proof',      2, 8),
+                   ( 23, 'item_photo',          2, 8),
+                   -- Tecnología Portátil · Caída
+                   ( 24, 'purchase_proof',      2, 9),
+                   ( 25, 'repair_quote',        2, 9),
+                   ( 26, 'item_photo',          2, 9)
+               ) AS r (id, code, branch_id, claim_cause_id)
+          JOIN arbiter_common.document_type dt ON dt.code = r.code
         $ddl$, p_schema);
 
     -- Shared by both demo insurers, with what they added to the reference config
