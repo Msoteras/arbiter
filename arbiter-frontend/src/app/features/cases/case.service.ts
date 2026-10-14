@@ -1,8 +1,9 @@
-import { HttpClient, HttpParams } from '@angular/common/http';
+import { HttpClient, HttpContext, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 
 import { environment } from '../../../environments/environment';
+import { CacheReadOptions, QueryCache, paramsKey } from '../../core/cache/query-cache';
 import { CaseResponse } from '../../core/models/case';
 import { CaseDocument } from '../../core/models/case-document';
 import { Policy } from '../../core/models/policy';
@@ -206,9 +207,14 @@ export interface AssignedCaseSummary {
 export class CaseService {
   private readonly http = inject(HttpClient);
   private readonly baseUrl = `${environment.apiBaseUrl}/cases`;
+  private readonly cache = inject(QueryCache);
+  private readonly fetchClaimCauseNames = (context: HttpContext) =>
+    this.http.get<string[]>(`${environment.apiBaseUrl}/claim-causes/all`, { context });
+  private readonly fetchWorkload = (context: HttpContext) =>
+    this.http.get<AnalystWorkload[]>(`${this.baseUrl}/analysts/workload`, { context });
 
   claimCauseNames(): Observable<string[]> {
-    return this.http.get<string[]>(`${environment.apiBaseUrl}/claim-causes/all`);
+    return this.cache.read('cases:claim-causes', this.fetchClaimCauseNames);
   }
 
   /**
@@ -220,7 +226,47 @@ export class CaseService {
     return this.http.get<CaseResponse>(`${this.baseUrl}/${id}`, options);
   }
 
+  /** Not cached: searches and one-off counts. The screens use `cachedList`. */
   list(params: CaseListParams = {}): Observable<PagedResponse<CaseResponse>> {
+    return this.http.get<PagedResponse<CaseResponse>>(this.baseUrl, {
+      params: this.listQuery(params),
+    });
+  }
+
+  /**
+   * The inbox and "Mis expedientes": one cache key per combination of filters and page. With
+   * `apply` returning false, a refresh waits for "Actualizar" (`hasNewerList`).
+   */
+  cachedList(
+    params: CaseListParams,
+    options?: CacheReadOptions,
+  ): Observable<PagedResponse<CaseResponse>> {
+    const query = this.listQuery(params);
+    return this.cache.read(
+      this.listKey(query),
+      (context) => this.fetchList(query, context),
+      options,
+    );
+  }
+
+  hasNewerList(params: CaseListParams): boolean {
+    return this.cache.hasNewer(this.listKey(this.listQuery(params)));
+  }
+
+  prefetchList(params: CaseListParams): void {
+    const query = this.listQuery(params);
+    this.cache.prefetch(this.listKey(query), (context) => this.fetchList(query, context));
+  }
+
+  private listKey(query: Record<string, string | string[]>): string {
+    return `cases:list:${paramsKey(query)}`;
+  }
+
+  private fetchList(query: Record<string, string | string[]>, context: HttpContext) {
+    return this.http.get<PagedResponse<CaseResponse>>(this.baseUrl, { params: query, context });
+  }
+
+  private listQuery(params: CaseListParams): Record<string, string | string[]> {
     const query: Record<string, string | string[]> = {};
     if (params.status?.length) query['status'] = params.status;
     if (params.claimCause) query['claimCause'] = params.claimCause;
@@ -242,7 +288,7 @@ export class CaseService {
     if (params.scope) query['scope'] = params.scope;
     if (params.staleDays != null) query['staleDays'] = String(params.staleDays);
     if (params.insurerId != null) query['insurerId'] = String(params.insurerId);
-    return this.http.get<PagedResponse<CaseResponse>>(this.baseUrl, { params: query });
+    return query;
   }
 
   /** Same gate `create` runs (term, waiting period, arrears) without creating anything. */
@@ -344,6 +390,24 @@ export class CaseService {
 
   /** All lens counts in one request, over the current filters. */
   lensSummary(params: CaseListParams = {}): Observable<LensSummary> {
+    const query = this.lensQuery(params);
+    return this.cache.read(this.lensKey(query), (context) =>
+      this.http.get<LensSummary>(`${this.baseUrl}/lens-summary`, { params: query, context }),
+    );
+  }
+
+  prefetchLensSummary(params: CaseListParams = {}): void {
+    const query = this.lensQuery(params);
+    this.cache.prefetch(this.lensKey(query), (context) =>
+      this.http.get<LensSummary>(`${this.baseUrl}/lens-summary`, { params: query, context }),
+    );
+  }
+
+  private lensKey(query: Record<string, string | string[]>): string {
+    return `cases:lens:${paramsKey(query)}`;
+  }
+
+  private lensQuery(params: CaseListParams): Record<string, string | string[]> {
     const query: Record<string, string | string[]> = {};
     if (params.status?.length) query['status'] = params.status;
     if (params.claimCause) query['claimCause'] = params.claimCause;
@@ -356,12 +420,16 @@ export class CaseService {
     if (params.analystId != null) query['analystId'] = String(params.analystId);
     if (params.followUp) query['followUp'] = params.followUp;
     if (params.staleDays != null) query['staleDays'] = String(params.staleDays);
-    return this.http.get<LensSummary>(`${this.baseUrl}/lens-summary`, { params: query });
+    return query;
   }
 
   /** Includes analysts with zero active cases. */
   analystWorkload(): Observable<AnalystWorkload[]> {
-    return this.http.get<AnalystWorkload[]>(`${this.baseUrl}/analysts/workload`);
+    return this.cache.read('cases:workload', this.fetchWorkload);
+  }
+
+  prefetchClaimCauseNames(): void {
+    this.cache.prefetch('cases:claim-causes', this.fetchClaimCauseNames);
   }
 
   /** For display only; the backend enforces the same check when referring. */

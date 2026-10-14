@@ -1,8 +1,9 @@
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpContext } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 
 import { environment } from '../../../environments/environment';
+import { QueryCache } from '../../core/cache/query-cache';
 import { ProviderType, BranchRef } from '../../core/models/derivation';
 
 /** Mirrors cases-service ServiceProviderResponse. */
@@ -35,8 +36,16 @@ export class ProvidersService {
   private readonly http = inject(HttpClient);
   private readonly base = `${environment.apiBaseUrl}/expert-firms`;
 
+  private readonly cache = inject(QueryCache);
+  private readonly fetchList = (context: HttpContext) =>
+    this.http.get<ProviderAdmin[]>(this.base, { context });
+
   list(): Observable<ProviderAdmin[]> {
-    return this.http.get<ProviderAdmin[]>(this.base);
+    return this.cache.read('rules:providers', this.fetchList);
+  }
+
+  prefetch(): void {
+    this.cache.prefetch('rules:providers', this.fetchList);
   }
 
   create(request: ProviderRequest): Observable<ProviderAdmin> {

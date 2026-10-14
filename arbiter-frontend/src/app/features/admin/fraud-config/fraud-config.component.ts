@@ -98,9 +98,10 @@ export class FraudConfigComponent {
 
   private reload(): void {
     this.loading.set(true);
-    this.service.get().subscribe({
+    // With unsaved changes a refresh stays in the cache; discarding picks it up (L1).
+    this.service.get({ apply: () => !this.dirty() }).subscribe({
       next: (rule) => {
-        this.rule.set(rule);
+        this.rule.set({ ...rule });
         this.persisted.set({ ...rule });
         this.loading.set(false);
       },
@@ -133,6 +134,7 @@ export class FraudConfigComponent {
       this.rule.set({ ...saved });
     }
     this.error.set(null);
+    this.reload();
   }
 
   protected save(): void {
@@ -144,7 +146,7 @@ export class FraudConfigComponent {
     this.error.set(null);
     this.service.save(rule).subscribe({
       next: (saved) => {
-        this.rule.set(saved);
+        this.rule.set({ ...saved });
         this.persisted.set({ ...saved });
         this.saving.set(false);
       },

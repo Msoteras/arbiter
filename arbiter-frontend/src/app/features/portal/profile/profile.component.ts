@@ -50,7 +50,8 @@ export class ProfileComponent {
   private readonly state = toSignal(
     toObservable(this.reload).pipe(
       switchMap(() =>
-        this.profileService.get().pipe(
+        // While the insured is typing, a refreshed profile stays in the cache (L1).
+        this.profileService.get({ apply: (): boolean => !this.dirty() }).pipe(
           map((profile): ProfileState => ({ status: 'ok', profile })),
           startWith<ProfileState>({ status: 'loading' }),
           catchError(() => of<ProfileState>({ status: 'error' })),
@@ -93,7 +94,7 @@ export class ProfileComponent {
   );
   protected readonly phoneValid = computed(() => this.phone().trim().length >= 6);
 
-  protected readonly dirty = computed(() => {
+  protected readonly dirty = computed((): boolean => {
     const profile = this.profile();
     if (!profile) {
       return false;

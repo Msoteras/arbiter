@@ -32,7 +32,7 @@ describe('MyCasesComponent · filters', () => {
         {
           provide: CaseService,
           useValue: {
-            list: (params: CaseListParams) => {
+            cachedList: (params: CaseListParams) => {
               listCalls.push(params);
               return of(emptyPage);
             },

@@ -1,8 +1,9 @@
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpContext } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 
 import { environment } from '../../../environments/environment';
+import { CacheReadOptions, QueryCache } from '../../core/cache/query-cache';
 
 export interface BranchOption {
   id: number;
@@ -14,9 +15,16 @@ export interface BranchOption {
 export class BranchesService {
   private readonly http = inject(HttpClient);
   private readonly base = `${environment.apiBaseUrl}/rules/branches`;
+  private readonly cache = inject(QueryCache);
+  private readonly fetchList = (context: HttpContext) =>
+    this.http.get<BranchOption[]>(this.base, { context });
 
-  list(): Observable<BranchOption[]> {
-    return this.http.get<BranchOption[]>(this.base);
+  list(options?: CacheReadOptions): Observable<BranchOption[]> {
+    return this.cache.read('rules:branches', this.fetchList, options);
+  }
+
+  prefetch(): void {
+    this.cache.prefetch('rules:branches', this.fetchList);
   }
 
   create(name: string): Observable<BranchOption> {

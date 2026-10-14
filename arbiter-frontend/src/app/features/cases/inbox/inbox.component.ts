@@ -278,7 +278,9 @@ export class InboxComponent {
   private readonly state = toSignal(
     toObservable(this.requestParams).pipe(
       switchMap((params) =>
-        this.service.list(params).pipe(
+        // Others change the inbox all the time: a refresh waits for "Actualizar" instead of
+        // moving rows under the cursor.
+        this.service.cachedList(params, { apply: () => false }).pipe(
           map((page): LoadState => ({
             status: 'ok',
             data: page.content,
@@ -292,6 +294,13 @@ export class InboxComponent {
     ),
     { initialValue: { status: 'loading' } as LoadState },
   );
+
+  /** The cache holds a newer version of the page on screen. */
+  protected readonly hasNewer = computed(() => this.service.hasNewerList(this.requestParams()));
+
+  protected applyNewer(): void {
+    this.reloadTrigger.update((n) => n + 1);
+  }
 
   protected readonly loading = computed(() => this.state().status === 'loading');
   protected readonly hasError = computed(() => this.state().status === 'error');

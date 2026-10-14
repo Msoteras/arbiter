@@ -1,8 +1,9 @@
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpContext } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable, tap } from 'rxjs';
 
 import { environment } from '../../../environments/environment';
+import { CacheReadOptions, QueryCache } from '../cache/query-cache';
 import { InsuredProfile, OnboardingRequest, UpdateProfileRequest } from '../models/profile';
 import { LoginResponse } from './auth.service';
 import { AuthSessionService } from './auth-session.service';
@@ -17,8 +18,16 @@ export class ProfileService {
   private readonly session = inject(AuthSessionService);
   private readonly baseUrl = `${environment.apiBaseUrl}/auth/profile`;
 
-  get(): Observable<InsuredProfile> {
-    return this.http.get<InsuredProfile>(this.baseUrl);
+  private readonly cache = inject(QueryCache);
+  private readonly fetch = (context: HttpContext) =>
+    this.http.get<InsuredProfile>(this.baseUrl, { context });
+
+  get(options?: CacheReadOptions): Observable<InsuredProfile> {
+    return this.cache.read('insured:profile', this.fetch, options);
+  }
+
+  prefetch(): void {
+    this.cache.prefetch('insured:profile', this.fetch);
   }
 
   completeOnboarding(request: OnboardingRequest): Observable<LoginResponse> {

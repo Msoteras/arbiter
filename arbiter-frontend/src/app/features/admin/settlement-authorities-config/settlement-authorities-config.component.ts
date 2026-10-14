@@ -60,7 +60,8 @@ export class SettlementAuthoritiesConfigComponent {
 
   private load(): void {
     this.loading.set(true);
-    this.service.list().subscribe({
+    // With unsaved changes a refresh stays in the cache; discarding picks it up (L1).
+    this.service.list({ apply: () => !this.dirty() }).subscribe({
       next: (list) => {
         this.authorities.set(list);
         this.resetDrafts(list);
@@ -93,6 +94,7 @@ export class SettlementAuthoritiesConfigComponent {
   protected discard(): void {
     this.error.set(null);
     this.resetDrafts(this.authorities());
+    this.load();
   }
 
   protected save(): void {

@@ -279,7 +279,8 @@ export class RulesComponent {
   private coverageSummaryLoaded = false;
 
   constructor() {
-    this.branchesService.list().subscribe({
+    // Applying a refreshed list would select a branch again and move the referent off their view.
+    this.branchesService.list({ apply: () => false }).subscribe({
       next: (branches) => {
         const shells = branches.map((b) => this.shellFromBranch(b));
         this.branches.set(shells);

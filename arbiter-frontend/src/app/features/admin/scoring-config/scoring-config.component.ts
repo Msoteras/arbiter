@@ -68,6 +68,7 @@ export class ScoringConfigComponent {
       this.draft.set(structuredClone(base));
     }
     this.error.set(null);
+    this.load();
   }
 
   /**
@@ -196,8 +197,9 @@ export class ScoringConfigComponent {
     if (showLoading) {
       this.loading.set(true);
     }
+    // With unsaved changes a refresh stays in the cache; discarding picks it up (L1).
     this.scoringService
-      .get()
+      .get({ apply: () => !this.dirty() })
       .pipe(finalize(() => this.loading.set(false)))
       .subscribe({
         next: (dto) => {

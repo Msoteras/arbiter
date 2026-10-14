@@ -4,6 +4,7 @@ import { RouterLink } from '@angular/router';
 import { catchError, map, of, startWith, switchMap } from 'rxjs';
 
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
+import { PrefetchService } from '../prefetch.service';
 import { InsuredSessionService } from '../../../core/auth/insured-session.service';
 import { CaseResponse } from '../../../core/models/case';
 import {
@@ -97,6 +98,9 @@ export class InsuredHomeComponent {
   );
 
   protected readonly loading = computed(() => this.state().status === 'loading');
+
+  /** Once the home has loaded, warms the screens this role opens most (`PrefetchService`). */
+  private readonly warmUp = inject(PrefetchService).afterHomeLoads(() => !this.loading());
   protected readonly hasError = computed(() => this.state().status === 'error');
 
   protected readonly cases = computed<CaseResponse[]>(() => {

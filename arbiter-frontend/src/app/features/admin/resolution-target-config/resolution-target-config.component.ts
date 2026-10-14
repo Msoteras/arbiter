@@ -164,7 +164,8 @@ export class ResolutionTargetConfigComponent {
   }
 
   private load(): void {
-    this.service.get().subscribe({
+    // With unsaved changes a refresh stays in the cache; discarding picks it up (L1).
+    this.service.get({ apply: () => !this.dirty() }).subscribe({
       next: (target) => {
         this.apply(target);
         this.loading.set(false);
@@ -206,5 +207,6 @@ export class ResolutionTargetConfigComponent {
   protected discard(): void {
     this.apply(this.saved());
     this.error.set(null);
+    this.load();
   }
 }

@@ -94,6 +94,10 @@
         placeholder="Buscar por N° de expediente, asegurado o N° de póliza…"
       />
 
+      @if (hasNewer()) {
+        <app-button variant="secondary" size="sm" (click)="applyNewer()">Actualizar</app-button>
+      }
+
       <div class="filters-anchor">
         <app-button variant="secondary" (click)="toggleFilters()">
           <span class="filters-btn">

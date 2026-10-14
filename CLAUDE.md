@@ -242,6 +242,33 @@ Antes de escribir markup de UI, usá los componentes que ya existen en vez de re
 
 ---
 
+## Cache del frontend
+
+Volver a una pantalla muestra sus datos al instante y los refresca detrás. Lo hace `QueryCache`
+(`core/cache/query-cache.ts`), un helper propio sin librería. El mapa de decisiones está en
+`docs/cache-frontend-mapa.md`.
+
+- **La lectura pasa por el service, no por el componente.** El service guarda la función que pide
+  (recibe el `HttpContext`) y expone `get`/`list` con `this.cache.read(clave, fetch, options)`, más un
+  `prefetch()` cuando el inicio lo precarga. Las claves llevan el área adelante (`users:`, `cases:`,
+  `rules:`, `insured:`); una lista con filtros arma la clave con `paramsKey(query)`.
+- **`read` emite dos veces**: lo guardado, al instante, y lo nuevo si cambió. Un `forkJoin` espera al
+  segundo valor y pierde lo instantáneo; usar `switchMap` o `subscribe`.
+- **Pantalla editable** (tiene `dirty()`): `read(..., { apply: () => !this.dirty() })`, y "Descartar"
+  vuelve a leer, así toma lo que llegó mientras se editaba. Un refresco nunca pisa un borrador.
+- **Listas que cambian otras personas** (Bandeja, Liquidaciones pendientes): `apply: () => false` y un
+  botón "Actualizar" que aparece con `cache.hasNewer(clave)`.
+- **Cada escritura invalida lo que afecta**, en `core/http/cache-invalidation.interceptor.ts`: una
+  tabla URL → prefijos. Endpoint nuevo que escribe: sumarle su fila. Lo invalidado y leído en los
+  últimos 5 minutos se vuelve a pedir enseguida.
+- **Solo en memoria.** Un F5 lo vacía, y también el fin de la sesión o el cambio de usuario. Nada
+  personal queda en el navegador.
+- **No mutar lo recibido.** En desarrollo el cache congela lo que guarda, y una mutación tira error.
+  Copiar (`{ ...x }`, `structuredClone`) antes de editar.
+- **Precarga** (`features/home/prefetch.service.ts`): cuando termina de cargar el inicio, según el rol.
+  Va marcada con `SILENT_RETRY`: despierta los módulos dormidos de Railway sin el toast "El sistema se
+  está iniciando…". Nunca Tablero ni Reportes.
+
 ## Requisitos No Funcionales — números que importan
 
 Estos no son sugerencias, son métricas que tenemos que cumplir:
