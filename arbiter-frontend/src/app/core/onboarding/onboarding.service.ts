@@ -48,6 +48,9 @@ export class OnboardingService {
   readonly steps = signal<OnboardingStep[] | null>(null);
   readonly failed = signal(false);
   private refreshTimer: ReturnType<typeof setTimeout> | null = null;
+  /** One refresh at a time: two in flight would both see the step pending and both announce it. */
+  private refreshing = false;
+  private refreshAgain = false;
 
   /** The last step opened from the checklist or the toast; the screens watch it. */
   readonly focusRequest = signal<OnboardingFocus | null>(null);
@@ -138,12 +141,32 @@ export class OnboardingService {
     }
     this.refreshTimer = setTimeout(() => {
       this.refreshTimer = null;
-      const before = new Map((this.steps() ?? []).map((s) => [onboardingStepKey(s), s.status]));
-      this.fetch().subscribe({
-        next: (after) => this.announceCompleted(before, after),
-        error: () => undefined,
-      });
+      this.runRefresh();
     }, REFRESH_DEBOUNCE_MS);
+  }
+
+  private runRefresh(): void {
+    if (this.refreshing) {
+      // A save landed while the previous read was on its way: read again once it is back.
+      this.refreshAgain = true;
+      return;
+    }
+    this.refreshing = true;
+    const before = new Map((this.steps() ?? []).map((s) => [onboardingStepKey(s), s.status]));
+    const done = () => {
+      this.refreshing = false;
+      if (this.refreshAgain) {
+        this.refreshAgain = false;
+        this.runRefresh();
+      }
+    };
+    this.fetch().subscribe({
+      next: (after) => {
+        this.announceCompleted(before, after);
+        done();
+      },
+      error: () => done(),
+    });
   }
 
   private fetch(): Observable<OnboardingStep[]> {

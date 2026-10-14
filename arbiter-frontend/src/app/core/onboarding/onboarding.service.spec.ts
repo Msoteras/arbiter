@@ -1,10 +1,11 @@
 import { provideHttpClient } from '@angular/common/http';
-import { provideHttpClientTesting } from '@angular/common/http/testing';
-import { TestBed } from '@angular/core/testing';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { TestBed, fakeAsync, tick } from '@angular/core/testing';
 import { Router, provideRouter } from '@angular/router';
 
 import { OnboardingStep } from './onboarding';
 import { OnboardingService } from './onboarding.service';
+import { ToastService } from '../../shared/ui/toast/toast.service';
 
 function step(partial: Partial<OnboardingStep>): OnboardingStep {
   return {
@@ -79,4 +80,30 @@ describe('OnboardingService focus', () => {
     expect(service.focusRequest()?.sameUrl).toBeFalse();
     expect(router.navigateByUrl).toHaveBeenCalled();
   });
+
+  /** A coverage save fires several requests; a read still on its way must not race another one. */
+  it('announces a completed step once, however many saves land while it reads', fakeAsync(() => {
+    const http = TestBed.inject(HttpTestingController);
+    const show = spyOn(TestBed.inject(ToastService), 'show');
+    const url = (r: { url: string }) => r.url.endsWith('/rules/onboarding');
+    const pending = [step({ step: 'ANALYSTS', status: 'PENDING' })];
+    const done = [step({ step: 'ANALYSTS', status: 'DONE' })];
+
+    service.load();
+    http.expectOne(url).flush({ steps: pending });
+
+    service.refreshAfterSave();
+    tick(500);
+    const first = http.expectOne(url);
+    service.refreshAfterSave();
+    tick(500);
+    // The second save waits for the first read instead of starting its own.
+    http.expectNone(url);
+
+    first.flush({ steps: done });
+    http.expectOne(url).flush({ steps: done });
+
+    expect(show.calls.count()).toBe(1);
+    http.verify();
+  }));
 });
