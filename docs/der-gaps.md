@@ -232,7 +232,40 @@ Es el código que recibe el asegurado en lugar del nombre interno del estado; `e
 
 **Acción:** agregarla al DER.
 
-### 23 · `shedlock` — tabla nueva en el esquema común
+### 23 · `requisito_documental.obligatorio` — sobra
+
+La columna se borró del esquema (`2026-10-13-borrar-obligatorio-de-la-agenda.sql`): siempre valió
+`TRUE` y ninguna lectura la miraba. Lo que una denuncia puede presentar con menos documentos es la
+lista de Fast Track, que vive en la configuración de esa regla.
+
+**Acción:** dropear `obligatorio` de `requisito_documental`.
+
+### 25 · `configuracion_banda.activo` — sobra
+
+La columna se borró del esquema (`2026-10-13-borrar-activo-de-banda-de-puntaje.sql`): las bandas se
+borran y se vuelven a escribir en cada guardado del puntaje, siempre en `TRUE`, y ninguna lectura
+filtraba por ella.
+
+**Acción:** dropear `activo` de `configuracion_banda`.
+
+### 26 · `configuracion_scoring.activa` — sobra
+
+La columna se borró del esquema (`2026-10-14-borrar-activo-de-configuracion-de-puntaje.sql`): el
+puntaje de riesgo está siempre activo (decidido el 14/10), la pantalla nunca dejó apagarlo y se
+guardaba siempre en `TRUE`. El motor puntúa siempre que la aseguradora tenga una configuración
+usable.
+
+**Acción:** dropear `activa` de `configuracion_scoring`.
+
+### 27 · `cobertura.siniestro_agota_cobertura` — sobra
+
+La columna se borró del esquema (`2026-10-14-borrar-un-siniestro-agota-la-cobertura.sql`): decía lo
+mismo que `max_eventos_por_anio = 1`. La migración le pasa ese tope a toda cobertura que la tenía
+prendida. Nunca estuvo en el DER.
+
+**Acción:** ninguna en el `.mdj`.
+
+### 28 · `shedlock` — tabla nueva en el esquema común
 
 | Tabla | Columna | Tipo de dato | Nulo | Restricciones |
 |---|---|---|---|---|
@@ -251,14 +284,17 @@ instancias lo corra una sola a la vez. La tabla y las columnas llevan los nombre
 
 ## Decisiones pendientes antes de tocar el `.mdj`
 
-### 13 · `cobertura.es_individual` y `expediente.destino` — están en el esquema y no en el DER
+### 13 · `expediente.destino` — está en el esquema y no en el DER
 
 | Tabla | Columna | Tipo de dato | Nulo | Por qué no se suma directo |
 |---|---|---|---|---|
-| `cobertura` | `es_individual` (`is_individual`) | BOOLEAN | no | el alta la guarda siempre en `TRUE` y nada la lee |
 | `expediente` | `destino` (`destination`) | VARCHAR(40) | sí | nada la escribe; sus valores nunca se definieron |
 
-**Decisión:** sumarlas al DER con una semántica definida, o dropearlas del esquema y de las entidades.
+**Decisión:** sumarla al DER con una semántica definida, o dropearla del esquema y de la entidad.
+
+`cobertura.es_individual`, que compartía esta entrada, se borró del esquema
+(`2026-10-13-borrar-es-individual-de-cobertura.sql`): repetía `cubre_grupo_familiar` y nada la leía.
+Nunca estuvo en el DER, así que no hay nada que editar en el `.mdj`.
 
 ### 14 · `aseguradora.logo` — está en el DER y no en el esquema
 

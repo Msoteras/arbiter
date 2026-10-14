@@ -191,23 +191,7 @@
           } @else {
             <div class="branch-heading">
               <h2 class="branch-title">{{ renameFrom() }}</h2>
-              <button
-                type="button"
-                class="rename-btn"
-                aria-label="Renombrar el ramo"
-                title="Renombrar"
-                (click)="startNameEdit()"
-              >
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="1.8"
-                  aria-hidden="true"
-                >
-                  <path d="M4 20h4L19 9l-4-4L4 16v4z" stroke-linejoin="round" />
-                </svg>
-              </button>
+              <app-icon-button icon="edit" label="Renombrar el ramo" (click)="startNameEdit()" />
             </div>
             @if (renameSaved()) {
               <span class="saved-note">✓ Nombre guardado</span>
@@ -215,29 +199,22 @@
           }
         </div>
 
-        <nav class="tabs" role="tablist">
-          @for (t of tabs; track t.id) {
-            <button
-              role="tab"
-              class="tab"
-              [class.active]="activeTab() === t.id"
-              [attr.aria-selected]="activeTab() === t.id"
-              (click)="setTab(t.id)"
-            >
-              {{ t.label }}
-              @switch (tabStatus(t.id)) {
-                @case ('required') {
-                  <span class="tab-dot is-required" aria-hidden="true"></span>
-                  <span class="sr-only">(falta configurar)</span>
-                }
-                @case ('pending') {
-                  <span class="tab-dot" aria-hidden="true"></span>
-                  <span class="sr-only">(incompleto)</span>
-                }
-              }
-            </button>
-          }
-        </nav>
+        <app-tabs
+          [tabs]="tabOptions()"
+          [value]="activeTab()"
+          (valueChange)="setTab($event)"
+          ariaLabel="Secciones del ramo"
+        />
+
+        <!-- ============ DERIVATIONS ============ -->
+        <!-- Outside the switch and only hidden: it owns its draft, which leaving the tab would drop. -->
+        @if (selectedBranchId(); as branchId) {
+          <app-derivations-config
+            [hidden]="activeTab() !== 'derivations'"
+            [branchId]="branchId"
+            [claimCauses]="claimCauses()"
+          />
+        }
 
         @switch (activeTab()) {
           <!-- ============ COVERAGES ============ -->
@@ -349,27 +326,15 @@
                               </span>
                             </label>
                           </div>
-
-                          <div class="chips">
-                            <button
-                              type="button"
-                              class="chip"
-                              [class.active]="c.coversFamilyGroup"
-                              [attr.aria-pressed]="c.coversFamilyGroup"
-                              (click)="toggleCoverageFamilyGroup(c)"
-                            >
-                              Alcanza al grupo familiar
-                            </button>
-                            <button
-                              type="button"
-                              class="chip"
-                              [class.active]="c.claimExhaustsCoverage"
-                              [attr.aria-pressed]="c.claimExhaustsCoverage"
-                              (click)="toggleCoverageExhausts(c)"
-                            >
-                              Un siniestro agota la cobertura
-                            </button>
-                          </div>
+                          <label class="fieldset">
+                            <span class="t-field-label">Descripción</span>
+                            <app-textarea
+                              [rows]="2"
+                              [value]="c.description"
+                              (valueChange)="setCoverageField(c.id, { description: $event })"
+                              placeholder="Qué cubre, en una o dos frases"
+                            />
+                          </label>
 
                           <div class="cov-section">
                             <span class="t-section-label">Reglas que evalúa el motor</span>
@@ -519,17 +484,14 @@
                             @if (claimCauses().length === 0) {
                               <p class="t-note">No hay hechos generadores en este ramo.</p>
                             } @else {
-                              <div class="chips">
+                              <div class="check-list">
                                 @for (cause of claimCauses(); track cause.id) {
-                                  <button
-                                    type="button"
-                                    class="chip"
-                                    [class.active]="isCauseCovered(c, cause.id)"
-                                    [attr.aria-pressed]="isCauseCovered(c, cause.id)"
-                                    (click)="toggleExcludedCause(c.id, cause.id)"
+                                  <app-checkbox
+                                    [checked]="isCauseCovered(c, cause.id)"
+                                    (checkedChange)="toggleExcludedCause(c.id, cause.id)"
                                   >
                                     {{ cause.name }}
-                                  </button>
+                                  </app-checkbox>
                                 }
                               </div>
                             }
@@ -642,8 +604,6 @@
               <div class="tab-panel" @fadeInUp>
                 <app-card heading="Fast Track" headingSize="md" appOnboardingTarget="FAST_TRACK">
                   <app-info-tip cardAside>{{ stepLine.FAST_TRACK }}</app-info-tip>
-                  <!-- Fast Track can't be turned off: it's part of the analysis. -->
-                  <app-badge cardAside variant="solid" tone="ok">Siempre activo</app-badge>
 
                   <!-- Fast Track is one rule PER COVERAGE (each demands its own documents), so
                      the tab edits one coverage at a time. Locked while there are unsaved changes:
@@ -687,7 +647,6 @@
                       <div class="cov-section">
                         <span class="t-section-label">
                           Condiciones para habilitar el Fast Track
-                          <app-info-tip>Los umbrales apagados no se evalúan.</app-info-tip>
                         </span>
 
                         <ul class="rule-rows">
@@ -794,28 +753,19 @@
                       </div>
 
                       <div class="cov-section">
-                        <span class="t-section-label">
-                          Documentos que exige el Fast Track
-                          <app-info-tip>
-                            Con estos alcanza para ir por Fast Track; si falta alguno, se exige la
-                            agenda documental completa.
-                          </app-info-tip>
-                        </span>
+                        <span class="t-section-label">Documentos que exige el Fast Track</span>
                         @if (ftDocOptions().length === 0) {
                           <p class="t-note">Esta cobertura no tiene documentos en la agenda.</p>
                         } @else {
-                          <div class="chips">
+                          <div class="check-list">
                             @for (doc of ftDocOptions(); track doc.code) {
-                              <button
-                                type="button"
-                                class="chip"
-                                [class.active]="isFtDoc(doc.code)"
+                              <app-checkbox
                                 [class.stale]="doc.outsideSchedule"
-                                [attr.aria-pressed]="isFtDoc(doc.code)"
-                                (click)="toggleFtDoc(doc.code)"
+                                [checked]="isFtDoc(doc.code)"
+                                (checkedChange)="toggleFtDoc(doc.code)"
                               >
                                 {{ doc.label }}
-                              </button>
+                              </app-checkbox>
                             }
                           </div>
                           @if (ftHasStaleDocs()) {

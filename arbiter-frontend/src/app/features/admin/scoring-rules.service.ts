@@ -8,7 +8,6 @@ import { FactorWeight, RiskBandCut } from '../../core/models/business-rules';
 
 /** Mirrors rules-service ScoringConfigDto. */
 export interface ScoringConfigDto {
-  enabled: boolean;
   fullAnalysisOnFastTrack: boolean;
   factors: FactorWeight[];
   bands: RiskBandCut[];

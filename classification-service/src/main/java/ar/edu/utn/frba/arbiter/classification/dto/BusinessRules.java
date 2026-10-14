@@ -22,8 +22,7 @@ public record BusinessRules(
         Integer maxEventsPerYear,
         Integer waitingPeriodDays,
         // Taken from the referente's coverage config, not from the insurer DB's poliza.cubre_grupo_familiar.
-        Boolean coversFamilyGroup,
-        Boolean claimExhaustsCoverage
+        Boolean coversFamilyGroup
 ) {
 
     /**

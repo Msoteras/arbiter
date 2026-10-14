@@ -4,10 +4,12 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ButtonComponent } from './button/button.component';
 import { CheckboxComponent } from './checkbox/checkbox.component';
 import { ChipGroupComponent } from './chip-group/chip-group.component';
+import { IconButtonComponent } from './icon-button/icon-button.component';
 import { InputComponent } from './input/input.component';
 import { ModalComponent } from './modal/modal.component';
 import { PaginationComponent } from './pagination/pagination.component';
 import { SelectComponent } from './select/select.component';
+import { TabsComponent } from './tabs/tabs.component';
 import { TextareaComponent } from './textarea/textarea.component';
 import { mountInViewport } from './testing/viewport';
 
@@ -21,9 +23,11 @@ const OPTIONS = [
     ButtonComponent,
     CheckboxComponent,
     ChipGroupComponent,
+    IconButtonComponent,
     InputComponent,
     PaginationComponent,
     SelectComponent,
+    TabsComponent,
     TextareaComponent,
   ],
   template: `
@@ -35,11 +39,17 @@ const OPTIONS = [
     <app-chip-group [options]="options" />
     <app-chip-group [options]="options" size="sm" />
     <app-checkbox>Acepto el uso de mis imágenes</app-checkbox>
+    <app-tabs [tabs]="tabs" value="a" />
+    <app-icon-button icon="edit" label="Editar" />
     <app-pagination [totalPages]="3" [totalElements]="27" [size]="10" />
   `,
 })
 class KitHost {
   readonly options = OPTIONS;
+  readonly tabs = [
+    { id: 'a', label: 'Coberturas' },
+    { id: 'b', label: 'Fast Track' },
+  ];
 }
 
 @Component({

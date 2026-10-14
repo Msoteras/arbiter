@@ -13,7 +13,6 @@ public record ScoringConfigDto(
          * weights change.
          */
         Long id,
-        boolean enabled,
         /**
          * Whether this insurer's Fast Track still runs the heavy analysis (OCR + image fraud) so
          * the score comes out complete. Defaults to false: Fast Track stays fast and the score is
@@ -24,6 +23,6 @@ public record ScoringConfigDto(
         @Valid List<ScoreBandCutDto> bands) {
 
     public static ScoringConfigDto empty() {
-        return new ScoringConfigDto(null, false, false, List.of(), List.of());
+        return new ScoringConfigDto(null, false, List.of(), List.of());
     }
 }

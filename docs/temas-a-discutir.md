@@ -170,6 +170,58 @@ reserva" y por lo tanto no se puede modelar sin resolver esto antes.
 
 ---
 
+## Alcance de la cobertura: ¿de dónde sale "grupo familiar"? Y "agota la cobertura" sobraba
+
+**Encontrado:** 14/10/2026, revisando la solapa Reglas → Coberturas. El checkbox "Alcanza al grupo
+familiar" ya no está en la cobertura (`feature/ux-enhancements-reglas`). La columna y la regla del
+motor siguen como estaban.
+
+**Qué se sabe:**
+
+- `coverage.covers_family_group` se carga por cobertura. Lo evalúa `CoverageScopeEvaluator` como
+  regla dura (`COVERS_FAMILY_GROUP`): si un documento dice que el damnificado es un familiar y la
+  cobertura no lo alcanza, frena el Fast Track y deja su fila en `rule_result`.
+- Sin el checkbox, nadie puede cambiar ese valor desde el panel. El motor lo sigue evaluando.
+- **La BD Aseguradora ya trae el dato, por póliza:** `poliza.cubre_grupo_familiar`. Arbiter no lo
+  lee: el motor usa solo el de la cobertura (ver `BusinessRules` y `CoverageLimitsDto`).
+- **El dato de la póliza no es uniforme dentro de un ramo.** En el seed, BBVA tiene 12 pólizas de
+  Celulares: 8 alcanzan al grupo familiar y 4 no. Sale del producto que contrató cada asegurado,
+  no del ramo.
+- **Hoy los dos datos se contradicen.** Las tres coberturas de Celulares de BBVA dicen que no
+  alcanzan al grupo familiar. En esas 8 pólizas, un familiar damnificado frena el Fast Track aunque
+  el contrato lo cubra.
+
+**Qué falta decidir: de dónde sale el dato.** La idea inicial era pasarlo al ramo y mostrarlo en
+la solapa "Exclusiones comunes". Con lo de la póliza hay tres opciones:
+
+1. **De la póliza, sin configuración en Arbiter** (la recomendada). El snapshot de la póliza guarda
+   `cubre_grupo_familiar` y `CoverageScopeEvaluator` lo lee de ahí. Se borra
+   `coverage.covers_family_group` y el referente no configura nada. Es el contrato concreto, así
+   que no puede contradecirse con la póliza. Se conserva la regla dura y la auditoría.
+2. **Switch del ramo.** Columna `branch.covers_family_group`, con migración desde `coverage`, y un
+   switch en la solapa "Exclusiones comunes". Se conserva la regla dura, pero repite el problema
+   de hoy un nivel más arriba: un solo valor para pólizas que difieren. Habría que decidir qué
+   manda cuando la póliza y el ramo no coinciden.
+3. **Texto libre en la lista de exclusiones comunes.** Cero código, pero esa lista va al prompt del
+   LLM (`PromptBuilder`) y el motor no la evalúa. Se pierde la regla dura `COVERS_FAMILY_GROUP`, y
+   el LLM no corre en Fast Track, así que un familiar damnificado pasaría por el Fast Track. Choca
+   con la implicancia #5 de `CLAUDE.md`: las exclusiones objetivas las evalúan reglas, no el LLM.
+
+Para la opción 1 hay que confirmar que toda aseguradora que se integre informa este dato por
+póliza. Si alguna no lo trae, hace falta un valor por defecto, y ese sí puede vivir en el ramo.
+
+**✅ `claim_exhausts_coverage` borrado (14/10/2026).** Era redundante con el tope de siniestros
+(`max_events_per_year`): un tope de 1 dice lo mismo. Se fueron la columna, el campo de los DTOs y
+la regla `CLAIM_EXHAUSTS_COVERAGE` del motor. La migración
+`2026-10-14-borrar-un-siniestro-agota-la-cobertura.sql` le pone tope 1 a toda cobertura que tenía la
+marca prendida, y le prende la regla `MAX_EVENTS_YEAR` si no la tenía. Las filas viejas de
+`rule_result` se siguen leyendo en la trazabilidad.
+
+**Qué bloquea:** nada del desarrollo. Mientras tanto, el motor usa el valor de cada cobertura,
+que nadie puede editar, y en BBVA frena casos que la póliza cubre.
+
+---
+
 # Heredado del backlog de historias
 
 Las dos entradas que seguían de `historias-enhancements.md` (borrado el 06/09 al quedar sus cards

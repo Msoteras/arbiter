@@ -14,17 +14,15 @@ public record CoverageLimitsDto(
          * Whether the coverage reaches the cohabiting family group or only the holder. The coverage
          * wins over the insurer database's {@code poliza.cubre_grupo_familiar} when they disagree.
          */
-        Boolean coversFamilyGroup,
-        /** Whether a settled claim exhausts the coverage for the period. */
-        Boolean claimExhaustsCoverage
+        Boolean coversFamilyGroup
 ) {
 
     public static CoverageLimitsDto empty() {
-        return new CoverageLimitsDto(null, null, null, null, null);
+        return new CoverageLimitsDto(null, null, null, null);
     }
 
     public boolean isEmpty() {
         return reportDeadlineHours == null && maxEventsPerYear == null && waitingPeriodDays == null
-                && coversFamilyGroup == null && claimExhaustsCoverage == null;
+                && coversFamilyGroup == null;
     }
 }

@@ -35,8 +35,6 @@ public class ScoringConfiguration {
     @Column(nullable = false)
     private String name;
 
-    @Column(nullable = false)
-    private boolean active;
 
     @Column(name = "valid_from", nullable = false)
     private Instant validFrom;

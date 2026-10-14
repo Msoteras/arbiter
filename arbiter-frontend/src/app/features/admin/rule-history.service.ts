@@ -108,7 +108,6 @@ export const RULE_FIELD_LABELS: Record<string, string> = {
   businessRules: 'Reglas de negocio',
   minClaimedAmount: 'Monto mínimo para derivar a perito',
   claimCauseIds: 'Hechos generadores que admiten reparación',
-  enabled: 'Puntaje habilitado',
   fullAnalysisOnFastTrack: 'Análisis completo en Fast Track',
   id: 'Identificador de la configuración',
   // Free-text rules store a bare list with no key, so the backend names it 'configuration'.

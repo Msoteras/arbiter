@@ -179,13 +179,9 @@ export class ScoringConfigComponent {
     this.load(true);
   }
 
-  /**
-   * No factors and the 4 default bands. `enabled` is always true and not exposed: the backend flag
-   * gates nothing, the engine scores whenever there are factors.
-   */
+  /** No factors and the 4 default bands: the engine scores whenever there are factors. */
   private skeleton(): ScoringConfig {
     return {
-      enabled: true,
       fullAnalysisOnFastTrack: false,
       factors: [],
       bands: RISK_BANDS.map((band, i) => ({ band, minScoreInclusive: [0, 0.3, 0.6, 0.8][i] })),
@@ -211,7 +207,6 @@ export class ScoringConfigComponent {
         next: (dto) => {
           const bands = dto.bands.length ? dto.bands : this.skeleton().bands;
           const loaded: ScoringConfig = {
-            enabled: true,
             fullAnalysisOnFastTrack: dto.fullAnalysisOnFastTrack ?? false,
             factors: dto.factors,
             bands,
@@ -284,7 +279,6 @@ export class ScoringConfigComponent {
     this.error.set(null);
     const sc = this.draft();
     const dto: ScoringConfigDto = {
-      enabled: true,
       fullAnalysisOnFastTrack: sc.fullAnalysisOnFastTrack,
       factors: sc.factors,
       bands: sc.bands,

@@ -24,6 +24,7 @@ const RULE_TYPE_LABELS: Record<string, string> = {
   COVERAGE_INCLUSION: 'Alcance de la cobertura',
   // Configured on the coverage itself, not in the hard rules tab, so there is no label to reuse.
   COVERS_FAMILY_GROUP: 'Alcance al grupo familiar',
+  // No longer evaluated: kept so the rows written before 14/10/2026 still read.
   CLAIM_EXHAUSTS_COVERAGE: 'Cobertura consumida por un siniestro previo',
   PRESCRIPTION: 'Prescripción (art. 58)',
   FRAUD_RECORD: 'Antecedente de fraude',
@@ -175,6 +176,7 @@ export function ruleEvaluationText(ruleType: string, evaluatedValue: string | nu
         ? `${withDocumentLabels(commaList(t['documents']))}: ${n} ${n === 1 ? 'señal' : 'señales'} · ver Documentación`
         : evaluatedValue;
     }
+    // Only on rows written before 14/10/2026.
     case 'CLAIM_EXHAUSTS_COVERAGE': {
       const priorCount = Number(t['settledClaimsOnPolicy']);
       if (!t['settledClaimsOnPolicy'] || Number.isNaN(priorCount)) {

@@ -8,7 +8,6 @@ export interface DocumentRequirementDto {
   id: number;
   documentType: string;
   claimCauseId: number;
-  mandatory: boolean;
 }
 
 /** Required documents (agenda documental) for a branch + claim cause pair. */
