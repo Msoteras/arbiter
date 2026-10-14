@@ -7,14 +7,11 @@ import { AuthSessionService } from '../../../core/auth/auth-session.service';
 import { InsuredSessionService } from '../../../core/auth/insured-session.service';
 import { CaseResponse } from '../../../core/models/case';
 import {
-  SimplifiedStatus,
-  insuredStatusBadgeLabel,
+  InsuredStatusCode,
   insuredStatusDescription,
-  simplifiedStatus,
-  simplifiedStatusLabel,
   insuredStatusTitle,
-  isFinalStatus,
-} from '../../../core/models/case-status';
+  isFinalInsuredStatus,
+} from '../../../core/models/insured-status';
 import { StatusTone } from '../../../core/models/status-tone';
 import { longDate, greetingForTimeOfDay } from '../../../core/util/datetime';
 import { CaseService } from '../../cases/case.service';
@@ -47,8 +44,6 @@ interface Step {
   /** Only on the resolution step. */
   tone?: StatusTone;
 }
-
-const ORDER: SimplifiedStatus[] = ['REPORTED', 'IN_PROGRESS', 'FINISHED'];
 
 /** Insured-facing copy: never mention the model's classification or the internal scoring. */
 @Component({
@@ -112,10 +107,10 @@ export class InsuredHomeComponent {
   protected readonly featured = computed<CaseResponse | null>(() => this.cases()[0] ?? null);
 
   protected readonly inProgress = computed(
-    () => this.cases().filter((c) => !isFinalStatus(c.status)).length,
+    () => this.cases().filter((c) => !isFinalInsuredStatus(c.insuredStatus.code)).length,
   );
   protected readonly closed = computed(
-    () => this.cases().filter((c) => isFinalStatus(c.status)).length,
+    () => this.cases().filter((c) => isFinalInsuredStatus(c.insuredStatus.code)).length,
   );
 
   // "En trámite" rather than "En análisis": the phase also covers verification and repair.
@@ -124,20 +119,18 @@ export class InsuredHomeComponent {
     if (!d) {
       return [];
     }
-    const idx = ORDER.indexOf(simplifiedStatus(d.status));
-    const stateFor = (threshold: number): StepState =>
-      idx > threshold ? 'done' : idx === threshold ? 'active' : 'pending';
-
-    const resolved = idx >= 2;
+    const code = d.insuredStatus.code;
+    const resolved = isFinalInsuredStatus(code);
     return [
-      { label: 'Denuncia recibida', n: 1, state: stateFor(0) },
-      { label: 'En trámite', n: 2, state: stateFor(1) },
+      // Always behind: the insured is never told the case is still being classified.
+      { label: 'Denuncia recibida', n: 1, state: 'done' },
+      { label: 'En trámite', n: 2, state: resolved ? 'done' : 'active' },
       {
         label: 'Resolución',
         n: 3,
         // Green only for APPROVED: rejection and lapse are terminal too, but not good news.
         state: resolved ? 'done' : 'pending',
-        tone: resolved ? (d.status === 'APPROVED' ? 'ok' : 'danger') : undefined,
+        tone: resolved ? (code === 'APPROVED' ? 'ok' : 'danger') : undefined,
       },
     ];
   });
@@ -163,30 +156,24 @@ export class InsuredHomeComponent {
     if (!d) {
       return false;
     }
-    return ORDER.indexOf(simplifiedStatus(d.status)) > i;
+    return i === 0 || isFinalInsuredStatus(d.insuredStatus.code);
   }
 
-  protected statusTitle(status: string): string {
-    return insuredStatusTitle(status);
+  protected statusTitle(code: InsuredStatusCode): string {
+    return insuredStatusTitle(code);
   }
 
-  protected description(status: string): string {
-    return insuredStatusDescription(status);
+  protected description(code: InsuredStatusCode): string {
+    return insuredStatusDescription(code);
   }
 
-  protected simplifiedStatusLabel(status: string): string {
-    return simplifiedStatusLabel(status);
+  protected progressLabel(code: InsuredStatusCode): string {
+    return isFinalInsuredStatus(code) ? 'Terminado' : 'En trámite';
   }
 
-  // The badge shows the specific status, not the stepper's 3-step bucket.
-  protected statusBadgeLabel(status: string): string {
-    return insuredStatusBadgeLabel(status);
-  }
-
-  protected statusTone(status: string): StatusTone {
-    const simple = simplifiedStatus(status);
-    if (simple === 'FINISHED') {
-      return status === 'APPROVED' ? 'ok' : 'danger';
+  protected statusTone(code: InsuredStatusCode): StatusTone {
+    if (isFinalInsuredStatus(code)) {
+      return code === 'APPROVED' ? 'ok' : 'danger';
     }
     return 'info';
   }

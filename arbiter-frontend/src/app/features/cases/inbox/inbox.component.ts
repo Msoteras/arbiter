@@ -39,6 +39,7 @@ import {
 import {
   CaseStatus,
   caseStatusLabel,
+  workStatusLabel,
   caseStatusTone,
   riskBandEmptyLabel,
 } from '../../../core/models/case-status';
@@ -731,8 +732,8 @@ export class InboxComponent {
     });
   }
 
-  protected caseStatusLabel(status: string): string {
-    return caseStatusLabel(status);
+  protected workStatusLabel(c: CaseResponse): string {
+    return workStatusLabel(c.status, c.settlementStatus);
   }
 
   protected caseStatusTone(status: string): StatusTone {
@@ -891,7 +892,7 @@ export class InboxComponent {
   private toRowCells(c: CaseResponse): string[] {
     return [
       String(c.id),
-      caseStatusLabel(c.status),
+      workStatusLabel(c.status, c.settlementStatus),
       this.displayInsured(c),
       c.policyNumber,
       c.claimCause,

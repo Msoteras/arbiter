@@ -7,19 +7,19 @@
     <p class="hero-sub measure">{{ statusDescription() }}</p>
 
     <div class="simple-progress">
-      @for (s of simplifiedSteps; track s; let i = $index; let last = $last) {
+      @for (s of progressSteps; track s; let i = $index; let last = $last) {
         <span
           class="simple-step"
-          [class.done]="i < simplifiedIndex()"
-          [class.current]="i === simplifiedIndex()"
+          [class.done]="i < progressIndex()"
+          [class.current]="i === progressIndex()"
         >
-          @if (i < simplifiedIndex()) {
+          @if (i < progressIndex()) {
             <span class="simple-check" aria-hidden="true">✓</span>
           }
-          {{ s === 'REPORTED' ? 'Denunciado' : s === 'IN_PROGRESS' ? 'En trámite' : 'Terminado' }}
+          {{ s }}
         </span>
         @if (!last) {
-          <span class="simple-sep" [class.done]="i < simplifiedIndex()"></span>
+          <span class="simple-sep" [class.done]="i < progressIndex()"></span>
         }
       }
     </div>
@@ -64,7 +64,7 @@
         </svg>
       </span>
       <div class="action-body">
-        <span class="action-tag">{{ statusLabel() }}</span>
+        <span class="action-tag">{{ d.insuredStatus.label }}</span>
         <p class="action-text">
           Te enviamos la notificación con el detalle por correo electrónico. No quedan pasos
           pendientes.

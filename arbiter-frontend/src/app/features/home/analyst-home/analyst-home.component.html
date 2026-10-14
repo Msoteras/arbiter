@@ -76,9 +76,7 @@
                     <span class="action-id mono">EXP-{{ c.id }}</span>
                     <span class="action-meta">{{ displayInsured(c) }} · {{ c.claimCause }}</span>
                   </div>
-                  <app-badge [tone]="caseStatusTone(c.status)">{{
-                    caseStatusLabel(c.status)
-                  }}</app-badge>
+                  <app-badge [tone]="caseStatusTone(c.status)">{{ workStatusLabel(c) }}</app-badge>
                   <span class="action-chevron" aria-hidden="true">›</span>
                 </a>
               </li>

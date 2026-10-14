@@ -17,7 +17,9 @@ public record CaseMessageInboxItemResponse(
         String analystName,
         String branch,
         String claimCause,
+        /** Null for the insured, who reads {@code insuredStatus}. */
         CaseStatus status,
+        InsuredStatusResponse insuredStatus,
         String lastMessageBody,
         String lastMessageSender,
         Instant lastMessageAt,

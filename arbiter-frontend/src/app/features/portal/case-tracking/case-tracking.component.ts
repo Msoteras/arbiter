@@ -7,14 +7,13 @@ import { catchError, combineLatest, map, of, startWith, switchMap } from 'rxjs';
 import { InsuredSessionService } from '../../../core/auth/insured-session.service';
 import { CaseResponse } from '../../../core/models/case';
 import {
-  insuredStatusBadgeLabel,
-  effectiveInsuredStatusDescription,
-  effectiveSimplifiedStatus,
-  effectiveInsuredStatusTitle,
-  caseStatusTone,
-  isFinalStatus,
+  InsuredMovement,
   insuredMovementLabel,
-} from '../../../core/models/case-status';
+  insuredStatusDescription,
+  insuredStatusTitle,
+  insuredStatusTone,
+  isFinalInsuredStatus,
+} from '../../../core/models/insured-status';
 import { StatusTone } from '../../../core/models/status-tone';
 import { formatDateTime } from '../../../core/util/datetime';
 import { CaseService } from '../../cases/case.service';
@@ -105,73 +104,49 @@ export class CaseTrackingComponent {
     return (s.status === 'error' && s.httpStatus === 404) || (s.status === 'ok' && !this.data());
   });
 
-  protected readonly statusLabel = computed(() => {
-    const d = this.data();
-    return d ? insuredStatusBadgeLabel(d.status) : '';
-  });
+  private readonly status = computed(() => this.data()?.insuredStatus.code ?? null);
 
-  // Feeds the "effective" progress, so it never goes back to step 1 after re-uploading documents.
-  private readonly pastStatuses = computed<string[]>(
-    () => this.data()?.statusHistory?.map((h) => h.toStatus) ?? [],
-  );
+  private readonly history = computed<InsuredMovement[]>(() => this.data()?.statusHistory ?? []);
 
   protected readonly heroTitle = computed(() => {
-    const d = this.data();
-    return d ? effectiveInsuredStatusTitle(d.status, this.pastStatuses()) : '';
+    const code = this.status();
+    return code ? insuredStatusTitle(code, this.history()) : '';
   });
 
-  protected readonly simplifiedSteps = ['REPORTED', 'IN_PROGRESS', 'FINISHED'] as const;
+  // The filing is always behind: the insured is never told the case is still being classified.
+  protected readonly progressSteps = ['Denunciado', 'En trámite', 'Terminado'] as const;
 
-  protected readonly simplifiedIndex = computed(() => {
-    const d = this.data();
-    return d
-      ? this.simplifiedSteps.indexOf(effectiveSimplifiedStatus(d.status, this.pastStatuses()))
-      : 0;
-  });
+  protected readonly progressIndex = computed(() => (this.isResolved() ? 2 : 1));
 
   protected readonly statusTone = computed<StatusTone>(() => {
-    const d = this.data();
-    return d ? caseStatusTone(d.status) : 'neutral';
+    const code = this.status();
+    return code ? insuredStatusTone(code) : 'neutral';
   });
 
   protected readonly statusDescription = computed(() => {
-    const d = this.data();
-    return d ? effectiveInsuredStatusDescription(d.status, this.pastStatuses()) : '';
+    const code = this.status();
+    return code ? insuredStatusDescription(code, this.history()) : '';
   });
 
   protected readonly isResolved = computed(() => {
-    const d = this.data();
-    return d ? isFinalStatus(d.status) : false;
+    const code = this.status();
+    return code ? isFinalInsuredStatus(code) : false;
   });
 
-  protected readonly needsDocs = computed(() => this.data()?.status === 'AWAITING_DOCUMENTATION');
+  protected readonly needsDocs = computed(() => this.status() === 'AWAITING_DOCUMENTATION');
 
   // Unlike the expert assessment, the repair provider is disclosed to the insured. The status
   // check avoids showing a stale value once the case is back from repair.
-  protected readonly technicalService = computed(() => {
-    const d = this.data();
-    return d?.status === 'PENDING_REPAIR' ? d.repairProvider : null;
-  });
+  protected readonly technicalService = computed(() =>
+    this.status() === 'UNDER_REPAIR' ? (this.data()?.repairProvider ?? null) : null,
+  );
 
-  /**
-   * Built from each transition's status, never its `reason`: that field is internal and carries
-   * the model's classification and the expert's verdict.
-   */
   protected readonly movements = computed<Movement[]>(() => {
-    const visible = (this.data()?.statusHistory ?? [])
-      .map((h) => ({
-        label: insuredMovementLabel(h.toStatus, h.fromStatus),
-        changedAt: h.changedAt,
-      }))
-      .filter((m): m is { label: string; changedAt: string } => m.label !== null)
-      // Collapse consecutive entries with the same label (e.g. classification retries), keeping
-      // the last one: it marks when the case entered its current stage.
-      .filter((m, i, all) => i === all.length - 1 || all[i + 1].label !== m.label);
-
-    return visible.map((m, i) => ({
-      label: m.label,
-      date: formatDateTime(m.changedAt, ''),
-      current: i === visible.length - 1,
+    const history = this.history();
+    return history.map((h, i) => ({
+      label: insuredMovementLabel(h),
+      date: formatDateTime(h.changedAt, ''),
+      current: i === history.length - 1,
     }));
   });
 

@@ -25,7 +25,9 @@ public record CaseResponse(
         /** Only in the insured's multi-insurer listing, since case ids repeat across schemas. */
         String insurerSlug,
         String insurerName,
+        /** Null for the insured, who reads {@code insuredStatus}. */
         CaseStatus status,
+        InsuredStatusResponse insuredStatus,
         String branch,
         String product,
         String claimCause,
@@ -81,4 +83,28 @@ public record CaseResponse(
         /** Only on GET /{id} while in PENDING_REPAIR: the one derivation detail the insured sees. */
         RepairProviderResponse repairProvider
 ) {
+
+    /**
+     * What the insured may read of their own case: the claim as they filed it, its status as they
+     * are told it and who handles it. The model's recommendation, the fraud score, the rule trail,
+     * the analyst's notes and the internal status are the insurer's.
+     */
+    public CaseResponse forInsured() {
+        return new CaseResponse(
+                id, insurerSlug, insurerName, null, insuredStatus, branch, product, claimCause, coverage,
+                insuredItem, insuredId, insuredName, pep, policyNumber, description, eventDate,
+                eventLocation, claimedAmount,
+                null, false, 0.0, List.of(), null, null, null,
+                null, null, List.of(), null,
+                assignedAnalystId, assignedAnalystName, createdAt, updatedAt, responseDeadline,
+                deadlinePriority,
+                null,
+                statusHistory == null ? null
+                        : statusHistory.stream()
+                                .filter(StatusTransitionResponse::visibleToInsured)
+                                .map(StatusTransitionResponse::forInsured)
+                                .toList(),
+                List.of(), List.of(), null,
+                repairProvider);
+    }
 }

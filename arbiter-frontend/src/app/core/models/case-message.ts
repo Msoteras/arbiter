@@ -1,3 +1,5 @@
+import { InsuredStatus } from './insured-status';
+
 /** Which side of the desk wrote it. Mirrors the backend's `StatusChangeActor`. */
 export type MessageSender = 'INSURED' | 'ANALYST';
 
@@ -47,7 +49,9 @@ export interface CaseMessageInboxItem {
   analystName: string | null;
   branch: string;
   claimCause: string;
+  /** Not sent to the insured: the portal reads `insuredStatus`. */
   status: string;
+  insuredStatus: InsuredStatus;
   lastMessageBody: string | null;
   lastMessageSender: MessageSender | null;
   lastMessageAt: string | null;

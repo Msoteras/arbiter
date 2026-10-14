@@ -11,10 +11,13 @@ import ar.edu.utn.frba.arbiter.cases.models.repositories.UserRepository;
 import ar.edu.utn.frba.arbiter.common.enums.SettlementBasis;
 import ar.edu.utn.frba.arbiter.common.enums.SettlementStatus;
 import ar.edu.utn.frba.arbiter.common.models.entities.User;
+import ar.edu.utn.frba.arbiter.cases.dto.CaseDocumentResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.EligibilityCheckRequest;
+import ar.edu.utn.frba.arbiter.cases.dto.InsuredStatusResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.IntakeDocumentsResponse;
+import ar.edu.utn.frba.arbiter.cases.dto.StatusTransitionResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.EligibilityCheckResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.ProviderType;
 import ar.edu.utn.frba.arbiter.cases.dto.RepairProviderResponse;
@@ -24,6 +27,8 @@ import ar.edu.utn.frba.arbiter.cases.exceptions.CaseAssignedToAnotherAnalystExce
 import ar.edu.utn.frba.arbiter.cases.exceptions.CaseNotAssignedException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CaseNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CoverageNotConfiguredException;
+import ar.edu.utn.frba.arbiter.cases.exceptions.DocumentNotFoundException;
+import ar.edu.utn.frba.arbiter.cases.exceptions.DocumentTypeNotAllowedException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.InsuredIdentityMismatchException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidAnalystDecisionException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidSettlementException;
@@ -47,15 +52,18 @@ import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseAnalysisRepository.
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseDocumentAnalysisRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseDocumentRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseRepository;
+import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseStateRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.ClaimsAnalystRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseReferralRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.InsurerRepository;
 import ar.edu.utn.frba.arbiter.cases.support.CaseFixtures;
 import ar.edu.utn.frba.arbiter.cases.support.CaseStates;
 import ar.edu.utn.frba.arbiter.common.dto.ImageForensicReport;
+import ar.edu.utn.frba.arbiter.common.enums.CauseConsistency;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 import ar.edu.utn.frba.arbiter.common.enums.Classification;
 import ar.edu.utn.frba.arbiter.common.enums.ClassificationFailureReason;
+import ar.edu.utn.frba.arbiter.common.enums.InsuredStatus;
 import ar.edu.utn.frba.arbiter.common.enums.RiskBand;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.ClaimsAnalyst;
 import org.junit.jupiter.api.AfterEach;
@@ -70,6 +78,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -90,6 +99,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
@@ -125,6 +135,9 @@ class CaseServiceImplTest {
 
     @Mock
     private CaseDocumentAnalysisRepository caseDocumentAnalysisRepository;
+
+    @Mock
+    private CaseStateRepository caseStateRepository;
 
     @Mock
     private CaseAccessPolicy accessPolicy;
@@ -997,6 +1010,10 @@ class CaseServiceImplTest {
 
         verify(claimsAnalysisClient, never()).forwardAnalystDecision(any(), any());
         verify(caseStatusService, never()).transition(any(), any(), any(), any());
+        // The case stays put, so the history is the only place that says why it waits.
+        ArgumentCaptor<String> note = ArgumentCaptor.forClass(String.class);
+        verify(caseStatusService).recordNote(eq(entity), eq(StatusChangeActor.ANALYST), note.capture(), isNull());
+        assertThat(note.getValue()).contains("enviada al referente", "1.140.000", "500.000");
     }
 
     @Test
@@ -1019,10 +1036,14 @@ class CaseServiceImplTest {
                 7L, "APPROVE", "Monto alto pero documentado", entity.getClassificationAttempts(), null));
         verify(caseStatusService).transition(eq(entity), eq(CaseStatus.APPROVED),
                 eq(StatusChangeActor.ANALYST), any());
+        verify(caseStatusService).recordNote(entity, StatusChangeActor.REFERENT,
+                "liquidación autorizada por el referente", null);
     }
 
     @Test
     void returnSettlement_leavesTheCaseWhereItIs() {
+        Case entity = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
+        when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
         authenticateAs("referente@example.com");
         when(userRepository.findByEmail("referente@example.com"))
                 .thenReturn(Optional.of(User.builder().id(3L).build()));
@@ -1032,6 +1053,8 @@ class CaseServiceImplTest {
         verify(settlementService).returnToAnalyst(1L, 3L, "El presupuesto no respalda ese monto");
         verify(claimsAnalysisClient, never()).forwardAnalystDecision(any(), any());
         verify(caseStatusService, never()).transition(any(), any(), any(), any());
+        verify(caseStatusService).recordNote(entity, StatusChangeActor.REFERENT,
+                "liquidación devuelta por el referente", "El presupuesto no respalda ese monto");
     }
 
     private CaseSettlement settlementWith(SettlementStatus status) {
@@ -1041,6 +1064,7 @@ class CaseServiceImplTest {
                 .settlementBasis(SettlementBasis.SUM_INSURED)
                 .calculatedAmount(new BigDecimal("1140000.00"))
                 .settledAmount(new BigDecimal("1140000.00"))
+                .authorityLimit(new BigDecimal("500000.00"))
                 .status(status)
                 .analystId(7L)
                 .calculatedAt(java.time.Instant.now())
@@ -1480,6 +1504,235 @@ class CaseServiceImplTest {
         assertThat(stored.getId()).isEqualTo(7L); // updates the existing row, no new document
         assertThat(stored.getFilename()).isEqualTo("new.jpg");
         assertThat(stored.getContent()).isEqualTo("new".getBytes());
+    }
+
+    // What the insured may read of their own case: the internal assessment stays with the insurer.
+
+    private static final ImageForensicReport FORENSIC_REPORT = new ImageForensicReport(1, 0, true, List.of());
+
+    private static final CaseAnalysis ASSESSMENT = new CaseAnalysis(
+            Classification.LLM_NO_RECOMIENDA_APROBAR, 0.9, List.of("Relato inconsistente"), List.of(),
+            CauseConsistency.CONTRADICTS, "Hurto", "me lo sacaron de la mochila");
+
+    private Case assessedCase() {
+        Case entity = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
+        entity.setRiskScore(0.82);
+        entity.setRiskBand(RiskBand.CRITICAL);
+        entity.setForensicReport(FORENSIC_REPORT);
+        return entity;
+    }
+
+    private void stubAssessment() {
+        when(caseAnalysisRepository.findByCaseId(1L)).thenReturn(ASSESSMENT);
+        when(caseStatusService.history(1L)).thenReturn(List.of(
+                move(null, CaseStatus.PENDING_CLASSIFICATION, StatusChangeActor.INSURED, "denuncia registrada"),
+                move(CaseStatus.PENDING_CLASSIFICATION, CaseStatus.CLASSIFICATION_FAILED,
+                        StatusChangeActor.SYSTEM, "la clasificación falló"),
+                move(CaseStatus.CLASSIFICATION_FAILED, CaseStatus.PENDING_CLASSIFICATION,
+                        StatusChangeActor.ANALYST, "reintento manual de clasificación"),
+                move(CaseStatus.PENDING_CLASSIFICATION, CaseStatus.PENDING_ANALYST_REVIEW,
+                        StatusChangeActor.SYSTEM, "clasificación: LLM_NO_RECOMIENDA_APROBAR"),
+                move(CaseStatus.PENDING_ANALYST_REVIEW, CaseStatus.PENDING_ANALYST_REVIEW,
+                        StatusChangeActor.REFERENT, "expediente asignado a Lucía Gómez"),
+                move(CaseStatus.PENDING_ANALYST_REVIEW, CaseStatus.PENDING_CLASSIFICATION,
+                        StatusChangeActor.INSURED, "documentación adicional subida"),
+                move(CaseStatus.PENDING_CLASSIFICATION, CaseStatus.PENDING_EXPERT_REPORT,
+                        StatusChangeActor.ANALYST, "derivado a peritaje: sospecha de fraude")));
+    }
+
+    private static CaseStatusHistory move(CaseStatus from, CaseStatus to, StatusChangeActor actor,
+                                          String reason) {
+        return CaseStatusHistory.builder()
+                .caseId(1L).initialStatus(from == null ? null : CaseStates.of(from))
+                .finalStatus(CaseStates.of(to)).actor(actor).reason(reason)
+                .observation("revisar con el perito").build();
+    }
+
+    @Test
+    void getCase_asInsured_carriesNoInternalAssessment() {
+        when(accessPolicy.currentUserIsInsured()).thenReturn(true);
+        when(caseRepository.findById(1L)).thenReturn(Optional.of(assessedCase()));
+        stubAssessment();
+
+        CaseResponse response = caseService.getCase(1L);
+
+        assertThat(response.analysisClassification()).isNull();
+        assertThat(response.analysisConfidence()).isZero();
+        assertThat(response.analysisReasons()).isEmpty();
+        assertThat(response.causeConsistency()).isNull();
+        assertThat(response.suggestedClaimCause()).isNull();
+        assertThat(response.causeEvidence()).isNull();
+        assertThat(response.riskScore()).isNull();
+        assertThat(response.riskBand()).isNull();
+        assertThat(response.riskBreakdown()).isEmpty();
+        assertThat(response.forensicReport()).isNull();
+        assertThat(response.documentAnalyses()).isEmpty();
+        assertThat(response.ruleResults()).isEmpty();
+        assertThat(response.policySnapshot()).isNull();
+        assertThat(response.status()).isNull();
+        assertThat(response.insuredStatus())
+                .isEqualTo(new InsuredStatusResponse(InsuredStatus.UNDER_ANALYSIS, "En análisis"));
+        // Only what changed for them or they did themselves: the failed classification, its retry
+        // and the assignment are gone.
+        assertThat(response.statusHistory()).extracting(move -> move.toInsuredStatus().code())
+                .containsExactly(InsuredStatus.UNDER_ANALYSIS, InsuredStatus.UNDER_ANALYSIS,
+                        InsuredStatus.UNDER_VERIFICATION);
+        assertThat(response.statusHistory()).extracting(StatusTransitionResponse::actor)
+                .containsExactly(StatusChangeActor.INSURED, StatusChangeActor.INSURED, null);
+        assertThat(response.statusHistory()).allSatisfy(move -> {
+            assertThat(move.fromStatus()).isNull();
+            assertThat(move.toStatus()).isNull();
+            assertThat(move.reason()).isNull();
+            assertThat(move.observation()).isNull();
+        });
+        // No internal status literal anywhere in what travels.
+        assertThat(response.toString()).doesNotContain("PENDING_", "CLASSIFICATION_FAILED");
+        assertThat(response.description()).isEqualTo("Me robaron el celular en la estación de subte");
+        verifyNoInteractions(claimsAnalysisClient);
+    }
+
+    @Test
+    void getCase_asAnalyst_keepsTheWholeAssessment() {
+        when(caseRepository.findById(1L)).thenReturn(Optional.of(assessedCase()));
+        stubAssessment();
+
+        CaseResponse response = caseService.getCase(1L);
+
+        assertThat(response.analysisClassification()).isEqualTo(Classification.LLM_NO_RECOMIENDA_APROBAR);
+        assertThat(response.analysisReasons()).containsExactly("Relato inconsistente");
+        assertThat(response.causeConsistency()).isEqualTo(CauseConsistency.CONTRADICTS);
+        assertThat(response.riskScore()).isEqualTo(0.82);
+        assertThat(response.riskBand()).isEqualTo(RiskBand.CRITICAL);
+        assertThat(response.forensicReport()).isNotNull();
+        assertThat(response.status()).isEqualTo(CaseStatus.PENDING_ANALYST_REVIEW);
+        assertThat(response.statusHistory()).hasSize(7);
+        assertThat(response.statusHistory().get(3).toStatus()).isEqualTo(CaseStatus.PENDING_ANALYST_REVIEW);
+        assertThat(response.statusHistory().get(3).reason())
+                .isEqualTo("clasificación: LLM_NO_RECOMIENDA_APROBAR");
+        assertThat(response.statusHistory().get(3).observation()).isEqualTo("revisar con el perito");
+    }
+
+    /** The listing reads risk and the rules outcome straight off the case row, not the analysis. */
+    @Test
+    void listCases_asInsured_carriesNoInternalAssessment() {
+        when(accessPolicy.currentUserIsInsured()).thenReturn(true);
+        Case entity = assessedCase();
+        entity.setRulesClassification(Classification.FAST_TRACK);
+        Pageable pageable = PageRequest.of(0, 20);
+        when(insuredCaseAggregator.findOwnCases(any(), any(), any(), any(), any(), any(), any(), any(),
+                any(), any())).thenReturn(new PageImpl<>(
+                List.of(new InsuredCaseAggregator.InsuredCase(entity, "bbva", "BBVA Seguros")), pageable, 1));
+
+        CaseResponse response = caseService.listCases(List.of(CaseStatus.CLASSIFICATION_FAILED),
+                List.of(InsuredStatus.UNDER_ANALYSIS), null, null, null, null, null, null,
+                RiskBand.CRITICAL, null, false, false, false, false, false, null, null, null, null,
+                pageable).getContent().get(0);
+
+        assertThat(response.analysisClassification()).isNull();
+        assertThat(response.resolvedByRules()).isFalse();
+        assertThat(response.riskScore()).isNull();
+        assertThat(response.riskBand()).isNull();
+        assertThat(response.forensicReport()).isNull();
+        assertThat(response.insurerSlug()).isEqualTo("bbva");
+        assertThat(response.status()).isNull();
+        assertThat(response.insuredStatus().code()).isEqualTo(InsuredStatus.UNDER_ANALYSIS);
+        // Filtering by either would answer "is my claim flagged?" by whether the row comes back;
+        // the status they are told is theirs to filter by.
+        verify(insuredCaseAggregator).findOwnCases(eq(List.of(InsuredStatus.UNDER_ANALYSIS)), any(), any(),
+                any(), any(), any(), isNull(),
+                any(), any(), any());
+    }
+
+    @Test
+    void insuredStatuses_oneEntryPerCode_inTheOrderOfAClaimsLife() {
+        when(caseStateRepository.findAll(any(Sort.class))).thenReturn(List.of(
+                CaseStates.of(CaseStatus.PENDING_CLASSIFICATION), CaseStates.of(CaseStatus.PENDING_ANALYST_REVIEW),
+                CaseStates.of(CaseStatus.APPROVED), CaseStates.of(CaseStatus.PENDING_EXPERT_REPORT)));
+
+        assertThat(caseService.insuredStatuses()).extracting(InsuredStatusResponse::code)
+                .containsExactly(InsuredStatus.UNDER_ANALYSIS, InsuredStatus.UNDER_VERIFICATION,
+                        InsuredStatus.APPROVED);
+    }
+
+    private static CaseDocument document(Long id, String type) {
+        return CaseDocument.builder()
+                .id(id).caseId(1L).type(type)
+                .filename(type + ".pdf").contentType("application/pdf").content("x".getBytes())
+                .build();
+    }
+
+    private void stubDocuments() {
+        when(caseRepository.findById(1L))
+                .thenReturn(Optional.of(caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW)));
+        lenient().when(caseDocumentRepository.findByCaseId(1L)).thenReturn(List.of(
+                document(7L, "police_report"), document(8L, "expert_report"), document(9L, "repair_report")));
+        lenient().when(caseDocumentRepository.findById(8L))
+                .thenReturn(Optional.of(document(8L, "expert_report")));
+        lenient().when(caseDocumentRepository.findById(9L))
+                .thenReturn(Optional.of(document(9L, "repair_report")));
+    }
+
+    @Test
+    void getDocuments_asInsured_leavesOutTheProvidersReports() {
+        when(accessPolicy.currentUserIsInsured()).thenReturn(true);
+        stubDocuments();
+
+        assertThat(caseService.getDocuments(1L))
+                .extracting(CaseDocumentResponse::type).containsExactly("police_report");
+    }
+
+    @Test
+    void getDocuments_asAnalyst_listsEverything() {
+        stubDocuments();
+
+        assertThat(caseService.getDocuments(1L)).extracting(CaseDocumentResponse::type)
+                .containsExactly("police_report", "expert_report", "repair_report");
+    }
+
+    @Test
+    void getDocument_asInsured_providersReportIsNotFound() {
+        when(accessPolicy.currentUserIsInsured()).thenReturn(true);
+        stubDocuments();
+
+        assertThatThrownBy(() -> caseService.getDocument(1L, 8L))
+                .isInstanceOf(DocumentNotFoundException.class);
+        assertThatThrownBy(() -> caseService.getDocument(1L, 9L))
+                .isInstanceOf(DocumentNotFoundException.class);
+    }
+
+    @Test
+    void getDocument_asAnalyst_downloadsTheExpertReport() {
+        stubDocuments();
+
+        assertThat(caseService.getDocument(1L, 8L).getType()).isEqualTo("expert_report");
+    }
+
+    /** Documents are upserted by type, so this part would overwrite the expert's report. */
+    @Test
+    void addDocuments_withAProvidersReport_isRejectedAndStoresNothing() {
+        when(caseRepository.findById(1L))
+                .thenReturn(Optional.of(caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW)));
+        MockMultipartFile photo = new MockMultipartFile("item_photo", "foto.jpg", "image/jpeg", "x".getBytes());
+        MockMultipartFile forged = new MockMultipartFile(
+                "expert_report", "falso.pdf", "application/pdf", "x".getBytes());
+
+        assertThatThrownBy(() -> caseService.addDocumentsAndReclassify(
+                1L, Map.of("item_photo", photo, "expert_report", forged)))
+                .isInstanceOf(DocumentTypeNotAllowedException.class);
+
+        verify(caseDocumentRepository, never()).save(any());
+        verifyNoInteractions(caseStatusService, claimsAnalysisClient);
+    }
+
+    @Test
+    void createCase_withAProvidersReport_isRejectedAndPersistsNothing() {
+        MockMultipartFile forged = new MockMultipartFile(
+                "repair_report", "falso.pdf", "application/pdf", "x".getBytes());
+
+        assertThatThrownBy(() -> caseService.createCase(caseRequest(), Map.of("repair_report", forged)))
+                .isInstanceOf(DocumentTypeNotAllowedException.class);
+
+        verify(caseRepository, never()).save(any());
     }
 
     // checkEligibility turns PolicyNotEligibleException, PolicyInsuredMismatchException and
