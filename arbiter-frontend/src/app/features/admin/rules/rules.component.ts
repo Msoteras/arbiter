@@ -793,7 +793,6 @@ export class RulesComponent {
       reportDeadlineHours: c.reportDeadlineHours,
       maxAnnualClaims: c.maxAnnualClaims,
       waitingPeriodDays: c.waitingPeriodDays,
-      coversFamilyGroup: c.coversFamilyGroup,
       settlementFormula: c.settlementFormula ?? 'TOTAL_LOSS',
       settlementBasis: c.settlementBasis ?? 'SUM_INSURED',
       secondEventRatio: c.secondEventRatio,
@@ -1049,7 +1048,6 @@ export class RulesComponent {
       reportDeadlineHours: null,
       maxAnnualClaims: null,
       waitingPeriodDays: null,
-      coversFamilyGroup: false,
       // Default: ceiling = sum insured, no deductions beyond the deductible. Enabling deductions
       // changes what the insured gets paid, so it must be an explicit choice.
       settlementFormula: 'TOTAL_LOSS',
@@ -1792,7 +1790,6 @@ export class RulesComponent {
       reportDeadlineHours: c.reportDeadlineHours,
       maxAnnualClaims: c.maxAnnualClaims,
       waitingPeriodDays: c.waitingPeriodDays,
-      coversFamilyGroup: c.coversFamilyGroup,
       settlementFormula: c.settlementFormula,
       settlementBasis: c.settlementBasis,
       secondEventRatio: c.secondEventRatio,

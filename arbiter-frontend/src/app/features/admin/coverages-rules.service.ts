@@ -24,7 +24,6 @@ export interface CoverageDetail {
   reportDeadlineHours: number | null;
   maxAnnualClaims: number | null;
   waitingPeriodDays: number | null;
-  coversFamilyGroup: boolean;
   settlementFormula: SettlementFormula;
   settlementBasis: SettlementBasis;
   /** 0..1 fraction like `deductibleRatio` (0.5 = 50%). `null` = the 2nd event isn't reduced. */
@@ -49,7 +48,6 @@ export interface CoverageUpsertRequest {
   reportDeadlineHours: number | null;
   maxAnnualClaims: number | null;
   waitingPeriodDays: number | null;
-  coversFamilyGroup: boolean;
   settlementFormula: SettlementFormula;
   settlementBasis: SettlementBasis;
   secondEventRatio: number | null;

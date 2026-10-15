@@ -68,7 +68,7 @@ class CoverageServiceTest {
         when(coverageRepository.save(any(Coverage.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         CoverageDetailResponse saved = coverageService.update(3L, new CoverageUpsertRequest(
-                "Hurto", null, null, null, null, 36, null, null, false, null, null, null, false, false, List.of()));
+                "Hurto", null, null, null, null, 36, null, null, null, null, null, false, false, List.of()));
 
         assertThat(coverage.getReportDeadlineHours()).isEqualTo(36L);
         assertThat(saved.reportDeadlineHours()).isEqualTo(36);

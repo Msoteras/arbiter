@@ -25,7 +25,6 @@ public record CoverageUpsertRequest(
         @Min(0) Integer maxAnnualClaims,
         /** Days after the policy starts during which this coverage doesn't apply yet. Null means none. */
         @Min(0) Integer waitingPeriodDays,
-        boolean coversFamilyGroup,
         /** Null means {@code TOTAL_LOSS}. */
         SettlementFormula settlementFormula,
         /** Null means {@code SUM_INSURED}. Only applies to total loss. */

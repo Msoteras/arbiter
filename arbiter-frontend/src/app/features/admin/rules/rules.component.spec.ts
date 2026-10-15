@@ -37,7 +37,6 @@ describe('RulesComponent', () => {
     reportDeadlineHours: 72,
     maxAnnualClaims: 2,
     waitingPeriodDays: 30,
-    coversFamilyGroup: false,
     settlementFormula: 'REPAIR',
     settlementBasis: 'LESSER_OF_SUM_AND_REPLACEMENT',
     secondEventRatio: null,

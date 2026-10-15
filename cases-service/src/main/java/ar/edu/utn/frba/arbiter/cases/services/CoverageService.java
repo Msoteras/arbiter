@@ -75,7 +75,6 @@ public class CoverageService {
     public CoverageDetailResponse create(Long branchId, CoverageUpsertRequest request) {
         Coverage coverage = Coverage.builder()
                 .branchId(branchId)
-                .coversFamilyGroup(false)
                 .build();
         applyRequest(coverage, request);
         // Starts equal to the name and never changes again: it is what the insurer database calls
@@ -116,7 +115,6 @@ public class CoverageService {
                 ? null : request.reportDeadlineHours().longValue());
         coverage.setMaxEventsPerYear(request.maxAnnualClaims());
         coverage.setWaitingPeriodDays(request.waitingPeriodDays());
-        coverage.setCoversFamilyGroup(request.coversFamilyGroup());
         // Never null: the columns are NOT NULL and every coverage settles in some way.
         coverage.setSettlementFormula(request.settlementFormula() == null
                 ? SettlementFormula.TOTAL_LOSS : request.settlementFormula());
@@ -141,7 +139,6 @@ public class CoverageService {
                         ? null : Math.toIntExact(coverage.getReportDeadlineHours()),
                 coverage.getMaxEventsPerYear(),
                 coverage.getWaitingPeriodDays(),
-                coverage.isCoversFamilyGroup(),
                 coverage.getSettlementFormula(),
                 coverage.getSettlementBasis(),
                 coverage.getSecondEventPercentage() == null

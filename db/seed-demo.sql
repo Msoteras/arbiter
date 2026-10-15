@@ -51,17 +51,17 @@ BEGIN
 
     EXECUTE format($ddl$
         INSERT INTO %I.coverage (id, name, external_name, description, report_deadline_hours,
-                                 max_events_per_year, covers_family_group, deductible,
+                                 max_events_per_year, deductible,
                                  waiting_period_days, branch_id,
                                  settlement_formula, settlement_basis, second_event_percentage,
                                  deduct_pending_installments, deduct_overdue_balance) VALUES
             -- Total loss: the lesser of sum insured and replacement value (annex 340 art. 7) minus
             -- deductible minus the year's pending installments, since the policy ends with the
             -- claim. Two events a year, the second at 50%%.
-            (1, 'Robo', 'Robo de celular', 'Cobertura por robo en vía pública', 72, 2, FALSE, 10.00, 30, 1,
+            (1, 'Robo', 'Robo de celular', 'Cobertura por robo en vía pública', 72, 2, 10.00, 30, 1,
              'TOTAL_LOSS', 'LESSER_OF_SUM_AND_REPLACEMENT', 50.00, TRUE, TRUE),
             -- One event a year, so no second-event percentage.
-            (2, 'Hurto', 'Hurto', 'Cobertura por hurto sin violencia', 72, 1, FALSE, 20.00, 30, 1,
+            (2, 'Hurto', 'Hurto', 'Cobertura por hurto sin violencia', 72, 1, 20.00, 30, 1,
              'TOTAL_LOSS', 'LESSER_OF_SUM_AND_REPLACEMENT', NULL, TRUE, TRUE)
         $ddl$, p_schema);
 
@@ -434,10 +434,10 @@ SELECT setval(pg_get_serial_sequence('arbiter_bbva.insured','id'),
 -- becomes a total loss and pays the lesser of sum insured and replacement value, like a theft.
 -- The deductible applies to the loss: on the sum insured a broken screen would pay nothing.
 INSERT INTO arbiter_bbva.coverage (id, name, external_name, description, report_deadline_hours, max_events_per_year,
-                                   covers_family_group, deductible,
+                                   deductible,
                                    waiting_period_days, branch_id, settlement_formula,
                                    settlement_basis, deductible_basis) VALUES
-    (3, 'Daño accidental', 'Daño accidental', 'Cobertura por rotura o caída accidental del equipo', 72, 2, FALSE,
+    (3, 'Daño accidental', 'Daño accidental', 'Cobertura por rotura o caída accidental del equipo', 72, 2,
      20.00, 30, 1, 'REPAIR', 'LESSER_OF_SUM_AND_REPLACEMENT', 'LOSS_AMOUNT');
 SELECT setval(pg_get_serial_sequence('arbiter_bbva.coverage','id'),
               (SELECT MAX(id) FROM arbiter_bbva.coverage));
@@ -617,19 +617,19 @@ SELECT setval(pg_get_serial_sequence('arbiter_bbva.service_provider','id'),
 -- The insurer database also names a laptop robbery cover "Robo de celular": hence the
 -- external_name of coverage 5, whose name is unique only within its branch.
 INSERT INTO arbiter_provincia.coverage (id, name, external_name, description, report_deadline_hours, max_events_per_year,
-                                        covers_family_group, deductible,
+                                        deductible,
                                         waiting_period_days, branch_id,
                                         settlement_formula, settlement_basis, deductible_basis,
                                         second_event_percentage, deduct_pending_installments,
                                         deduct_overdue_balance) VALUES
-    (3, 'Daño accidental', 'Daño accidental', 'Cobertura por daño accidental de equipo portátil', 96, 2, FALSE, 10.00, 30, 2,
+    (3, 'Daño accidental', 'Daño accidental', 'Cobertura por daño accidental de equipo portátil', 96, 2, 10.00, 30, 2,
      'REPAIR', 'LESSER_OF_SUM_AND_REPLACEMENT', 'LOSS_AMOUNT', 50.00, FALSE, TRUE),
-    (4, 'Daño accidental', 'Daño accidental', 'Cobertura por rotura o caída accidental del equipo', 72, 2, FALSE, 20.00, 30, 1,
+    (4, 'Daño accidental', 'Daño accidental', 'Cobertura por rotura o caída accidental del equipo', 72, 2, 20.00, 30, 1,
      'REPAIR', 'LESSER_OF_SUM_AND_REPLACEMENT', 'LOSS_AMOUNT', 50.00, FALSE, TRUE),
-    (5, 'Robo', 'Robo de celular', 'Cobertura por robo de equipo portátil', 96, 2, FALSE, 10.00, 30, 2,
+    (5, 'Robo', 'Robo de celular', 'Cobertura por robo de equipo portátil', 96, 2, 10.00, 30, 2,
      'TOTAL_LOSS', 'LESSER_OF_SUM_AND_REPLACEMENT', 'LOSS_AMOUNT', 50.00, TRUE, TRUE),
     -- One event a year, so no second-event percentage.
-    (6, 'Hurto', 'Hurto', 'Cobertura por hurto de equipo portátil', 96, 1, FALSE, 10.00, 30, 2,
+    (6, 'Hurto', 'Hurto', 'Cobertura por hurto de equipo portátil', 96, 1, 10.00, 30, 2,
      'TOTAL_LOSS', 'LESSER_OF_SUM_AND_REPLACEMENT', 'LOSS_AMOUNT', NULL, TRUE, TRUE);
 
 -- Provincia's policy says "Franquicia 10%" without saying of what, so its theft coverages take it

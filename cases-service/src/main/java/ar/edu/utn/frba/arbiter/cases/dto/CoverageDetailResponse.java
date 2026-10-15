@@ -18,7 +18,6 @@ public record CoverageDetailResponse(
         Integer reportDeadlineHours,
         Integer maxAnnualClaims,
         Integer waitingPeriodDays,
-        boolean coversFamilyGroup,
         SettlementFormula settlementFormula,
         SettlementBasis settlementBasis,
         BigDecimal secondEventRatio,
