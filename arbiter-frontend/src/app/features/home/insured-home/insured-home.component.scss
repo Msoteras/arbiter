@@ -273,7 +273,7 @@ app-insured-chat {
 
 .tiles {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: var(--space-3);
 }
 .tile {
@@ -300,9 +300,6 @@ a.tile:hover,
 button.tile:hover {
   background: var(--surface-soft);
   border-color: var(--border-strong);
-}
-.tile-static {
-  cursor: default;
 }
 .tile-icon {
   width: 38px;
