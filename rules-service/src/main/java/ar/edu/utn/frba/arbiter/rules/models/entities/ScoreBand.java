@@ -41,9 +41,6 @@ public class ScoreBand {
     @Column(name = "min_score_inclusive", nullable = false)
     private BigDecimal minScoreInclusive;
 
-    @Column(nullable = false)
-    private boolean active;
-
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "scoring_configuration_id", nullable = false)
     private ScoringConfiguration scoringConfiguration;

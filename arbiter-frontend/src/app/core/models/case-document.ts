@@ -1,5 +1,3 @@
-import { DOCUMENT_TYPES, NON_AGENDA_DOCUMENT_TYPES } from './business-rules';
-
 /** Mirrors CaseDocumentResponse: metadata only, no content. */
 export interface CaseDocument {
   id: number;
@@ -10,26 +8,10 @@ export interface CaseDocument {
   uploadedAt: string;
 }
 
+/** An upload or checklist slot: `type` is the multipart key and `case_documents.type`. */
 export interface CaseDocumentType {
   type: string;
   label: string;
-}
-
-/**
- * Derived from `DOCUMENT_TYPES` so uploads use the exact codes the backend expects as multipart
- * key and `case_documents.type`.
- */
-export const CASE_DOCUMENT_TYPES: readonly CaseDocumentType[] = DOCUMENT_TYPES.map((d) => ({
-  type: d.code,
-  label: d.label,
-}));
-
-export function documentTypeLabel(type: string): string {
-  return (
-    CASE_DOCUMENT_TYPES.find((t) => t.type === type)?.label ??
-    NON_AGENDA_DOCUMENT_TYPES.find((d) => d.code === type)?.label ??
-    type
-  );
 }
 
 export function isPreviewableImage(contentType: string): boolean {

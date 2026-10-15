@@ -15,14 +15,13 @@ import { catchError, combineLatest, map, of, startWith, switchMap } from 'rxjs';
 
 import { CaseService } from '../case.service';
 import { DocumentAgendaService } from '../document-agenda.service';
+import { DocumentTypeService } from '../../../core/services/document-type.service';
 import { DocumentAnalysis, ExtractionStatus } from '../../../core/models/case';
 import { formatDate } from '../../../core/util/datetime';
 import {
-  CASE_DOCUMENT_TYPES,
   CaseDocument,
   CaseDocumentType,
   documentFormatLabel,
-  documentTypeLabel,
   formatFileSize,
   isPreviewableImage,
   isPreviewablePdf,
@@ -74,6 +73,7 @@ type PreviewState =
 export class CaseDocumentsComponent {
   private readonly service = inject(CaseService);
   private readonly agenda = inject(DocumentAgendaService);
+  private readonly documentTypes = inject(DocumentTypeService);
   private readonly sanitizer = inject(DomSanitizer);
   private readonly destroyRef = inject(DestroyRef);
 
@@ -99,13 +99,9 @@ export class CaseDocumentsComponent {
 
   private readonly requiredTypes = toSignal(
     toObservable(computed(() => ({ branch: this.branch(), claimCause: this.claimCause() }))).pipe(
-      switchMap(({ branch, claimCause }) =>
-        branch && claimCause
-          ? this.agenda.slotsForBranch(branch, claimCause)
-          : of(CASE_DOCUMENT_TYPES),
-      ),
+      switchMap(({ branch, claimCause }) => this.agenda.slotsFor(branch, claimCause)),
     ),
-    { initialValue: CASE_DOCUMENT_TYPES as readonly CaseDocumentType[] },
+    { initialValue: [] as readonly CaseDocumentType[] },
   );
 
   private readonly state = toSignal(
@@ -176,7 +172,7 @@ export class CaseDocumentsComponent {
       ...agenda,
       ...this.extraDocuments().map((doc) => ({
         type: doc.type,
-        label: documentTypeLabel(doc.type),
+        label: this.documentTypes.label(doc.type),
         doc,
         extra: true,
         readIssue: readIssue(doc.type),

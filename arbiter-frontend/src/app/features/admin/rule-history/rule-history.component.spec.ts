@@ -5,6 +5,7 @@ import { of } from 'rxjs';
 import { RuleHistoryComponent } from './rule-history.component';
 import { BranchesService } from '../branches.service';
 import { RuleChangeEntry, RuleHistoryService } from '../rule-history.service';
+import { provideDocumentTypesStub } from '../../../core/testing/document-types';
 
 /**
  * Covers what the component adds to the backend response: field labels, list diffs, and the
@@ -36,6 +37,7 @@ describe('RuleHistoryComponent', () => {
     await TestBed.configureTestingModule({
       imports: [RuleHistoryComponent],
       providers: [
+        provideDocumentTypesStub(),
         provideNoopAnimations(),
         {
           provide: RuleHistoryService,
@@ -115,6 +117,20 @@ describe('RuleHistoryComponent', () => {
     expect(text()).toContain('pasó de 60 a 70');
     expect(text()).not.toContain('%');
     expect(text()).not.toContain('HIGH');
+  });
+
+  it('shows an amount as money, not as a bare number', async () => {
+    await mount([
+      entry({
+        ruleType: 'EXPERT_DERIVATION',
+        changes: [{ field: 'minClaimedAmount', previousValue: '500000', newValue: '600000' }],
+      }),
+    ]);
+
+    // Intl puts a non-breaking space after the sign; only the digits are fixed.
+    expect(text()).toMatch(/\$\s?500\.000/);
+    expect(text()).toMatch(/\$\s?600\.000/);
+    expect(text()).not.toContain('500000');
   });
 
   it('names the resolution target and its fields', async () => {

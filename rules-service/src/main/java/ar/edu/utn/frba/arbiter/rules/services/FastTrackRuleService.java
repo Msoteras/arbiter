@@ -44,6 +44,7 @@ public class FastTrackRuleService {
     private final BranchRepository branchRepository;
     private final CoverageRepository coverageRepository;
     private final RuleAuthorResolver authorResolver;
+    private final DocumentTypeService documentTypes;
     private final OnboardingTracker onboardingTracker;
 
     @Transactional(readOnly = true)
@@ -65,6 +66,9 @@ public class FastTrackRuleService {
     public FastTrackRuleResponse upsert(Long branchId, Long coverageId, FastTrackConfigDto config, String actorEmail) {
         onboardingTracker.touch(OnboardingStep.FAST_TRACK, null);
         requireCoverageInBranch(branchId, coverageId);
+        if (config.requiredDocumentTypes() != null) {
+            documentTypes.requireOfBranch(branchId, config.requiredDocumentTypes());
+        }
         String json = serialize(config);
         Instant now = Instant.now();
 

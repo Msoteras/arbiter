@@ -44,6 +44,7 @@ public class Auth0Adapter implements CredentialsAuthenticator {
 
         user.setFailedAttempts(0);
         user.setLockedUntil(null);
+        user.setLastAccessAt(Instant.now());
         userRepository.save(user);
         return user;
     }

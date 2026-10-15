@@ -74,6 +74,7 @@ class Auth0AdapterTest {
         assertThat(result).isSameAs(user);
         assertThat(user.getFailedAttempts()).isZero();
         assertThat(user.getLockedUntil()).isNull();
+        assertThat(user.getLastAccessAt()).isNotNull();
     }
 
     @Test
@@ -96,6 +97,8 @@ class Auth0AdapterTest {
 
         assertThat(user.getFailedAttempts()).isEqualTo(1);
         assertThat(user.getLockedUntil()).isNull();
+        // A rejected login is not an access.
+        assertThat(user.getLastAccessAt()).isNull();
     }
 
     @Test

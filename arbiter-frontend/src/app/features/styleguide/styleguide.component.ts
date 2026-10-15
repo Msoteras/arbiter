@@ -27,6 +27,8 @@ import { SpinnerComponent } from '../../shared/ui/spinner/spinner.component';
 import { InlineLoadingComponent } from '../../shared/ui/inline-loading/inline-loading.component';
 import { SaveBarComponent } from '../../shared/ui/save-bar/save-bar.component';
 import { ChipGroupComponent, ChipOption } from '../../shared/ui/chip-group/chip-group.component';
+import { TabOption, TabsComponent } from '../../shared/ui/tabs/tabs.component';
+import { IconButtonComponent } from '../../shared/ui/icon-button/icon-button.component';
 import { SwitchComponent } from '../../shared/ui/switch/switch.component';
 import {
   DistributionComponent,
@@ -63,6 +65,8 @@ interface Swatch {
   imports: [
     RatePipe,
     ChipGroupComponent,
+    TabsComponent,
+    IconButtonComponent,
     ButtonComponent,
     BadgeComponent,
     InfoTipComponent,
@@ -281,6 +285,24 @@ interface Swatch {
           <app-button variant="primary" [disabled]="true">Disabled</app-button>
           <app-button variant="primary" [loading]="true">Loading</app-button>
           <app-button variant="secondary" [loading]="true">Loading</app-button>
+        </div>
+      </section>
+
+      <section class="sg-block">
+        <h3 class="sg-h3">Icon button</h3>
+        <p class="sg-p">
+          Acciones propias de una fila —editar, quitar— donde un botón con texto por fila llenaría
+          la lista. <span class="mono">label</span> es obligatorio: es el nombre accesible y el
+          tooltip, las únicas palabras que tiene la acción. Los íconos son un conjunto cerrado
+          (<span class="mono">edit</span>, <span class="mono">delete</span>,
+          <span class="mono">confirm</span>) para que la misma acción se vea siempre igual;
+          <span class="mono">delete</span> va en tono peligro, sin relleno.
+        </p>
+        <div class="row">
+          <app-icon-button icon="edit" label="Editar" />
+          <app-icon-button icon="delete" label="Quitar" />
+          <app-icon-button icon="confirm" label="Listo" />
+          <app-icon-button icon="edit" label="Editar" [disabled]="true" />
         </div>
       </section>
 
@@ -874,6 +896,23 @@ interface Swatch {
       </section>
 
       <section class="sg-block">
+        <h3 class="sg-h3">Tabs</h3>
+        <p class="sg-p">
+          Cambia entre secciones de una misma pantalla, como las solapas de un ramo en Reglas. Solo
+          dibuja la tira: el contenido de la solapa activa lo renderiza quien la usa, a partir de
+          <span class="mono">value</span>.
+        </p>
+        <p class="sg-p">
+          Es un <span class="mono">tablist</span> real: las flechas, Inicio y Fin mueven la
+          selección, y solo la solapa activa queda en el orden de tabulación. La activa se distingue
+          por subrayado y peso además del color.
+        </p>
+        <div class="row">
+          <app-tabs [tabs]="tabsDemo" [(value)]="tabsDemoValue" ariaLabel="Solapas de ejemplo" />
+        </div>
+      </section>
+
+      <section class="sg-block">
         <h3 class="sg-h3">Save bar</h3>
         <p class="sg-p">
           Pie de una sección editable: estado a la izquierda, descartar y guardar a la derecha.
@@ -1393,6 +1432,13 @@ export class StyleguideComponent {
     { value: 'night', label: 'Noche' },
   ];
   protected readonly timeSlotDemoValue = signal('afternoon');
+
+  protected readonly tabsDemo: readonly TabOption[] = [
+    { id: 'coverages', label: 'Coberturas' },
+    { id: 'fastTrack', label: 'Fast Track' },
+    { id: 'documents', label: 'Documentación' },
+  ];
+  protected readonly tabsDemoValue = signal('coverages');
 
   protected readonly claimTypeDemo: readonly ChipOption[] = [
     { value: 'street-robbery', label: 'Robo en vía pública' },

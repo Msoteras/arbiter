@@ -973,6 +973,7 @@ public class CaseServiceImpl implements CaseService {
                 entity.getPolicy().getExternalPolicyNumber(),
                 entity.getDescription(),
                 entity.getOccurredAt(),
+                entity.getPoliceReportAt(),
                 entity.getEventAddress(),
                 entity.getClaimedAmount(),
                 classificationOf(entity, current),

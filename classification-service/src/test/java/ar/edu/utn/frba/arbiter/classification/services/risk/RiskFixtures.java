@@ -11,6 +11,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 /** Builders for risk-scoring unit tests: same insured/claim shape, tweak only what a test cares about. */
 public final class RiskFixtures {
@@ -96,6 +97,12 @@ public final class RiskFixtures {
                 .build();
     }
 
+    /** As rules-service serves the catalog. */
+    public static final Map<String, String> DOCUMENT_TYPE_NAMES = Map.of(
+            "police_report", "Denuncia policial",
+            "purchase_proof", "Comprobante de compra",
+            "repair_quote", "Presupuesto de reparación");
+
     public static BusinessRules rules(ScoringConfig scoringConfig) {
         return BusinessRules.builder()
                 .branchId("Celulares")
@@ -104,6 +111,7 @@ public final class RiskFixtures {
                 .exclusions(List.of())
                 .fastTrackCriteria(List.of())
                 .scoringConfig(scoringConfig)
+                .documentTypeNames(DOCUMENT_TYPE_NAMES)
                 .build();
     }
 

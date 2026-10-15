@@ -4,6 +4,7 @@ import ar.edu.utn.frba.arbiter.common.enums.RiskBand;
 import lombok.Builder;
 
 import java.util.List;
+import java.util.Map;
 
 @Builder(toBuilder = true)
 public record BusinessRules(
@@ -23,7 +24,8 @@ public record BusinessRules(
         Integer waitingPeriodDays,
         // Taken from the referente's coverage config, not from the insurer DB's poliza.cubre_grupo_familiar.
         Boolean coversFamilyGroup,
-        Boolean claimExhaustsCoverage
+        // Document code → the name the analyst reads, from the platform catalog.
+        Map<String, String> documentTypeNames
 ) {
 
     /**
@@ -40,6 +42,7 @@ public record BusinessRules(
                 .requiredDocumentTypes(List.of())
                 .evaluableRules(List.of())
                 .fraudRecordPolicy(FraudRecordPolicy.unconfigured())
+                .documentTypeNames(Map.of())
                 .build();
     }
 

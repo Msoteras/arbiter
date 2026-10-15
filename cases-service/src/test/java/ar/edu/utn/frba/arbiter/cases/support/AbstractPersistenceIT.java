@@ -33,6 +33,14 @@ public abstract class AbstractPersistenceIT {
             stmt.execute("CREATE SCHEMA IF NOT EXISTS arbiter_common");
             // Used by CaseSpecifications.freeText; in production init-multitenant.sql creates it.
             stmt.execute("CREATE EXTENSION IF NOT EXISTS unaccent");
+            // Not an entity, so `update` doesn't create it; without it no locked sweep runs.
+            stmt.execute("""
+                    CREATE TABLE IF NOT EXISTS arbiter_common.shedlock (
+                        name       VARCHAR(64)  PRIMARY KEY,
+                        lock_until TIMESTAMP    NOT NULL,
+                        locked_at  TIMESTAMP    NOT NULL,
+                        locked_by  VARCHAR(255) NOT NULL
+                    )""");
         } catch (SQLException e) {
             throw new RuntimeException(e);
         }
