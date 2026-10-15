@@ -38,18 +38,52 @@ describe('SetupCardComponent', () => {
     });
     const fixture = TestBed.createComponent(SetupCardComponent);
     fixture.detectChanges();
+    openPanel(fixture.nativeElement as HTMLElement);
+    fixture.detectChanges();
     return fixture.nativeElement as HTMLElement;
   }
 
-  it('leaves out the heading of a group with nothing pending', () => {
+  function openPanel(el: HTMLElement): void {
+    const open = [...el.querySelectorAll('button')].find(
+      (b) => b.textContent?.trim() === 'Ver pasos ›',
+    );
+    open?.click();
+  }
+
+  it('shows the completed steps under their group', () => {
     const el = mount([
       step({ step: 'ANALYSTS', status: 'PENDING' }),
       step({ step: 'DOCUMENTS', level: 'RECOMMENDED', status: 'DONE' }),
     ]);
 
-    const headings = el.textContent ?? '';
-    expect(headings).toContain('Obligatorio');
-    expect(headings).not.toContain('Recomendado');
+    const text = el.textContent ?? '';
+    expect(text).toContain('Obligatorio');
+    expect(text).toContain('Recomendado');
+    expect(el.querySelectorAll('.step.done').length).toBe(1);
+  });
+
+  it('keeps the checklist in a panel, not on the home', () => {
+    TestBed.configureTestingModule({
+      imports: [SetupCardComponent],
+      providers: [
+        provideRouter([]),
+        {
+          provide: OnboardingService,
+          useValue: {
+            steps: signal([step({ step: 'ANALYSTS', status: 'PENDING' })]),
+            failed: signal(false),
+            routeOf: () => ({ path: '/insurer/rules' }),
+            requestFocus: () => undefined,
+          },
+        },
+      ],
+    });
+    const fixture = TestBed.createComponent(SetupCardComponent);
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+
+    expect(el.textContent).toContain('0 de 1');
+    expect(el.textContent).not.toContain('Obligatorio');
   });
 
   it('only offers to discard a step that is not required', () => {
