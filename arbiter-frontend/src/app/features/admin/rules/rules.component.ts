@@ -408,15 +408,17 @@ export class RulesComponent {
    */
   protected tabStatus(tab: TabId): 'required' | 'pending' | null {
     const d = this.draft();
-    if (!d) {
+    // Mid-load the branch looks empty: flagging it would show a marker that then disappears.
+    if (!d || this.detailLoading()) {
       return null;
     }
     switch (tab) {
       case 'coverages':
         return d.coverages.length === 0 ? 'required' : null;
       case 'documents':
+        // An agenda that never arrived is unknown, not empty.
         return this.coveredClaimCauses().some(
-          (cause) => (d.requiredDocumentsByClaimCause[cause.id] ?? []).length === 0,
+          (cause) => d.requiredDocumentsByClaimCause[cause.id]?.length === 0,
         )
           ? 'pending'
           : null;

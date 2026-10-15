@@ -3,7 +3,7 @@ import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { provideRouter } from '@angular/router';
-import { of } from 'rxjs';
+import { Observable, Subject, of } from 'rxjs';
 
 import { RulesComponent } from './rules.component';
 import { BranchesService } from '../branches.service';
@@ -48,9 +48,11 @@ describe('RulesComponent', () => {
   });
 
   let branchDocuments: Record<number, readonly DocumentTypeDef[]>;
+  let agenda: () => Observable<string[]>;
 
   beforeEach(() => {
     branchDocuments = { 1: DOCUMENT_TYPES_FIXTURE, 2: DOCUMENT_TYPES_FIXTURE };
+    agenda = () => of([]);
   });
 
   async function mount(coverages: CoverageDetail[] = []): Promise<void> {
@@ -102,7 +104,7 @@ describe('RulesComponent', () => {
           provide: HardRulesService,
           useValue: { getInsurerWide: () => of([]), get: () => of([]) },
         },
-        { provide: DocumentRulesService, useValue: { get: () => of([]) } },
+        { provide: DocumentRulesService, useValue: { get: () => agenda() } },
         {
           provide: DerivationRulesService,
           useValue: {
@@ -200,6 +202,41 @@ describe('RulesComponent', () => {
 
     expect(el().textContent).toContain('Este ramo todavía no tiene documentos habilitados.');
     expect(el().querySelector('.doc-row-name')).toBeNull();
+  });
+
+  describe('the Documentación marker', () => {
+    function documentsTab(): string | undefined {
+      return [...el().querySelectorAll('app-tabs [role="tab"]')]
+        .find((t) => labelOf(t) === 'Documentación')
+        ?.textContent?.trim();
+    }
+
+    /** It used to flash "(incompleto)" for a couple of seconds on every branch. */
+    it('stays off while the agenda is still loading', async () => {
+      agenda = () => new Subject<string[]>();
+      await mount([coverage()]);
+
+      expect(documentsTab()).toBe('Documentación');
+    });
+
+    it('turns on once a covered claim cause turns out to require nothing', async () => {
+      const arriving = new Subject<string[]>();
+      agenda = () => arriving;
+      await mount([coverage()]);
+
+      arriving.next([]);
+      arriving.complete();
+      fixture.detectChanges();
+
+      expect(documentsTab()).toContain('(incompleto)');
+    });
+
+    it('stays off when every covered claim cause asks for something', async () => {
+      agenda = () => of(['purchase_proof']);
+      await mount([coverage()]);
+
+      expect(documentsTab()).toBe('Documentación');
+    });
   });
 
   /** It used to jump back to Coberturas on every branch, which made the stored tab useless. */
