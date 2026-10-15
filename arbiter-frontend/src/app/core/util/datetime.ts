@@ -157,3 +157,33 @@ export function bucketLabel(bucket: string, granularity: 'DAY' | 'WEEK' | 'MONTH
     ? date.toLocaleDateString('es-AR', { month: 'short', year: 'numeric' })
     : date.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' });
 }
+
+const SHORT_MONTHS = [
+  'ene',
+  'feb',
+  'mar',
+  'abr',
+  'may',
+  'jun',
+  'jul',
+  'ago',
+  'sep',
+  'oct',
+  'nov',
+  'dic',
+];
+
+/**
+ * "7 sep – 6 oct 2026", "15 dic 2025 – 14 ene 2026". The year goes once at the end when both ends
+ * share it; `withYear: false` drops it when the reader already has it from a nearby range.
+ */
+export function formatDateRange(from: string, to: string, withYear = true): string {
+  const [fromYear, fromMonth, fromDay] = from.split('-').map(Number);
+  const [toYear, toMonth, toDay] = to.split('-').map(Number);
+  const start = `${fromDay} ${SHORT_MONTHS[fromMonth - 1]}`;
+  const end = `${toDay} ${SHORT_MONTHS[toMonth - 1]}`;
+  if (fromYear !== toYear) {
+    return `${start} ${fromYear} – ${end} ${toYear}`;
+  }
+  return withYear ? `${start} – ${end} ${toYear}` : `${start} – ${end}`;
+}

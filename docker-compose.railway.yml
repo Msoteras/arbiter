@@ -210,9 +210,9 @@ services:
     restart: on-failure
 
   # ─── Frontend ───────────────────────────────────────────────────────────
-  # The built SPA served by nginx, which also reverse-proxies the 5 modules like
-  # proxy.conf.json does for `ng serve`. The image defaults point at *.railway.internal,
-  # so the five URLs are overridden with this network's service names.
+  # The built SPA served by nginx, which also reverse-proxies the 4 modules the browser talks to
+  # like proxy.conf.json does for `ng serve`. The image defaults point at *.railway.internal,
+  # so the four URLs are overridden with this network's service names.
   arbiter-frontend:
     build:
       context: .
@@ -226,7 +226,6 @@ services:
     environment:
       AUTH_SERVICE_URL: http://auth-service:8080
       CASES_SERVICE_URL: http://cases-service:8083
-      CLASSIFICATION_SERVICE_URL: http://classification-service:8082
       RULES_SERVICE_URL: http://rules-service:8081
       REPORTS_SERVICE_URL: http://reports-service:8084
     # No health condition: nginx resolves upstreams per request, so a backend that is down
@@ -234,7 +233,6 @@ services:
     depends_on:
       - auth-service
       - cases-service
-      - classification-service
       - rules-service
       - reports-service
     restart: on-failure

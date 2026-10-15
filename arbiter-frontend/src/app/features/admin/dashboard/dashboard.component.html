@@ -2,11 +2,9 @@
   <header class="dash-head">
     <div class="dash-head-text">
       <h1 class="t-page-title">Dashboard de métricas</h1>
-      @if (data(); as m) {
-        <p class="dash-sub">
-          Cartera de la aseguradora · {{ m.from | date: 'dd/MM/yy' }} –
-          {{ m.to | date: 'dd/MM/yy' }} · {{ comparisonLabel() }}
-        </p>
+      @if (data()) {
+        <p class="dash-period">{{ periodRange() }}</p>
+        <p class="dash-sub">{{ comparisonNote() }}</p>
       } @else {
         <p class="dash-sub">Rendimiento operativo de la aseguradora</p>
       }
@@ -82,7 +80,7 @@
          consume the animation before the cards arrive. -->
     <div class="body" [class.stale]="loading()" @staggerReveal>
       <!-- ─── Funnel ───────────────────────────────────────────────────────────── -->
-      <app-card heading="Embudo del período">
+      <app-card heading="Embudo de lo denunciado en el período">
         <p class="funnel-note">{{ stillOpenNote() }}</p>
         <ol class="funnel">
           @for (step of funnel(); track step.label) {
@@ -125,8 +123,9 @@
 
       @if (fastTrackComparison(); as comparison) {
         <p class="breakdown">
-          Fast Track: <strong>{{ comparison }}</strong
-          >. Son dos promedios medidos sobre {{ fastTrackBase() }}, no un ahorro estimado.
+          Resolución de los decididos en el período: <strong>{{ comparison.fastTrack }}</strong> con
+          Fast Track ({{ comparison.fastTrackDecided }}) y
+          <strong>{{ comparison.standard }}</strong> el resto ({{ comparison.standardDecided }}).
         </p>
       }
 
@@ -226,7 +225,8 @@
                         }
                       }
                       @if (item.remaining > 0) {
-                        <a
+                        <!-- &ngsp; survives Angular's whitespace removal, a plain space doesn't. -->
+                        &ngsp;<a
                           class="att-more"
                           [routerLink]="['/inbox']"
                           [queryParams]="item.queryParams"

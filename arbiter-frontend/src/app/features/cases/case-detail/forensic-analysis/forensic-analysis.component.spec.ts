@@ -4,6 +4,7 @@ import { of } from 'rxjs';
 import { ForensicAnalysisComponent } from './forensic-analysis.component';
 import { CaseService } from '../../case.service';
 import { ImageForensicFinding, ImageForensicReport } from '../../../../core/models/forensic';
+import { provideDocumentTypesStub } from '../../../../core/testing/document-types';
 
 describe('ForensicAnalysisComponent · internal comparison', () => {
   let fixture: ComponentFixture<ForensicAnalysisComponent>;
@@ -12,6 +13,7 @@ describe('ForensicAnalysisComponent · internal comparison', () => {
     await TestBed.configureTestingModule({
       imports: [ForensicAnalysisComponent],
       providers: [
+        provideDocumentTypesStub(),
         {
           provide: CaseService,
           useValue: { listDocuments: () => of([]), downloadDocument: () => of(new Blob()) },

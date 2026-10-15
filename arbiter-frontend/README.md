@@ -24,14 +24,13 @@ npm start          # ng serve → http://localhost:4200
 `environment.apiBaseUrl` es siempre `/api/v1` relativo — nunca un host:puerto hardcodeado. El proxy
 resuelve cada path al módulo backend que lo sirve:
 
-| Path                                                                                                                                                                | Backend                  | Puerto |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------ | ------ |
-| `/api/v1/auth`                                                                                                                                                      | `auth-service`           | 8080   |
-| `/api/v1/rules`                                                                                                                                                     | `rules-service`          | 8081   |
-| `/api/v1/claims`                                                                                                                                                    | `classification-service` | 8082   |
-| `/api/v1/cases`, `/api/v1/notifications`, `/api/v1/policies`, `/api/v1/claim-causes`, `/api/v1/coverages`, `/api/v1/expert-firms`, `/api/v1/settlement-authorities` | `cases-service`          | 8083   |
-| `/api/v1/ws` (WebSocket del chat)                                                                                                                                   | `cases-service`          | 8083   |
-| `/api/v1/reports`                                                                                                                                                   | `reports-service`        | 8084   |
+| Path                                                                                                                                                                | Backend           | Puerto |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- | ------ |
+| `/api/v1/auth`                                                                                                                                                      | `auth-service`    | 8080   |
+| `/api/v1/rules`                                                                                                                                                     | `rules-service`   | 8081   |
+| `/api/v1/cases`, `/api/v1/notifications`, `/api/v1/policies`, `/api/v1/claim-causes`, `/api/v1/coverages`, `/api/v1/expert-firms`, `/api/v1/settlement-authorities` | `cases-service`   | 8083   |
+| `/api/v1/ws` (WebSocket del chat)                                                                                                                                   | `cases-service`   | 8083   |
+| `/api/v1/reports`                                                                                                                                                   | `reports-service` | 8084   |
 
 En producción el mismo ruteo por path lo hace Nginx (`nginx.conf.template`, ver
 `docs/despliegue-railway.md`). Las dos tablas tienen que coincidir: `scripts/check-routing-parity.py`

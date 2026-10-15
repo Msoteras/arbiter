@@ -2,6 +2,7 @@ package ar.edu.utn.frba.arbiter.classification.adapters;
 
 import ar.edu.utn.frba.arbiter.classification.config.tenant.TenantContext;
 import ar.edu.utn.frba.arbiter.classification.dto.BusinessRules;
+import ar.edu.utn.frba.arbiter.common.dto.DocumentTypeResponse;
 import ar.edu.utn.frba.arbiter.common.enums.RiskBand;
 import ar.edu.utn.frba.arbiter.common.http.ConnectionRetryInterceptor;
 import ar.edu.utn.frba.arbiter.common.security.JwtSupport;
@@ -21,6 +22,7 @@ import javax.crypto.SecretKey;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * Builds the rules from what the referente configured in rules-service, starting from
@@ -74,9 +76,9 @@ public class RulesRestAdapter implements RulesAdapter {
                 overlayFraudRecordPolicy(
                         overlayCoverageLimits(
                                 overlayEvaluableRules(
-                                        overlayDocumentRequirements(
+                                        overlayDocumentTypeNames(overlayDocumentRequirements(
                                                 overlayRuleTexts(overlayFastTrack(base, coverageId), coverageId),
-                                                coverageId, claimCauseId),
+                                                coverageId, claimCauseId)),
                                         coverageId),
                                 coverageId)));
     }
@@ -255,6 +257,22 @@ public class RulesRestAdapter implements RulesAdapter {
         log.info("[RulesRestAdapter] Document agenda loaded from rules-service for coverage {} — {} docs",
                 coverageId, agenda.size());
         return rules.toBuilder().requiredDocumentTypes(agenda).build();
+    }
+
+    /** The whole catalog: a claim can carry documents its schedule doesn't ask for. */
+    private BusinessRules overlayDocumentTypeNames(BusinessRules rules) {
+        List<DocumentTypeResponse> catalog = restClient.get()
+                .uri("/api/v1/rules/document-types")
+                .header(HttpHeaders.AUTHORIZATION, serviceToken())
+                .retrieve()
+                .body(new ParameterizedTypeReference<List<DocumentTypeResponse>>() {});
+        if (catalog == null) {
+            return rules;
+        }
+        return rules.toBuilder()
+                .documentTypeNames(catalog.stream().collect(
+                        Collectors.toUnmodifiableMap(DocumentTypeResponse::code, DocumentTypeResponse::name)))
+                .build();
     }
 
     private String serviceToken() {

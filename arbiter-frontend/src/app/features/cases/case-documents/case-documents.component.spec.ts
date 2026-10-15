@@ -5,6 +5,10 @@ import { CaseDocumentsComponent } from './case-documents.component';
 import { CaseDocument } from '../../../core/models/case-document';
 import { CaseService } from '../case.service';
 import { DocumentAgendaService } from '../document-agenda.service';
+import {
+  DOCUMENT_TYPES_FIXTURE,
+  provideDocumentTypesStub,
+} from '../../../core/testing/document-types';
 
 /** A provider's report is the insurer's: the portal never lists it, even if the backend sent it. */
 describe('CaseDocumentsComponent · provider reports', () => {
@@ -23,6 +27,7 @@ describe('CaseDocumentsComponent · provider reports', () => {
     await TestBed.configureTestingModule({
       imports: [CaseDocumentsComponent],
       providers: [
+        provideDocumentTypesStub(),
         {
           provide: CaseService,
           useValue: {
@@ -31,7 +36,14 @@ describe('CaseDocumentsComponent · provider reports', () => {
             downloadDocument: () => of(new Blob(['x'], { type: 'application/pdf' })),
           },
         },
-        { provide: DocumentAgendaService, useValue: { slotsForBranch: () => of([]) } },
+        {
+          provide: DocumentAgendaService,
+          // No branch given: the whole catalog, as the real service answers.
+          useValue: {
+            slotsFor: () =>
+              of(DOCUMENT_TYPES_FIXTURE.map(({ code, label }) => ({ type: code, label }))),
+          },
+        },
       ],
     }).compileComponents();
 

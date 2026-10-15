@@ -1,131 +1,211 @@
 @if (showFullLoader()) {
   <app-loading message="Preparando tu inicio" sub="Aguardá un momento" />
-} @else if (pageLoading()) {
+} @else if (loading()) {
   <div class="partial-load">
     <app-inline-loading [size]="30" message="Actualizando tu inicio…" />
   </div>
 } @else {
-  <div class="home" @staggerReveal>
+  <div class="home fit" @staggerReveal>
     <header class="hero">
-      <div class="hero-text">
-        <h1 class="t-hero-title">{{ greeting }}, {{ firstName() }}</h1>
-        <p class="hero-sub">
-          {{ today }}
-          @if (counts(); as c) {
-            @if (c.pending > 0) {
-              · tenés {{ c.pending }}
-              {{
-                c.pending === 1
-                  ? 'expediente esperando tu decisión'
-                  : 'expedientes esperando tu decisión'
-              }}
-            } @else {
-              · no tenés expedientes pendientes de decisión
+      <div class="hero-head">
+        <div class="hero-text">
+          <h1 class="t-hero-title">{{ greeting }}, {{ firstName() }}</h1>
+          <!-- Segments, not inline text: the template's line breaks would leave a space before the period. -->
+          <p class="hero-sub">
+            @for (part of heroLine(); track $index) {
+              @if (part.bold) {
+                <strong>{{ part.text }}</strong>
+              } @else {
+                <span>{{ part.text }}</span>
+              }
             }
-          }
-        </p>
+          </p>
+        </div>
+        <a routerLink="/inbox" class="hero-cta"
+          ><app-button variant="secondary">Ir a mi bandeja ›</app-button></a
+        >
       </div>
-      <a routerLink="/inbox" class="hero-cta"
-        ><app-button variant="secondary">Ir a mi bandeja</app-button></a
-      >
+
+      <nav class="shortcuts" aria-label="Para hoy">
+        @for (s of shortcuts(); track s.label) {
+          <a class="shortcut" [routerLink]="s.link" [queryParams]="s.query">
+            <span class="shortcut-top">
+              <span class="shortcut-value tabular">{{ summary() ? s.value : '—' }}</span>
+              @if (s.flag) {
+                <span class="shortcut-flag">{{ s.flag }}</span>
+              }
+            </span>
+            <span class="shortcut-label">{{ s.label }}</span>
+          </a>
+        }
+      </nav>
     </header>
 
-    <section class="stats" aria-label="Resumen de tu bandeja">
-      <app-stat-tile
-        [loading]="countsLoading()"
-        [value]="counts()?.pending ?? 0"
-        tone="accent"
-        label="Pendientes de decisión"
-        sub="asignados a vos"
-      />
-      <app-stat-tile
-        [loading]="countsLoading()"
-        [value]="counts()?.inProgress ?? 0"
-        label="En trámite"
-        sub="en tu bandeja"
-      />
-      <app-stat-tile
-        [loading]="countsLoading()"
-        [value]="counts()?.resolved ?? 0"
-        label="Resueltos"
-        sub="en total"
-      />
-      <app-stat-tile
-        [loading]="countsLoading()"
-        [value]="counts()?.atRisk ?? 0"
-        [tone]="(counts()?.atRisk ?? 0) > 0 ? 'danger' : 'default'"
-        label="Riesgo alto"
-        sub="requieren atención"
-      />
-    </section>
-
     <div class="cols">
-      <app-card heading="Requieren tu acción">
-        @if (actionLoading()) {
-          <p class="t-note">Cargando…</p>
-        } @else if (actionError()) {
-          <p class="t-note">No pudimos cargar tus expedientes. Probá recargar la página.</p>
-        } @else if (actionEmpty()) {
-          <app-empty-state message="No tenés expedientes esperando tu decisión" sub="Todo al día" />
-        } @else {
-          <ul class="action-list" @listStagger>
-            @for (c of actionItems(); track c.id) {
-              <li>
-                <a class="action-item" [routerLink]="['/cases', c.id]">
-                  <div class="action-main">
-                    <span class="action-id mono">EXP-{{ c.id }}</span>
-                    <span class="action-meta">{{ displayInsured(c) }} · {{ c.claimCause }}</span>
-                  </div>
-                  <app-badge [tone]="caseStatusTone(c.status)">{{ workStatusLabel(c) }}</app-badge>
-                  <span class="action-chevron" aria-hidden="true">›</span>
-                </a>
-              </li>
-            }
-          </ul>
-          <a routerLink="/inbox" class="see-all">Ver toda la bandeja ›</a>
-        }
-      </app-card>
-
-      <div class="side-col">
-        <app-card heading="Distribución de tu bandeja">
-          @if (!hasCaseload()) {
-            <app-empty-state
-              message="Todavía no tenés expedientes asignados"
-              sub="Nada en tu bandeja"
-            />
+      <div class="col col-main" #mainCol>
+        <app-card heading="Siniestros asignados" headingSize="md" [flush]="true" class="queue-card">
+          @if (queue() === null) {
+            <p class="t-note pad">No pudimos cargar tus siniestros. Probá recargar la página.</p>
+          } @else if (queue()!.length === 0) {
+            <app-empty-state message="No tenés siniestros asignados" sub="Todo al día" />
           } @else {
-            <ul class="dist">
-              @for (seg of distSegments(); track seg.label) {
-                <li class="dist-row">
-                  <span class="dist-label">{{ seg.label }}</span>
-                  <span class="dist-track">
-                    <span
-                      class="dist-fill"
-                      [class]="'tone-' + seg.tone"
-                      [style.width.%]="distPct(seg.value)"
-                      @growBar
-                    ></span>
-                  </span>
-                  <span class="dist-val tabular">{{ seg.value }}</span>
+            <ul class="queue" [style.--queue-row-extra]="rowExtra() + 'px'" @listStagger>
+              @for (c of queue(); track c.id) {
+                <li>
+                  <a class="queue-row" [routerLink]="['/cases', c.id]">
+                    <span class="queue-main">
+                      <span class="queue-title">
+                        <span class="mono queue-id">EXP-{{ c.id }}</span>
+                        <span class="queue-who">{{ displayInsured(c) }} · {{ c.claimCause }}</span>
+                      </span>
+                      <span class="queue-meta">
+                        {{ reason(c) }} ·
+                        <span class="risk"
+                          ><span class="dot" [class]="'dot tone-' + riskTone(c)"></span>Riesgo
+                          {{ riskLabel(c) }}</span
+                        >
+                      </span>
+                    </span>
+                    @if (isPaused(c)) {
+                      <span class="t-note">Plazo en pausa</span>
+                    } @else if (deadlinePrioritized(c)) {
+                      <app-badge [tone]="deadlineTone(c.deadlinePriority)">{{
+                        deadlineLabel(c)
+                      }}</app-badge>
+                    } @else {
+                      <span class="t-note">Vence el {{ formatDate(c.responseDeadline) }}</span>
+                    }
+                  </a>
                 </li>
               }
             </ul>
-            <div class="dist-foot">
-              @if (atRisk() > 0) {
-                <app-badge tone="danger">{{ atRisk() }} de riesgo alto</app-badge>
-                <span class="t-note">sobre tu carga activa</span>
-              } @else {
-                <span class="t-note">Sin expedientes de riesgo alto</span>
+          }
+          <a class="card-foot" routerLink="/inbox" [queryParams]="{ mine: 'true' }"
+            >Ir a mi bandeja ›</a
+          >
+        </app-card>
+
+        <app-card heading="Mensajes recientes" headingSize="md" class="messages-card grow">
+          <a cardAside routerLink="/messages" class="see-all">Todos ›</a>
+          @if (chatsFailed()) {
+            <p class="t-note">No pudimos cargar los mensajes.</p>
+          } @else if (recentChats().length === 0) {
+            <app-empty-state message="Todavía no hay conversaciones" sub="Sin mensajes" />
+          } @else {
+            <ul class="chats">
+              @for (chat of recentChats(); track chat.caseId) {
+                <li>
+                  <a class="chat" [routerLink]="['/messages', chat.caseId]">
+                    <span class="avatar" aria-hidden="true">{{ initials(chat.insuredName) }}</span>
+                    <span class="chat-text">
+                      <span class="chat-who" [class.unread]="chat.unreadCount > 0">
+                        {{ chat.insuredName }}
+                        <span class="mono chat-case">EXP-{{ chat.caseId }}</span>
+                      </span>
+                      <span class="chat-last">{{ chat.lastMessageBody ?? 'Sin mensajes' }}</span>
+                    </span>
+                    @if (chat.unreadCount > 0) {
+                      <span class="unread-dot" aria-hidden="true"></span>
+                      <span class="sr-only">sin leer</span>
+                    }
+                  </a>
+                </li>
+              }
+            </ul>
+          }
+        </app-card>
+      </div>
+
+      <div class="col col-side">
+        <app-card>
+          <div class="unassigned">
+            <div>
+              <h2 class="unassigned-count">
+                <span class="tabular">{{ summary()?.unassigned ?? '—' }}</span> sin asignar
+              </h2>
+              @if (oldestUnassignedDays(); as days) {
+                <p class="t-note">
+                  El más antiguo espera hace {{ days }} {{ days === 1 ? 'día' : 'días' }}
+                </p>
+              } @else if (summary()?.unassigned === 0) {
+                <p class="t-note">No hay expedientes sin analista</p>
               }
             </div>
+            <a routerLink="/inbox" [queryParams]="{ unassigned: 'true' }"
+              ><app-button size="sm">Ver y tomar</app-button></a
+            >
+          </div>
+        </app-card>
+
+        <app-card heading="Tu bandeja" headingSize="md">
+          @if (caseload(); as c) {
+            <span cardAside class="t-note"
+              >{{ c.total }} {{ c.total === 1 ? 'expediente' : 'expedientes' }}</span
+            >
+          }
+          @if (caseload(); as c) {
+            <span class="split" aria-hidden="true">
+              <span class="split-yours" [style.width.%]="c.yoursPct"></span>
+            </span>
+            <div class="caseload">
+              <div>
+                <p class="t-section-label legend">
+                  <span class="key key-yours"></span>En espera · {{ c.yoursTotal }}
+                </p>
+                @for (row of c.yours; track row.label) {
+                  <a class="caseload-row" routerLink="/inbox" [queryParams]="row.query">
+                    <span>{{ row.label }}</span
+                    ><span class="tabular">{{ row.value }}</span>
+                  </a>
+                }
+              </div>
+              <div>
+                <p class="t-section-label legend">
+                  <span class="key key-waiting"></span>Esperando a otros · {{ c.waitingTotal }}
+                </p>
+                @for (row of c.waiting; track row.label) {
+                  <a class="caseload-row" routerLink="/inbox" [queryParams]="row.query">
+                    <span>{{ row.label }}</span
+                    ><span class="tabular">{{ row.value }}</span>
+                  </a>
+                }
+              </div>
+            </div>
+          } @else {
+            <p class="t-note">No pudimos cargar tu bandeja.</p>
           }
         </app-card>
 
-        <app-card variant="ai" heading="Resumen de Arbiter" icon="✦" class="ai-teaser">
-          <p class="ai-teaser-text">
-            Pronto vas a ver acá un resumen de tu jornada y las señales que levanta el modelo.
-          </p>
-          <app-badge variant="dashed">Próximamente</app-badge>
+        <app-card heading="Tu semana" headingSize="md" class="grow">
+          <a cardAside routerLink="/insurer/reports" class="see-all">Reportes ›</a>
+          @if (weekLoading()) {
+            <app-inline-loading [size]="22" message="Calculando tu semana…" />
+          } @else if (weekStats(); as w) {
+            <dl class="week">
+              <div>
+                <dt class="week-value tabular">{{ w.resolved }}</dt>
+                <dd class="t-note">resueltos · {{ w.approved }} aprobados</dd>
+              </div>
+              <div>
+                <dt class="week-value tabular">
+                  {{ w.ownDays ?? '—' }} <span class="week-unit">días</span>
+                </dt>
+                <dd class="t-note">promedio, sin pausas</dd>
+              </div>
+              <div>
+                <dt class="week-value tabular">{{ w.overdueAtResolution }}</dt>
+                <dd class="t-note">vencidos al resolver</dd>
+              </div>
+              <div>
+                <dt class="week-value tabular">
+                  {{ w.agreement === null ? '—' : w.agreement + '%' }}
+                </dt>
+                <dd class="t-note">de acuerdo con el modelo</dd>
+              </div>
+            </dl>
+          } @else {
+            <p class="t-note">No pudimos calcular tu semana.</p>
+          }
         </app-card>
       </div>
     </div>

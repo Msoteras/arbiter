@@ -280,6 +280,41 @@ instancias lo corra una sola a la vez. La tabla y las columnas llevan los nombre
 
 **Acción:** agregarla en `arbiter_common` como entidad suelta, sin relaciones.
 
+### 29, 30 y 31 · Tipos de documento en la base, por ramo
+
+Migración: `2026-10-14-tipos-de-documento.sql`. Los tipos de documento dejan de estar fijos en el
+front.
+
+**29 · `tipo_documento` (`arbiter_common.document_type`) — tabla nueva del esquema común**
+
+| Columna | Tipo de dato | Nulo | Restricciones |
+|---|---|---|---|
+| `id` | BIGINT | no | PK |
+| `codigo` (`code`) | VARCHAR(50) | no | UNIQUE |
+| `nombre` (`name`) | VARCHAR(100) | no | — |
+
+**30 · `ramo_tipo_documento` (`branch_document_type`) — tabla nueva por aseguradora**
+
+| Columna | Tipo de dato | Nulo | Restricciones |
+|---|---|---|---|
+| `id` | BIGINT | no | PK |
+| `ramo_id` (`branch_id`) | BIGINT | no | FK → `ramo`, ON DELETE CASCADE |
+| `tipo_documento_id` (`document_type_id`) | BIGINT | no | FK → `tipo_documento` |
+
+UNIQUE compuesta `(ramo_id, tipo_documento_id)`: va como nota de texto.
+
+**31 · `requisito_documental.tipo_documento` — pasa de texto a FK**
+
+| Columna | Tipo de dato | Nulo | Restricciones |
+|---|---|---|---|
+| `tipo_documento_id` (`document_type_id`) | BIGINT | no | FK → `tipo_documento`; FK compuesta `(ramo_id, tipo_documento_id)` → `ramo_tipo_documento` |
+
+La FK compuesta impide que la agenda de un ramo pida un documento que no es suyo: va como nota de texto.
+
+**Acción:** agregar las dos tablas con sus relaciones (`ramo` 1—0..\* `ramo_tipo_documento` 0..\*—1
+`tipo_documento`), y en `requisito_documental` cambiar `tipo_documento` VARCHAR por
+`tipo_documento_id` con su relación a `tipo_documento`.
+
 ---
 
 ## Decisiones pendientes antes de tocar el `.mdj`

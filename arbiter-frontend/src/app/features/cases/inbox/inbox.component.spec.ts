@@ -360,6 +360,36 @@ describe('InboxComponent · lifecycle scope', () => {
 
       expect(lastList().staleDays).toBeUndefined();
     });
+
+    it("opens the analyst's own cases with a due deadline, counts included", async () => {
+      await mount(
+        'ANALISTA_SINIESTROS',
+        [],
+        new Map([
+          ['mine', 'true'],
+          ['dueSoon', 'true'],
+        ]),
+      );
+
+      expect(lastList().assignedToMe).toBeTrue();
+      expect(lastList().dueSoon).toBeTrue();
+      expect(lensCalls[lensCalls.length - 1].dueSoon).toBeTrue();
+
+      call('clearAllChips');
+      fixture.detectChanges();
+      await fixture.whenStable();
+
+      expect(lastList().dueSoon).toBeUndefined();
+    });
+
+    it('takes a follow-up link and ignores an unknown one', async () => {
+      await mount('ANALISTA_SINIESTROS', [], new Map([['followUp', 'EXPERT_REPORT_RECEIVED']]));
+      expect(lastList().followUp).toBe('EXPERT_REPORT_RECEIVED');
+
+      TestBed.resetTestingModule();
+      await mount('ANALISTA_SINIESTROS', [], new Map([['followUp', 'SOMETHING_ELSE']]));
+      expect(lastList().followUp).toBeUndefined();
+    });
   });
 
   describe('follow-up filter', () => {
@@ -417,6 +447,42 @@ describe('InboxComponent · lifecycle scope', () => {
       const statusCell: HTMLElement = fixture.nativeElement.querySelector('tbody td:nth-child(2)');
       expect(statusCell.querySelectorAll('.badge').length).toBe(1);
       expect(statusCell.textContent?.trim()).toBe('Pendiente de revisión');
+    });
+  });
+
+  describe('deadline column', () => {
+    const row = (id: number, status: string) => ({
+      id,
+      status,
+      insuredName: 'Julián Pérez',
+      claimCause: 'Robo en vía pública',
+      eventDate: '2026-09-20T19:25:00',
+      claimedAmount: 900000,
+      analysisClassification: null,
+      assignedAnalystId: null,
+      assignedAnalystName: null,
+      responseDeadline: '2026-09-18',
+      deadlinePriority: 'NONE',
+      riskBand: null,
+      riskScore: null,
+      settlementStatus: null,
+    });
+
+    function deadlineCells(): string[] {
+      return (
+        Array.from(fixture.nativeElement.querySelectorAll('tbody td:nth-child(3)')) as HTMLElement[]
+      ).map((td) => td.textContent?.trim() ?? '');
+    }
+
+    it('hides the stale date while the term is paused or the case is closed', async () => {
+      await mount('ANALISTA_SINIESTROS', [
+        row(30, 'AWAITING_DOCUMENTATION'),
+        row(31, 'PENDING_EXPERT_REPORT'),
+        row(32, 'APPROVED'),
+        row(33, 'PENDING_ANALYST_REVIEW'),
+      ]);
+
+      expect(deadlineCells()).toEqual(['En pausa', 'En pausa', '—', '18/9/2026']);
     });
   });
 });

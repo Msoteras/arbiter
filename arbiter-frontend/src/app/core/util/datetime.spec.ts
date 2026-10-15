@@ -1,6 +1,7 @@
 import {
   addDays,
   formatDate,
+  formatDateRange,
   formatDateTime,
   isPoliceReportBeforeEvent,
   isTypedDate,
@@ -115,5 +116,19 @@ describe('addDays', () => {
   it('returns empty for a half-typed date', () => {
     expect(addDays('0202-06-13', -1)).toBe('');
     expect(addDays('', -1)).toBe('');
+  });
+});
+
+describe('formatDateRange', () => {
+  it('writes the year once when both ends share it', () => {
+    expect(formatDateRange('2026-09-07', '2026-10-06')).toBe('7 sep – 6 oct 2026');
+  });
+
+  it('writes both years when the range crosses one', () => {
+    expect(formatDateRange('2025-12-15', '2026-01-14')).toBe('15 dic 2025 – 14 ene 2026');
+  });
+
+  it('can leave the year out', () => {
+    expect(formatDateRange('2026-08-08', '2026-09-06', false)).toBe('8 ago – 6 sep');
   });
 });

@@ -50,7 +50,7 @@ public class InsurerHardRuleController {
     }
 
     @GetMapping("/internal/policy-standing")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("authentication.authorities.isEmpty()")
     @Operation(summary = "[interno] Regla de mora de la póliza",
             description = "Lectura system-to-system para cases-service (sin rol REFERENTE): la usa el "
                     + "gate de alta con un token de servicio que lleva el tenant, antes de crear el "

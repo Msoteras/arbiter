@@ -85,6 +85,9 @@ una mutación tire error al probar.
 
 ### ⚪ Para tener en cuenta
 - La bandeja de mensajes **no se migra**: `CaseMessagesService` + el polling de `app.ts:93-110` ya hacen de cache.
+- El catálogo de tipos de documento **no pasa por `QueryCache`**: `DocumentTypeService` lo pide una vez por
+  sesión y lo guarda él mismo. Es igual para todas las aseguradoras y no tiene datos personales, así que
+  no hace falta vaciarlo al cerrar sesión. El catálogo por ramo, que usa Reglas, se pide cada vez.
 - `inbox.component.spec.ts` simula `CaseService` y hay que adaptarlo.
 - La tabla de invalidación se arma sobre la versión final de las configs, después de onboarding.
 

@@ -220,7 +220,7 @@
           <!-- ============ COVERAGES ============ -->
           <!-- Accordion: one coverage open at a time. -->
           @case ('coverages') {
-            @if (detailLoading()) {
+            @if (detailLoading() || tabRendering()) {
               <app-inline-loading [size]="26" message="Cargando coberturas…" />
             } @else {
               <div class="tab-panel" @fadeInUp>
@@ -551,7 +551,7 @@
           <!-- ============ COMMON EXCLUSIONS ============ -->
           <!-- Branch-wide, not per coverage, and saved through their own rules-service endpoint. -->
           @case ('exclusions') {
-            @if (detailLoading()) {
+            @if (detailLoading() || tabRendering()) {
               <app-inline-loading [size]="26" message="Cargando exclusiones…" />
             } @else {
               <div class="tab-panel" @fadeInUp>
@@ -598,7 +598,7 @@
 
           <!-- ============ FAST TRACK ============ -->
           @case ('fastTrack') {
-            @if (detailLoading()) {
+            @if (detailLoading() || tabRendering()) {
               <app-inline-loading [size]="26" message="Cargando Fast Track…" />
             } @else {
               <div class="tab-panel" @fadeInUp>
@@ -805,7 +805,7 @@
           <!-- ============ DOCUMENTS ============ -->
           <!-- Document × claim cause matrix. -->
           @case ('documents') {
-            @if (detailLoading()) {
+            @if (detailLoading() || tabRendering()) {
               <app-inline-loading [size]="26" message="Cargando documentación…" />
             } @else {
               <div class="tab-panel" @fadeInUp>
@@ -822,6 +822,8 @@
                     <p class="section-hint">
                       Este ramo todavía no tiene hechos generadores cargados.
                     </p>
+                  } @else if (docTypes().length === 0) {
+                    <p class="section-hint">Este ramo todavía no tiene documentos habilitados.</p>
                   } @else {
                     <app-table [fixed]="true">
                       <thead>
@@ -836,7 +838,7 @@
                         </tr>
                       </thead>
                       <tbody>
-                        @for (doc of docTypes; track doc.code) {
+                        @for (doc of docTypes(); track doc.code) {
                           <tr>
                             <th scope="row" class="doc-row-name">{{ doc.label }}</th>
                             @for (cause of claimCauses(); track cause.id) {
@@ -881,7 +883,7 @@
 
           <!-- ============ BUSINESS RULES ============ -->
           @case ('rules') {
-            @if (detailLoading()) {
+            @if (detailLoading() || tabRendering()) {
               <app-inline-loading [size]="26" message="Cargando reglas de negocio…" />
             } @else {
               <div class="tab-panel" @fadeInUp>

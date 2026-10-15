@@ -1,5 +1,7 @@
 package ar.edu.utn.frba.arbiter.cases.services;
 
+import ar.edu.utn.frba.arbiter.cases.dto.AnalystWorkloadResponse;
+import ar.edu.utn.frba.arbiter.cases.dto.HomeSummaryResponse;
 import ar.edu.utn.frba.arbiter.cases.config.tenant.CallerContext;
 import ar.edu.utn.frba.arbiter.cases.dto.AnalystDecisionRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.AnalystDecisionResponse;
@@ -21,6 +23,7 @@ import ar.edu.utn.frba.arbiter.cases.dto.StatusTransitionResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.EligibilityCheckResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.ProviderType;
 import ar.edu.utn.frba.arbiter.cases.dto.RepairProviderResponse;
+import ar.edu.utn.frba.arbiter.cases.exceptions.ClosedCaseAssignmentException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.AnalystNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.AnalystProfileNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CaseAssignedToAnotherAnalystException;
@@ -669,7 +672,7 @@ class CaseServiceImplTest {
                 new CaseLensCountRepository.OwnershipCounts(15, 13, 15, 0, 3)));
 
         LensSummaryResponse summary = caseService.lensSummary(
-                null, null, null, null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null, null, null, false);
 
         assertThat(summary.open()).isEqualTo(new LensSummaryResponse.Counts(19, 7, 12, 7, 5));
         assertThat(summary.closed()).isEqualTo(new LensSummaryResponse.Counts(15, 13, 15, 0, 3));
@@ -810,6 +813,91 @@ class CaseServiceImplTest {
 
         verify(caseStatusService).recordAssignment(entity, StatusChangeActor.REFERENT,
                 "expediente asignado a Lucas Gómez");
+    }
+
+    @Test
+    void homeSummary_analystWithNoProfile_countsOnlyTheUnassigned() {
+        // An analyst with no profile in this tenant owns nothing: never the whole insurer's numbers.
+        authenticateAs("nuevo@example.com");
+        when(accessPolicy.currentParty()).thenReturn(StatusChangeActor.ANALYST);
+        when(claimsAnalystRepository.findByEmail("nuevo@example.com")).thenReturn(Optional.empty());
+        when(caseRepository.count(any(Specification.class))).thenReturn(4L);
+        when(caseRepository.findAll(any(Specification.class), any(Pageable.class))).thenReturn(Page.empty());
+
+        HomeSummaryResponse summary = caseService.homeSummary();
+
+        assertThat(summary.deadlines()).isEqualTo(new HomeSummaryResponse.Deadlines(0, 0, 0, 0));
+        assertThat(summary.stale()).isZero();
+        assertThat(summary.classificationFailed()).isZero();
+        assertThat(summary.unassigned()).isEqualTo(4);
+        assertThat(summary.oldestUnassignedAt()).isNull();
+        verify(caseRepository, times(1)).count(any(Specification.class));
+    }
+
+    @Test
+    void homeSummary_referent_countsTheWholeInsurer() {
+        Instant reported = Instant.parse("2026-06-12T09:00:00Z");
+        Case oldest = caseRecord(5L, CaseStatus.PENDING_ANALYST_REVIEW);
+        oldest.setReportedAt(reported);
+        when(accessPolicy.currentParty()).thenReturn(StatusChangeActor.REFERENT);
+        when(caseRepository.count(any(Specification.class))).thenReturn(3L);
+        when(caseRepository.findAll(any(Specification.class), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(oldest)));
+
+        HomeSummaryResponse summary = caseService.homeSummary();
+
+        assertThat(summary.deadlines()).isEqualTo(new HomeSummaryResponse.Deadlines(3, 3, 3, 3));
+        assertThat(summary.staleDays()).isEqualTo(15);
+        assertThat(summary.oldestUnassignedAt()).isEqualTo(reported);
+        verify(claimsAnalystRepository, never()).findByEmail(any());
+    }
+
+    @Test
+    void analystWorkload_reportsOverdueCasesPerAnalyst() {
+        when(caseRepository.countActiveByAnalyst(any())).thenReturn(List.of(analystCount(7L, 14), analystCount(9L, 3)));
+        when(caseRepository.countOverdueByAnalyst(any(), eq(LocalDate.of(2026, 6, 15))))
+                .thenReturn(List.of(analystCount(7L, 2)));
+        when(claimsAnalystRepository.findAll())
+                .thenReturn(List.of(analyst(7L, "Lucas", "Gómez"), analyst(9L, "Sofía", "Martínez")));
+
+        assertThat(caseService.analystWorkload()).containsExactly(
+                new AnalystWorkloadResponse(7L, "Lucas Gómez", 14, 2),
+                new AnalystWorkloadResponse(9L, "Sofía Martínez", 3, 0));
+    }
+
+    private static CaseRepository.AnalystCaseCount analystCount(Long analystId, long total) {
+        return new CaseRepository.AnalystCaseCount() {
+            @Override
+            public Long getAnalystId() {
+                return analystId;
+            }
+
+            @Override
+            public long getTotal() {
+                return total;
+            }
+        };
+    }
+
+    @Test
+    void assignAnalyst_closedCase_isRejected() {
+        Case entity = caseRecord(1L, CaseStatus.APPROVED);
+        when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
+
+        assertThatThrownBy(() -> caseService.assignAnalyst(1L, 7L))
+                .isInstanceOf(ClosedCaseAssignmentException.class);
+        verify(caseRepository, never()).save(any());
+    }
+
+    @Test
+    void unassignAnalyst_closedCase_isRejected() {
+        Case entity = caseRecord(1L, CaseStatus.REJECTED);
+        entity.setAnalyst(analyst(7L, "Lucas", "Gómez"));
+        when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
+
+        assertThatThrownBy(() -> caseService.unassignAnalyst(1L))
+                .isInstanceOf(ClosedCaseAssignmentException.class);
+        verify(caseRepository, never()).save(any());
     }
 
     @Test
