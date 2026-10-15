@@ -10,11 +10,12 @@ import { CreateUserComponent } from '../create-user/create-user.component';
 import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { CardComponent } from '../../../shared/ui/card/card.component';
+import { ChipGroupComponent, ChipOption } from '../../../shared/ui/chip-group/chip-group.component';
 import { EmptyStateComponent } from '../../../shared/ui/empty-state/empty-state.component';
+import { IconButtonComponent } from '../../../shared/ui/icon-button/icon-button.component';
 import { InputComponent } from '../../../shared/ui/input/input.component';
 import { ModalComponent } from '../../../shared/ui/modal/modal.component';
 import { TableComponent } from '../../../shared/ui/table/table.component';
-import { SelectComponent, SelectOption } from '../../../shared/ui/select/select.component';
 import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
 import { ToastService } from '../../../shared/ui/toast/toast.service';
 import { fadeStagger, staggerReveal } from '../../../shared/animations';
@@ -29,11 +30,12 @@ import { OnboardingTargetDirective } from '../../../core/onboarding/onboarding-t
     BadgeComponent,
     ButtonComponent,
     CardComponent,
+    ChipGroupComponent,
     EmptyStateComponent,
+    IconButtonComponent,
     InputComponent,
     ModalComponent,
     TableComponent,
-    SelectComponent,
     InlineLoadingComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -46,13 +48,10 @@ export class UsersComponent {
   private readonly session = inject(AuthSessionService);
   private readonly toastService = inject(ToastService);
 
-  protected readonly roles: UserRole[] = [
-    'ASEGURADO',
-    'ANALISTA_SINIESTROS',
-    'REFERENTE_ASEGURADORA',
-  ];
+  // Insureds come from the insurer's directory: their role is never editable.
+  protected readonly roles: UserRole[] = ['ANALISTA_SINIESTROS', 'REFERENTE_ASEGURADORA'];
 
-  protected readonly roleOptions: SelectOption[] = this.roles.map((r) => ({
+  protected readonly roleOptions: ChipOption[] = this.roles.map((r) => ({
     value: r,
     label: this.roleLabel(r),
   }));
@@ -60,7 +59,10 @@ export class UsersComponent {
   protected readonly loading = signal(true);
   protected readonly hasError = signal(false);
   protected readonly users = signal<UserResponse[]>([]);
-  protected readonly savingId = signal<number | null>(null);
+
+  protected readonly userToEditRole = signal<UserResponse | null>(null);
+  protected readonly roleDraft = signal<string>('');
+  protected readonly savingRole = signal(false);
   protected readonly roleError = signal<string | null>(null);
   protected readonly showCreatePanel = signal(false);
 
@@ -144,6 +146,10 @@ export class UsersComponent {
     return user.email === this.session.session()?.email;
   }
 
+  protected canEditRole(user: UserResponse): boolean {
+    return !this.isSelf(user) && user.rol !== 'ASEGURADO';
+  }
+
   protected onCreated(user: UserResponse): void {
     this.users.update((list) => [user, ...list]);
     this.showCreatePanel.set(false);
@@ -182,20 +188,33 @@ export class UsersComponent {
     });
   }
 
-  protected onRoleChange(user: UserResponse, newRole: UserRole): void {
-    if (newRole === user.rol) {
+  protected requestRoleChange(user: UserResponse): void {
+    this.roleError.set(null);
+    this.roleDraft.set(user.rol);
+    this.userToEditRole.set(user);
+  }
+
+  protected cancelRoleChange(): void {
+    this.userToEditRole.set(null);
+  }
+
+  protected confirmRoleChange(): void {
+    const user = this.userToEditRole();
+    const newRole = this.roleDraft() as UserRole;
+    if (!user || newRole === user.rol) {
       return;
     }
     this.roleError.set(null);
-    this.savingId.set(user.id);
+    this.savingRole.set(true);
 
     this.service.updateRole(user.id, newRole).subscribe({
       next: (updated) => {
-        this.savingId.set(null);
+        this.savingRole.set(false);
+        this.userToEditRole.set(null);
         this.users.update((list) => list.map((u) => (u.id === updated.id ? updated : u)));
       },
       error: (err: HttpErrorResponse) => {
-        this.savingId.set(null);
+        this.savingRole.set(false);
         this.roleError.set(err.error?.detail ?? 'No se pudo cambiar el rol. Probá de nuevo.');
       },
     });

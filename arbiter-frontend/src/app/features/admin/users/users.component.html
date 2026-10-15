@@ -29,9 +29,6 @@
   } @else if (isEmpty()) {
     <app-empty-state message="Todavía no hay usuarios cargados." sub="Sin usuarios" />
   } @else {
-    @if (roleError()) {
-      <p class="error">{{ roleError() }}</p>
-    }
     @if (resendError()) {
       <p class="error">{{ resendError() }}</p>
     }
@@ -53,19 +50,17 @@
               <td>{{ u.nombre }} {{ u.apellido }}</td>
               <td class="mono">{{ u.email }}</td>
               <td>
-                @if (isSelf(u)) {
-                  <app-badge title="No podés cambiar tu propio rol">{{
-                    roleLabel(u.rol)
-                  }}</app-badge>
-                } @else {
-                  <app-select
-                    class="role-select"
-                    [options]="roleOptions"
-                    [value]="u.rol"
-                    (valueChange)="onRoleChange(u, $any($event))"
-                    [disabled]="savingId() === u.id"
-                  />
-                }
+                <span class="role-cell" [title]="isSelf(u) ? 'No podés cambiar tu propio rol' : ''">
+                  <span class="t-body">{{ roleLabel(u.rol) }}</span>
+                  @if (canEditRole(u)) {
+                    <app-icon-button
+                      icon="edit"
+                      size="sm"
+                      [label]="'Cambiar el rol de ' + u.nombre + ' ' + u.apellido"
+                      (click)="requestRoleChange(u)"
+                    />
+                  }
+                </span>
               </td>
               <td>
                 <app-badge [tone]="statusTone(u.estado)">{{ statusLabel(u.estado) }}</app-badge>
@@ -104,7 +99,7 @@
   @if (userToDelete(); as u) {
     <p class="t-body">
       Vas a eliminar a <strong>{{ u.nombre }} {{ u.apellido }}</strong
-      >. Esta acción es irreversible: se revoca su acceso y se libera su email.
+      >. Pierde el acceso a esta aseguradora. No se puede deshacer.
     </p>
     <label class="delete-confirm">
       <span class="t-field-label">
@@ -127,6 +122,36 @@
     <app-button [disabled]="deleting() || !canConfirmDelete()" (click)="confirmDelete()">
       {{ deleting() ? 'Eliminando…' : 'Sí, eliminar usuario' }}
     </app-button>
+  </ng-container>
+</app-modal>
+
+<app-modal [open]="userToEditRole() !== null" heading="Cambiar rol" (close)="cancelRoleChange()">
+  @if (userToEditRole(); as u) {
+    <p class="t-body role-target">
+      <strong>{{ u.nombre }} {{ u.apellido }}</strong>
+    </p>
+    <app-chip-group
+      ariaLabel="Rol"
+      size="sm"
+      [options]="roleOptions"
+      [value]="roleDraft()"
+      (valueChange)="roleDraft.set($event)"
+      [disabled]="savingRole()"
+    />
+    @if (roleError()) {
+      <p class="error role-error">{{ roleError() }}</p>
+    }
+  }
+  <ng-container modalActions>
+    <app-button variant="secondary" [disabled]="savingRole()" (click)="cancelRoleChange()"
+      >Cancelar</app-button
+    >
+    <app-button
+      [loading]="savingRole()"
+      [disabled]="roleDraft() === userToEditRole()?.rol"
+      (click)="confirmRoleChange()"
+      >Guardar</app-button
+    >
   </ng-container>
 </app-modal>
 

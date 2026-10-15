@@ -10,8 +10,10 @@ import ar.edu.utn.frba.arbiter.auth.exceptions.CannotDeleteOwnAccountException;
 import ar.edu.utn.frba.arbiter.auth.exceptions.EmailAlreadyExistsException;
 import ar.edu.utn.frba.arbiter.auth.exceptions.InvalidInviteTokenException;
 import ar.edu.utn.frba.arbiter.auth.exceptions.InviteTokenExpiredException;
+import ar.edu.utn.frba.arbiter.auth.exceptions.RoleChangeNotAllowedException;
 import ar.edu.utn.frba.arbiter.auth.exceptions.RoleNotAllowedException;
 import ar.edu.utn.frba.arbiter.auth.exceptions.UserAlreadyActiveException;
+import ar.edu.utn.frba.arbiter.auth.exceptions.UserHasActivityException;
 import ar.edu.utn.frba.arbiter.auth.exceptions.UserNotFoundException;
 import ar.edu.utn.frba.arbiter.common.models.entities.Insurer;
 import ar.edu.utn.frba.arbiter.common.models.entities.Role;
@@ -29,8 +31,10 @@ import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -38,6 +42,7 @@ import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
@@ -48,6 +53,10 @@ public class UserService {
 
     private static final long INVITE_VALIDITY_HOURS = 48;
     private static final long RESET_VALIDITY_HOURS = 2;
+
+    /** The only roles a referent may swap between; insureds come from the insurer's directory. */
+    private static final Set<UserRole> STAFF_ROLES =
+            Set.of(UserRole.ANALISTA_SINIESTROS, UserRole.REFERENTE_ASEGURADORA);
 
     private final UserRepository userRepository;
     private final ClaimsAnalystRepository claimsAnalystRepository;
@@ -62,6 +71,7 @@ public class UserService {
     private final InsuredProvisioningService insuredProvisioningService;
     private final AuthService authService;
     private final RulesServiceClient rulesServiceClient;
+    private final TransactionTemplate transactionTemplate;
 
     @Value("${arbiter.frontend.base-url:http://localhost:4200}")
     private String frontendBaseUrl;
@@ -84,10 +94,7 @@ public class UserService {
             throw new EmailAlreadyExistsException(request.email());
         }
 
-        User caller = userRepository.findByEmail(callerEmail)
-                .orElseThrow(() -> new IllegalStateException("Authenticated user not found: " + callerEmail));
-        Long insurerId = tenantResolver.insurerIdsFor(caller.getId()).stream().findFirst()
-                .orElseThrow(() -> new IllegalStateException("Referent without an assigned insurer: " + callerEmail));
+        Long insurerId = callerInsurerId(callerEmail);
 
         String inviteToken = UUID.randomUUID().toString();
         User user = User.builder()
@@ -122,10 +129,7 @@ public class UserService {
      * the async hand-off. The insurer comes from the caller's membership, never from the request.
      */
     public void provisionInsuredAccounts(String callerEmail) {
-        User caller = userRepository.findByEmail(callerEmail)
-                .orElseThrow(() -> new IllegalStateException("Authenticated user not found: " + callerEmail));
-        Long insurerId = tenantResolver.insurerIdsFor(caller.getId()).stream().findFirst()
-                .orElseThrow(() -> new IllegalStateException("Referent without an assigned insurer: " + callerEmail));
+        Long insurerId = callerInsurerId(callerEmail);
 
         insuredProvisioningService.provisionAsync(TenantContext.get(), insurerId);
         rulesServiceClient.recordOnboardingSave(OnboardingStep.INSURED);
@@ -222,8 +226,8 @@ public class UserService {
         requireValidToken(token);
     }
 
-    public UserResponse resendInvite(Long userId) {
-        User user = userRepository.findById(userId).orElseThrow(() -> new UserNotFoundException(userId));
+    public UserResponse resendInvite(Long userId, String callerEmail) {
+        User user = requireMember(userId, callerInsurerId(callerEmail));
 
         if (user.isActivated()) {
             throw new UserAlreadyActiveException();
@@ -277,10 +281,7 @@ public class UserService {
 
     /** Narrowed to the caller's insurer: {@code users} is common to every tenant. */
     public List<UserResponse> listUsers(String callerEmail) {
-        User caller = userRepository.findByEmail(callerEmail)
-                .orElseThrow(() -> new IllegalStateException("Authenticated user not found: " + callerEmail));
-        Long insurerId = tenantResolver.insurerIdsFor(caller.getId()).stream().findFirst()
-                .orElseThrow(() -> new IllegalStateException("Referent without an assigned insurer: " + callerEmail));
+        Long insurerId = callerInsurerId(callerEmail);
 
         List<Long> userIds = userInsurerRepository.findByInsurerId(insurerId).stream()
                 .map(ui -> ui.getUser().getId())
@@ -294,18 +295,34 @@ public class UserService {
 
     /** {@code claims_analyst} is per-schema, so the resolved tenant already narrows it to one insurer. */
     public List<AnalystResponse> listAssignableAnalysts() {
-        return claimsAnalystRepository.findAllByOrderBySurnameAscNameAsc().stream()
+        return claimsAnalystRepository.findCurrentAnalysts().stream()
                 .map(a -> new AnalystResponse(a.getId(), a.getName(), a.getSurname(), a.getEmail()))
                 .toList();
     }
 
-    /** The old role's profile row is NOT migrated to the new role. */
+    /**
+     * Only swaps between analyst and referent. The new role's profile is created in the same
+     * transaction; the old one stays, since cases may already point at it.
+     */
+    @Transactional
     public UserResponse updateRole(Long userId, UserRole newRole, String requestingEmail) {
-        User user = userRepository.findById(userId).orElseThrow(() -> new UserNotFoundException(userId));
+        User user = requireMember(userId, callerInsurerId(requestingEmail));
 
         if (user.getEmail().equals(requestingEmail)) {
             throw new CannotChangeOwnRoleException();
         }
+
+        UserRole currentRole = roleOf(user).orElse(null);
+        if (!STAFF_ROLES.contains(currentRole) || !STAFF_ROLES.contains(newRole)) {
+            throw new RoleChangeNotAllowedException();
+        }
+        if (newRole == currentRole) {
+            return toResponse(user);
+        }
+
+        TenantProfileService.Profile profile = tenantProfileService.find(currentRole, user.getId())
+                .orElseThrow(() -> new IllegalStateException("Staff user without a profile: " + userId));
+        tenantProfileService.createStaffProfileIfMissing(newRole, user, profile.name(), profile.surname());
 
         Role role = roleRepository.findByCode(newRole.name())
                 .orElseThrow(() -> new IllegalStateException("Role not found in the catalog: " + newRole));
@@ -313,30 +330,94 @@ public class UserService {
         return toResponse(userRepository.save(user));
     }
 
+    /**
+     * Removes the user from the caller's insurer. With no other insurer left, the account goes too:
+     * first everything in the database, in one transaction, and Auth0 last, so a database failure
+     * never leaves someone locked out with their data still in place.
+     *
+     * @throws UserHasActivityException if recorded activity still points at the user; nothing changes
+     */
     public void deleteUser(Long userId, String requestingEmail) {
-        User user = userRepository.findById(userId).orElseThrow(() -> new UserNotFoundException(userId));
+        Long insurerId = callerInsurerId(requestingEmail);
+        User user = requireMember(userId, insurerId);
 
         if (user.getEmail().equals(requestingEmail)) {
             throw new CannotDeleteOwnAccountException();
         }
 
-        auth0UserProvisioner.ifPresent(provisioner -> provisioner.deleteUser(user.getEmail()));
+        boolean accountRemoved = Boolean.TRUE.equals(
+                transactionTemplate.execute(status -> removeFromInsurer(user, insurerId)));
 
-        // The profile FK isn't ON DELETE CASCADE. The caller's tenant is the target's too.
-        user.getRoles().stream().findFirst().map(Role::getCode).map(UserRole::valueOf)
-                .ifPresent(rol -> tenantProfileService.deleteProfile(rol, user.getId()));
-        userInsurerRepository.deleteAll(userInsurerRepository.findByUserId(user.getId()));
+        if (accountRemoved) {
+            auth0UserProvisioner.ifPresent(provisioner -> deleteFromAuth0(provisioner, user));
+        }
+    }
 
-        userRepository.delete(user);
+    /**
+     * The foreign keys decide what counts as activity: every table that records something a user
+     * did points at {@code users} or at their profile, so the delete fails on any of them.
+     *
+     * @return whether the account itself was deleted, as opposed to only unlinked from this insurer
+     */
+    private boolean removeFromInsurer(User user, Long insurerId) {
+        try {
+            // The profile lives in the caller's schema, which is the resolved tenant.
+            roleOf(user).ifPresent(rol -> tenantProfileService.deleteProfile(rol, user.getId()));
+
+            List<UserInsurer> memberships = userInsurerRepository.findByUserId(user.getId());
+            memberships.stream()
+                    .filter(m -> m.getInsurerId().equals(insurerId))
+                    .forEach(userInsurerRepository::delete);
+
+            boolean lastMembership = memberships.size() == 1;
+            if (lastMembership) {
+                userRepository.delete(user);
+            }
+            userRepository.flush();
+            return lastMembership;
+        } catch (DataIntegrityViolationException e) {
+            throw new UserHasActivityException(e);
+        }
+    }
+
+    /**
+     * Runs after the commit, so the account is already gone from Arbiter: a failure here leaves an
+     * orphan in Auth0 that can no longer log in, logged for manual cleanup.
+     */
+    private void deleteFromAuth0(Auth0UserProvisioner provisioner, User user) {
+        try {
+            provisioner.deleteUser(user.getEmail());
+        } catch (RuntimeException e) {
+            log.error("[Auth] User deleted locally but not in Auth0: userId={} email={}",
+                    user.getId(), user.getEmail(), e);
+        }
+    }
+
+    private Long callerInsurerId(String callerEmail) {
+        User caller = userRepository.findByEmail(callerEmail)
+                .orElseThrow(() -> new IllegalStateException("Authenticated user not found: " + callerEmail));
+        return tenantResolver.insurerIdsFor(caller.getId()).stream().findFirst()
+                .orElseThrow(() -> new IllegalStateException("Referent without an assigned insurer: " + callerEmail));
+    }
+
+    /**
+     * {@code users} is common to every insurer, so an id alone could reach another insurer's account.
+     * A user outside the caller's insurer answers the same as one that doesn't exist.
+     */
+    private User requireMember(Long userId, Long insurerId) {
+        if (userInsurerRepository.findByUserIdAndInsurerId(userId, insurerId).isEmpty()) {
+            throw new UserNotFoundException(userId);
+        }
+        return userRepository.findById(userId).orElseThrow(() -> new UserNotFoundException(userId));
+    }
+
+    private Optional<UserRole> roleOf(User user) {
+        return user.getRoles().stream().findFirst().map(Role::getCode).map(UserRole::valueOf);
     }
 
     /** Assumes TenantContext already points at this user's schema. */
     private UserResponse toResponse(User user) {
-        UserRole rol = user.getRoles().stream()
-                .findFirst()
-                .map(Role::getCode)
-                .map(UserRole::valueOf)
-                .orElse(null);
+        UserRole rol = roleOf(user).orElse(null);
         var profile = rol != null ? tenantProfileService.find(rol, user.getId()) : Optional.<TenantProfileService.Profile>empty();
         return toResponse(user, profile.map(TenantProfileService.Profile::name).orElse(null),
                 profile.map(TenantProfileService.Profile::surname).orElse(null), rol);

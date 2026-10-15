@@ -99,9 +99,9 @@ public class UserController {
     @PreAuthorize("hasRole('REFERENTE_ASEGURADORA')")
     @Operation(summary = "Cambiar el rol de un usuario",
             description = """
-                    El referente puede reasignar el rol de cualquier usuario, incluso promover a
-                    otro referente (no es una escalada real: ya tiene acceso completo). No puede
-                    cambiar su propio rol.
+                    El referente cambia el rol entre Analista de siniestros y Referente de
+                    aseguradora, y se crea el perfil del rol nuevo. No aplica a los asegurados ni
+                    al propio referente (400). Responde 404 si el usuario no es de su aseguradora.
                     """)
     public ResponseEntity<UserResponse> updateRole(
             @PathVariable Long id,
@@ -118,17 +118,24 @@ public class UserController {
             description = """
                     Genera un token de invitación nuevo (48hs) y reenvía el mail de activación.
                     Solo tiene sentido para usuarios en estado PENDING — 400 si ya está activo.
+                    Responde 404 si el usuario no es de la aseguradora del referente.
                     """)
-    public ResponseEntity<UserResponse> resendInvite(@PathVariable Long id) {
-        return ResponseEntity.ok(userService.resendInvite(id));
+    public ResponseEntity<UserResponse> resendInvite(@PathVariable Long id, Authentication authentication) {
+        return ResponseEntity.ok(userService.resendInvite(id, authentication.getName()));
     }
 
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('REFERENTE_ASEGURADORA')")
     @Operation(summary = "Eliminar un usuario",
             description = """
-                    Borrado definitivo e irreversible (no es una baja/desactivación — no existe ese
-                    estado hoy). El referente no puede eliminar su propia cuenta.
+                    Quita al usuario de la aseguradora del referente. Si no pertenece a otra
+                    aseguradora, borra la cuenta de forma definitiva, incluida la de Auth0. Un
+                    asegurado de varias aseguradoras conserva su cuenta y el acceso a las demás.
+
+                    Responde 409 si el usuario tiene actividad registrada (historial, mensajes,
+                    liquidaciones, reglas creadas): en ese caso no cambia nada. Responde 404 si el
+                    usuario no es de la aseguradora del referente. El referente no puede eliminar
+                    su propia cuenta.
                     """)
     public ResponseEntity<Void> deleteUser(@PathVariable Long id, Authentication authentication) {
         userService.deleteUser(id, authentication.getName());
