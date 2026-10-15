@@ -1,6 +1,7 @@
 package ar.edu.utn.frba.arbiter.rules.services;
 
 import ar.edu.utn.frba.arbiter.common.enums.OnboardingStep;
+import ar.edu.utn.frba.arbiter.common.models.entities.DocumentType;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Branch;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.ClaimCause;
 import ar.edu.utn.frba.arbiter.rules.dto.DocumentRequirementDto;
@@ -25,12 +26,13 @@ public class DocumentRequirementService {
     private final DocumentRequirementRepository documentRequirementRepository;
     private final ClaimCauseRepository claimCauseRepository;
     private final BranchRepository branchRepository;
+    private final DocumentTypeService documentTypes;
     private final OnboardingTracker onboardingTracker;
 
     @Transactional(readOnly = true)
     public List<String> get(Long branchId, Long claimCauseId) {
         return documentRequirementRepository.findByBranch_IdAndClaimCause_Id(branchId, claimCauseId).stream()
-                .map(DocumentRequirement::getDocumentType)
+                .map(requirement -> requirement.getDocumentType().getCode())
                 .distinct()
                 .toList();
     }
@@ -68,8 +70,9 @@ public class DocumentRequirementService {
                 .orElse(List.of());
     }
 
+    /** Rejects the whole list when one of the documents isn't among the branch's. */
     @Transactional
-    public List<DocumentRequirementDto> upsert(Long branchId, Long claimCauseId, List<String> documentTypes) {
+    public List<DocumentRequirementDto> upsert(Long branchId, Long claimCauseId, List<String> documentTypeCodes) {
         onboardingTracker.touch(OnboardingStep.DOCUMENTS, null);
         Branch branch = branchRepository.findById(branchId)
                 .orElseThrow(() -> new BranchNotFoundException(branchId));
@@ -78,8 +81,10 @@ public class DocumentRequirementService {
                 .orElseThrow(() -> new InvalidRuleConfigurationException(
                         "El hecho generador " + claimCauseId + " no pertenece al ramo " + branchId + "."));
 
+        List<DocumentType> types = documentTypes.requireOfBranch(branchId, documentTypeCodes);
+
         documentRequirementRepository.deleteByBranch_IdAndClaimCause_Id(branchId, claimCauseId);
-        List<DocumentRequirement> requirements = documentTypes.stream()
+        List<DocumentRequirement> requirements = types.stream()
                 .map(type -> DocumentRequirement.builder()
                         .documentType(type)
                         .branch(branch)
@@ -88,7 +93,7 @@ public class DocumentRequirementService {
                 .toList();
         return documentRequirementRepository.saveAll(requirements).stream()
                 .map(saved -> new DocumentRequirementDto(
-                        saved.getId(), saved.getDocumentType(), saved.getClaimCause().getId()))
+                        saved.getId(), saved.getDocumentType().getCode(), saved.getClaimCause().getId()))
                 .toList();
     }
 }

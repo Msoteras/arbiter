@@ -48,18 +48,6 @@ public class DocumentInconsistencyEvaluator implements RiskFactorEvaluator {
      */
     private static final Set<String> PROVIDER_REPORT_TYPES = Set.of("expert_report", "repair_report");
 
-    /**
-     * The analyst reads the finding, so it names the document as the screen does. The frontend's
-     * labels can't be reused: this text also goes out as is in the fraud report's CSV and PDF.
-     */
-    private static final Map<String, String> DOCUMENT_LABELS = Map.of(
-            POLICE_REPORT_TYPE, "Denuncia policial",
-            PURCHASE_PROOF_TYPE, "Comprobante de compra",
-            REPAIR_QUOTE_TYPE, "Presupuesto de reparación",
-            "imei_deregistration", "Baja de IMEI",
-            "last_connection", "Captura de última conexión",
-            "item_photo", "Foto del bien");
-
     private static final DateTimeFormatter DISPLAY_DATE = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
     private static final Locale AR = Locale.forLanguageTag("es-AR");
@@ -117,7 +105,7 @@ public class DocumentInconsistencyEvaluator implements RiskFactorEvaluator {
             }
             findings.add(String.format(
                     "%s del documento \"%s\" (%s) no coincide con la póliza (%s)",
-                    capitalized(attribute.getKey()), label(type), read, attribute.getValue()));
+                    capitalized(attribute.getKey()), label(context, type), read, attribute.getValue()));
             return;
         }
     }
@@ -195,7 +183,7 @@ public class DocumentInconsistencyEvaluator implements RiskFactorEvaluator {
         if (fields.documentDate().isBefore(earliestAccepted)) {
             findings.add(String.format(
                     "El documento \"%s\" está fechado el %s, anterior al hecho (%s)",
-                    label(type), displayDate(fields.documentDate()), displayDate(eventDate)));
+                    label(context, type), displayDate(fields.documentDate()), displayDate(eventDate)));
         }
     }
 
@@ -240,13 +228,18 @@ public class DocumentInconsistencyEvaluator implements RiskFactorEvaluator {
         if (difference.compareTo(tolerance) > 0) {
             findings.add(String.format(
                     "El importe del documento \"%s\" (%s) difiere del monto reclamado (%s)",
-                    label(type), displayAmount(fields.amount()), displayAmount(claimed)));
+                    label(context, type), displayAmount(fields.amount()), displayAmount(claimed)));
         }
     }
 
-    /** A type with no label is shown as it came rather than hidden. */
-    private static String label(String type) {
-        return DOCUMENT_LABELS.getOrDefault(type, type);
+    /**
+     * Named as the screen names it, from the catalog that came with the rules: this text also goes
+     * out as is in the fraud report's CSV and PDF. A type with no name is shown as it came rather
+     * than hidden.
+     */
+    private static String label(RiskContext context, String type) {
+        Map<String, String> names = context.rules() == null ? null : context.rules().documentTypeNames();
+        return names == null ? type : names.getOrDefault(type, type);
     }
 
     private static String displayDate(LocalDate date) {

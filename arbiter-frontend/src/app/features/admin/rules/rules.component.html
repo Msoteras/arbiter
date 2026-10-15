@@ -822,6 +822,8 @@
                     <p class="section-hint">
                       Este ramo todavía no tiene hechos generadores cargados.
                     </p>
+                  } @else if (docTypes().length === 0) {
+                    <p class="section-hint">Este ramo todavía no tiene documentos habilitados.</p>
                   } @else {
                     <app-table [fixed]="true">
                       <thead>
@@ -836,7 +838,7 @@
                         </tr>
                       </thead>
                       <tbody>
-                        @for (doc of docTypes; track doc.code) {
+                        @for (doc of docTypes(); track doc.code) {
                           <tr>
                             <th scope="row" class="doc-row-name">{{ doc.label }}</th>
                             @for (cause of claimCauses(); track cause.id) {

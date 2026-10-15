@@ -13,7 +13,7 @@ import { catchError, map, of, startWith, switchMap } from 'rxjs';
 
 import { CaseService } from '../../../features/cases/case.service';
 import { DocumentAgendaService } from '../../../features/cases/document-agenda.service';
-import { CASE_DOCUMENT_TYPES, CaseDocumentType } from '../../../core/models/case-document';
+import { CaseDocumentType } from '../../../core/models/case-document';
 import { ButtonComponent } from '../button/button.component';
 import { FilePreviewComponent } from '../file-preview/file-preview.component';
 import { InlineLoadingComponent } from '../inline-loading/inline-loading.component';
@@ -201,10 +201,7 @@ export class DocUploadComponent {
   private readonly requiredTypes = toSignal(
     toObservable(computed(() => ({ branch: this.branch(), claimCause: this.claimCause() }))).pipe(
       switchMap(({ branch, claimCause }) =>
-        (branch && claimCause
-          ? this.agenda.slotsForBranch(branch, claimCause)
-          : of(CASE_DOCUMENT_TYPES)
-        ).pipe(
+        this.agenda.slotsFor(branch, claimCause).pipe(
           map((value): FetchState<readonly CaseDocumentType[]> => ({ status: 'ok', value })),
           startWith<FetchState<readonly CaseDocumentType[]>>({ status: 'loading' }),
         ),
