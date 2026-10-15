@@ -33,7 +33,7 @@ public class EvaluableRuleController {
     private final RepairDerivationService repairDerivation;
 
     @GetMapping("/internal/evaluable")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("authentication.authorities.isEmpty()")
     @Operation(summary = "[interno] Reglas evaluables por cobertura",
             description = "Lectura system-to-system para classification-service (sin rol REFERENTE): la "
                     + "usa el motor con un token de servicio que lleva el tenant. Keyea por cobertura —lo "
@@ -44,7 +44,7 @@ public class EvaluableRuleController {
     }
 
     @GetMapping("/internal/coverage-limits")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("authentication.authorities.isEmpty()")
     @Operation(summary = "[interno] Límites de la cobertura (plazo de denuncia, tope de eventos)",
             description = "Lectura system-to-system para el motor: columnas report_deadline_hours y "
                     + "max_events_per_year de la cobertura, que el motor evalúa por código (D10/D11). "
@@ -54,7 +54,7 @@ public class EvaluableRuleController {
     }
 
     @GetMapping("/internal/scoring")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("authentication.authorities.isEmpty()")
     @Operation(summary = "[interno] Scoring de fraude de la aseguradora",
             description = "Lectura system-to-system para el motor: factores + bandas configurados por el "
                     + "referente (una config por aseguradora). Sin config ⇒ enabled=false; el motor cae a su "
@@ -64,7 +64,7 @@ public class EvaluableRuleController {
     }
 
     @GetMapping("/internal/expert-derivation")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("authentication.authorities.isEmpty()")
     @Operation(summary = "[interno] Política de derivación a peritaje del ramo",
             description = "Lectura system-to-system para cases-service: si esta aseguradora deriva "
                     + "siniestros de este ramo a un perito externo, y desde qué monto reclamado. Sin regla "
@@ -76,7 +76,7 @@ public class EvaluableRuleController {
     }
 
     @GetMapping("/internal/repair-derivation")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("authentication.authorities.isEmpty()")
     @Operation(summary = "[interno] Hechos generadores del ramo que admiten reparación",
             description = "Lectura system-to-system para cases-service: qué hechos generadores de este "
                     + "ramo deriva la aseguradora a un servicio técnico. Sin regla configurada ⇒ "

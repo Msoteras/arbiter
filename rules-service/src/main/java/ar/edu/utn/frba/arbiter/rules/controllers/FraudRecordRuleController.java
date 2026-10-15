@@ -49,7 +49,7 @@ public class FraudRecordRuleController {
     }
 
     @GetMapping("/internal/fraud-record-rule")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("authentication.authorities.isEmpty()")
     @Operation(summary = "[interno] Política de antecedentes de fraude",
             description = "Lectura system-to-system para classification-service (sin rol REFERENTE): "
                     + "la usa el motor para saber con qué ventana sigue vigente un antecedente y si "

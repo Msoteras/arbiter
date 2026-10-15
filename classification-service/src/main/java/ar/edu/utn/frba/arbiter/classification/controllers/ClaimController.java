@@ -40,7 +40,7 @@ public class ClaimController {
     private final MultipartDocumentMapper documentMapper;
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("authentication.authorities.isEmpty()")
     @Operation(
             summary = "Trigger the classification of a case's claim",
             description = """
@@ -76,7 +76,7 @@ public class ClaimController {
     }
 
     @GetMapping("/{caseId}")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("authentication.authorities.isEmpty()")
     @Operation(
             summary = "Get a case's classification",
             description = "Classification fields are null until the analysis finishes — poll until they appear."
@@ -88,7 +88,7 @@ public class ClaimController {
 
     // Case-level access is cases-service's call: it's the one that knows the assigned analyst.
     @GetMapping("/{caseId}/rule-results")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("authentication.authorities.isEmpty()")
     @Operation(
             summary = "Rules evaluated for a case",
             description = "Every hard rule that ran, passes included — a Fast Track carries them too, "

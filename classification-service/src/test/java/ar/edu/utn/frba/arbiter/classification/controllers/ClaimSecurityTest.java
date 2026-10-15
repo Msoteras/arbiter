@@ -2,6 +2,7 @@ package ar.edu.utn.frba.arbiter.classification.controllers;
 
 import ar.edu.utn.frba.arbiter.classification.adapters.CasesServiceNotifier;
 import ar.edu.utn.frba.arbiter.classification.models.repositories.CaseOutcomeRepository;
+import ar.edu.utn.frba.arbiter.classification.services.InsuredFraudRecordService;
 import ar.edu.utn.frba.arbiter.classification.support.AbstractPersistenceIT;
 import ar.edu.utn.frba.arbiter.common.security.JwtSupport;
 import io.jsonwebtoken.Jwts;
@@ -42,6 +43,9 @@ class ClaimSecurityTest extends AbstractPersistenceIT {
 
     @MockitoBean
     private CasesServiceNotifier casesServiceNotifier;
+
+    @MockitoBean
+    private InsuredFraudRecordService insuredFraudRecordService;
 
     @BeforeEach
     void stubCaseLookup() {
@@ -86,9 +90,23 @@ class ClaimSecurityTest extends AbstractPersistenceIT {
     }
 
     @Test
-    void classify_anyAuthenticatedRole_returns202() throws Exception {
+    void classify_asInsured_returns403() throws Exception {
         mockMvc.perform(multipart("/api/v1/claims").file(claimPart()).param("caseId", "1")
                         .header("Authorization", "Bearer " + tokenFor("ASEGURADO")))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void classify_asAnalyst_returns403() throws Exception {
+        mockMvc.perform(multipart("/api/v1/claims").file(claimPart()).param("caseId", "1")
+                        .header("Authorization", "Bearer " + tokenFor("ANALISTA_SINIESTROS")))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void classify_withServiceToken_returns202() throws Exception {
+        mockMvc.perform(multipart("/api/v1/claims").file(claimPart()).param("caseId", "1")
+                        .header("Authorization", "Bearer " + serviceToken()))
                 .andExpect(status().isAccepted());
     }
 
@@ -99,9 +117,57 @@ class ClaimSecurityTest extends AbstractPersistenceIT {
     }
 
     @Test
-    void getStatus_anyAuthenticatedRole_returns200() throws Exception {
+    void getStatus_asInsured_returns403() throws Exception {
         mockMvc.perform(get("/api/v1/claims/1")
                         .header("Authorization", "Bearer " + tokenFor("ASEGURADO")))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void getStatus_withServiceToken_returns200() throws Exception {
+        mockMvc.perform(get("/api/v1/claims/1")
+                        .header("Authorization", "Bearer " + serviceToken()))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void getRuleResults_asAnalyst_returns403() throws Exception {
+        mockMvc.perform(get("/api/v1/claims/1/rule-results")
+                        .header("Authorization", "Bearer " + tokenFor("ANALISTA_SINIESTROS")))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void getRuleResults_withServiceToken_returns200() throws Exception {
+        mockMvc.perform(get("/api/v1/claims/1/rule-results")
+                        .header("Authorization", "Bearer " + serviceToken()))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void registerFraudRecord_asAnalyst_returns403() throws Exception {
+        mockMvc.perform(post("/api/v1/fraud-records")
+                        .header("Authorization", "Bearer " + tokenFor("ANALISTA_SINIESTROS"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"insuredDni": "40.123.456", "caseId": 1, "source": "ANALYST_DECLARED",
+                                 "reason": "Documentación adulterada", "declaredByAnalystId": 1,
+                                 "declaredByAnalystName": "Lucas Pérez"}
+                                """))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void fraudRecordsOf_asInsured_returns403() throws Exception {
+        mockMvc.perform(get("/api/v1/fraud-records/insured/40.123.456")
+                        .header("Authorization", "Bearer " + tokenFor("ASEGURADO")))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void fraudRecordsOf_withServiceToken_returns200() throws Exception {
+        mockMvc.perform(get("/api/v1/fraud-records/insured/40.123.456")
+                        .header("Authorization", "Bearer " + serviceToken()))
                 .andExpect(status().isOk());
     }
 
