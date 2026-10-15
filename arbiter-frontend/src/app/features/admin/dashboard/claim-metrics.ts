@@ -200,7 +200,11 @@ export function resolutionTimeLabel(hours: number | null | undefined): string {
   if (hours === null || hours === undefined) {
     return '—';
   }
-  return hours < 24 ? `${Math.round(hours)} h` : `${(hours / 24).toFixed(1)} d`;
+  if (hours < 24) {
+    return `${Math.round(hours)} h`;
+  }
+  // Decimal comma, like the amounts beside it.
+  return `${(hours / 24).toLocaleString('es-AR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} d`;
 }
 
 export function providerLabel(providerType: string): string {

@@ -1,5 +1,5 @@
 /**
- * Remembers the last report tab, deliberately NOT the filters (those reset to the current month).
+ * Remembers the last report tab, deliberately NOT the filters (those reset to the last 30 days).
  * localStorage rather than sessionStorage so it survives closing the browser.
  */
 const STORAGE_KEY = 'arbiter.reports.tab';

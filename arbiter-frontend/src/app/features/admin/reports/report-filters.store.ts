@@ -9,26 +9,26 @@ import {
   comparisonLabel,
   parseComparisonMode,
 } from '../../../core/models/comparison';
-import { todayIso } from '../../../core/util/datetime';
+import { addDays, todayIso } from '../../../core/util/datetime';
 import { SelectOption } from '../../../shared/ui/select/select.component';
 import { BranchesService } from '../branches.service';
 import { periodError } from './resolution-report';
 
 /**
  * Period and branch filters shared by both reports, so they survive switching tabs. Provided by
- * ReportsComponent, not in root: re-entering the screen starts from the current month again.
+ * ReportsComponent, not in root: re-entering the screen starts from the last 30 days again.
  */
 @Injectable()
 export class ReportFiltersStore {
   private readonly branches = inject(BranchesService);
 
   readonly today = todayIso();
-  /** Default: the month so far. */
-  readonly from = signal(`${this.today.slice(0, 8)}01`);
+  /** Default: the last 30 days, like the dashboard; "the month so far" is empty on the 1st. */
+  readonly from = signal(addDays(this.today, -29));
   readonly to = signal(this.today);
   readonly branchId = signal<number | null>(null);
   readonly comparisonMode = signal<ComparisonMode>('PREVIOUS_PERIOD');
-  readonly compareFrom = signal(yearBefore(`${this.today.slice(0, 8)}01`));
+  readonly compareFrom = signal(yearBefore(addDays(this.today, -29)));
   readonly compareTo = signal(yearBefore(this.today));
   readonly comparison = computed<ComparisonChoice>(() => ({
     mode: this.comparisonMode(),
