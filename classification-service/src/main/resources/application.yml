@@ -75,6 +75,10 @@ arbiter:
     model: ${GEMINI_MODEL:gemini-3.5-flash}
     # Same role as Ollama's num-predict: a runaway generation is billed.
     max-output-tokens: ${GEMINI_MAX_OUTPUT_TOKENS:4096}
+    # A call normally answers in 3-7 s; one that hangs is cut here and retried once. Covers the
+    # SDK's own retries on 429/5xx too, so keep room for their backoff. Not a hard cap: after it
+    # fires, the SDK still sleeps its ~15 s of backoff before giving up.
+    timeout: ${GEMINI_TIMEOUT:90s}
     # Only used to warn before overflowing; the real window is the model's.
     context-window: ${GEMINI_CONTEXT_WINDOW:1000000}
   embedding:

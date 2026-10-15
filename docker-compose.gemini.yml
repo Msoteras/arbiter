@@ -17,6 +17,7 @@ services:
       GOOGLE_CLOUD_PROJECT: ${GOOGLE_CLOUD_PROJECT:-project-fb32e998-d84b-4d72-911}
       GOOGLE_CLOUD_LOCATION: ${GOOGLE_CLOUD_LOCATION:-global}
       GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.5-flash}
+      GEMINI_TIMEOUT: ${GEMINI_TIMEOUT:-90s}
       GOOGLE_APPLICATION_CREDENTIALS: /secrets/adc.json
     volumes:
       - ${GOOGLE_ADC_HOST_PATH:?falta GOOGLE_ADC_HOST_PATH — usá scripts\dev-gemini.ps1, que la resuelve sola}:/secrets/adc.json:ro
