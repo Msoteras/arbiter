@@ -42,9 +42,12 @@ type Tone = 'default' | 'accent' | 'danger';
       background: var(--surface);
       box-shadow: var(--shadow-card);
     }
+    /* A grid of tiles sets --stat-label-lines to its longest label, so the values line up. */
     .stat-label {
       display: flex;
-      align-items: center;
+      align-items: flex-start;
+      min-height: calc(var(--stat-label-lines, 1) * 1.4em);
+      line-height: 1.4;
       gap: var(--space-1);
       font-size: var(--font-size-2xs);
       font-weight: var(--font-weight-medium);

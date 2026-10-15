@@ -150,6 +150,8 @@
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
   gap: var(--space-4);
+  /* "Coincidencia con el modelo" wraps to two lines at desktop width. */
+  --stat-label-lines: 2;
 }
 
 .breakdown {
