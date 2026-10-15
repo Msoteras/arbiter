@@ -1,6 +1,5 @@
 package ar.edu.utn.frba.arbiter.cases.services;
 
-import ar.edu.utn.frba.arbiter.cases.config.tenant.CallerContext;
 import ar.edu.utn.frba.arbiter.cases.config.tenant.TenantContext;
 import ar.edu.utn.frba.arbiter.cases.dto.AnalystDecisionRequest;
 import ar.edu.utn.frba.arbiter.cases.models.entities.CaseDocument;
@@ -18,7 +17,6 @@ import ar.edu.utn.frba.arbiter.common.enums.Classification;
 import ar.edu.utn.frba.arbiter.common.enums.ClassificationFailureReason;
 import ar.edu.utn.frba.arbiter.common.http.ConnectionRetryInterceptor;
 import ar.edu.utn.frba.arbiter.common.security.JwtSupport;
-import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -59,7 +57,6 @@ public class ClassificationServiceClient implements ClaimsAnalysisClient {
     private final String uploadTarget;
     private final CaseStatusService caseStatusService;
     private final CaseRepository caseRepository;
-    private final HttpServletRequest currentRequest;
     private final SecretKey jwtKey;
 
     public ClassificationServiceClient(
@@ -68,7 +65,6 @@ public class ClassificationServiceClient implements ClaimsAnalysisClient {
             CaseStatusService caseStatusService,
             CaseRepository caseRepository,
             @Value("${arbiter.classification-service.url:http://classification-service:8082}") String classificationServiceUrl,
-            HttpServletRequest currentRequest,
             @Value("${arbiter.auth.jwt.secret}") String jwtSecret
     ) {
         this.restClient = restClientBuilder.baseUrl(classificationServiceUrl).build();
@@ -80,41 +76,21 @@ public class ClassificationServiceClient implements ClaimsAnalysisClient {
         this.uploadTarget = "POST " + URI.create(classificationServiceUrl).getAuthority();
         this.caseStatusService = caseStatusService;
         this.caseRepository = caseRepository;
-        this.currentRequest = currentRequest;
         this.jwtKey = JwtSupport.key(jwtSecret);
     }
 
-    /** Forwards the caller's JWT as-is: these calls run on the user's request thread. */
-    private String authorizationHeader() {
-        return currentRequest.getHeader(HttpHeaders.AUTHORIZATION);
-    }
-
-    /**
-     * Filing may run under the policy's insurer rather than the login's; forwarding the user's token
-     * would make classification-service write to the wrong schema, so a service token is signed then.
-     */
-    private String authorizationHeaderForCurrentTenant() {
-        if (!CallerContext.get().movedAwayFromHome()) {
-            return authorizationHeader();
-        }
-        return "Bearer " + JwtSupport.issueServiceToken(
-                jwtKey, "cases-service-alta", TenantContext.get());
+    private String serviceAuthorization(String subject) {
+        return "Bearer " + JwtSupport.issueServiceToken(jwtKey, subject, TenantContext.get());
     }
 
     @Override
     public AnalysisResult analyzeAndPersist(Case caseRecord, List<CaseDocument> documents) {
-        return enqueue(caseRecord, documents, authorizationHeaderForCurrentTenant());
+        return enqueue(caseRecord, documents, serviceAuthorization("cases-service-alta"));
     }
 
-    /**
-     * For callers with no request in scope, where touching {@code currentRequest} would throw
-     * "No thread-bound request found": always signs a service token.
-     */
     @Override
     public AnalysisResult analyzeAndPersistAsSystem(Case caseRecord, List<CaseDocument> documents) {
-        String serviceToken = JwtSupport.issueServiceToken(
-                jwtKey, "cases-service-recovery", TenantContext.get());
-        return enqueue(caseRecord, documents, "Bearer " + serviceToken);
+        return enqueue(caseRecord, documents, serviceAuthorization("cases-service-recovery"));
     }
 
     /** The case is already saved: failing the request would invite the insured to file it again. */
@@ -229,11 +205,9 @@ public class ClassificationServiceClient implements ClaimsAnalysisClient {
         try {
             // No user JWT behind the scheduler. The token carries the tenant being swept, which
             // classification-service resolves its schema from.
-            String serviceToken = JwtSupport.issueServiceToken(
-                    jwtKey, "cases-service-scheduler", TenantContext.get());
             ClaimResponse response = restClient.get()
                     .uri("/api/v1/claims/{caseId}", caseRecord.getId())
-                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + serviceToken)
+                    .header(HttpHeaders.AUTHORIZATION, serviceAuthorization("cases-service-scheduler"))
                     .retrieve()
                     .body(ClaimResponse.class);
 
@@ -295,14 +269,11 @@ public class ClassificationServiceClient implements ClaimsAnalysisClient {
                 : CaseStatus.PENDING_ANALYST_REVIEW;
     }
 
-    /** A service token, not the user's, so the endpoint isn't reachable directly by users. */
     @Override
     public Long forwardAnalystDecision(Long caseId, AnalystDecisionRequest request) {
-        String serviceToken = JwtSupport.issueServiceToken(
-                jwtKey, "cases-service-decision", TenantContext.get());
         Map<String, Object> response = restClient.post()
                 .uri("/api/v1/claims/{caseId}/decision", caseId)
-                .header(HttpHeaders.AUTHORIZATION, "Bearer " + serviceToken)
+                .header(HttpHeaders.AUTHORIZATION, serviceAuthorization("cases-service-decision"))
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(request)
                 .retrieve()
@@ -317,7 +288,7 @@ public class ClassificationServiceClient implements ClaimsAnalysisClient {
     public FraudRecordResponse registerFraudRecord(FraudRecordRequest request) {
         return restClient.post()
                 .uri("/api/v1/fraud-records")
-                .header(HttpHeaders.AUTHORIZATION, authorizationHeader())
+                .header(HttpHeaders.AUTHORIZATION, serviceAuthorization("cases-service-fraud-record"))
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(request)
                 .retrieve()
@@ -329,7 +300,7 @@ public class ClassificationServiceClient implements ClaimsAnalysisClient {
     public List<FraudRecordResponse> fraudRecordsOf(String insuredDni) {
         List<FraudRecordResponse> records = restClient.get()
                 .uri("/api/v1/fraud-records/insured/{insuredDni}", insuredDni)
-                .header(HttpHeaders.AUTHORIZATION, authorizationHeader())
+                .header(HttpHeaders.AUTHORIZATION, serviceAuthorization("cases-service-fraud-record"))
                 .retrieve()
                 .body(new ParameterizedTypeReference<>() {
                 });
@@ -342,7 +313,7 @@ public class ClassificationServiceClient implements ClaimsAnalysisClient {
         try {
             List<RuleResultResponse> results = restClient.get()
                     .uri("/api/v1/claims/{caseId}/rule-results", caseId)
-                    .header(HttpHeaders.AUTHORIZATION, authorizationHeader())
+                    .header(HttpHeaders.AUTHORIZATION, serviceAuthorization("cases-service-rule-results"))
                     .retrieve()
                     .body(new ParameterizedTypeReference<>() {
                     });
