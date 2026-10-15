@@ -216,7 +216,13 @@
           />
         }
 
-        @switch (activeTab()) {
+        @switch (detailFailed() && !detailLoading() ? 'failed' : activeTab()) {
+          @case ('failed') {
+            <p class="load-error t-note" role="alert">No se pudo cargar el ramo.</p>
+            <app-button variant="secondary" size="sm" (click)="retryDetailLoad()"
+              >Reintentar</app-button
+            >
+          }
           <!-- ============ COVERAGES ============ -->
           <!-- Accordion: one coverage open at a time. -->
           @case ('coverages') {

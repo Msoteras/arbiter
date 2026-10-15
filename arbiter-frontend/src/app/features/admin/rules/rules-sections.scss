@@ -270,3 +270,8 @@
 .check-list app-checkbox.stale {
   color: var(--status-danger);
 }
+
+.load-error {
+  margin: 0 0 var(--space-3);
+  color: var(--status-danger);
+}

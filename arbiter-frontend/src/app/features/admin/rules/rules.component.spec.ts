@@ -3,7 +3,7 @@ import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { provideRouter } from '@angular/router';
-import { Observable, Subject, of } from 'rxjs';
+import { Observable, Subject, of, throwError } from 'rxjs';
 
 import { RulesComponent } from './rules.component';
 import { BranchesService } from '../branches.service';
@@ -34,7 +34,7 @@ describe('RulesComponent', () => {
     description: 'Cobertura por rotura o caída accidental del equipo',
     deductibleRatio: 0.2,
     deductibleBasis: 'LOSS_AMOUNT',
-    reportingWindowDays: 3,
+    reportDeadlineHours: 72,
     maxAnnualClaims: 2,
     waitingPeriodDays: 30,
     coversFamilyGroup: false,
@@ -49,10 +49,12 @@ describe('RulesComponent', () => {
 
   let branchDocuments: Record<number, readonly DocumentTypeDef[]>;
   let agenda: () => Observable<string[]>;
+  let claimCauses: () => Observable<{ id: number; name: string }[]>;
 
   beforeEach(() => {
     branchDocuments = { 1: DOCUMENT_TYPES_FIXTURE, 2: DOCUMENT_TYPES_FIXTURE };
     agenda = () => of([]);
+    claimCauses = () => of([{ id: 4, name: 'Caída' }]);
   });
 
   async function mount(coverages: CoverageDetail[] = []): Promise<void> {
@@ -90,7 +92,7 @@ describe('RulesComponent', () => {
         },
         {
           provide: CoverageExclusionsService,
-          useValue: { listClaimCauses: () => of([{ id: 4, name: 'Caída' }]), get: () => of([]) },
+          useValue: { listClaimCauses: () => claimCauses(), get: () => of([]) },
         },
         {
           provide: FastTrackRulesService,
@@ -202,6 +204,40 @@ describe('RulesComponent', () => {
 
     expect(el().textContent).toContain('Este ramo todavía no tiene documentos habilitados.');
     expect(el().querySelector('.doc-row-name')).toBeNull();
+  });
+
+  it('shows the report deadline in hours, as stored', async () => {
+    await mount([coverage({ reportDeadlineHours: 36 })]);
+
+    expect(el().textContent).toContain('Denuncia 36 h');
+  });
+
+  describe('when part of the branch fails to load', () => {
+    beforeEach(() => {
+      claimCauses = () => throwError(() => new Error('down'));
+    });
+
+    it('shows the error instead of an editable, incomplete branch', async () => {
+      await mount([coverage()]);
+
+      expect(el().textContent).toContain('No se pudo cargar el ramo.');
+      expect(el().querySelector('.cov-card')).toBeNull();
+      expect(el().textContent).not.toContain('Agregar cobertura');
+    });
+
+    it('loads the branch again on Reintentar', async () => {
+      await mount([coverage()]);
+      claimCauses = () => of([{ id: 4, name: 'Caída' }]);
+
+      click(
+        [...el().querySelectorAll<HTMLButtonElement>('button')].find(
+          (b) => b.textContent?.trim() === 'Reintentar',
+        ),
+      );
+
+      expect(el().textContent).not.toContain('No se pudo cargar el ramo.');
+      expect(el().querySelector('.cov-card')).not.toBeNull();
+    });
   });
 
   describe('the Documentación marker', () => {

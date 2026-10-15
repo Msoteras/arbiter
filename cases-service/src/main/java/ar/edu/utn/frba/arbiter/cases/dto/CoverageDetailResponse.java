@@ -15,7 +15,7 @@ public record CoverageDetailResponse(
         String description,
         BigDecimal deductibleRatio,
         DeductibleBasis deductibleBasis,
-        Integer reportingWindowDays,
+        Integer reportDeadlineHours,
         Integer maxAnnualClaims,
         Integer waitingPeriodDays,
         boolean coversFamilyGroup,

@@ -22,7 +22,7 @@ export interface Coverage {
   /** Fraction (0..1) of the amount. */
   deductibleRatio: number | null;
   deductibleBasis: DeductibleBasis;
-  reportingWindowDays: number | null;
+  reportDeadlineHours: number | null;
   /** Per year and policy. */
   maxAnnualClaims: number | null;
   /** Days after policy start before the coverage applies. null = none. */

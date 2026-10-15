@@ -31,7 +31,6 @@ import java.util.List;
 public class CoverageService {
 
     private static final BigDecimal HUNDRED = new BigDecimal("100");
-    private static final long HOURS_PER_DAY = 24L;
 
     private final CoverageRepository coverageRepository;
     private final BranchRepository branchRepository;
@@ -113,8 +112,8 @@ public class CoverageService {
                 ? null : request.deductibleRatio().multiply(HUNDRED));
         coverage.setDeductibleBasis(request.deductibleBasis() == null
                 ? DeductibleBasis.SUM_INSURED : request.deductibleBasis());
-        coverage.setReportDeadlineHours(request.reportingWindowDays() == null
-                ? null : request.reportingWindowDays() * HOURS_PER_DAY);
+        coverage.setReportDeadlineHours(request.reportDeadlineHours() == null
+                ? null : request.reportDeadlineHours().longValue());
         coverage.setMaxEventsPerYear(request.maxAnnualClaims());
         coverage.setWaitingPeriodDays(request.waitingPeriodDays());
         coverage.setCoversFamilyGroup(request.coversFamilyGroup());
@@ -139,7 +138,7 @@ public class CoverageService {
                         ? null : coverage.getDeductible().divide(HUNDRED),
                 coverage.getDeductibleBasis(),
                 coverage.getReportDeadlineHours() == null
-                        ? null : Math.toIntExact(coverage.getReportDeadlineHours() / HOURS_PER_DAY),
+                        ? null : Math.toIntExact(coverage.getReportDeadlineHours()),
                 coverage.getMaxEventsPerYear(),
                 coverage.getWaitingPeriodDays(),
                 coverage.isCoversFamilyGroup(),
