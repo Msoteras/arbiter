@@ -17,6 +17,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -204,6 +205,32 @@ class RulesRestAdapterTest {
         assertThat(rules.requiredDocumentTypes()).containsExactly("purchase_proof", "repair_quote");
     }
 
+    /** The evaluators name documents with it, so the whole catalog comes, not just the agenda's. */
+    @Test
+    void documentCatalog_arrivesAsNamesByCode() throws IOException {
+        server = startServer(exchange -> {
+            if (exchange.getRequestURI().getPath().endsWith("/document-types")) {
+                byte[] body = """
+                        [{"code":"police_report","name":"Denuncia policial"},
+                         {"code":"item_photo","name":"Foto del bien"}]
+                        """.getBytes(StandardCharsets.UTF_8);
+                exchange.getResponseHeaders().add("Content-Type", "application/json");
+                exchange.sendResponseHeaders(200, body.length);
+                exchange.getResponseBody().write(body);
+            } else {
+                respondEmpty(exchange);
+            }
+        });
+        RulesRestAdapter adapter = adapterPointingAt(baseUrl());
+
+        BusinessRules rules = adapter.getRules("Celulares", 1L, "Caída");
+
+        assertThat(rules.documentTypeNames())
+                .containsExactlyInAnyOrderEntriesOf(Map.of(
+                        "police_report", "Denuncia policial",
+                        "item_photo", "Foto del bien"));
+    }
+
     // ── Infra ────────────────────────────────────────────────────────────────
 
     private RulesRestAdapter adapterPointingAt(String url) {
@@ -261,7 +288,8 @@ class RulesRestAdapterTest {
 
     /** 200 with an empty body: what rules-service returns when nothing is configured. */
     private void respondEmpty(com.sun.net.httpserver.HttpExchange exchange) throws IOException {
-        byte[] body = exchange.getRequestURI().getPath().contains("document-requirements")
+        String path = exchange.getRequestURI().getPath();
+        byte[] body = path.contains("document-requirements") || path.contains("document-types")
                 ? "[]".getBytes(StandardCharsets.UTF_8)
                 : "{}".getBytes(StandardCharsets.UTF_8);
         exchange.getResponseHeaders().add("Content-Type", "application/json");

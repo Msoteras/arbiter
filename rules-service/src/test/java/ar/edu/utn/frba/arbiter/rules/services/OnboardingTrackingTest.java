@@ -39,7 +39,8 @@ class OnboardingTrackingTest {
     @Test
     void fastTrackSaveRecordsTheStep() {
         FastTrackRuleService service = new FastTrackRuleService(
-                ruleRepository, historyRepository, branchRepository, mock(CoverageRepository.class), authorResolver, tracker);
+                ruleRepository, historyRepository, branchRepository, mock(CoverageRepository.class), authorResolver,
+                mock(DocumentTypeService.class), tracker);
 
         runIgnoringMockGaps(() -> service.upsert(1L, 2L, FastTrackConfigDto.empty(), "ref@test.com"));
 
@@ -49,7 +50,8 @@ class OnboardingTrackingTest {
     @Test
     void documentScheduleSaveRecordsTheStep() {
         DocumentRequirementService service = new DocumentRequirementService(
-                mock(DocumentRequirementRepository.class), mock(ClaimCauseRepository.class), branchRepository, tracker);
+                mock(DocumentRequirementRepository.class), mock(ClaimCauseRepository.class), branchRepository,
+                mock(DocumentTypeService.class), tracker);
 
         runIgnoringMockGaps(() -> service.upsert(1L, 2L, List.of("police_report")));
 

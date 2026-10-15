@@ -15,7 +15,7 @@ import { Observable, finalize, forkJoin, of, skip, switchMap, tap } from 'rxjs';
 import {
   Coverage,
   DeductibleBasis,
-  DOCUMENT_TYPES,
+  DocumentTypeDef,
   FastTrackConfig,
   BranchRules,
   SettlementBasis,
@@ -44,6 +44,7 @@ import {
   OnArrears,
 } from '../hard-rules.service';
 import { DocumentRulesService } from '../document-rules.service';
+import { DocumentTypeService } from '../../../core/services/document-type.service';
 import { BusinessRulesTextService } from '../business-rules-text.service';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { IconButtonComponent } from '../../../shared/ui/icon-button/icon-button.component';
@@ -135,6 +136,7 @@ export class RulesComponent {
   private readonly exclusionsService = inject(CoverageExclusionsService);
   private readonly hardRulesService = inject(HardRulesService);
   private readonly documentsService = inject(DocumentRulesService);
+  private readonly documentTypesService = inject(DocumentTypeService);
   private readonly rulesTextService = inject(BusinessRulesTextService);
   private readonly toastService = inject(ToastService);
   private readonly route = inject(ActivatedRoute);
@@ -173,7 +175,8 @@ export class RulesComponent {
   protected readonly rulesSaving = signal(false);
   protected readonly rulesError = signal<string | null>(null);
 
-  protected readonly docTypes = DOCUMENT_TYPES;
+  // Documents the selected branch may ask for: the rows of the Documents matrix and the Fast Track list.
+  protected readonly docTypes = signal<readonly DocumentTypeDef[]>([]);
   // Claim causes of the selected branch: used by the coverage exclusions and the Documents matrix.
   protected readonly claimCauses = signal<ClaimCauseOption[]>([]);
 
@@ -405,15 +408,17 @@ export class RulesComponent {
    */
   protected tabStatus(tab: TabId): 'required' | 'pending' | null {
     const d = this.draft();
-    if (!d) {
+    // Mid-load the branch looks empty: flagging it would show a marker that then disappears.
+    if (!d || this.detailLoading()) {
       return null;
     }
     switch (tab) {
       case 'coverages':
         return d.coverages.length === 0 ? 'required' : null;
       case 'documents':
+        // An agenda that never arrived is unknown, not empty.
         return this.coveredClaimCauses().some(
-          (cause) => (d.requiredDocumentsByClaimCause[cause.id] ?? []).length === 0,
+          (cause) => d.requiredDocumentsByClaimCause[cause.id]?.length === 0,
         )
           ? 'pending'
           : null;
@@ -583,10 +588,25 @@ export class RulesComponent {
     this.editingName.set(false);
     this.beginDetailLoad(r.id);
     this.loadClaimCauses(r);
+    this.loadDocumentTypes(r);
     this.loadFastTrackFromBackend(r);
     this.loadCoveragesFromBackend(r);
     this.loadBusinessRulesFromBackend(r);
     this.settleDetailLoad();
+  }
+
+  private loadDocumentTypes(r: BranchRules): void {
+    this.docTypes.set([]);
+    const branchId = this.branchIdOf(r);
+    if (branchId == null) {
+      return;
+    }
+    this.trackDetail(r.id, this.documentTypesService.forBranch(branchId)).subscribe({
+      next: (types) => this.docTypes.set(types),
+      error: () => {
+        /* best-effort: no document can be picked */
+      },
+    });
   }
 
   private loadClaimCauses(r: BranchRules): void {
@@ -1557,7 +1577,7 @@ export class RulesComponent {
       .forEach((cause) =>
         (d.requiredDocumentsByClaimCause[cause.id] ?? []).forEach((code) => allowed.add(code)),
       );
-    return this.docTypes
+    return this.docTypes()
       .filter((doc) => allowed.has(doc.code) || this.isFtDoc(doc.code))
       .map((doc) => ({ ...doc, outsideSchedule: !allowed.has(doc.code) }));
   });
