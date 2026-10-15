@@ -153,7 +153,7 @@ class ClassificationOrchestratorPrescriptionTest {
                 .thenReturn(TemporalRuleEvaluator.Result.empty());
         when(fraudRecordRuleEvaluator.evaluate(any(), any()))
                 .thenReturn(FraudRecordRuleEvaluator.Result.empty());
-        when(coverageScopeEvaluator.evaluate(any(), any(), any(), any(), any()))
+        when(coverageScopeEvaluator.evaluate(any(), any(), any(), any()))
                 .thenReturn(CoverageScopeEvaluator.Result.none());
         when(fastTrackValidator.evaluate(any(), any(), any(), any(), any()))
                 .thenReturn(new FastTrackValidator.Result(true, List.of("ok"), List.of()));

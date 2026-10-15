@@ -31,6 +31,7 @@ public record InsuredPolicy(
         BigDecimal overdueBalance,
         BigDecimal insuredAmount,
         BigDecimal deductible,
+        Boolean coversFamilyGroup,
         List<PolicyCoverage> coverages,
         List<String> applicableClauses
 ) {
@@ -74,6 +75,7 @@ public record InsuredPolicy(
                         .overdueBalance(overdueBalance)
                         .insuredAmount(coverage.insuredAmount())
                         .deductible(coverage.deductible())
+                        .coversFamilyGroup(coversFamilyGroup)
                         .coverages(coverages)
                         .applicableClauses(applicableClauses)
                         .build())

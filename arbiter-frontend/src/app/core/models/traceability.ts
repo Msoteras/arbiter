@@ -165,7 +165,7 @@ export function ruleEvaluationText(
         : evaluatedValue;
     case 'COVERS_FAMILY_GROUP':
       return t['affectedParty']
-        ? `Damnificado: ${AFFECTED_PARTY_LABELS[t['affectedParty']] ?? t['affectedParty']} · la cobertura no alcanza al grupo familiar`
+        ? `Damnificado: ${AFFECTED_PARTY_LABELS[t['affectedParty']] ?? t['affectedParty']} · la póliza no alcanza al grupo familiar`
         : evaluatedValue;
     case 'CLAIM_CAUSE_MATCH': {
       // Only documents that narrate an event take part.

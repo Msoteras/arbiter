@@ -315,6 +315,14 @@ La FK compuesta impide que la agenda de un ramo pida un documento que no es suyo
 `tipo_documento`), y en `requisito_documental` cambiar `tipo_documento` VARCHAR por
 `tipo_documento_id` con su relación a `tipo_documento`.
 
+### 32 · `cobertura.cubre_grupo_familiar` — sobra
+
+La columna se borró del esquema (`2026-10-15-borrar-grupo-familiar-de-cobertura.sql`). El motor lee
+ahora `poliza.cubre_grupo_familiar` de la BD Aseguradora: el dato es del contrato y cambia de una
+póliza a otra dentro del mismo ramo.
+
+**Acción:** dropear `cubre_grupo_familiar` de `cobertura`.
+
 ---
 
 ## Decisiones pendientes antes de tocar el `.mdj`

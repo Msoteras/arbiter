@@ -84,7 +84,7 @@ class ClassificationOrchestratorDocumentGateTest {
                 .thenReturn(TemporalRuleEvaluator.Result.empty());
         when(fraudRecordRuleEvaluator.evaluate(any(), any()))
                 .thenReturn(FraudRecordRuleEvaluator.Result.empty());
-        when(coverageScopeEvaluator.evaluate(any(), any(), any(), any(), any()))
+        when(coverageScopeEvaluator.evaluate(any(), any(), any(), any()))
                 .thenReturn(CoverageScopeEvaluator.Result.none());
         // The gate compares transcriptions, not presence, so every document needs text.
         lenient().when(documentAnalyzer.extract(any(), any(), any(), any()))

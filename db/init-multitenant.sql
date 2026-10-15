@@ -326,7 +326,6 @@ BEGIN
             description                     TEXT,
             report_deadline_hours           BIGINT,
             max_events_per_year             INTEGER,
-            covers_family_group             BOOLEAN       NOT NULL DEFAULT FALSE,
             deductible                      NUMERIC(15,2),           -- percentage points: 10.00 = 10%%
             waiting_period_days             INTEGER,
             branch_id                       BIGINT        NOT NULL REFERENCES %I.branch(id),
@@ -696,7 +695,7 @@ BEGIN
             case_document_id    BIGINT       NOT NULL REFERENCES %I.case_documents(id) ON DELETE CASCADE,
 
             CONSTRAINT document_analysis_document_unique UNIQUE (case_document_id),
-            -- DESCONOCIDO is valid: the covers_family_group rule then stays out of it.
+            -- DESCONOCIDO is valid: the COVERS_FAMILY_GROUP rule then stays out of it.
             CONSTRAINT document_analysis_affected_party_valid CHECK (
                 affected_party IN ('TITULAR', 'FAMILIAR', 'TERCERO', 'DESCONOCIDO')),
             CONSTRAINT document_analysis_extraction_status_valid CHECK (

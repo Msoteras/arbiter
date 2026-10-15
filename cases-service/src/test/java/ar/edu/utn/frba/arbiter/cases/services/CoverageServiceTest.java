@@ -3,7 +3,10 @@ package ar.edu.utn.frba.arbiter.cases.services;
 import ar.edu.utn.frba.arbiter.cases.adapters.InsurerAdapter;
 import ar.edu.utn.frba.arbiter.cases.exceptions.UnresolvedCaseReferenceException;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.BranchRepository;
+import ar.edu.utn.frba.arbiter.cases.dto.CoverageDetailResponse;
+import ar.edu.utn.frba.arbiter.cases.dto.CoverageUpsertRequest;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CoverageRepository;
+import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Coverage;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Branch;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -16,6 +19,7 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 /** The names the referent picks a coverage name from, read off the insurer's policies. */
@@ -25,6 +29,7 @@ class CoverageServiceTest {
     @Mock private CoverageRepository coverageRepository;
     @Mock private BranchRepository branchRepository;
     @Mock private InsurerAdapter insurerAdapter;
+    @Mock private OnboardingNotifier onboardingNotifier;
 
     @InjectMocks private CoverageService coverageService;
 
@@ -55,5 +60,17 @@ class CoverageServiceTest {
 
         assertThatThrownBy(() -> coverageService.insurerCoverageNames(9L))
                 .isInstanceOf(UnresolvedCaseReferenceException.class);
+    }
+    @Test
+    void update_keepsTheReportDeadlineInHours() {
+        Coverage coverage = Coverage.builder().id(3L).name("Hurto").branchId(1L).reportDeadlineHours(72L).build();
+        when(coverageRepository.findById(3L)).thenReturn(Optional.of(coverage));
+        when(coverageRepository.save(any(Coverage.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        CoverageDetailResponse saved = coverageService.update(3L, new CoverageUpsertRequest(
+                "Hurto", null, null, null, null, 36, null, null, null, null, null, false, false, List.of()));
+
+        assertThat(coverage.getReportDeadlineHours()).isEqualTo(36L);
+        assertThat(saved.reportDeadlineHours()).isEqualTo(36);
     }
 }

@@ -207,6 +207,7 @@ export class RulesComponent {
   protected readonly branchesLoading = signal(true);
   // Keeps the detail panel from filling in piecemeal while its requests are in flight.
   protected readonly detailLoading = signal(false);
+  protected readonly detailFailed = signal(false);
   /** Branch whose detail is loading, so responses for a branch left behind are ignored. */
   private detailToken: string | null = null;
   private pendingDetail = 0;
@@ -409,7 +410,7 @@ export class RulesComponent {
   protected tabStatus(tab: TabId): 'required' | 'pending' | null {
     const d = this.draft();
     // Mid-load the branch looks empty: flagging it would show a marker that then disappears.
-    if (!d || this.detailLoading()) {
+    if (!d || this.detailLoading() || this.detailFailed()) {
       return null;
     }
     switch (tab) {
@@ -434,7 +435,15 @@ export class RulesComponent {
   private beginDetailLoad(rulesId: string): void {
     this.detailToken = rulesId;
     this.pendingDetail = 0;
+    this.detailFailed.set(false);
     this.detailLoading.set(true);
+  }
+
+  protected retryDetailLoad(): void {
+    const branch = this.branches().find((b) => b.id === this.selectedId());
+    if (branch) {
+      this.select(branch);
+    }
   }
 
   /**
@@ -447,6 +456,13 @@ export class RulesComponent {
     }
     this.pendingDetail += 1;
     return source.pipe(
+      tap({
+        error: () => {
+          if (this.detailToken === rulesId) {
+            this.detailFailed.set(true);
+          }
+        },
+      }),
       finalize(() => {
         if (this.detailToken !== rulesId) {
           return;
@@ -774,10 +790,9 @@ export class RulesComponent {
       insuredAmount: null,
       deductibleRatio: c.deductibleRatio,
       deductibleBasis: c.deductibleBasis ?? 'SUM_INSURED',
-      reportingWindowDays: c.reportingWindowDays,
+      reportDeadlineHours: c.reportDeadlineHours,
       maxAnnualClaims: c.maxAnnualClaims,
       waitingPeriodDays: c.waitingPeriodDays,
-      coversFamilyGroup: c.coversFamilyGroup,
       settlementFormula: c.settlementFormula ?? 'TOTAL_LOSS',
       settlementBasis: c.settlementBasis ?? 'SUM_INSURED',
       secondEventRatio: c.secondEventRatio,
@@ -1030,10 +1045,9 @@ export class RulesComponent {
       insuredAmount: null,
       deductibleRatio: null,
       deductibleBasis: 'SUM_INSURED',
-      reportingWindowDays: null,
+      reportDeadlineHours: null,
       maxAnnualClaims: null,
       waitingPeriodDays: null,
-      coversFamilyGroup: false,
       // Default: ceiling = sum insured, no deductions beyond the deductible. Enabling deductions
       // changes what the insured gets paid, so it must be an explicit choice.
       settlementFormula: 'TOTAL_LOSS',
@@ -1287,16 +1301,12 @@ export class RulesComponent {
     return this.pctFromRatio(c.deductibleRatio);
   }
 
-  protected setCoverageReportingWindow(id: string, value: string): void {
-    this.setCoverageField(id, { reportingWindowDays: this.intFromStr(value) });
+  protected setCoverageReportDeadline(id: string, value: string): void {
+    this.setCoverageField(id, { reportDeadlineHours: this.intFromStr(value) });
   }
 
   protected setCoverageMaxClaims(id: string, value: string): void {
     this.setCoverageField(id, { maxAnnualClaims: this.intFromStr(value) });
-  }
-
-  protected coverageReportingWindowStr(c: Coverage): string {
-    return this.intStr(c.reportingWindowDays);
   }
 
   protected coverageMaxClaimsStr(c: Coverage): string {
@@ -1334,8 +1344,8 @@ export class RulesComponent {
     if (c.waitingPeriodDays != null) {
       chips.push(`Carencia ${c.waitingPeriodDays} d`);
     }
-    if (c.reportingWindowDays != null) {
-      chips.push(`Denuncia ${c.reportingWindowDays} d`);
+    if (c.reportDeadlineHours != null) {
+      chips.push(`Denuncia ${c.reportDeadlineHours} h`);
     }
     const police = this.hardRulesOf(c).find((r) => r.ruleType === 'POLICE_DEADLINE');
     if (police?.deadlineHours != null && this.coversACauseWithPoliceReport(c)) {
@@ -1388,7 +1398,10 @@ export class RulesComponent {
   }
 
   protected hardRuleUnit(type: HardRuleType): string {
-    return type === 'POLICE_DEADLINE' ? 'horas' : type === 'MAX_EVENTS_YEAR' ? 'por año' : 'días';
+    if (type === 'MAX_EVENTS_YEAR') {
+      return 'por año';
+    }
+    return type === 'WAITING_PERIOD' ? 'días' : 'horas';
   }
 
   /** Three thresholds are coverage columns; the police deadline lives on the rule itself. */
@@ -1411,7 +1424,7 @@ export class RulesComponent {
       case 'WAITING_PERIOD':
         return this.intStr(c.waitingPeriodDays);
       case 'REPORT_DEADLINE':
-        return this.intStr(c.reportingWindowDays);
+        return this.intStr(c.reportDeadlineHours);
       case 'POLICE_DEADLINE':
         return this.policeDeadlineStr(c);
       case 'MAX_EVENTS_YEAR':
@@ -1425,7 +1438,7 @@ export class RulesComponent {
         this.setCoverageWaitingPeriod(c.id, value);
         return;
       case 'REPORT_DEADLINE':
-        this.setCoverageReportingWindow(c.id, value);
+        this.setCoverageReportDeadline(c.id, value);
         return;
       case 'POLICE_DEADLINE':
         this.setPoliceDeadline(c.id, value);
@@ -1774,10 +1787,9 @@ export class RulesComponent {
       description: c.description.trim() || null,
       deductibleRatio: c.deductibleRatio,
       deductibleBasis: c.deductibleBasis,
-      reportingWindowDays: c.reportingWindowDays,
+      reportDeadlineHours: c.reportDeadlineHours,
       maxAnnualClaims: c.maxAnnualClaims,
       waitingPeriodDays: c.waitingPeriodDays,
-      coversFamilyGroup: c.coversFamilyGroup,
       settlementFormula: c.settlementFormula,
       settlementBasis: c.settlementBasis,
       secondEventRatio: c.secondEventRatio,
