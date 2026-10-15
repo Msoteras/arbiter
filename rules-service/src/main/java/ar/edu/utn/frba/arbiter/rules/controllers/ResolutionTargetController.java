@@ -52,7 +52,7 @@ public class ResolutionTargetController {
      * analyst rather than a referente.
      */
     @GetMapping("/internal/resolution-target")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("authentication.authorities.isEmpty()")
     @Operation(summary = "[interno] Objetivo de resolución",
             description = "Lectura para reports-service, sin exigir rol REFERENTE. Sin configuración "
                     + "vuelve enabled=false y el tablero no muestra la comparación.")

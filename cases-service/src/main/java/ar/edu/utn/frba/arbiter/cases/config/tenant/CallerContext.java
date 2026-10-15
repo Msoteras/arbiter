@@ -20,10 +20,6 @@ public final class CallerContext {
         public Caller {
             insurerIds = insurerIds == null ? List.of() : List.copyOf(insurerIds);
         }
-
-        public boolean movedAwayFromHome() {
-            return homeTenant != null && !homeTenant.equals(TenantContext.get());
-        }
     }
 
     private CallerContext() {

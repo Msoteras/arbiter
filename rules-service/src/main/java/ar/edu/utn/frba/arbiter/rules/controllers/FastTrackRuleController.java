@@ -35,7 +35,7 @@ public class FastTrackRuleController {
     }
 
     @GetMapping("/internal/fast-track")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("authentication.authorities.isEmpty()")
     @Operation(summary = "[interno] Umbrales Fast Track por cobertura",
             description = "Lectura system-to-system para classification-service (sin rol REFERENTE): la "
                     + "usa el motor de clasificación con un token de servicio que lleva el tenant. Keyea "

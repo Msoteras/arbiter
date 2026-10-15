@@ -625,63 +625,6 @@
 			"response": []
 		},
 		{
-			"name": "🎯 (H0012) Snapshot autoritativo del score (classification-service / ClaimResponse)",
-			"event": [
-				{
-					"listen": "test",
-					"script": {
-						"exec": [
-							"// El CaseResponse cachea el score; la fuente de verdad e inmutable es el ClassificationLog,",
-							"// expuesto por classification-service en GET /api/v1/claims/{caseId}. Ambos deben coincidir.",
-							"const body = pm.response.json();",
-							"pm.test('200 OK', () => pm.response.to.have.status(200));",
-							"",
-							"if (!body.classification) {",
-							"    pm.test('Clasificacion disponible (si falla, reintenta este GET)',",
-							"        () => pm.expect(body.classification, 'classification').to.not.be.null);",
-							"    return;",
-							"}",
-							"",
-							"const BANDS = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];",
-							"",
-							"pm.test('El snapshot autoritativo (ClaimResponse) trae riskScore, riskBand y riskBreakdown', () => {",
-							"    pm.expect(body).to.have.property('riskScore');",
-							"    pm.expect(body).to.have.property('riskBand');",
-							"    pm.expect(body).to.have.property('riskBreakdown');",
-							"});",
-							"",
-							"if (body.riskBand !== null) {",
-							"    pm.test('Banda valida, score en [0,1] y consistente con el breakdown', () => {",
-							"        pm.expect(BANDS).to.include(body.riskBand);",
-							"        pm.expect(body.riskScore).to.be.within(0, 1);",
-							"        const wSum = body.riskBreakdown.reduce((a, f) => a + f.weightedContribution, 0);",
-							"        const totalW = body.riskBreakdown.reduce((a, f) => a + f.weight, 0);",
-							"        pm.expect(body.riskScore).to.be.closeTo(wSum / totalW, 1e-6);",
-							"    });",
-							"}"
-						]
-					}
-				}
-			],
-			"request": {
-				"method": "GET",
-				"header": [],
-				"url": {
-					"raw": "{{classificationBaseUrl}}/api/v1/claims/{{caseId_fastTrack}}",
-					"host": [
-						"{{classificationBaseUrl}}"
-					],
-					"path": [
-						"api",
-						"v1",
-						"claims",
-						"{{caseId_fastTrack}}"
-					]
-				}
-			},
-			"response": []
-		},
-		{
 			"name": "8️⃣ Búsqueda: sin filtros, primera página (paginación por defecto: size=20)",
 			"request": {
 				"method": "GET",
@@ -1081,11 +1024,6 @@
 		{
 			"key": "casesBaseUrl",
 			"value": "http://localhost:8083",
-			"type": "string"
-		},
-		{
-			"key": "classificationBaseUrl",
-			"value": "http://localhost:8082",
 			"type": "string"
 		},
 		{

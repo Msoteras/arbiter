@@ -7,12 +7,13 @@ import ar.edu.utn.frba.arbiter.cases.models.entities.StatusChangeActor;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseRepository;
 import ar.edu.utn.frba.arbiter.cases.support.CaseFixtures;
 import ar.edu.utn.frba.arbiter.cases.support.CaseStates;
+import ar.edu.utn.frba.arbiter.common.dto.FraudRecordRequest;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 import ar.edu.utn.frba.arbiter.common.enums.Classification;
 import ar.edu.utn.frba.arbiter.common.enums.ClassificationFailureReason;
+import ar.edu.utn.frba.arbiter.common.enums.FraudRecordSource;
 import ar.edu.utn.frba.arbiter.common.http.ConnectionRetryInterceptor;
 import ar.edu.utn.frba.arbiter.common.security.JwtSupport;
-import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -20,6 +21,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.ClientHttpRequest;
 import org.springframework.test.web.client.ExpectedCount;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.HttpClientErrorException;
@@ -65,9 +67,6 @@ class ClassificationServiceClientTest {
     private CaseStatusService caseStatusService;
 
     @Mock
-    private HttpServletRequest currentRequest;
-
-    @Mock
     private CaseRepository caseRepository;
 
     private MockRestServiceServer server;
@@ -79,7 +78,7 @@ class ClassificationServiceClientTest {
         server = MockRestServiceServer.bindTo(builder).build();
         client = new ClassificationServiceClient(builder,
                 new ConnectionRetryInterceptor(1, Duration.ofMillis(1), Duration.ofMillis(1)), caseStatusService, caseRepository,
-                BASE_URL, currentRequest, JWT_SECRET);
+                BASE_URL, JWT_SECRET);
     }
 
     /**
@@ -317,12 +316,11 @@ class ClassificationServiceClientTest {
     }
 
     @Test
-    void analyzeAndPersist_forwardsIncomingAuthorizationHeader() {
-        when(currentRequest.getHeader(HttpHeaders.AUTHORIZATION)).thenReturn("Bearer original-user-token");
+    void analyzeAndPersist_signsAServiceToken() {
         Case entity = pendingCase(9L);
         server.expect(requestTo(BASE_URL + "/api/v1/claims"))
                 .andExpect(method(POST))
-                .andExpect(header(HttpHeaders.AUTHORIZATION, "Bearer original-user-token"))
+                .andExpect(request -> assertServiceToken(request, "cases-service-alta"))
                 .andRespond(withSuccess());
 
         client.analyzeAndPersist(entity, List.<CaseDocument>of());
@@ -330,36 +328,69 @@ class ClassificationServiceClientTest {
         server.verify();
     }
 
-    /**
-     * The startup recovery sweep has no request behind it — touching {@code currentRequest} there
-     * throws "No thread-bound request found" — so this path always signs a service token instead
-     * of resolving the header off it, unlike {@link #analyzeAndPersist_forwardsIncomingAuthorizationHeader}.
-     */
     @Test
-    void analyzeAndPersistAsSystem_signsAServiceTokenInsteadOfTouchingTheRequest() {
+    void analyzeAndPersistAsSystem_signsAsTheRecoverySweep() {
         Case entity = pendingCase(10L);
         server.expect(requestTo(BASE_URL + "/api/v1/claims"))
                 .andExpect(method(POST))
-                .andExpect(request -> {
-                    String authHeader = request.getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
-                    assertThat(authHeader).startsWith("Bearer ");
-                    var claims = io.jsonwebtoken.Jwts.parser()
-                            .verifyWith(JwtSupport.key(JWT_SECRET)).build()
-                            .parseSignedClaims(authHeader.substring(7))
-                            .getPayload();
-                    assertThat(claims.getSubject()).isEqualTo("cases-service-recovery");
-                })
+                .andExpect(request -> assertServiceToken(request, "cases-service-recovery"))
                 .andRespond(withSuccess());
 
         client.analyzeAndPersistAsSystem(entity, List.<CaseDocument>of());
 
         server.verify();
-        verifyNoInteractions(currentRequest);
+    }
+
+    @Test
+    void registerFraudRecord_signsAServiceToken() {
+        server.expect(requestTo(BASE_URL + "/api/v1/fraud-records"))
+                .andExpect(method(POST))
+                .andExpect(request -> assertServiceToken(request, "cases-service-fraud-record"))
+                .andRespond(withSuccess());
+
+        client.registerFraudRecord(new FraudRecordRequest("40.123.456", 9L,
+                FraudRecordSource.ANALYST_DECLARED, "Documentación adulterada", null, 1L, "Lucas Pérez"));
+
+        server.verify();
+    }
+
+    @Test
+    void fraudRecordsOf_signsAServiceToken() {
+        server.expect(requestTo(BASE_URL + "/api/v1/fraud-records/insured/40.123.456"))
+                .andExpect(method(GET))
+                .andExpect(request -> assertServiceToken(request, "cases-service-fraud-record"))
+                .andRespond(withSuccess("[]", MediaType.APPLICATION_JSON));
+
+        client.fraudRecordsOf("40.123.456");
+
+        server.verify();
+    }
+
+    @Test
+    void ruleResultsOf_signsAServiceToken() {
+        server.expect(requestTo(BASE_URL + "/api/v1/claims/7/rule-results"))
+                .andExpect(method(GET))
+                .andExpect(request -> assertServiceToken(request, "cases-service-rule-results"))
+                .andRespond(withSuccess("[]", MediaType.APPLICATION_JSON));
+
+        client.ruleResultsOf(7L);
+
+        server.verify();
+    }
+
+    private static void assertServiceToken(ClientHttpRequest request, String subject) {
+        String authHeader = request.getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
+        assertThat(authHeader).startsWith("Bearer ");
+        var claims = io.jsonwebtoken.Jwts.parser()
+                .verifyWith(JwtSupport.key(JWT_SECRET)).build()
+                .parseSignedClaims(authHeader.substring(7))
+                .getPayload();
+        assertThat(claims.getSubject()).isEqualTo(subject);
+        assertThat(claims.get("rol")).isNull();
     }
 
     @Test
     void analyzeAndPersist_whenClassificationCantBeReached_leavesTheCaseToTheRecoverySweep() {
-        when(currentRequest.getHeader(HttpHeaders.AUTHORIZATION)).thenReturn("Bearer user-token");
         Case entity = pendingCase(11L);
         server.expect(ExpectedCount.times(2), requestTo(BASE_URL + "/api/v1/claims"))
                 .andRespond(withException(new ConnectException("Connection refused")));
@@ -373,7 +404,6 @@ class ClassificationServiceClientTest {
 
     @Test
     void analyzeAndPersist_whenClassificationIsStillBooting_resendsTheClaim() {
-        when(currentRequest.getHeader(HttpHeaders.AUTHORIZATION)).thenReturn("Bearer user-token");
         Case entity = pendingCase(14L);
         server.expect(requestTo(BASE_URL + "/api/v1/claims"))
                 .andRespond(withException(new ConnectException("Connection refused")));
@@ -387,7 +417,6 @@ class ClassificationServiceClientTest {
 
     @Test
     void analyzeAndPersist_whenClassificationFailsWith5xx_alsoLeavesTheCaseToTheRecoverySweep() {
-        when(currentRequest.getHeader(HttpHeaders.AUTHORIZATION)).thenReturn("Bearer user-token");
         Case entity = pendingCase(12L);
         server.expect(requestTo(BASE_URL + "/api/v1/claims")).andRespond(withServerError());
 
@@ -400,7 +429,6 @@ class ClassificationServiceClientTest {
 
     @Test
     void analyzeAndPersist_whenClassificationRejectsTheRequest_propagatesWithoutTouchingTheCase() {
-        when(currentRequest.getHeader(HttpHeaders.AUTHORIZATION)).thenReturn("Bearer user-token");
         Case entity = pendingCase(13L);
         server.expect(requestTo(BASE_URL + "/api/v1/claims")).andRespond(withBadRequest());
 
@@ -425,14 +453,8 @@ class ClassificationServiceClientTest {
         assertThat(client.isReachable()).isFalse();
     }
 
-    /**
-     * The exception to forwarding: a service token is signed here. This module resolves the
-     * analystId, so with the user's token the endpoint would be reachable directly and an analyst
-     * could sign a decision on someone else's behalf.
-     */
     @Test
     void forwardAnalystDecision_signsAServiceTokenInsteadOfForwardingTheUsers() {
-        // No stub for the incoming header on purpose: it isn't read.
         server.expect(requestTo(BASE_URL + "/api/v1/claims/9/decision"))
                 .andExpect(method(POST))
                 .andExpect(header(HttpHeaders.AUTHORIZATION, not(equalTo("Bearer original-user-token"))))
@@ -450,7 +472,6 @@ class ClassificationServiceClientTest {
      */
     @Test
     void ruleResults_whenTheReadFails_comeBackNullAndNotEmpty() {
-        when(currentRequest.getHeader(HttpHeaders.AUTHORIZATION)).thenReturn("Bearer user-token");
         server.expect(requestTo(BASE_URL + "/api/v1/claims/7/rule-results"))
                 .andExpect(method(GET))
                 .andRespond(withServerError());
@@ -460,7 +481,6 @@ class ClassificationServiceClientTest {
 
     @Test
     void ruleResults_whenNoRuleRan_comeBackEmpty() {
-        when(currentRequest.getHeader(HttpHeaders.AUTHORIZATION)).thenReturn("Bearer user-token");
         server.expect(requestTo(BASE_URL + "/api/v1/claims/7/rule-results"))
                 .andExpect(method(GET))
                 .andRespond(withSuccess("[]", MediaType.APPLICATION_JSON));

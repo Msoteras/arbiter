@@ -21,7 +21,8 @@ public final class JwtSupport {
 
     /**
      * Short-lived token for system-to-system calls with no user JWT to propagate (e.g. a
-     * scheduler). No {@code rol} claim: the receiver only checks {@code isAuthenticated()}.
+     * scheduler). No {@code rol} claim: that is what {@code authentication.authorities.isEmpty()}
+     * checks on the module-to-module endpoints, which reject every user token.
      */
     public static String issueServiceToken(SecretKey key, String subject) {
         return issueServiceToken(key, subject, null);
