@@ -1,5 +1,5 @@
 @if (visible()) {
-  <section class="setup" [class.is-collapsed]="collapsed()" aria-labelledby="setup-title">
+  <section class="setup" aria-labelledby="setup-title">
     @if (failed()) {
       <h2 id="setup-title" class="setup-title">Puesta en marcha</h2>
       <div class="setup-error">
@@ -9,26 +9,27 @@
     } @else if (steps() === null) {
       <app-inline-loading [size]="22" message="Cargando la puesta en marcha…" />
     } @else {
-      <h2 id="setup-title" class="setup-heading">
-        <button
-          type="button"
-          class="setup-toggle"
-          [attr.aria-expanded]="!collapsed()"
-          aria-controls="setup-body"
-          (click)="toggleCollapsed()"
-        >
-          <span class="setup-title">Puesta en marcha</span>
-          <span class="setup-count tabular" aria-hidden="true">{{ done() }} de {{ total() }}</span>
-          <span class="sr-only">{{ done() }} de {{ total() }} pasos completos</span>
-          <span class="setup-chevron" aria-hidden="true">{{ collapsed() ? '▾' : '▴' }}</span>
-        </button>
-      </h2>
+      <div class="setup-head">
+        <h2 id="setup-title" class="setup-title">Puesta en marcha</h2>
+        <span class="setup-count tabular" aria-hidden="true">{{ done() }} de {{ total() }}</span>
+        <span class="sr-only">{{ done() }} de {{ total() }} pasos completos</span>
+        <!-- A link's look, like the other "Ver … ›" of the home: it opens detail, it changes nothing. -->
+        <button type="button" class="open-panel" (click)="panelOpen.set(true)">Ver pasos ›</button>
+      </div>
       <div class="setup-bar" aria-hidden="true">
         <span class="setup-bar-fill" [style.width.%]="progressPct()"></span>
       </div>
 
-      @if (!collapsed()) {
-        <div class="setup-body" id="setup-body">
+      <!-- The checklist is long: on the home it would push everything else down. -->
+      <app-modal
+        [open]="panelOpen()"
+        heading="Puesta en marcha"
+        variant="side"
+        [hideActions]="true"
+        (close)="panelOpen.set(false)"
+      >
+        <p class="t-note panel-progress">{{ done() }} de {{ total() }} pasos completos</p>
+        <div class="setup-body">
           @for (group of visibleGroups(); track group.level) {
             <div class="setup-group">
               @if (group.level === 'OPTIONAL') {
@@ -56,7 +57,7 @@
                         class="step-link"
                         [routerLink]="route(s).path"
                         [queryParams]="route(s).queryParams"
-                        (click)="pointAt(s)"
+                        (click)="goTo(s)"
                       >
                         <span class="step-mark" aria-hidden="true"></span>
                         <span class="step-text">
@@ -116,7 +117,7 @@
             </button>
           }
         </div>
-      }
+      </app-modal>
     }
   </section>
 }

@@ -216,7 +216,7 @@ class CaseControllerTest {
         LensSummaryResponse.Counts open = new LensSummaryResponse.Counts(3, 1, 2, 1, 0);
         LensSummaryResponse.Counts none = new LensSummaryResponse.Counts(0, 0, 0, 0, 0);
         when(caseService.lensSummary(isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
-                isNull(), isNull(), isNull(), eq(15)))
+                isNull(), isNull(), isNull(), eq(15), eq(false)))
                 .thenReturn(new LensSummaryResponse(open, none, open));
 
         mockMvc.perform(get("/api/v1/cases/lens-summary").param("staleDays", "15"))

@@ -96,6 +96,11 @@ public class CaseExceptionHandler extends ResponseEntityExceptionHandler {
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(409), ex.getMessage());
     }
 
+    @ExceptionHandler(ClosedCaseAssignmentException.class)
+    public ProblemDetail handleClosedCaseAssignment(ClosedCaseAssignmentException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(409), ex.getMessage());
+    }
+
     @ExceptionHandler(CaseAssignedToAnotherAnalystException.class)
     public ProblemDetail handleCaseAssignedToAnotherAnalyst(CaseAssignedToAnotherAnalystException ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(403), ex.getMessage());

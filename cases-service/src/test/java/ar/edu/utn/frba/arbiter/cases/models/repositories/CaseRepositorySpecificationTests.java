@@ -539,6 +539,55 @@ class CaseRepositorySpecificationTests extends AbstractPersistenceIT {
                 FIRST_PAGE).getContent()).extracting(Case::getId).containsExactly(awaiting.getId());
     }
 
+    /** The home screen's four deadline buckets split the open cases with no overlap and no gaps. */
+    @Test
+    void deadlineBuckets_partitionTheOpenCases() {
+        // Seeded open cases: deadline 1/7 (overdue on the 5th) and 15/7 (due within 10 days).
+        Case onTime = caseRepository.save(caseOf(CaseStatus.PENDING_ANALYST_REVIEW, "Hurto",
+                "POL-CEL-2024-040", "40.123.490", "Ana", "Sosa", LocalDate.of(2026, 7, 31), null));
+        Case paused = caseRepository.save(caseOf(CaseStatus.AWAITING_DOCUMENTATION, "Hurto",
+                "POL-CEL-2024-041", "40.123.491", "Beto", "Luna", LocalDate.of(2026, 5, 1), null));
+        LocalDate today = LocalDate.of(2026, 7, 5);
+
+        List<Long> overdue = ids(CaseSpecifications.runningTermDue(null, today.minusDays(1)));
+        List<Long> dueSoon = ids(CaseSpecifications.runningTermDue(today, today.plusDays(10)));
+        List<Long> later = ids(CaseSpecifications.runningTermDue(today.plusDays(11), null));
+        List<Long> frozen = ids(CaseSpecifications.pausedTerm());
+
+        assertThat(overdue).containsExactly(seeded.get(0).getId());
+        assertThat(dueSoon).containsExactly(seeded.get(1).getId());
+        assertThat(later).containsExactly(onTime.getId());
+        // Its stored deadline (31/5) is long gone, but a paused term is never overdue.
+        assertThat(frozen).containsExactly(paused.getId());
+        assertThat(caseRepository.count(CaseSpecifications.scope(CaseScope.OPEN)))
+                .isEqualTo(overdue.size() + dueSoon.size() + later.size() + frozen.size());
+    }
+
+    @Test
+    void countOverdueByAnalyst_leavesOutPausedAndClosedCases() {
+        ClaimsAnalyst lucas = analyst("overdue@arbiter.test", "Lucas", "Gómez");
+        Case paused = caseRepository.save(caseOf(CaseStatus.PENDING_EXPERT_REPORT, "Hurto",
+                "POL-CEL-2024-042", "40.123.492", "Ciro", "Vera", LocalDate.of(2026, 5, 1), null));
+        // seeded 0: open and overdue on the 5th; seeded 2: approved, its deadline passed too.
+        assign(lucas, seeded.get(0), seeded.get(2), paused);
+        List<String> notTicking = Stream.concat(
+                ar.edu.utn.frba.arbiter.cases.services.CaseStatusService.TERMINAL_STATUSES.stream(),
+                ar.edu.utn.frba.arbiter.cases.services.CaseStatusService.PAUSING_STATUSES.stream())
+                .map(Enum::name).toList();
+
+        List<CaseRepository.AnalystCaseCount> rows =
+                caseRepository.countOverdueByAnalyst(notTicking, LocalDate.of(2026, 8, 5));
+
+        assertThat(rows).singleElement().satisfies(row -> {
+            assertThat(row.getAnalystId()).isEqualTo(lucas.getId());
+            assertThat(row.getTotal()).isEqualTo(1);
+        });
+    }
+
+    private List<Long> ids(Specification<Case> spec) {
+        return caseRepository.findAll(spec, FIRST_PAGE).getContent().stream().map(Case::getId).toList();
+    }
+
     private void settlement(Case caseRecord, SettlementStatus status) {
         caseSettlementRepository.save(CaseSettlement.builder()
                 .caseId(caseRecord.getId())

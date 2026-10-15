@@ -912,13 +912,26 @@ export class RulesComponent {
     return Number.isInteger(n) && n > 0 ? n : null;
   }
 
+  /**
+   * A tab's first render is heavy enough to block the page, and until it ends the previous tab
+   * stays painted. Showing the loader first, and rendering the tab after that frame is painted,
+   * makes the switch visible at once.
+   */
+  protected readonly tabRendering = signal(false);
+  private readonly renderedTabs = new Set<TabId>([this.activeTab()]);
+
   protected setTab(id: string): void {
     const tab = this.tabs.find((t) => t.id === id);
-    if (!tab) {
+    if (!tab || tab.id === this.activeTab()) {
       return;
     }
-    this.activeTab.set(tab.id);
     localStorage.setItem(RulesComponent.LAST_TAB_KEY, tab.id);
+    if (!this.renderedTabs.has(tab.id)) {
+      this.renderedTabs.add(tab.id);
+      this.tabRendering.set(true);
+      requestAnimationFrame(() => setTimeout(() => this.tabRendering.set(false)));
+    }
+    this.activeTab.set(tab.id);
   }
 
   /** Falls back to Coberturas when nothing valid is stored. */

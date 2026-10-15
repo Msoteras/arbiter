@@ -71,6 +71,10 @@ public class CaseMessageService {
     @Value("${arbiter.messaging.reply-window-days:7}")
     private int replyWindowDays;
 
+    /** For the referente, who can open any case's chat but isn't one of its two sides. */
+    static final String READ_ONLY_NOTICE =
+            "Solo lectura: la conversación es entre el analista y el asegurado.";
+
     /** Reading does not mark anything read — see {@link #markRead(Long, String)}. */
     public CaseMessageThreadResponse thread(Long caseId, String insurerSlug) {
         return tenantScope.forCase(caseId, insurerSlug, () -> {
@@ -83,7 +87,8 @@ public class CaseMessageService {
                     messages.stream().map(m -> CaseMessageResponse.from(m, m.getSenderRole() == party)).toList(),
                     (int) messages.stream().filter(m -> isIncomingUnread(m, party)).count(),
                     open && isParty(party),
-                    open ? null : new ClosedConversationException(replyWindowDays).getMessage(),
+                    !open ? new ClosedConversationException(replyWindowDays).getMessage()
+                            : isParty(party) ? null : READ_ONLY_NOTICE,
                     CaseTopic.of(TenantContext.get(), caseId),
                     isParty(party) ? party.name() : null);
         });

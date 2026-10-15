@@ -6,6 +6,7 @@ import ar.edu.utn.frba.arbiter.cases.dto.AnalystDecisionResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.AnalystWorkloadResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.AssignAnalystRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.AssignedCaseSummaryResponse;
+import ar.edu.utn.frba.arbiter.cases.dto.HomeSummaryResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseActionResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.ClaimCauseCorrectionRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.ClaimCauseOption;
@@ -342,11 +343,12 @@ public class CaseController {
             @RequestParam(required = false) RiskBand riskBand,
             @RequestParam(required = false) Long analystId,
             @RequestParam(required = false) CaseFollowUp followUp,
-            @RequestParam(required = false) Integer staleDays
+            @RequestParam(required = false) Integer staleDays,
+            @RequestParam(defaultValue = "false") boolean dueSoon
     ) {
         return ResponseEntity.ok(caseService.lensSummary(
                 status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
-                analystId, followUp, staleDays));
+                analystId, followUp, staleDays, dueSoon));
     }
 
     @GetMapping("/messages/inbox")
@@ -382,6 +384,23 @@ public class CaseController {
                     """)
     public ResponseEntity<List<AnalystWorkloadResponse>> analystWorkload() {
         return ResponseEntity.ok(caseService.analystWorkload());
+    }
+
+    @GetMapping("/home-summary")
+    @PreAuthorize("hasAnyRole('ANALISTA_SINIESTROS', 'REFERENTE_ASEGURADORA')")
+    @Operation(summary = "Counts for the home screen",
+            description = """
+                    Everything the home screen counts, in a single call: open cases by where they
+                    stand against the art. 56 term (on time, due soon, overdue, paused), reports
+                    received from an expert or a repair shop, settlements returned by or awaiting
+                    the referente, cases with no activity in 15 days, failed classifications, and
+                    the unassigned cases with when the oldest one was reported.
+
+                    For an analyst every count covers their own open cases, except the unassigned
+                    ones, which belong to nobody. For the referente it covers the whole insurer.
+                    """)
+    public ResponseEntity<HomeSummaryResponse> homeSummary() {
+        return ResponseEntity.ok(caseService.homeSummary());
     }
 
     @GetMapping("/assigned/summary")

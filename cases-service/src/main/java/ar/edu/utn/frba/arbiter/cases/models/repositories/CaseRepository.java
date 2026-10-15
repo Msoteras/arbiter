@@ -185,6 +185,18 @@ public interface CaseRepository extends JpaRepository<Case, Long>, JpaSpecificat
             """)
     List<AnalystCaseCount> countActiveByAnalyst(@Param("finalStatuses") Collection<String> finalStatuses);
 
+    /** Running-term cases past their deadline, per analyst; same rule as the OVERDUE deadline priority. */
+    @Query("""
+            select c.analyst.id as analystId, count(c) as total
+            from Case c
+            where c.analyst is not null
+              and c.currentStatus.name not in :notTicking
+              and c.responseDeadline < :today
+            group by c.analyst.id
+            """)
+    List<AnalystCaseCount> countOverdueByAnalyst(@Param("notTicking") Collection<String> notTicking,
+                                                 @Param("today") LocalDate today);
+
     interface StatusCount {
         String getStatus();
 
