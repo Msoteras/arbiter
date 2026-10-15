@@ -303,6 +303,7 @@ interface Swatch {
           <app-icon-button icon="delete" label="Quitar" />
           <app-icon-button icon="confirm" label="Listo" />
           <app-icon-button icon="edit" label="Editar" [disabled]="true" />
+          <app-icon-button icon="edit" label="Editar" size="sm" />
         </div>
       </section>
 
