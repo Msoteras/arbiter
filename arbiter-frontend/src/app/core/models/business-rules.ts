@@ -27,7 +27,6 @@ export interface Coverage {
   maxAnnualClaims: number | null;
   /** Days after policy start before the coverage applies. null = none. */
   waitingPeriodDays: number | null;
-  coversFamilyGroup: boolean;
   /** Total loss extinguishes the policy; repair does not. */
   settlementFormula: SettlementFormula;
   /** Only applies to total loss. */
