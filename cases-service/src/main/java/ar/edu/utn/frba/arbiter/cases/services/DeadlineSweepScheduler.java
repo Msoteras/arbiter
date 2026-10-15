@@ -8,6 +8,7 @@ import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 import ar.edu.utn.frba.arbiter.common.enums.DeadlinePriority;
 import ar.edu.utn.frba.arbiter.common.models.entities.Insurer;
 import lombok.RequiredArgsConstructor;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -47,6 +48,7 @@ public class DeadlineSweepScheduler {
     private final Clock clock;
 
     @Scheduled(cron = "${arbiter.deadline-sweep.cron:0 0 8 * * *}")
+    @SchedulerLock(name = "deadline-sweep")
     public void sweepDeadlines() {
         LocalDate today = LocalDate.now(clock);
         for (Insurer insurer : insurerRepository.findByActiveTrue()) {

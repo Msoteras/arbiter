@@ -87,7 +87,7 @@ class OnboardingNotificationTest {
     }
 
     private static CoverageUpsertRequest coverageRequest() {
-        return new CoverageUpsertRequest("Robo de celular", null, null, null, null, null, null,
-                false, false, null, null, null, false, false, List.of());
+        return new CoverageUpsertRequest("Robo de celular", null, null, null, null, null, null, null,
+                false, null, null, null, false, false, List.of());
     }
 }

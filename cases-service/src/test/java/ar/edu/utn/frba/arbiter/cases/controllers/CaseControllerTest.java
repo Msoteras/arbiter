@@ -216,7 +216,7 @@ class CaseControllerTest {
         LensSummaryResponse.Counts open = new LensSummaryResponse.Counts(3, 1, 2, 1, 0);
         LensSummaryResponse.Counts none = new LensSummaryResponse.Counts(0, 0, 0, 0, 0);
         when(caseService.lensSummary(isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
-                isNull(), isNull(), isNull(), eq(15)))
+                isNull(), isNull(), isNull(), eq(15), eq(false)))
                 .thenReturn(new LensSummaryResponse(open, none, open));
 
         mockMvc.perform(get("/api/v1/cases/lens-summary").param("staleDays", "15"))
@@ -325,7 +325,7 @@ class CaseControllerTest {
                 "Celulares", "Celular Protegido Básico", "Robo en vía pública", "Robo de celular",
                 "Motorola Edge 50 Pro", "40.123.456", "Laura Fernández", false, "POL-CEL-2024-001",
                 "Me robaron el celular",
-                LocalDateTime.of(2026, 6, 13, 19, 45), "CABA",
+                LocalDateTime.of(2026, 6, 13, 19, 45), null, "CABA",
                 new BigDecimal("150000"),
                 Classification.FAST_TRACK, true, 1.0,
                 List.of("Low amount", "first claim", "policy up to date"),
@@ -484,7 +484,7 @@ class CaseControllerTest {
                 "Celulares", "Celular Protegido Básico", "Robo en vía pública", "Robo de celular",
                 "Motorola Edge 50 Pro", "40.123.456", "Laura Fernández", false, "POL-CEL-2024-001",
                 "Me robaron el celular",
-                LocalDateTime.of(2026, 6, 13, 19, 45), "CABA",
+                LocalDateTime.of(2026, 6, 13, 19, 45), null, "CABA",
                 new BigDecimal("150000"),
                 null, false, 0.0, null,
                 null, null, null,

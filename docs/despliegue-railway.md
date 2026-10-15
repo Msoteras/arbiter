@@ -425,6 +425,36 @@ pierde el WebSocket.
 
 ---
 
+## `cases-service` con más de una instancia
+
+Con una sola instancia alcanza con el paso 1: `STOMP_RELAY_HOST` vacío deja el broker del chat en
+memoria. Para escalar a dos o más hacen falta los tres, en este orden:
+
+1. **Correr `db/migrations/2026-10-12-lock-de-barridos.sql`** (crea `arbiter_common.shedlock`). Va
+   **antes** de desplegar el `cases-service` que trae el lock, incluso con una sola instancia: sin la
+   tabla ningún barrido corre (pólizas, vencimientos, caducidad, clasificación, documentos) y el
+   único rastro es un error en el log en cada intento.
+2. **Sumar el servicio `rabbitmq`** (octavo servicio, sin dominio público): Root Directory `/`,
+   `RAILWAY_DOCKERFILE_PATH=rabbitmq/Dockerfile`, con `RABBITMQ_DEFAULT_USER` y
+   `RABBITMQ_DEFAULT_PASS` propios (no `guest`: RabbitMQ solo lo deja entrar desde localhost). Con
+   Serverless apagado, igual que cases.
+3. **En `cases-service`:** `STOMP_RELAY_HOST=rabbitmq.railway.internal`, y `STOMP_RELAY_LOGIN` /
+   `STOMP_RELAY_PASSCODE` con el usuario del paso 2. `STOMP_RELAY_PORT` solo si no es el 61613.
+
+Qué resuelve cada parte:
+
+- **RabbitMQ** es solo la entrega en vivo del chat. Con el broker en memoria, cada instancia le
+  entrega únicamente a los sockets que tiene conectados, así que dos personas en réplicas distintas
+  no se ven los mensajes hasta el refresco de 60 s. Si RabbitMQ se cae, el mensaje se guarda igual
+  (el POST no depende del broker) y llega con ese mismo refresco.
+- **El lock de barridos** evita que dos instancias corran el mismo barrido a la vez, que es cuando se
+  podía mandar dos veces el mismo aviso de vencimiento o insertar dos veces una cobertura.
+
+Probado con `ChatRelayTests` (dos instancias contra un RabbitMQ real) y `SweepLockTests`; **no** está
+probado con dos réplicas reales detrás del nginx en Railway.
+
+---
+
 ## Ya hecho en el repo
 
 - Los 5 backends escuchan en `${PORT:<puerto de siempre>}`, así que Railway les puede asignar el

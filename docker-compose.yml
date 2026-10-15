@@ -18,6 +18,25 @@ services:
       retries: 12
       start_period: 10s
 
+  # ─── Chat broker ────────────────────────────────────────────────────────
+  # Only with the `rabbitmq` profile, together with STOMP_RELAY_HOST=rabbitmq in .env. Without
+  # both, cases-service keeps its in-memory broker, which is all a single instance needs.
+  rabbitmq:
+    profiles: ["rabbitmq"]
+    build:
+      context: .
+      dockerfile: rabbitmq/Dockerfile
+    environment:
+      # Not `guest`: RabbitMQ only lets that user in from localhost.
+      RABBITMQ_DEFAULT_USER: ${STOMP_RELAY_LOGIN:-arbiter}
+      RABBITMQ_DEFAULT_PASS: ${STOMP_RELAY_PASSCODE:-arbiter}
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "check_port_listener", "61613"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
   # ─── LLM ─────────────────────────────────────────────────────────────────
   # Only with the `ollama` profile (COMPOSE_PROFILES=ollama in .env), so Gemini users skip
   # 6 GB of weights and their RAM.
@@ -115,6 +134,7 @@ services:
       GOOGLE_CLOUD_PROJECT: ${GOOGLE_CLOUD_PROJECT:-}
       GOOGLE_CLOUD_LOCATION: ${GOOGLE_CLOUD_LOCATION:-global}
       GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.5-flash}
+      GEMINI_TIMEOUT: ${GEMINI_TIMEOUT:-90s}
       GOOGLE_APPLICATION_CREDENTIALS: ${GOOGLE_APPLICATION_CREDENTIALS:-}
       # Mount the credential from your gitignored docker-compose.override.yml. Service account:
       #   services:
@@ -166,9 +186,17 @@ services:
       SENDGRID_FROM_ADDRESS: ${SENDGRID_FROM_ADDRESS:-no-reply@arbiter.test}
       SENDGRID_FROM_NAME: ${SENDGRID_FROM_NAME:-Arbiter}
       FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:-http://localhost:4200}
+      # Empty keeps the in-memory chat broker; `rabbitmq` needs COMPOSE_PROFILES to include it.
+      STOMP_RELAY_HOST: ${STOMP_RELAY_HOST:-}
+      STOMP_RELAY_LOGIN: ${STOMP_RELAY_LOGIN:-arbiter}
+      STOMP_RELAY_PASSCODE: ${STOMP_RELAY_PASSCODE:-arbiter}
       # Same insurer-db profile as classification-service.
       SPRING_PROFILES_ACTIVE: ${CASES_PROFILES:-insurer-db}
     depends_on:
+      rabbitmq:
+        condition: service_healthy
+        # Without the `rabbitmq` profile this service doesn't exist.
+        required: false
       classification-service:
         condition: service_started
       rules-service:

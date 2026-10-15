@@ -25,8 +25,7 @@ public class CoverageLimitsService {
                         coverage.getReportDeadlineHours(),
                         coverage.getMaxEventsPerYear(),
                         coverage.getWaitingPeriodDays(),
-                        coverage.isCoversFamilyGroup(),
-                        coverage.isClaimExhaustsCoverage()))
+                        coverage.isCoversFamilyGroup()))
                 .orElseGet(CoverageLimitsDto::empty);
     }
 }

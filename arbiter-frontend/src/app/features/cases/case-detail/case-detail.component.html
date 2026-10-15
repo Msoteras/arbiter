@@ -512,7 +512,7 @@
                       }
                     </div>
                   </div>
-                  @if (canManage()) {
+                  @if (canAssign()) {
                     <div class="assign-actions">
                       <app-menu-button
                         class="grow"
@@ -529,7 +529,7 @@
                   }
                 } @else {
                   <p class="nodata">Sin asignar</p>
-                  @if (canManage()) {
+                  @if (canAssign()) {
                     <div class="assign-actions">
                       @if (canTake()) {
                         <app-button
@@ -1109,7 +1109,7 @@
     [subtitle]="'Exp. #' + d.id"
     [expandLink]="['/messages', d.id]"
     [placeholder]="'Escribí un mensaje a ' + insuredFirstName() + '…'"
-    [launcherLabel]="'Chat con ' + insuredFirstName()"
+    [launcherLabel]="'Chat con ' + insuredFirstName() + (canAct() ? '' : ' (solo lectura)')"
     [quickReplies]="quickReplies()"
     [unread]="unreadMessages()"
     (unreadChange)="unreadMessages.set($event)"

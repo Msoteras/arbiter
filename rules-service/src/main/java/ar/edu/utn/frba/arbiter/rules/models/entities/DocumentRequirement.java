@@ -1,5 +1,6 @@
 package ar.edu.utn.frba.arbiter.rules.models.entities;
 
+import ar.edu.utn.frba.arbiter.common.models.entities.DocumentType;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Branch;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.ClaimCause;
 import jakarta.persistence.Column;
@@ -40,11 +41,10 @@ public class DocumentRequirement {
     @Column(name = "risk_band", length = 20)
     private String riskBand;
 
-    @Column(nullable = false)
-    private boolean mandatory;
-
-    @Column(name = "document_type", nullable = false)
-    private String documentType;
+    /** Always one of the branch's own ({@link BranchDocumentType}); the database enforces it too. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "document_type_id", nullable = false)
+    private DocumentType documentType;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "branch_id", nullable = false)

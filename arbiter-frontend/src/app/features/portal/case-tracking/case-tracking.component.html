@@ -189,6 +189,12 @@
         <dt class="t-field-label">Fecha del hecho</dt>
         <dd>{{ occurredOn() }}</dd>
       </div>
+      @if (policeReportOn(); as reportedToPolice) {
+        <div class="field">
+          <dt class="t-field-label">Denuncia policial</dt>
+          <dd>{{ reportedToPolice }}</dd>
+        </div>
+      }
       <div class="field">
         <dt class="t-field-label">Ubicación</dt>
         <dd>{{ d.eventLocation }}</dd>

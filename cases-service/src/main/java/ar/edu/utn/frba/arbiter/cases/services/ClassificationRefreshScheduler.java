@@ -13,6 +13,7 @@ import ar.edu.utn.frba.arbiter.common.models.entities.Insurer;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Coverage;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -66,6 +67,7 @@ public class ClassificationRefreshScheduler {
     }
 
     @Scheduled(fixedDelayString = "${arbiter.classification-refresh.interval-ms:600000}")
+    @SchedulerLock(name = "classification-refresh")
     public void refreshPendingCases() {
         for (Insurer insurer : insurerRepository.findByActiveTrue()) {
             try {
@@ -134,6 +136,7 @@ public class ClassificationRefreshScheduler {
      * a case fails, and requeuing at once would just hammer a dependency that's still down.
      */
     @Scheduled(fixedDelayString = "${arbiter.classification-refresh.recovery-interval-ms:300000}")
+    @SchedulerLock(name = "classification-recovery")
     public void recoverInfrastructureFailures() {
         for (Insurer insurer : insurerRepository.findByActiveTrue()) {
             try {

@@ -1,4 +1,5 @@
 @use 'media';
+@use '../home-dashboard';
 
 :host {
   display: block;
@@ -11,219 +12,160 @@
   justify-content: center;
 }
 
-.home {
-  padding: var(--space-5) var(--space-6) var(--space-7);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-5);
-}
+@include home-dashboard.layout;
+@include home-dashboard.hero;
+@include home-dashboard.rows;
 
-.hero {
-  position: relative;
-  overflow: hidden;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-4);
-  padding: var(--space-5) var(--space-6);
-  border-radius: var(--radius-card);
-  background: var(--brand-panel-bg);
-  color: var(--brand-panel-fg);
-  box-shadow: var(--shadow-card);
-}
-.hero::after {
-  content: '';
-  position: absolute;
-  top: -55%;
-  right: -6%;
-  width: 340px;
-  height: 340px;
-  border-radius: var(--radius-pill);
-  background: radial-gradient(
-    circle,
-    color-mix(in srgb, var(--brand-panel-fg) 16%, transparent),
-    transparent 70%
-  );
-  pointer-events: none;
-}
-.hero-text {
-  position: relative;
-  min-width: 0;
-}
-.hero .t-hero-title {
-  color: var(--brand-panel-fg);
-}
-.hero-sub {
-  margin: var(--space-2) 0 0;
-  font-size: var(--font-size-body);
-  color: color-mix(in srgb, var(--brand-panel-fg) 82%, transparent);
-}
-.hero-cta {
-  position: relative;
-  flex: none;
-  font-size: var(--font-size-body);
-  color: var(--brand-panel-fg);
-  text-decoration: none;
-  white-space: nowrap;
-}
-.hero-cta:hover {
-  text-decoration: underline;
-}
-
-.home-body,
-.home-main {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-5);
-}
-.home-main {
-  min-width: 0;
-}
-
-/* The checklist beside the rest, following the scroll; it collapses to its title and bar. */
-@include media.wide {
-  .home-body:has(.setup) {
-    display: grid;
-    /* 3:2, so the checklist has room for its steps and the main column still reads as the page. */
-    grid-template-columns: minmax(0, 3fr) minmax(var(--setup-column-min), 2fr);
-    align-items: start;
-  }
-  .home-aside {
-    grid-column: 2;
-    grid-row: 1;
-    position: sticky;
-    top: calc(var(--appbar-h) + var(--space-4));
-    max-height: calc(100vh - var(--appbar-h) - var(--space-6));
-    overflow-y: auto;
-  }
-  .home-main {
-    grid-column: 1;
-    grid-row: 1;
-  }
-  /* Beside the checklist only three tiles fit: the total, the least urgent, goes. */
-  .home-body:has(.setup) .stats {
-    grid-template-columns: repeat(3, 1fr);
-  }
-  .home-body:has(.setup) .stat-total {
-    display: none;
-  }
-}
-
-.stats {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: var(--space-4);
-}
-
-.cols {
-  display: grid;
-  grid-template-columns: 1.6fr 1fr;
-  gap: var(--space-4);
-  align-items: start;
-}
-
-.alert-list {
+// ───────────────── Settlement and alert rows ─────────────────
+.rows {
   list-style: none;
   margin: 0;
   padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
 }
-.alert-item {
+.rows > li + li {
+  border-top: 1px solid var(--border-subtle);
+}
+.row {
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  padding: var(--space-2) var(--space-3);
-  margin: 0 calc(-1 * var(--space-2));
-  border-radius: var(--radius-ctl);
+  padding: var(--space-3) var(--space-4);
+  color: var(--text-primary);
   text-decoration: none;
-  transition:
-    background var(--dur-1) ease,
-    transform var(--dur-1) var(--ease-out);
 }
-.alert-item:hover {
+// The alerts' extra comes from the component: the card's spare height, shared among the rows.
+.alerts .row {
+  padding-block: calc(var(--space-3) + var(--row-extra) / 2);
+}
+.row-link {
+  transition: background var(--dur-1) ease;
+}
+.row-link:hover {
   background: var(--surface-soft);
-  transform: translateX(2px);
 }
-.alert-item:hover .alert-id {
-  text-decoration: underline;
-}
-
-.alert-main {
+.row-main {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--space-1);
   min-width: 0;
   margin-right: auto;
 }
-.alert-id {
-  font-size: var(--font-size-body);
-  font-weight: var(--font-weight-medium);
+.row-title {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.row-id {
+  flex: none;
+  font-size: var(--font-size-xs);
   color: var(--accent-fg);
 }
-.alert-meta {
-  font-size: var(--font-size-xs);
-  color: var(--text-muted);
+.row-who {
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-medium);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.alert-tags {
+.row-meta {
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  flex: none;
+  font-size: var(--font-size-sm);
+  color: var(--text-tertiary);
 }
-.alert-chevron {
-  flex: none;
-  color: var(--text-muted);
-  opacity: 0;
-  transform: translateX(-4px);
-  transition:
-    opacity var(--dur-1) ease,
-    transform var(--dur-1) var(--ease-out);
+.band {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-primary);
 }
-.alert-item:hover .alert-chevron {
-  opacity: 1;
-  transform: translateX(0);
-}
-
-.see-all {
-  display: inline-block;
-  margin-top: var(--space-3);
-  font-size: var(--font-size-xs);
-  color: var(--accent-fg);
-  text-decoration: none;
-}
-.see-all:hover {
-  text-decoration: underline;
+.amount {
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-bold);
 }
 
-.team-list {
+// ───────────────── Art. 56 terms ─────────────────
+.term-bar {
+  display: flex;
+  gap: calc(var(--space-1) / 2);
+  height: var(--space-2);
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+  background: var(--surface-sunken);
+}
+.term-seg {
+  display: block;
+  flex-basis: 0;
+  background: var(--border-strong);
+}
+.term-seg.tone-ok {
+  background: var(--status-ok);
+}
+.term-seg.tone-warning {
+  background: var(--status-warning);
+}
+.term-seg.tone-danger {
+  background: var(--status-danger);
+}
+.term-seg.tone-neutral {
+  background: var(--border-default);
+}
+.term-legend {
   list-style: none;
-  margin: 0;
+  margin: var(--space-3) 0 0;
   padding: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2) var(--space-5);
+}
+.term-legend li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--font-size-body);
+}
+.term-value {
+  margin-left: auto;
+  font-weight: var(--font-weight-bold);
+}
+.dot.tone-neutral {
+  background: var(--border-default);
+}
+
+// ───────────────── Team ─────────────────
+.team {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: var(--space-2);
 }
+.team-head,
 .team-row {
   display: grid;
-  grid-template-columns: minmax(120px, 200px) 1fr auto;
+  // The name gets the most room: the counts are two digits at most.
+  grid-template-columns:
+    minmax(0, 1.6fr) minmax(0, 1fr) var(--unit-label-w)
+    var(--unit-label-w);
   align-items: center;
-  gap: var(--space-4);
+  gap: var(--space-3);
+}
+.team-head span:nth-child(n + 3),
+.team-num {
+  text-align: right;
+}
+.team-head {
+  margin: 0;
 }
 .team-name {
   font-size: var(--font-size-body);
-  color: var(--text-primary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .team-bar {
-  display: block;
-  height: 8px;
+  height: var(--space-2);
   border-radius: var(--radius-pill);
   background: var(--surface-sunken);
   overflow: hidden;
@@ -231,37 +173,14 @@
 .team-bar-fill {
   display: block;
   height: 100%;
-  min-width: 2px;
+  min-width: var(--space-1);
   border-radius: var(--radius-pill);
-  background: var(--accent);
+  background: var(--accent-fg);
 }
-.team-count {
-  font-size: var(--font-size-sm);
-  color: var(--text-muted);
-  white-space: nowrap;
+.team-num {
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-bold);
 }
-
-@media (max-width: 960px) {
-  .stats {
-    grid-template-columns: repeat(2, 1fr);
-  }
-  .cols {
-    grid-template-columns: 1fr;
-  }
-}
-@media (max-width: 520px) {
-  .team-row {
-    grid-template-columns: 1fr auto;
-  }
-  .team-bar {
-    display: none;
-  }
-}
-@media (max-width: 720px) {
-  .home {
-    padding: var(--space-4) var(--space-4) var(--space-6);
-  }
-  .hero {
-    flex-direction: column;
-  }
+.team-num.late {
+  color: var(--status-danger);
 }

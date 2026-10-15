@@ -6,6 +6,7 @@ import ar.edu.utn.frba.arbiter.cases.models.repositories.InsurerRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.PolicyRepository;
 import ar.edu.utn.frba.arbiter.common.models.entities.Insurer;
 import lombok.RequiredArgsConstructor;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -32,6 +33,7 @@ public class PolicyResyncScheduler {
     private final PolicySynchronizer policySynchronizer;
 
     @Scheduled(cron = "${arbiter.policy-resync.cron:0 0 3 * * *}")
+    @SchedulerLock(name = "policy-resync", lockAtMostFor = "PT2H")
     public void resyncPolicies() {
         for (Insurer insurer : insurerRepository.findByActiveTrue()) {
             try {

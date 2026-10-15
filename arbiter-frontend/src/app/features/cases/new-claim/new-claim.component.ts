@@ -35,11 +35,8 @@ import {
   todayIso,
 } from '../../../core/util/datetime';
 import { amountInputDisplay, amountInputLabel, amountInputValue } from '../../../core/util/money';
-import {
-  CASE_DOCUMENT_TYPES,
-  CaseDocumentType,
-  documentTypeLabel,
-} from '../../../core/models/case-document';
+import { CaseDocumentType } from '../../../core/models/case-document';
+import { DocumentAgendaService } from '../document-agenda.service';
 import { InsuredSessionService } from '../../../core/auth/insured-session.service';
 import { ArgentinaLocationsService } from '../../../core/services/argentina-locations.service';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
@@ -82,8 +79,11 @@ interface RequiredDocsState {
   firstRound?: boolean;
 }
 
-/** What is shown when there is no schedule to go by: offered, never demanded. */
-const OFFERED_DOCS: RequiredDocsState = { status: 'none', slots: CASE_DOCUMENT_TYPES };
+/** What is shown when there is no schedule to go by: the catalog, offered, never demanded. */
+const offeredDocs = (catalog: readonly CaseDocumentType[]): RequiredDocsState => ({
+  status: 'none',
+  slots: catalog,
+});
 
 /** Emitted on every combination change, so the previous slots don't linger while loading. */
 const LOADING_DOCS: RequiredDocsState = { status: 'loading', slots: [] };
@@ -166,6 +166,7 @@ export class NewClaimComponent {
   private readonly policyService = inject(PolicyService);
   private readonly session = inject(InsuredSessionService);
   private readonly locations = inject(ArgentinaLocationsService);
+  private readonly agenda = inject(DocumentAgendaService);
 
   /** Inside a modal: hides the header and outer box and enables `close`. */
   readonly embedded = input(false);
@@ -624,9 +625,7 @@ export class NewClaimComponent {
       !this.eligibilityChecking(),
   );
 
-  protected readonly docSlots = signal<DocSlot[]>(
-    CASE_DOCUMENT_TYPES.map(({ type, label }) => ({ type, label, file: null, error: null })),
-  );
+  protected readonly docSlots = signal<DocSlot[]>([]);
 
   // Only the Fast Track minimum is asked here; if the claim misses Fast Track, the rest is requested
   // later (AWAITING_DOCUMENTATION).
@@ -651,27 +650,36 @@ export class NewClaimComponent {
               // A blip must not be read as "this claim cause needs no documents". Two retries with
               // a pause first; only a list that stays unreachable becomes 'unavailable'.
               retry({ count: 2, delay: 1000 }),
-              map(({ documentTypes, fastTrackOnly }): RequiredDocsState =>
-                documentTypes.length
-                  ? {
-                      status: 'configured',
-                      slots: documentTypes.map((type) => ({
-                        type,
-                        label: documentTypeLabel(type),
-                      })),
-                      firstRound: fastTrackOnly,
-                    }
-                  : OFFERED_DOCS,
+              switchMap(({ documentTypes, fastTrackOnly }) =>
+                this.agenda.catalogSlots().pipe(
+                  map((catalog): RequiredDocsState =>
+                    documentTypes.length
+                      ? {
+                          status: 'configured',
+                          slots: documentTypes.map((type) => ({
+                            type,
+                            label: catalog.find((slot) => slot.type === type)?.label ?? type,
+                          })),
+                          firstRound: fastTrackOnly,
+                        }
+                      : offeredDocs(catalog),
+                  ),
+                ),
               ),
               catchError(() =>
-                of<RequiredDocsState>({ status: 'unavailable', slots: CASE_DOCUMENT_TYPES }),
+                this.agenda.catalogSlots().pipe(
+                  map((catalog): RequiredDocsState => ({
+                    status: 'unavailable',
+                    slots: catalog,
+                  })),
+                ),
               ),
               startWith(LOADING_DOCS),
             )
-          : of<RequiredDocsState>(OFFERED_DOCS),
+          : this.agenda.catalogSlots().pipe(map(offeredDocs)),
       ),
     ),
-    { initialValue: OFFERED_DOCS },
+    { initialValue: offeredDocs([]) },
   );
   private readonly rebuildDocSlots = effect(() => {
     const { slots } = this.requiredDocsState();

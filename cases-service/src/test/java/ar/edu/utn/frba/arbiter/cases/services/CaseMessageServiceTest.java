@@ -154,6 +154,7 @@ class CaseMessageServiceTest {
         CaseMessageThreadResponse thread = service.thread(CASE_ID, null);
 
         assertThat(thread.canPost()).isFalse();
+        assertThat(thread.closedNotice()).isEqualTo(CaseMessageService.READ_ONLY_NOTICE);
         assertThat(thread.unread()).isZero();
         assertThat(thread.messages()).singleElement()
                 .extracting(CaseMessageResponse::mine).isEqualTo(false);

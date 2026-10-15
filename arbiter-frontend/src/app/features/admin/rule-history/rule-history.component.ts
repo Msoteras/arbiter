@@ -2,9 +2,11 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { finalize } from 'rxjs';
 
-import { documentTypeLabel, riskFactorLabel } from '../../../core/models/business-rules';
+import { riskFactorLabel } from '../../../core/models/business-rules';
+import { DocumentTypeService } from '../../../core/services/document-type.service';
 import { RISK_BANDS, RiskBand, riskBandLabel } from '../../../core/models/risk-band';
 import { formatDateTime } from '../../../core/util/datetime';
+import { formatMoney } from '../../../core/util/money';
 import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { CardComponent } from '../../../shared/ui/card/card.component';
@@ -47,6 +49,9 @@ const LIST_FIELDS = new Set([
 const PERCENT_FIELDS = new Set(['maxClaimedAmountRatio']);
 
 const SCALED_FIELDS = new Set(['weight', 'minScoreInclusive']);
+
+/** Amounts in pesos, stored as bare numbers. */
+const MONEY_FIELDS = new Set(['minClaimedAmount']);
 
 /** Keys that identify a list element; the element is already named by the row's qualifier. */
 const IDENTITY_FIELDS = new Set(['factorId', 'band']);
@@ -105,6 +110,7 @@ interface HistoryRow {
 export class RuleHistoryComponent {
   private readonly historyService = inject(RuleHistoryService);
   private readonly branchesService = inject(BranchesService);
+  private readonly documentTypes = inject(DocumentTypeService);
 
   protected readonly loading = signal(true);
   protected readonly error = signal<string | null>(null);
@@ -259,7 +265,7 @@ export class RuleHistoryComponent {
       .split(LIST_SEPARATOR)
       .map((item) => item.trim())
       .filter((item) => item !== '')
-      .map((item) => (field === 'requiredDocumentTypes' ? documentTypeLabel(item) : item));
+      .map((item) => (field === 'requiredDocumentTypes' ? this.documentTypes.label(item) : item));
   }
 
   /** Insurer-wide scope is stated explicitly so an empty scope isn't read as missing data. */
@@ -304,6 +310,9 @@ export class RuleHistoryComponent {
     if (SCALED_FIELDS.has(field) && Number.isFinite(n)) {
       return (n * 100).toLocaleString('es-AR', { maximumFractionDigits: 1 });
     }
+    if (MONEY_FIELDS.has(field) && Number.isFinite(n)) {
+      return formatMoney(n);
+    }
     if (value === 'true') {
       return 'Sí';
     }
@@ -315,7 +324,10 @@ export class RuleHistoryComponent {
       return enumLabel;
     }
     if (field === 'requiredDocumentTypes') {
-      return value.split(LIST_SEPARATOR).map(documentTypeLabel).join(LIST_SEPARATOR);
+      return value
+        .split(LIST_SEPARATOR)
+        .map((code) => this.documentTypes.label(code))
+        .join(LIST_SEPARATOR);
     }
     return value;
   }

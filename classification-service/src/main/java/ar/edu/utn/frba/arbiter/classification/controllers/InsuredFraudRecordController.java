@@ -34,7 +34,7 @@ public class InsuredFraudRecordController {
     private final InsuredFraudRecordService service;
 
     @PostMapping
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("authentication.authorities.isEmpty()")
     @Operation(
             summary = "Registrar un antecedente de fraude",
             description = """
@@ -59,7 +59,7 @@ public class InsuredFraudRecordController {
     }
 
     @GetMapping("/insured/{insuredDni}")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("authentication.authorities.isEmpty()")
     @Operation(
             summary = "Antecedentes de un asegurado",
             description = "Devuelve también los vencidos, marcados con `inForce=false`: que hubo un "

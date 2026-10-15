@@ -2,7 +2,7 @@ import {
   HARD_RULE_LABELS,
   INSURER_HARD_RULE_LABELS,
 } from '../../features/admin/hard-rules.service';
-import { withDocumentLabels } from './business-rules';
+import { DocumentTypeDef, withDocumentLabels } from './business-rules';
 import { StatusTone } from './status-tone';
 
 /** Mirror of RuleResultResponse (common-lib). Passes travel too, not just the rejections. */
@@ -24,6 +24,7 @@ const RULE_TYPE_LABELS: Record<string, string> = {
   COVERAGE_INCLUSION: 'Alcance de la cobertura',
   // Configured on the coverage itself, not in the hard rules tab, so there is no label to reuse.
   COVERS_FAMILY_GROUP: 'Alcance al grupo familiar',
+  // No longer evaluated: kept so the rows written before 14/10/2026 still read.
   CLAIM_EXHAUSTS_COVERAGE: 'Cobertura consumida por un siniestro previo',
   PRESCRIPTION: 'Prescripción (art. 58)',
   FRAUD_RECORD: 'Antecedente de fraude',
@@ -90,9 +91,14 @@ const AFFECTED_PARTY_LABELS: Record<string, string> = {
 /**
  * evaluated_value arrives as the engine writes it, in key=value pairs. That literal is the audit
  * record and stays untouched in the DB; the analyst gets the sentence. Same numbers, nothing is
- * recomputed here.
+ * recomputed here. Documents are named with `documentTypes`, the catalog.
  */
-export function ruleEvaluationText(ruleType: string, evaluatedValue: string | null): string {
+export function ruleEvaluationText(
+  ruleType: string,
+  evaluatedValue: string | null,
+  documentTypes: readonly DocumentTypeDef[] = [],
+): string {
+  const named = (raw: string | undefined) => withDocumentLabels(commaList(raw), documentTypes);
   if (!evaluatedValue) {
     return '—';
   }
@@ -146,8 +152,8 @@ export function ruleEvaluationText(ruleType: string, evaluatedValue: string | nu
         : `Póliza de ${t['policyAgeMonths']} meses · mínimo ${t['min']}`;
     case 'FT_REQUIRED_DOCS':
       return t['missing'] === 'ninguno'
-        ? `Presente: ${withDocumentLabels(commaList(t['required']))}`
-        : `Falta: ${withDocumentLabels(commaList(t['missing']))}`;
+        ? `Presente: ${named(t['required'])}`
+        : `Falta: ${named(t['missing'])}`;
     case 'COVERAGE_EXCLUSION':
     case 'COVERAGE_INCLUSION':
       return t['claimCause']
@@ -163,7 +169,7 @@ export function ruleEvaluationText(ruleType: string, evaluatedValue: string | nu
         : evaluatedValue;
     case 'CLAIM_CAUSE_MATCH': {
       // Only documents that narrate an event take part.
-      const documentList = withDocumentLabels(commaList(t['documents']));
+      const documentList = named(t['documents']);
       return t['declared'] === t['described']
         ? `${documentList}: narra el hecho declarado (${t['declared']})`
         : `${documentList}: narra ${t['described']} · se declaró ${t['declared']}`;
@@ -172,9 +178,10 @@ export function ruleEvaluationText(ruleType: string, evaluatedValue: string | nu
       // Only written with signs present; the signs themselves are in each document's reading.
       const n = Number(t['signs']);
       return t['documents'] && !Number.isNaN(n)
-        ? `${withDocumentLabels(commaList(t['documents']))}: ${n} ${n === 1 ? 'señal' : 'señales'} · ver Documentación`
+        ? `${named(t['documents'])}: ${n} ${n === 1 ? 'señal' : 'señales'} · ver Documentación`
         : evaluatedValue;
     }
+    // Only on rows written before 14/10/2026.
     case 'CLAIM_EXHAUSTS_COVERAGE': {
       const priorCount = Number(t['settledClaimsOnPolicy']);
       if (!t['settledClaimsOnPolicy'] || Number.isNaN(priorCount)) {

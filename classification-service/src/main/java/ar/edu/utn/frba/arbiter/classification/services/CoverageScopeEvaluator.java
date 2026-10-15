@@ -18,10 +18,9 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * How far the coverage reaches: family group, exhaustion by a settled claim, and the sum insured
- * consumed by accumulation (per coverage, not per policy). The model only extracts who was affected;
- * the rule is decided here. Like every hard rule, it blocks Fast Track and adds reasons, never closes
- * the case.
+ * How far the coverage reaches: family group and the sum insured consumed by accumulation (per
+ * coverage, not per policy). The model only extracts who was affected; the rule is decided here.
+ * Like every hard rule, it blocks Fast Track and adds reasons, never closes the case.
  */
 @Service
 public class CoverageScopeEvaluator {
@@ -48,7 +47,6 @@ public class CoverageScopeEvaluator {
         List<RuleFinding> findings = new ArrayList<>();
 
         evaluateFamilyGroup(rules, documents, reasons, findings);
-        evaluateExhaustedCoverage(claim, history, rules, reasons, findings);
         evaluateSumInsuredLimit(claim, policy, history, reasons);
 
         boolean block = !reasons.isEmpty();
@@ -82,27 +80,6 @@ public class CoverageScopeEvaluator {
                 .orElse(null);
         if (declared != null) {
             findings.add(finding(RuleType.COVERS_FAMILY_GROUP, true, "affectedParty=" + declared));
-        }
-    }
-
-    /** Counts only settled claims on the same policy: the insured may have others. */
-    private void evaluateExhaustedCoverage(
-            ClaimReport claim, InsuredHistory history, BusinessRules rules, List<String> reasons,
-            List<RuleFinding> findings) {
-        if (!Boolean.TRUE.equals(rules.claimExhaustsCoverage())
-                || history.claims() == null || claim.policyNumber() == null) {
-            return;
-        }
-        long settled = history.claims().stream()
-                .filter(record -> claim.policyNumber().equals(record.policyNumber()))
-                .filter(record -> SETTLED.equalsIgnoreCase(record.status()))
-                .count();
-        // Always answerable once enabled, so a PASS is written too.
-        findings.add(finding(RuleType.CLAIM_EXHAUSTS_COVERAGE, settled == 0,
-                "settledClaimsOnPolicy=" + settled + " max=0"));
-        if (settled > 0) {
-            reasons.add("La cobertura ya fue consumida por un siniestro liquidado previo sobre esta "
-                    + "póliza (un siniestro agota la cobertura)");
         }
     }
 

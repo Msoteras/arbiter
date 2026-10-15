@@ -292,7 +292,7 @@ class RuleChangeHistoryServiceTest {
                         "{\"id\":1,\"enabled\":true,\"fullAnalysisOnFastTrack\":false,"
                                 + "\"factors\":[{\"factorId\":\"IMAGE_REUSED\",\"weight\":0.20}],\"bands\":[]}")));
         when(scoringConfigurationService.get()).thenReturn(new ScoringConfigDto(
-                1L, true, false,
+                1L, false,
                 List.of(new ar.edu.utn.frba.arbiter.rules.dto.FactorWeightDto(
                         "IMAGE_REUSED", new java.math.BigDecimal("0.40"))),
                 List.of()));
@@ -315,10 +315,10 @@ class RuleChangeHistoryServiceTest {
         ScoringConfiguration config = ScoringConfiguration.builder()
                 .id(1L).name("Scoring de la aseguradora").build();
         when(scoringHistoryRepository.findAllByOrderByValidFromAscIdAsc()).thenReturn(List.of(
-                scoringHistory(config, T1, T2, "{\"id\":1,\"enabled\":false,\"fullAnalysisOnFastTrack\":false,"
+                scoringHistory(config, T1, T2, "{\"id\":1,\"fullAnalysisOnFastTrack\":false,"
                         + "\"factors\":[],\"bands\":[]}")));
         when(scoringConfigurationService.get())
-                .thenReturn(new ScoringConfigDto(1L, true, false, List.of(), List.of()));
+                .thenReturn(new ScoringConfigDto(1L, true, List.of(), List.of()));
 
         assertThat(updates()).extracting(RuleChangeEntry::source)
                 .containsExactly(RuleChangeSource.INSURER_RULE, RuleChangeSource.SCORING);
@@ -392,13 +392,30 @@ class RuleChangeHistoryServiceTest {
                 .id(1L).name("Scoring de la aseguradora").build();
         when(scoringHistoryRepository.findAllByOrderByValidFromAscIdAsc()).thenReturn(List.of(
                 scoringHistory(config, T1, T2,
-                        "{\"enabled\":true,\"fullAnalysisOnFastTrack\":false,\"factors\":[],\"bands\":[]}")));
+                        "{\"id\":7,\"fullAnalysisOnFastTrack\":false,\"factors\":[],\"bands\":[]}")));
         when(scoringConfigurationService.get())
-                .thenReturn(new ScoringConfigDto(1L, false, false, List.of(), List.of()));
+                .thenReturn(new ScoringConfigDto(1L, true, List.of(), List.of()));
 
         assertThat(page().getContent().get(0).changes())
                 .extracting(RuleFieldChange::field)
-                .containsExactly("enabled");
+                .containsExactly("fullAnalysisOnFastTrack");
+    }
+
+    /** Snapshots saved while the scoring could still be turned off carry a flag the live one lacks. */
+    @Test
+    void doesNotReportTheRetiredScoringSwitchAsAChange() {
+        when(ruleHistoryRepository.findAllForHistory()).thenReturn(List.of());
+        ScoringConfiguration config = ScoringConfiguration.builder()
+                .id(1L).name("Scoring de la aseguradora").build();
+        when(scoringHistoryRepository.findAllByOrderByValidFromAscIdAsc()).thenReturn(List.of(
+                scoringHistory(config, T1, T2,
+                        "{\"enabled\":true,\"fullAnalysisOnFastTrack\":false,\"factors\":[],\"bands\":[]}")));
+        when(scoringConfigurationService.get())
+                .thenReturn(new ScoringConfigDto(1L, true, List.of(), List.of()));
+
+        assertThat(page().getContent().get(0).changes())
+                .extracting(RuleFieldChange::field)
+                .containsExactly("fullAnalysisOnFastTrack");
     }
 
     @Test
@@ -411,7 +428,7 @@ class RuleChangeHistoryServiceTest {
                         "{\"enabled\":true,\"fullAnalysisOnFastTrack\":false,"
                                 + "\"factors\":[{\"weight\":0.20,\"factorId\":\"IMAGE_REUSED\"}],\"bands\":[]}")));
         when(scoringConfigurationService.get()).thenReturn(new ScoringConfigDto(
-                1L, true, false,
+                1L, false,
                 List.of(new ar.edu.utn.frba.arbiter.rules.dto.FactorWeightDto(
                         "IMAGE_REUSED", new java.math.BigDecimal("0.40"))),
                 List.of()));

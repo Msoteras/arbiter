@@ -168,6 +168,8 @@ export interface CaseListParams {
   riskBand?: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
   /** Open cases with no change in the last N days. */
   staleDays?: number;
+  /** Running deadline within the warning window, overdue included; paused cases never match. */
+  dueSoon?: boolean;
   /** A flag, not an id: analyst ids are per-tenant, so the backend resolves "me" from the token. */
   assignedToMe?: boolean;
   /** Taken from `analystWorkload()`, which is already scoped to the supervisor's insurer. */
@@ -192,6 +194,27 @@ export interface AnalystWorkload {
   analystId: number;
   name: string;
   activeCases: number;
+  /** Of `activeCases`, those whose running art. 56 term already expired. */
+  overdueCases: number;
+}
+
+/**
+ * The home screen's counts. An analyst gets their own open cases (except `unassigned`, which are
+ * nobody's); the supervisor gets the whole insurer.
+ */
+export interface HomeSummary {
+  /** Open cases against the art. 56 term; the four add up to every open case. */
+  deadlines: { onTime: number; dueSoon: number; overdue: number; paused: number };
+  expertReportsReceived: number;
+  repairReportsReceived: number;
+  returnedByReferent: number;
+  awaitingReferent: number;
+  stale: number;
+  staleDays: number;
+  classificationFailed: number;
+  unassigned: number;
+  /** ISO instant; null when nothing is unassigned. */
+  oldestUnassignedAt: string | null;
 }
 
 export interface LensCounts {
@@ -302,6 +325,7 @@ export class CaseService {
     if (params.followUp) query['followUp'] = params.followUp;
     if (params.scope) query['scope'] = params.scope;
     if (params.staleDays != null) query['staleDays'] = String(params.staleDays);
+    if (params.dueSoon) query['dueSoon'] = 'true';
     if (params.insurerId != null) query['insurerId'] = String(params.insurerId);
     return query;
   }
@@ -450,6 +474,7 @@ export class CaseService {
     if (params.analystId != null) query['analystId'] = String(params.analystId);
     if (params.followUp) query['followUp'] = params.followUp;
     if (params.staleDays != null) query['staleDays'] = String(params.staleDays);
+    if (params.dueSoon) query['dueSoon'] = 'true';
     return query;
   }
 
@@ -556,6 +581,12 @@ export class CaseService {
   assignedSummary(): Observable<AssignedCaseSummary> {
     return this.cache.read('cases:assigned-summary', (context) =>
       this.http.get<AssignedCaseSummary>(`${this.baseUrl}/assigned/summary`, { context }),
+    );
+  }
+
+  homeSummary(): Observable<HomeSummary> {
+    return this.cache.read('cases:home-summary', (context) =>
+      this.http.get<HomeSummary>(`${this.baseUrl}/home-summary`, { context }),
     );
   }
 }

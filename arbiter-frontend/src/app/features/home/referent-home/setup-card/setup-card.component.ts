@@ -13,6 +13,7 @@ import {
 } from '../../../../core/onboarding/onboarding';
 import { ButtonComponent } from '../../../../shared/ui/button/button.component';
 import { InlineLoadingComponent } from '../../../../shared/ui/inline-loading/inline-loading.component';
+import { ModalComponent } from '../../../../shared/ui/modal/modal.component';
 import { ToastService } from '../../../../shared/ui/toast/toast.service';
 
 interface StepGroup {
@@ -24,33 +25,13 @@ interface StepGroup {
 
 const LEVELS: OnboardingLevel[] = ['REQUIRED', 'RECOMMENDED', 'OPTIONAL'];
 
-const COLLAPSED_KEY = 'arbiter.setup-card.collapsed';
-
-/** A per-viewer convenience: an unreadable storage just means the default. */
-function readCollapsed(): boolean | null {
-  try {
-    const raw = localStorage.getItem(COLLAPSED_KEY);
-    return raw === null ? null : raw === 'true';
-  } catch {
-    return null;
-  }
-}
-
-function writeCollapsed(collapsed: boolean): void {
-  try {
-    localStorage.setItem(COLLAPSED_KEY, String(collapsed));
-  } catch {
-    /* blocked storage: the choice lasts until the page reloads */
-  }
-}
-
 /**
- * "Puesta en marcha" on the referent's home: a side column on wide screens, on top otherwise.
- * Collapsible to its title, count and bar. Gone when nothing is pending.
+ * "Puesta en marcha" on the referent's home: the title, the count and the bar, with the checklist
+ * in a side panel. Gone when nothing is pending.
  */
 @Component({
   selector: 'app-setup-card',
-  imports: [RouterLink, ButtonComponent, InlineLoadingComponent],
+  imports: [RouterLink, ButtonComponent, InlineLoadingComponent, ModalComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './setup-card.component.html',
   styleUrl: './setup-card.component.scss',
@@ -62,9 +43,6 @@ export class SetupCardComponent {
   protected readonly steps = this.onboarding.steps;
   protected readonly failed = this.onboarding.failed;
 
-  private readonly requiredPending = computed(() =>
-    (this.steps() ?? []).some((s) => s.level === 'REQUIRED' && s.status === 'PENDING'),
-  );
   private readonly anyPending = computed(() =>
     (this.steps() ?? []).some((s) => s.status === 'PENDING'),
   );
@@ -74,19 +52,10 @@ export class SetupCardComponent {
     () => this.failed() || this.steps() === null || this.anyPending(),
   );
 
-  /** The viewer's own choice, kept in the browser; until they make one, the default below. */
-  private readonly collapsedChoice = signal<boolean | null>(readCollapsed());
+  protected readonly panelOpen = signal(false);
 
-  /** Open while a required step is pending; with only recommended or optional ones left, closed. */
-  protected readonly collapsed = computed(() => this.collapsedChoice() ?? !this.requiredPending());
-
-  protected toggleCollapsed(): void {
-    const next = !this.collapsed();
-    this.collapsedChoice.set(next);
-    writeCollapsed(next);
-  }
-
-  protected readonly showCompleted = signal(false);
+  // Shown from the start: in the panel there is room, and they are the progress already made.
+  protected readonly showCompleted = signal(true);
   protected readonly optionalOpen = signal(false);
   protected readonly busyKey = signal<string | null>(null);
 
@@ -129,8 +98,10 @@ export class SetupCardComponent {
     return this.onboarding.routeOf(step);
   }
 
-  protected pointAt(step: OnboardingStep): void {
+  /** The panel closes on the way: the step's screen is where the referente goes to work. */
+  protected goTo(step: OnboardingStep): void {
     this.onboarding.requestFocus(step.step);
+    this.panelOpen.set(false);
   }
 
   protected groupOpen(group: StepGroup): boolean {

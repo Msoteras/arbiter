@@ -638,7 +638,7 @@ class ClaimMetricsRepositoryTests extends AbstractPersistenceIT {
         tables.ruleResult(1, 14L, "POLICY_IN_FORCE", "FAIL");
         tables.ruleResult(1, 14L, "POLICY_IN_FORCE", "FAIL");
         // No configurable rule row: named by its type.
-        tables.ruleResult(1, null, "CLAIM_EXHAUSTS_COVERAGE", "FAIL");
+        tables.ruleResult(1, null, "COVERS_FAMILY_GROUP", "FAIL");
         // A PASS blocks nothing.
         tables.ruleResult(1, 14L, "REPORT_DEADLINE", "PASS");
         // Nor does an advisory: its FAIL flags something, it stopped nothing.
@@ -648,7 +648,7 @@ class ClaimMetricsRepositoryTests extends AbstractPersistenceIT {
 
         assertThat(repository.countByBlockingRule(AUGUST_FROM, AUGUST_TO, NONE)).containsExactly(
                 new MetricCount("Vigencia de la póliza", 2),
-                new MetricCount("CLAIM_EXHAUSTS_COVERAGE", 1));
+                new MetricCount("COVERS_FAMILY_GROUP", 1));
     }
 
     /** Filed 01/08, closed 05/08 in the given final status, with one model run behind it. */

@@ -18,7 +18,12 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
   template: `
     @if (open()) {
       <!-- eslint-disable-next-line @angular-eslint/template/click-events-have-key-events, @angular-eslint/template/interactive-supports-focus -- Escape closes it from the keyboard. -->
-      <div class="backdrop" [class.side]="variant() === 'side'" (click)="onBackdrop($event)">
+      <div
+        class="backdrop"
+        [class.side]="variant() === 'side'"
+        animate.leave="closing"
+        (click)="onBackdrop($event)"
+      >
         <div
           class="modal"
           [class.side]="variant() === 'side'"
@@ -69,6 +74,22 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
       justify-content: flex-end;
       padding: 0;
     }
+    /* Closing mirrors opening. Angular keeps the element until the longest animation ends, so
+       the backdrop lasts as long as the dialog it carries. */
+    .backdrop.closing {
+      animation: backdrop-out var(--dur-3) ease-in forwards;
+    }
+    .backdrop.side.closing {
+      animation-duration: var(--dur-2);
+    }
+    @keyframes backdrop-out {
+      from {
+        opacity: 1;
+      }
+      to {
+        opacity: 0;
+      }
+    }
     .modal {
       --modal-pad: var(--space-5);
       display: flex;
@@ -109,6 +130,19 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
         transform: none;
       }
     }
+    .closing .modal {
+      animation: modal-out var(--dur-3) var(--ease-out) forwards;
+    }
+    @keyframes modal-out {
+      from {
+        opacity: 1;
+        transform: none;
+      }
+      to {
+        opacity: 0;
+        transform: translateY(10px) scale(0.98);
+      }
+    }
     .modal.lg {
       max-width: 680px;
     }
@@ -128,10 +162,24 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
         transform: translateX(0);
       }
     }
+    .closing .modal.side {
+      animation: slide-out var(--dur-2) var(--ease-out) forwards;
+    }
+    @keyframes slide-out {
+      from {
+        transform: translateX(0);
+      }
+      to {
+        transform: translateX(100%);
+      }
+    }
     @media (prefers-reduced-motion: reduce) {
       .backdrop,
       .modal,
-      .modal.side {
+      .modal.side,
+      .backdrop.closing,
+      .closing .modal,
+      .closing .modal.side {
         animation: none;
       }
     }

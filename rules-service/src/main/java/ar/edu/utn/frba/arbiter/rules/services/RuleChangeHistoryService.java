@@ -67,7 +67,9 @@ public class RuleChangeHistoryService {
     private static final String LIST_SEPARATOR = " · ";
 
     /** Keys that never change and mean nothing to the referente. */
-    private static final Set<String> SCORING_INTERNAL_FIELDS = Set.of("id");
+    // `enabled` only exists in snapshots saved before the scoring became always on: it would
+    // otherwise show as a removed field on the first change after that.
+    private static final Set<String> SCORING_INTERNAL_FIELDS = Set.of("id", "enabled");
 
     /** Shown by name: the referente only knows the names. */
     private static final Set<String> CLAIM_CAUSE_ID_FIELDS = Set.of(

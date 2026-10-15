@@ -43,6 +43,7 @@
             <th>Email</th>
             <th>Rol</th>
             <th>Estado</th>
+            <th>Último acceso</th>
             <th>Acciones</th>
           </tr>
         </thead>
@@ -72,6 +73,7 @@
                   <p class="t-note resend-ok">Invitación reenviada.</p>
                 }
               </td>
+              <td class="tabular">{{ lastAccess(u) }}</td>
               <td class="actions-cell">
                 @if (u.estado === 'PENDING') {
                   <app-button

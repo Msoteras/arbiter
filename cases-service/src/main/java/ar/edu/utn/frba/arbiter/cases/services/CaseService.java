@@ -4,6 +4,7 @@ import ar.edu.utn.frba.arbiter.cases.dto.AnalystDecisionRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.AnalystDecisionResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.AnalystWorkloadResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.AssignedCaseSummaryResponse;
+import ar.edu.utn.frba.arbiter.cases.dto.HomeSummaryResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseDocumentResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseFollowUp;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseScope;
@@ -87,7 +88,7 @@ public interface CaseService {
     LensSummaryResponse lensSummary(List<CaseStatus> status, String claimCause, String policyNumber,
                                      String insuredId, LocalDate eventDateFrom, LocalDate eventDateTo,
                                      String q, RiskBand riskBand, Long analystId, CaseFollowUp followUp,
-                                     Integer staleDays);
+                                     Integer staleDays, boolean dueSoon);
 
     CaseResponse addDocumentsAndReclassify(Long caseId, Map<String, MultipartFile> documents);
 
@@ -142,4 +143,7 @@ public interface CaseService {
 
     /** A caller with no analyst profile gets an empty summary. */
     AssignedCaseSummaryResponse assignedCaseSummary();
+
+    /** The home screen's counts: the analyst's own cases, or the whole insurer for the referente. */
+    HomeSummaryResponse homeSummary();
 }

@@ -1,11 +1,13 @@
 package ar.edu.utn.frba.arbiter.cases.services;
 
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseStateRepository;
 import ar.edu.utn.frba.arbiter.cases.dto.AnalystDecisionRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.AnalystDecisionResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.AnalystWorkloadResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.AssignedCaseSummaryResponse;
+import ar.edu.utn.frba.arbiter.cases.dto.HomeSummaryResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseDocumentResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseFollowUp;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseScope;
@@ -32,6 +34,7 @@ import ar.edu.utn.frba.arbiter.cases.exceptions.AnalystProfileNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CaseAssignedToAnotherAnalystException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CaseNotAssignedException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CaseNotFoundException;
+import ar.edu.utn.frba.arbiter.cases.exceptions.ClosedCaseAssignmentException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CoverageNotConfiguredException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.DocumentNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.DocumentTypeNotAllowedException;
@@ -102,6 +105,7 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @Service
 @RequiredArgsConstructor
@@ -550,14 +554,14 @@ public class CaseServiceImpl implements CaseService {
     public LensSummaryResponse lensSummary(List<CaseStatus> status, String claimCause, String policyNumber,
                                             String insuredId, LocalDate eventDateFrom, LocalDate eventDateTo,
                                             String q, RiskBand riskBand, Long analystId, CaseFollowUp followUp,
-                                            Integer staleDays) {
+                                            Integer staleDays, boolean dueSoon) {
         // analystId is the referent's filter and a referent has no analyst profile, so it never
         // coexists with a real "me" and both can share the same WHERE.
         Long me = currentAnalystId().orElse(null);
         Specification<Case> spec = CaseSpecifications.withFilters(
                 status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
                 analystId);
-        spec = and(spec, withStale(staleDays));
+        spec = and(withDueSoon(spec, dueSoon), withStale(staleDays));
         spec = and(spec, CaseSpecifications.followUp(followUp));
 
         CaseLensCountRepository.LensCounts counts = caseRepository.countLenses(spec, me);
@@ -607,6 +611,7 @@ public class CaseServiceImpl implements CaseService {
     public CaseResponse assignAnalyst(Long caseId, Long analystId) {
         Case entity = caseRepository.findById(caseId)
                 .orElseThrow(() -> new CaseNotFoundException(caseId));
+        requireOpen(entity);
 
         // Looked up in the active tenant's schema, so another insurer's analyst id simply 404s.
         ClaimsAnalyst analyst = claimsAnalystRepository.findById(analystId)
@@ -624,6 +629,7 @@ public class CaseServiceImpl implements CaseService {
     public CaseResponse unassignAnalyst(Long caseId) {
         Case entity = caseRepository.findById(caseId)
                 .orElseThrow(() -> new CaseNotFoundException(caseId));
+        requireOpen(entity);
 
         ClaimsAnalyst previous = entity.getAnalyst();
         entity.setAnalyst(null);
@@ -646,6 +652,12 @@ public class CaseServiceImpl implements CaseService {
                 accessPolicy.currentAssignmentActor(), "expediente reabierto: " + reason);
 
         return loadCase(caseId);
+    }
+
+    private static void requireOpen(Case entity) {
+        if (CaseStatusService.TERMINAL_STATUSES.contains(entity.getStatus())) {
+            throw new ClosedCaseAssignmentException(entity.getId());
+        }
     }
 
     private static String fullName(ClaimsAnalyst analyst) {
@@ -679,17 +691,77 @@ public class CaseServiceImpl implements CaseService {
         return new AssignedCaseSummaryResponse(total, byStatus, highRisk, awaitingReferent);
     }
 
+    /** "No activity" on the home screen: the same threshold the inbox's stale shortcut uses. */
+    static final int HOME_STALE_DAYS = 15;
+
+    // The term stops in both: a closed case has answered, a paused one waits on a third party.
+    private static final List<String> NOT_TICKING_STATUS_NAMES = Stream.concat(
+                    CaseStatusService.TERMINAL_STATUSES.stream(), CaseStatusService.PAUSING_STATUSES.stream())
+            .map(Enum::name)
+            .sorted()
+            .toList();
+
+    @Override
+    public HomeSummaryResponse homeSummary() {
+        // The referente sees the whole insurer; anyone else only their own cases, and an analyst
+        // with no profile in this tenant owns nothing, so their counts stay at zero.
+        boolean wholeInsurer = accessPolicy.currentParty() == StatusChangeActor.REFERENT;
+        Long me = wholeInsurer ? null : currentAnalystId().orElse(null);
+        boolean ownsNothing = !wholeInsurer && me == null;
+
+        Specification<Case> open = CaseSpecifications.scope(CaseScope.OPEN);
+        Specification<Case> mine = wholeInsurer || ownsNothing ? open : open.and(CaseSpecifications.ownedBy(me));
+        LocalDate today = LocalDate.now(clock);
+
+        HomeSummaryResponse.Deadlines deadlines = new HomeSummaryResponse.Deadlines(
+                countMine(mine, ownsNothing, CaseSpecifications.runningTermDue(
+                        today.plusDays(DeadlinePriority.WATCH_DAYS + 1), null)),
+                countMine(mine, ownsNothing, CaseSpecifications.runningTermDue(
+                        today, today.plusDays(DeadlinePriority.WATCH_DAYS))),
+                countMine(mine, ownsNothing, CaseSpecifications.runningTermDue(null, today.minusDays(1))),
+                countMine(mine, ownsNothing, CaseSpecifications.pausedTerm()));
+
+        Specification<Case> unassigned = open.and(CaseSpecifications.withoutAnalyst());
+        Instant oldestUnassignedAt = caseRepository
+                .findAll(unassigned, PageRequest.of(0, 1, Sort.by("reportedAt")))
+                .stream().findFirst().map(Case::getReportedAt).orElse(null);
+
+        return new HomeSummaryResponse(
+                deadlines,
+                countMine(mine, ownsNothing, CaseSpecifications.followUp(CaseFollowUp.EXPERT_REPORT_RECEIVED)),
+                countMine(mine, ownsNothing, CaseSpecifications.followUp(CaseFollowUp.REPAIR_REPORT_RECEIVED)),
+                countMine(mine, ownsNothing, CaseSpecifications.followUp(CaseFollowUp.RETURNED_BY_REFERENT)),
+                countMine(mine, ownsNothing, CaseSpecifications.followUp(CaseFollowUp.AWAITING_REFERENT)),
+                countMine(mine, ownsNothing, withStale(HOME_STALE_DAYS)),
+                HOME_STALE_DAYS,
+                countMine(mine, ownsNothing, CaseSpecifications.withFilters(
+                        List.of(CaseStatus.CLASSIFICATION_FAILED), null, null, null, null, null, null, null,
+                        null, false, false, false)),
+                caseRepository.count(unassigned),
+                oldestUnassignedAt);
+    }
+
+    private long countMine(Specification<Case> mine, boolean ownsNothing, Specification<Case> filter) {
+        return ownsNothing ? 0 : caseRepository.count(mine.and(filter));
+    }
+
     @Override
     public List<AnalystWorkloadResponse> analystWorkload() {
         Map<Long, Long> activeByAnalyst = new HashMap<>();
         for (CaseRepository.AnalystCaseCount row : caseRepository.countActiveByAnalyst(FINAL_STATUS_NAMES)) {
             activeByAnalyst.put(row.getAnalystId(), row.getTotal());
         }
+        Map<Long, Long> overdueByAnalyst = new HashMap<>();
+        for (CaseRepository.AnalystCaseCount row
+                : caseRepository.countOverdueByAnalyst(NOT_TICKING_STATUS_NAMES, LocalDate.now(clock))) {
+            overdueByAnalyst.put(row.getAnalystId(), row.getTotal());
+        }
 
         List<AnalystWorkloadResponse> workload = new ArrayList<>();
         for (ClaimsAnalyst analyst : claimsAnalystRepository.findAll()) {
             workload.add(new AnalystWorkloadResponse(
-                    analyst.getId(), fullName(analyst), activeByAnalyst.getOrDefault(analyst.getId(), 0L)));
+                    analyst.getId(), fullName(analyst), activeByAnalyst.getOrDefault(analyst.getId(), 0L),
+                    overdueByAnalyst.getOrDefault(analyst.getId(), 0L)));
         }
 
         workload.sort(Comparator.comparingLong(AnalystWorkloadResponse::activeCases).reversed()
@@ -973,6 +1045,7 @@ public class CaseServiceImpl implements CaseService {
                 entity.getPolicy().getExternalPolicyNumber(),
                 entity.getDescription(),
                 entity.getOccurredAt(),
+                entity.getPoliceReportAt(),
                 entity.getEventAddress(),
                 entity.getClaimedAmount(),
                 classificationOf(entity, current),

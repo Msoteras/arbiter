@@ -2,6 +2,8 @@ package ar.edu.utn.frba.arbiter.classification.adapters;
 
 import ar.edu.utn.frba.arbiter.classification.config.GeminiProperties;
 import com.google.genai.Client;
+import com.google.genai.errors.GenAiIOException;
+import com.google.genai.errors.ServerException;
 import com.google.genai.types.Content;
 import com.google.genai.types.FinishReason;
 import com.google.genai.types.GenerateContentConfig;
@@ -12,8 +14,13 @@ import com.google.genai.types.ThinkingLevel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.HttpServerErrorException;
+import org.springframework.web.client.ResourceAccessException;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
@@ -70,7 +77,7 @@ public class GeminiClient implements LlmClient {
                 properties.model(), images == null ? 0 : images.size());
 
         GenerateContentResponse response =
-                client.models.generateContent(properties.model(), Content.fromParts(parts.toArray(Part[]::new)), config.build());
+                generateContent(Content.fromParts(parts.toArray(Part[]::new)), config.build());
 
         String content = response.text();
         // Billed per token.
@@ -85,6 +92,28 @@ public class GeminiClient implements LlmClient {
         }
 
         return content == null ? "" : content.trim();
+    }
+
+    /**
+     * A call that timed out or lost its connection is retried here once, so a single hung call costs
+     * one timeout instead of rerunning the whole classification. Past that, the SDK errors are
+     * rethrown as Spring's, which is what the classification retry and its failure reason recognize.
+     */
+    private GenerateContentResponse generateContent(Content content, GenerateContentConfig config) {
+        try {
+            try {
+                return client.models.generateContent(properties.model(), content, config);
+            } catch (GenAiIOException e) {
+                log.warn("[Gemini] Call failed ({}), retrying it once", e.getMessage());
+                return client.models.generateContent(properties.model(), content, config);
+            }
+        } catch (GenAiIOException e) {
+            throw new ResourceAccessException("Gemini did not answer: " + e.getMessage(), new IOException(e));
+        } catch (ServerException e) {
+            // The SDK already retried it with backoff.
+            throw HttpServerErrorException.create("Gemini answered " + e.code() + ": " + e.message(),
+                    HttpStatusCode.valueOf(e.code()), e.status(), new HttpHeaders(), null, null);
+        }
     }
 
     @Override

@@ -10,6 +10,7 @@ import {
   branchesLabel,
 } from '../../../core/models/derivation';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
+import { IconButtonComponent } from '../../../shared/ui/icon-button/icon-button.component';
 import { CardComponent } from '../../../shared/ui/card/card.component';
 import { CheckboxComponent } from '../../../shared/ui/checkbox/checkbox.component';
 import { InputComponent } from '../../../shared/ui/input/input.component';
@@ -37,6 +38,7 @@ interface ProviderDraft extends ProviderRequest {
     OnboardingTargetDirective,
     InfoTipComponent,
     ButtonComponent,
+    IconButtonComponent,
     CardComponent,
     CheckboxComponent,
     InputComponent,
@@ -110,7 +112,8 @@ export class ProvidersConfigComponent {
       name: '',
       email: '',
       zone: '',
-      branchIds: [],
+      // Starts with every branch: the referente unchecks the ones it doesn't cover.
+      branchIds: this.branches().map((b) => b.id),
       active: true,
       providerType: 'ESTUDIO_LIQUIDADOR',
     });
@@ -153,6 +156,11 @@ export class ProvidersConfigComponent {
     this.setField('branchIds', checked ? [...others, branchId] : others);
   }
 
+  /** A provider with no branch covers nothing: the backend rejects it. */
+  protected readonly noBranchChecked = computed(
+    () => this.branchesState() === 'ok' && (this.draft()?.branchIds.length ?? 0) === 0,
+  );
+
   protected readonly canSave = computed(() => {
     const d = this.draft();
     // Email is the only channel to the provider: without it a referral goes nowhere. With no
@@ -161,8 +169,8 @@ export class ProvidersConfigComponent {
       !!d &&
       d.name.trim().length > 0 &&
       d.email.trim().length > 0 &&
-      d.branchIds.length > 0 &&
-      this.branchesState() === 'ok'
+      this.branchesState() === 'ok' &&
+      !this.noBranchChecked()
     );
   });
 

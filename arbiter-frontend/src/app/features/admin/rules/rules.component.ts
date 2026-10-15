@@ -15,7 +15,7 @@ import { Observable, finalize, forkJoin, of, skip, switchMap, tap } from 'rxjs';
 import {
   Coverage,
   DeductibleBasis,
-  DOCUMENT_TYPES,
+  DocumentTypeDef,
   FastTrackConfig,
   BranchRules,
   SettlementBasis,
@@ -44,16 +44,20 @@ import {
   OnArrears,
 } from '../hard-rules.service';
 import { DocumentRulesService } from '../document-rules.service';
+import { DocumentTypeService } from '../../../core/services/document-type.service';
 import { BusinessRulesTextService } from '../business-rules-text.service';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
+import { IconButtonComponent } from '../../../shared/ui/icon-button/icon-button.component';
 import { CardComponent } from '../../../shared/ui/card/card.component';
 import { EmptyStateComponent } from '../../../shared/ui/empty-state/empty-state.component';
 import { InputComponent } from '../../../shared/ui/input/input.component';
+import { TextareaComponent } from '../../../shared/ui/textarea/textarea.component';
 import { ModalComponent } from '../../../shared/ui/modal/modal.component';
 import { SettlementAuthoritiesConfigComponent } from '../settlement-authorities-config/settlement-authorities-config.component';
 import { ScoringConfigComponent } from '../scoring-config/scoring-config.component';
 import { FraudConfigComponent } from '../fraud-config/fraud-config.component';
 import { ProvidersConfigComponent } from '../providers-config/providers-config.component';
+import { DerivationsConfigComponent } from '../derivations-config/derivations-config.component';
 import { ResolutionTargetConfigComponent } from '../resolution-target-config/resolution-target-config.component';
 import { RuleHistoryComponent } from '../rule-history/rule-history.component';
 import { SaveBarComponent } from '../../../shared/ui/save-bar/save-bar.component';
@@ -64,6 +68,7 @@ import { InfoTipComponent } from '../../../shared/ui/info-tip/info-tip.component
 import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
 import { SwitchComponent } from '../../../shared/ui/switch/switch.component';
 import { TableComponent } from '../../../shared/ui/table/table.component';
+import { TabOption, TabsComponent } from '../../../shared/ui/tabs/tabs.component';
 import { CheckboxComponent } from '../../../shared/ui/checkbox/checkbox.component';
 import { SelectComponent, SelectOption } from '../../../shared/ui/select/select.component';
 import { ToastService } from '../../../shared/ui/toast/toast.service';
@@ -72,7 +77,7 @@ import { OnboardingService } from '../../../core/onboarding/onboarding.service';
 import { accordion, fadeInUp, listStagger, staggerReveal } from '../../../shared/animations';
 import { OnboardingTargetDirective } from '../../../core/onboarding/onboarding-target.directive';
 
-type TabId = 'coverages' | 'exclusions' | 'fastTrack' | 'documents' | 'rules';
+type TabId = 'coverages' | 'exclusions' | 'fastTrack' | 'documents' | 'derivations' | 'rules';
 
 /** The backend stores whole months; a typed fraction (1,5 años is fine, 1,5 meses isn't) is rounded. */
 function wholeMonths(months: number | null): number | null {
@@ -93,13 +98,16 @@ type GeneralView =
   imports: [
     OnboardingTargetDirective,
     ButtonComponent,
+    IconButtonComponent,
     CardComponent,
     EmptyStateComponent,
     InputComponent,
+    TextareaComponent,
     ModalComponent,
     ScoringConfigComponent,
     FraudConfigComponent,
     ProvidersConfigComponent,
+    DerivationsConfigComponent,
     SettlementAuthoritiesConfigComponent,
     ResolutionTargetConfigComponent,
     RuleHistoryComponent,
@@ -111,6 +119,7 @@ type GeneralView =
     BadgeComponent,
     SwitchComponent,
     TableComponent,
+    TabsComponent,
     CheckboxComponent,
     SelectComponent,
   ],
@@ -127,6 +136,7 @@ export class RulesComponent {
   private readonly exclusionsService = inject(CoverageExclusionsService);
   private readonly hardRulesService = inject(HardRulesService);
   private readonly documentsService = inject(DocumentRulesService);
+  private readonly documentTypesService = inject(DocumentTypeService);
   private readonly rulesTextService = inject(BusinessRulesTextService);
   private readonly toastService = inject(ToastService);
   private readonly route = inject(ActivatedRoute);
@@ -165,7 +175,8 @@ export class RulesComponent {
   protected readonly rulesSaving = signal(false);
   protected readonly rulesError = signal<string | null>(null);
 
-  protected readonly docTypes = DOCUMENT_TYPES;
+  // Documents the selected branch may ask for: the rows of the Documents matrix and the Fast Track list.
+  protected readonly docTypes = signal<readonly DocumentTypeDef[]>([]);
   // Claim causes of the selected branch: used by the coverage exclusions and the Documents matrix.
   protected readonly claimCauses = signal<ClaimCauseOption[]>([]);
 
@@ -181,11 +192,12 @@ export class RulesComponent {
   /** Section tooltips: the same line the setup checklist shows for each step. */
   protected readonly stepLine = ONBOARDING_STEP_LINE;
 
-  protected readonly tabs: { id: TabId; label: string }[] = [
+  protected readonly tabs: (TabOption & { id: TabId })[] = [
     { id: 'coverages', label: 'Coberturas' },
     { id: 'exclusions', label: 'Exclusiones comunes' },
     { id: 'fastTrack', label: 'Fast Track' },
     { id: 'documents', label: 'Documentación' },
+    { id: 'derivations', label: 'Derivaciones' },
     { id: 'rules', label: 'Reglas de negocio' },
   ];
   private static readonly LAST_TAB_KEY = 'arbiter.reglas.lastTab';
@@ -396,15 +408,17 @@ export class RulesComponent {
    */
   protected tabStatus(tab: TabId): 'required' | 'pending' | null {
     const d = this.draft();
-    if (!d) {
+    // Mid-load the branch looks empty: flagging it would show a marker that then disappears.
+    if (!d || this.detailLoading()) {
       return null;
     }
     switch (tab) {
       case 'coverages':
         return d.coverages.length === 0 ? 'required' : null;
       case 'documents':
+        // An agenda that never arrived is unknown, not empty.
         return this.coveredClaimCauses().some(
-          (cause) => (d.requiredDocumentsByClaimCause[cause.id] ?? []).length === 0,
+          (cause) => d.requiredDocumentsByClaimCause[cause.id]?.length === 0,
         )
           ? 'pending'
           : null;
@@ -412,6 +426,10 @@ export class RulesComponent {
         return null;
     }
   }
+
+  protected readonly tabOptions = computed(() =>
+    this.tabs.map((tab) => ({ ...tab, status: this.tabStatus(tab.id) })),
+  );
 
   private beginDetailLoad(rulesId: string): void {
     this.detailToken = rulesId;
@@ -556,7 +574,6 @@ export class RulesComponent {
     this.draft.set(structuredClone(r));
     this.persisted.set(structuredClone(r));
     this.expandedCoverageId.set(null);
-    this.activeTab.set('coverages');
     this.ftError.set(null);
     this.ftCoverages.set([]);
     this.ftCoverageId.set(null);
@@ -571,10 +588,25 @@ export class RulesComponent {
     this.editingName.set(false);
     this.beginDetailLoad(r.id);
     this.loadClaimCauses(r);
+    this.loadDocumentTypes(r);
     this.loadFastTrackFromBackend(r);
     this.loadCoveragesFromBackend(r);
     this.loadBusinessRulesFromBackend(r);
     this.settleDetailLoad();
+  }
+
+  private loadDocumentTypes(r: BranchRules): void {
+    this.docTypes.set([]);
+    const branchId = this.branchIdOf(r);
+    if (branchId == null) {
+      return;
+    }
+    this.trackDetail(r.id, this.documentTypesService.forBranch(branchId)).subscribe({
+      next: (types) => this.docTypes.set(types),
+      error: () => {
+        /* best-effort: no document can be picked */
+      },
+    });
   }
 
   private loadClaimCauses(r: BranchRules): void {
@@ -738,6 +770,7 @@ export class RulesComponent {
       id: String(c.id),
       name: c.name,
       clause: c.clause ?? '',
+      description: c.description ?? '',
       insuredAmount: null,
       deductibleRatio: c.deductibleRatio,
       deductibleBasis: c.deductibleBasis ?? 'SUM_INSURED',
@@ -745,7 +778,6 @@ export class RulesComponent {
       maxAnnualClaims: c.maxAnnualClaims,
       waitingPeriodDays: c.waitingPeriodDays,
       coversFamilyGroup: c.coversFamilyGroup,
-      claimExhaustsCoverage: c.claimExhaustsCoverage,
       settlementFormula: c.settlementFormula ?? 'TOTAL_LOSS',
       settlementBasis: c.settlementBasis ?? 'SUM_INSURED',
       secondEventRatio: c.secondEventRatio,
@@ -869,14 +901,37 @@ export class RulesComponent {
     });
   }
 
+  /** Null while the selected branch has no id of its own yet. */
+  protected readonly selectedBranchId = computed(() => {
+    const d = this.draft();
+    return d ? this.branchIdOf(d) : null;
+  });
+
   private branchIdOf(r: BranchRules): number | null {
     const n = Number(r.id);
     return Number.isInteger(n) && n > 0 ? n : null;
   }
 
-  protected setTab(t: TabId): void {
-    this.activeTab.set(t);
-    localStorage.setItem(RulesComponent.LAST_TAB_KEY, t);
+  /**
+   * A tab's first render is heavy enough to block the page, and until it ends the previous tab
+   * stays painted. Showing the loader first, and rendering the tab after that frame is painted,
+   * makes the switch visible at once.
+   */
+  protected readonly tabRendering = signal(false);
+  private readonly renderedTabs = new Set<TabId>([this.activeTab()]);
+
+  protected setTab(id: string): void {
+    const tab = this.tabs.find((t) => t.id === id);
+    if (!tab || tab.id === this.activeTab()) {
+      return;
+    }
+    localStorage.setItem(RulesComponent.LAST_TAB_KEY, tab.id);
+    if (!this.renderedTabs.has(tab.id)) {
+      this.renderedTabs.add(tab.id);
+      this.tabRendering.set(true);
+      requestAnimationFrame(() => setTimeout(() => this.tabRendering.set(false)));
+    }
+    this.activeTab.set(tab.id);
   }
 
   /** Falls back to Coberturas when nothing valid is stored. */
@@ -971,6 +1026,7 @@ export class RulesComponent {
       id: `cov-${Date.now()}`,
       name: '',
       clause: '',
+      description: '',
       insuredAmount: null,
       deductibleRatio: null,
       deductibleBasis: 'SUM_INSURED',
@@ -978,7 +1034,6 @@ export class RulesComponent {
       maxAnnualClaims: null,
       waitingPeriodDays: null,
       coversFamilyGroup: false,
-      claimExhaustsCoverage: false,
       // Default: ceiling = sum insured, no deductions beyond the deductible. Enabling deductions
       // changes what the insured gets paid, so it must be an explicit choice.
       settlementFormula: 'TOTAL_LOSS',
@@ -1381,14 +1436,6 @@ export class RulesComponent {
     }
   }
 
-  protected toggleCoverageFamilyGroup(c: Coverage): void {
-    this.setCoverageField(c.id, { coversFamilyGroup: !c.coversFamilyGroup });
-  }
-
-  protected toggleCoverageExhausts(c: Coverage): void {
-    this.setCoverageField(c.id, { claimExhaustsCoverage: !c.claimExhaustsCoverage });
-  }
-
   protected readonly settlementFormulaOptions: SelectOption[] = [
     { value: 'TOTAL_LOSS', label: 'Pérdida total' },
     { value: 'REPAIR', label: 'Reparación' },
@@ -1530,7 +1577,7 @@ export class RulesComponent {
       .forEach((cause) =>
         (d.requiredDocumentsByClaimCause[cause.id] ?? []).forEach((code) => allowed.add(code)),
       );
-    return this.docTypes
+    return this.docTypes()
       .filter((doc) => allowed.has(doc.code) || this.isFtDoc(doc.code))
       .map((doc) => ({ ...doc, outsideSchedule: !allowed.has(doc.code) }));
   });
@@ -1724,13 +1771,13 @@ export class RulesComponent {
     return {
       name: c.name,
       clause: c.clause || null,
+      description: c.description.trim() || null,
       deductibleRatio: c.deductibleRatio,
       deductibleBasis: c.deductibleBasis,
       reportingWindowDays: c.reportingWindowDays,
       maxAnnualClaims: c.maxAnnualClaims,
       waitingPeriodDays: c.waitingPeriodDays,
       coversFamilyGroup: c.coversFamilyGroup,
-      claimExhaustsCoverage: c.claimExhaustsCoverage,
       settlementFormula: c.settlementFormula,
       settlementBasis: c.settlementBasis,
       secondEventRatio: c.secondEventRatio,

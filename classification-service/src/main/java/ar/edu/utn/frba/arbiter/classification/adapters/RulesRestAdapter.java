@@ -2,6 +2,7 @@ package ar.edu.utn.frba.arbiter.classification.adapters;
 
 import ar.edu.utn.frba.arbiter.classification.config.tenant.TenantContext;
 import ar.edu.utn.frba.arbiter.classification.dto.BusinessRules;
+import ar.edu.utn.frba.arbiter.common.dto.DocumentTypeResponse;
 import ar.edu.utn.frba.arbiter.common.enums.RiskBand;
 import ar.edu.utn.frba.arbiter.common.http.ConnectionRetryInterceptor;
 import ar.edu.utn.frba.arbiter.common.security.JwtSupport;
@@ -21,6 +22,7 @@ import javax.crypto.SecretKey;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * Builds the rules from what the referente configured in rules-service, starting from
@@ -74,9 +76,9 @@ public class RulesRestAdapter implements RulesAdapter {
                 overlayFraudRecordPolicy(
                         overlayCoverageLimits(
                                 overlayEvaluableRules(
-                                        overlayDocumentRequirements(
+                                        overlayDocumentTypeNames(overlayDocumentRequirements(
                                                 overlayRuleTexts(overlayFastTrack(base, coverageId), coverageId),
-                                                coverageId, claimCauseId),
+                                                coverageId, claimCauseId)),
                                         coverageId),
                                 coverageId)));
     }
@@ -109,7 +111,7 @@ public class RulesRestAdapter implements RulesAdapter {
                 .build();
     }
 
-    /** One config per insurer; without an enabled, usable one the claim isn't scored. */
+    /** One config per insurer, always on; without a usable one the claim isn't scored. */
     private BusinessRules overlayScoring(BusinessRules rules) {
         try {
             ScoringResponse scoring = restClient.get()
@@ -117,10 +119,10 @@ public class RulesRestAdapter implements RulesAdapter {
                     .header(HttpHeaders.AUTHORIZATION, serviceToken())
                     .retrieve()
                     .body(ScoringResponse.class);
-            if (scoring == null || !scoring.enabled()
+            if (scoring == null
                     || scoring.factors() == null || scoring.factors().isEmpty()
                     || scoring.bands() == null || scoring.bands().isEmpty()) {
-                log.debug("[RulesRestAdapter] No scoring config in DB (or disabled) — not scored");
+                log.debug("[RulesRestAdapter] No scoring config in DB — not scored");
                 return rules;
             }
             BusinessRules.ScoringConfig mapped = scoring.toScoringConfig();
@@ -157,7 +159,6 @@ public class RulesRestAdapter implements RulesAdapter {
                 .maxEventsPerYear(limits.maxEventsPerYear())
                 .waitingPeriodDays(limits.waitingPeriodDays())
                 .coversFamilyGroup(limits.coversFamilyGroup())
-                .claimExhaustsCoverage(limits.claimExhaustsCoverage())
                 .build();
     }
 
@@ -258,6 +259,22 @@ public class RulesRestAdapter implements RulesAdapter {
         return rules.toBuilder().requiredDocumentTypes(agenda).build();
     }
 
+    /** The whole catalog: a claim can carry documents its schedule doesn't ask for. */
+    private BusinessRules overlayDocumentTypeNames(BusinessRules rules) {
+        List<DocumentTypeResponse> catalog = restClient.get()
+                .uri("/api/v1/rules/document-types")
+                .header(HttpHeaders.AUTHORIZATION, serviceToken())
+                .retrieve()
+                .body(new ParameterizedTypeReference<List<DocumentTypeResponse>>() {});
+        if (catalog == null) {
+            return rules;
+        }
+        return rules.toBuilder()
+                .documentTypeNames(catalog.stream().collect(
+                        Collectors.toUnmodifiableMap(DocumentTypeResponse::code, DocumentTypeResponse::name)))
+                .build();
+    }
+
     private String serviceToken() {
         return "Bearer " + JwtSupport.issueServiceToken(jwtKey, "classification-service", TenantContext.get());
     }
@@ -303,16 +320,16 @@ public class RulesRestAdapter implements RulesAdapter {
     /** Mirrors rules-service's CoverageLimitsDto. */
     private record CoverageLimitsResponse(
             Long reportDeadlineHours, Integer maxEventsPerYear, Integer waitingPeriodDays,
-            Boolean coversFamilyGroup, Boolean claimExhaustsCoverage) {
+            Boolean coversFamilyGroup) {
 
         boolean isEmpty() {
             return reportDeadlineHours == null && maxEventsPerYear == null && waitingPeriodDays == null
-                    && coversFamilyGroup == null && claimExhaustsCoverage == null;
+                    && coversFamilyGroup == null;
         }
     }
 
     /** Mirrors rules-service's ScoringConfigDto. */
-    private record ScoringResponse(Long id, boolean enabled, boolean fullAnalysisOnFastTrack,
+    private record ScoringResponse(Long id, boolean fullAnalysisOnFastTrack,
                                    List<ScoringFactorJson> factors, List<ScoringBandJson> bands) {
 
         /** Maps to classification's ScoringConfig; null if any band isn't a valid RiskBand. */

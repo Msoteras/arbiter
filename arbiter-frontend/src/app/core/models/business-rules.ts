@@ -15,6 +15,8 @@ export interface Coverage {
   name: string;
   /** General conditions clause code (e.g. "340"). */
   clause: string;
+  /** What the coverage is for, in the insurer's words. */
+  description: string;
   /** Null when it comes from the policy. */
   insuredAmount: number | null;
   /** Fraction (0..1) of the amount. */
@@ -26,7 +28,6 @@ export interface Coverage {
   /** Days after policy start before the coverage applies. null = none. */
   waitingPeriodDays: number | null;
   coversFamilyGroup: boolean;
-  claimExhaustsCoverage: boolean;
   /** Total loss extinguishes the policy; repair does not. */
   settlementFormula: SettlementFormula;
   /** Only applies to total loss. */
@@ -71,7 +72,6 @@ export interface RiskBandCut {
 
 /** Single per-insurer fraud scoring config (not per branch), served at `/api/v1/rules/scoring`. */
 export interface ScoringConfig {
-  enabled: boolean;
   /** Whether Fast Track still runs OCR and image fraud for a complete score. Never vetoes Fast Track. */
   fullAnalysisOnFastTrack: boolean;
   factors: FactorWeight[];
@@ -119,22 +119,9 @@ export interface DocumentTypeDef {
   label: string;
 }
 
-export const DOCUMENT_TYPES: DocumentTypeDef[] = [
-  { code: 'police_report', label: 'Denuncia policial' },
-  { code: 'purchase_proof', label: 'Comprobante de compra' },
-  { code: 'imei_deregistration', label: 'Baja de IMEI (ENACOM)' },
-  { code: 'last_connection', label: 'Captura de última conexión' },
-  { code: 'repair_quote', label: 'Presupuesto de reparación' },
-  { code: 'item_photo', label: 'Foto del bien' },
-];
-
-export function documentTypeLabel(code: string): string {
-  return DOCUMENT_TYPES.find((d) => d.code === code)?.label ?? code;
-}
-
 /**
  * Produced by the case flow itself (a provider's answer to a referral), not required nor uploaded
- * by the insured. Kept out of `DOCUMENT_TYPES` so they never become a checklist slot, an upload
+ * by the insured. Not in the backend's catalog, so they never become a checklist slot, an upload
  * option or a document a rule can require.
  */
 export const NON_AGENDA_DOCUMENT_TYPES: DocumentTypeDef[] = [
@@ -143,8 +130,8 @@ export const NON_AGENDA_DOCUMENT_TYPES: DocumentTypeDef[] = [
 ];
 
 /** Backend reasons embed document codes ("…: police_report"); swaps them for their labels. */
-export function withDocumentLabels(reason: string): string {
-  return [...DOCUMENT_TYPES, ...NON_AGENDA_DOCUMENT_TYPES].reduce(
+export function withDocumentLabels(reason: string, types: readonly DocumentTypeDef[]): string {
+  return types.reduce(
     // String.raw: in a plain template literal `\b` is a backspace, not a word boundary.
     (text, d) => text.replace(new RegExp(String.raw`\b${d.code}\b`, 'g'), d.label),
     reason,
