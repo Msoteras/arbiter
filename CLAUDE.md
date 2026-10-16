@@ -235,6 +235,7 @@ Antes de escribir markup de UI, usá los componentes que ya existen en vez de re
 | `app-select` | desplegable propio (no el nativo); `searchable`, `required`. |
 | `app-chip-group` | elegir una opción entre 2 y 5, todas a la vista. |
 | `app-checkbox`, `app-switch` | casilla nativa y switch para ajustes con efecto inmediato. |
+| `app-tabs`, `app-tab-nav` | solapas de una pantalla (`tablist`, con número, punto de estado y `scrollable`) y solapas que son rutas (enlaces con `aria-current`). |
 | `app-modal` | diálogos; `variant="side"` es panel lateral para altas sobre una lista; `dismissable=false` para formularios que no se cierran por accidente. |
 | `app-table`, `app-pagination` | tablas (columnas fijas, encabezado pegajoso) y paginado de listas del servidor. |
 | `app-stat-tile`, `app-chart`, `app-distribution` | métricas, gráficos (ECharts) y distribuciones (barra o anillo con leyenda). |
