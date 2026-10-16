@@ -11,6 +11,7 @@ import ar.edu.utn.frba.arbiter.cases.dto.CaseActionResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.ClaimCauseCorrectionRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.ClaimCauseOption;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseDocumentResponse;
+import ar.edu.utn.frba.arbiter.cases.dto.CaseDeadline;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseFollowUp;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseMessageInboxItemResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseScope;
@@ -158,48 +159,43 @@ public class CaseController {
 
     @GetMapping
     @PreAuthorize("isAuthenticated()")
-    @Operation(summary = "List cases",
+    @Operation(summary = "Listar expedientes",
             description = """
-                    Returns cases paginated, most recent first by default. Optional, combinable
-                    filters: `status`, `claimCause` (claim type), `policyNumber`,
-                    `insuredId` (the insured's cases — until the Auth0/JWT integration lands, the
-                    caller passes it explicitly) and the `eventDateFrom`/`eventDateTo` range (ISO
-                    `yyyy-MM-dd`, inclusive on both ends) over the event date. Standard Spring Data
-                    paging: `page`, `size`, `sort` (e.g. `sort=eventDate,desc`).
+                    Devuelve los expedientes paginados, del más nuevo al más viejo por defecto. Filtros
+                    opcionales y combinables: `status`, `claimCause` (hecho generador),
+                    `policyNumber`, `insuredId` y el rango `eventDateFrom`/`eventDateTo` (ISO
+                    `yyyy-MM-dd`, inclusivo en los dos extremos) sobre la fecha del hecho. Paginado
+                    estándar de Spring Data: `page`, `size`, `sort` (ej. `sort=eventDate,desc`).
 
-                    `q` is a free-text search (case-insensitive, substring) over case number, policy
-                    number and insured (`insuredId`/`insuredName` — the latter is nullable until the
-                    first classification resolves the real name). `riskBand` filters by fraud risk
-                    score (exact match: `LOW`, `MEDIUM`, `HIGH`, `CRITICAL`). `assignedToMe=true`
-                    narrows to the cases assigned to the requesting analyst — the inbox's "Mine"
-                    lens; omitting it is the "All" lens. All filters are ANDed together.
+                    `q` es una búsqueda libre (sin distinguir mayúsculas, por substring) sobre número de
+                    expediente, número de póliza y asegurado (`insuredId`/`insuredName`). `riskBand`
+                    filtra por banda del score de fraude (`LOW`, `MEDIUM`, `HIGH`, `CRITICAL`).
+                    `assignedToMe=true` deja los asignados al analista que consulta: la vista "Míos"
+                    de la bandeja; sin él es "Todos". Todos los filtros se combinan con AND.
 
-                    `assignedToMe` is a flag and not an analyst id because that id is local to each
-                    insurer's schema: who "me" is gets resolved by the backend from the token, not
-                    sent by the client. For a role with no analyst profile in the tenant (the
-                    insurer lead) the lens returns nothing, not everything.
+                    `assignedToMe` es una marca y no un id de analista porque ese id es propio del
+                    esquema de cada aseguradora: quién es "yo" lo resuelve el backend con el token.
+                    Para un rol sin perfil de analista en la aseguradora (el referente) no devuelve
+                    nada, nunca todo. Dice "de quién es el expediente", no "qué puede ver el usuario":
+                    eso ya lo acota el esquema de la aseguradora.
 
-                    It means "whose case is this", not "which cases can this user see": the latter
-                    is already handled by the tenant schema, which scopes the listing to a single
-                    insurer.
+                    `deadline=DUE_SOON` deja los que tienen el indicador de plazo prendido
+                    (`deadlinePriority != NONE`: 10 días o menos para el vencimiento del art. 56, o ya
+                    vencidos). `deadline=OVERDUE` deja solo los vencidos, los mismos que cuenta como
+                    vencidos el inicio.
 
-                    `dueSoon=true` narrows to cases with an active deadline indicator
-                    (`deadlinePriority != NONE`: 10 days or fewer until the art. 56 response
-                    deadline, or already overdue) — the "Due soon" lens.
+                    `followUp=AWAITING_ANALYST` es la revisión del analista sin lo que ya espera al
+                    referente: los expedientes que todavía tiene que decidir el analista.
 
-                    `scope` filters by lifecycle: `OPEN` (the five non-terminal statuses), `CLOSED`
-                    (APPROVED/REJECTED/LAPSED/PRESCRIBED/WITHDRAWN/VOIDED) or `ALL`. Defaults to `ALL`: the cut belongs to the
-                    screen asking for it, not to the endpoint — the insured's portal consumes this
-                    same listing and must keep seeing their resolved claims. An overdue case is
-                    still `OPEN`.
+                    `scope` filtra por ciclo de vida: `OPEN` (los estados no terminales), `CLOSED`
+                    (APPROVED, REJECTED, LAPSED, PRESCRIBED, WITHDRAWN, VOIDED) o `ALL`. Por defecto
+                    `ALL`: el corte es de la pantalla que pide, no del endpoint, porque el portal del
+                    asegurado usa este mismo listado y tiene que seguir viendo sus siniestros
+                    resueltos. Un expediente vencido sigue siendo `OPEN`.
 
-                    `status` accepts several values (`?status=A&status=B`): the insured's portal
-                    filters by the three buckets they see ("In progress" spans four statuses), and
-                    the bucket→statuses mapping belongs to the frontend, like the rest of the labels.
-
-                    `insurerId` only applies to an insured with policies at more than one company,
-                    the only role that reads cases from several schemas. For analyst and insurer lead it
-                    does nothing: the tenant already scopes them to a single insurer.
+                    `status` acepta varios valores (`?status=A&status=B`). `insurerId` solo aplica a un
+                    asegurado con pólizas en más de una compañía, el único rol que lee expedientes de
+                    varios esquemas; para analista y referente no hace nada.
                     """)
     public ResponseEntity<Page<CaseResponse>> listCases(
             @RequestParam(required = false) List<CaseStatus> status,
@@ -216,7 +212,7 @@ public class CaseController {
             @RequestParam(defaultValue = "false") boolean unassigned,
             @RequestParam(defaultValue = "false") boolean fraudAlert,
             @RequestParam(defaultValue = "false") boolean assigned,
-            @RequestParam(defaultValue = "false") boolean dueSoon,
+            @RequestParam(required = false) CaseDeadline deadline,
             @RequestParam(required = false) CaseFollowUp followUp,
             @RequestParam(required = false) Integer staleDays,
             @RequestParam(defaultValue = "ALL") CaseScope scope,
@@ -225,7 +221,7 @@ public class CaseController {
     ) {
         Page<CaseResponse> response = caseService.listCases(
                 status, insuredStatus, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
-                analystId, assignedToMe, unassigned, fraudAlert, assigned, dueSoon, followUp, staleDays, scope,
+                analystId, assignedToMe, unassigned, fraudAlert, assigned, deadline, followUp, staleDays, scope,
                 insurerId,
                 pageable);
         return ResponseEntity.ok(response);
@@ -344,11 +340,11 @@ public class CaseController {
             @RequestParam(required = false) Long analystId,
             @RequestParam(required = false) CaseFollowUp followUp,
             @RequestParam(required = false) Integer staleDays,
-            @RequestParam(defaultValue = "false") boolean dueSoon
+            @RequestParam(required = false) CaseDeadline deadline
     ) {
         return ResponseEntity.ok(caseService.lensSummary(
                 status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
-                analystId, followUp, staleDays, dueSoon));
+                analystId, followUp, staleDays, deadline));
     }
 
     @GetMapping("/messages/inbox")

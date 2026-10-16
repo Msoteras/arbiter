@@ -516,6 +516,9 @@ class CaseRepositorySpecificationTests extends AbstractPersistenceIT {
                 FIRST_PAGE).getContent()).extracting(Case::getId).containsExactly(fromExpert.getId());
         assertThat(caseRepository.findAll(CaseSpecifications.followUp(CaseFollowUp.REPAIR_REPORT_RECEIVED),
                 FIRST_PAGE).getContent()).extracting(Case::getId).containsExactly(fromRepairShop.getId());
+        assertThat(caseRepository.findAll(CaseSpecifications.followUp(CaseFollowUp.PROVIDER_REPORT_RECEIVED),
+                FIRST_PAGE).getContent()).extracting(Case::getId)
+                .containsExactlyInAnyOrder(fromExpert.getId(), fromRepairShop.getId());
     }
 
     @Test
@@ -537,6 +540,11 @@ class CaseRepositorySpecificationTests extends AbstractPersistenceIT {
                 FIRST_PAGE).getContent()).extracting(Case::getId).containsExactly(returned.getId());
         assertThat(caseRepository.findAll(CaseSpecifications.followUp(CaseFollowUp.AWAITING_REFERENT),
                 FIRST_PAGE).getContent()).extracting(Case::getId).containsExactly(awaiting.getId());
+        // The rest of the analyst's review: a returned settlement is the analyst's again.
+        assertThat(caseRepository.findAll(CaseSpecifications.followUp(CaseFollowUp.AWAITING_ANALYST),
+                FIRST_PAGE).getContent()).extracting(Case::getId)
+                .contains(returned.getId())
+                .doesNotContain(awaiting.getId(), authorized.getId(), returnedThenRejected.getId());
     }
 
     /** The home screen's four deadline buckets split the open cases with no overlap and no gaps. */

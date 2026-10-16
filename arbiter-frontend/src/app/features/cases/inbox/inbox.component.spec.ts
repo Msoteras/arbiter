@@ -367,19 +367,44 @@ describe('InboxComponent · lifecycle scope', () => {
         [],
         new Map([
           ['mine', 'true'],
-          ['dueSoon', 'true'],
+          ['deadline', 'DUE_SOON'],
         ]),
       );
 
       expect(lastList().assignedToMe).toBeTrue();
-      expect(lastList().dueSoon).toBeTrue();
-      expect(lensCalls[lensCalls.length - 1].dueSoon).toBeTrue();
+      expect(lastList().deadline).toBe('DUE_SOON');
+      expect(lensCalls[lensCalls.length - 1].deadline).toBe('DUE_SOON');
 
       call('clearAllChips');
       fixture.detectChanges();
       await fixture.whenStable();
 
-      expect(lastList().dueSoon).toBeUndefined();
+      expect(lastList().deadline).toBeUndefined();
+    });
+
+    /** The referente's "Plazo vencido" shortcut: the listing counts what the shortcut counts. */
+    it('opens only the overdue cases, and ignores an unknown deadline', async () => {
+      await mount('REFERENTE_ASEGURADORA', [], new Map([['deadline', 'OVERDUE']]));
+      expect(lastList().deadline).toBe('OVERDUE');
+      expect((fixture.nativeElement as HTMLElement).textContent).toContain('Plazo vencido');
+
+      TestBed.resetTestingModule();
+      await mount('REFERENTE_ASEGURADORA', [], new Map([['deadline', 'SOMEDAY']]));
+      expect(lastList().deadline).toBeUndefined();
+    });
+
+    it("takes the analyst's own pending decisions as a follow-up link", async () => {
+      await mount(
+        'ANALISTA_SINIESTROS',
+        [],
+        new Map([
+          ['mine', 'true'],
+          ['followUp', 'AWAITING_ANALYST'],
+        ]),
+      );
+
+      expect(lastList().assignedToMe).toBeTrue();
+      expect(lastList().followUp).toBe('AWAITING_ANALYST');
     });
 
     it('takes a follow-up link and ignores an unknown one', async () => {

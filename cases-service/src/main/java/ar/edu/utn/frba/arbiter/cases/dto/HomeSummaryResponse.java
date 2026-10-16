@@ -12,8 +12,7 @@ import java.time.Instant;
  */
 public record HomeSummaryResponse(
         Deadlines deadlines,
-        long expertReportsReceived,
-        long repairReportsReceived,
+        long providerReportsReceived,
         long returnedByReferent,
         long awaitingReferent,
         long stale,

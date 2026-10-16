@@ -224,7 +224,7 @@ export class ReferentHomeComponent {
             ? `${analystsOverdue} ${analystsOverdue === 1 ? 'analista' : 'analistas'}`
             : null,
         link: '/inbox',
-        query: { dueSoon: 'true' },
+        query: { deadline: 'OVERDUE' },
       },
       {
         value: s?.stale ?? null,

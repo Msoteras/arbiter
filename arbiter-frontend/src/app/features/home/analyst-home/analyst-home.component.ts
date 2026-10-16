@@ -217,7 +217,6 @@ export class AnalystHomeComponent {
   protected readonly shortcuts = computed<Shortcut[]>(() => {
     const s = this.summary();
     const due = s ? s.deadlines.dueSoon + s.deadlines.overdue : 0;
-    const reports = s ? s.expertReportsReceived + s.repairReportsReceived : 0;
     const unreadChats = this.unreadChats();
     const items: Shortcut[] = [
       {
@@ -228,21 +227,14 @@ export class AnalystHomeComponent {
             ? `${this.overdue()} ${this.overdue() === 1 ? 'vencido' : 'vencidos'}`
             : null,
         link: '/inbox',
-        query: { mine: 'true', dueSoon: 'true' },
+        query: { mine: 'true', deadline: 'DUE_SOON' },
       },
       {
-        value: reports,
+        value: s?.providerReportsReceived ?? 0,
         label: 'Informes recibidos',
         flag: null,
         link: '/inbox',
-        // One filter per link: the expert's when there is any, since it is the one to decide on.
-        query: {
-          mine: 'true',
-          followUp:
-            s && s.expertReportsReceived === 0 && s.repairReportsReceived > 0
-              ? 'REPAIR_REPORT_RECEIVED'
-              : 'EXPERT_REPORT_RECEIVED',
-        },
+        query: { mine: 'true', followUp: 'PROVIDER_REPORT_RECEIVED' },
       },
       {
         value: s?.returnedByReferent ?? 0,
@@ -304,9 +296,10 @@ export class AnalystHomeComponent {
     const mine = (status: string) => ({ mine: 'true', status });
     const yours: CaseloadRow[] = [
       {
-        label: 'Pendiente de revisión',
+        label: 'Pendiente de decisión',
         value: this.pending() ?? 0,
-        query: mine('PENDING_ANALYST_REVIEW'),
+        // Not the status alone: what waits for the referente is counted apart, below.
+        query: { mine: 'true', followUp: 'AWAITING_ANALYST' },
       },
       {
         label: 'Clasificación fallida',

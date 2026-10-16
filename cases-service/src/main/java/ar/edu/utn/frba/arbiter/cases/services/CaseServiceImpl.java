@@ -9,6 +9,7 @@ import ar.edu.utn.frba.arbiter.cases.dto.AnalystWorkloadResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.AssignedCaseSummaryResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.HomeSummaryResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseDocumentResponse;
+import ar.edu.utn.frba.arbiter.cases.dto.CaseDeadline;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseFollowUp;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseScope;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseRequest;
@@ -481,7 +482,7 @@ public class CaseServiceImpl implements CaseService {
                                          String insuredId, LocalDate eventDateFrom, LocalDate eventDateTo,
                                          String q, RiskBand riskBand, Long analystId, boolean assignedToMe,
                                          boolean unassigned, boolean fraudAlert, boolean assigned,
-                                         boolean dueSoon, CaseFollowUp followUp, Integer staleDays,
+                                         CaseDeadline deadline, CaseFollowUp followUp, Integer staleDays,
                                          CaseScope scope, Long insurerId, Pageable pageable) {
         if (accessPolicy.currentUserIsInsured()) {
             // Across all of the insured's insurers; the inbox lenses don't apply to them. Nor do
@@ -502,9 +503,10 @@ public class CaseServiceImpl implements CaseService {
             }
         }
 
-        Specification<Case> spec = and(withDueSoon(CaseSpecifications.withFilters(
+        Specification<Case> spec = and(CaseSpecifications.withFilters(
                 status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
-                ownerId, unassigned, fraudAlert, assigned), dueSoon), CaseSpecifications.scope(scope));
+                ownerId, unassigned, fraudAlert, assigned), CaseSpecifications.scope(scope));
+        spec = and(spec, withDeadline(deadline));
         spec = and(spec, withStale(staleDays));
         spec = and(spec, CaseSpecifications.followUp(followUp));
         spec = and(spec, CaseSpecifications.insuredStatus(insuredStatus));
@@ -540,28 +542,33 @@ public class CaseServiceImpl implements CaseService {
         return CaseSpecifications.staleSince(Instant.now(clock).minus(staleDays, ChronoUnit.DAYS));
     }
 
-    /** Same threshold as the deadline priority ({@code deadlinePriority != NONE}). */
-    private Specification<Case> withDueSoon(Specification<Case> base, boolean dueSoon) {
-        if (!dueSoon) {
-            return base;
+    /**
+     * Due soon uses the deadline priority's threshold ({@code deadlinePriority != NONE}); overdue, the
+     * same bucket the home screen counts, so its shortcut and the listing agree.
+     */
+    private Specification<Case> withDeadline(CaseDeadline deadline) {
+        if (deadline == null) {
+            return null;
         }
-        Specification<Case> due = CaseSpecifications.dueSoonBefore(
-                LocalDate.now(clock).plusDays(DeadlinePriority.WATCH_DAYS));
-        return base == null ? due : base.and(due);
+        LocalDate today = LocalDate.now(clock);
+        return switch (deadline) {
+            case DUE_SOON -> CaseSpecifications.dueSoonBefore(today.plusDays(DeadlinePriority.WATCH_DAYS));
+            case OVERDUE -> CaseSpecifications.runningTermDue(null, today.minusDays(1));
+        };
     }
 
     @Override
     public LensSummaryResponse lensSummary(List<CaseStatus> status, String claimCause, String policyNumber,
                                             String insuredId, LocalDate eventDateFrom, LocalDate eventDateTo,
                                             String q, RiskBand riskBand, Long analystId, CaseFollowUp followUp,
-                                            Integer staleDays, boolean dueSoon) {
+                                            Integer staleDays, CaseDeadline deadline) {
         // analystId is the referent's filter and a referent has no analyst profile, so it never
         // coexists with a real "me" and both can share the same WHERE.
         Long me = currentAnalystId().orElse(null);
         Specification<Case> spec = CaseSpecifications.withFilters(
                 status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
                 analystId);
-        spec = and(withDueSoon(spec, dueSoon), withStale(staleDays));
+        spec = and(and(spec, withDeadline(deadline)), withStale(staleDays));
         spec = and(spec, CaseSpecifications.followUp(followUp));
 
         CaseLensCountRepository.LensCounts counts = caseRepository.countLenses(spec, me);
@@ -728,8 +735,7 @@ public class CaseServiceImpl implements CaseService {
 
         return new HomeSummaryResponse(
                 deadlines,
-                countMine(mine, ownsNothing, CaseSpecifications.followUp(CaseFollowUp.EXPERT_REPORT_RECEIVED)),
-                countMine(mine, ownsNothing, CaseSpecifications.followUp(CaseFollowUp.REPAIR_REPORT_RECEIVED)),
+                countMine(mine, ownsNothing, CaseSpecifications.followUp(CaseFollowUp.PROVIDER_REPORT_RECEIVED)),
                 countMine(mine, ownsNothing, CaseSpecifications.followUp(CaseFollowUp.RETURNED_BY_REFERENT)),
                 countMine(mine, ownsNothing, CaseSpecifications.followUp(CaseFollowUp.AWAITING_REFERENT)),
                 countMine(mine, ownsNothing, withStale(HOME_STALE_DAYS)),

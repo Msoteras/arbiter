@@ -672,7 +672,7 @@ class CaseServiceImplTest {
                 new CaseLensCountRepository.OwnershipCounts(15, 13, 15, 0, 3)));
 
         LensSummaryResponse summary = caseService.lensSummary(
-                null, null, null, null, null, null, null, null, null, null, null, false);
+                null, null, null, null, null, null, null, null, null, null, null, null);
 
         assertThat(summary.open()).isEqualTo(new LensSummaryResponse.Counts(19, 7, 12, 7, 5));
         assertThat(summary.closed()).isEqualTo(new LensSummaryResponse.Counts(15, 13, 15, 0, 3));
@@ -1831,7 +1831,7 @@ class CaseServiceImplTest {
 
         CaseResponse response = caseService.listCases(List.of(CaseStatus.CLASSIFICATION_FAILED),
                 List.of(InsuredStatus.UNDER_ANALYSIS), null, null, null, null, null, null,
-                RiskBand.CRITICAL, null, false, false, false, false, false, null, null, null, null,
+                RiskBand.CRITICAL, null, false, false, false, false, null, null, null, null, null,
                 pageable).getContent().get(0);
 
         assertThat(response.analysisClassification()).isNull();
