@@ -95,9 +95,10 @@ cambios sin guardar y los textos descriptivos de Puntaje, Fraude y Atribuciones.
    - `db/migrations/2026-10-13-borrar-es-individual-de-cobertura.sql`
    - `db/migrations/2026-10-13-borrar-activo-de-banda-de-puntaje.sql`
    - `db/migrations/2026-10-14-borrar-activo-de-configuracion-de-puntaje.sql`
-3. **Editar el `.mdj`** con las entradas 23, 25 y 26 de `docs/der-gaps.md`: dropear `obligatorio` de
-   `requisito_documental`, `activo` de `configuracion_banda` y `activa` de `configuracion_scoring`.
-   Sigue pendiente: va con la card "actualizar DER".
+3. ~~**Editar el `.mdj`** con las entradas 23, 25 y 26 de `docs/der-gaps.md`: dropear `obligatorio`
+   de `requisito_documental`, `activo` de `configuracion_banda` y `activa` de
+   `configuracion_scoring`.~~ Hecho el 16/10. Lo que sigue pendiente del DER está en
+   `docs/der-gaps.md`.
 4. ~~**Abrir el PR** de `feature/ux-enhancements-reglas` contra `develop`.~~ Hecho.
 
 ## Cómo quedó verificado
