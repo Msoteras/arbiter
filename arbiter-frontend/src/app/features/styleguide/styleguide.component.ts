@@ -28,6 +28,7 @@ import { InlineLoadingComponent } from '../../shared/ui/inline-loading/inline-lo
 import { SaveBarComponent } from '../../shared/ui/save-bar/save-bar.component';
 import { ChipGroupComponent, ChipOption } from '../../shared/ui/chip-group/chip-group.component';
 import { TabOption, TabsComponent } from '../../shared/ui/tabs/tabs.component';
+import { TabLink, TabNavComponent } from '../../shared/ui/tabs/tab-nav.component';
 import { IconButtonComponent } from '../../shared/ui/icon-button/icon-button.component';
 import { SwitchComponent } from '../../shared/ui/switch/switch.component';
 import {
@@ -66,6 +67,7 @@ interface Swatch {
     RatePipe,
     ChipGroupComponent,
     TabsComponent,
+    TabNavComponent,
     IconButtonComponent,
     ButtonComponent,
     BadgeComponent,
@@ -911,6 +913,38 @@ interface Swatch {
         <div class="row">
           <app-tabs [tabs]="tabsDemo" [(value)]="tabsDemoValue" ariaLabel="Solapas de ejemplo" />
         </div>
+        <p class="sg-p">
+          Cada solapa puede llevar un número (<span class="mono">count</span>) y un punto (<span
+            class="mono"
+            >status</span
+          >): <span class="mono">required</span> falta configurar,
+          <span class="mono">pending</span> está incompleto y <span class="mono">notice</span> tiene
+          algo nuevo para mirar. Con <span class="mono">scrollable</span> la tira queda en una fila
+          que se desliza de costado en pantallas táctiles, para pantallas con muchas solapas como el
+          detalle del expediente. Con mouse se parte en filas: una tira sin barra escondería
+          solapas. Lo que se proyecta adentro queda al final de la tira, fuera del
+          <span class="mono">tablist</span>: así la bandeja suma sus filtros de pertenencia.
+        </p>
+        <div class="row">
+          <app-tabs
+            [tabs]="tabsRichDemo"
+            [(value)]="tabsRichDemoValue"
+            [scrollable]="true"
+            ariaLabel="Solapas con estado"
+          />
+        </div>
+      </section>
+
+      <section class="sg-block">
+        <h3 class="sg-h3">Tab nav</h3>
+        <p class="sg-p">
+          Mismo aspecto que <span class="mono">app-tabs</span>, pero cada solapa es una ruta: se
+          puede guardar o compartir el enlace, como en Reportes. Son enlaces con
+          <span class="mono">aria-current</span>, no un <span class="mono">tablist</span>.
+        </p>
+        <div class="row">
+          <app-tab-nav [tabs]="tabNavDemo" ariaLabel="Navegación de ejemplo" />
+        </div>
       </section>
 
       <section class="sg-block">
@@ -1440,6 +1474,25 @@ export class StyleguideComponent {
     { id: 'documents', label: 'Documentación' },
   ];
   protected readonly tabsDemoValue = signal('coverages');
+
+  protected readonly tabsRichDemo: readonly TabOption[] = [
+    { id: 'summary', label: 'Resumen' },
+    { id: 'analysis', label: 'Análisis', count: 4 },
+    {
+      id: 'images',
+      label: 'Imágenes',
+      status: 'notice',
+      statusLabel: 'con coincidencias de imagen',
+    },
+    { id: 'coverages', label: 'Coberturas', status: 'required' },
+    { id: 'documents', label: 'Documentación', status: 'pending' },
+  ];
+  protected readonly tabsRichDemoValue = signal('summary');
+
+  protected readonly tabNavDemo: readonly TabLink[] = [
+    { path: '/styleguide', label: 'Styleguide' },
+    { path: '/insurer/reports', label: 'Reportes' },
+  ];
 
   protected readonly claimTypeDemo: readonly ChipOption[] = [
     { value: 'street-robbery', label: 'Robo en vía pública' },

@@ -59,8 +59,8 @@ configurar, y que use el kit en vez de controles hechos a mano.
   recargar.
 - El historial muestra el monto de peritaje como pesos ("$ 500.000").
 - Fast Track: salieron dos tooltips, una aclaración y el badge "Siempre activo". El tooltip del
-  título usa el texto de la guía de primera carga: "Definí las condiciones de una denuncia para ser
-  considerada Fast Track." (se cambia en `core/onboarding/onboarding.ts`).
+  título usa el texto de la guía de primera carga: "Definí las condiciones para que una denuncia
+  entre en Fast Track." (se cambia en `core/onboarding/onboarding.ts`).
 
 ## Merge con develop (14/10)
 
@@ -109,9 +109,10 @@ cambios sin guardar y los textos descriptivos de Puntaje, Fraude y Atribuciones.
 - **En el navegador, contra Railway (antes del merge):** Derivaciones probada de punta a punta
   (guardar, recargar, restaurar). La última solapa, los montos del historial y los tooltips se
   verificaron leyendo. El resto se probó abriendo y cancelando, sin guardar.
-- **Sin ver en pantalla:** todo lo que resolvió el merge (puntos de las solapas, documentos de Fast
-  Track con checkboxes, tooltip nuevo), guardar un proveedor, guardar una descripción de cobertura,
-  y los botones de ícono de las listas de texto.
+- **En prod (16/10):** guardar un proveedor y guardar la descripción de una cobertura.
+- **En pantalla, contra Railway (16/10):** lo que resolvió el merge (punto de Coberturas en un ramo
+  sin coberturas, documentos de Fast Track con checkboxes, tooltip del título) y los botones de ícono
+  de los criterios de Fast Track (editar y confirmar, sin guardar).
 
 ### Tests del front
 
@@ -125,8 +126,9 @@ Specs nuevos, todos con los servicios mockeados:
 | `features/admin/providers-config/…spec.ts` | Todos los ramos marcados al crear, bloqueo sin ramos, lista al guardar, edición y confirmación de borrado. |
 | `features/admin/rules/rules.component.spec.ts` | Última solapa recordada, que no se pierda al cambiar de ramo, descripción de la cobertura y checkboxes. |
 
-Lo que sigue sin test: el guardado de coberturas con descripción contra el backend, los botones de
-ícono dentro de las listas de texto y los puntos de estado de `app-tabs`.
+Lo que sigue sin test: el guardado de coberturas con descripción contra el backend y los botones de
+ícono dentro de las listas de texto. Los puntos de estado de `app-tabs` ya tienen test en
+`tabs.component.spec.ts`.
 
 ## Decisiones abiertas para el equipo
 
@@ -177,13 +179,22 @@ Hechas:
 4. ~~**Tooltips que quedaron**~~ (`fix/reglas-pendientes-ux`): salió el de "Hechos generadores que
    cubre", que repetía el título. Queda el aviso de cuando la cobertura cubre todo el ramo.
 
-Sin hacer:
+Hechas en `fix/pendientes-handoff-reglas`:
 
-5. **Tabs hechas a mano en otras pantallas** (Reportes, detalle del expediente, bandeja): se
-   pueden migrar a `app-tabs`.
-6. **A revisar:** en una de las pruebas la barra de guardar seguía en "Cambios sin guardar" unos
-   segundos después de un guardado que sí había entrado. No quedó claro si fue demora de Railway o
-   un problema de la barra.
+5. ~~**Tabs hechas a mano en otras pantallas**~~: el detalle del expediente y la bandeja usan
+   `app-tabs`. Para eso `app-tabs` sumó un número por solapa (`count`), un punto de novedad
+   (`status: 'notice'`), una tira que se desliza de costado (`scrollable`) y contenido proyectado al
+   final de la tira (los filtros de pertenencia de la bandeja). Reportes usa `app-tab-nav`, un
+   componente nuevo del kit: sus solapas son rutas, así que van como enlaces y no como `tablist`.
+   Las tres pantallas pasan a verse como las solapas de Reglas. En pantallas táctiles, las solapas
+   del detalle y de Reglas quedan en una fila que se desliza de costado; con mouse se parten en
+   filas.
+   Además salió el badge "Toda la aseguradora" del encabezado de Puntaje de riesgo.
+6. ~~**A revisar: la barra de guardar en "Cambios sin guardar"**~~: el front está bien. La causa era
+   el pool de conexiones de `rules-service`, que arregló el PR #157. Cada guardado commiteaba y
+   después esperaba otra conexión antes de responder. Por eso el dato ya estaba guardado, pero la
+   respuesta tardaba y la barra seguía marcando cambios. Hay que volver a probarlo cuando #157 esté
+   en prod.
 
 Ya resueltos por `develop`: la confirmación antes de descartar cambios sin guardar al cambiar de
 ramo o de sección.

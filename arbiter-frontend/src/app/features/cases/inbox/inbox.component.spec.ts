@@ -106,7 +106,9 @@ describe('InboxComponent · lifecycle scope', () => {
 
   function clickScope(label: string): void {
     const button = (
-      Array.from(fixture.nativeElement.querySelectorAll('.lens-tab')) as HTMLButtonElement[]
+      Array.from(
+        fixture.nativeElement.querySelectorAll('[role="tab"], .lens-tab'),
+      ) as HTMLButtonElement[]
     ).find((b) => b.textContent?.trim().startsWith(label));
     button!.click();
     fixture.detectChanges();
@@ -118,9 +120,9 @@ describe('InboxComponent · lifecycle scope', () => {
 
   function tabCount(label: string): string | undefined {
     const tab = (
-      Array.from(fixture.nativeElement.querySelectorAll('.lens-tab')) as HTMLElement[]
+      Array.from(fixture.nativeElement.querySelectorAll('[role="tab"], .lens-tab')) as HTMLElement[]
     ).find((b) => b.textContent?.trim().startsWith(label));
-    return tab?.querySelector('.lens-count')?.textContent?.trim();
+    return tab?.querySelector('.tab-count, .lens-count')?.textContent?.trim();
   }
 
   it('starts by asking only for open cases', async () => {
@@ -189,7 +191,7 @@ describe('InboxComponent · lifecycle scope', () => {
 
     expect(lastList().scope).toBe('ALL');
     expect(lastList().status).toBe('APPROVED');
-    const active = fixture.nativeElement.querySelector('.lens-tab.active') as HTMLElement;
+    const active = fixture.nativeElement.querySelector('[role="tab"].active') as HTMLElement;
     expect(active.textContent?.trim()).toContain('Todos');
   });
 

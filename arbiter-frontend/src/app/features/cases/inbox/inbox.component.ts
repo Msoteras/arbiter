@@ -65,6 +65,7 @@ import {
   MenuItem,
 } from '../../../shared/ui/menu-button/menu-button.component';
 import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
+import { TabOption, TabsComponent } from '../../../shared/ui/tabs/tabs.component';
 import { fadeStagger, staggerReveal } from '../../../shared/animations';
 
 // JPA property paths of Case (Spring Data sorts by property, not by SQL column).
@@ -130,6 +131,7 @@ const LINK_PARAMS = [
     EmptyStateComponent,
     MenuButtonComponent,
     InlineLoadingComponent,
+    TabsComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   animations: [fadeStagger, staggerReveal],
@@ -185,6 +187,14 @@ export class InboxComponent {
     { value: 'closed', label: 'Cerrados' },
     { value: 'all', label: 'Todos' },
   ];
+
+  protected readonly lifecycleTabOptions = computed<TabOption[]>(() =>
+    this.lifecycleTabs.map((tab) => ({
+      id: tab.value,
+      label: tab.label,
+      count: this.lifecycleCount(tab.value),
+    })),
+  );
 
   protected readonly ownershipTabs = computed<{ value: Ownership; label: string }[]>(() => [
     this.isReferent()
