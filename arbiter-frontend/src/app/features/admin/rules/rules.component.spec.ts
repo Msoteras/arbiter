@@ -3,17 +3,17 @@ import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { provideRouter } from '@angular/router';
-import { Observable, Subject, of } from 'rxjs';
+import { BehaviorSubject, Observable, Subject, of, throwError } from 'rxjs';
 
 import { RulesComponent } from './rules.component';
-import { BranchesService } from '../branches.service';
+import { BranchOption, BranchesService } from '../branches.service';
 import { BusinessRulesTextService } from '../business-rules-text.service';
 import { CoverageExclusionsService } from '../coverage-exclusions.service';
 import { CoverageDetail, CoveragesRulesService } from '../coverages-rules.service';
 import { DerivationRulesService } from '../derivation-rules.service';
 import { DocumentRulesService } from '../document-rules.service';
 import { FastTrackRulesService } from '../fast-track-rules.service';
-import { HardRulesService } from '../hard-rules.service';
+import { HardRule, HardRulesService } from '../hard-rules.service';
 import { DocumentTypeDef } from '../../../core/models/business-rules';
 import { DocumentTypeService } from '../../../core/services/document-type.service';
 import {
@@ -34,10 +34,9 @@ describe('RulesComponent', () => {
     description: 'Cobertura por rotura o caída accidental del equipo',
     deductibleRatio: 0.2,
     deductibleBasis: 'LOSS_AMOUNT',
-    reportingWindowDays: 3,
+    reportDeadlineHours: 72,
     maxAnnualClaims: 2,
     waitingPeriodDays: 30,
-    coversFamilyGroup: false,
     settlementFormula: 'REPAIR',
     settlementBasis: 'LESSER_OF_SUM_AND_REPLACEMENT',
     secondEventRatio: null,
@@ -49,10 +48,20 @@ describe('RulesComponent', () => {
 
   let branchDocuments: Record<number, readonly DocumentTypeDef[]>;
   let agenda: () => Observable<string[]>;
+  let branchList: () => Observable<BranchOption[]>;
+  let claimCauses: () => Observable<{ id: number; name: string }[]>;
+  let hardRules: HardRule[];
 
   beforeEach(() => {
     branchDocuments = { 1: DOCUMENT_TYPES_FIXTURE, 2: DOCUMENT_TYPES_FIXTURE };
     agenda = () => of([]);
+    branchList = () =>
+      of([
+        { id: 1, name: 'Celulares' },
+        { id: 2, name: 'Tecnología Portátil' },
+      ]);
+    claimCauses = () => of([{ id: 4, name: 'Caída' }]);
+    hardRules = [];
   });
 
   async function mount(coverages: CoverageDetail[] = []): Promise<void> {
@@ -72,13 +81,7 @@ describe('RulesComponent', () => {
         provideHttpClientTesting(),
         {
           provide: BranchesService,
-          useValue: {
-            list: () =>
-              of([
-                { id: 1, name: 'Celulares' },
-                { id: 2, name: 'Tecnología Portátil' },
-              ]),
-          },
+          useValue: { list: () => branchList() },
         },
         {
           provide: CoveragesRulesService,
@@ -90,7 +93,7 @@ describe('RulesComponent', () => {
         },
         {
           provide: CoverageExclusionsService,
-          useValue: { listClaimCauses: () => of([{ id: 4, name: 'Caída' }]), get: () => of([]) },
+          useValue: { listClaimCauses: () => claimCauses(), get: () => of([]) },
         },
         {
           provide: FastTrackRulesService,
@@ -102,7 +105,7 @@ describe('RulesComponent', () => {
         },
         {
           provide: HardRulesService,
-          useValue: { getInsurerWide: () => of([]), get: () => of([]) },
+          useValue: { getInsurerWide: () => of([]), get: () => of(hardRules) },
         },
         { provide: DocumentRulesService, useValue: { get: () => agenda() } },
         {
@@ -202,6 +205,106 @@ describe('RulesComponent', () => {
 
     expect(el().textContent).toContain('Este ramo todavía no tiene documentos habilitados.');
     expect(el().querySelector('.doc-row-name')).toBeNull();
+  });
+
+  it('shows the report deadline in hours, as stored', async () => {
+    await mount([coverage({ reportDeadlineHours: 36 })]);
+
+    expect(el().textContent).toContain('Denuncia 36 h');
+  });
+
+  describe('a hard rule of the coverage', () => {
+    function ruleRow(label: string): HTMLElement {
+      return [...el().querySelectorAll<HTMLElement>('.cov-body .rule-row')].find((row) =>
+        row.querySelector('.rule-text')?.textContent?.includes(label),
+      )!;
+    }
+
+    beforeEach(() => {
+      localStorage.removeItem(LAST_TAB_KEY);
+      hardRules = [
+        { ruleType: 'WAITING_PERIOD', enabled: false, deadlineHours: null },
+        { ruleType: 'REPORT_DEADLINE', enabled: true, deadlineHours: null },
+        { ruleType: 'MAX_EVENTS_YEAR', enabled: false, deadlineHours: null },
+      ];
+    });
+
+    it('shows its value only while it is on', async () => {
+      await mount([coverage()]);
+      click(el().querySelector<HTMLElement>('.cov-toggle'));
+
+      expect(ruleRow('Plazo de denuncia').querySelector('input')?.value).toBe('72');
+      expect(ruleRow('Carencia').querySelector('input')).toBeNull();
+      expect(ruleRow('Carencia').textContent).toContain('Sin carencia');
+      expect(ruleRow('Tope de eventos por año').textContent).toContain('Sin tope');
+    });
+
+    it('shows the value again when it is switched on', async () => {
+      await mount([coverage()]);
+      click(el().querySelector<HTMLElement>('.cov-toggle'));
+
+      click(ruleRow('Carencia').querySelector<HTMLElement>('app-switch button'));
+
+      expect(ruleRow('Carencia').querySelector('input')?.value).toBe('30');
+    });
+
+    it('leaves the switched off ones out of the collapsed summary', async () => {
+      await mount([coverage()]);
+
+      const summary = el().querySelector('.cov-chips')?.textContent;
+      expect(summary).toContain('Denuncia 72 h');
+      expect(summary).not.toContain('Carencia');
+      expect(summary).not.toContain('Máx.');
+    });
+  });
+
+  describe('when part of the branch fails to load', () => {
+    beforeEach(() => {
+      claimCauses = () => throwError(() => new Error('down'));
+    });
+
+    it('shows the error instead of an editable, incomplete branch', async () => {
+      await mount([coverage()]);
+
+      expect(el().textContent).toContain('No se pudo cargar el ramo.');
+      expect(el().querySelector('.cov-card')).toBeNull();
+      expect(el().textContent).not.toContain('Agregar cobertura');
+    });
+
+    it('loads the branch again on Reintentar', async () => {
+      await mount([coverage()]);
+      claimCauses = () => of([{ id: 4, name: 'Caída' }]);
+
+      click(
+        [...el().querySelectorAll<HTMLButtonElement>('button')].find(
+          (b) => b.textContent?.trim() === 'Reintentar',
+        ),
+      );
+
+      expect(el().textContent).not.toContain('No se pudo cargar el ramo.');
+      expect(el().querySelector('.cov-card')).not.toBeNull();
+    });
+  });
+
+  /** A branch another referent creates shows up without moving the referent off their branch. */
+  it('takes a refreshed branch list and keeps the open branch', async () => {
+    const lists = new BehaviorSubject<BranchOption[]>([
+      { id: 1, name: 'Celulares' },
+      { id: 2, name: 'Tecnología Portátil' },
+    ]);
+    branchList = () => lists;
+    await mount();
+    click(branch('Tecnología Portátil'));
+
+    lists.next([
+      { id: 1, name: 'Celulares' },
+      { id: 2, name: 'Tecnología Portátil' },
+      { id: 3, name: 'Hogar' },
+    ]);
+    fixture.detectChanges();
+
+    expect(branch('Hogar')).toBeTruthy();
+    expect(el().querySelector('.branch-title')?.textContent).toContain('Tecnología Portátil');
   });
 
   describe('the Documentación marker', () => {

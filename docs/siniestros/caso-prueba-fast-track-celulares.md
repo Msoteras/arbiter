@@ -108,7 +108,7 @@ Cualquiera que falle bloquea el Fast Track, aunque los cinco umbrales hayan pasa
 
 | Regla | Configurado | Este caso | ¿Pasa? |
 |---|---|---|---|
-| `covers_family_group` | `false` — la cobertura no alcanza al grupo familiar | la damnificada es la titular | ✅ |
+| `poliza.cubre_grupo_familiar` | `true` — la póliza alcanza al grupo familiar | la damnificada es la titular | ✅ (no se evalúa) |
 
 ### 2.4 · Los antecedentes de fraude — `FraudRecordRuleEvaluator`
 

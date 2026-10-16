@@ -22,8 +22,6 @@ public record BusinessRules(
         Long reportDeadlineHours,
         Integer maxEventsPerYear,
         Integer waitingPeriodDays,
-        // Taken from the referente's coverage config, not from the insurer DB's poliza.cubre_grupo_familiar.
-        Boolean coversFamilyGroup,
         // Document code → the name the analyst reads, from the platform catalog.
         Map<String, String> documentTypeNames
 ) {

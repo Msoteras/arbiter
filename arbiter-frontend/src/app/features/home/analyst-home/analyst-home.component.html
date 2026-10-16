@@ -21,9 +21,9 @@
             }
           </p>
         </div>
-        <a routerLink="/inbox" class="hero-cta"
-          ><app-button variant="secondary">Ir a mi bandeja ›</app-button></a
-        >
+        <app-button class="hero-cta" variant="secondary" routerLink="/inbox" tabindex="-1">
+          Ir a mi bandeja ›
+        </app-button>
       </div>
 
       <nav class="shortcuts" aria-label="Para hoy">
@@ -43,11 +43,16 @@
 
     <div class="cols">
       <div class="col col-main" #mainCol>
-        <app-card heading="Siniestros asignados" headingSize="md" [flush]="true" class="queue-card">
+        <app-card
+          heading="Expedientes asignados"
+          headingSize="md"
+          [flush]="true"
+          class="queue-card"
+        >
           @if (queue() === null) {
-            <p class="t-note pad">No pudimos cargar tus siniestros. Probá recargar la página.</p>
+            <p class="t-note pad">No pudimos cargar tus expedientes. Probá recargar la página.</p>
           } @else if (queue()!.length === 0) {
-            <app-empty-state message="No tenés siniestros asignados" sub="Todo al día" />
+            <app-empty-state message="No tenés expedientes asignados" sub="Todo al día" />
           } @else {
             <ul class="queue" [style.--queue-row-extra]="rowExtra() + 'px'" @listStagger>
               @for (c of queue(); track c.id) {
@@ -123,17 +128,28 @@
               <h2 class="unassigned-count">
                 <span class="tabular">{{ summary()?.unassigned ?? '—' }}</span> sin asignar
               </h2>
-              @if (oldestUnassignedDays(); as days) {
+              @let days = oldestUnassignedDays();
+              <!-- Not "as days": 0 is falsy, and a case that came in today has to show too. -->
+              @if (days !== null) {
                 <p class="t-note">
-                  El más antiguo espera hace {{ days }} {{ days === 1 ? 'día' : 'días' }}
+                  @if (days === 0) {
+                    El más antiguo entró hoy
+                  } @else {
+                    El más antiguo espera hace {{ days }} {{ days === 1 ? 'día' : 'días' }}
+                  }
                 </p>
               } @else if (summary()?.unassigned === 0) {
                 <p class="t-note">No hay expedientes sin analista</p>
               }
             </div>
-            <a routerLink="/inbox" [queryParams]="{ unassigned: 'true' }"
-              ><app-button size="sm">Ver y tomar</app-button></a
+            <app-button
+              size="sm"
+              routerLink="/inbox"
+              [queryParams]="{ unassigned: 'true' }"
+              tabindex="-1"
             >
+              Ver y tomar
+            </app-button>
           </div>
         </app-card>
 
@@ -150,7 +166,7 @@
             <div class="caseload">
               <div>
                 <p class="t-section-label legend">
-                  <span class="key key-yours"></span>En espera · {{ c.yoursTotal }}
+                  <span class="key key-yours"></span>Te toca a vos · {{ c.yoursTotal }}
                 </p>
                 @for (row of c.yours; track row.label) {
                   <a class="caseload-row" routerLink="/inbox" [queryParams]="row.query">
@@ -181,26 +197,27 @@
           @if (weekLoading()) {
             <app-inline-loading [size]="22" message="Calculando tu semana…" />
           } @else if (weekStats(); as w) {
+            <!-- The label is the term and the number its value; CSS puts the number on top. -->
             <dl class="week">
               <div>
-                <dt class="week-value tabular">{{ w.resolved }}</dt>
-                <dd class="t-note">resueltos · {{ w.approved }} aprobados</dd>
+                <dt class="t-note">resueltos · {{ w.approved }} aprobados</dt>
+                <dd class="week-value tabular">{{ w.resolved }}</dd>
               </div>
               <div>
-                <dt class="week-value tabular">
+                <dt class="t-note">promedio, sin pausas</dt>
+                <dd class="week-value tabular">
                   {{ w.ownDays ?? '—' }} <span class="week-unit">días</span>
-                </dt>
-                <dd class="t-note">promedio, sin pausas</dd>
+                </dd>
               </div>
               <div>
-                <dt class="week-value tabular">{{ w.overdueAtResolution }}</dt>
-                <dd class="t-note">vencidos al resolver</dd>
+                <dt class="t-note">vencidos al resolver</dt>
+                <dd class="week-value tabular">{{ w.overdueAtResolution }}</dd>
               </div>
               <div>
-                <dt class="week-value tabular">
+                <dt class="t-note">de acuerdo con el modelo</dt>
+                <dd class="week-value tabular">
                   {{ w.agreement === null ? '—' : w.agreement + '%' }}
-                </dt>
-                <dd class="t-note">de acuerdo con el modelo</dd>
+                </dd>
               </div>
             </dl>
           } @else {

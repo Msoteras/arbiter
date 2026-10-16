@@ -153,10 +153,13 @@ public class TemporalRuleEvaluator {
                         hours, rule.deadlineHours()));
     }
 
-    /** An unknown schedule doesn't switch the rule off. */
+    /**
+     * An unknown schedule doesn't switch the rule off. An empty one is unknown too: rules-service
+     * answers the same empty list when nothing is configured, and it arrives as such, never null.
+     */
     private static boolean requiresPoliceReport(BusinessRules rules) {
-        return rules.requiredDocumentTypes() == null
-                || rules.requiredDocumentTypes().contains(POLICE_REPORT_TYPE);
+        List<String> schedule = rules.requiredDocumentTypes();
+        return schedule == null || schedule.isEmpty() || schedule.contains(POLICE_REPORT_TYPE);
     }
 
     private void evaluateReportDeadline(

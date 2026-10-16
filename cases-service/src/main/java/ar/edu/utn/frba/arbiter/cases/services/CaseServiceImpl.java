@@ -9,6 +9,7 @@ import ar.edu.utn.frba.arbiter.cases.dto.AnalystWorkloadResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.AssignedCaseSummaryResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.HomeSummaryResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseDocumentResponse;
+import ar.edu.utn.frba.arbiter.cases.dto.CaseDeadline;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseFollowUp;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseScope;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseRequest;
@@ -27,8 +28,10 @@ import ar.edu.utn.frba.arbiter.cases.config.tenant.CallerContext;
 import ar.edu.utn.frba.arbiter.cases.config.tenant.TenantContext;
 import ar.edu.utn.frba.arbiter.cases.dto.StatusTransitionResponse;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.InsurerRepository;
+import ar.edu.utn.frba.arbiter.common.enums.ProviderReport;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.ClaimCause;
 import ar.edu.utn.frba.arbiter.common.models.entities.Insurer;
+import ar.edu.utn.frba.arbiter.cases.exceptions.SettlementAwaitingReferentException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.AnalystNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.AnalystProfileNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CaseAssignedToAnotherAnalystException;
@@ -40,6 +43,7 @@ import ar.edu.utn.frba.arbiter.cases.exceptions.DocumentNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.DocumentTypeNotAllowedException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.DocumentReadException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.InsuredIdentityMismatchException;
+import ar.edu.utn.frba.arbiter.cases.exceptions.RulesMisconfiguredException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.RulesUnavailableException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidAnalystDecisionException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidSettlementException;
@@ -76,12 +80,15 @@ import ar.edu.utn.frba.arbiter.common.enums.Classification;
 import ar.edu.utn.frba.arbiter.common.enums.DeadlinePriority;
 import ar.edu.utn.frba.arbiter.common.enums.RiskBand;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -110,6 +117,8 @@ import java.util.stream.Stream;
 @Service
 @RequiredArgsConstructor
 public class CaseServiceImpl implements CaseService {
+
+    private static final Logger log = LoggerFactory.getLogger(CaseServiceImpl.class);
 
     private final CaseRepository caseRepository;
     private final CaseDocumentRepository caseDocumentRepository;
@@ -196,17 +205,28 @@ public class CaseServiceImpl implements CaseService {
 
         // After the ownership check, so someone else's policy never leaks its coverage window.
         PolicyCoverage contracted;
+        List<PolicyCoverage> candidates = List.of();
         boolean coverageVerified = true;
+        // A refusal won't fix itself, so that case isn't left for the automatic requeue.
+        boolean rulesMisconfigured = false;
         try {
             contracted = policyCoverageResolver.resolveFor(policy.getId(), claimCause.getId());
         } catch (RulesUnavailableException e) {
-            contracted = policyCoverageResolver.provisionalFor(policy.getId(), claimCause.getId());
+            candidates = policyCoverageResolver.provisionalCandidates(policy.getId(), claimCause.getId());
+            contracted = candidates.getFirst();
             coverageVerified = false;
+            rulesMisconfigured = e instanceof RulesMisconfiguredException;
         }
 
-        policyEligibilityValidator.validate(
-                request.policyNumber(), request.eventDate(), request.policeReportAt(),
-                coverageVerified ? contracted.getCoverage() : null, claimCause);
+        if (coverageVerified) {
+            policyEligibilityValidator.validate(
+                    request.policyNumber(), request.eventDate(), request.policeReportAt(),
+                    contracted.getCoverage(), claimCause);
+        } else {
+            policyEligibilityValidator.validateWithoutCoverage(
+                    request.policyNumber(), request.eventDate(), request.policeReportAt(),
+                    candidates.stream().map(PolicyCoverage::getCoverage).toList());
+        }
 
         boolean documentsVerified = coverageVerified && verifyRequiredDocuments(
                 contracted.getCoverage().getId(), request.branch(), request.claimCause(), documents);
@@ -235,10 +255,17 @@ public class CaseServiceImpl implements CaseService {
         if (coverageVerified) {
             claimsAnalysisClient.analyzeAndPersist(saved, caseDocumentRepository.findByCaseId(saved.getId()));
         } else {
-            saved.setClassificationFailureReason(ClassificationFailureReason.INFRASTRUCTURE);
-            saved.setClassificationFailureMessage("Coverage exclusions unreadable at filing");
-            caseStatusService.transition(saved, CaseStatus.CLASSIFICATION_FAILED, StatusChangeActor.SYSTEM,
-                    "no se pudo verificar la cobertura por una falla de infraestructura");
+            if (rulesMisconfigured) {
+                saved.setClassificationFailureReason(ClassificationFailureReason.OTHER);
+                saved.setClassificationFailureMessage("Coverage exclusions refused by rules-service at filing");
+                caseStatusService.transition(saved, CaseStatus.CLASSIFICATION_FAILED, StatusChangeActor.SYSTEM,
+                        "no se pudo verificar la cobertura: la configuración de reglas no se puede leer");
+            } else {
+                saved.setClassificationFailureReason(ClassificationFailureReason.INFRASTRUCTURE);
+                saved.setClassificationFailureMessage("Coverage exclusions unreadable at filing");
+                caseStatusService.transition(saved, CaseStatus.CLASSIFICATION_FAILED, StatusChangeActor.SYSTEM,
+                        "no se pudo verificar la cobertura por una falla de infraestructura");
+            }
         }
 
         // The case may have landed outside the login's tenant; the frontend needs the slug for every
@@ -400,12 +427,9 @@ public class CaseServiceImpl implements CaseService {
     /** The multipart part carrying the case JSON itself; never stored or sent to OCR as a document. */
     private static final String CASE_PAYLOAD_KEY = "case";
 
-    /** Answers to a referral, attached by the analyst: internal to the insurer like the referral itself. */
-    private static final Set<String> PROVIDER_REPORT_TYPES = Set.of(
-            CaseReferralService.REPORT_DOCUMENT_TYPE, CaseReferralService.REPAIR_DOCUMENT_TYPE);
-
     private boolean hiddenFromCaller(CaseDocument document) {
-        return accessPolicy.currentUserIsInsured() && PROVIDER_REPORT_TYPES.contains(document.getType());
+        // Answers to a referral, attached by the analyst: internal to the insurer like the referral itself.
+        return accessPolicy.currentUserIsInsured() && ProviderReport.isProviderReport(document.getType());
     }
 
     /**
@@ -417,7 +441,7 @@ public class CaseServiceImpl implements CaseService {
             return;
         }
         documents.keySet().stream()
-                .filter(PROVIDER_REPORT_TYPES::contains)
+                .filter(ProviderReport::isProviderReport)
                 .findFirst()
                 .ifPresent(type -> {
                     throw new DocumentTypeNotAllowedException(type);
@@ -481,7 +505,7 @@ public class CaseServiceImpl implements CaseService {
                                          String insuredId, LocalDate eventDateFrom, LocalDate eventDateTo,
                                          String q, RiskBand riskBand, Long analystId, boolean assignedToMe,
                                          boolean unassigned, boolean fraudAlert, boolean assigned,
-                                         boolean dueSoon, CaseFollowUp followUp, Integer staleDays,
+                                         CaseDeadline deadline, CaseFollowUp followUp, Integer staleDays,
                                          CaseScope scope, Long insurerId, Pageable pageable) {
         if (accessPolicy.currentUserIsInsured()) {
             // Across all of the insured's insurers; the inbox lenses don't apply to them. Nor do
@@ -502,9 +526,10 @@ public class CaseServiceImpl implements CaseService {
             }
         }
 
-        Specification<Case> spec = and(withDueSoon(CaseSpecifications.withFilters(
+        Specification<Case> spec = and(CaseSpecifications.withFilters(
                 status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
-                ownerId, unassigned, fraudAlert, assigned), dueSoon), CaseSpecifications.scope(scope));
+                ownerId, unassigned, fraudAlert, assigned), CaseSpecifications.scope(scope));
+        spec = and(spec, withDeadline(deadline));
         spec = and(spec, withStale(staleDays));
         spec = and(spec, CaseSpecifications.followUp(followUp));
         spec = and(spec, CaseSpecifications.insuredStatus(insuredStatus));
@@ -540,28 +565,33 @@ public class CaseServiceImpl implements CaseService {
         return CaseSpecifications.staleSince(Instant.now(clock).minus(staleDays, ChronoUnit.DAYS));
     }
 
-    /** Same threshold as the deadline priority ({@code deadlinePriority != NONE}). */
-    private Specification<Case> withDueSoon(Specification<Case> base, boolean dueSoon) {
-        if (!dueSoon) {
-            return base;
+    /**
+     * Due soon uses the deadline priority's threshold ({@code deadlinePriority != NONE}); overdue, the
+     * same bucket the home screen counts, so its shortcut and the listing agree.
+     */
+    private Specification<Case> withDeadline(CaseDeadline deadline) {
+        if (deadline == null) {
+            return null;
         }
-        Specification<Case> due = CaseSpecifications.dueSoonBefore(
-                LocalDate.now(clock).plusDays(DeadlinePriority.WATCH_DAYS));
-        return base == null ? due : base.and(due);
+        LocalDate today = LocalDate.now(clock);
+        return switch (deadline) {
+            case DUE_SOON -> CaseSpecifications.dueSoonBefore(today.plusDays(DeadlinePriority.WATCH_DAYS));
+            case OVERDUE -> CaseSpecifications.runningTermDue(null, today.minusDays(1));
+        };
     }
 
     @Override
     public LensSummaryResponse lensSummary(List<CaseStatus> status, String claimCause, String policyNumber,
                                             String insuredId, LocalDate eventDateFrom, LocalDate eventDateTo,
                                             String q, RiskBand riskBand, Long analystId, CaseFollowUp followUp,
-                                            Integer staleDays, boolean dueSoon) {
+                                            Integer staleDays, CaseDeadline deadline) {
         // analystId is the referent's filter and a referent has no analyst profile, so it never
         // coexists with a real "me" and both can share the same WHERE.
         Long me = currentAnalystId().orElse(null);
         Specification<Case> spec = CaseSpecifications.withFilters(
                 status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
                 analystId);
-        spec = and(withDueSoon(spec, dueSoon), withStale(staleDays));
+        spec = and(and(spec, withDeadline(deadline)), withStale(staleDays));
         spec = and(spec, CaseSpecifications.followUp(followUp));
 
         CaseLensCountRepository.LensCounts counts = caseRepository.countLenses(spec, me);
@@ -728,8 +758,7 @@ public class CaseServiceImpl implements CaseService {
 
         return new HomeSummaryResponse(
                 deadlines,
-                countMine(mine, ownsNothing, CaseSpecifications.followUp(CaseFollowUp.EXPERT_REPORT_RECEIVED)),
-                countMine(mine, ownsNothing, CaseSpecifications.followUp(CaseFollowUp.REPAIR_REPORT_RECEIVED)),
+                countMine(mine, ownsNothing, CaseSpecifications.followUp(CaseFollowUp.PROVIDER_REPORT_RECEIVED)),
                 countMine(mine, ownsNothing, CaseSpecifications.followUp(CaseFollowUp.RETURNED_BY_REFERENT)),
                 countMine(mine, ownsNothing, CaseSpecifications.followUp(CaseFollowUp.AWAITING_REFERENT)),
                 countMine(mine, ownsNothing, withStale(HOME_STALE_DAYS)),
@@ -842,6 +871,7 @@ public class CaseServiceImpl implements CaseService {
         }
 
         ClaimsAnalyst analyst = requireAssignedAnalyst(entity);
+        assertNotAwaitingReferent(entity);
 
         // Approving includes the amount. Validated before forwarding anything, so a decision that
         // is going to fail never reaches the audit log.
@@ -889,6 +919,14 @@ public class CaseServiceImpl implements CaseService {
         return analyst;
     }
 
+    /** The case stays in PENDING_ANALYST_REVIEW while the referent signs, so the status can't tell. */
+    private void assertNotAwaitingReferent(Case entity) {
+        if (settlementService.statusesFor(List.of(entity.getId())).get(entity.getId())
+                == SettlementStatus.PENDING_AUTHORIZATION) {
+            throw new SettlementAwaitingReferentException(entity.getId());
+        }
+    }
+
     /**
      * Withdrawn or voided: the analyst ends the case without a verdict. The reason is mandatory and
      * goes on the history row. The audit gets the closure too, when there is a classification to
@@ -904,12 +942,19 @@ public class CaseServiceImpl implements CaseService {
                 .orElseThrow(() -> new CaseNotFoundException(caseId));
         caseStatusService.assertCanMove(entity.getStatus(), closure);
         ClaimsAnalyst analyst = requireAssignedAnalyst(entity);
+        assertNotAwaitingReferent(entity);
 
         if (entity.getStatus() != CaseStatus.CLASSIFICATION_FAILED) {
             AnalystDecisionRequest audited = new AnalystDecisionRequest(
                     analyst.getId(), closure == CaseStatus.WITHDRAWN ? "WITHDRAW" : "VOID", reason.trim(),
                     entity.getClassificationAttempts(), null);
-            entity.setClassificationId(claimsAnalysisClient.forwardAnalystDecision(entity.getId(), audited));
+            try {
+                entity.setClassificationId(claimsAnalysisClient.forwardAnalystDecision(entity.getId(), audited));
+            } catch (HttpClientErrorException.UnprocessableEntity noClassification) {
+                // The status alone doesn't tell: a case moved to AWAITING_DOCUMENTATION before its run
+                // failed has none either, and classification-service answers 422 for it.
+                log.info("Case {} closed as {} without an audit row: it has no classification", caseId, closure);
+            }
         }
 
         caseStatusService.transition(entity, closure, StatusChangeActor.ANALYST,

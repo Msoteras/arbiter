@@ -4,6 +4,7 @@ import ar.edu.utn.frba.arbiter.classification.dto.DocumentExtraction;
 import ar.edu.utn.frba.arbiter.classification.services.risk.RiskContext;
 import ar.edu.utn.frba.arbiter.classification.services.risk.RiskFactorEvaluator;
 import ar.edu.utn.frba.arbiter.classification.services.risk.RiskFactorIds;
+import ar.edu.utn.frba.arbiter.common.enums.ProviderReport;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
@@ -42,12 +43,6 @@ public class DocumentInconsistencyEvaluator implements RiskFactorEvaluator {
     /** On a damage claim, the document that sets what is being claimed. */
     private static final String REPAIR_QUOTE_TYPE = "repair_quote";
 
-    /**
-     * What a provider answers a referral with. The analyst uploads them, not the insured, so they
-     * say nothing about the insured's documentation.
-     */
-    private static final Set<String> PROVIDER_REPORT_TYPES = Set.of("expert_report", "repair_report");
-
     private static final DateTimeFormatter DISPLAY_DATE = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
     private static final Locale AR = Locale.forLanguageTag("es-AR");
@@ -69,7 +64,8 @@ public class DocumentInconsistencyEvaluator implements RiskFactorEvaluator {
 
         List<String> findings = new ArrayList<>();
         documents.forEach((type, extraction) -> {
-            if (PROVIDER_REPORT_TYPES.contains(type)) {
+            // The analyst uploads a provider's report: it says nothing about the insured's documentation.
+            if (ProviderReport.isProviderReport(type)) {
                 return;
             }
             checkItemAttributes(context, type, extraction.fields(), findings);

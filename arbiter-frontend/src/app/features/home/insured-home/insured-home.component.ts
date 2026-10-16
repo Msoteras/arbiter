@@ -11,6 +11,7 @@ import {
   InsuredStatusCode,
   insuredStatusDescription,
   insuredStatusTitle,
+  insuredStatusTone,
   isFinalInsuredStatus,
 } from '../../../core/models/insured-status';
 import { StatusTone } from '../../../core/models/status-tone';
@@ -132,9 +133,10 @@ export class InsuredHomeComponent {
       {
         label: 'Resolución',
         n: 3,
-        // Green only for APPROVED: rejection and lapse are terminal too, but not good news.
+        // The same tone as everywhere else the insured sees the status: a rejection is marked, a
+        // withdrawn or voided claim is just closed.
         state: resolved ? 'done' : 'pending',
-        tone: resolved ? (code === 'APPROVED' ? 'ok' : 'danger') : undefined,
+        tone: resolved ? insuredStatusTone(code) : undefined,
       },
     ];
   });
@@ -176,10 +178,7 @@ export class InsuredHomeComponent {
   }
 
   protected statusTone(code: InsuredStatusCode): StatusTone {
-    if (isFinalInsuredStatus(code)) {
-      return code === 'APPROVED' ? 'ok' : 'danger';
-    }
-    return 'info';
+    return insuredStatusTone(code);
   }
 
   protected reportedOn(c: CaseResponse): string {

@@ -58,7 +58,7 @@
 }
 
 .amount-col {
-  min-width: 14rem;
+  min-width: var(--control-w-amount);
 }
 .amount-head {
   display: flex;

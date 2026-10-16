@@ -90,6 +90,7 @@ Service starts at `http://localhost:8082`. Swagger UI: `http://localhost:8082/sw
 | `OLLAMA_MODEL` | `qwen3-vl:8b-instruct` | Model to use (must be the `-instruct` tag, see `CLAUDE.md`) |
 | `OLLAMA_NUM_CTX` | `32768` | Context window |
 | `GOOGLE_CLOUD_PROJECT` / `GOOGLE_CLOUD_LOCATION` / `GEMINI_MODEL` | — / `global` / `gemini-3.5-flash` | Only used when `LLM_PROVIDER=gemini`; auth via ADC, no API key |
+| `GEMINI_TIMEOUT` | `90s` | Cap on each Gemini call; a call that hits it is retried once, then fails as infrastructure |
 | `EMBEDDING_SERVICE_URL` | `http://localhost:8000` | CLIP sidecar (`embedding-service`) for duplicate-image detection |
 | `EMBEDDING_SIMILARITY_THRESHOLD` | `0.90` | Minimum cosine similarity to flag a duplicate |
 | `GOOGLE_VISION_ENABLED` / `GOOGLE_VISION_API_KEY` | `false` / — | Opt-in web-image-match escalation, requires insured consent (`imageConsent`) |

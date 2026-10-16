@@ -76,6 +76,20 @@
   gap: 0;
 }
 
+@include media.phone {
+  .doc-col,
+  .doc-cell {
+    padding-inline: var(--space-1) !important;
+  }
+  .doc-col-name,
+  .doc-col-count {
+    display: inline-block;
+    margin: 0;
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
+  }
+}
+
 .doc-legend {
   display: flex;
   gap: var(--space-4);
@@ -171,7 +185,7 @@
 }
 /* A choice between sentences rather than a number. */
 .rule-value.choice app-select {
-  width: 18rem;
+  width: var(--control-w-choice);
 }
 /* A field with its unit beside it, inside a labelled fieldset. */
 .with-unit {
@@ -182,9 +196,7 @@
 .with-unit app-input {
   flex: 1 1 auto;
 }
-/* Dimmed, not hidden: the threshold stays editable before enabling the rule. */
-.rule-row.off .rule-text,
-.rule-row.off .rule-value {
+.rule-row.off .rule-text {
   opacity: 0.55;
 }
 
@@ -268,5 +280,10 @@
 
 // Chosen for Fast Track but no longer in the coverage's document schedule.
 .check-list app-checkbox.stale {
+  color: var(--status-danger);
+}
+
+.load-error {
+  margin: 0 0 var(--space-3);
   color: var(--status-danger);
 }

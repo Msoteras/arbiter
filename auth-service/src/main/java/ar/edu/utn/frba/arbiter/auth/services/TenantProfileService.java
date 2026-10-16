@@ -3,6 +3,7 @@ package ar.edu.utn.frba.arbiter.auth.services;
 import ar.edu.utn.frba.arbiter.auth.exceptions.InsuredProfileConflictException;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.ClaimsAnalyst;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Insured;
+import ar.edu.utn.frba.arbiter.common.models.entities.tenant.InsurerReferent;
 import ar.edu.utn.frba.arbiter.common.models.entities.User;
 import ar.edu.utn.frba.arbiter.auth.models.repositories.ClaimsAnalystRepository;
 import ar.edu.utn.frba.arbiter.auth.models.repositories.InsuredRepository;
@@ -73,6 +74,30 @@ public class TenantProfileService {
                 .surname(surname)
                 .email(email)
                 .build());
+    }
+
+    /**
+     * For a role change between staff roles. Reuses the row when the user held this role before,
+     * since cases may already point at its id.
+     */
+    public void createStaffProfileIfMissing(UserRole role, User user, String name, String surname) {
+        switch (role) {
+            case ANALISTA_SINIESTROS -> {
+                if (claimsAnalystRepository.findByUserId(user.getId()).isEmpty()) {
+                    createClaimsAnalyst(user, name, surname, user.getEmail());
+                }
+            }
+            case REFERENTE_ASEGURADORA -> {
+                if (insurerReferentRepository.findByUserId(user.getId()).isEmpty()) {
+                    insurerReferentRepository.save(InsurerReferent.builder()
+                            .user(user)
+                            .name(name)
+                            .surname(surname)
+                            .build());
+                }
+            }
+            case ASEGURADO -> throw new IllegalArgumentException("ASEGURADO is not a staff role");
+        }
     }
 
     /** The profile FKs to {@code users} aren't {@code ON DELETE CASCADE}: call this before deleting the user. */

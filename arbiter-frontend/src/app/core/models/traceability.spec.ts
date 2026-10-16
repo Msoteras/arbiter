@@ -83,10 +83,10 @@ describe('traceability', () => {
 
     it('names the affected party in Spanish', () => {
       expect(ruleEvaluationText('COVERS_FAMILY_GROUP', 'affectedParty=FAMILIAR')).toBe(
-        'Damnificado: un familiar · la cobertura no alcanza al grupo familiar',
+        'Damnificado: un familiar · la póliza no alcanza al grupo familiar',
       );
       expect(ruleEvaluationText('COVERS_FAMILY_GROUP', 'affectedParty=TITULAR')).toBe(
-        'Damnificado: el titular · la cobertura no alcanza al grupo familiar',
+        'Damnificado: el titular · la póliza no alcanza al grupo familiar',
       );
     });
 

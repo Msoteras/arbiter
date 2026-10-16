@@ -1,6 +1,7 @@
 package ar.edu.utn.frba.arbiter.classification.config;
 
 import com.google.genai.Client;
+import com.google.genai.types.HttpOptions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -24,12 +25,13 @@ public class GeminiConfig {
      */
     @Bean
     public Client genAiClient(GeminiProperties properties) {
-        log.info("[Gemini] Vertex backend — project={} location={} model={}",
-                properties.project(), properties.location(), properties.model());
+        log.info("[Gemini] Vertex backend — project={} location={} model={} timeout={}",
+                properties.project(), properties.location(), properties.model(), properties.timeout());
         return Client.builder()
                 .vertexAI(true)
                 .project(properties.project())
                 .location(properties.location())
+                .httpOptions(HttpOptions.builder().timeout((int) properties.timeout().toMillis()).build())
                 .build();
     }
 }

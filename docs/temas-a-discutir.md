@@ -170,7 +170,17 @@ reserva" y por lo tanto no se puede modelar sin resolver esto antes.
 
 ---
 
-## Alcance de la cobertura: ¿de dónde sale "grupo familiar"? Y "agota la cobertura" sobraba
+## ~~Alcance de la cobertura: ¿de dónde sale "grupo familiar"? Y "agota la cobertura" sobraba~~ — ✅ decidido: de la póliza (15/10/2026)
+
+**Decidido el 15/10/2026: opción 1.** El motor lee `poliza.cubre_grupo_familiar` de la BD
+Aseguradora (`InsuredPolicy.coversFamilyGroup`), y queda congelado en el snapshot de la póliza con
+el resto de la respuesta. Se borró `coverage.covers_family_group` con
+`2026-10-15-borrar-grupo-familiar-de-cobertura.sql`, junto con su campo en los DTOs de cases, rules
+y classification. El referente no configura nada. La BD Aseguradora define la columna `NOT NULL
+DEFAULT FALSE`, así que toda aseguradora integrada la informa. Si alguna vez llega vacía, la regla no
+se evalúa.
+
+Lo que sigue queda como registro de cómo se llegó a la decisión.
 
 **Encontrado:** 14/10/2026, revisando la solapa Reglas → Coberturas. El checkbox "Alcanza al grupo
 familiar" ya no está en la cobertura (`feature/ux-enhancements-reglas`). La columna y la regla del
@@ -216,9 +226,6 @@ la regla `CLAIM_EXHAUSTS_COVERAGE` del motor. La migración
 `2026-10-14-borrar-un-siniestro-agota-la-cobertura.sql` le pone tope 1 a toda cobertura que tenía la
 marca prendida, y le prende la regla `MAX_EVENTS_YEAR` si no la tenía. Las filas viejas de
 `rule_result` se siguen leyendo en la trazabilidad.
-
-**Qué bloquea:** nada del desarrollo. Mientras tanto, el motor usa el valor de cada cobertura,
-que nadie puede editar, y en BBVA frena casos que la póliza cubre.
 
 ---
 

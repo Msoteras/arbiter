@@ -6,7 +6,8 @@ export type IconButtonIcon = 'edit' | 'delete' | 'confirm';
  * Square button that shows only an icon, for a row's own actions (edit, remove) where a text button
  * per row would crowd the list. `label` is required: it is the accessible name and the tooltip,
  * the only words the action has. The icons are a closed set on purpose, so the same action always
- * looks the same.
+ * looks the same. `size="sm"` sits next to a line of text, like the role in a table cell; on touch
+ * layouts both sizes keep the full touch target.
  */
 @Component({
   selector: 'app-icon-button',
@@ -18,6 +19,7 @@ export type IconButtonIcon = 'edit' | 'delete' | 'confirm';
     <button
       type="button"
       class="icon-btn"
+      [class.sm]="size() === 'sm'"
       [class.danger]="icon() === 'delete'"
       [attr.aria-label]="label()"
       [attr.title]="label()"
@@ -71,8 +73,17 @@ export type IconButtonIcon = 'edit' | 'delete' | 'confirm';
       color: var(--accent-fg);
       cursor: pointer;
     }
+    .icon-btn.sm {
+      width: var(--icon-btn-sm);
+      height: var(--icon-btn-sm);
+    }
+    .icon-btn.sm svg {
+      width: var(--icon-sm);
+      height: var(--icon-sm);
+    }
     @include media.touch {
-      .icon-btn {
+      .icon-btn,
+      .icon-btn.sm {
         width: var(--touch-target);
         height: var(--touch-target);
       }
@@ -108,4 +119,5 @@ export class IconButtonComponent {
   readonly icon = input.required<IconButtonIcon>();
   readonly label = input.required<string>();
   readonly disabled = input(false);
+  readonly size = input<'md' | 'sm'>('md');
 }

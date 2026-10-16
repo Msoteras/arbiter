@@ -21,6 +21,7 @@ class InsuredPolicyCoverageTest {
         // Validity and arrears belong to the policy, not to the coverage.
         assertThat(theft.policyNumber()).isEqualTo(policy.policyNumber());
         assertThat(theft.upToDate()).isEqualTo(policy.upToDate());
+        assertThat(theft.coversFamilyGroup()).isTrue();
         assertThat(theft.coverages()).isEqualTo(policy.coverages());
     }
 
@@ -51,6 +52,7 @@ class InsuredPolicyCoverageTest {
                 .insuredName("Martina Soteras")
                 .branch("Celulares")
                 .upToDate(true)
+                .coversFamilyGroup(true)
                 .insuredAmount(new BigDecimal("1300000"))
                 .deductible(new BigDecimal("130000"))
                 .coverages(List.of(

@@ -142,6 +142,11 @@ public class CaseExceptionHandler extends ResponseEntityExceptionHandler {
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(422), ex.getMessage());
     }
 
+    @ExceptionHandler(SettlementAwaitingReferentException.class)
+    public ProblemDetail handleSettlementAwaitingReferent(SettlementAwaitingReferentException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(409), ex.getMessage());
+    }
+
     @ExceptionHandler(ClaimCauseCorrectionNotAllowedException.class)
     public ProblemDetail handleClaimCauseCorrectionNotAllowed(ClaimCauseCorrectionNotAllowedException ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(422), ex.getMessage());
@@ -149,6 +154,12 @@ public class CaseExceptionHandler extends ResponseEntityExceptionHandler {
 
     @ExceptionHandler(DerivationNotAllowedException.class)
     public ProblemDetail handleDerivationNotAllowed(DerivationNotAllowedException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(422), ex.getMessage());
+    }
+
+    /** 422: rules-service is up, and waiting won't help until the referent fixes the configuration. */
+    @ExceptionHandler(RulesMisconfiguredException.class)
+    public ProblemDetail handleRulesMisconfigured(RulesMisconfiguredException ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(422), ex.getMessage());
     }
 

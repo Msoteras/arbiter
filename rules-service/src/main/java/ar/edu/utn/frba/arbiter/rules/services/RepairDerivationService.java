@@ -1,28 +1,19 @@
 package ar.edu.utn.frba.arbiter.rules.services;
 
-import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Branch;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.ClaimCause;
-import ar.edu.utn.frba.arbiter.rules.dto.InsurerRuleSnapshot;
 import ar.edu.utn.frba.arbiter.rules.dto.RepairDerivationConfig;
 import ar.edu.utn.frba.arbiter.rules.dto.RepairDerivationDto;
 import ar.edu.utn.frba.arbiter.rules.dto.RepairDerivationRuleDto;
-import ar.edu.utn.frba.arbiter.rules.exceptions.BranchNotFoundException;
 import ar.edu.utn.frba.arbiter.rules.exceptions.InvalidRuleConfigurationException;
 import ar.edu.utn.frba.arbiter.rules.models.entities.InsurerRule;
-import ar.edu.utn.frba.arbiter.rules.models.entities.InsurerRuleHistory;
-import ar.edu.utn.frba.arbiter.rules.models.repositories.BranchRepository;
 import ar.edu.utn.frba.arbiter.rules.models.repositories.ClaimCauseRepository;
-import ar.edu.utn.frba.arbiter.rules.models.repositories.InsurerRuleHistoryRepository;
 import ar.edu.utn.frba.arbiter.rules.models.repositories.InsurerRuleRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Instant;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -38,17 +29,13 @@ public class RepairDerivationService {
 
     static final String REPAIR_DERIVATION = "REPAIR_DERIVATION";
 
-    private static final Logger log = LoggerFactory.getLogger(RepairDerivationService.class);
-
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     private static final String RULE_NAME = "Derivación a reparación";
 
     private final InsurerRuleRepository ruleRepository;
-    private final InsurerRuleHistoryRepository historyRepository;
-    private final BranchRepository branchRepository;
     private final ClaimCauseRepository claimCauseRepository;
-    private final RuleAuthorResolver authorResolver;
+    private final BranchRuleWriter ruleWriter;
 
     /** System-to-system read: an inactive rule answers the same as no rule. */
     @Transactional(readOnly = true)
@@ -80,68 +67,12 @@ public class RepairDerivationService {
                     "Elegí al menos un hecho generador para derivar a reparación.");
         }
         requireCausesOfBranch(branchId, claimCauseIds);
-        Instant now = Instant.now();
-
-        InsurerRule rule = ruleRepository
-                .findFirstByBranch_IdAndCoverageIdIsNullAndRuleType(branchId, REPAIR_DERIVATION)
-                .orElse(null);
-
-        if (rule == null) {
-            // Off with no selection to keep: the missing row already says "does not derive".
-            if (claimCauseIds.isEmpty()) {
-                return RepairDerivationRuleDto.unconfigured();
-            }
-            Branch branch = branchRepository.findById(branchId)
-                    .orElseThrow(() -> new BranchNotFoundException(branchId));
-            ruleRepository.save(InsurerRule.builder()
-                    .active(requested.enabled())
-                    .validFrom(now)
-                    .createdBy(authorResolver.userIdOf(actorEmail))
-                    .name(RULE_NAME)
-                    .ruleType(REPAIR_DERIVATION)
-                    .effect("DERIVAR")
-                    .blocksFastTrack(false)
-                    .branch(branch)
-                    .coverageId(null)
-                    .configuration(serialize(claimCauseIds))
-                    .build());
-            log.info("[RepairDerivation] created — branch={} enabled={} claimCauseIds={} by={}",
-                    branchId, requested.enabled(), claimCauseIds, actorEmail);
-            return new RepairDerivationRuleDto(requested.enabled(), claimCauseIds);
-        }
-
         // Turning the rule off with nothing selected keeps the stored selection.
-        String json = claimCauseIds.isEmpty() ? rule.getConfiguration() : serialize(claimCauseIds);
-
-        // A save that changes nothing leaves no audit entry.
-        if (InsurerRuleSnapshot.unchanged(
-                rule.isActive(), rule.isBlocksFastTrack(), rule.getConfiguration(),
-                requested.enabled(), rule.isBlocksFastTrack(), json)) {
-            return new RepairDerivationRuleDto(
-                    rule.isActive(), storedClaimCauseIds(rule.getConfiguration()));
-        }
-
-        historyRepository.save(InsurerRuleHistory.builder()
-                .configVersion(InsurerRuleSnapshot.serialize(
-                        rule.isActive(), rule.isBlocksFastTrack(), rule.getConfiguration()))
-                .changedAt(now)
-                .validFrom(rule.getValidFrom())
-                .validTo(now)
-                .reason("Derivación a reparación actualizada por " + actorEmail)
-                .insurerRule(rule)
-                .changedBy(authorResolver.referentIdOf(actorEmail))
-                .build());
-
-        rule.setActive(requested.enabled());
-        rule.setConfiguration(json);
-        rule.setValidFrom(now);
-        // The seeded name lists the original claim causes, which the history would keep showing.
-        rule.setName(RULE_NAME);
-        ruleRepository.save(rule);
-        log.info("[RepairDerivation] updated — branch={} enabled={} claimCauseIds={} by={}",
-                branchId, requested.enabled(), claimCauseIds, actorEmail);
-
-        return new RepairDerivationRuleDto(requested.enabled(), storedClaimCauseIds(json));
+        BranchRuleWriter.Saved saved = ruleWriter.upsert(branchId, REPAIR_DERIVATION, RULE_NAME,
+                requested.enabled(), claimCauseIds.isEmpty() ? null : serialize(claimCauseIds), actorEmail);
+        return saved == null
+                ? RepairDerivationRuleDto.unconfigured()
+                : new RepairDerivationRuleDto(saved.active(), storedClaimCauseIds(saved.configuration()));
     }
 
     /** Claim cause ids repeat across tenants and branches, so an id alone proves nothing. */
