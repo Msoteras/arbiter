@@ -328,6 +328,8 @@ export class ToastStackComponent {
   private dragStartY = 0;
 
   private readonly items = viewChildren<ElementRef<HTMLElement>>('item');
+  /** A closed toast's element stays observed, and alive, until it is unobserved. */
+  private readonly observed = new Set<HTMLElement>();
   private readonly resize = new ResizeObserver((entries) => {
     this.heights.update((current) => {
       const next = new Map(current);
@@ -339,9 +341,12 @@ export class ToastStackComponent {
     });
   });
 
-  /** The gap between expanded toasts, read once from the spacing token. */
+  /**
+   * The gap between expanded toasts, read once from the spacing token. No fallback size: the
+   * tokens are global, and a missing one should show as stacked toasts, not as a guessed gap.
+   */
   private readonly gap =
-    parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--space-3')) || 12;
+    parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--space-3')) || 0;
 
   protected readonly frontHeight = computed(() => {
     const front = this.ordered()[0];
@@ -368,7 +373,25 @@ export class ToastStackComponent {
   constructor() {
     effect(() => {
       const elements = this.items().map((item) => item.nativeElement);
-      elements.forEach((element) => this.resize.observe(element));
+      this.observed.forEach((element) => {
+        if (!elements.includes(element)) {
+          this.resize.unobserve(element);
+          this.observed.delete(element);
+        }
+      });
+      elements.forEach((element) => {
+        this.resize.observe(element);
+        this.observed.add(element);
+      });
+      const live = new Set(this.ordered().map((t) => t.id));
+      untracked(() => {
+        if ([...this.heights().keys()].some((id) => !live.has(id))) {
+          this.heights.update((current) => new Map([...current].filter(([id]) => live.has(id))));
+        }
+        if ([...this.mounted()].some((id) => !live.has(id))) {
+          this.mounted.update((ids) => new Set([...ids].filter((id) => live.has(id))));
+        }
+      });
       const fresh = this.ordered()
         .map((t) => t.id)
         .filter((id) => !this.mounted().has(id));

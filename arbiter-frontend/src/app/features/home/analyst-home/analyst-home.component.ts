@@ -32,7 +32,7 @@ import {
   deadlinePriorityTone,
   isDeadlinePrioritized,
 } from '../../../core/models/deadline-priority';
-import { RiskBand, riskBandLabel } from '../../../core/models/risk-band';
+import { RiskBand, riskBandLabel, riskBandTone } from '../../../core/models/risk-band';
 import { isPausingStatus } from '../../../core/models/case-status';
 import { StatusTone } from '../../../core/models/status-tone';
 import { formatDate, greetingForTimeOfDay, longDate } from '../../../core/util/datetime';
@@ -419,13 +419,7 @@ export class AnalystHomeComponent {
   }
 
   protected riskTone(c: CaseResponse): StatusTone {
-    const tones: Record<RiskBand, StatusTone> = {
-      LOW: 'ok',
-      MEDIUM: 'warning',
-      HIGH: 'risk',
-      CRITICAL: 'danger',
-    };
-    return c.riskBand ? tones[c.riskBand as RiskBand] : 'neutral';
+    return riskBandTone(c.riskBand as RiskBand | null);
   }
 
   protected displayInsured(c: CaseResponse): string {

@@ -171,7 +171,7 @@
 }
 /* A choice between sentences rather than a number. */
 .rule-value.choice app-select {
-  width: 18rem;
+  width: var(--control-w-choice);
 }
 /* A field with its unit beside it, inside a labelled fieldset. */
 .with-unit {

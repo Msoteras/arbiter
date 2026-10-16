@@ -168,9 +168,10 @@
   background: var(--border-strong);
   overflow: hidden;
 }
+// Neutral, not the brand accent: these are counts, not a selection or an active state.
 .split-yours {
   display: block;
-  background: var(--accent-fg);
+  background: var(--text-secondary);
 }
 // One column: side by side, the labels wrapped and the counts lost their alignment.
 .caseload {
@@ -191,7 +192,7 @@
   border-radius: var(--radius-pill);
 }
 .key-yours {
-  background: var(--accent-fg);
+  background: var(--text-secondary);
 }
 .key-waiting {
   background: var(--border-strong);
@@ -223,6 +224,10 @@
   @include media.phone {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+}
+.week > div {
+  display: flex;
+  flex-direction: column-reverse;
 }
 .week dd {
   margin: 0;

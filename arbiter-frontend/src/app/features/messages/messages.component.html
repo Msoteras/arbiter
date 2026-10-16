@@ -121,7 +121,12 @@
               </dd>
             </div>
           </dl>
-          <app-button variant="secondary" [block]="true" [routerLink]="['/cases', item.caseId]">
+          <app-button
+            variant="secondary"
+            [block]="true"
+            [routerLink]="['/cases', item.caseId]"
+            tabindex="-1"
+          >
             Abrir expediente
           </app-button>
         </app-card>

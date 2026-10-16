@@ -108,9 +108,7 @@
             <app-info-tip cardAside>{{ stepLine.HARD_STOP }}</app-info-tip>
             <p class="hs-banner">
               <span class="hs-banner-icon" aria-hidden="true">!</span>
-              <span
-                >Si una regla de las siguientes no se cumple, la denuncia no puede crearse.</span
-              >
+              <span>Si no se cumple una regla, no se puede crear la denuncia.</span>
             </p>
 
             <ul class="rule-rows">
@@ -481,9 +479,8 @@
                               <!-- Warns, doesn't block: covering the whole branch can be correct. -->
                               @if (claimCauses().length > 0 && !hasExcludedCauses(c)) {
                                 <app-info-tip tone="warning">
-                                  Cubre {{ coveredCausesLabel() }} del ramo. Si una póliza contrata
-                                  varias coberturas, esta responde por todos, y el siniestro se
-                                  liquida con su suma asegurada y su franquicia.
+                                  Si la póliza contrata varias, esta responde por
+                                  {{ coveredCausesLabel() }} con su suma asegurada y su franquicia.
                                 </app-info-tip>
                               }
                             </span>

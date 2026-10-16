@@ -682,7 +682,6 @@ export class CaseDetailComponent {
     () => (this.data()?.forensicReport?.findings?.length ?? 0) > 0,
   );
 
-  /** Medium or high findings only; flagging "low" ones would turn the dot into noise. */
   private readonly imageMatchedAnotherClaim = computed(() =>
     (this.data()?.forensicReport?.findings ?? []).some((f) => f.internalMatches.length > 0),
   );
@@ -694,6 +693,7 @@ export class CaseDetailComponent {
     ),
   );
 
+  /** Medium or high findings only; flagging "low" ones would turn the dot into noise. */
   private readonly hasImageMatches = computed(() =>
     (this.data()?.forensicReport?.findings ?? []).some((f) => {
       const level = forensicAlertLevel(f);
