@@ -13,7 +13,7 @@ import { CoverageDetail, CoveragesRulesService } from '../coverages-rules.servic
 import { DerivationRulesService } from '../derivation-rules.service';
 import { DocumentRulesService } from '../document-rules.service';
 import { FastTrackRulesService } from '../fast-track-rules.service';
-import { HardRulesService } from '../hard-rules.service';
+import { HardRule, HardRulesService } from '../hard-rules.service';
 import { DocumentTypeDef } from '../../../core/models/business-rules';
 import { DocumentTypeService } from '../../../core/services/document-type.service';
 import {
@@ -50,6 +50,7 @@ describe('RulesComponent', () => {
   let agenda: () => Observable<string[]>;
   let branchList: () => Observable<BranchOption[]>;
   let claimCauses: () => Observable<{ id: number; name: string }[]>;
+  let hardRules: HardRule[];
 
   beforeEach(() => {
     branchDocuments = { 1: DOCUMENT_TYPES_FIXTURE, 2: DOCUMENT_TYPES_FIXTURE };
@@ -60,6 +61,7 @@ describe('RulesComponent', () => {
         { id: 2, name: 'Tecnología Portátil' },
       ]);
     claimCauses = () => of([{ id: 4, name: 'Caída' }]);
+    hardRules = [];
   });
 
   async function mount(coverages: CoverageDetail[] = []): Promise<void> {
@@ -103,7 +105,7 @@ describe('RulesComponent', () => {
         },
         {
           provide: HardRulesService,
-          useValue: { getInsurerWide: () => of([]), get: () => of([]) },
+          useValue: { getInsurerWide: () => of([]), get: () => of(hardRules) },
         },
         { provide: DocumentRulesService, useValue: { get: () => agenda() } },
         {
@@ -209,6 +211,51 @@ describe('RulesComponent', () => {
     await mount([coverage({ reportDeadlineHours: 36 })]);
 
     expect(el().textContent).toContain('Denuncia 36 h');
+  });
+
+  describe('a hard rule of the coverage', () => {
+    function ruleRow(label: string): HTMLElement {
+      return [...el().querySelectorAll<HTMLElement>('.cov-body .rule-row')].find((row) =>
+        row.querySelector('.rule-text')?.textContent?.includes(label),
+      )!;
+    }
+
+    beforeEach(() => {
+      localStorage.removeItem(LAST_TAB_KEY);
+      hardRules = [
+        { ruleType: 'WAITING_PERIOD', enabled: false, deadlineHours: null },
+        { ruleType: 'REPORT_DEADLINE', enabled: true, deadlineHours: null },
+        { ruleType: 'MAX_EVENTS_YEAR', enabled: false, deadlineHours: null },
+      ];
+    });
+
+    it('shows its value only while it is on', async () => {
+      await mount([coverage()]);
+      click(el().querySelector<HTMLElement>('.cov-toggle'));
+
+      expect(ruleRow('Plazo de denuncia').querySelector('input')?.value).toBe('72');
+      expect(ruleRow('Carencia').querySelector('input')).toBeNull();
+      expect(ruleRow('Carencia').textContent).toContain('Sin carencia');
+      expect(ruleRow('Tope de eventos por año').textContent).toContain('Sin tope');
+    });
+
+    it('shows the value again when it is switched on', async () => {
+      await mount([coverage()]);
+      click(el().querySelector<HTMLElement>('.cov-toggle'));
+
+      click(ruleRow('Carencia').querySelector<HTMLElement>('app-switch button'));
+
+      expect(ruleRow('Carencia').querySelector('input')?.value).toBe('30');
+    });
+
+    it('leaves the switched off ones out of the collapsed summary', async () => {
+      await mount([coverage()]);
+
+      const summary = el().querySelector('.cov-chips')?.textContent;
+      expect(summary).toContain('Denuncia 72 h');
+      expect(summary).not.toContain('Carencia');
+      expect(summary).not.toContain('Máx.');
+    });
   });
 
   describe('when part of the branch fails to load', () => {
