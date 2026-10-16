@@ -54,7 +54,7 @@
           @if (!isDeterministicOutcome()) {
             @if (analysisReasons().length > 0) {
               <p class="note">
-                <button type="button" class="brief-link" (click)="viewAnalysis(tabsNav)">
+                <button type="button" class="brief-link" (click)="viewAnalysis()">
                   Ver motivos ({{ analysisReasons().length }})
                 </button>
               </p>
@@ -408,25 +408,15 @@
       </div>
     }
 
-    <nav class="tabs" role="tablist" #tabsNav>
-      @for (t of tabs(); track t.id) {
-        <button
-          role="tab"
-          class="tab"
-          [class.active]="activeTab() === t.id"
-          [attr.aria-selected]="activeTab() === t.id"
-          (click)="setTab(t.id)"
-        >
-          {{ t.label }}
-          @if (t.count) {
-            <span class="tab-count">{{ t.count }}</span>
-          }
-          @if (t.dot) {
-            <span class="tab-dot" [attr.aria-label]="t.dotLabel"></span>
-          }
-        </button>
-      }
-    </nav>
+    <app-tabs
+      #tabsNav
+      class="det-tabs"
+      [tabs]="tabs()"
+      [value]="activeTab()"
+      (valueChange)="setTab($any($event))"
+      [scrollable]="true"
+      ariaLabel="Secciones del expediente"
+    />
 
     <div class="tab-panel" [@tabSwitch]="activeTab()">
       @switch (activeTab()) {
@@ -576,11 +566,7 @@
                   @if (fastTrackScoreScope() === 'partial') {
                     <p class="rcard-note">Score parcial: sin documentos ni imágenes.</p>
                   }
-                  <button
-                    type="button"
-                    class="brief-link risk-breakdown"
-                    (click)="viewAnalysis(tabsNav)"
-                  >
+                  <button type="button" class="brief-link risk-breakdown" (click)="viewAnalysis()">
                     Ver desglose completo
                   </button>
                 </app-card>

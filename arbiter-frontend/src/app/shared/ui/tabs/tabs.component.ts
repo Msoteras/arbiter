@@ -10,97 +10,76 @@ import {
 export interface TabOption {
   id: string;
   label: string;
-  /** A dot after the label: `required` is something missing, `pending` something incomplete. */
-  status?: 'required' | 'pending' | null;
+  /** A number after the label, e.g. how many items the tab lists. */
+  count?: number | null;
+  /**
+   * A dot after the label: `required` is something missing, `pending` something incomplete,
+   * `notice` something new worth a look.
+   */
+  status?: 'required' | 'pending' | 'notice' | null;
+  /** What the dot means, for screen readers; each status has a default. */
+  statusLabel?: string;
 }
+
+const STATUS_LABELS: Record<NonNullable<TabOption['status']>, string> = {
+  required: 'falta configurar',
+  pending: 'incompleto',
+  notice: 'con novedades',
+};
 
 /**
  * Tab strip that switches between sections of one screen. It only owns the strip: the parent
  * renders the panel for `value`. A real `tablist`, so the arrow keys move between tabs and only the
- * selected one sits in the tab order.
+ * selected one sits in the tab order. Content projected into it sits at the end of the strip, on
+ * the same line (e.g. filters that are not tabs). For tabs that are routes, see `app-tab-nav`.
  */
 @Component({
   selector: 'app-tabs',
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="tabs" role="tablist" [attr.aria-label]="ariaLabel()">
-      @for (tab of tabs(); track tab.id) {
-        <button
-          type="button"
-          role="tab"
-          class="tab"
-          [class.active]="value() === tab.id"
-          [attr.aria-selected]="value() === tab.id"
-          [attr.tabindex]="value() === tab.id ? 0 : -1"
-          (click)="value.set(tab.id)"
-          (keydown)="onKeydown($event)"
-        >
-          {{ tab.label }}
-          @switch (tab.status) {
-            @case ('required') {
-              <span class="tab-dot is-required" aria-hidden="true"></span>
-              <span class="sr-only">(falta configurar)</span>
+    <div class="strip" [class.is-scrollable]="scrollable()">
+      <div class="tablist" role="tablist" [attr.aria-label]="ariaLabel()">
+        @for (tab of tabs(); track tab.id) {
+          <button
+            type="button"
+            role="tab"
+            class="tab"
+            [class.active]="value() === tab.id"
+            [attr.aria-selected]="value() === tab.id"
+            [attr.tabindex]="value() === tab.id ? 0 : -1"
+            (click)="value.set(tab.id)"
+            (keydown)="onKeydown($event)"
+          >
+            {{ tab.label }}
+            @if (tab.count != null) {
+              <span class="tab-count">{{ tab.count }}</span>
             }
-            @case ('pending') {
-              <span class="tab-dot" aria-hidden="true"></span>
-              <span class="sr-only">(incompleto)</span>
+            @if (tab.status) {
+              <span
+                class="tab-dot"
+                [class.is-required]="tab.status === 'required'"
+                [class.is-notice]="tab.status === 'notice'"
+                aria-hidden="true"
+              ></span>
+              <span class="sr-only">({{ tab.statusLabel ?? statusLabels[tab.status] }})</span>
             }
-          }
-        </button>
-      }
+          </button>
+        }
+      </div>
+      <ng-content />
     </div>
   `,
   styles: `
-    @use 'media';
+    @use 'tab-strip';
 
     :host {
       display: block;
     }
-    .tabs {
+    @include tab-strip.styles;
+    .tablist {
       display: flex;
-      flex-wrap: wrap;
+      flex-wrap: inherit;
       gap: var(--space-1);
-      border-bottom: 1px solid var(--border-default);
-    }
-    .tab {
-      font: inherit;
-      font-size: var(--font-size-sm);
-      padding: var(--space-2) var(--space-3);
-      border: none;
-      background: none;
-      color: var(--text-secondary);
-      cursor: pointer;
-      border-bottom: 2px solid transparent;
-      margin-bottom: -1px;
-    }
-    @include media.touch {
-      .tab {
-        min-height: var(--touch-target);
-      }
-    }
-    .tab:hover {
-      color: var(--text-primary);
-    }
-    .tab:focus-visible {
-      outline: none;
-      box-shadow: var(--focus-ring);
-    }
-    .tab-dot {
-      display: inline-block;
-      width: var(--space-2);
-      height: var(--space-2);
-      margin-left: var(--space-1);
-      vertical-align: middle;
-      border-radius: var(--radius-pill);
-      background: var(--text-tertiary);
-    }
-    .tab-dot.is-required {
-      background: var(--status-warning);
-    }
-    .tab.active {
-      color: var(--accent-fg);
-      border-bottom-color: var(--accent-fill);
-      font-weight: var(--font-weight-medium);
     }
   `,
 })
@@ -110,6 +89,10 @@ export class TabsComponent {
   readonly tabs = input<readonly TabOption[]>([]);
   readonly value = model('');
   readonly ariaLabel = input<string | null>(null);
+  /** On touch screens, one row that scrolls sideways instead of wrapping: for many tabs. */
+  readonly scrollable = input(false);
+
+  protected readonly statusLabels = STATUS_LABELS;
 
   protected onKeydown(event: KeyboardEvent): void {
     const tabs = this.tabs();
@@ -120,7 +103,9 @@ export class TabsComponent {
     }
     event.preventDefault();
     this.value.set(tabs[next].id);
-    this.host.nativeElement.querySelectorAll<HTMLButtonElement>('[role="tab"]')[next]?.focus();
+    const buttons =
+      this.host.nativeElement.querySelectorAll<HTMLButtonElement>('.tablist > [role="tab"]');
+    buttons[next]?.focus();
   }
 }
 

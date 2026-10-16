@@ -12,6 +12,10 @@ lista de qué hay que corregirle. Cuando una entrada queda aplicada en el `.mdj`
 17, 22, 23, 25, 26, 27 y 32, que ya están en el diagrama. Las entradas 7, 10, 11, 12, 15, 18, 21 y 31
 quedaron a medias y dicen solo lo que falta. Se sumó la 35. Las demás conservan su número.
 
+**Décima pasada, el mismo 16/10:** se cruzó cada columna marcada como FK contra las líneas del
+diagrama, y cada línea contra el esquema. Salieron las entradas 36, 37 y 38, y se corrigieron la 10
+y la 15.
+
 **Criterios que valen para todas las entradas:**
 
 - **UNIQUE en una columna FK:** no se marca. La cardinalidad 1:1 va en la relación del diagrama (el
@@ -56,7 +60,8 @@ Un proveedor cubre solo los ramos con fila en `proveedor_externo_rama`, y tiene 
 **Acción:**
 
 - Agregar `proveedor_externo_rama` como N:M entre `proveedor_externo` y `rama`.
-- Sacar la relación `rama` — `proveedor_externo`: quedó de cuando el proveedor tenía `rama_id`.
+- Borrar del modelo la relación `rama` — `proveedor_externo`: quedó de cuando el proveedor tenía
+  `rama_id`. Ya no está dibujada, solo aparece en el explorador del modelo (ver la entrada 37).
 - En la relación `derivacion_expediente` — `antecedente_fraude`, poner `0..1` del lado de
   `antecedente_fraude`. Hoy no tiene cardinalidad en ningún extremo.
 
@@ -77,7 +82,8 @@ pública" y "Hurto" existen una vez por ramo.
 
 ### 15 · `antecedente_fraude.analista_declarante_id` — falta la relación
 
-Las tres columnas ya están marcadas como FK. Las relaciones con `rama` y con `expediente` ya están.
+Las tres columnas ya están marcadas como FK. Las relaciones con `derivacion_expediente` y con
+`expediente` ya están. La tabla no tiene `rama_id`.
 
 **Acción:** dibujar la relación `analista_siniestro` 1—0..\* `antecedente_fraude`.
 
@@ -229,6 +235,67 @@ columnas siguen marcadas como FK, pero se quedaron sin su línea:
 
 **Acción:** volver a dibujar las dos. Las relaciones `usuario` — `regla_aseguradora` y
 `antecedente_fraude` — `derivacion_expediente` se quedan: también hacían falta.
+
+### 36 · Columnas FK sin su línea
+
+Cada columna de esta tabla está marcada como FK en el `.mdj` y existe en el esquema, pero no tiene
+una relación dibujada hacia su tabla. No incluye las que ya tienen entrada (7, 15, 31 y 35).
+
+| Relación que falta | Columna FK |
+|---|---|
+| `estado_expediente` 1—0..\* `expediente` | `expediente.estado_actual_id` |
+| `hecho_generador` 1—0..\* `expediente` | `expediente.hecho_generador_id` |
+| `cobertura` 1—0..\* `expediente` | `expediente.cobertura_id` |
+| `usuario` 0..1—0..\* `historial_estado_expediente` | `historial_estado_expediente.cambiado_por` |
+| `documento_expediente` 0..1—0..\* `analisis_imagen` | `analisis_imagen.documento_similar_id` (la segunda línea entre las dos; la de `documento_expediente_id` ya está) |
+| `usuario` 1—0..\* `mensaje_expediente` | `mensaje_expediente.emisor_id` |
+| `expediente` 1—0..2 `derivacion_expediente` | `derivacion_expediente.expediente_id` (ver la entrada 4) |
+| `analista_siniestro` 1—0..\* `derivacion_expediente` | `derivacion_expediente.derivado_por` |
+| `documento_expediente` 0..1—0..\* `derivacion_expediente` | `derivacion_expediente.documento_informe_id` |
+| `usuario` 1—0..\* `asegurado` | `asegurado.usuario_id` |
+
+La de `asegurado` existe en el modelo pero no en el diagrama: se puede arrastrar desde el explorador
+del modelo en vez de dibujarla de nuevo.
+
+**Acción:** dibujar las diez.
+
+### 37 · Relaciones de más
+
+**Una repetida en el diagrama.** Entre `expediente` y `historial_estado_expediente` hay dos líneas, y
+el esquema tiene una sola FK (`expediente_id`). Una va `1—0..*`; la otra no tiene cardinalidad.
+
+**Catorce que quedaron solo en el modelo.** No se ven en el diagrama, pero siguen en el explorador
+del modelo y en el `.mdj`. Son restos de ediciones anteriores:
+
+| Relación | Cuántas | Por qué sobra |
+|---|---|---|
+| `asegurado` — `expediente` | 1 | repetida: la dibujada se queda |
+| `expediente` — `poliza` | 1 | repetida: la dibujada se queda |
+| `expediente` — `poliza_consultada` | 2 | repetidas: la dibujada se queda |
+| `regla_aseguradora` — `resultado_regla` | 1 | repetida: la dibujada se queda |
+| `cobertura` — `cobertura_contratada` | 3 | repetidas: la dibujada se queda |
+| `cobertura` — `poliza` | 1 | `poliza` no tiene FK a `cobertura`: van por `cobertura_contratada` |
+| `historial_regla_aseguradora` — `resultado_regla` | 1 | `resultado_regla` no tiene FK al historial |
+| `rama` — `proveedor_externo` | 1 | ver la entrada 10 |
+| `aseguradora` — `regla_aseguradora`, `referente_aseguradora` y `expediente` | 3 | ninguna de las tres tiene FK a `aseguradora`: la aseguradora es el esquema |
+
+**Acción:**
+
+- Borrar la línea sin cardinalidad entre `expediente` y `historial_estado_expediente`.
+- Borrar del modelo las catorce. En StarUML: clic derecho en el explorador del modelo → "Delete from
+  Model". Borrarlas del diagrama no alcanza.
+
+### 38 · Cardinalidades que el esquema contradice
+
+| Relación | En el `.mdj` | Debería ser | Por qué |
+|---|---|---|---|
+| `expediente` — `antecedente_fraude` | `1—1` | `1—0..1` | UNIQUE en `antecedente_fraude.expediente_id`, y la mayoría de los expedientes no tiene antecedente |
+| `expediente` — `liquidacion` | `1—1` | `1—0..1` | UNIQUE en `liquidacion.expediente_id`, y solo se liquida al aprobar |
+| `documento_expediente` — `analisis_documento` | `1—0..*` | `1—0..1` | UNIQUE en `analisis_documento.documento_expediente_id` |
+
+En el `.mdj`, un extremo sin cardinalidad cuenta como `1`.
+
+**Acción:** corregir los tres extremos.
 
 ---
 

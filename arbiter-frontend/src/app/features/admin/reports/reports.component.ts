@@ -1,18 +1,14 @@
 import { ChangeDetectionStrategy, Component, effect, inject } from '@angular/core';
-import {
-  ActivatedRoute,
-  Router,
-  RouterLink,
-  RouterLinkActive,
-  RouterOutlet,
-} from '@angular/router';
+import { ActivatedRoute, Router, RouterOutlet } from '@angular/router';
+
+import { TabNavComponent } from '../../../shared/ui/tabs/tab-nav.component';
 
 import { ReportFiltersStore } from './report-filters.store';
 
 /** Tabs are routes, not a signal, so a report and its filters can be bookmarked or shared. */
 @Component({
   selector: 'app-reports',
-  imports: [RouterLink, RouterLinkActive, RouterOutlet],
+  imports: [RouterOutlet, TabNavComponent],
   // Here and not on the route: the tabs get it from this component's injector (the router-outlet
   // chains to it), so the store is created and discarded with the reports screen.
   providers: [ReportFiltersStore],
