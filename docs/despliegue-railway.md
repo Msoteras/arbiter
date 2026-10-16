@@ -155,7 +155,7 @@ incorporadas a `init-multitenant.sql`. Solo aplican a bases que ya existían.
 ### Verificar que quedó consistente
 
 No hay Flyway/Liquibase, así que no hay una fuente automática de verdad de "esto ya se aplicó" —
-son archivos sueltos (`db/migrations/*.sql`, 38 hoy) sin tabla de control. Antes de
+son archivos sueltos (`db/migrations/*.sql`) sin tabla de control. Antes de
 dar por buena la base nueva (o para chequear la de Railway mientras siga en pie), corré:
 
 ```bash
@@ -191,7 +191,7 @@ declara módulo por módulo. En Railway se cargan las mismas, con estas diferenc
 | `DB_URL` / `DB_USER` / `DB_PASSWORD` | La base vive en el Postgres de Railway. **`DB_URL` va por la red privada**: `jdbc:postgresql://${{Postgres.RAILWAY_PRIVATE_DOMAIN}}:5432/railway?sslmode=require`. El proxy público (`*.proxy.rlwy.net`) es solo para conectarse desde afuera (scripts, `psql`): usado desde los servicios, cada consulta sale a internet y vuelve, y se cobra como egress |
 | `RULES_SERVICE_URL` | `http://rules-service.railway.internal:8081` |
 | `CLASSIFICATION_SERVICE_URL` | `http://classification-service.railway.internal:8082` |
-| `CASES_SERVICE_URL` | **En `classification-service`**: `http://cases-service.railway.internal:8083`. Es a donde avisa que terminó una clasificación. Si falta, el aviso no llega y cases se entera recién con el polling de respaldo (cada 10 min); el log de classification dice `Could not notify cases-service` |
+| `CASES_SERVICE_URL` | **En `classification-service` y en `rules-service`**: `http://cases-service.railway.internal:8083`. classification avisa ahí que terminó una clasificación: si falta, cases se entera recién con el polling de respaldo (cada 10 min) y el log de classification dice `Could not notify cases-service`. rules arma con ella la puesta en marcha: si falta, la tarjeta del inicio del referente dice "No se pudo cargar la puesta en marcha." |
 | `EMBEDDING_SERVICE_URL` | `http://clip-embedding.railway.internal:8000` |
 | `LLM_PROVIDER` | **`gemini`** — ver abajo |
 | `OLLAMA_BASE_URL` | No se setea: no hay Ollama en Railway |

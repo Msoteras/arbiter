@@ -1,7 +1,7 @@
 -- =============================================================================
 -- Arbiter — DB initialization script (multi-tenant by schema)
 --
--- 55 tables: 10 shared + 40 per tenant + 5 per simulated insurer DB. Risk factors are
+-- 60 tables: 10 shared + 44 per tenant + 6 per simulated insurer DB. Risk factors are
 -- not a table: their codes live in classification-service's RiskFactorIds.
 --
 -- One schema per insurer, with NO tenant discriminator column anywhere in a tenant
@@ -226,7 +226,7 @@ SELECT setval(pg_get_serial_sequence('arbiter_common.document_type', 'id'),
               (SELECT MAX(id) FROM arbiter_common.document_type));
 
 -- =============================================================================
--- TENANT SCHEMA TEMPLATE — 40 tables, created once per insurer
+-- TENANT SCHEMA TEMPLATE — 44 tables, created once per insurer
 -- =============================================================================
 
 -- The schema itself identifies the insurer.
@@ -437,7 +437,7 @@ BEGIN
             blocks_fast_track   BOOLEAN      NOT NULL DEFAULT FALSE,
             branch_id           BIGINT       REFERENCES %I.branch(id),
             coverage_id         BIGINT       REFERENCES %I.coverage(id),
-            -- Whoever created the rule; for the defaults below, the user onboarding the insurer.
+            -- Whoever created the rule: the referent who configured it.
             created_by          BIGINT       NOT NULL REFERENCES arbiter_common.users(id)
         )$ddl$, p_schema, p_schema, p_schema);
 
@@ -466,7 +466,7 @@ BEGIN
             -- complete score. It only decides how much runs; it never vetoes Fast Track.
             full_analysis_on_fast_track BOOLEAN NOT NULL DEFAULT FALSE,
             valid_from  TIMESTAMPTZ  NOT NULL,
-            -- Whoever created it; for the default below, the user onboarding the insurer.
+            -- Whoever created it: the referent who configured it.
             created_by  BIGINT       NOT NULL REFERENCES arbiter_common.users(id)
         )$ddl$, p_schema);
 
@@ -774,8 +774,8 @@ BEGIN
         )$ddl$, p_schema);
 
     -- ─── service_provider_branch ─────────────────────────────────────────────────
-    -- No rows = a generalist covering every branch, so a branch added later reaches the
-    -- generalists without editing them.
+    -- The branches a provider covers: only those marked, at least one. A branch added later
+    -- reaches no provider until someone marks it.
     EXECUTE format($ddl$
         CREATE TABLE %I.service_provider_branch (
             service_provider_id BIGINT NOT NULL REFERENCES %I.service_provider(id) ON DELETE CASCADE,

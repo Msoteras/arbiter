@@ -188,6 +188,7 @@ services:
       FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:-http://localhost:4200}
       # Empty keeps the in-memory chat broker; `rabbitmq` needs COMPOSE_PROFILES to include it.
       STOMP_RELAY_HOST: ${STOMP_RELAY_HOST:-}
+      STOMP_RELAY_PORT: ${STOMP_RELAY_PORT:-61613}
       STOMP_RELAY_LOGIN: ${STOMP_RELAY_LOGIN:-arbiter}
       STOMP_RELAY_PASSCODE: ${STOMP_RELAY_PASSCODE:-arbiter}
       # Same insurer-db profile as classification-service.

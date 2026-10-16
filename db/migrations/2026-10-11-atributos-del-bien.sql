@@ -9,7 +9,9 @@
 --     make, except Apple's products, which the text names without it. Policies with no
 --     bien_asegurado get no rows, and nothing is compared for them.
 -- Additive: the deployed code doesn't read the table, so this can run before the deploy. Once
--- classification-service reads it, a missing table fails every classification. Idempotent.
+-- classification-service reads it, a missing table fails every classification. Afterwards run the
+-- CREATE OR REPLACE FUNCTION arbiter_common.create_insurer_db_schema block from
+-- init-multitenant.sql, or a new insurer's database is created without the table. Idempotent.
 
 BEGIN;
 
