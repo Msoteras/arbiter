@@ -142,6 +142,11 @@ public class CaseExceptionHandler extends ResponseEntityExceptionHandler {
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(422), ex.getMessage());
     }
 
+    @ExceptionHandler(SettlementAwaitingReferentException.class)
+    public ProblemDetail handleSettlementAwaitingReferent(SettlementAwaitingReferentException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(409), ex.getMessage());
+    }
+
     @ExceptionHandler(ClaimCauseCorrectionNotAllowedException.class)
     public ProblemDetail handleClaimCauseCorrectionNotAllowed(ClaimCauseCorrectionNotAllowedException ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(422), ex.getMessage());

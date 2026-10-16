@@ -30,6 +30,7 @@ import ar.edu.utn.frba.arbiter.cases.dto.StatusTransitionResponse;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.InsurerRepository;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.ClaimCause;
 import ar.edu.utn.frba.arbiter.common.models.entities.Insurer;
+import ar.edu.utn.frba.arbiter.cases.exceptions.SettlementAwaitingReferentException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.AnalystNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.AnalystProfileNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CaseAssignedToAnotherAnalystException;
@@ -77,12 +78,15 @@ import ar.edu.utn.frba.arbiter.common.enums.Classification;
 import ar.edu.utn.frba.arbiter.common.enums.DeadlinePriority;
 import ar.edu.utn.frba.arbiter.common.enums.RiskBand;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -111,6 +115,8 @@ import java.util.stream.Stream;
 @Service
 @RequiredArgsConstructor
 public class CaseServiceImpl implements CaseService {
+
+    private static final Logger log = LoggerFactory.getLogger(CaseServiceImpl.class);
 
     private final CaseRepository caseRepository;
     private final CaseDocumentRepository caseDocumentRepository;
@@ -848,6 +854,7 @@ public class CaseServiceImpl implements CaseService {
         }
 
         ClaimsAnalyst analyst = requireAssignedAnalyst(entity);
+        assertNotAwaitingReferent(entity);
 
         // Approving includes the amount. Validated before forwarding anything, so a decision that
         // is going to fail never reaches the audit log.
@@ -895,6 +902,14 @@ public class CaseServiceImpl implements CaseService {
         return analyst;
     }
 
+    /** The case stays in PENDING_ANALYST_REVIEW while the referent signs, so the status can't tell. */
+    private void assertNotAwaitingReferent(Case entity) {
+        if (settlementService.statusesFor(List.of(entity.getId())).get(entity.getId())
+                == SettlementStatus.PENDING_AUTHORIZATION) {
+            throw new SettlementAwaitingReferentException(entity.getId());
+        }
+    }
+
     /**
      * Withdrawn or voided: the analyst ends the case without a verdict. The reason is mandatory and
      * goes on the history row. The audit gets the closure too, when there is a classification to
@@ -910,12 +925,19 @@ public class CaseServiceImpl implements CaseService {
                 .orElseThrow(() -> new CaseNotFoundException(caseId));
         caseStatusService.assertCanMove(entity.getStatus(), closure);
         ClaimsAnalyst analyst = requireAssignedAnalyst(entity);
+        assertNotAwaitingReferent(entity);
 
         if (entity.getStatus() != CaseStatus.CLASSIFICATION_FAILED) {
             AnalystDecisionRequest audited = new AnalystDecisionRequest(
                     analyst.getId(), closure == CaseStatus.WITHDRAWN ? "WITHDRAW" : "VOID", reason.trim(),
                     entity.getClassificationAttempts(), null);
-            entity.setClassificationId(claimsAnalysisClient.forwardAnalystDecision(entity.getId(), audited));
+            try {
+                entity.setClassificationId(claimsAnalysisClient.forwardAnalystDecision(entity.getId(), audited));
+            } catch (HttpClientErrorException.UnprocessableEntity noClassification) {
+                // The status alone doesn't tell: a case moved to AWAITING_DOCUMENTATION before its run
+                // failed has none either, and classification-service answers 422 for it.
+                log.info("Case {} closed as {} without an audit row: it has no classification", caseId, closure);
+            }
         }
 
         caseStatusService.transition(entity, closure, StatusChangeActor.ANALYST,

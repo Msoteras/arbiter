@@ -23,6 +23,7 @@ import ar.edu.utn.frba.arbiter.cases.dto.StatusTransitionResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.EligibilityCheckResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.ProviderType;
 import ar.edu.utn.frba.arbiter.cases.dto.RepairProviderResponse;
+import ar.edu.utn.frba.arbiter.cases.exceptions.SettlementAwaitingReferentException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.ClosedCaseAssignmentException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.AnalystNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.AnalystProfileNotFoundException;
@@ -72,6 +73,9 @@ import ar.edu.utn.frba.arbiter.common.models.entities.tenant.ClaimsAnalyst;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.client.HttpClientErrorException;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
@@ -1083,6 +1087,47 @@ class CaseServiceImplTest {
         verify(claimsAnalysisClient, never()).forwardAnalystDecision(any(), any());
         verify(caseStatusService).transition(eq(entity), eq(CaseStatus.VOIDED), eq(StatusChangeActor.ANALYST),
                 any(), eq("Póliza equivocada"));
+    }
+
+    /** Otherwise the settlement stays in the referent's queue and authorizing it fails for good. */
+    @Test
+    void recordAnalystDecision_whileTheReferentSigns_throwsBeforeAuditing() {
+        assignedCase(1L, CaseStatus.PENDING_ANALYST_REVIEW);
+        when(settlementService.statusesFor(List.of(1L)))
+                .thenReturn(Map.of(1L, SettlementStatus.PENDING_AUTHORIZATION));
+
+        assertThatThrownBy(() -> caseService.recordAnalystDecision(1L,
+                new AnalystDecisionRequest(null, "REJECT", "Cambio de criterio", null, null)))
+                .isInstanceOf(SettlementAwaitingReferentException.class);
+
+        verify(claimsAnalysisClient, never()).forwardAnalystDecision(any(), any());
+    }
+
+    @Test
+    void closeCase_whileTheReferentSigns_throwsBeforeAuditing() {
+        assignedCase(1L, CaseStatus.PENDING_ANALYST_REVIEW);
+        when(settlementService.statusesFor(List.of(1L)))
+                .thenReturn(Map.of(1L, SettlementStatus.PENDING_AUTHORIZATION));
+
+        assertThatThrownBy(() -> caseService.closeCase(1L, CaseStatus.WITHDRAWN, "motivo"))
+                .isInstanceOf(SettlementAwaitingReferentException.class);
+
+        verify(claimsAnalysisClient, never()).forwardAnalystDecision(any(), any());
+        verify(caseStatusService, never()).transition(any(), any(), any(), any(), any());
+    }
+
+    /** A case that left PENDING_CLASSIFICATION before its run failed: classification has none. */
+    @Test
+    void closeCase_whenClassificationHasNone_closesWithoutAuditing() {
+        Case entity = assignedCase(1L, CaseStatus.AWAITING_DOCUMENTATION);
+        when(claimsAnalysisClient.forwardAnalystDecision(eq(1L), any()))
+                .thenThrow(HttpClientErrorException.create(HttpStatus.UNPROCESSABLE_ENTITY, "Invalid classification",
+                        HttpHeaders.EMPTY, new byte[0], null));
+
+        caseService.closeCase(1L, CaseStatus.WITHDRAWN, "El asegurado avisó que no sigue");
+
+        verify(caseStatusService).transition(eq(entity), eq(CaseStatus.WITHDRAWN), eq(StatusChangeActor.ANALYST),
+                any(), eq("El asegurado avisó que no sigue"));
     }
 
     /** Checked before the audit call: a refused closure never leaves a decision behind. */
