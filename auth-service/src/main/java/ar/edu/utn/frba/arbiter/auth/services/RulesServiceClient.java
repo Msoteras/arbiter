@@ -39,19 +39,21 @@ public class RulesServiceClient {
 
     /**
      * Inside a transaction, waits for its commit: a save that rolls back didn't happen. The tenant
-     * is read now, on the request thread.
+     * is read now, on the request thread. Sent from a virtual thread: a sleeping rules-service takes
+     * up to half a minute to answer, and the referent's save is already done.
      */
     public void recordOnboardingSave(OnboardingStep step) {
         String tenant = TenantContext.get();
+        Runnable send = () -> Thread.ofVirtual().name("onboarding-touch").start(() -> send(step, tenant));
         if (TransactionSynchronizationManager.isSynchronizationActive()) {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
-                    send(step, tenant);
+                    send.run();
                 }
             });
         } else {
-            send(step, tenant);
+            send.run();
         }
     }
 

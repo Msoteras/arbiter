@@ -38,6 +38,7 @@ import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidAnalystDecisionException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidSettlementException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidStatusTransitionException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.MissingRequiredDocumentsException;
+import ar.edu.utn.frba.arbiter.cases.exceptions.RulesMisconfiguredException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.RulesUnavailableException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.PolicyInsuredMismatchException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.PolicyNotEligibleException;
@@ -2062,6 +2063,27 @@ class CaseServiceImplTest {
         verifyNoInteractions(referenceResolver, policyEligibilityValidator);
     }
 
+    /** Taken all the same, but not as an outage: the automatic requeue would retry it forever. */
+    @Test
+    void createCase_withCoverageExclusionsRefused_failsItAsOther() {
+        CaseRequest request = caseRequest();
+        Case saved = caseRecord(1L, CaseStatus.PENDING_CLASSIFICATION);
+        stubReferenceResolution();
+        Coverage provisional = Coverage.builder().name("Robo de celular").branchId(1L).build();
+        when(policyCoverageResolver.resolveFor(any(), any()))
+                .thenThrow(new RulesMisconfiguredException(new IllegalStateException("422")));
+        when(policyCoverageResolver.provisionalCandidates(any(), any()))
+                .thenReturn(List.of(CaseFixtures.policyCoverage(1L, provisional, 1)));
+        when(caseStatusService.initialStatus()).thenReturn(CaseStates.of(CaseStatus.PENDING_CLASSIFICATION));
+        when(caseRepository.save(any(Case.class))).thenReturn(saved);
+
+        caseService.createCase(request, Map.of());
+
+        assertThat(saved.getClassificationFailureReason()).isEqualTo(ClassificationFailureReason.OTHER);
+        verify(caseStatusService).transition(eq(saved), eq(CaseStatus.CLASSIFICATION_FAILED),
+                eq(StatusChangeActor.SYSTEM), any());
+    }
+
     @Test
     void createCase_withCoverageExclusionsUnreadable_takesTheClaimOnAProvisionalCoverage() {
         CaseRequest request = caseRequest();
@@ -2070,8 +2092,8 @@ class CaseServiceImplTest {
         Coverage provisional = Coverage.builder().name("Robo de celular").branchId(1L).build();
         when(policyCoverageResolver.resolveFor(any(), any()))
                 .thenThrow(new RulesUnavailableException(new IllegalStateException("rules-service down")));
-        when(policyCoverageResolver.provisionalFor(any(), any()))
-                .thenReturn(CaseFixtures.policyCoverage(1L, provisional, 1));
+        when(policyCoverageResolver.provisionalCandidates(any(), any()))
+                .thenReturn(List.of(CaseFixtures.policyCoverage(1L, provisional, 1)));
         when(caseStatusService.initialStatus()).thenReturn(CaseStates.of(CaseStatus.PENDING_CLASSIFICATION));
         when(caseRepository.save(any(Case.class))).thenReturn(saved);
 
@@ -2081,7 +2103,9 @@ class CaseServiceImplTest {
         verify(caseRepository).save(captor.capture());
         assertThat(captor.getValue().getCoverage()).isSameAs(provisional);
         assertThat(captor.getValue().getDocumentsUnverifiedSince()).isEqualTo(Instant.parse("2026-06-15T12:00:00Z"));
-        verify(policyEligibilityValidator).validate(any(), any(), any(), isNull(), any());
+        // The waiting period still applies: it lives in the coverage, not in rules-service.
+        verify(policyEligibilityValidator).validateWithoutCoverage(any(), any(), any(), eq(List.of(provisional)));
+        verify(policyEligibilityValidator, never()).validate(any(), any(), any(), any(), any());
         verify(rulesServiceClient, never()).fastTrackDocumentTypes(any());
         verify(rulesServiceClient, never()).requiredDocumentTypes(any(), any());
         verify(claimsAnalysisClient, never()).analyzeAndPersist(any(), any());
@@ -2113,6 +2137,23 @@ class CaseServiceImplTest {
 
         assertThatThrownBy(() -> caseService.retryClassification(1L)).isInstanceOf(RulesUnavailableException.class);
 
+        verify(caseStatusService, never()).transition(any(), any(), any(), any());
+        verify(claimsAnalysisClient, never()).analyzeAndPersist(any(), any());
+    }
+
+    /** Until the referent fixes it, the case stays failed as OTHER, out of the automatic requeue. */
+    @Test
+    void retryClassification_withRulesStillRefusingTheConfiguration_keepsItOutOfTheRequeue() {
+        Case failed = caseRecord(1L, CaseStatus.CLASSIFICATION_FAILED);
+        failed.setClassificationFailureReason(ClassificationFailureReason.OTHER);
+        when(caseRepository.findById(1L)).thenReturn(Optional.of(failed));
+        when(policyCoverageResolver.reverifiedCoverage(failed))
+                .thenThrow(new RulesMisconfiguredException(new IllegalStateException("422")));
+
+        assertThatThrownBy(() -> caseService.retryClassification(1L))
+                .isInstanceOf(RulesMisconfiguredException.class);
+
+        assertThat(failed.getClassificationFailureReason()).isEqualTo(ClassificationFailureReason.OTHER);
         verify(caseStatusService, never()).transition(any(), any(), any(), any());
         verify(claimsAnalysisClient, never()).analyzeAndPersist(any(), any());
     }

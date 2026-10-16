@@ -11,6 +11,7 @@ import ar.edu.utn.frba.arbiter.cases.dto.StatusTransitionResponse;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CaseExceptionHandler;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CaseNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidStatusTransitionException;
+import ar.edu.utn.frba.arbiter.cases.exceptions.RulesMisconfiguredException;
 import ar.edu.utn.frba.arbiter.cases.models.entities.StatusChangeActor;
 import ar.edu.utn.frba.arbiter.cases.services.CaseMessageService;
 import ar.edu.utn.frba.arbiter.cases.services.CaseService;
@@ -118,6 +119,18 @@ class CaseControllerTest {
                 .andExpect(jsonPath("$.detail").value("Case 999 not found"));
     }
 
+    /** 422, not 503: waiting won't help, so the analyst must not read it as an outage. */
+    @Test
+    void retryClassification_rulesRefusesTheConfiguration_returns422() throws Exception {
+        when(caseService.retryClassification(1L))
+                .thenThrow(new RulesMisconfiguredException(new IllegalStateException("422")));
+
+        mockMvc.perform(post("/api/v1/cases/1/retry-classification"))
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.detail").value(
+                        "La configuración de reglas de la aseguradora no se puede leer. Avisale al referente."));
+    }
+
     private static final Pageable DEFAULT_PAGEABLE = PageRequest.of(0, 20, Sort.by(Sort.Direction.DESC, "id"));
 
     @Test
@@ -199,19 +212,6 @@ class CaseControllerTest {
                 .andExpect(jsonPath("$.content.length()").value(1));
     }
 
-    @Test
-    void listCases_withFollowUp_passesTheFilterThrough() throws Exception {
-        CaseResponse response = caseResponse(1L, CaseStatus.PENDING_ANALYST_REVIEW);
-        when(caseService.listCases(isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
-                isNull(), isNull(), eq(false), eq(false), eq(false), eq(false), isNull(),
-                eq(CaseFollowUp.EXPERT_REPORT_RECEIVED), isNull(), eq(CaseScope.ALL), isNull(), eq(DEFAULT_PAGEABLE)))
-                .thenReturn(new PageImpl<>(List.of(response), DEFAULT_PAGEABLE, 1));
-
-        mockMvc.perform(get("/api/v1/cases").param("followUp", "EXPERT_REPORT_RECEIVED"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.content.length()").value(1));
-    }
-
     /** The home screen's "Plazo vencido" shortcut opens exactly what it counts. */
     @Test
     void listCases_withOverdueDeadline_passesTheFilterThrough() throws Exception {
@@ -222,6 +222,19 @@ class CaseControllerTest {
                 .thenReturn(new PageImpl<>(List.of(response), DEFAULT_PAGEABLE, 1));
 
         mockMvc.perform(get("/api/v1/cases").param("deadline", "OVERDUE"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content.length()").value(1));
+    }
+
+    @Test
+    void listCases_withFollowUp_passesTheFilterThrough() throws Exception {
+        CaseResponse response = caseResponse(1L, CaseStatus.PENDING_ANALYST_REVIEW);
+        when(caseService.listCases(isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
+                isNull(), isNull(), eq(false), eq(false), eq(false), eq(false), isNull(),
+                eq(CaseFollowUp.EXPERT_REPORT_RECEIVED), isNull(), eq(CaseScope.ALL), isNull(), eq(DEFAULT_PAGEABLE)))
+                .thenReturn(new PageImpl<>(List.of(response), DEFAULT_PAGEABLE, 1));
+
+        mockMvc.perform(get("/api/v1/cases").param("followUp", "EXPERT_REPORT_RECEIVED"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content.length()").value(1));
     }

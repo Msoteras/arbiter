@@ -157,6 +157,12 @@ public class CaseExceptionHandler extends ResponseEntityExceptionHandler {
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(422), ex.getMessage());
     }
 
+    /** 422: rules-service is up, and waiting won't help until the referent fixes the configuration. */
+    @ExceptionHandler(RulesMisconfiguredException.class)
+    public ProblemDetail handleRulesMisconfigured(RulesMisconfiguredException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(422), ex.getMessage());
+    }
+
     /** 503, not 422: an outage must not be presented to the analyst as the insurer's policy. */
     @ExceptionHandler(RulesUnavailableException.class)
     public ProblemDetail handleRulesUnavailable(RulesUnavailableException ex) {

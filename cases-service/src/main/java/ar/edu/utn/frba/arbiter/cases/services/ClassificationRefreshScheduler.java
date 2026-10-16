@@ -1,6 +1,7 @@
 package ar.edu.utn.frba.arbiter.cases.services;
 
 import ar.edu.utn.frba.arbiter.cases.config.tenant.TenantContext;
+import ar.edu.utn.frba.arbiter.cases.exceptions.RulesMisconfiguredException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.RulesUnavailableException;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
 import ar.edu.utn.frba.arbiter.cases.models.entities.StatusChangeActor;
@@ -170,6 +171,14 @@ public class ClassificationRefreshScheduler {
         for (Case caseRecord : failed) {
             try {
                 requeueAfterInfrastructureFailure(caseRecord.getId(), policyCoverageResolver.reverifiedCoverage(caseRecord));
+            } catch (RulesMisconfiguredException e) {
+                // Retrying every sweep would never end: it waits for the referent, and then for a
+                // manual retry, like any other failure that isn't the infrastructure's.
+                log.warn("Case {} stops being requeued: rules-service refuses its coverage configuration",
+                        caseRecord.getId());
+                caseRecord.setClassificationFailureReason(ClassificationFailureReason.OTHER);
+                caseRecord.setClassificationFailureMessage("Coverage exclusions refused by rules-service");
+                caseRepository.save(caseRecord);
             } catch (RulesUnavailableException e) {
                 log.info("Case {} waits for rules-service to verify its coverage before being requeued",
                         caseRecord.getId());

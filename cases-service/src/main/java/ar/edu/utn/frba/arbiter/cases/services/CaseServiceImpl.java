@@ -43,6 +43,7 @@ import ar.edu.utn.frba.arbiter.cases.exceptions.DocumentNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.DocumentTypeNotAllowedException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.DocumentReadException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.InsuredIdentityMismatchException;
+import ar.edu.utn.frba.arbiter.cases.exceptions.RulesMisconfiguredException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.RulesUnavailableException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidAnalystDecisionException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidSettlementException;
@@ -204,17 +205,28 @@ public class CaseServiceImpl implements CaseService {
 
         // After the ownership check, so someone else's policy never leaks its coverage window.
         PolicyCoverage contracted;
+        List<PolicyCoverage> candidates = List.of();
         boolean coverageVerified = true;
+        // A refusal won't fix itself, so that case isn't left for the automatic requeue.
+        boolean rulesMisconfigured = false;
         try {
             contracted = policyCoverageResolver.resolveFor(policy.getId(), claimCause.getId());
         } catch (RulesUnavailableException e) {
-            contracted = policyCoverageResolver.provisionalFor(policy.getId(), claimCause.getId());
+            candidates = policyCoverageResolver.provisionalCandidates(policy.getId(), claimCause.getId());
+            contracted = candidates.getFirst();
             coverageVerified = false;
+            rulesMisconfigured = e instanceof RulesMisconfiguredException;
         }
 
-        policyEligibilityValidator.validate(
-                request.policyNumber(), request.eventDate(), request.policeReportAt(),
-                coverageVerified ? contracted.getCoverage() : null, claimCause);
+        if (coverageVerified) {
+            policyEligibilityValidator.validate(
+                    request.policyNumber(), request.eventDate(), request.policeReportAt(),
+                    contracted.getCoverage(), claimCause);
+        } else {
+            policyEligibilityValidator.validateWithoutCoverage(
+                    request.policyNumber(), request.eventDate(), request.policeReportAt(),
+                    candidates.stream().map(PolicyCoverage::getCoverage).toList());
+        }
 
         boolean documentsVerified = coverageVerified && verifyRequiredDocuments(
                 contracted.getCoverage().getId(), request.branch(), request.claimCause(), documents);
@@ -243,10 +255,17 @@ public class CaseServiceImpl implements CaseService {
         if (coverageVerified) {
             claimsAnalysisClient.analyzeAndPersist(saved, caseDocumentRepository.findByCaseId(saved.getId()));
         } else {
-            saved.setClassificationFailureReason(ClassificationFailureReason.INFRASTRUCTURE);
-            saved.setClassificationFailureMessage("Coverage exclusions unreadable at filing");
-            caseStatusService.transition(saved, CaseStatus.CLASSIFICATION_FAILED, StatusChangeActor.SYSTEM,
-                    "no se pudo verificar la cobertura por una falla de infraestructura");
+            if (rulesMisconfigured) {
+                saved.setClassificationFailureReason(ClassificationFailureReason.OTHER);
+                saved.setClassificationFailureMessage("Coverage exclusions refused by rules-service at filing");
+                caseStatusService.transition(saved, CaseStatus.CLASSIFICATION_FAILED, StatusChangeActor.SYSTEM,
+                        "no se pudo verificar la cobertura: la configuración de reglas no se puede leer");
+            } else {
+                saved.setClassificationFailureReason(ClassificationFailureReason.INFRASTRUCTURE);
+                saved.setClassificationFailureMessage("Coverage exclusions unreadable at filing");
+                caseStatusService.transition(saved, CaseStatus.CLASSIFICATION_FAILED, StatusChangeActor.SYSTEM,
+                        "no se pudo verificar la cobertura por una falla de infraestructura");
+            }
         }
 
         // The case may have landed outside the login's tenant; the frontend needs the slug for every
