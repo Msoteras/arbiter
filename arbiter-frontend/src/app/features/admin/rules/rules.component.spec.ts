@@ -3,10 +3,10 @@ import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { provideRouter } from '@angular/router';
-import { Observable, Subject, of, throwError } from 'rxjs';
+import { BehaviorSubject, Observable, Subject, of, throwError } from 'rxjs';
 
 import { RulesComponent } from './rules.component';
-import { BranchesService } from '../branches.service';
+import { BranchOption, BranchesService } from '../branches.service';
 import { BusinessRulesTextService } from '../business-rules-text.service';
 import { CoverageExclusionsService } from '../coverage-exclusions.service';
 import { CoverageDetail, CoveragesRulesService } from '../coverages-rules.service';
@@ -48,11 +48,17 @@ describe('RulesComponent', () => {
 
   let branchDocuments: Record<number, readonly DocumentTypeDef[]>;
   let agenda: () => Observable<string[]>;
+  let branchList: () => Observable<BranchOption[]>;
   let claimCauses: () => Observable<{ id: number; name: string }[]>;
 
   beforeEach(() => {
     branchDocuments = { 1: DOCUMENT_TYPES_FIXTURE, 2: DOCUMENT_TYPES_FIXTURE };
     agenda = () => of([]);
+    branchList = () =>
+      of([
+        { id: 1, name: 'Celulares' },
+        { id: 2, name: 'Tecnología Portátil' },
+      ]);
     claimCauses = () => of([{ id: 4, name: 'Caída' }]);
   });
 
@@ -73,13 +79,7 @@ describe('RulesComponent', () => {
         provideHttpClientTesting(),
         {
           provide: BranchesService,
-          useValue: {
-            list: () =>
-              of([
-                { id: 1, name: 'Celulares' },
-                { id: 2, name: 'Tecnología Portátil' },
-              ]),
-          },
+          useValue: { list: () => branchList() },
         },
         {
           provide: CoveragesRulesService,
@@ -237,6 +237,27 @@ describe('RulesComponent', () => {
       expect(el().textContent).not.toContain('No se pudo cargar el ramo.');
       expect(el().querySelector('.cov-card')).not.toBeNull();
     });
+  });
+
+  /** A branch another referent creates shows up without moving the referent off their branch. */
+  it('takes a refreshed branch list and keeps the open branch', async () => {
+    const lists = new BehaviorSubject<BranchOption[]>([
+      { id: 1, name: 'Celulares' },
+      { id: 2, name: 'Tecnología Portátil' },
+    ]);
+    branchList = () => lists;
+    await mount();
+    click(branch('Tecnología Portátil'));
+
+    lists.next([
+      { id: 1, name: 'Celulares' },
+      { id: 2, name: 'Tecnología Portátil' },
+      { id: 3, name: 'Hogar' },
+    ]);
+    fixture.detectChanges();
+
+    expect(branch('Hogar')).toBeTruthy();
+    expect(el().querySelector('.branch-title')?.textContent).toContain('Tecnología Portátil');
   });
 
   describe('the Documentación marker', () => {

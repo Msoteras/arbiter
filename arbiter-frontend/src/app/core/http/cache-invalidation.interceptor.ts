@@ -18,8 +18,9 @@ const INVALIDATIONS: { matches: (url: string) => boolean; prefixes: string[] }[]
     prefixes: ['cases:'],
   },
   {
+    // Authorities and providers list every branch by name, so a new or renamed one reaches them too.
     matches: (url) => url.includes('/rules/branches'),
-    prefixes: ['rules:branches', 'rules:coverage-summary'],
+    prefixes: ['rules:branches', 'rules:coverage-summary', 'rules:authorities', 'rules:providers'],
   },
   { matches: (url) => url.includes('/coverages'), prefixes: ['rules:coverage-summary'] },
   { matches: (url) => url.includes('/expert-firms'), prefixes: ['rules:providers'] },
