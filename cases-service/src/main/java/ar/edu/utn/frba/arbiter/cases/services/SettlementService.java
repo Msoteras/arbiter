@@ -22,6 +22,7 @@ import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseReferralRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.InsurerReferentRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.PolicyCoverageRepository;
 import ar.edu.utn.frba.arbiter.common.enums.DeductibleBasis;
+import ar.edu.utn.frba.arbiter.common.enums.ProviderReport;
 import ar.edu.utn.frba.arbiter.common.enums.SettlementBasis;
 import ar.edu.utn.frba.arbiter.common.enums.SettlementFormula;
 import ar.edu.utn.frba.arbiter.common.enums.SettlementStatus;
@@ -59,9 +60,6 @@ public class SettlementService {
 
     /** The insured document whose amount can back a repair. */
     private static final String REPAIR_QUOTE = "repair_quote";
-    /** Provider reports uploaded by the analyst, not insured attachments. */
-    private static final String EXPERT_REPORT = "expert_report";
-    private static final String REPAIR_REPORT = "repair_report";
 
     private final CaseRepository caseRepository;
     private final CaseSettlementRepository settlementRepository;
@@ -231,7 +229,7 @@ public class SettlementService {
         return valuations.stream()
                 .filter(referral -> referral.getProviderType() == ProviderType.ESTUDIO_LIQUIDADOR)
                 .findFirst()
-                .map(referral -> new Suggestion(referral.getIndemnifiableAmount(), EXPERT_REPORT, target))
+                .map(referral -> new Suggestion(referral.getIndemnifiableAmount(), ProviderReport.EXPERT_REPORT.code(), target))
                 .orElse(null);
     }
 
@@ -285,7 +283,7 @@ public class SettlementService {
 
     private static String sourceOf(CaseReferral referral) {
         return referral.getProviderType() == ProviderType.SERVICIO_TECNICO
-                ? REPAIR_REPORT : EXPERT_REPORT;
+                ? ProviderReport.REPAIR_REPORT.code() : ProviderReport.EXPERT_REPORT.code();
     }
 
     private record Suggestion(BigDecimal amount, String documentType,

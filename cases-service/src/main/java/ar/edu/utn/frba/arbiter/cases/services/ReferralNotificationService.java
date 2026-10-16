@@ -7,6 +7,7 @@ import ar.edu.utn.frba.arbiter.cases.models.entities.CaseReferral;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.BranchRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseDocumentRepository;
 import ar.edu.utn.frba.arbiter.common.email.SendGridAdapter;
+import ar.edu.utn.frba.arbiter.common.enums.ProviderReport;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Branch;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -21,7 +22,6 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
-import java.util.Set;
 
 /**
  * Emails the external provider the case they have to verify. The send is recorded on
@@ -45,9 +45,6 @@ public class ReferralNotificationService {
             DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm").withZone(ZoneId.systemDefault());
 
     private static final Locale AR = Locale.forLanguageTag("es-AR");
-
-    private static final Set<String> INTERNAL_REPORT_TYPES = Set.of(
-            CaseReferralService.REPORT_DOCUMENT_TYPE, CaseReferralService.REPAIR_DOCUMENT_TYPE);
 
     private final SendGridAdapter sendGridAdapter;
     private final CaseDocumentRepository caseDocumentRepository;
@@ -87,7 +84,7 @@ public class ReferralNotificationService {
         long budget = MAX_ATTACHMENT_BYTES;
         for (CaseDocument document : caseDocumentRepository.findByCaseId(caseId).stream()
                 // Another provider's report is our evidence, not part of the claim they get sent.
-                .filter(document -> !INTERNAL_REPORT_TYPES.contains(document.getType()))
+                .filter(document -> !ProviderReport.isProviderReport(document.getType()))
                 .sorted(Comparator.comparing(CaseDocument::getId))
                 .toList()) {
             byte[] content = document.getContent();

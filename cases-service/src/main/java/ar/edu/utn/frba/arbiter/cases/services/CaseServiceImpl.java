@@ -28,6 +28,7 @@ import ar.edu.utn.frba.arbiter.cases.config.tenant.CallerContext;
 import ar.edu.utn.frba.arbiter.cases.config.tenant.TenantContext;
 import ar.edu.utn.frba.arbiter.cases.dto.StatusTransitionResponse;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.InsurerRepository;
+import ar.edu.utn.frba.arbiter.common.enums.ProviderReport;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.ClaimCause;
 import ar.edu.utn.frba.arbiter.common.models.entities.Insurer;
 import ar.edu.utn.frba.arbiter.cases.exceptions.SettlementAwaitingReferentException;
@@ -407,12 +408,9 @@ public class CaseServiceImpl implements CaseService {
     /** The multipart part carrying the case JSON itself; never stored or sent to OCR as a document. */
     private static final String CASE_PAYLOAD_KEY = "case";
 
-    /** Answers to a referral, attached by the analyst: internal to the insurer like the referral itself. */
-    private static final Set<String> PROVIDER_REPORT_TYPES = Set.of(
-            CaseReferralService.REPORT_DOCUMENT_TYPE, CaseReferralService.REPAIR_DOCUMENT_TYPE);
-
     private boolean hiddenFromCaller(CaseDocument document) {
-        return accessPolicy.currentUserIsInsured() && PROVIDER_REPORT_TYPES.contains(document.getType());
+        // Answers to a referral, attached by the analyst: internal to the insurer like the referral itself.
+        return accessPolicy.currentUserIsInsured() && ProviderReport.isProviderReport(document.getType());
     }
 
     /**
@@ -424,7 +422,7 @@ public class CaseServiceImpl implements CaseService {
             return;
         }
         documents.keySet().stream()
-                .filter(PROVIDER_REPORT_TYPES::contains)
+                .filter(ProviderReport::isProviderReport)
                 .findFirst()
                 .ifPresent(type -> {
                     throw new DocumentTypeNotAllowedException(type);
