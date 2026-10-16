@@ -1347,17 +1347,17 @@ export class RulesComponent {
           (c.deductibleBasis === 'LOSS_AMOUNT' ? ' del monto a indemnizar' : ''),
       );
     }
-    if (c.waitingPeriodDays != null) {
+    if (c.waitingPeriodDays != null && !this.hardRuleOff(c, 'WAITING_PERIOD')) {
       chips.push(`Carencia ${c.waitingPeriodDays} d`);
     }
-    if (c.reportDeadlineHours != null) {
+    if (c.reportDeadlineHours != null && !this.hardRuleOff(c, 'REPORT_DEADLINE')) {
       chips.push(`Denuncia ${c.reportDeadlineHours} h`);
     }
     const police = this.hardRulesOf(c).find((r) => r.ruleType === 'POLICE_DEADLINE');
-    if (police?.deadlineHours != null && this.coversACauseWithPoliceReport(c)) {
+    if (police?.deadlineHours != null && police.enabled && this.coversACauseWithPoliceReport(c)) {
       chips.push(`Policial ${police.deadlineHours} h`);
     }
-    if (c.maxAnnualClaims != null) {
+    if (c.maxAnnualClaims != null && !this.hardRuleOff(c, 'MAX_EVENTS_YEAR')) {
       chips.push(`Máx. ${c.maxAnnualClaims}/año`);
     }
     // Covering everything already has its own badge; an unloaded catalog would read as "none".
@@ -1408,6 +1408,17 @@ export class RulesComponent {
       return 'por año';
     }
     return type === 'WAITING_PERIOD' ? 'días' : 'horas';
+  }
+
+  private hardRuleOff(c: Coverage, type: HardRuleType): boolean {
+    return this.hardRulesOf(c).some((r) => r.ruleType === type && !r.enabled);
+  }
+
+  protected hardRuleOffNote(type: HardRuleType): string {
+    if (type === 'MAX_EVENTS_YEAR') {
+      return 'Sin tope';
+    }
+    return type === 'WAITING_PERIOD' ? 'Sin carencia' : 'Sin plazo';
   }
 
   /** Three thresholds are coverage columns; the police deadline lives on the rule itself. */

@@ -13,8 +13,7 @@ configurar, y que use el kit en vez de controles hechos a mano.
     `coverage.is_individual`.
   - `a9dce38c` — última solapa recordada, montos con formato en el historial, limpieza de tooltips
     de Fast Track, borrado de `score_band.active` y specs nuevos del front.
-- **Merge de `develop` en curso** (14/10): los conflictos están resueltos y en stage, falta el
-  commit. Ver "Merge con develop" más abajo.
+- **Merge de `develop` commiteado** (PR #144). Ver "Merge con develop" más abajo.
 
 ## Qué se hizo
 
@@ -89,17 +88,18 @@ cambios sin guardar y los textos descriptivos de Puntaje, Fraude y Atribuciones.
 
 ## Lo que tenés que hacer vos
 
-1. **Commitear el merge** con `develop` (está todo en stage) y el borrado de
-   `scoring_configuration.active`, que quedó sin stage.
-2. **Aplicar cuatro migraciones en Railway**, después de desplegar el código. Las cuatro son
-   idempotentes:
+1. ~~**Commitear el merge** con `develop` y el borrado de `scoring_configuration.active`.~~ Hecho
+   (PR #144).
+2. ~~**Aplicar cuatro migraciones en Railway**~~. Hecho, verificado el 15/10:
    - `db/migrations/2026-10-13-borrar-obligatorio-de-la-agenda.sql`
    - `db/migrations/2026-10-13-borrar-es-individual-de-cobertura.sql`
    - `db/migrations/2026-10-13-borrar-activo-de-banda-de-puntaje.sql`
    - `db/migrations/2026-10-14-borrar-activo-de-configuracion-de-puntaje.sql`
-3. **Editar el `.mdj`** con las entradas 23, 25 y 26 de `docs/der-gaps.md`: dropear `obligatorio` de
-   `requisito_documental`, `activo` de `configuracion_banda` y `activa` de `configuracion_scoring`.
-4. **Abrir el PR** de `feature/ux-enhancements-reglas` contra `develop`.
+3. ~~**Editar el `.mdj`** con las entradas 23, 25 y 26 de `docs/der-gaps.md`: dropear `obligatorio`
+   de `requisito_documental`, `activo` de `configuracion_banda` y `activa` de
+   `configuracion_scoring`.~~ Hecho el 16/10. Lo que sigue pendiente del DER está en
+   `docs/der-gaps.md`.
+4. ~~**Abrir el PR** de `feature/ux-enhancements-reglas` contra `develop`.~~ Hecho.
 
 ## Cómo quedó verificado
 
@@ -155,25 +155,31 @@ Vale aclararlo porque se presta a confusión:
 
 ## Pendientes de la lista original
 
-- **Plazo de denuncia:** la base guarda horas y la pantalla edita días con división entera. Un
-  plazo de 36 h se muestra como 1 día y se guarda como 24 h al tocar cualquier otro campo de la
-  cobertura. Es el único que puede pisar un dato.
-- **Reglas apagadas de la cobertura:** el campo de valor queda visible con el switch apagado; en
-  Fast Track y Hard Stop se reemplaza por un texto. `develop` ya resolvió la otra mitad: una regla
-  encendida sin valor muestra "Escribí un valor o apagá la regla." y no deja guardar.
+- ~~**Plazo de denuncia**~~: hecho (PR #152). La pantalla edita horas, igual que la base, y ya no
+  pisa un plazo de 36 h.
+- ~~**Reglas apagadas de la cobertura**~~: hecho en `fix/reglas-pendientes-ux`. Con el switch
+  apagado, el campo se reemplaza por un texto ("Sin carencia", "Sin plazo", "Sin tope"), como en
+  Fast Track y Hard Stop. El resumen de la cobertura plegada tampoco muestra el valor de una regla
+  apagada.
 - **Alta y baja de ramos y hechos generadores:** descartado para esta iteración.
 
-## Mejoras de UX detectadas, sin hacer
+## Mejoras de UX detectadas
 
-1. **Si falla la carga de hechos generadores**, la pantalla muestra "No hay hechos generadores en
-   este ramo", como si el ramo estuviera vacío. Debería mostrar el error con un reintento.
-2. **La matriz de agenda documental en teléfono** corta el último encabezado y obliga a scroll
-   horizontal.
-3. **Puntaje de riesgo:** el campo de peso de cada factor no tiene etiqueta ni unidad. La nota
-   difícil de leer que tenía arriba ya la sacó `develop`.
-4. **Tooltips que quedaron:** conviene repasarlos con el mismo criterio que los de Fast Track. El
-   candidato más claro es el de "Hechos generadores que cubre".
-5. **Tabs hechas a mano en otras pantallas** (Reportes, detalle del expediente, bandeja, chat): se
+Hechas:
+
+1. ~~**Si falla la carga de hechos generadores**~~ (PR #152): la pantalla muestra "No se pudo
+   cargar el ramo." con un reintento. Cubre toda la carga del ramo.
+2. ~~**La matriz de agenda documental en teléfono**~~ (`fix/reglas-pendientes-ux`): los
+   encabezados de los hechos generadores van en vertical y la tabla entra sin scroll.
+3. ~~**Puntaje de riesgo**~~ (`fix/reglas-pendientes-ux`): el peso de cada factor tiene la
+   etiqueta "Peso". No lleva unidad: los pesos son relativos y el "pesa N %" de al lado muestra la
+   parte que aplica el motor.
+4. ~~**Tooltips que quedaron**~~ (`fix/reglas-pendientes-ux`): salió el de "Hechos generadores que
+   cubre", que repetía el título. Queda el aviso de cuando la cobertura cubre todo el ramo.
+
+Sin hacer:
+
+5. **Tabs hechas a mano en otras pantallas** (Reportes, detalle del expediente, bandeja): se
    pueden migrar a `app-tabs`.
 6. **A revisar:** en una de las pruebas la barra de guardar seguía en "Cambios sin guardar" unos
    segundos después de un guardado que sí había entrado. No quedó claro si fue demora de Railway o
@@ -181,5 +187,3 @@ Vale aclararlo porque se presta a confusión:
 
 Ya resueltos por `develop`: la confirmación antes de descartar cambios sin guardar al cambiar de
 ramo o de sección.
-
-Para empezar, el plazo de denuncia: es el único pendiente que puede pisar un dato.

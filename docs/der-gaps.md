@@ -7,176 +7,87 @@ quedan afuera del backlog de Trello por eso.
 El DER sigue siendo la fuente de verdad (`CLAUDE.md`). Este documento no propone desvíos: es la
 lista de qué hay que corregirle. Cuando una entrada queda aplicada en el `.mdj`, se borra de acá.
 
-**Revisado el 11/10/2026, séptima pasada** contra el `.mdj` (última edición: 07/10) y contra
-`db/init-multitenant.sql`. Salieron las entradas 1, 2 y 3, que ya están en el diagrama. Las demás
-conservan su número.
+**Revisado el 16/10/2026, novena pasada** contra el `.mdj` editado ese día y contra
+`db/init-multitenant.sql`. Salieron las entradas 5, 6, 8, 9, 13 (`analisis_llm.fecha_analisis`), 16,
+17, 22, 23, 25, 26, 27 y 32, que ya están en el diagrama. Las entradas 7, 10, 11, 12, 15, 18, 21 y 31
+quedaron a medias y dicen solo lo que falta. Se sumó la 35. Las demás conservan su número.
 
-**Dos criterios que valen para todas las entradas:**
+**Criterios que valen para todas las entradas:**
 
 - **UNIQUE en una columna FK:** no se marca. La cardinalidad 1:1 va en la relación del diagrama (el
   extremo con `1` en vez de `0..*`).
 - **UNIQUE compuesta (dos o más columnas):** StarUML no dejó modelarla, así que no se marca en
   ninguna columna. Si la entidad tiene una, va una nota de texto al lado.
+- **Esquema común o por aseguradora:** se distingue por el borde de la entidad. Las del esquema
+  común (`arbiter_common`) llevan borde azul; las de cada aseguradora, el borde por defecto.
+- **FK:** se tilda `Foreign Key` en la columna y se dibuja la relación. `Reference To` queda vacío,
+  como en el resto del diagrama.
 
 ---
 
 ## Para editar en el `.mdj`
 
-### 4 · `peritaje` — nota de texto con la cardinalidad real
+### 4 · `derivacion_expediente` — nota de texto con la cardinalidad real
 
 Un expediente puede tener hasta dos filas: una por perito (`ESTUDIO_LIQUIDADOR`) y otra por servicio
 técnico (`SERVICIO_TECNICO`). La UNIQUE real es `(expediente_id, tipo_proveedor)`.
 
 **Acción:** agregar una nota de texto junto a la entidad: la cardinalidad es
-`expediente 0..1—0..2`, no `1—1`. Hoy el `.mdj` no tiene ninguna nota.
+`expediente 0..1—0..2`, no `1—1`.
 
-### 5 y 6 · `analisis_documento` — dos columnas que faltan
+### 7 · `configuracion_scoring.creado_por` — falta la relación
 
-| Columna | Tipo de dato | Nulo | Restricciones |
-|---|---|---|---|
-| `hecho_generador_descripto` (`described_claim_cause`) | VARCHAR(120) | sí | ninguna — **sin FK** a `hecho_generador`, a propósito: es registro de auditoría |
-| `estado_extraccion` (`extraction_status`) | VARCHAR(20) | no | default `'COMPLETE'`; CHECK `IN ('COMPLETE', 'PARTIAL', 'FAILED')` |
+La columna ya está como FK obligatoria a `usuario`. La de `regla_aseguradora` ya tiene su relación.
 
-**Acción:** agregar las dos columnas.
+**Acción:** dibujar la relación `usuario` 1—0..\* `configuracion_scoring`.
 
-### 7 · `regla_aseguradora.creado_por` y `configuracion_scoring.creado_por` — faltan
+### 10 · `proveedor_externo_rama` — falta la tabla N:M
 
-| Tabla | Columna | Tipo de dato | Nulo | Restricciones |
-|---|---|---|---|---|
-| `regla_aseguradora` | `creado_por` (`created_by`) | BIGINT | no | FK → `usuario.id` |
-| `configuracion_scoring` | `creado_por` (`created_by`) | BIGINT | no | FK → `usuario.id` |
-
-Apuntan a `usuario` y no a `referente_aseguradora` a propósito.
-
-**Acción:** agregar las dos columnas como FK obligatoria a `usuario`.
-
-### 8 · `cobertura.base_franquicia` y `liquidacion.base_franquicia` — faltan
+Los renombres de `perito` y `peritaje` ya están en el diagrama, y `proveedor_externo` ya no tiene
+`rama_id`. Falta la tabla que dice qué ramos cubre cada proveedor:
 
 | Tabla | Columna | Tipo de dato | Nulo | Restricciones |
 |---|---|---|---|---|
-| `cobertura` | `base_franquicia` (`deductible_basis`) | VARCHAR(20) | no | default `'SUM_INSURED'`; CHECK `IN ('SUM_INSURED', 'LOSS_AMOUNT')` |
-| `liquidacion` | `base_franquicia` (`deductible_basis`) | VARCHAR(20) | no | default `'SUM_INSURED'`; mismo CHECK |
+| `proveedor_externo_rama` (`service_provider_branch`) | `proveedor_externo_id` (`service_provider_id`) | BIGINT | no | PK compuesta; FK → `proveedor_externo.id` |
+| `proveedor_externo_rama` | `rama_id` (`branch_id`) | BIGINT | no | PK compuesta; FK → `rama.id` |
 
-**Acción:** agregar la columna a las dos entidades.
+Un proveedor cubre solo los ramos con fila en `proveedor_externo_rama`, y tiene al menos una.
 
-### 9 · `expediente.fue_fast_track` → `expediente.clasificacion_por_reglas`
+**Acción:**
 
-| Columna | Tipo de dato | Nulo | Restricciones |
-|---|---|---|---|
-| ~~`fue_fast_track`~~ (`was_fast_track`) | BOOLEAN | — | ya no existe |
-| `clasificacion_por_reglas` (`rules_classification`) | VARCHAR(50) | sí | CHECK `IN ('FAST_TRACK', 'FALTA_DOCUMENTACION', 'LLM_SOLICITA_REVISION_MANUAL', 'LLM_NO_RECOMIENDA_APROBAR')`; nula cuando decidió el modelo |
-
-**Acción:** reemplazar una columna por la otra.
-
-### 10 · `perito` y `peritaje` — renombre y ramos N:M
-
-| Antes | Después | Tipo de dato | Nulo | Restricciones |
-|---|---|---|---|---|
-| `perito` | `proveedor_externo` (`service_provider`) | — | — | entidad renombrada |
-| `perito.rama_id` | — | — | — | se saca: pasa a `proveedor_externo_rama` |
-| — | `proveedor_externo_rama.proveedor_externo_id` (`service_provider_id`) | BIGINT | no | PK compuesta; FK → `proveedor_externo.id` |
-| — | `proveedor_externo_rama.rama_id` (`branch_id`) | BIGINT | no | PK compuesta; FK → `rama.id` |
-| `peritaje` | `derivacion_expediente` (`case_referral`) | — | — | entidad renombrada |
-| `peritaje.nombre_perito` | `derivacion_expediente.nombre_proveedor` (`provider_name`) | VARCHAR(120) | no | — |
-| `peritaje.email_perito` | `derivacion_expediente.email_proveedor` (`provider_email`) | VARCHAR(150) | no | — |
-| `peritaje.perito_id` | `derivacion_expediente.proveedor_id` (`provider_id`) | BIGINT | sí | FK → `proveedor_externo.id` |
-| `antecedente_fraude.peritaje_id` | `antecedente_fraude.derivacion_expediente_id` (`case_referral_id`) | BIGINT | sí | FK → `derivacion_expediente.id` |
-
-Un proveedor cubre solo los ramos con fila en `proveedor_externo_rama`, y tiene al menos una. La
-migración pasa cada `rama_id` no nulo a una fila de la tabla nueva. Hasta el 10/10/2026, un
-proveedor sin filas era generalista; la migración `2026-10-10-proveedores-con-ramos.sql` le asignó
-todos los ramos de su aseguradora. `veredicto`, `monto_indemnizable`,
-`resultado_reparacion` y `costo_reparacion` no cambian: ya son propios de un tipo de proveedor.
-
-**Acción:** renombrar las dos entidades y sus columnas, sacar `rama_id` de `proveedor_externo` y
-agregar `proveedor_externo_rama` como N:M entre `proveedor_externo` y `rama`. La nota de la entrada
-4 va junto a `derivacion_expediente`.
+- Agregar `proveedor_externo_rama` como N:M entre `proveedor_externo` y `rama`.
+- Sacar la relación `rama` — `proveedor_externo`: quedó de cuando el proveedor tenía `rama_id`.
+- En la relación `derivacion_expediente` — `antecedente_fraude`, poner `0..1` del lado de
+  `antecedente_fraude`. Hoy no tiene cardinalidad en ningún extremo.
 
 ### 11 · `rama` y `hecho_generador` — pasan a ser de cada aseguradora
 
-| Tabla | Columna | Tipo de dato | Nulo | Restricciones |
-|---|---|---|---|---|
-| `rama` | `nombre_externo` (`external_name`) | VARCHAR(100) | sí | UNIQUE; columna nueva |
+`rama.nombre_externo` ya está en el diagrama. Las dos entidades siguen con el borde azul del esquema
+común.
 
-`nombre_externo` es como la BD de la aseguradora llama al ramo. Las relaciones no cambian: cambia de
-qué lado están las entidades.
+**Acción:** pasar `rama` y `hecho_generador` al borde por defecto. `rama` aparece dos veces en el
+diagrama.
 
-**Acción:** mover `rama` y `hecho_generador` de la parte común a la parte por aseguradora y agregar
-`rama.nombre_externo`.
+### 12 · `hecho_generador.nombre` — falta la nota
 
-### 12 · `hecho_generador.nombre` — sacarle la UNIQUE
-
-En el DER está marcada única sola. En el esquema la unicidad es `(rama_id, nombre)`: "Robo en vía
+La marca `unique` ya no está. En el esquema la unicidad es `(rama_id, nombre)`: "Robo en vía
 pública" y "Hurto" existen una vez por ramo.
 
-**Acción:** sacar la marca `unique` de `hecho_generador.nombre` y dejar una nota de texto: un nombre
-no se repite dentro de un ramo, pero sí entre ramos.
+**Acción:** dejar una nota de texto: un nombre no se repite dentro de un ramo, pero sí entre ramos.
 
-### 13 · `analisis_llm.fecha_analisis` — falta
+### 15 · `antecedente_fraude.analista_declarante_id` — falta la relación
 
-| Columna | Tipo de dato | Nulo | Restricciones |
-|---|---|---|---|
-| `fecha_analisis` (`analyzed_at`) | TIMESTAMPTZ | no | default `NOW()` |
+Las tres columnas ya están marcadas como FK. Las relaciones con `rama` y con `expediente` ya están.
 
-**Acción:** agregar la columna. Es la marca temporal que pide la auditoría de clasificaciones.
+**Acción:** dibujar la relación `analista_siniestro` 1—0..\* `antecedente_fraude`.
 
-### 15 · Marcas de FK que faltan
+### 18 · `cobertura` — falta la nota
 
-| Tabla | Columna | Apunta a |
-|---|---|---|
-| `hecho_generador` | `rama_id` | `rama.id` |
-| `antecedente_fraude` | `analista_declarante_id` | `analista_siniestro.id` |
-| `antecedente_fraude` | `expediente_id` | `expediente.id` |
+`cobertura.nombre_externo` ya está y `cobertura.nombre` ya no es única sola. En el esquema, los dos
+nombres son únicos junto con `rama_id`: la BD de la aseguradora repite un mismo nombre entre ramos.
 
-**Acción:** marcar las tres como FK.
-
-### 16 · Tipos, largos y nombres que no coinciden con el esquema
-
-| Tabla | Columna | En el DER | En el esquema |
-|---|---|---|---|
-| `asegurado` | `dni` | VARCHAR(8) | VARCHAR(20) |
-| `analisis_llm` | `recomendacion` | VARCHAR(20) | VARCHAR(50) |
-| `analisis_llm` | `confianza` | NUMERIC(5,2) | NUMERIC(5,3) |
-| `analisis_llm` | `hecho_generador_sugerido` | VARCHAR(100) | VARCHAR(120) |
-| `analisis_llm` | `evidencia_hecho_generador` | VARCHAR(255) | TEXT |
-| `analisis_imagen` | `modelo_utlizado` | VARCHAR(255) | VARCHAR(80) |
-| `antecedente_fraude` | `motivo` | VARCHAR(20) | TEXT |
-| `documento_expediente` | `tipo` | VARCHAR(60) | VARCHAR(255) |
-| `documento_expediente` | `tipo_contenido` | MIME | VARCHAR(255) |
-| `poliza` | `producto` | VARCHAR(100) | VARCHAR(1000) |
-| `requisito_documental` | `tipo_documento` | VARCHAR(20) | VARCHAR(50) |
-| `resultado_regla` | `tipo_regla` | VARCHAR(20) | VARCHAR(40) |
-
-Dos nombres con error de tipeo: `analisis_imagen.modelo_utlizado` (por `modelo_utilizado`) y
-`poliza_consultada.canitdad_siniestros_previos` (por `cantidad_siniestros_previos`).
-
-**Acción:** corregir tipos, largos y los dos nombres.
-
-### 17 · UNIQUE de una sola columna que faltan
-
-| Tabla | Columna |
-|---|---|
-| `rol` | `codigo` |
-| `permiso` | `nombre` |
-| `estado_expediente` | `nombre` |
-| `asegurado` | `dni` |
-| `poliza` | `nro_poliza_externo` |
-
-**Acción:** marcar las cinco como `unique`. Ninguna es FK.
-
-### 18 · `cobertura.nombre_externo` — falta, y `cobertura.nombre` deja de ser única sola
-
-| Columna | Tipo de dato | Nulo | Restricciones |
-|---|---|---|---|
-| `nombre` (`name`) | VARCHAR(100) | no | UNIQUE junto con `rama_id`; hoy el DER la marca única sola |
-| `nombre_externo` (`external_name`) | VARCHAR(160) | sí | UNIQUE junto con `rama_id`; columna nueva |
-
-`nombre_externo` es como la BD de la aseguradora llama a la cobertura, igual que
-`rama.nombre_externo` (entrada 11). Las dos UNIQUE son por ramo porque esa base repite un mismo
-nombre entre ramos.
-
-**Acción:** agregar `cobertura.nombre_externo`, sacar la marca `unique` de `cobertura.nombre` y
-dejar una nota de texto: ninguno de los dos nombres se repite dentro de un ramo, pero sí entre ramos.
+**Acción:** dejar una nota de texto: ninguno de los dos nombres se repite dentro de un ramo, pero sí
+entre ramos.
 
 ### 20 · `metrica` → `metrica_dia` y las tres `metrica_diaria_*`
 
@@ -215,55 +126,10 @@ Las tres `metrica_diaria_*` no tienen `id`: son una fila por día, hecho generad
 | `atributo_documento` | `analisis_id` (`analysis_id`) | BIGINT | no | FK → `analisis_documento.id` |
 
 Un `analisis_documento` tiene de 0 a N `atributo_documento`: una fila por dato del bien que dice el
-documento (`marca`, `modelo`, `IMEI`).
+documento (`marca`, `modelo`, `IMEI`). Las columnas `marca`, `modelo` e `imei` ya salieron de
+`analisis_documento`.
 
-**Acción:** agregar la entidad con su relación a `analisis_documento`, y sacar del diagrama las
-columnas `marca`, `modelo` e `imei` de `analisis_documento`: se borraron de la base el 12/10 con
-`2026-10-12-borrar-columnas-de-documento.sql`.
-
-### 22 · `estado_expediente.codigo_estado_asegurado` — columna nueva
-
-| Columna | Tipo de dato | Nulo | Restricciones |
-|---|---|---|---|
-| `codigo_estado_asegurado` (`insured_status_code`) | VARCHAR(40) | no | uno de los valores de `InsuredStatus` |
-
-Es el código que recibe el asegurado en lugar del nombre interno del estado; `estado_asegurado`
-(`insured_status`) queda como su etiqueta. Migración: `2026-10-11-codigo-del-estado-del-asegurado.sql`.
-
-**Acción:** agregarla al DER.
-
-### 23 · `requisito_documental.obligatorio` — sobra
-
-La columna se borró del esquema (`2026-10-13-borrar-obligatorio-de-la-agenda.sql`): siempre valió
-`TRUE` y ninguna lectura la miraba. Lo que una denuncia puede presentar con menos documentos es la
-lista de Fast Track, que vive en la configuración de esa regla.
-
-**Acción:** dropear `obligatorio` de `requisito_documental`.
-
-### 25 · `configuracion_banda.activo` — sobra
-
-La columna se borró del esquema (`2026-10-13-borrar-activo-de-banda-de-puntaje.sql`): las bandas se
-borran y se vuelven a escribir en cada guardado del puntaje, siempre en `TRUE`, y ninguna lectura
-filtraba por ella.
-
-**Acción:** dropear `activo` de `configuracion_banda`.
-
-### 26 · `configuracion_scoring.activa` — sobra
-
-La columna se borró del esquema (`2026-10-14-borrar-activo-de-configuracion-de-puntaje.sql`): el
-puntaje de riesgo está siempre activo (decidido el 14/10), la pantalla nunca dejó apagarlo y se
-guardaba siempre en `TRUE`. El motor puntúa siempre que la aseguradora tenga una configuración
-usable.
-
-**Acción:** dropear `activa` de `configuracion_scoring`.
-
-### 27 · `cobertura.siniestro_agota_cobertura` — sobra
-
-La columna se borró del esquema (`2026-10-14-borrar-un-siniestro-agota-la-cobertura.sql`): decía lo
-mismo que `max_eventos_por_anio = 1`. La migración le pasa ese tope a toda cobertura que la tenía
-prendida. Nunca estuvo en el DER.
-
-**Acción:** ninguna en el `.mdj`.
+**Acción:** agregar la entidad con su relación a `analisis_documento`.
 
 ### 28 · `shedlock` — tabla nueva en el esquema común
 
@@ -278,7 +144,7 @@ No es dato de negocio: una fila por barrido programado de `cases-service`, para 
 instancias lo corra una sola a la vez. La tabla y las columnas llevan los nombres de la librería
 (ShedLock), por eso quedan en inglés. Migración: `2026-10-12-lock-de-barridos.sql`.
 
-**Acción:** agregarla en `arbiter_common` como entidad suelta, sin relaciones.
+**Acción:** agregarla con borde azul (esquema común), como entidad suelta, sin relaciones.
 
 ### 29, 30 y 31 · Tipos de documento en la base, por ramo
 
@@ -298,30 +164,71 @@ front.
 | Columna | Tipo de dato | Nulo | Restricciones |
 |---|---|---|---|
 | `id` | BIGINT | no | PK |
-| `ramo_id` (`branch_id`) | BIGINT | no | FK → `ramo`, ON DELETE CASCADE |
-| `tipo_documento_id` (`document_type_id`) | BIGINT | no | FK → `tipo_documento` |
+| `rama_id` (`branch_id`) | BIGINT | no | FK → `rama.id`, ON DELETE CASCADE |
+| `tipo_documento_id` (`document_type_id`) | BIGINT | no | FK → `tipo_documento.id` |
 
-UNIQUE compuesta `(ramo_id, tipo_documento_id)`: va como nota de texto.
+UNIQUE compuesta `(rama_id, tipo_documento_id)`: va como nota de texto.
 
-**31 · `requisito_documental.tipo_documento` — pasa de texto a FK**
+**31 · `requisito_documental.tipo_documento_id` — falta la relación y la nota**
 
-| Columna | Tipo de dato | Nulo | Restricciones |
-|---|---|---|---|
-| `tipo_documento_id` (`document_type_id`) | BIGINT | no | FK → `tipo_documento`; FK compuesta `(ramo_id, tipo_documento_id)` → `ramo_tipo_documento` |
+La columna ya reemplazó a `tipo_documento` VARCHAR y está marcada como FK. Tiene además una FK
+compuesta `(rama_id, tipo_documento_id)` → `ramo_tipo_documento`, que impide que la agenda de un ramo
+pida un documento que no es suyo: va como nota de texto.
 
-La FK compuesta impide que la agenda de un ramo pida un documento que no es suyo: va como nota de texto.
+**Acción:**
 
-**Acción:** agregar las dos tablas con sus relaciones (`ramo` 1—0..\* `ramo_tipo_documento` 0..\*—1
-`tipo_documento`), y en `requisito_documental` cambiar `tipo_documento` VARCHAR por
-`tipo_documento_id` con su relación a `tipo_documento`.
+- Agregar `tipo_documento` con borde azul y `ramo_tipo_documento` con borde por defecto, con sus
+  relaciones: `rama` 1—0..\* `ramo_tipo_documento` 0..\*—1 `tipo_documento`.
+- Dibujar la relación `tipo_documento` 1—0..\* `requisito_documental`.
+- Agregar las dos notas: la UNIQUE de `ramo_tipo_documento` y la FK compuesta de
+  `requisito_documental`.
 
-### 32 · `cobertura.cubre_grupo_familiar` — sobra
+### 33 · `paso_puesta_en_marcha` y `reinicio_puesta_en_marcha` — tablas nuevas por aseguradora
 
-La columna se borró del esquema (`2026-10-15-borrar-grupo-familiar-de-cobertura.sql`). El motor lee
-ahora `poliza.cubre_grupo_familiar` de la BD Aseguradora: el dato es del contrato y cambia de una
-póliza a otra dentro del mismo ramo.
+Migración: `2026-10-12-puesta-en-marcha.sql`. Son de la guía de primera carga del referente. El
+estado de cada paso sale de la configuración; estas tablas guardan solo lo que la configuración no
+dice: los pasos que la aseguradora marcó como que no usa, el último guardado de cada paso y cuándo
+se reinició la guía.
 
-**Acción:** dropear `cubre_grupo_familiar` de `cobertura`.
+| Tabla | Columna | Tipo de dato | Nulo | Restricciones |
+|---|---|---|---|---|
+| `paso_puesta_en_marcha` (`onboarding_step`) | `clave_paso` (`step_key`) | VARCHAR(40) | no | PK |
+| `paso_puesta_en_marcha` | `omitido` (`skipped`) | BOOLEAN | no | default `FALSE` |
+| `paso_puesta_en_marcha` | `fecha_guardado` (`touched_at`) | TIMESTAMPTZ | sí | — |
+| `reinicio_puesta_en_marcha` (`onboarding_reset`) | `id` | SMALLINT | no | PK; default `1`; CHECK `id = 1` |
+| `reinicio_puesta_en_marcha` | `fecha_reinicio` (`reset_at`) | TIMESTAMPTZ | no | — |
+| `reinicio_puesta_en_marcha` | `reiniciado_por` (`reset_by`) | BIGINT | sí | FK → `usuario.id` |
+
+`clave_paso` es el nombre del paso, más `:<rama_id>` en el paso de coberturas, que es por ramo.
+`reinicio_puesta_en_marcha` tiene una sola fila.
+
+**Acción:** agregar las dos entidades con borde por defecto (por aseguradora).
+`reinicio_puesta_en_marcha` va con su relación a `usuario`; `paso_puesta_en_marcha` queda suelta.
+
+### 34 · Notas de UNIQUE compuesta que faltan
+
+| Entidad | UNIQUE del esquema |
+|---|---|
+| `cobertura_contratada` | `(poliza_id, cobertura_id)` |
+| `documento_expediente` | `(expediente_id, tipo)` |
+
+Las demás UNIQUE compuestas ya tienen su entrada: 4, 12, 18 y 30.
+
+**Acción:** agregar una nota de texto al lado de cada entidad. Por ejemplo, para
+`documento_expediente`: "Un expediente tiene un solo documento de cada tipo".
+
+### 35 · Dos relaciones que se perdieron al editar el 16/10
+
+Al editar el DER el 16/10, dos líneas que ya existían quedaron enganchadas a otras entidades. Las
+columnas siguen marcadas como FK, pero se quedaron sin su línea:
+
+| Relación que falta | Columna FK | Adónde fue la línea |
+|---|---|---|
+| `usuario` 1—0..\* `referente_aseguradora` | `referente_aseguradora.usuario_id` | a `usuario` — `regla_aseguradora` (entrada 7) |
+| `poliza_consultada` — `liquidacion` | `liquidacion.poliza_consultada_id` | a `antecedente_fraude` — `derivacion_expediente` (entrada 10) |
+
+**Acción:** volver a dibujar las dos. Las relaciones `usuario` — `regla_aseguradora` y
+`antecedente_fraude` — `derivacion_expediente` se quedan: también hacían falta.
 
 ---
 
