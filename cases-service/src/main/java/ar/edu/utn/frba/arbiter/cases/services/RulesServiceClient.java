@@ -1,6 +1,7 @@
 package ar.edu.utn.frba.arbiter.cases.services;
 
 import ar.edu.utn.frba.arbiter.cases.config.tenant.TenantContext;
+import ar.edu.utn.frba.arbiter.cases.exceptions.RulesMisconfiguredException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.RulesUnavailableException;
 import ar.edu.utn.frba.arbiter.common.dto.OnboardingTouch;
 import ar.edu.utn.frba.arbiter.common.enums.OnboardingStep;
@@ -11,6 +12,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
 
 import javax.crypto.SecretKey;
@@ -44,9 +46,9 @@ public class RulesServiceClient {
      * Tells rules-service a step of the setup checklist was saved here. Best-effort: the checklist
      * is a guide, so a failure is logged and never fails the save.
      */
-    public void recordOnboardingSave(OnboardingStep step, Long branchId) {
+    public void recordOnboardingSave(OnboardingStep step, Long branchId, String tenant) {
         try {
-            String serviceToken = JwtSupport.issueServiceToken(jwtKey, "cases-service-onboarding", TenantContext.get());
+            String serviceToken = JwtSupport.issueServiceToken(jwtKey, "cases-service-onboarding", tenant);
             restClient.post()
                     .uri("/api/v1/rules/internal/onboarding/touches")
                     .header(HttpHeaders.AUTHORIZATION, "Bearer " + serviceToken)
@@ -67,6 +69,9 @@ public class RulesServiceClient {
                     .header(HttpHeaders.AUTHORIZATION, "Bearer " + serviceToken)
                     .retrieve()
                     .body(PolicyStandingRule.class);
+        } catch (HttpClientErrorException e) {
+            log.error("rules-service refused the policy standing rule: {}", e.getResponseBodyAsString());
+            throw new RulesMisconfiguredException(e);
         } catch (Exception e) {
             log.error("Could not read the policy standing rule", e);
             throw new RulesUnavailableException(e);
@@ -94,6 +99,10 @@ public class RulesServiceClient {
                     .header(HttpHeaders.AUTHORIZATION, "Bearer " + serviceToken)
                     .retrieve()
                     .body(EvaluableRulesResponse.class);
+        } catch (HttpClientErrorException e) {
+            log.error("rules-service refused the coverage exclusions for coverage {}: {}", coverageId,
+                    e.getResponseBodyAsString());
+            throw new RulesMisconfiguredException(e);
         } catch (Exception e) {
             log.error("Could not read the coverage exclusions for coverage {}", coverageId, e);
             throw new RulesUnavailableException(e);
@@ -180,6 +189,10 @@ public class RulesServiceClient {
                     .retrieve()
                     .body(ExpertDerivationPolicy.class);
             return policy != null ? policy : ExpertDerivationPolicy.disabled();
+        } catch (HttpClientErrorException e) {
+            log.error("rules-service refused the expert derivation policy for branch {}: {}", branchId,
+                    e.getResponseBodyAsString());
+            throw new RulesMisconfiguredException(e);
         } catch (Exception e) {
             log.error("Could not read the expert derivation policy for branch {}", branchId, e);
             throw new RulesUnavailableException(e);
@@ -200,6 +213,10 @@ public class RulesServiceClient {
                     .retrieve()
                     .body(RepairDerivationPolicy.class);
             return policy != null ? policy : RepairDerivationPolicy.disabled();
+        } catch (HttpClientErrorException e) {
+            log.error("rules-service refused the repair derivation policy for branch {}: {}", branchId,
+                    e.getResponseBodyAsString());
+            throw new RulesMisconfiguredException(e);
         } catch (Exception e) {
             log.error("Could not read the repair derivation policy for branch {}", branchId, e);
             throw new RulesUnavailableException(e);

@@ -94,9 +94,17 @@ public class PolicyCoverageResolver {
     }
 
     public PolicyCoverage provisionalFor(Long policyId, Long claimCauseId) {
+        return provisionalCandidates(policyId, claimCauseId).getFirst();
+    }
+
+    /**
+     * Every coverage that could answer for the cause while the exclusions can't be read: the
+     * policy's coverages of the cause's branch, or all of them when it has none there. Never empty.
+     */
+    public List<PolicyCoverage> provisionalCandidates(Long policyId, Long claimCauseId) {
         List<PolicyCoverage> contracted = contractedCoveragesOrThrow(policyId);
         List<PolicyCoverage> sameBranch = claimCauseId == null ? List.of() : sameBranchAs(contracted, claimCauseId);
-        return sameBranch.isEmpty() ? contracted.getFirst() : sameBranch.getFirst();
+        return sameBranch.isEmpty() ? contracted : sameBranch;
     }
 
     private List<PolicyCoverage> contractedCoveragesOrThrow(Long policyId) {

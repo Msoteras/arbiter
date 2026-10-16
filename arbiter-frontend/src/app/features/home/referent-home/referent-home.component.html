@@ -28,9 +28,14 @@
             }
           </p>
         </div>
-        <a routerLink="/insurer/dashboard" class="hero-cta"
-          ><app-button variant="secondary">Ver dashboard completo ›</app-button></a
+        <app-button
+          class="hero-cta"
+          variant="secondary"
+          routerLink="/insurer/dashboard"
+          tabindex="-1"
         >
+          Ver dashboard completo ›
+        </app-button>
       </div>
 
       <nav class="shortcuts" aria-label="La operación hoy">
@@ -75,9 +80,9 @@
                     </span>
                   </span>
                   <span class="mono amount tabular">{{ money(p.settledAmount) }}</span>
-                  <a [routerLink]="['/cases', p.caseId]"
-                    ><app-button size="sm">Revisar</app-button></a
-                  >
+                  <app-button size="sm" [routerLink]="['/cases', p.caseId]" tabindex="-1">
+                    Revisar
+                  </app-button>
                 </li>
               }
             </ul>

@@ -41,14 +41,14 @@ export const ONBOARDING_LEVEL_LABEL: Record<OnboardingLevel, string> = {
 /** What the referent does in the step. Also the tooltip of the step's section in Reglas. */
 export const ONBOARDING_STEP_LINE: Record<OnboardingStepId, string> = {
   COVERAGES: 'Elegí las coberturas de las pólizas y configurá sus reglas.',
-  ANALYSTS: 'Cada analista recibe un mail para activar su cuenta.',
-  INSURED: 'Cada asegurado con una póliza vigente recibe un mail para activar su cuenta.',
+  ANALYSTS: 'Cargá el nombre y el mail de cada analista.',
+  INSURED: 'Invitá a los asegurados con póliza vigente.',
   DOCUMENTS: 'Marcá los documentos necesarios para denunciar cada hecho generador.',
   SCORING: 'Elegí los factores de riesgo y el peso de cada uno.',
-  FAST_TRACK: 'Definí las condiciones de una denuncia para ser considerada Fast Track.',
+  FAST_TRACK: 'Definí las condiciones para que una denuncia entre en Fast Track.',
   PROVIDERS: 'Agregá los peritos y servicios técnicos para derivar los expedientes.',
   AUTHORITIES: 'Definí el monto máximo que un analista puede autorizar por cada ramo.',
-  HARD_STOP: 'Elegí las reglas a evaluarse en el alta de la denuncia.',
+  HARD_STOP: 'Elegí las reglas que se evalúan al dar de alta la denuncia.',
   FRAUD:
     'Definí por cuántos meses un antecedente de fraude afecta las denuncias nuevas del asegurado.',
   TARGET: 'Definí el plazo de resolución de los expedientes.',
@@ -61,7 +61,7 @@ export function onboardingStepTitle(s: Pick<OnboardingStep, 'step' | 'branchName
     case 'COVERAGES':
       return `Cargá las coberturas de ${s.branchName ?? 'este ramo'}`;
     case 'ANALYSTS':
-      return 'Da de alta a los analistas';
+      return 'Dá de alta a los analistas';
     case 'INSURED':
       return 'Habilitá a los asegurados';
     case 'DOCUMENTS':

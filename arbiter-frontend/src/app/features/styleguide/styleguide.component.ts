@@ -1463,7 +1463,7 @@ export class StyleguideComponent {
 
   protected showToastWithDescription(): void {
     this.toastService.show('Configurá el Fast Track', 'info', 8000, {
-      description: 'Definí las condiciones de una denuncia para ser considerada Fast Track.',
+      description: 'Definí las condiciones para que una denuncia entre en Fast Track.',
     });
   }
 

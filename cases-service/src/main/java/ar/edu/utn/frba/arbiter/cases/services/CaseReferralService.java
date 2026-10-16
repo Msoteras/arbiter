@@ -28,6 +28,7 @@ import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseReferralRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.ServiceProviderRepository;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 import ar.edu.utn.frba.arbiter.common.enums.ExpertVerdict;
+import ar.edu.utn.frba.arbiter.common.enums.ProviderReport;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.ClaimsAnalyst;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -49,10 +50,6 @@ import java.util.Optional;
 @Service
 @RequiredArgsConstructor
 public class CaseReferralService {
-
-    /** Unique per (case_id, type), so each provider kind needs its own type or one overwrites the other. */
-    static final String REPORT_DOCUMENT_TYPE = "expert_report";
-    static final String REPAIR_DOCUMENT_TYPE = "repair_report";
 
     private final CaseRepository caseRepository;
     private final CaseDocumentRepository caseDocumentRepository;
@@ -204,7 +201,7 @@ public class CaseReferralService {
                              MultipartFile report, String transitionNote) {
         Long caseId = caseRecord.getId();
         String documentType = referral.getProviderType() == ProviderType.SERVICIO_TECNICO
-                ? REPAIR_DOCUMENT_TYPE : REPORT_DOCUMENT_TYPE;
+                ? ProviderReport.REPAIR_REPORT.code() : ProviderReport.EXPERT_REPORT.code();
         referral.setReportDocumentId(storeReport(caseId, documentType, report).getId());
         referral.setReportReceivedAt(Instant.now());
         referral.setVerdictNote(note);

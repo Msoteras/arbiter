@@ -23,7 +23,7 @@ import {
   comparisonReference,
 } from '../../../core/models/comparison';
 import { caseStatusLabel, caseStatusTone } from '../../../core/models/case-status';
-import { RiskBand, riskBandLabel } from '../../../core/models/risk-band';
+import { RiskBand, riskBandLabel, riskBandTone } from '../../../core/models/risk-band';
 import { ruleTypeDescription, ruleTypeLabel } from '../../../core/models/rule-type';
 import { StatusTone } from '../../../core/models/status-tone';
 import { formatDateRange, todayIso } from '../../../core/util/datetime';
@@ -83,14 +83,6 @@ interface Kpi {
   progress: number | null;
   tone: StatusTone;
 }
-
-/** Same tones as app-fraud-gauge. */
-const RISK_TONES: Record<RiskBand, StatusTone> = {
-  LOW: 'ok',
-  MEDIUM: 'warning',
-  HIGH: 'risk',
-  CRITICAL: 'danger',
-};
 
 const ALL = '__todos__';
 
@@ -642,7 +634,7 @@ export class DashboardComponent {
     (this.data()?.byRiskBand ?? []).map((count) => ({
       label: labelOrEmpty(count, (raw) => riskBandLabel(raw as RiskBand), 'Sin evaluar'),
       count: count.count,
-      tone: count.label === null ? 'neutral' : (RISK_TONES[count.label as RiskBand] ?? 'neutral'),
+      tone: riskBandTone(count.label as RiskBand | null),
     })),
   );
 

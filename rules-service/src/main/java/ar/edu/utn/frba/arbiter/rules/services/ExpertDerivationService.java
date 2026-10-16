@@ -1,27 +1,18 @@
 package ar.edu.utn.frba.arbiter.rules.services;
 
-import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Branch;
 import ar.edu.utn.frba.arbiter.rules.dto.ExpertDerivationConfig;
 import ar.edu.utn.frba.arbiter.rules.dto.ExpertDerivationDto;
 import ar.edu.utn.frba.arbiter.rules.dto.ExpertDerivationRuleDto;
-import ar.edu.utn.frba.arbiter.rules.dto.InsurerRuleSnapshot;
-import ar.edu.utn.frba.arbiter.rules.exceptions.BranchNotFoundException;
 import ar.edu.utn.frba.arbiter.rules.exceptions.InvalidRuleConfigurationException;
 import ar.edu.utn.frba.arbiter.rules.models.entities.InsurerRule;
-import ar.edu.utn.frba.arbiter.rules.models.entities.InsurerRuleHistory;
-import ar.edu.utn.frba.arbiter.rules.models.repositories.BranchRepository;
-import ar.edu.utn.frba.arbiter.rules.models.repositories.InsurerRuleHistoryRepository;
 import ar.edu.utn.frba.arbiter.rules.models.repositories.InsurerRuleRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.time.Instant;
 
 /**
  * The insurer's derivation-to-expert policy for a branch, for the referente and for cases-service.
@@ -37,8 +28,6 @@ public class ExpertDerivationService {
 
     static final String EXPERT_DERIVATION = "EXPERT_DERIVATION";
 
-    private static final Logger log = LoggerFactory.getLogger(ExpertDerivationService.class);
-
     // Self-instantiated (Jackson 2), same as EvaluableRuleService: Spring Boot 4
     // autoconfigures a Jackson 3 ObjectMapper, so there's no com.fasterxml bean to inject.
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
@@ -46,9 +35,7 @@ public class ExpertDerivationService {
     private static final String RULE_NAME = "Derivación a peritaje";
 
     private final InsurerRuleRepository ruleRepository;
-    private final InsurerRuleHistoryRepository historyRepository;
-    private final BranchRepository branchRepository;
-    private final RuleAuthorResolver authorResolver;
+    private final BranchRuleWriter ruleWriter;
 
     /** System-to-system read: an inactive rule answers the same as no rule. */
     @Transactional(readOnly = true)
@@ -79,67 +66,12 @@ public class ExpertDerivationService {
             throw new InvalidRuleConfigurationException(
                     "Indicá desde qué monto reclamado se deriva a peritaje.");
         }
-        Instant now = Instant.now();
-
-        InsurerRule rule = ruleRepository
-                .findFirstByBranch_IdAndCoverageIdIsNullAndRuleType(branchId, EXPERT_DERIVATION)
-                .orElse(null);
-
-        if (rule == null) {
-            // Off with no amount to keep: the missing row already says "does not derive".
-            if (amount == null) {
-                return ExpertDerivationRuleDto.unconfigured();
-            }
-            Branch branch = branchRepository.findById(branchId)
-                    .orElseThrow(() -> new BranchNotFoundException(branchId));
-            ruleRepository.save(InsurerRule.builder()
-                    .active(requested.enabled())
-                    .validFrom(now)
-                    .createdBy(authorResolver.userIdOf(actorEmail))
-                    .name(RULE_NAME)
-                    .ruleType(EXPERT_DERIVATION)
-                    .effect("DERIVAR")
-                    .blocksFastTrack(false)
-                    .branch(branch)
-                    .coverageId(null)
-                    .configuration(serialize(amount))
-                    .build());
-            log.info("[ExpertDerivation] created — branch={} enabled={} minClaimedAmount={} by={}",
-                    branchId, requested.enabled(), amount, actorEmail);
-            return new ExpertDerivationRuleDto(requested.enabled(), amount);
-        }
-
         // Turning the rule off without an amount keeps the stored one.
-        String json = amount == null ? rule.getConfiguration() : serialize(amount);
-
-        // A save that changes nothing leaves no audit entry.
-        if (InsurerRuleSnapshot.unchanged(
-                rule.isActive(), rule.isBlocksFastTrack(), rule.getConfiguration(),
-                requested.enabled(), rule.isBlocksFastTrack(), json)) {
-            return new ExpertDerivationRuleDto(rule.isActive(), storedAmount(rule.getConfiguration()));
-        }
-
-        historyRepository.save(InsurerRuleHistory.builder()
-                .configVersion(InsurerRuleSnapshot.serialize(
-                        rule.isActive(), rule.isBlocksFastTrack(), rule.getConfiguration()))
-                .changedAt(now)
-                .validFrom(rule.getValidFrom())
-                .validTo(now)
-                .reason("Derivación a peritaje actualizada por " + actorEmail)
-                .insurerRule(rule)
-                .changedBy(authorResolver.referentIdOf(actorEmail))
-                .build());
-
-        rule.setActive(requested.enabled());
-        rule.setConfiguration(json);
-        rule.setValidFrom(now);
-        // The seeded name quotes the original amount, which the history would keep showing.
-        rule.setName(RULE_NAME);
-        ruleRepository.save(rule);
-        log.info("[ExpertDerivation] updated — branch={} enabled={} minClaimedAmount={} by={}",
-                branchId, requested.enabled(), amount, actorEmail);
-
-        return new ExpertDerivationRuleDto(requested.enabled(), storedAmount(json));
+        BranchRuleWriter.Saved saved = ruleWriter.upsert(branchId, EXPERT_DERIVATION, RULE_NAME,
+                requested.enabled(), amount == null ? null : serialize(amount), actorEmail);
+        return saved == null
+                ? ExpertDerivationRuleDto.unconfigured()
+                : new ExpertDerivationRuleDto(saved.active(), storedAmount(saved.configuration()));
     }
 
     private ExpertDerivationDto toDto(InsurerRule rule) {

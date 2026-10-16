@@ -99,6 +99,10 @@
   /* Short fields: a number, and the unit selector next to it. */
   --control-w-number: 88px;
   --control-w-unit: 112px;
+  /* An amount or a short value beside its label, a column of amounts, a select of sentences. */
+  --control-w-value: 12rem;
+  --control-w-amount: 14rem;
+  --control-w-choice: 18rem;
   --unit-label-w: 56px;
   --doc-file-w: 300px;
 

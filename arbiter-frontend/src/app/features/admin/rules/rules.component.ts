@@ -299,13 +299,19 @@ export class RulesComponent {
   private coverageSummaryLoaded = false;
 
   constructor() {
-    // Applying a refreshed list would select a branch again and move the referent off their view.
-    this.branchesService.list({ apply: () => false }).subscribe({
+    // Only the first list picks a branch: a refresh, e.g. one another referent created, updates the
+    // list and leaves the referent where they are. Selection goes by id, so it survives the swap.
+    let firstList = true;
+    this.branchesService.list().subscribe({
       next: (branches) => {
         const shells = branches.map((b) => this.shellFromBranch(b));
         this.branches.set(shells);
         this.branchesLoading.set(false);
         this.applyCoverageCounts();
+        if (!firstList) {
+          return;
+        }
+        firstList = false;
         if (!this.openLinkedView(this.route.snapshot.queryParamMap) && shells.length > 0) {
           this.select(shells[0]);
         }

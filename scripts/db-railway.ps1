@@ -168,10 +168,11 @@ SELECT count(*) FROM information_schema.schemata
 SELECT count(*) FROM information_schema.tables WHERE table_schema='arbiter_common';
 "@ 10
 
+    # Same counts as the header of db/init-multitenant.sql.
     foreach ($tenant in @('arbiter_bbva', 'arbiter_provincia')) {
         Assert-Count "tablas en $tenant" @"
 SELECT count(*) FROM information_schema.tables WHERE table_schema='$tenant';
-"@ 33
+"@ 44
     }
 
     # 2. Columns that only a current init script creates.
@@ -210,7 +211,7 @@ SELECT count(*) FROM information_schema.columns
 
     # 3. Catalogs and seed data.
     Assert-Count 'estados en arbiter_common.case_status' `
-        'SELECT count(*) FROM arbiter_common.case_status;' 9
+        'SELECT count(*) FROM arbiter_common.case_status;' 12
     Assert-Count 'aseguradoras registradas' `
         'SELECT count(*) FROM arbiter_common.insurer;' 2
     Assert-Count 'usuarios sembrados' `

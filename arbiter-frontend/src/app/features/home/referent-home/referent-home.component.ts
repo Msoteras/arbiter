@@ -22,7 +22,7 @@ import {
 import { CaseResponse } from '../../../core/models/case';
 import { caseStatusTone, workStatusLabel } from '../../../core/models/case-status';
 import { riskFactorLabel } from '../../../core/models/business-rules';
-import { RiskBand, riskBandLabel } from '../../../core/models/risk-band';
+import { RiskBand, riskBandLabel, riskBandTone } from '../../../core/models/risk-band';
 import { StatusTone } from '../../../core/models/status-tone';
 import { greetingForTimeOfDay, longDate } from '../../../core/util/datetime';
 import { formatMoney } from '../../../core/util/money';
@@ -66,13 +66,6 @@ interface DeadlineSegment {
   value: number;
   tone: StatusTone;
 }
-
-const RISK_TONES: Record<RiskBand, StatusTone> = {
-  LOW: 'ok',
-  MEDIUM: 'warning',
-  HIGH: 'risk',
-  CRITICAL: 'danger',
-};
 
 @Component({
   selector: 'app-referent-home',
@@ -224,7 +217,7 @@ export class ReferentHomeComponent {
             ? `${analystsOverdue} ${analystsOverdue === 1 ? 'analista' : 'analistas'}`
             : null,
         link: '/inbox',
-        query: { dueSoon: 'true' },
+        query: { deadline: 'OVERDUE' },
       },
       {
         value: s?.stale ?? null,
@@ -278,7 +271,7 @@ export class ReferentHomeComponent {
   }
 
   protected riskTone(c: CaseResponse): StatusTone {
-    return c.riskBand ? RISK_TONES[c.riskBand as RiskBand] : 'neutral';
+    return riskBandTone(c.riskBand as RiskBand | null);
   }
 
   protected alertStatus(c: CaseResponse): { label: string; tone: StatusTone } {
