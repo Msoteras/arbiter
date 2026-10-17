@@ -213,7 +213,8 @@ export class NewClaimComponent {
   protected readonly policyOptions = computed<SelectOption[]>(() =>
     this.policies().map((p) => ({
       value: p.policyNumber,
-      label: `${p.insurerName} · ${p.product} · ${p.policyNumber}`,
+      // The item tells apart policies of the same product (one per phone); not every policy names one.
+      label: `${p.insurerName} · ${p.insuredItem ?? p.product} · ${p.policyNumber}`,
     })),
   );
 
