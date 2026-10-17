@@ -2,7 +2,8 @@
 --   · arbiter_common.document_type: the catalog, code + name, the same for every insurer.
 --   · <tenant>.branch_document_type: which of them each branch may ask for. Every branch gets the
 --     ones its schedule and its Fast Track lists already use, so no insurer loses a document;
---     Celulares and Tecnología Portátil also get the full platform set, as a new insurer does.
+--     Celulares and Tecnología Portátil also get the set a new insurer gets: all six documents
+--     for Celulares, and Tecnología Portátil without the IMEI deregistration and last connection.
 --   · <tenant>.document_requirement gains document_type_id, keyed to the catalog and to the
 --     branch's own list. Refuses to run while a schedule row holds a code the catalog doesn't
 --     know: load it into document_type first.

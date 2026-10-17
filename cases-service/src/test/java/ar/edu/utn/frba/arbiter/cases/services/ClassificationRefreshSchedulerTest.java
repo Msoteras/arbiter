@@ -1,6 +1,7 @@
 package ar.edu.utn.frba.arbiter.cases.services;
 
 import ar.edu.utn.frba.arbiter.cases.config.tenant.TenantContext;
+import ar.edu.utn.frba.arbiter.cases.exceptions.RulesMisconfiguredException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.RulesUnavailableException;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
 import ar.edu.utn.frba.arbiter.cases.models.entities.StatusChangeActor;
@@ -386,6 +387,24 @@ class ClassificationRefreshSchedulerTest {
 
         verify(caseRepository, never()).claimFailedCaseForRequeue(anyLong(), any());
         verify(caseStatusService, never()).transition(any(), any(), any(), any());
+        verify(claimsAnalysisClient, never()).analyzeAndPersistAsSystem(any(), any());
+    }
+
+    /** A refusal never fixes itself: the case leaves the automatic requeue for a manual retry. */
+    @Test
+    void recoverInfrastructureFailures_rulesRefusesTheCoverage_stopsRequeuingTheCase() {
+        Case entity = failedCase(3, ClassificationFailureReason.INFRASTRUCTURE);
+        entity.setDocumentsUnverifiedSince(NOW.minus(Duration.ofHours(1)));
+        when(caseRepository.findFailedByReason(ClassificationFailureReason.INFRASTRUCTURE))
+                .thenReturn(List.of(entity));
+        when(policyCoverageResolver.reverifiedCoverage(entity))
+                .thenThrow(new RulesMisconfiguredException(new IllegalStateException("422")));
+
+        scheduler.recoverInfrastructureFailures();
+
+        assertThat(entity.getClassificationFailureReason()).isEqualTo(ClassificationFailureReason.OTHER);
+        verify(caseRepository).save(entity);
+        verify(caseRepository, never()).claimFailedCaseForRequeue(anyLong(), any());
         verify(claimsAnalysisClient, never()).analyzeAndPersistAsSystem(any(), any());
     }
 

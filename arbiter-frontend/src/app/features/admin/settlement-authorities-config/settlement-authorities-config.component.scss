@@ -43,7 +43,7 @@
 
 /* The input doesn't compete with the branch name for width. */
 .row app-input {
-  flex: 0 0 12rem;
+  flex: 0 0 var(--control-w-value);
 }
 
 /* Stacked on mobile: beside the input, the branch name wrapped onto two lines. */

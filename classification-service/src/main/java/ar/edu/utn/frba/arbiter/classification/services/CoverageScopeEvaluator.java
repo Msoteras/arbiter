@@ -1,6 +1,5 @@
 package ar.edu.utn.frba.arbiter.classification.services;
 
-import ar.edu.utn.frba.arbiter.classification.dto.BusinessRules;
 import ar.edu.utn.frba.arbiter.classification.dto.DocumentExtraction;
 import ar.edu.utn.frba.arbiter.classification.dto.InsuredHistory;
 import ar.edu.utn.frba.arbiter.classification.dto.InsuredPolicy;
@@ -18,8 +17,9 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * How far the coverage reaches: family group and the sum insured consumed by accumulation (per
- * coverage, not per policy). The model only extracts who was affected; the rule is decided here.
+ * How far the cover reaches: family group (per policy, as the insurer DB has it) and the sum insured
+ * consumed by accumulation (per coverage, not per policy). The model only extracts who was affected;
+ * the rule is decided here.
  * Like every hard rule, it blocks Fast Track and adds reasons, never closes the case.
  */
 @Service
@@ -40,13 +40,12 @@ public class CoverageScopeEvaluator {
             ClaimReport claim,
             InsuredPolicy policy,
             InsuredHistory history,
-            BusinessRules rules,
             Map<String, DocumentExtraction> documents) {
 
         List<String> reasons = new ArrayList<>();
         List<RuleFinding> findings = new ArrayList<>();
 
-        evaluateFamilyGroup(rules, documents, reasons, findings);
+        evaluateFamilyGroup(policy, documents, reasons, findings);
         evaluateSumInsuredLimit(claim, policy, history, reasons);
 
         boolean block = !reasons.isEmpty();
@@ -58,9 +57,9 @@ public class CoverageScopeEvaluator {
 
     /** Only an explicit {@code FAMILIAR} fires it; unknown leaves it unevaluated. */
     private void evaluateFamilyGroup(
-            BusinessRules rules, Map<String, DocumentExtraction> documents, List<String> reasons,
+            InsuredPolicy policy, Map<String, DocumentExtraction> documents, List<String> reasons,
             List<RuleFinding> findings) {
-        if (!Boolean.FALSE.equals(rules.coversFamilyGroup())) {
+        if (!Boolean.FALSE.equals(policy.coversFamilyGroup())) {
             return;
         }
         boolean affectedIsFamily = documents.values().stream()
@@ -68,7 +67,7 @@ public class CoverageScopeEvaluator {
                 .anyMatch(DocumentExtraction.AffectedParty.FAMILIAR::equals);
         if (affectedIsFamily) {
             findings.add(finding(RuleType.COVERS_FAMILY_GROUP, false, "affectedParty=FAMILIAR"));
-            reasons.add("El damnificado es un familiar del asegurado y la cobertura no alcanza al "
+            reasons.add("El damnificado es un familiar del asegurado y la póliza no alcanza al "
                     + "grupo familiar conviviente");
             return;
         }

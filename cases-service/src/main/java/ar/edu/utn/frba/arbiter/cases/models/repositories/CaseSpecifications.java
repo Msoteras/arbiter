@@ -136,12 +136,14 @@ public final class CaseSpecifications {
         return switch (followUp) {
             case EXPERT_REPORT_RECEIVED -> returnedFrom(ProviderType.ESTUDIO_LIQUIDADOR);
             case REPAIR_REPORT_RECEIVED -> returnedFrom(ProviderType.SERVICIO_TECNICO);
+            case PROVIDER_REPORT_RECEIVED -> returnedFrom(ProviderType.ESTUDIO_LIQUIDADOR, ProviderType.SERVICIO_TECNICO);
             case RETURNED_BY_REFERENT -> withSettlement(SettlementStatus.RETURNED);
             case AWAITING_REFERENT -> withSettlement(SettlementStatus.PENDING_AUTHORIZATION);
+            case AWAITING_ANALYST -> awaitingAnalyst();
         };
     }
 
-    private static Specification<Case> returnedFrom(ProviderType providerType) {
+    private static Specification<Case> returnedFrom(ProviderType... providerTypes) {
         List<String> excluded = names(Stream.concat(
                 CaseStatusService.TERMINAL_STATUSES.stream(),
                 Stream.of(CaseStatus.PENDING_EXPERT_REPORT, CaseStatus.PENDING_REPAIR)));
@@ -150,10 +152,24 @@ public final class CaseSpecifications {
             Root<CaseReferral> referral = responded.from(CaseReferral.class);
             responded.select(referral.get("id")).where(
                     cb.equal(referral.get("caseId"), root.get("id")),
-                    cb.equal(referral.get("providerType"), providerType),
+                    referral.get("providerType").in((Object[]) providerTypes),
                     cb.isNotNull(referral.get("reportReceivedAt")));
             return cb.and(cb.exists(responded),
                     cb.not(root.get("currentStatus").get("name").in(excluded)));
+        };
+    }
+
+    /** The complement of AWAITING_REFERENT within the analyst's review, so the two add up to it. */
+    private static Specification<Case> awaitingAnalyst() {
+        return (root, query, cb) -> {
+            Subquery<Long> sentToReferent = query.subquery(Long.class);
+            Root<CaseSettlement> settlement = sentToReferent.from(CaseSettlement.class);
+            sentToReferent.select(settlement.get("id")).where(
+                    cb.equal(settlement.get("caseId"), root.get("id")),
+                    cb.equal(settlement.get("status"), SettlementStatus.PENDING_AUTHORIZATION));
+            return cb.and(
+                    cb.equal(root.get("currentStatus").get("name"), CaseStatus.PENDING_ANALYST_REVIEW.name()),
+                    cb.not(cb.exists(sentToReferent)));
         };
     }
 

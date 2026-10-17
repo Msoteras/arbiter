@@ -37,7 +37,8 @@ class RepairDerivationServiceTest {
     private final ClaimCauseRepository claimCauseRepository = mock(ClaimCauseRepository.class);
     private final RuleAuthorResolver authorResolver = mock(RuleAuthorResolver.class);
     private final RepairDerivationService service = new RepairDerivationService(
-            ruleRepository, historyRepository, branchRepository, claimCauseRepository, authorResolver);
+            ruleRepository, claimCauseRepository,
+            new BranchRuleWriter(ruleRepository, historyRepository, branchRepository, authorResolver));
 
     @Test
     void readsTheClaimCausesOffTheRuleConfiguration() {

@@ -11,6 +11,7 @@ import ar.edu.utn.frba.arbiter.cases.dto.CaseActionResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.ClaimCauseCorrectionRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.ClaimCauseOption;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseDocumentResponse;
+import ar.edu.utn.frba.arbiter.cases.dto.CaseDeadline;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseFollowUp;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseMessageInboxItemResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseScope;
@@ -58,7 +59,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/v1/cases")
 @RequiredArgsConstructor
-@Tag(name = "Cases", description = "Case lifecycle management")
+@Tag(name = "Expedientes", description = "Ciclo de vida de los expedientes")
 public class CaseController {
 
     private final CaseService caseService;
@@ -68,18 +69,15 @@ public class CaseController {
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasRole('ASEGURADO')")
-    @Operation(summary = "Create a case",
+    @Operation(summary = "Crear un expediente",
             description = """
-                    Registers a case using the same request structure as the claim flow and triggers
-                    an analysis with classification-service, forwarding claimedAmount and any attached
-                    documents. Each part under `documents` is keyed by what the document IS
-                    (e.g. `police_report`, `invoice`, `quote`, `item_photo`).
+                    Registra el expediente con la misma estructura que la denuncia y encola el análisis
+                    en classification-service, con el monto reclamado y los adjuntos. Cada parte de
+                    `documents` va con el código de lo que el documento ES (`police_report`,
+                    `purchase_proof`, `repair_quote`, `item_photo`…).
 
-                    Only the insured files a claim, and only in their own name: the payload's
-                    `insuredId` must be the token's national ID (403 otherwise), and the claimed policy must
-                    belong to that insured (422 otherwise). The insurer lead used to be allowed here by
-                    an annotation looser than the business rule — the frontend already restricted
-                    the `new-claim` route to the insured role.
+                    Solo el asegurado denuncia, y solo en nombre propio: el `insuredId` tiene que ser
+                    el DNI del token (si no, 403) y la póliza tiene que ser suya (si no, 422).
                     """)
     public ResponseEntity<CaseResponse> createCase(
             @RequestPart("case") @Valid CaseRequest request,
@@ -91,15 +89,13 @@ public class CaseController {
 
     @PostMapping("/eligibility")
     @PreAuthorize("hasRole('ASEGURADO')")
-    @Operation(summary = "Check whether a claim would be accepted",
+    @Operation(summary = "Verificar si la denuncia se aceptaría",
             description = """
-                    Runs the same intake gate as POST /cases (ownership, policy in force, waiting
-                    period, overdue premium)
-                    without creating anything. The wizard calls this once it has a policy and an
-                    event date, so it can block or warn before the insured fills out the rest of
-                    the form and uploads documentation — instead of finding out only at the end.
-                    Always 200; a non-eligible policy is `{eligible: false, reason: "..."}`, not an
-                    error.
+                    Corre el mismo control que POST /cases (titularidad, vigencia, carencia y premio
+                    impago) sin crear nada. El wizard lo llama apenas tiene póliza y fecha del hecho,
+                    para frenar o avisar antes de que el asegurado complete el resto y suba la
+                    documentación. Siempre responde 200: una póliza que no califica vuelve como
+                    `{eligible: false, reason: "..."}`, no como error.
                     """)
     public ResponseEntity<EligibilityCheckResponse> checkEligibility(
             @RequestBody @Valid EligibilityCheckRequest request
@@ -109,12 +105,12 @@ public class CaseController {
 
     @GetMapping("/intake-documents")
     @PreAuthorize("hasRole('ASEGURADO')")
-    @Operation(summary = "Documents requested when the claim is filed",
-            description = "The first batch: what Fast Track requires for the coverage that responds "
-                    + "to that claim cause. If the insurer configured none, returns the full document "
-                    + "agenda (`fastTrackOnly=false`). The full agenda is requested later, and only if "
-                    + "the claim doesn't qualify for Fast Track. 503 if the rules engine couldn't be "
-                    + "read: an empty list would read as \"no documents needed\".")
+    @Operation(summary = "Documentos que se piden al denunciar",
+            description = "La primera tanda: lo que exige el Fast Track de la cobertura que responde por ese hecho "
+                    + "generador. Si la aseguradora no configuró ninguno, devuelve la agenda documental entera "
+                    + "(`fastTrackOnly=false`). La agenda completa se pide después, y solo si el expediente no "
+                    + "entra en Fast Track. 503 si no se pudo leer el motor de reglas: una lista vacía se leería "
+                    + "como \"no hacen falta documentos\".")
     public ResponseEntity<IntakeDocumentsResponse> intakeDocuments(
             @RequestParam String policyNumber,
             @RequestParam String branch,
@@ -124,29 +120,28 @@ public class CaseController {
 
     @GetMapping("/insured-statuses")
     @PreAuthorize("isAuthenticated()")
-    @Operation(summary = "Statuses an insured can be told",
-            description = "Each code with its label, for the insured's own filter (`insuredStatus` on the "
-                    + "listing). Several internal statuses share one.")
+    @Operation(summary = "Estados que puede ver el asegurado",
+            description = "Cada código con su etiqueta, para el filtro del asegurado (`insuredStatus` en el listado). "
+                    + "Varios estados internos comparten uno.")
     public ResponseEntity<List<InsuredStatusResponse>> insuredStatuses() {
         return ResponseEntity.ok(caseService.insuredStatuses());
     }
 
     @GetMapping("/{caseId}")
     @PreAuthorize("isAuthenticated()")
-    @Operation(summary = "Get case by id",
+    @Operation(summary = "Obtener un expediente",
             description = """
-                    Returns the stored case, its analysis result and the full status history
-                    (every transition with actor, reason and timestamp). An insured only sees
-                    their own cases: CaseAccessPolicy.assertCanRead matches the caller's national ID against
-                    the case's insured and 404s otherwise. Analyst and insurer lead see every case in
-                    their tenant.
+                    Devuelve el expediente, el resultado del análisis y el historial completo de estados
+                    (cada movimiento con actor, motivo y fecha). Un asegurado solo ve los suyos:
+                    CaseAccessPolicy.assertCanRead compara su DNI con el del expediente y, si no
+                    coincide, responde 404. El analista y el referente ven todos los de su aseguradora.
 
-                    The insured gets a trimmed view (CaseResponse.forInsured): no classification,
-                    risk score, forensic report, rule results, policy snapshot or document readings.
-                    `status` is null and `insuredStatus` carries what they are told instead; the
-                    history only has the moves that changed it, without `reason` or `observation`.
-                    The listing trims the same way, and ignores `status` and `riskBand` for them:
-                    their filter is `insuredStatus` (see GET /cases/insured-statuses).
+                    El asegurado recibe una vista recortada (CaseResponse.forInsured): sin
+                    clasificación, score de riesgo, análisis de imágenes, reglas evaluadas, póliza ni
+                    lecturas de documentos. `status` viene nulo y `insuredStatus` trae lo que se le
+                    informa; el historial solo tiene los movimientos que lo cambiaron, sin `reason` ni
+                    `observation`. El listado recorta igual e ignora `status` y `riskBand` para él: su
+                    filtro es `insuredStatus` (ver GET /cases/insured-statuses).
                     """)
     public ResponseEntity<CaseResponse> getCase(
             @PathVariable Long caseId,
@@ -158,48 +153,43 @@ public class CaseController {
 
     @GetMapping
     @PreAuthorize("isAuthenticated()")
-    @Operation(summary = "List cases",
+    @Operation(summary = "Listar expedientes",
             description = """
-                    Returns cases paginated, most recent first by default. Optional, combinable
-                    filters: `status`, `claimCause` (claim type), `policyNumber`,
-                    `insuredId` (the insured's cases — until the Auth0/JWT integration lands, the
-                    caller passes it explicitly) and the `eventDateFrom`/`eventDateTo` range (ISO
-                    `yyyy-MM-dd`, inclusive on both ends) over the event date. Standard Spring Data
-                    paging: `page`, `size`, `sort` (e.g. `sort=eventDate,desc`).
+                    Devuelve los expedientes paginados, del más nuevo al más viejo por defecto. Filtros
+                    opcionales y combinables: `status`, `claimCause` (hecho generador),
+                    `policyNumber`, `insuredId` y el rango `eventDateFrom`/`eventDateTo` (ISO
+                    `yyyy-MM-dd`, inclusivo en los dos extremos) sobre la fecha del hecho. Paginado
+                    estándar de Spring Data: `page`, `size`, `sort` (ej. `sort=eventDate,desc`).
 
-                    `q` is a free-text search (case-insensitive, substring) over case number, policy
-                    number and insured (`insuredId`/`insuredName` — the latter is nullable until the
-                    first classification resolves the real name). `riskBand` filters by fraud risk
-                    score (exact match: `LOW`, `MEDIUM`, `HIGH`, `CRITICAL`). `assignedToMe=true`
-                    narrows to the cases assigned to the requesting analyst — the inbox's "Mine"
-                    lens; omitting it is the "All" lens. All filters are ANDed together.
+                    `q` es una búsqueda libre (sin distinguir mayúsculas, por substring) sobre número de
+                    expediente, número de póliza y asegurado (`insuredId`/`insuredName`). `riskBand`
+                    filtra por banda del score de fraude (`LOW`, `MEDIUM`, `HIGH`, `CRITICAL`).
+                    `assignedToMe=true` deja los asignados al analista que consulta: la vista "Míos"
+                    de la bandeja; sin él es "Todos". Todos los filtros se combinan con AND.
 
-                    `assignedToMe` is a flag and not an analyst id because that id is local to each
-                    insurer's schema: who "me" is gets resolved by the backend from the token, not
-                    sent by the client. For a role with no analyst profile in the tenant (the
-                    insurer lead) the lens returns nothing, not everything.
+                    `assignedToMe` es una marca y no un id de analista porque ese id es propio del
+                    esquema de cada aseguradora: quién es "yo" lo resuelve el backend con el token.
+                    Para un rol sin perfil de analista en la aseguradora (el referente) no devuelve
+                    nada, nunca todo. Dice "de quién es el expediente", no "qué puede ver el usuario":
+                    eso ya lo acota el esquema de la aseguradora.
 
-                    It means "whose case is this", not "which cases can this user see": the latter
-                    is already handled by the tenant schema, which scopes the listing to a single
-                    insurer.
+                    `deadline=DUE_SOON` deja los que tienen el indicador de plazo prendido
+                    (`deadlinePriority != NONE`: 10 días o menos para el vencimiento del art. 56, o ya
+                    vencidos). `deadline=OVERDUE` deja solo los vencidos, los mismos que cuenta como
+                    vencidos el inicio.
 
-                    `dueSoon=true` narrows to cases with an active deadline indicator
-                    (`deadlinePriority != NONE`: 10 days or fewer until the art. 56 response
-                    deadline, or already overdue) — the "Due soon" lens.
+                    `followUp=AWAITING_ANALYST` es la revisión del analista sin lo que ya espera al
+                    referente: los expedientes que todavía tiene que decidir el analista.
 
-                    `scope` filters by lifecycle: `OPEN` (the five non-terminal statuses), `CLOSED`
-                    (APPROVED/REJECTED/LAPSED/PRESCRIBED/WITHDRAWN/VOIDED) or `ALL`. Defaults to `ALL`: the cut belongs to the
-                    screen asking for it, not to the endpoint — the insured's portal consumes this
-                    same listing and must keep seeing their resolved claims. An overdue case is
-                    still `OPEN`.
+                    `scope` filtra por ciclo de vida: `OPEN` (los estados no terminales), `CLOSED`
+                    (APPROVED, REJECTED, LAPSED, PRESCRIBED, WITHDRAWN, VOIDED) o `ALL`. Por defecto
+                    `ALL`: el corte es de la pantalla que pide, no del endpoint, porque el portal del
+                    asegurado usa este mismo listado y tiene que seguir viendo sus siniestros
+                    resueltos. Un expediente vencido sigue siendo `OPEN`.
 
-                    `status` accepts several values (`?status=A&status=B`): the insured's portal
-                    filters by the three buckets they see ("In progress" spans four statuses), and
-                    the bucket→statuses mapping belongs to the frontend, like the rest of the labels.
-
-                    `insurerId` only applies to an insured with policies at more than one company,
-                    the only role that reads cases from several schemas. For analyst and insurer lead it
-                    does nothing: the tenant already scopes them to a single insurer.
+                    `status` acepta varios valores (`?status=A&status=B`). `insurerId` solo aplica a un
+                    asegurado con pólizas en más de una compañía, el único rol que lee expedientes de
+                    varios esquemas; para analista y referente no hace nada.
                     """)
     public ResponseEntity<Page<CaseResponse>> listCases(
             @RequestParam(required = false) List<CaseStatus> status,
@@ -216,7 +206,7 @@ public class CaseController {
             @RequestParam(defaultValue = "false") boolean unassigned,
             @RequestParam(defaultValue = "false") boolean fraudAlert,
             @RequestParam(defaultValue = "false") boolean assigned,
-            @RequestParam(defaultValue = "false") boolean dueSoon,
+            @RequestParam(required = false) CaseDeadline deadline,
             @RequestParam(required = false) CaseFollowUp followUp,
             @RequestParam(required = false) Integer staleDays,
             @RequestParam(defaultValue = "ALL") CaseScope scope,
@@ -225,7 +215,7 @@ public class CaseController {
     ) {
         Page<CaseResponse> response = caseService.listCases(
                 status, insuredStatus, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
-                analystId, assignedToMe, unassigned, fraudAlert, assigned, dueSoon, followUp, staleDays, scope,
+                analystId, assignedToMe, unassigned, fraudAlert, assigned, deadline, followUp, staleDays, scope,
                 insurerId,
                 pageable);
         return ResponseEntity.ok(response);
@@ -233,20 +223,19 @@ public class CaseController {
 
     @PostMapping("/{caseId}/assign")
     @PreAuthorize("hasAnyRole('ANALISTA_SINIESTROS', 'REFERENTE_ASEGURADORA')")
-    @Operation(summary = "Assign the case to an analyst",
+    @Operation(summary = "Asignar el expediente a un analista",
             description = """
-                    Makes the analyst the owner of the case. Allowed for both roles: the insurer lead
-                    distributes work, and an analyst can take a case (or hand it to a colleague)
-                    without depending on them.
+                    El analista pasa a ser el dueño del expediente. Lo pueden hacer los dos roles: el
+                    referente reparte el trabajo, y un analista puede tomar un expediente (o pasárselo
+                    a un compañero) sin depender de él.
 
-                    One analyst per case: if it already had one, this assignment replaces them.
-                    Assigning does NOT resolve the case or change its status — it still needs the
-                    analyst's explicit decision (`POST /{id}/decision`), which is what drives the
-                    lifecycle. Every (re)assignment is recorded in the history.
+                    Un analista por expediente: si ya tenía uno, esta asignación lo reemplaza. Asignar
+                    NO resuelve el expediente ni cambia su estado: sigue necesitando la decisión
+                    explícita del analista (`POST /{id}/decision`). Cada asignación queda en el
+                    historial.
 
-                    `analystId` is the `claims_analyst` id, which lives in the insurer's schema: an
-                    analyst from another company doesn't exist in this table and yields 404, so
-                    isolation between insurers needs no separate check.
+                    `analystId` es el id de `claims_analyst`, que vive en el esquema de la aseguradora:
+                    un analista de otra compañía no existe en esa tabla y responde 404.
                     """)
     public ResponseEntity<CaseResponse> assignAnalyst(
             @PathVariable Long caseId,
@@ -257,26 +246,20 @@ public class CaseController {
 
     @PostMapping("/{caseId}/reopen")
     @PreAuthorize("hasAnyRole('ANALISTA_SINIESTROS', 'REFERENTE_ASEGURADORA')")
-    @Operation(summary = "Reopen a closed case",
+    @Operation(summary = "Reabrir un expediente cerrado",
             description = """
-                    Sends a case that was already closed (any terminal status) back to
-                    the analyst's desk (PENDING_ANALYST_REVIEW). It is the "rehabilitation" step of
-                    the claims procedure: without it the terminal statuses are dead ends, and
-                    neither an analyst's mistake nor documentation the insured brings after the case
-                    lapsed can be fixed within the system.
+                    Devuelve a la bandeja del analista (PENDING_ANALYST_REVIEW) un expediente ya
+                    cerrado, en cualquier estado terminal. Es la rehabilitación del procedimiento de
+                    siniestros: sin ella, ni un error del analista ni la documentación que el
+                    asegurado trae después de la caducidad se pueden corregir en el sistema.
 
-                    Reopening is NOT a new verdict, nor does it revert the previous one: that
-                    decision happened and its audit record is immutable. It doesn't clear the risk
-                    or the fraud record either, which are facts of the claim. All it does is put a
-                    person back in charge of deciding (architecture decision #5), with the art. 56
-                    deadline restarting from zero: reopening to fix a mistake can't hand over a case
-                    that is already overdue.
+                    Reabrir NO es un veredicto nuevo ni revierte el anterior: esa decisión existió y su
+                    registro de auditoría es inmutable. Tampoco borra el riesgo ni el antecedente de
+                    fraude. Solo vuelve a poner a una persona a cargo de decidir (decisión de
+                    arquitectura #5), con el plazo del art. 56 desde cero.
 
-                    `reason` is required — it is the only explanation left in the history. Allowed
-                    for both roles on the same grounds as assigning: reopening resolves nothing, and
-                    correcting operations is as much the insurer lead's job as the analyst's. From a
-                    non-terminal status it returns 409: there is nothing to reopen in a case that is
-                    still open.
+                    `reason` es obligatorio: es la única explicación que queda en el historial. Lo
+                    pueden hacer los dos roles. Desde un estado no terminal responde 409.
                     """)
     public ResponseEntity<CaseResponse> reopenCase(
             @PathVariable Long caseId,
@@ -287,16 +270,18 @@ public class CaseController {
 
     @PostMapping("/{caseId}/closures")
     @PreAuthorize("hasRole('ANALISTA_SINIESTROS')")
-    @Operation(summary = "Close the case without a verdict",
+    @Operation(summary = "Cerrar el expediente sin veredicto",
             description = """
-                    Ends the case as WITHDRAWN (the insured abandoned the claim) or VOIDED (the claim
-                    never should have existed: a duplicate, the wrong policy). Both are terminal: the
-                    case takes no other event until someone reopens it (`POST /{id}/reopen`).
+                    Termina el expediente como WITHDRAWN (el asegurado abandonó el reclamo) o VOIDED
+                    (la denuncia nunca debió existir: duplicada, sobre la póliza equivocada). Los dos
+                    son terminales: el expediente no admite otro movimiento hasta que alguien lo
+                    reabra (`POST /{id}/reopen`).
 
-                    Only the assigned analyst, like a decision. Allowed from PENDING_ANALYST_REVIEW,
-                    AWAITING_DOCUMENTATION and CLASSIFICATION_FAILED; anything else returns 409.
-                    `reason` is mandatory and goes on the history. The insured sees "Cerrado", never
-                    the reason.
+                    Solo el analista asignado, como una decisión. Se permite desde
+                    PENDING_ANALYST_REVIEW, AWAITING_DOCUMENTATION y CLASSIFICATION_FAILED; desde
+                    cualquier otro estado, 409. También 409 si la liquidación espera la firma del
+                    referente. `reason` es obligatorio y va al historial. El asegurado ve "Cerrado",
+                    nunca el motivo.
                     """)
     public ResponseEntity<CaseResponse> closeCase(
             @PathVariable Long caseId,
@@ -307,11 +292,11 @@ public class CaseController {
 
     @DeleteMapping("/{caseId}/assign")
     @PreAuthorize("hasAnyRole('ANALISTA_SINIESTROS', 'REFERENTE_ASEGURADORA')")
-    @Operation(summary = "Release the case",
+    @Operation(summary = "Liberar el expediente",
             description = """
-                    Leaves the case with no assigned analyst. It drops out of everyone's "Mine" lens
-                    and stays visible under "All", ready for someone else to take. Idempotent:
-                    releasing a case that was already unassigned doesn't fail.
+                    Deja el expediente sin analista asignado. Sale de "Míos" de todos y sigue visible
+                    en "Todos", listo para que otro lo tome. Idempotente: liberar uno que ya estaba
+                    sin asignar no falla.
                     """)
     public ResponseEntity<CaseResponse> unassignAnalyst(@PathVariable Long caseId) {
         return ResponseEntity.ok(caseService.unassignAnalyst(caseId));
@@ -319,18 +304,18 @@ public class CaseController {
 
     @GetMapping("/lens-summary")
     @PreAuthorize("hasAnyRole('ANALISTA_SINIESTROS', 'REFERENTE_ASEGURADORA')")
-    @Operation(summary = "Inbox lens counts",
+    @Operation(summary = "Conteos de las vistas de la bandeja",
             description = """
-                    Returns in one go how many cases fall into each combination of lifecycle (open,
-                    closed, all) and ownership (all, mine, assigned, unassigned, fraud alert) for the
-                    given filters — the same ones the listing accepts, minus `scope`: lifecycle is
-                    already crossed in the response.
+                    Devuelve de una vez cuántos expedientes caen en cada combinación de ciclo de vida
+                    (abiertos, cerrados, todos) y pertenencia (todos, míos, asignados, sin asignar,
+                    alerta de fraude) para los filtros dados: los mismos del listado, menos `scope`,
+                    que ya viene cruzado en la respuesta.
 
-                    It exists so the inbox doesn't request one lens per call: it reads the cell for
-                    the chosen combination, so switching tabs doesn't query again. Everything is
-                    counted in a single query, without materializing rows.
+                    Existe para que la bandeja no pida una vista por llamada: lee la celda de la
+                    combinación elegida, y cambiar de solapa no vuelve a consultar. Todo se cuenta en
+                    una sola consulta, sin traer filas.
 
-                    "Mine" is 0 for the insurer lead, who has no analyst profile in the tenant.
+                    "Míos" es 0 para el referente, que no tiene perfil de analista en la aseguradora.
                     """)
     public ResponseEntity<LensSummaryResponse> lensSummary(
             @RequestParam(required = false) List<CaseStatus> status,
@@ -344,25 +329,26 @@ public class CaseController {
             @RequestParam(required = false) Long analystId,
             @RequestParam(required = false) CaseFollowUp followUp,
             @RequestParam(required = false) Integer staleDays,
-            @RequestParam(defaultValue = "false") boolean dueSoon
+            @RequestParam(required = false) CaseDeadline deadline
     ) {
         return ResponseEntity.ok(caseService.lensSummary(
                 status, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
-                analystId, followUp, staleDays, dueSoon));
+                analystId, followUp, staleDays, deadline));
     }
 
     @GetMapping("/messages/inbox")
     @PreAuthorize("isAuthenticated()")
-    @Operation(summary = "All of the caller's conversations",
+    @Operation(summary = "Todas las conversaciones de quien consulta",
             description = """
-                    Analyst and insurer lead: one row per tenant case with at least one message.
-                    Insured: one row per own claim, across all their insurers, whether it has
-                    messages or not (with `insurerSlug`, since ids repeat across companies). Each
-                    row carries the last message and the caller's unread count, most recent first.
-                    The full thread stays at GET /cases/{caseId}/messages.
+                    Analista y referente: una fila por expediente de la aseguradora con al menos un
+                    mensaje. Asegurado: una fila por cada siniestro suyo, en todas sus aseguradoras,
+                    tenga mensajes o no (con `insurerSlug`, porque los ids se repiten entre
+                    compañías). Cada fila trae el último mensaje y los no leídos de quien consulta, del
+                    más reciente al más viejo. La conversación completa está en
+                    GET /cases/{caseId}/messages.
 
-                    "Unread" and "awaiting reply" are frontend lenses over these same fields
-                    (unreadCount and lastMessageSender), not parameters of this endpoint.
+                    "No leídos" y "esperando respuesta" son vistas del front sobre estos mismos campos
+                    (unreadCount y lastMessageSender), no parámetros de este endpoint.
                     """)
     public ResponseEntity<List<CaseMessageInboxItemResponse>> messagesInbox() {
         return ResponseEntity.ok(messageService.inbox());
@@ -370,17 +356,15 @@ public class CaseController {
 
     @GetMapping("/analysts/workload")
     @PreAuthorize("hasRole('REFERENTE_ASEGURADORA')")
-    @Operation(summary = "Workload per analyst",
+    @Operation(summary = "Carga de trabajo por analista",
             description = """
-                    Returns, for each of the insurer's analysts, how many ACTIVE (unresolved) cases
-                    are assigned to them. Feeds the "Team workload" panel on the insurer lead's home,
-                    used to distribute work at a glance.
+                    Devuelve, para cada analista de la aseguradora, cuántos expedientes ACTIVOS (sin
+                    resolver) tiene asignados. Alimenta el panel "Carga del equipo" del inicio del
+                    referente.
 
-                    Includes analysts with no assigned cases (at zero): the view covers the whole
-                    team, not just the busy ones. Sorted from most to least loaded.
-
-                    Referente only: it is a team management view. Scoping by insurer is handled by
-                    the tenant schema, so the counts already belong to a single company.
+                    Incluye a los analistas sin expedientes (en cero): la vista es del equipo entero.
+                    Ordenado del más cargado al menos cargado. Solo el referente: es una vista de
+                    gestión del equipo.
                     """)
     public ResponseEntity<List<AnalystWorkloadResponse>> analystWorkload() {
         return ResponseEntity.ok(caseService.analystWorkload());
@@ -388,16 +372,16 @@ public class CaseController {
 
     @GetMapping("/home-summary")
     @PreAuthorize("hasAnyRole('ANALISTA_SINIESTROS', 'REFERENTE_ASEGURADORA')")
-    @Operation(summary = "Counts for the home screen",
+    @Operation(summary = "Conteos del inicio",
             description = """
-                    Everything the home screen counts, in a single call: open cases by where they
-                    stand against the art. 56 term (on time, due soon, overdue, paused), reports
-                    received from an expert or a repair shop, settlements returned by or awaiting
-                    the referente, cases with no activity in 15 days, failed classifications, and
-                    the unassigned cases with when the oldest one was reported.
+                    Todo lo que cuenta el inicio, en una sola llamada: los expedientes abiertos según
+                    su plazo del art. 56 (en término, por vencer, vencidos, en pausa), los informes
+                    recibidos del perito o del servicio técnico, las liquidaciones devueltas por el
+                    referente o esperándolo, los expedientes sin movimiento en 15 días, las
+                    clasificaciones fallidas y los sin asignar, con la fecha del más antiguo.
 
-                    For an analyst every count covers their own open cases, except the unassigned
-                    ones, which belong to nobody. For the referente it covers the whole insurer.
+                    Para un analista cada conteo cubre sus expedientes abiertos, salvo los sin
+                    asignar, que no son de nadie. Para el referente cubre toda la aseguradora.
                     """)
     public ResponseEntity<HomeSummaryResponse> homeSummary() {
         return ResponseEntity.ok(caseService.homeSummary());
@@ -405,14 +389,14 @@ public class CaseController {
 
     @GetMapping("/assigned/summary")
     @PreAuthorize("hasRole('ANALISTA_SINIESTROS')")
-    @Operation(summary = "Summary of my assigned cases",
+    @Operation(summary = "Resumen de mis expedientes asignados",
             description = """
-                    Returns the summary of the cases assigned to the logged-in analyst: total, count
-                    per status, and how many carry a high or critical fraud alert. Feeds the cards on
-                    their home screen in a single call (instead of one count per status at a time).
+                    Devuelve el resumen de los expedientes asignados al analista logueado: total,
+                    cantidad por estado y cuántos tienen alerta de fraude alta o crítica. Alimenta las
+                    tarjetas de su inicio en una sola llamada.
 
-                    Who "me" is gets resolved by the backend from the token — the analyst id is local
-                    to the insurer's schema — not sent by the client.
+                    Quién es "yo" lo resuelve el backend con el token: el id del analista es propio
+                    del esquema de la aseguradora.
                     """)
     public ResponseEntity<AssignedCaseSummaryResponse> assignedCaseSummary() {
         return ResponseEntity.ok(caseService.assignedCaseSummary());
@@ -420,15 +404,15 @@ public class CaseController {
 
     @GetMapping("/{caseId}/documents")
     @PreAuthorize("isAuthenticated()")
-    @Operation(summary = "List documents for a case",
+    @Operation(summary = "Listar los documentos de un expediente",
             description = """
-                    Returns metadata for every document attached to the case: type (what
-                    the document represents — e.g. `police_report`, `invoice`, `item_photo`),
-                    filename, content type, size in bytes, and upload timestamp. Does NOT
-                    return the binary content — use the per-document download endpoint for that.
+                    Devuelve los datos de cada documento adjunto: tipo (el código de lo que el
+                    documento representa, como `police_report` o `item_photo`), nombre del archivo,
+                    tipo de contenido, tamaño en bytes y fecha de carga. NO devuelve el contenido: para
+                    eso está la descarga de cada documento.
 
-                    For the insured it leaves out the providers' reports (`expert_report`,
-                    `repair_report`), and downloading one answers 404.
+                    Al asegurado no le lista los informes de los proveedores (`expert_report`,
+                    `repair_report`), y descargar uno responde 404.
                     """)
     public ResponseEntity<List<CaseDocumentResponse>> listDocuments(
             @PathVariable Long caseId,
@@ -439,8 +423,8 @@ public class CaseController {
 
     @GetMapping("/{caseId}/documents/{documentId}")
     @PreAuthorize("isAuthenticated()")
-    @Operation(summary = "Download a document",
-            description = "Returns the binary content of a specific document attached to the case.")
+    @Operation(summary = "Descargar un documento",
+            description = "Devuelve el contenido de un documento adjunto al expediente.")
     public ResponseEntity<byte[]> downloadDocument(
             @PathVariable Long caseId,
             @PathVariable Long documentId,
@@ -455,16 +439,14 @@ public class CaseController {
 
     @PostMapping(value = "/{caseId}/documents", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasRole('ASEGURADO')")
-    @Operation(summary = "Upload additional documents",
+    @Operation(summary = "Subir documentos adicionales",
             description = """
-                    Uploads additional documents to an existing case and re-triggers
-                    classification. Each part is keyed by what the document IS
-                    (e.g. `police_report`, `invoice`, `quote`, `item_photo`).
+                    Suma documentos a un expediente existente y vuelve a encolar la clasificación. Cada
+                    parte va con el código de lo que el documento ES (`police_report`,
+                    `purchase_proof`, `repair_quote`, `item_photo`…).
 
-                    Only the insured who owns the case: the upload goes through the same ownership
-                    check as reads (404 on someone else's case). It used to be a bare `findById`, so
-                    any insured could upload documentation to another's case and force it to be
-                    reclassified.
+                    Solo el asegurado dueño del expediente: pasa por el mismo control de titularidad
+                    que las lecturas (404 sobre el expediente de otro).
                     """)
     public ResponseEntity<CaseResponse> uploadDocuments(
             @PathVariable Long caseId,
@@ -477,9 +459,9 @@ public class CaseController {
 
     @GetMapping("/{caseId}/claim-cause/options")
     @PreAuthorize("hasAnyRole('ANALISTA_SINIESTROS', 'REFERENTE_ASEGURADORA')")
-    @Operation(summary = "Claim causes the case can be corrected to",
-            description = "Those in the same branch covered by some coverage of the policy, with the "
-                    + "coverage that would respond for each. Excludes the current one.")
+    @Operation(summary = "Hechos generadores a los que se puede corregir",
+            description = "Los del mismo ramo que cubre alguna cobertura de la póliza, con la cobertura que respondería "
+                    + "por cada uno. Excluye el actual.")
     public ResponseEntity<List<ClaimCauseOption>> claimCauseOptions(@PathVariable Long caseId) {
         return ResponseEntity.ok(claimCauseCorrectionService.options(caseId));
     }
@@ -487,16 +469,16 @@ public class CaseController {
     // @PreAuthorize only filters by role; the service also checks the caller is the assigned analyst.
     @PostMapping("/{caseId}/claim-cause")
     @PreAuthorize("hasRole('ANALISTA_SINIESTROS')")
-    @Operation(summary = "Correct the declared claim cause",
+    @Operation(summary = "Corregir el hecho generador declarado",
             description = """
-                    For when the narrative contradicts what the insured declared (e.g. "theft" for a
-                    phone that was dropped). The coverage isn't picked by hand: it follows from the
-                    claim cause, with the same exclusions as at intake. The case goes back to
-                    classification, because the rules, Fast Track and the model's reading were
-                    evaluated against the old coverage. Only the assigned analyst and only in
-                    PENDING_ANALYST_REVIEW (any other status → 409); 422 if no coverage covers the
-                    new cause or if the settlement is waiting on the insurer lead. The reason stays in
-                    the history; the insured isn't notified.
+                    Para cuando el relato contradice lo que declaró el asegurado (ej. "robo" para un
+                    celular que se cayó). La cobertura no se elige a mano: sale del hecho generador,
+                    con las mismas exclusiones que en el alta. El expediente vuelve a clasificarse,
+                    porque las reglas, el Fast Track y la lectura del modelo se evaluaron contra la
+                    cobertura anterior. Solo el analista asignado y solo en PENDING_ANALYST_REVIEW
+                    (otro estado → 409); 422 si ninguna cobertura cubre el hecho nuevo o si la
+                    liquidación espera al referente. El motivo queda en el historial; al asegurado no
+                    se le avisa.
                     """)
     public ResponseEntity<CaseActionResponse> correctClaimCause(
             @PathVariable Long caseId,
@@ -509,15 +491,14 @@ public class CaseController {
     // The insurer lead may also retry: unblocking a stuck case is supervision, not a decision.
     @PostMapping("/{caseId}/retry-classification")
     @PreAuthorize("hasAnyRole('ANALISTA_SINIESTROS', 'REFERENTE_ASEGURADORA')")
-    @Operation(summary = "Retry classification of a failed case",
+    @Operation(summary = "Reintentar la clasificación de un expediente fallido",
             description = """
-                    Re-queues the classification of a case left in CLASSIFICATION_FAILED after the
-                    automatic retries ran out. The scheduler only sweeps PENDING_CLASSIFICATION, so
-                    without this manual nudge the case stays stuck. Resets the attempt counter, moves
-                    it back to PENDING_CLASSIFICATION and re-triggers the analysis with the
-                    documentation already uploaded. Only valid from CLASSIFICATION_FAILED (any other
-                    status → 409). Doesn't resolve the case: it still needs the analyst's decision
-                    (architecture decision #5).
+                    Vuelve a encolar la clasificación de un expediente que quedó en
+                    CLASSIFICATION_FAILED después de agotar los reintentos automáticos. Reinicia el
+                    contador de intentos, lo pasa a PENDING_CLASSIFICATION y relanza el análisis con
+                    la documentación ya subida. Solo desde CLASSIFICATION_FAILED (otro estado → 409).
+                    No resuelve el expediente: sigue necesitando la decisión del analista (decisión de
+                    arquitectura #5).
                     """)
     public ResponseEntity<CaseResponse> retryClassification(@PathVariable Long caseId) {
         return ResponseEntity.accepted().body(caseService.retryClassification(caseId));
@@ -527,8 +508,8 @@ public class CaseController {
     // case they can already read.
     @GetMapping("/{caseId}/insured-policies")
     @PreAuthorize("hasAnyRole('ANALISTA_SINIESTROS', 'REFERENTE_ASEGURADORA')")
-    @Operation(summary = "Policies of the case's insured",
-            description = "All of them, across insurers — the one being claimed is only part of the context.")
+    @Operation(summary = "Pólizas del asegurado del expediente",
+            description = "Todas, en todas sus aseguradoras: la que se denuncia es solo parte del contexto.")
     public ResponseEntity<List<PolicyResponse>> getInsuredPolicies(@PathVariable Long caseId) {
         return ResponseEntity.ok(caseService.getInsuredPolicies(caseId));
     }
@@ -537,10 +518,10 @@ public class CaseController {
     // The settlement is written by POST /decision.
     @GetMapping("/{caseId}/settlement")
     @PreAuthorize("hasAnyRole('ANALISTA_SINIESTROS', 'REFERENTE_ASEGURADORA')")
-    @Operation(summary = "Amount to be paid on the claim",
-            description = "The settlement already authorized, or the proposal for the analyst to confirm: "
-                    + "the ceiling, every deduction with the reason behind it, and the resulting amount. "
-                    + "replacementValue previews what accrediting one would do — it settles nothing.")
+    @Operation(summary = "Monto a pagar del siniestro",
+            description = "La liquidación ya autorizada, o la propuesta que el analista tiene que confirmar: el tope, cada "
+                    + "deducción con su motivo y el monto resultante. replacementValue muestra cómo quedaría con ese "
+                    + "valor de reposición, sin liquidar nada.")
     public ResponseEntity<SettlementResponse> settlement(
             @PathVariable Long caseId,
             @RequestParam(required = false) BigDecimal replacementValue
@@ -550,31 +531,29 @@ public class CaseController {
 
     @GetMapping("/settlements/pending-authorization")
     @PreAuthorize("hasRole('REFERENTE_ASEGURADORA')")
-    @Operation(summary = "Settlements waiting for the insurer lead",
-            description = "Amounts an analyst determined that went over their branch's attribution "
-                    + "(Annex II). Oldest first: that claim has been burning its 30-day legal window "
-                    + "the longest. The cases stay in the analyst's review meanwhile — the insured "
-                    + "never sees this step.")
+    @Operation(summary = "Liquidaciones que esperan al referente",
+            description = "Montos que un analista determinó por encima de la atribución de su ramo (Anexo II). De la más "
+                    + "vieja a la más nueva: ese siniestro es el que más plazo legal de 30 días lleva consumido. "
+                    + "Mientras tanto el expediente sigue en revisión del analista; el asegurado nunca ve este paso.")
     public ResponseEntity<List<PendingSettlementResponse>> pendingAuthorization() {
         return ResponseEntity.ok(settlementService.pendingAuthorization());
     }
 
     @GetMapping("/settlements/authorized")
     @PreAuthorize("hasRole('REFERENTE_ASEGURADORA')")
-    @Operation(summary = "Settlements the insurer lead authorized",
-            description = "The last 50 amounts over the attribution that the insurer lead signed off, "
-                    + "most recent first. Amounts within the analyst's own attribution aren't here: "
-                    + "nobody else signed them.")
+    @Operation(summary = "Liquidaciones que autorizó el referente",
+            description = "Los últimos 50 montos por encima de la atribución que firmó el referente, del más reciente al "
+                    + "más viejo. Los que estaban dentro de la atribución del analista no aparecen: no los firmó nadie más.")
     public ResponseEntity<List<AuthorizedSettlementResponse>> authorizedSettlements() {
         return ResponseEntity.ok(settlementService.authorizedByReferent());
     }
 
     @PostMapping("/{caseId}/settlement/authorize")
     @PreAuthorize("hasRole('REFERENTE_ASEGURADORA')")
-    @Operation(summary = "Authorize a settlement over the analyst's attribution",
-            description = "Only here does the approval take effect: the analyst's decision is recorded "
-                    + "with the justification they left, and the case moves to APPROVED — which is what "
-                    + "emails the insured with the amount.")
+    @Operation(summary = "Autorizar una liquidación por encima de la atribución del analista",
+            description = "Recién acá la aprobación tiene efecto: se registra la decisión del analista con la "
+                    + "justificación que dejó, y el expediente pasa a APPROVED, que es lo que le manda el mail al "
+                    + "asegurado con el monto.")
     public ResponseEntity<CaseActionResponse> authorizeSettlement(@PathVariable Long caseId) {
         caseService.authorizeSettlement(caseId);
         return ResponseEntity.ok(new CaseActionResponse(caseId, "settlement-authorized"));
@@ -582,10 +561,10 @@ public class CaseController {
 
     @PostMapping("/{caseId}/settlement/return")
     @PreAuthorize("hasRole('REFERENTE_ASEGURADORA')")
-    @Operation(summary = "Send a settlement back to the analyst",
-            description = "Not a rejection of the claim: the case never left the analyst's review, and "
-                    + "no decision was recorded to undo. They settle it again, at another amount or the "
-                    + "same one better argued.")
+    @Operation(summary = "Devolverle una liquidación al analista",
+            description = "No es un rechazo del siniestro: el expediente nunca salió de la revisión del analista y no hay "
+                    + "decisión registrada que deshacer. El analista vuelve a liquidar, con otro monto o el mismo "
+                    + "mejor fundamentado.")
     public ResponseEntity<CaseActionResponse> returnSettlement(
             @PathVariable Long caseId,
             @RequestBody @Valid SettlementReturnRequest request
@@ -597,10 +576,10 @@ public class CaseController {
     // Staff only: the justification is the analyst's reasoning, not what the insured is told.
     @GetMapping("/{caseId}/decision")
     @PreAuthorize("hasAnyRole('ANALISTA_SINIESTROS', 'REFERENTE_ASEGURADORA')")
-    @Operation(summary = "The decision a resolved case stands on",
-            description = "The analyst's verdict with its justification and date, read from the audit "
-                    + "record. 204 while the case isn't APPROVED or REJECTED — including a reopened "
-                    + "case, whose previous verdict stays in the audit trail but no longer applies.")
+    @Operation(summary = "La decisión de un expediente resuelto",
+            description = "El veredicto del analista con su justificación y su fecha, leído del registro de auditoría. "
+                    + "204 mientras el expediente no esté APPROVED ni REJECTED, también si se reabrió: su veredicto "
+                    + "anterior queda en la auditoría pero ya no aplica.")
     public ResponseEntity<AnalystDecisionResponse> decision(@PathVariable Long caseId) {
         return caseService.getAnalystDecision(caseId)
                 .map(ResponseEntity::ok)
@@ -610,10 +589,10 @@ public class CaseController {
     // @PreAuthorize only filters by role; the service also checks the caller is the assigned analyst.
     @PostMapping("/{caseId}/decision")
     @PreAuthorize("hasRole('ANALISTA_SINIESTROS')")
-    @Operation(summary = "Persist the analyst's decision",
-            description = "Forwards the analyst decision to classification-service so it is persisted in the audit "
-                    + "trail. Only the analyst the case is assigned to may decide — 409 if it isn't assigned to "
-                    + "anyone yet, 403 if it's assigned to someone else.")
+    @Operation(summary = "Registrar la decisión del analista",
+            description = "Envía la decisión a classification-service para que quede en el registro de auditoría. Solo "
+                    + "decide el analista asignado: 409 si todavía no tiene analista, 403 si es de otro. También 409 "
+                    + "si la liquidación espera la firma del referente.")
     public ResponseEntity<CaseActionResponse> recordDecision(
             @PathVariable Long caseId,
             @RequestBody @Valid AnalystDecisionRequest request

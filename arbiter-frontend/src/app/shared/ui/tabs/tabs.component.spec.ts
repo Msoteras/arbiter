@@ -1,7 +1,7 @@
 import { Component, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 
-import { TabsComponent } from './tabs.component';
+import { TabOption, TabsComponent } from './tabs.component';
 
 @Component({
   imports: [TabsComponent],
@@ -84,5 +84,70 @@ describe('TabsComponent', () => {
     press(tabs()[0], 'a');
 
     expect(fixture.componentInstance.value()).toBe('coverages');
+  });
+
+  describe('with counts, dots and projected content', () => {
+    @Component({
+      imports: [TabsComponent],
+      template: `
+        <app-tabs [tabs]="tabs" [(value)]="value" [scrollable]="true">
+          <button type="button" class="extra">Sin asignar</button>
+        </app-tabs>
+      `,
+    })
+    class RichHost {
+      readonly tabs: TabOption[] = [
+        { id: 'analysis', label: 'Análisis', count: 3 },
+        { id: 'images', label: 'Imágenes', status: 'notice', statusLabel: 'con coincidencias' },
+        { id: 'empty', label: 'Vacía', count: 0, status: 'required' },
+      ];
+      readonly value = signal('analysis');
+    }
+
+    let rich: ComponentFixture<RichHost>;
+
+    beforeEach(() => {
+      rich = TestBed.createComponent(RichHost);
+      rich.detectChanges();
+    });
+
+    function richTabs(): HTMLButtonElement[] {
+      return [...rich.nativeElement.querySelectorAll('[role="tab"]')] as HTMLButtonElement[];
+    }
+
+    it('shows the count after the label, zero included', () => {
+      expect(richTabs()[0].querySelector('.tab-count')?.textContent?.trim()).toBe('3');
+      expect(richTabs()[1].querySelector('.tab-count')).toBeNull();
+      expect(richTabs()[2].querySelector('.tab-count')?.textContent?.trim()).toBe('0');
+    });
+
+    it('names the dot for screen readers, with the default when no label is given', () => {
+      expect(richTabs()[1].querySelector('.tab-dot.is-notice')).not.toBeNull();
+      expect(richTabs()[1].querySelector('.sr-only')?.textContent).toBe('(con coincidencias)');
+      expect(richTabs()[2].querySelector('.sr-only')?.textContent).toBe('(falta configurar)');
+    });
+
+    it('puts projected content in the strip but outside the tablist', () => {
+      const extra = rich.nativeElement.querySelector('.extra') as HTMLElement;
+
+      expect(extra.closest('.strip')).not.toBeNull();
+      expect(extra.closest('[role="tablist"]')).toBeNull();
+    });
+
+    it('wraps from the last tab to the first, skipping the projected content', () => {
+      rich.componentInstance.value.set('empty');
+      rich.detectChanges();
+      richTabs()[2].dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }),
+      );
+      rich.detectChanges();
+
+      expect(rich.componentInstance.value()).toBe('analysis');
+      expect(document.activeElement).toBe(richTabs()[0]);
+    });
+
+    it('scrolls instead of wrapping when asked', () => {
+      expect(rich.nativeElement.querySelector('.strip').classList).toContain('is-scrollable');
+    });
   });
 });

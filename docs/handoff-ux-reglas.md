@@ -13,8 +13,7 @@ configurar, y que use el kit en vez de controles hechos a mano.
     `coverage.is_individual`.
   - `a9dce38c` — última solapa recordada, montos con formato en el historial, limpieza de tooltips
     de Fast Track, borrado de `score_band.active` y specs nuevos del front.
-- **Merge de `develop` en curso** (14/10): los conflictos están resueltos y en stage, falta el
-  commit. Ver "Merge con develop" más abajo.
+- **Merge de `develop` commiteado** (PR #144). Ver "Merge con develop" más abajo.
 
 ## Qué se hizo
 
@@ -60,8 +59,8 @@ configurar, y que use el kit en vez de controles hechos a mano.
   recargar.
 - El historial muestra el monto de peritaje como pesos ("$ 500.000").
 - Fast Track: salieron dos tooltips, una aclaración y el badge "Siempre activo". El tooltip del
-  título usa el texto de la guía de primera carga: "Definí las condiciones de una denuncia para ser
-  considerada Fast Track." (se cambia en `core/onboarding/onboarding.ts`).
+  título usa el texto de la guía de primera carga: "Definí las condiciones para que una denuncia
+  entre en Fast Track." (se cambia en `core/onboarding/onboarding.ts`).
 
 ## Merge con develop (14/10)
 
@@ -89,17 +88,18 @@ cambios sin guardar y los textos descriptivos de Puntaje, Fraude y Atribuciones.
 
 ## Lo que tenés que hacer vos
 
-1. **Commitear el merge** con `develop` (está todo en stage) y el borrado de
-   `scoring_configuration.active`, que quedó sin stage.
-2. **Aplicar cuatro migraciones en Railway**, después de desplegar el código. Las cuatro son
-   idempotentes:
+1. ~~**Commitear el merge** con `develop` y el borrado de `scoring_configuration.active`.~~ Hecho
+   (PR #144).
+2. ~~**Aplicar cuatro migraciones en Railway**~~. Hecho, verificado el 15/10:
    - `db/migrations/2026-10-13-borrar-obligatorio-de-la-agenda.sql`
    - `db/migrations/2026-10-13-borrar-es-individual-de-cobertura.sql`
    - `db/migrations/2026-10-13-borrar-activo-de-banda-de-puntaje.sql`
    - `db/migrations/2026-10-14-borrar-activo-de-configuracion-de-puntaje.sql`
-3. **Editar el `.mdj`** con las entradas 23, 25 y 26 de `docs/der-gaps.md`: dropear `obligatorio` de
-   `requisito_documental`, `activo` de `configuracion_banda` y `activa` de `configuracion_scoring`.
-4. **Abrir el PR** de `feature/ux-enhancements-reglas` contra `develop`.
+3. ~~**Editar el `.mdj`** con las entradas 23, 25 y 26 de `docs/der-gaps.md`: dropear `obligatorio`
+   de `requisito_documental`, `activo` de `configuracion_banda` y `activa` de
+   `configuracion_scoring`.~~ Hecho el 16/10. Lo que sigue pendiente del DER está en
+   `docs/der-gaps.md`.
+4. ~~**Abrir el PR** de `feature/ux-enhancements-reglas` contra `develop`.~~ Hecho.
 
 ## Cómo quedó verificado
 
@@ -109,9 +109,10 @@ cambios sin guardar y los textos descriptivos de Puntaje, Fraude y Atribuciones.
 - **En el navegador, contra Railway (antes del merge):** Derivaciones probada de punta a punta
   (guardar, recargar, restaurar). La última solapa, los montos del historial y los tooltips se
   verificaron leyendo. El resto se probó abriendo y cancelando, sin guardar.
-- **Sin ver en pantalla:** todo lo que resolvió el merge (puntos de las solapas, documentos de Fast
-  Track con checkboxes, tooltip nuevo), guardar un proveedor, guardar una descripción de cobertura,
-  y los botones de ícono de las listas de texto.
+- **En prod (16/10):** guardar un proveedor y guardar la descripción de una cobertura.
+- **En pantalla, contra Railway (16/10):** lo que resolvió el merge (punto de Coberturas en un ramo
+  sin coberturas, documentos de Fast Track con checkboxes, tooltip del título) y los botones de ícono
+  de los criterios de Fast Track (editar y confirmar, sin guardar).
 
 ### Tests del front
 
@@ -125,8 +126,9 @@ Specs nuevos, todos con los servicios mockeados:
 | `features/admin/providers-config/…spec.ts` | Todos los ramos marcados al crear, bloqueo sin ramos, lista al guardar, edición y confirmación de borrado. |
 | `features/admin/rules/rules.component.spec.ts` | Última solapa recordada, que no se pierda al cambiar de ramo, descripción de la cobertura y checkboxes. |
 
-Lo que sigue sin test: el guardado de coberturas con descripción contra el backend, los botones de
-ícono dentro de las listas de texto y los puntos de estado de `app-tabs`.
+Lo que sigue sin test: el guardado de coberturas con descripción contra el backend y los botones de
+ícono dentro de las listas de texto. Los puntos de estado de `app-tabs` ya tienen test en
+`tabs.component.spec.ts`.
 
 ## Decisiones abiertas para el equipo
 
@@ -155,31 +157,44 @@ Vale aclararlo porque se presta a confusión:
 
 ## Pendientes de la lista original
 
-- **Plazo de denuncia:** la base guarda horas y la pantalla edita días con división entera. Un
-  plazo de 36 h se muestra como 1 día y se guarda como 24 h al tocar cualquier otro campo de la
-  cobertura. Es el único que puede pisar un dato.
-- **Reglas apagadas de la cobertura:** el campo de valor queda visible con el switch apagado; en
-  Fast Track y Hard Stop se reemplaza por un texto. `develop` ya resolvió la otra mitad: una regla
-  encendida sin valor muestra "Escribí un valor o apagá la regla." y no deja guardar.
+- ~~**Plazo de denuncia**~~: hecho (PR #152). La pantalla edita horas, igual que la base, y ya no
+  pisa un plazo de 36 h.
+- ~~**Reglas apagadas de la cobertura**~~: hecho en `fix/reglas-pendientes-ux`. Con el switch
+  apagado, el campo se reemplaza por un texto ("Sin carencia", "Sin plazo", "Sin tope"), como en
+  Fast Track y Hard Stop. El resumen de la cobertura plegada tampoco muestra el valor de una regla
+  apagada.
 - **Alta y baja de ramos y hechos generadores:** descartado para esta iteración.
 
-## Mejoras de UX detectadas, sin hacer
+## Mejoras de UX detectadas
 
-1. **Si falla la carga de hechos generadores**, la pantalla muestra "No hay hechos generadores en
-   este ramo", como si el ramo estuviera vacío. Debería mostrar el error con un reintento.
-2. **La matriz de agenda documental en teléfono** corta el último encabezado y obliga a scroll
-   horizontal.
-3. **Puntaje de riesgo:** el campo de peso de cada factor no tiene etiqueta ni unidad. La nota
-   difícil de leer que tenía arriba ya la sacó `develop`.
-4. **Tooltips que quedaron:** conviene repasarlos con el mismo criterio que los de Fast Track. El
-   candidato más claro es el de "Hechos generadores que cubre".
-5. **Tabs hechas a mano en otras pantallas** (Reportes, detalle del expediente, bandeja, chat): se
-   pueden migrar a `app-tabs`.
-6. **A revisar:** en una de las pruebas la barra de guardar seguía en "Cambios sin guardar" unos
-   segundos después de un guardado que sí había entrado. No quedó claro si fue demora de Railway o
-   un problema de la barra.
+Hechas:
+
+1. ~~**Si falla la carga de hechos generadores**~~ (PR #152): la pantalla muestra "No se pudo
+   cargar el ramo." con un reintento. Cubre toda la carga del ramo.
+2. ~~**La matriz de agenda documental en teléfono**~~ (`fix/reglas-pendientes-ux`): los
+   encabezados de los hechos generadores van en vertical y la tabla entra sin scroll.
+3. ~~**Puntaje de riesgo**~~ (`fix/reglas-pendientes-ux`): el peso de cada factor tiene la
+   etiqueta "Peso". No lleva unidad: los pesos son relativos y el "pesa N %" de al lado muestra la
+   parte que aplica el motor.
+4. ~~**Tooltips que quedaron**~~ (`fix/reglas-pendientes-ux`): salió el de "Hechos generadores que
+   cubre", que repetía el título. Queda el aviso de cuando la cobertura cubre todo el ramo.
+
+Hechas en `fix/pendientes-handoff-reglas`:
+
+5. ~~**Tabs hechas a mano en otras pantallas**~~: el detalle del expediente y la bandeja usan
+   `app-tabs`. Para eso `app-tabs` sumó un número por solapa (`count`), un punto de novedad
+   (`status: 'notice'`), una tira que se desliza de costado (`scrollable`) y contenido proyectado al
+   final de la tira (los filtros de pertenencia de la bandeja). Reportes usa `app-tab-nav`, un
+   componente nuevo del kit: sus solapas son rutas, así que van como enlaces y no como `tablist`.
+   Las tres pantallas pasan a verse como las solapas de Reglas. En pantallas táctiles, las solapas
+   del detalle y de Reglas quedan en una fila que se desliza de costado; con mouse se parten en
+   filas.
+   Además salió el badge "Toda la aseguradora" del encabezado de Puntaje de riesgo.
+6. ~~**A revisar: la barra de guardar en "Cambios sin guardar"**~~: el front está bien. La causa era
+   el pool de conexiones de `rules-service`, que arregló el PR #157. Cada guardado commiteaba y
+   después esperaba otra conexión antes de responder. Por eso el dato ya estaba guardado, pero la
+   respuesta tardaba y la barra seguía marcando cambios. Hay que volver a probarlo cuando #157 esté
+   en prod.
 
 Ya resueltos por `develop`: la confirmación antes de descartar cambios sin guardar al cambiar de
 ramo o de sección.
-
-Para empezar, el plazo de denuncia: es el único pendiente que puede pisar un dato.

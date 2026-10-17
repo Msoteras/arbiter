@@ -23,7 +23,13 @@ import {
 } from 'rxjs';
 import * as XLSX from 'xlsx';
 
-import { CaseService, CaseListParams, LensCounts, LensSummary } from '../case.service';
+import {
+  CaseDeadline,
+  CaseListParams,
+  CaseService,
+  LensCounts,
+  LensSummary,
+} from '../case.service';
 import { CaseNavigationService } from '../case-navigation.service';
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
 import { UserAdminService } from '../../../core/auth/user-admin.service';
@@ -59,6 +65,7 @@ import {
   MenuItem,
 } from '../../../shared/ui/menu-button/menu-button.component';
 import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
+import { TabOption, TabsComponent } from '../../../shared/ui/tabs/tabs.component';
 import { fadeStagger, staggerReveal } from '../../../shared/animations';
 
 // JPA property paths of Case (Spring Data sorts by property, not by SQL column).
@@ -106,7 +113,7 @@ const LINK_PARAMS = [
   'status',
   'staleDays',
   'followUp',
-  'dueSoon',
+  'deadline',
   'mine',
 ];
 
@@ -124,6 +131,7 @@ const LINK_PARAMS = [
     EmptyStateComponent,
     MenuButtonComponent,
     InlineLoadingComponent,
+    TabsComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   animations: [fadeStagger, staggerReveal],
@@ -180,6 +188,14 @@ export class InboxComponent {
     { value: 'all', label: 'Todos' },
   ];
 
+  protected readonly lifecycleTabOptions = computed<TabOption[]>(() =>
+    this.lifecycleTabs.map((tab) => ({
+      id: tab.value,
+      label: tab.label,
+      count: this.lifecycleCount(tab.value),
+    })),
+  );
+
   protected readonly ownershipTabs = computed<{ value: Ownership; label: string }[]>(() => [
     this.isReferent()
       ? { value: 'assigned', label: 'Asignados' }
@@ -218,7 +234,8 @@ export class InboxComponent {
     this.staleDaysFilter.set(staleDays > 0 ? staleDays : null);
     const followUp = params.get('followUp') ?? '';
     this.followUpFilter.set(this.followUpOptions.some((o) => o.value === followUp) ? followUp : '');
-    this.dueSoonFilter.set(params.get('dueSoon') === 'true');
+    const deadline = params.get('deadline');
+    this.deadlineFilter.set(deadline === 'DUE_SOON' || deadline === 'OVERDUE' ? deadline : null);
     this.page.set(0);
     this.router.navigate([], {
       relativeTo: this.route,
@@ -236,8 +253,8 @@ export class InboxComponent {
   protected readonly eventDateTo = signal('');
   protected readonly followUpFilter = signal('');
   protected readonly staleDaysFilter = signal<number | null>(null);
-  /** Only reachable from a link (the home's "Plazo por vencer"); removed through its chip. */
-  protected readonly dueSoonFilter = signal(false);
+  /** Only reachable from a link (the home's deadline shortcuts); removed through its chip. */
+  protected readonly deadlineFilter = signal<CaseDeadline | null>(null);
   protected readonly qDraft = signal('');
   protected readonly sortField = signal<SortField>('id');
   protected readonly sortDir = signal<SortDir>('desc');
@@ -261,7 +278,7 @@ export class InboxComponent {
     q: this.qDebounced() || undefined,
     followUp: (this.followUpFilter() || undefined) as CaseListParams['followUp'],
     staleDays: this.staleDaysFilter() ?? undefined,
-    dueSoon: this.dueSoonFilter() || undefined,
+    deadline: this.deadlineFilter() ?? undefined,
   }));
 
   /** Picking a status leaves the lifecycle tabs; otherwise e.g. "Aprobado" under "En curso" is always empty. */
@@ -394,7 +411,7 @@ export class InboxComponent {
         this.followUpFilter() ||
         this.analystFilter() ||
         this.staleDaysFilter() ||
-        this.dueSoonFilter() ||
+        this.deadlineFilter() ||
         this.qDebounced()
       ),
   );
@@ -460,8 +477,10 @@ export class InboxComponent {
   protected readonly followUpOptions: SelectOption[] = [
     { value: 'EXPERT_REPORT_RECEIVED', label: 'Volvió del perito' },
     { value: 'REPAIR_REPORT_RECEIVED', label: 'Volvió del servicio técnico' },
+    { value: 'PROVIDER_REPORT_RECEIVED', label: 'Volvió del perito o del servicio técnico' },
     { value: 'RETURNED_BY_REFERENT', label: 'Devuelto por el referente' },
     { value: 'AWAITING_REFERENT', label: 'Esperando al referente' },
+    { value: 'AWAITING_ANALYST', label: 'Pendiente de decisión' },
   ];
 
   protected readonly columns: ColumnDef[] = [
@@ -590,7 +609,12 @@ export class InboxComponent {
     const staleDays = this.staleDaysFilter();
     if (staleDays)
       chips.push({ key: 'staleDays', label: `Sin movimiento hace más de ${staleDays} días` });
-    if (this.dueSoonFilter()) chips.push({ key: 'dueSoon', label: 'Plazo por vencer o vencido' });
+    const deadline = this.deadlineFilter();
+    if (deadline)
+      chips.push({
+        key: 'deadline',
+        label: deadline === 'OVERDUE' ? 'Plazo vencido' : 'Plazo por vencer o vencido',
+      });
     return chips;
   });
 
@@ -620,8 +644,8 @@ export class InboxComponent {
       case 'staleDays':
         this.staleDaysFilter.set(null);
         break;
-      case 'dueSoon':
-        this.dueSoonFilter.set(false);
+      case 'deadline':
+        this.deadlineFilter.set(null);
         break;
     }
     this.page.set(0);
@@ -645,7 +669,7 @@ export class InboxComponent {
     this.eventDateTo.set('');
     this.followUpFilter.set('');
     this.staleDaysFilter.set(null);
-    this.dueSoonFilter.set(false);
+    this.deadlineFilter.set(null);
     this.page.set(0);
   }
 

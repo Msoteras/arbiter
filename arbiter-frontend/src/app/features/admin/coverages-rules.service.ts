@@ -21,10 +21,9 @@ export interface CoverageDetail {
   description: string | null;
   deductibleRatio: number | null;
   deductibleBasis: DeductibleBasis;
-  reportingWindowDays: number | null;
+  reportDeadlineHours: number | null;
   maxAnnualClaims: number | null;
   waitingPeriodDays: number | null;
-  coversFamilyGroup: boolean;
   settlementFormula: SettlementFormula;
   settlementBasis: SettlementBasis;
   /** 0..1 fraction like `deductibleRatio` (0.5 = 50%). `null` = the 2nd event isn't reduced. */
@@ -46,10 +45,9 @@ export interface CoverageUpsertRequest {
   description: string | null;
   deductibleRatio: number | null;
   deductibleBasis: DeductibleBasis;
-  reportingWindowDays: number | null;
+  reportDeadlineHours: number | null;
   maxAnnualClaims: number | null;
   waitingPeriodDays: number | null;
-  coversFamilyGroup: boolean;
   settlementFormula: SettlementFormula;
   settlementBasis: SettlementBasis;
   secondEventRatio: number | null;

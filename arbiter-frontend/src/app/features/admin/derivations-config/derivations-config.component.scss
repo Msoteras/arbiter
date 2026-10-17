@@ -40,7 +40,7 @@
   font-size: var(--font-size-xs);
 }
 .rule-value {
-  flex: 0 0 12rem;
+  flex: 0 0 var(--control-w-value);
 }
 .rule-off-note {
   flex: 0 0 auto;

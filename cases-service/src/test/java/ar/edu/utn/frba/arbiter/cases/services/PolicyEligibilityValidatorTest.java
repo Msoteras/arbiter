@@ -76,6 +76,27 @@ class PolicyEligibilityValidatorTest {
                 .hasMessageContaining("carencia de 30 días");
     }
 
+    /** Rules-service down: the coverage isn't known, but every candidate is still in its waiting period. */
+    @Test
+    void withoutTheCoverage_anEventInsideEveryCandidatesWaitingPeriod_isRejected() {
+        givenPolicy(LocalDate.of(2026, 6, 8), LocalDate.of(2027, 6, 8));
+
+        assertThatThrownBy(() -> validator.validateWithoutCoverage(POLICY_NUMBER,
+                LocalDateTime.of(2026, 6, 13, 20, 0), null, List.of(coverage(30), coverage(15))))
+                .isInstanceOf(PolicyNotEligibleException.class)
+                .hasMessageContaining("carencia de 15 días");
+    }
+
+    /** One candidate would already cover it, and it may be the one that answers: not rejected. */
+    @Test
+    void withoutTheCoverage_aCandidateWithoutWaitingPeriod_letsTheClaimIn() {
+        givenPolicy(LocalDate.of(2026, 6, 8), LocalDate.of(2027, 6, 8));
+
+        assertThatCode(() -> validator.validateWithoutCoverage(POLICY_NUMBER,
+                LocalDateTime.of(2026, 6, 13, 20, 0), null, List.of(coverage(30), coverage(null))))
+                .doesNotThrowAnyException();
+    }
+
     /** The day the waiting period ends is already covered (start 05/14 + 30 days = 06/13). */
     @Test
     void theDayTheWaitingPeriodEnds_isAlreadyCovered() {

@@ -6,6 +6,7 @@ import ar.edu.utn.frba.arbiter.cases.dto.AnalystWorkloadResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.AssignedCaseSummaryResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.HomeSummaryResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseDocumentResponse;
+import ar.edu.utn.frba.arbiter.cases.dto.CaseDeadline;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseFollowUp;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseScope;
 import ar.edu.utn.frba.arbiter.cases.dto.EligibilityCheckRequest;
@@ -71,14 +72,14 @@ public interface CaseService {
                                   String claimCause, String policyNumber, String insuredId,
                                   LocalDate eventDateFrom, LocalDate eventDateTo, String q, RiskBand riskBand,
                                   Long analystId, boolean assignedToMe, boolean unassigned, boolean fraudAlert,
-                                  boolean assigned, boolean dueSoon, CaseFollowUp followUp, Integer staleDays,
+                                  boolean assigned, CaseDeadline deadline, CaseFollowUp followUp, Integer staleDays,
                                   CaseScope scope, Long insurerId, Pageable pageable);
 
     default Page<CaseResponse> listCases(List<CaseStatus> status, String claimCause, String policyNumber, String insuredId,
                                           LocalDate eventDateFrom, LocalDate eventDateTo, String q, RiskBand riskBand,
                                           boolean assignedToMe, Pageable pageable) {
         return listCases(status, null, claimCause, policyNumber, insuredId, eventDateFrom, eventDateTo, q, riskBand,
-                null, assignedToMe, false, false, false, false, null, null, CaseScope.ALL, null, pageable);
+                null, assignedToMe, false, false, false, null, null, null, CaseScope.ALL, null, pageable);
     }
 
     /** The statuses an insured can be told, each with its label, for their filter. */
@@ -88,7 +89,7 @@ public interface CaseService {
     LensSummaryResponse lensSummary(List<CaseStatus> status, String claimCause, String policyNumber,
                                      String insuredId, LocalDate eventDateFrom, LocalDate eventDateTo,
                                      String q, RiskBand riskBand, Long analystId, CaseFollowUp followUp,
-                                     Integer staleDays, boolean dueSoon);
+                                     Integer staleDays, CaseDeadline deadline);
 
     CaseResponse addDocumentsAndReclassify(Long caseId, Map<String, MultipartFile> documents);
 

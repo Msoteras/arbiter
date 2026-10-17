@@ -62,7 +62,7 @@ public class InsurerDatabaseAdapter implements InsurerAdapter {
                         """
                         SELECT p.id, p.numero, p.rama, p.producto, p.bien_asegurado,
                                p.vigencia_desde, p.vigencia_hasta,
-                               p.estado_pago, p.saldo_deuda, p.importe_cuota,
+                               p.estado_pago, p.saldo_deuda, p.importe_cuota, p.cubre_grupo_familiar,
                                a.documento, a.nombre, a.apellido
                         FROM %1$s.poliza p
                         JOIN %1$s.asegurado a ON a.id = p.titular_id
@@ -80,6 +80,7 @@ public class InsurerDatabaseAdapter implements InsurerAdapter {
                                 rs.getString("estado_pago"),
                                 rs.getBigDecimal("saldo_deuda"),
                                 rs.getBigDecimal("importe_cuota"),
+                                rs.getObject("cubre_grupo_familiar", Boolean.class),
                                 rs.getString("documento"),
                                 rs.getString("nombre"),
                                 rs.getString("apellido")),
@@ -138,6 +139,7 @@ public class InsurerDatabaseAdapter implements InsurerAdapter {
                 .overdueBalance(row.saldoDeuda())
                 .insuredAmount(primary != null ? primary.insuredAmount() : null)
                 .deductible(primary != null ? primary.deductible() : null)
+                .coversFamilyGroup(row.coversFamilyGroup())
                 .coverages(coverages)
                 .applicableClauses(List.of())
                 .build();
@@ -223,6 +225,7 @@ public class InsurerDatabaseAdapter implements InsurerAdapter {
             String estadoPago,
             BigDecimal saldoDeuda,
             BigDecimal importeCuota,
+            Boolean coversFamilyGroup,
             String documento,
             String nombre,
             String apellido

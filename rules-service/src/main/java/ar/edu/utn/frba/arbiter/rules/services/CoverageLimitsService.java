@@ -24,8 +24,7 @@ public class CoverageLimitsService {
                 .map(coverage -> new CoverageLimitsDto(
                         coverage.getReportDeadlineHours(),
                         coverage.getMaxEventsPerYear(),
-                        coverage.getWaitingPeriodDays(),
-                        coverage.isCoversFamilyGroup()))
+                        coverage.getWaitingPeriodDays()))
                 .orElseGet(CoverageLimitsDto::empty);
     }
 }

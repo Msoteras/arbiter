@@ -139,6 +139,22 @@ class TemporalRuleEvaluatorTest {
         assertThat(result.findings()).isEmpty();
     }
 
+    /** No schedule configured reads as an empty list: it can't switch the rule off. */
+    @Test
+    void aCoverageWithoutASchedule_stillEvaluatesTheRule() {
+        BusinessRules noSchedule = rulesWith(List.of(activePoliceDeadline(POLICE_DEADLINE_HOURS))).toBuilder()
+                .requiredDocumentTypes(List.of())
+                .build();
+
+        TemporalRuleEvaluator.Result result = evaluator.evaluate(
+                claimWithPoliceReport(EVENT.plusHours(500)),
+                policy(LocalDate.of(2024, 3, 1), LocalDate.of(2027, 3, 1)),
+                history(List.of()),
+                noSchedule);
+
+        assertThat(result.reasons()).anyMatch(r -> r.contains("Denuncia policial fuera de plazo"));
+    }
+
     /** The referente can save it without a threshold. */
     @Test
     void anEnabledPoliceDeadlineWithoutThreshold_doesNotParticipate() {

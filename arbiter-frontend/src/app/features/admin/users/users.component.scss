@@ -27,10 +27,18 @@
   }
 }
 
-/* Width only, so the column doesn't stretch to the longest role. */
-.role-select {
-  display: block;
-  min-width: 200px;
+.role-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.role-target {
+  margin: 0 0 var(--space-3);
+}
+
+.role-error {
+  margin-top: var(--space-3);
 }
 
 .error {

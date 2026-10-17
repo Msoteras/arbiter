@@ -106,7 +106,9 @@ describe('InboxComponent · lifecycle scope', () => {
 
   function clickScope(label: string): void {
     const button = (
-      Array.from(fixture.nativeElement.querySelectorAll('.lens-tab')) as HTMLButtonElement[]
+      Array.from(
+        fixture.nativeElement.querySelectorAll('[role="tab"], .lens-tab'),
+      ) as HTMLButtonElement[]
     ).find((b) => b.textContent?.trim().startsWith(label));
     button!.click();
     fixture.detectChanges();
@@ -118,9 +120,9 @@ describe('InboxComponent · lifecycle scope', () => {
 
   function tabCount(label: string): string | undefined {
     const tab = (
-      Array.from(fixture.nativeElement.querySelectorAll('.lens-tab')) as HTMLElement[]
+      Array.from(fixture.nativeElement.querySelectorAll('[role="tab"], .lens-tab')) as HTMLElement[]
     ).find((b) => b.textContent?.trim().startsWith(label));
-    return tab?.querySelector('.lens-count')?.textContent?.trim();
+    return tab?.querySelector('.tab-count, .lens-count')?.textContent?.trim();
   }
 
   it('starts by asking only for open cases', async () => {
@@ -189,7 +191,7 @@ describe('InboxComponent · lifecycle scope', () => {
 
     expect(lastList().scope).toBe('ALL');
     expect(lastList().status).toBe('APPROVED');
-    const active = fixture.nativeElement.querySelector('.lens-tab.active') as HTMLElement;
+    const active = fixture.nativeElement.querySelector('[role="tab"].active') as HTMLElement;
     expect(active.textContent?.trim()).toContain('Todos');
   });
 
@@ -367,19 +369,44 @@ describe('InboxComponent · lifecycle scope', () => {
         [],
         new Map([
           ['mine', 'true'],
-          ['dueSoon', 'true'],
+          ['deadline', 'DUE_SOON'],
         ]),
       );
 
       expect(lastList().assignedToMe).toBeTrue();
-      expect(lastList().dueSoon).toBeTrue();
-      expect(lensCalls[lensCalls.length - 1].dueSoon).toBeTrue();
+      expect(lastList().deadline).toBe('DUE_SOON');
+      expect(lensCalls[lensCalls.length - 1].deadline).toBe('DUE_SOON');
 
       call('clearAllChips');
       fixture.detectChanges();
       await fixture.whenStable();
 
-      expect(lastList().dueSoon).toBeUndefined();
+      expect(lastList().deadline).toBeUndefined();
+    });
+
+    /** The referente's "Plazo vencido" shortcut: the listing counts what the shortcut counts. */
+    it('opens only the overdue cases, and ignores an unknown deadline', async () => {
+      await mount('REFERENTE_ASEGURADORA', [], new Map([['deadline', 'OVERDUE']]));
+      expect(lastList().deadline).toBe('OVERDUE');
+      expect((fixture.nativeElement as HTMLElement).textContent).toContain('Plazo vencido');
+
+      TestBed.resetTestingModule();
+      await mount('REFERENTE_ASEGURADORA', [], new Map([['deadline', 'SOMEDAY']]));
+      expect(lastList().deadline).toBeUndefined();
+    });
+
+    it("takes the analyst's own pending decisions as a follow-up link", async () => {
+      await mount(
+        'ANALISTA_SINIESTROS',
+        [],
+        new Map([
+          ['mine', 'true'],
+          ['followUp', 'AWAITING_ANALYST'],
+        ]),
+      );
+
+      expect(lastList().assignedToMe).toBeTrue();
+      expect(lastList().followUp).toBe('AWAITING_ANALYST');
     });
 
     it('takes a follow-up link and ignores an unknown one', async () => {

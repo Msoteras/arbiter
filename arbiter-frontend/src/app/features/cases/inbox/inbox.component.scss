@@ -1,3 +1,5 @@
+@use 'media';
+
 // Fills the content height so the pagination can sit at the bottom when there are few rows.
 :host {
   display: flex;
@@ -42,42 +44,48 @@
 }
 
 // ───────────────── Lens tabs ─────────────────
-.lens {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-5);
-  border-bottom: 1px solid var(--border-default);
-}
+// The lifecycle tabs are app-tabs; the ownership toggles ride in its strip and copy the tab look,
+// since they read as part of the same bar.
 .lens-tab {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--space-1);
   border: none;
   background: none;
   cursor: pointer;
   font: inherit;
-  font-size: var(--font-size-body);
-  color: var(--text-muted);
-  padding: var(--space-3) 0;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  padding: var(--space-2) var(--space-3);
   border-bottom: 2px solid transparent;
   margin-bottom: -1px;
   white-space: nowrap;
 }
+@include media.touch {
+  .lens-tab {
+    min-height: var(--touch-target);
+  }
+}
 .lens-tab:hover {
-  color: var(--text-secondary);
+  color: var(--text-primary);
+}
+.lens-tab:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
 }
 .lens-tab.active {
-  color: var(--text-primary);
-  border-bottom-color: var(--accent-fg);
+  color: var(--accent-fg);
+  border-bottom-color: var(--accent-fill);
   font-weight: var(--font-weight-medium);
 }
 .lens-count {
   font-size: var(--font-size-xs);
   font-variant-numeric: tabular-nums;
+  font-weight: var(--font-weight-regular);
   color: var(--text-muted);
   background: var(--surface-sunken);
   border-radius: var(--radius-pill);
-  padding: 1px var(--space-2);
+  padding: 0 var(--space-2);
 }
 .lens-tab.active .lens-count {
   color: var(--accent-fg);
@@ -88,6 +96,7 @@
   font-size: 0.85em;
 }
 .lens-tab--alert.active {
+  color: var(--status-danger);
   border-bottom-color: var(--status-danger);
 }
 .lens-tab--alert.active .lens-count {
@@ -98,7 +107,7 @@
 .lens-group {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-5);
+  gap: var(--space-1);
 }
 .lens-clear {
   font-size: var(--font-size-2xs);
@@ -110,7 +119,14 @@
   align-self: center;
   width: 1px;
   height: var(--space-4);
+  margin: 0 var(--space-2);
   background: var(--border-default);
+}
+// On a phone the bar wraps and the divider would open the second row on its own.
+@include media.phone {
+  .lens-divider {
+    display: none;
+  }
 }
 
 // ───────────────── Toolbar ─────────────────

@@ -149,6 +149,8 @@ export interface PagedResponse<T> {
   size: number;
 }
 
+export type CaseDeadline = 'DUE_SOON' | 'OVERDUE';
+
 export interface CaseListParams {
   status?: string | string[];
   /** The insured's filter: the backend ignores `status` for them. */
@@ -168,8 +170,11 @@ export interface CaseListParams {
   riskBand?: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
   /** Open cases with no change in the last N days. */
   staleDays?: number;
-  /** Running deadline within the warning window, overdue included; paused cases never match. */
-  dueSoon?: boolean;
+  /**
+   * Against the running deadline: `DUE_SOON` is the warning window, overdue included; `OVERDUE` only
+   * the overdue ones. Paused cases never match.
+   */
+  deadline?: CaseDeadline;
   /** A flag, not an id: analyst ids are per-tenant, so the backend resolves "me" from the token. */
   assignedToMe?: boolean;
   /** Taken from `analystWorkload()`, which is already scoped to the supervisor's insurer. */
@@ -182,8 +187,10 @@ export interface CaseListParams {
   followUp?:
     | 'EXPERT_REPORT_RECEIVED'
     | 'REPAIR_REPORT_RECEIVED'
+    | 'PROVIDER_REPORT_RECEIVED'
     | 'RETURNED_BY_REFERENT'
-    | 'AWAITING_REFERENT';
+    | 'AWAITING_REFERENT'
+    | 'AWAITING_ANALYST';
   /** Backend default: `ALL`. */
   scope?: 'OPEN' | 'CLOSED' | 'ALL';
   /** Only for an insured with policies at more than one insurer. */
@@ -205,8 +212,8 @@ export interface AnalystWorkload {
 export interface HomeSummary {
   /** Open cases against the art. 56 term; the four add up to every open case. */
   deadlines: { onTime: number; dueSoon: number; overdue: number; paused: number };
-  expertReportsReceived: number;
-  repairReportsReceived: number;
+  /** Answered by the expert or the repair shop, each case counted once. */
+  providerReportsReceived: number;
   returnedByReferent: number;
   awaitingReferent: number;
   stale: number;
@@ -325,7 +332,7 @@ export class CaseService {
     if (params.followUp) query['followUp'] = params.followUp;
     if (params.scope) query['scope'] = params.scope;
     if (params.staleDays != null) query['staleDays'] = String(params.staleDays);
-    if (params.dueSoon) query['dueSoon'] = 'true';
+    if (params.deadline) query['deadline'] = params.deadline;
     if (params.insurerId != null) query['insurerId'] = String(params.insurerId);
     return query;
   }
@@ -474,7 +481,7 @@ export class CaseService {
     if (params.analystId != null) query['analystId'] = String(params.analystId);
     if (params.followUp) query['followUp'] = params.followUp;
     if (params.staleDays != null) query['staleDays'] = String(params.staleDays);
-    if (params.dueSoon) query['dueSoon'] = 'true';
+    if (params.deadline) query['deadline'] = params.deadline;
     return query;
   }
 

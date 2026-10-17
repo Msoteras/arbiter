@@ -227,17 +227,20 @@ Antes de escribir markup de UI, usá los componentes que ya existen en vez de re
 | `app-button` | todo botón/acción. `primary` (oscuro) \| `secondary` \| `accent`; `size` `md`/`sm`; `tone` `ok`/`danger` para acciones cuyo resultado es un estado (aprobar, rechazar); `block`, `loading`. |
 | `app-menu-button` | botón que abre un menú de acciones (ej. "Exportar", "Derivar a…"). |
 | `app-badge` | chips de estado/etiqueta. `solid` \| `strong` \| `dashed`; `tone` del semáforo → punto de color. |
-| `app-card` | contenedor de contenido. `heading`, `icon`; variante `ai` para salida del modelo; `collapsible`, `flush`. |
+| `app-card` | contenedor de contenido. `heading` (con `headingSize` `sm`/`md`/`lg`), `icon`; variante `ai` para salida del modelo; `collapsible`, `flush`. |
+| `app-tabs` | solapas (rol `tablist`, flechas, Inicio y Fin). `tabs` con `status` opcional para marcar una solapa incompleta o sin configurar. |
+| `app-icon-button` | botón de solo ícono (editar, borrar, confirmar). `label` obligatorio: es su nombre accesible y su tooltip. |
 | `app-input` | campo de texto (sin Angular Forms). `prefix`, `align`, `inputmode`, `revealable`; `normalize` para reescribir lo tipeado (montos: `amountInputDisplay` de `core/util/money.ts`). |
 | `app-textarea` | texto multilínea. |
 | `app-select` | desplegable propio (no el nativo); `searchable`, `required`. |
 | `app-chip-group` | elegir una opción entre 2 y 5, todas a la vista. |
 | `app-checkbox`, `app-switch` | casilla nativa y switch para ajustes con efecto inmediato. |
+| `app-tabs`, `app-tab-nav` | solapas de una pantalla (`tablist`, con número, punto de estado y `scrollable`) y solapas que son rutas (enlaces con `aria-current`). |
 | `app-modal` | diálogos; `variant="side"` es panel lateral para altas sobre una lista; `dismissable=false` para formularios que no se cierran por accidente. |
 | `app-table`, `app-pagination` | tablas (columnas fijas, encabezado pegajoso) y paginado de listas del servidor. |
 | `app-stat-tile`, `app-chart`, `app-distribution` | métricas, gráficos (ECharts) y distribuciones (barra o anillo con leyenda). |
 | `app-save-bar` | pie de una sección editable (guardar/descartar). |
-| `app-info-tip` | ayuda que se abre con clic (funciona con touch y teclado). |
+| `app-info-tip` | ayuda que se abre con clic (funciona con touch y teclado). `tone` `info` \| `warning`. |
 | `app-empty-state`, `app-inline-loading`, `app-loading`, `app-spinner` | estados vacío y de carga (`app-loading` es solo el de pantalla completa del inicio). |
 | toasts (`ToastService` + `app-toast-stack`) | avisos efímeros, estilo Sonner: apilados, se despliegan y pausan al pasar el mouse, se descartan deslizando hacia abajo. `show(mensaje, tono, ms, { description, action })`. El stack se monta una vez en `app.html`. |
 | `app-logo`, `app-file-preview` | logo de Arbiter y vista previa de un archivo antes de subirlo. |

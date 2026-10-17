@@ -98,7 +98,7 @@ public class ClassificationOrchestrator {
 
         // No documents read here, so the family-group rule can't be evaluated.
         CoverageScopeEvaluator.Result scope =
-                coverageScopeEvaluator.evaluate(claim, ctx.policy(), ctx.history(), ctx.rules(), Map.of());
+                coverageScopeEvaluator.evaluate(claim, ctx.policy(), ctx.history(), Map.of());
 
         FastTrackValidator.Result fastTrack = fastTrackValidator.evaluate(claim, ctx.policy(), ctx.history(), ctx.rules(), null);
 
@@ -311,7 +311,7 @@ public class ClassificationOrchestrator {
 
         // After extraction: the family-group rule needs the affected party read from the documents.
         CoverageScopeEvaluator.Result scope =
-                coverageScopeEvaluator.evaluate(claim, ctx.policy(), ctx.history(), ctx.rules(), gateExtractions);
+                coverageScopeEvaluator.evaluate(claim, ctx.policy(), ctx.history(), gateExtractions);
 
         FastTrackValidator.Result fastTrack =
                 fastTrackValidator.evaluate(claim, ctx.policy(), ctx.history(), ctx.rules(), gateExtractions);
@@ -365,7 +365,7 @@ public class ClassificationOrchestrator {
 
         // Re-evaluated with every document read: the affected party can be in any of them.
         CoverageScopeEvaluator.Result fullScope =
-                coverageScopeEvaluator.evaluate(claim, ctx.policy(), ctx.history(), ctx.rules(), extractions);
+                coverageScopeEvaluator.evaluate(claim, ctx.policy(), ctx.history(), extractions);
 
         List<String> engineFindings = engineFindings(exclusion, temporal);
         engineFindings.addAll(fullScope.reasons());

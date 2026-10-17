@@ -14,8 +14,9 @@
 -- A rule whose configuration changes keeps its previous version in insurer_rule_history, attributed
 -- to this migration (changed_by NULL). Text literals use U&'...' escapes because a PowerShell pipe
 -- once turned an accent into '?'.
--- The deployed code neither reads nor writes external_name: apply this WHILE deploying cases- and
--- classification-service, never after (ddl-auto: validate fails on the missing column). Afterwards
+-- The deployed code neither reads nor writes external_name: apply this WHILE deploying, never
+-- after. Coverage lives in common-lib, so every module that scans it fails ddl-auto: validate on
+-- the missing column, not only cases- and classification-service: rules- and auth-service too. Afterwards
 -- run the CREATE OR REPLACE FUNCTION arbiter_common.create_tenant_schema block from
 -- init-multitenant.sql. Idempotent.
 

@@ -23,6 +23,7 @@ import ar.edu.utn.frba.arbiter.cases.dto.StatusTransitionResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.EligibilityCheckResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.ProviderType;
 import ar.edu.utn.frba.arbiter.cases.dto.RepairProviderResponse;
+import ar.edu.utn.frba.arbiter.cases.exceptions.SettlementAwaitingReferentException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.ClosedCaseAssignmentException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.AnalystNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.AnalystProfileNotFoundException;
@@ -37,6 +38,7 @@ import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidAnalystDecisionException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidSettlementException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidStatusTransitionException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.MissingRequiredDocumentsException;
+import ar.edu.utn.frba.arbiter.cases.exceptions.RulesMisconfiguredException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.RulesUnavailableException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.PolicyInsuredMismatchException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.PolicyNotEligibleException;
@@ -72,6 +74,9 @@ import ar.edu.utn.frba.arbiter.common.models.entities.tenant.ClaimsAnalyst;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.client.HttpClientErrorException;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
@@ -672,7 +677,7 @@ class CaseServiceImplTest {
                 new CaseLensCountRepository.OwnershipCounts(15, 13, 15, 0, 3)));
 
         LensSummaryResponse summary = caseService.lensSummary(
-                null, null, null, null, null, null, null, null, null, null, null, false);
+                null, null, null, null, null, null, null, null, null, null, null, null);
 
         assertThat(summary.open()).isEqualTo(new LensSummaryResponse.Counts(19, 7, 12, 7, 5));
         assertThat(summary.closed()).isEqualTo(new LensSummaryResponse.Counts(15, 13, 15, 0, 3));
@@ -1083,6 +1088,47 @@ class CaseServiceImplTest {
         verify(claimsAnalysisClient, never()).forwardAnalystDecision(any(), any());
         verify(caseStatusService).transition(eq(entity), eq(CaseStatus.VOIDED), eq(StatusChangeActor.ANALYST),
                 any(), eq("Póliza equivocada"));
+    }
+
+    /** Otherwise the settlement stays in the referent's queue and authorizing it fails for good. */
+    @Test
+    void recordAnalystDecision_whileTheReferentSigns_throwsBeforeAuditing() {
+        assignedCase(1L, CaseStatus.PENDING_ANALYST_REVIEW);
+        when(settlementService.statusesFor(List.of(1L)))
+                .thenReturn(Map.of(1L, SettlementStatus.PENDING_AUTHORIZATION));
+
+        assertThatThrownBy(() -> caseService.recordAnalystDecision(1L,
+                new AnalystDecisionRequest(null, "REJECT", "Cambio de criterio", null, null)))
+                .isInstanceOf(SettlementAwaitingReferentException.class);
+
+        verify(claimsAnalysisClient, never()).forwardAnalystDecision(any(), any());
+    }
+
+    @Test
+    void closeCase_whileTheReferentSigns_throwsBeforeAuditing() {
+        assignedCase(1L, CaseStatus.PENDING_ANALYST_REVIEW);
+        when(settlementService.statusesFor(List.of(1L)))
+                .thenReturn(Map.of(1L, SettlementStatus.PENDING_AUTHORIZATION));
+
+        assertThatThrownBy(() -> caseService.closeCase(1L, CaseStatus.WITHDRAWN, "motivo"))
+                .isInstanceOf(SettlementAwaitingReferentException.class);
+
+        verify(claimsAnalysisClient, never()).forwardAnalystDecision(any(), any());
+        verify(caseStatusService, never()).transition(any(), any(), any(), any(), any());
+    }
+
+    /** A case that left PENDING_CLASSIFICATION before its run failed: classification has none. */
+    @Test
+    void closeCase_whenClassificationHasNone_closesWithoutAuditing() {
+        Case entity = assignedCase(1L, CaseStatus.AWAITING_DOCUMENTATION);
+        when(claimsAnalysisClient.forwardAnalystDecision(eq(1L), any()))
+                .thenThrow(HttpClientErrorException.create(HttpStatus.UNPROCESSABLE_ENTITY, "Invalid classification",
+                        HttpHeaders.EMPTY, new byte[0], null));
+
+        caseService.closeCase(1L, CaseStatus.WITHDRAWN, "El asegurado avisó que no sigue");
+
+        verify(caseStatusService).transition(eq(entity), eq(CaseStatus.WITHDRAWN), eq(StatusChangeActor.ANALYST),
+                any(), eq("El asegurado avisó que no sigue"));
     }
 
     /** Checked before the audit call: a refused closure never leaves a decision behind. */
@@ -1831,7 +1877,7 @@ class CaseServiceImplTest {
 
         CaseResponse response = caseService.listCases(List.of(CaseStatus.CLASSIFICATION_FAILED),
                 List.of(InsuredStatus.UNDER_ANALYSIS), null, null, null, null, null, null,
-                RiskBand.CRITICAL, null, false, false, false, false, false, null, null, null, null,
+                RiskBand.CRITICAL, null, false, false, false, false, null, null, null, null, null,
                 pageable).getContent().get(0);
 
         assertThat(response.analysisClassification()).isNull();
@@ -2017,6 +2063,27 @@ class CaseServiceImplTest {
         verifyNoInteractions(referenceResolver, policyEligibilityValidator);
     }
 
+    /** Taken all the same, but not as an outage: the automatic requeue would retry it forever. */
+    @Test
+    void createCase_withCoverageExclusionsRefused_failsItAsOther() {
+        CaseRequest request = caseRequest();
+        Case saved = caseRecord(1L, CaseStatus.PENDING_CLASSIFICATION);
+        stubReferenceResolution();
+        Coverage provisional = Coverage.builder().name("Robo de celular").branchId(1L).build();
+        when(policyCoverageResolver.resolveFor(any(), any()))
+                .thenThrow(new RulesMisconfiguredException(new IllegalStateException("422")));
+        when(policyCoverageResolver.provisionalCandidates(any(), any()))
+                .thenReturn(List.of(CaseFixtures.policyCoverage(1L, provisional, 1)));
+        when(caseStatusService.initialStatus()).thenReturn(CaseStates.of(CaseStatus.PENDING_CLASSIFICATION));
+        when(caseRepository.save(any(Case.class))).thenReturn(saved);
+
+        caseService.createCase(request, Map.of());
+
+        assertThat(saved.getClassificationFailureReason()).isEqualTo(ClassificationFailureReason.OTHER);
+        verify(caseStatusService).transition(eq(saved), eq(CaseStatus.CLASSIFICATION_FAILED),
+                eq(StatusChangeActor.SYSTEM), any());
+    }
+
     @Test
     void createCase_withCoverageExclusionsUnreadable_takesTheClaimOnAProvisionalCoverage() {
         CaseRequest request = caseRequest();
@@ -2025,8 +2092,8 @@ class CaseServiceImplTest {
         Coverage provisional = Coverage.builder().name("Robo de celular").branchId(1L).build();
         when(policyCoverageResolver.resolveFor(any(), any()))
                 .thenThrow(new RulesUnavailableException(new IllegalStateException("rules-service down")));
-        when(policyCoverageResolver.provisionalFor(any(), any()))
-                .thenReturn(CaseFixtures.policyCoverage(1L, provisional, 1));
+        when(policyCoverageResolver.provisionalCandidates(any(), any()))
+                .thenReturn(List.of(CaseFixtures.policyCoverage(1L, provisional, 1)));
         when(caseStatusService.initialStatus()).thenReturn(CaseStates.of(CaseStatus.PENDING_CLASSIFICATION));
         when(caseRepository.save(any(Case.class))).thenReturn(saved);
 
@@ -2036,7 +2103,9 @@ class CaseServiceImplTest {
         verify(caseRepository).save(captor.capture());
         assertThat(captor.getValue().getCoverage()).isSameAs(provisional);
         assertThat(captor.getValue().getDocumentsUnverifiedSince()).isEqualTo(Instant.parse("2026-06-15T12:00:00Z"));
-        verify(policyEligibilityValidator).validate(any(), any(), any(), isNull(), any());
+        // The waiting period still applies: it lives in the coverage, not in rules-service.
+        verify(policyEligibilityValidator).validateWithoutCoverage(any(), any(), any(), eq(List.of(provisional)));
+        verify(policyEligibilityValidator, never()).validate(any(), any(), any(), any(), any());
         verify(rulesServiceClient, never()).fastTrackDocumentTypes(any());
         verify(rulesServiceClient, never()).requiredDocumentTypes(any(), any());
         verify(claimsAnalysisClient, never()).analyzeAndPersist(any(), any());
@@ -2068,6 +2137,23 @@ class CaseServiceImplTest {
 
         assertThatThrownBy(() -> caseService.retryClassification(1L)).isInstanceOf(RulesUnavailableException.class);
 
+        verify(caseStatusService, never()).transition(any(), any(), any(), any());
+        verify(claimsAnalysisClient, never()).analyzeAndPersist(any(), any());
+    }
+
+    /** Until the referent fixes it, the case stays failed as OTHER, out of the automatic requeue. */
+    @Test
+    void retryClassification_withRulesStillRefusingTheConfiguration_keepsItOutOfTheRequeue() {
+        Case failed = caseRecord(1L, CaseStatus.CLASSIFICATION_FAILED);
+        failed.setClassificationFailureReason(ClassificationFailureReason.OTHER);
+        when(caseRepository.findById(1L)).thenReturn(Optional.of(failed));
+        when(policyCoverageResolver.reverifiedCoverage(failed))
+                .thenThrow(new RulesMisconfiguredException(new IllegalStateException("422")));
+
+        assertThatThrownBy(() -> caseService.retryClassification(1L))
+                .isInstanceOf(RulesMisconfiguredException.class);
+
+        assertThat(failed.getClassificationFailureReason()).isEqualTo(ClassificationFailureReason.OTHER);
         verify(caseStatusService, never()).transition(any(), any(), any(), any());
         verify(claimsAnalysisClient, never()).analyzeAndPersist(any(), any());
     }

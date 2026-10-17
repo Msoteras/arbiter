@@ -63,7 +63,7 @@ public record DocumentExtraction(
     }
 
     /**
-     * Who suffered the event, for the {@code covers_family_group} rule. With {@link #DESCONOCIDO} the rule
+     * Who suffered the event, for the {@code COVERS_FAMILY_GROUP} rule. With {@link #DESCONOCIDO} the rule
      * doesn't take part rather than assuming either side.
      */
     public enum AffectedParty {

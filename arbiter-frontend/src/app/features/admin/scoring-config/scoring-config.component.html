@@ -8,7 +8,6 @@
 } @else {
   <app-card heading="Puntaje de riesgo" headingSize="lg" @fadeInUp appOnboardingTarget="SCORING">
     <app-info-tip cardAside>{{ stepLine.SCORING }}</app-info-tip>
-    <app-badge cardAside variant="solid">Toda la aseguradora</app-badge>
     <div class="sc-section">
       <div class="sc-section-head">
         <span class="t-section-label">Factores y pesos</span>
@@ -52,14 +51,16 @@
                   </span>
                   <span class="sc-share-note">pesa {{ effectiveWeightPct(f.id) }}</span>
                 </div>
-                <div class="rule-value">
+                <label class="rule-value">
+                  <span class="t-note">Peso</span>
+                  <span class="sr-only"> de {{ f.label }}</span>
                   <app-input
                     type="number"
                     [min]="0"
                     [value]="factorWeightPct(f.id)"
                     (valueChange)="setFactorWeight(f.id, $event)"
                   />
-                </div>
+                </label>
               } @else {
                 <span class="rule-off-note t-note">No se evalúa</span>
               }

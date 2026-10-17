@@ -60,9 +60,6 @@ public class Coverage {
     @Column(name = "max_events_per_year")
     private Integer maxEventsPerYear;
 
-    @Column(name = "covers_family_group", nullable = false)
-    private boolean coversFamilyGroup;
-
     private BigDecimal deductible;
 
     @Column(name = "waiting_period_days")

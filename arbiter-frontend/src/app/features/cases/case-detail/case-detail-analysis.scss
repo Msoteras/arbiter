@@ -44,13 +44,6 @@
   font-style: italic;
 }
 
-.tab-count {
-  margin-left: var(--space-1);
-  font-size: var(--font-size-2xs);
-  color: var(--text-tertiary);
-  font-variant-numeric: tabular-nums;
-}
-
 .analysis-grid {
   display: grid;
   /* Equal halves, stretched to the taller card: the score's breakdown can run as long as the reasons. */

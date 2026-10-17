@@ -48,9 +48,9 @@ const RULE_TYPE_INFO: Record<string, { label: string; description: string }> = {
       'El asegurado tiene un antecedente de fraude dentro de la ventana configurada por la aseguradora.',
   },
   COVERS_FAMILY_GROUP: {
-    label: 'Alcance familiar de la cobertura',
+    label: 'Alcance familiar de la póliza',
     description:
-      'El damnificado no es el titular ni el grupo familiar conviviente que alcanza la cobertura.',
+      'El damnificado no es el titular ni el grupo familiar conviviente que alcanza la póliza.',
   },
   // No longer evaluated: kept so the rows written before 14/10/2026 still read.
   CLAIM_EXHAUSTS_COVERAGE: {

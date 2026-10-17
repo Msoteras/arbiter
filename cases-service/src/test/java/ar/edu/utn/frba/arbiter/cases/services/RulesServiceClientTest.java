@@ -1,9 +1,11 @@
 package ar.edu.utn.frba.arbiter.cases.services;
 
+import ar.edu.utn.frba.arbiter.cases.exceptions.RulesMisconfiguredException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.RulesUnavailableException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
+import org.springframework.http.HttpStatus;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
@@ -13,6 +15,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withException;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withServerError;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
@@ -50,6 +53,16 @@ class RulesServiceClientTest {
                 .andRespond(withException(new ConnectException("Connection refused")));
 
         assertThatThrownBy(() -> client.excludedClaimCauseIds(1L)).isInstanceOf(RulesUnavailableException.class);
+    }
+
+    /** rules-service is up and answers: waiting won't change its answer. */
+    @Test
+    void excludedClaimCauseIds_rulesRefusesTheConfiguration_isReportedAsMisconfigured() {
+        server.expect(requestTo(BASE_URL + "/api/v1/rules/internal/evaluable?coverageId=1"))
+                .andRespond(withStatus(HttpStatus.UNPROCESSABLE_ENTITY));
+
+        assertThatThrownBy(() -> client.excludedClaimCauseIds(1L))
+                .isInstanceOf(RulesMisconfiguredException.class);
     }
 
     @Test

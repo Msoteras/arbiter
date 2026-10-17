@@ -38,11 +38,16 @@ describe('cacheInvalidationInterceptor', () => {
     expect(invalidate).not.toHaveBeenCalled();
   });
 
-  it('renaming a branch refreshes the branches and the coverage counts', () => {
+  it('renaming a branch refreshes every screen that lists the branches', () => {
     http.put('/api/v1/rules/branches/1', {}).subscribe();
     controller.expectOne('/api/v1/rules/branches/1').flush({});
 
-    expect(invalidate.calls.allArgs()).toEqual([['rules:branches'], ['rules:coverage-summary']]);
+    expect(invalidate.calls.allArgs()).toEqual([
+      ['rules:branches'],
+      ['rules:coverage-summary'],
+      ['rules:authorities'],
+      ['rules:providers'],
+    ]);
   });
 
   it('a failed write invalidates nothing', () => {

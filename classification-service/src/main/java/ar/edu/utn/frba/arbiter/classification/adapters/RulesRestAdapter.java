@@ -158,7 +158,6 @@ public class RulesRestAdapter implements RulesAdapter {
                 .reportDeadlineHours(limits.reportDeadlineHours())
                 .maxEventsPerYear(limits.maxEventsPerYear())
                 .waitingPeriodDays(limits.waitingPeriodDays())
-                .coversFamilyGroup(limits.coversFamilyGroup())
                 .build();
     }
 
@@ -319,12 +318,10 @@ public class RulesRestAdapter implements RulesAdapter {
 
     /** Mirrors rules-service's CoverageLimitsDto. */
     private record CoverageLimitsResponse(
-            Long reportDeadlineHours, Integer maxEventsPerYear, Integer waitingPeriodDays,
-            Boolean coversFamilyGroup) {
+            Long reportDeadlineHours, Integer maxEventsPerYear, Integer waitingPeriodDays) {
 
         boolean isEmpty() {
-            return reportDeadlineHours == null && maxEventsPerYear == null && waitingPeriodDays == null
-                    && coversFamilyGroup == null;
+            return reportDeadlineHours == null && maxEventsPerYear == null && waitingPeriodDays == null;
         }
     }
 

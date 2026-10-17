@@ -3,10 +3,12 @@ import {
   Component,
   computed,
   effect,
+  ElementRef,
   inject,
   linkedSignal,
   signal,
   untracked,
+  viewChild,
 } from '@angular/core';
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, RouterLink } from '@angular/router';
@@ -125,6 +127,7 @@ import {
   MenuItem,
 } from '../../../shared/ui/menu-button/menu-button.component';
 import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
+import { TabOption, TabsComponent } from '../../../shared/ui/tabs/tabs.component';
 import { fadeInUp, staggerReveal, tabSwitch } from '../../../shared/animations';
 
 type LoadState =
@@ -198,6 +201,7 @@ interface BriefAlert {
     TextareaComponent,
     MenuButtonComponent,
     InlineLoadingComponent,
+    TabsComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   animations: [fadeInUp, staggerReveal, tabSwitch],
@@ -682,7 +686,6 @@ export class CaseDetailComponent {
     () => (this.data()?.forensicReport?.findings?.length ?? 0) > 0,
   );
 
-  /** Medium or high findings only; flagging "low" ones would turn the dot into noise. */
   private readonly imageMatchedAnotherClaim = computed(() =>
     (this.data()?.forensicReport?.findings ?? []).some((f) => f.internalMatches.length > 0),
   );
@@ -694,6 +697,7 @@ export class CaseDetailComponent {
     ),
   );
 
+  /** Medium or high findings only; flagging "low" ones would turn the dot into noise. */
   private readonly hasImageMatches = computed(() =>
     (this.data()?.forensicReport?.findings ?? []).some((f) => {
       const level = forensicAlertLevel(f);
@@ -702,23 +706,14 @@ export class CaseDetailComponent {
   );
 
   // Conditional tabs appear only once something has run (referral, classification, forensics).
-  protected readonly tabs = computed<
-    {
-      id: TabId;
-      label: string;
-      dot?: boolean;
-      dotLabel?: string;
-      count?: string;
-    }[]
-  >(() => [
+  protected readonly tabs = computed<(TabOption & { id: TabId })[]>(() => [
     { id: 'summary' as TabId, label: 'Resumen' },
     ...(this.hasAnalysis()
       ? [
           {
             id: 'analysis' as TabId,
             label: 'Análisis',
-            count:
-              this.analysisReasons().length > 0 ? `${this.analysisReasons().length}` : undefined,
+            count: this.analysisReasons().length || null,
           },
         ]
       : []),
@@ -729,8 +724,8 @@ export class CaseDetailComponent {
           {
             id: 'images' as TabId,
             label: 'Imágenes',
-            dot: this.hasImageMatches(),
-            dotLabel: 'con coincidencias de imagen',
+            status: this.hasImageMatches() ? ('notice' as const) : null,
+            statusLabel: 'con coincidencias de imagen',
           },
         ]
       : []),
@@ -774,10 +769,14 @@ export class CaseDetailComponent {
     }
   }
 
+  private readonly tabsNav = viewChild.required<string, ElementRef<HTMLElement>>('tabsNav', {
+    read: ElementRef,
+  });
+
   /** The tabs sit below the fold on mobile: without the scroll the click would look like a no-op. */
-  protected viewAnalysis(tabs: HTMLElement): void {
+  protected viewAnalysis(): void {
     this.setTab('analysis');
-    tabs.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    this.tabsNav().nativeElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   private readonly verbLabels: Record<Verb, string> = {

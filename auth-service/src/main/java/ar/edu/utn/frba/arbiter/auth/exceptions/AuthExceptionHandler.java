@@ -42,6 +42,16 @@ public class AuthExceptionHandler {
         return warn(400, ex);
     }
 
+    @ExceptionHandler(RoleChangeNotAllowedException.class)
+    public ProblemDetail handleRoleChangeNotAllowed(RoleChangeNotAllowedException ex) {
+        return warn(400, ex);
+    }
+
+    @ExceptionHandler(UserHasActivityException.class)
+    public ProblemDetail handleUserHasActivity(UserHasActivityException ex) {
+        return warn(409, ex);
+    }
+
     @ExceptionHandler(UserNotFoundException.class)
     public ProblemDetail handleUserNotFound(UserNotFoundException ex) {
         return warn(404, ex);

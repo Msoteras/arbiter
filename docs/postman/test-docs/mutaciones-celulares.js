@@ -183,7 +183,7 @@ function buildMutations({ base, G, INSURED, spouse: S, policyImei, NOW }) {
       documento: 'police_report',
       seDetectaEn: [
         'document_analysis.affected_party del police_report = FAMILIAR',
-        'rule_result: COVERS_FAMILY_GROUP en FAIL (la cobertura 1 tiene covers_family_group = false)',
+        'rule_result: COVERS_FAMILY_GROUP en FAIL (la póliza POL-CEL-2026-777 tiene cubre_grupo_familiar = false)',
         'factores: motivo de CoverageScopeEvaluator sobre el grupo familiar',
       ],
       resultadoEsperado: 'Fast Track bloqueado por alcance de cobertura; el LLM debería dar LLM_NO_RECOMIENDA_APROBAR (el relato y el acta se contradicen)',

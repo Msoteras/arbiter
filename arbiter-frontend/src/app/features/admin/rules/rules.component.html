@@ -108,9 +108,7 @@
             <app-info-tip cardAside>{{ stepLine.HARD_STOP }}</app-info-tip>
             <p class="hs-banner">
               <span class="hs-banner-icon" aria-hidden="true">!</span>
-              <span
-                >Si una regla de las siguientes no se cumple, la denuncia no puede crearse.</span
-              >
+              <span>Si no se cumple una regla, no se puede crear la denuncia.</span>
             </p>
 
             <ul class="rule-rows">
@@ -203,6 +201,7 @@
           [tabs]="tabOptions()"
           [value]="activeTab()"
           (valueChange)="setTab($event)"
+          [scrollable]="true"
           ariaLabel="Secciones del ramo"
         />
 
@@ -216,7 +215,13 @@
           />
         }
 
-        @switch (activeTab()) {
+        @switch (detailFailed() && !detailLoading() ? 'failed' : activeTab()) {
+          @case ('failed') {
+            <p class="load-error t-note" role="alert">No se pudo cargar el ramo.</p>
+            <app-button variant="secondary" size="sm" (click)="retryDetailLoad()"
+              >Reintentar</app-button
+            >
+          }
           <!-- ============ COVERAGES ============ -->
           <!-- Accordion: one coverage open at a time. -->
           @case ('coverages') {
@@ -360,16 +365,24 @@
                                         hardRuleLabel(rule.ruleType)
                                       }}</span>
                                     </div>
-                                    <div class="rule-value">
-                                      <app-input
-                                        type="number"
-                                        [min]="0"
-                                        [value]="hardRuleValue(c, rule.ruleType)"
-                                        (valueChange)="setHardRuleValue(c, rule.ruleType, $event)"
-                                        placeholder="—"
-                                      />
-                                      <span class="t-note">{{ hardRuleUnit(rule.ruleType) }}</span>
-                                    </div>
+                                    @if (rule.enabled) {
+                                      <div class="rule-value">
+                                        <app-input
+                                          type="number"
+                                          [min]="0"
+                                          [value]="hardRuleValue(c, rule.ruleType)"
+                                          (valueChange)="setHardRuleValue(c, rule.ruleType, $event)"
+                                          placeholder="—"
+                                        />
+                                        <span class="t-note">{{
+                                          hardRuleUnit(rule.ruleType)
+                                        }}</span>
+                                      </div>
+                                    } @else {
+                                      <span class="rule-off-note t-note">{{
+                                        hardRuleOffNote(rule.ruleType)
+                                      }}</span>
+                                    }
                                     @if (ruleMissingValue(c, rule)) {
                                       <p class="rule-missing" role="alert">
                                         Escribí un valor o apagá la regla.
@@ -468,16 +481,11 @@
                           <div class="cov-section">
                             <span class="t-section-label">
                               Hechos generadores que cubre
-                              <app-info-tip>
-                                El asegurado solo puede iniciar un expediente por estos hechos con
-                                esta cobertura.
-                              </app-info-tip>
                               <!-- Warns, doesn't block: covering the whole branch can be correct. -->
                               @if (claimCauses().length > 0 && !hasExcludedCauses(c)) {
                                 <app-info-tip tone="warning">
-                                  Cubre {{ coveredCausesLabel() }} del ramo. Si una póliza contrata
-                                  varias coberturas, esta responde por todos, y el siniestro se
-                                  liquida con su suma asegurada y su franquicia.
+                                  Si la póliza contrata varias, esta responde por
+                                  {{ coveredCausesLabel() }} con su suma asegurada y su franquicia.
                                 </app-info-tip>
                               }
                             </span>

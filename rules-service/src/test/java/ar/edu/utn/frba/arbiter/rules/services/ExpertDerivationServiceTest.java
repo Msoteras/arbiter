@@ -38,7 +38,7 @@ class ExpertDerivationServiceTest {
     private final BranchRepository branchRepository = mock(BranchRepository.class);
     private final RuleAuthorResolver authorResolver = mock(RuleAuthorResolver.class);
     private final ExpertDerivationService service = new ExpertDerivationService(
-            ruleRepository, historyRepository, branchRepository, authorResolver);
+            ruleRepository, new BranchRuleWriter(ruleRepository, historyRepository, branchRepository, authorResolver));
 
     @Test
     void readsTheThresholdOffTheRuleConfiguration() {
