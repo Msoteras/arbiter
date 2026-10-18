@@ -3,6 +3,7 @@ import {
   formatDate,
   formatDateRange,
   formatDateTime,
+  formatDayMonth,
   isPoliceReportBeforeEvent,
   isTypedDate,
   todayIso,
@@ -34,6 +35,16 @@ describe('datetime', () => {
       const formatted = formatDateTime('2026-08-20T21:40:00-03:00');
       expect(formatted).toContain('20/08/2026');
       expect(formatted).toContain('21:40');
+    });
+  });
+
+  describe('formatDayMonth', () => {
+    it('pads single-digit days and months', () => {
+      expect(formatDayMonth('2026-09-02')).toBe('02/09');
+    });
+
+    it('converts a zoned instant to local time', () => {
+      expect(formatDayMonth('2026-10-01T02:00:00Z')).toBe('30/09');
     });
   });
 });
