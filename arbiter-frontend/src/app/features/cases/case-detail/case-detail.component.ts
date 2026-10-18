@@ -105,7 +105,12 @@ import {
 } from '../../../core/models/deadline-priority';
 import { RiskBand, riskBandLabel } from '../../../core/models/risk-band';
 import { StatusTone } from '../../../core/models/status-tone';
-import { chatListStamp, formatDate, formatDateTime } from '../../../core/util/datetime';
+import {
+  chatListStamp,
+  formatDate,
+  formatDateTime,
+  formatDayMonth,
+} from '../../../core/util/datetime';
 import { amountInputDisplay, amountInputLabel, amountInputValue } from '../../../core/util/money';
 import { FraudGaugeComponent } from '../../../shared/ui/fraud-gauge/fraud-gauge.component';
 import { InfoTipComponent } from '../../../shared/ui/info-tip/info-tip.component';
@@ -2095,9 +2100,7 @@ export class CaseDetailComponent {
       (t) => t.fromStatus === t.toStatus && t.reason.startsWith('expediente asignado a'),
     );
     const last = milestones.at(-1);
-    return last
-      ? new Date(last.changedAt).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' })
-      : null;
+    return last ? formatDayMonth(last.changedAt) : null;
   });
 
   /** e.g. "Vos · desde el 04/06". */

@@ -84,6 +84,13 @@ export function formatTime(value: string | Date): string {
   });
 }
 
+export function formatDayMonth(value: string | Date): string {
+  const date = parseLocal(value);
+  const day = `${date.getDate()}`.padStart(2, '0');
+  const month = `${date.getMonth() + 1}`.padStart(2, '0');
+  return `${day}/${month}`;
+}
+
 /** Chat-style day marker: "Hoy", "Ayer" or "jue 25 sept". */
 export function chatDayLabel(value: string | Date, now: Date = new Date()): string {
   const date = parseLocal(value);
@@ -98,9 +105,7 @@ export function chatDayLabel(value: string | Date, now: Date = new Date()): stri
 
 /** List-row stamp: the time for today's messages, the date for older ones. */
 export function chatListStamp(value: string | Date, now: Date = new Date()): string {
-  return chatDayLabel(value, now) === 'Hoy'
-    ? formatTime(value)
-    : parseLocal(value).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' });
+  return chatDayLabel(value, now) === 'Hoy' ? formatTime(value) : formatDayMonth(value);
 }
 
 /** Greeting by time of day: morning 6–13, afternoon 13–20, night otherwise. */
@@ -155,7 +160,7 @@ export function bucketLabel(bucket: string, granularity: 'DAY' | 'WEEK' | 'MONTH
   const date = new Date(`${bucket}T00:00:00`);
   return granularity === 'MONTH'
     ? date.toLocaleDateString('es-AR', { month: 'short', year: 'numeric' })
-    : date.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' });
+    : formatDayMonth(date);
 }
 
 const SHORT_MONTHS = [
