@@ -30,6 +30,7 @@ import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { EmptyStateComponent } from '../../../shared/ui/empty-state/empty-state.component';
 import { LoadingComponent } from '../../../shared/ui/loading/loading.component';
 import { staggerReveal } from '../../../shared/animations';
+import { InsuredHelpComponent } from './insured-help/insured-help.component';
 
 type LoadState =
   | { status: 'idle' }
@@ -58,6 +59,7 @@ interface Step {
     EmptyStateComponent,
     LoadingComponent,
     InsuredChatComponent,
+    InsuredHelpComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   animations: [staggerReveal],
@@ -142,6 +144,7 @@ export class InsuredHomeComponent {
   });
 
   protected readonly chatOpen = signal(false);
+  protected readonly helpOpen = signal(false);
 
   /** Only while unread: once opened, the notice has done its job. */
   protected readonly newMessage = computed(() => {

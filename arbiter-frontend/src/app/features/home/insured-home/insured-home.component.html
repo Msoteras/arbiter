@@ -191,8 +191,7 @@
           </div>
         </a>
 
-        <!-- Not clickable: there is no help/FAQ page to link to yet. -->
-        <div class="tile tile-static">
+        <button type="button" class="tile" (click)="helpOpen.set(true)">
           <span class="tile-icon" aria-hidden="true">
             <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
               <circle cx="10" cy="10" r="7.5" stroke="currentColor" stroke-width="1.5" />
@@ -207,8 +206,10 @@
           </span>
           <div class="tile-title">Ayuda</div>
           <div class="tile-desc">Preguntas frecuentes y cómo contactarnos.</div>
-        </div>
+        </button>
       </div>
+
+      <app-insured-help [(open)]="helpOpen" />
     }
   </div>
 }
