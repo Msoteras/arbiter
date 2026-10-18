@@ -152,14 +152,14 @@ interface FieldItem {
 
 /** Hours for the first couple of days, days afterwards. */
 function reportDelay(eventDate: string, createdAt: string): string | undefined {
-  const hours = Math.round((Date.parse(createdAt) - Date.parse(eventDate)) / 3_600_000);
+  const hours = Math.floor((Date.parse(createdAt) - Date.parse(eventDate)) / 3_600_000);
   if (Number.isNaN(hours) || hours < 0) {
     return undefined;
   }
   if (hours < 48) {
     return hours === 1 ? '1 h después del hecho' : `${hours} h después del hecho`;
   }
-  return `${Math.round(hours / 24)} días después del hecho`;
+  return `${Math.floor(hours / 24)} días después del hecho`;
 }
 
 /** A signal worth reading before deciding, and the tab where its evidence lives. */
@@ -2087,12 +2087,12 @@ export class CaseDetailComponent {
   );
 
   /**
-   * Assignment date from the history: an assignment leaves an entry with fromStatus == toStatus and
-   * actor ANALYST or REFERENT; the last one is the current assignment.
+   * Assignment date from the history: the last "expediente asignado a …" entry. Settlement notes
+   * also leave fromStatus == toStatus entries, so the reason is what tells them apart.
    */
   private readonly assignedSince = computed<string | null>(() => {
     const milestones = (this.data()?.statusHistory ?? []).filter(
-      (t) => t.fromStatus === t.toStatus && (t.actor === 'ANALYST' || t.actor === 'REFERENT'),
+      (t) => t.fromStatus === t.toStatus && t.reason.startsWith('expediente asignado a'),
     );
     const last = milestones.at(-1);
     return last
