@@ -154,6 +154,15 @@ describe('traceability', () => {
       );
     });
 
+    it('counts the events cap in the policy year', () => {
+      expect(ruleEvaluationText('MAX_EVENTS_YEAR', 'eventsPolicyYear=1 max=2')).toBe(
+        '1 siniestro en este año de vigencia de la póliza · máximo 2',
+      );
+      expect(ruleEvaluationText('MAX_EVENTS_YEAR', 'eventsPolicyYear=3 max=2')).toBe(
+        '3 siniestros en este año de vigencia de la póliza · máximo 2',
+      );
+    });
+
     it('passes prose through, and the raw literal when unknown', () => {
       expect(ruleEvaluationText('FRAUD_RECORD', 'sin antecedentes vigentes (ventana 36m)')).toBe(
         'Sin antecedentes vigentes en los últimos 36 meses',
