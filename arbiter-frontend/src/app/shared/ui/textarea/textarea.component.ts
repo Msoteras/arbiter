@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, input, model } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, input, model, output } from '@angular/core';
 
 @Component({
   selector: 'app-textarea',
@@ -12,6 +12,7 @@ import { ChangeDetectionStrategy, Component, computed, input, model } from '@ang
       [disabled]="disabled()"
       [value]="value()"
       (input)="value.set($any($event.target).value)"
+      (keydown.enter)="onEnter($event)"
     ></textarea>
   `,
   styles: `
@@ -60,6 +61,19 @@ export class TextareaComponent {
   readonly placeholder = input('');
   readonly id = input<string | null>(null);
   readonly disabled = input(false);
+  /** Enter emits `enter` instead of breaking the line; Shift+Enter still breaks it. For chats. */
+  readonly submitOnEnter = input(false);
+  readonly enter = output<void>();
 
   protected readonly resolvedId = computed(() => this.id() ?? this.autoId);
+
+  protected onEnter(event: Event): void {
+    const key = event as KeyboardEvent;
+    // isComposing: Enter also confirms an IME composition (accents on some keyboards).
+    if (!this.submitOnEnter() || key.shiftKey || key.isComposing) {
+      return;
+    }
+    event.preventDefault();
+    this.enter.emit();
+  }
 }

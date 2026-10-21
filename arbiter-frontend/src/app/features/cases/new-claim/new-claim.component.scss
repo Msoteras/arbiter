@@ -148,35 +148,11 @@ app-textarea {
   display: block;
 }
 
-.policy-summary {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2);
-  margin-top: var(--space-3);
-  padding: var(--space-3);
-  border-radius: var(--radius-ctl);
-  background: var(--surface-soft);
-  font-size: var(--font-size-sm);
-  color: var(--text-tertiary);
-}
-.policy-tag {
-  font-weight: var(--font-weight-medium);
-  color: var(--text-secondary);
-}
-.policy-meta {
-  color: var(--text-tertiary);
-}
-.policy-item {
-  color: var(--text-secondary);
-}
 .policy-ok {
-  margin-left: auto;
   color: var(--accent-fg);
   font-weight: var(--font-weight-medium);
 }
 .policy-warn {
-  margin-left: auto;
   color: var(--status-warning);
   font-weight: var(--font-weight-medium);
 }
@@ -185,20 +161,6 @@ app-textarea {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: var(--space-3);
-}
-
-/* Own label per half: date and time inputs don't render a placeholder. */
-.subfield {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-}
-
-.time-shortcuts {
-  margin-top: var(--space-2);
-}
-.date-shortcuts {
-  margin-bottom: var(--space-2);
 }
 
 .doc-missing {
@@ -288,7 +250,7 @@ app-textarea {
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  width: var(--doc-file-w);
+  flex: 1 1 14rem;
   min-width: 0;
 }
 .doc-file app-file-preview {
@@ -402,6 +364,9 @@ app-textarea {
   color: var(--text-primary);
 }
 @include media.phone {
+  .datetime-grid {
+    grid-template-columns: 1fr;
+  }
   .wizard-actions {
     flex-wrap: wrap;
     gap: var(--space-2);

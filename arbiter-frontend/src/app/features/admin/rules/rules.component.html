@@ -182,8 +182,13 @@
               <app-button variant="secondary" [disabled]="renaming()" (click)="cancelNameEdit()">
                 Cancelar
               </app-button>
-              <app-button [disabled]="renaming()" (click)="requestRename()">
-                {{ renaming() ? 'Guardando…' : 'Guardar' }}
+              <app-button
+                [saving]="renaming()"
+                [saveFailed]="!!renameError()"
+                (click)="requestRename()"
+                (saveSettled)="editingName.set(false)"
+              >
+                Guardar
               </app-button>
             </div>
           } @else {
@@ -191,9 +196,6 @@
               <h2 class="branch-title">{{ renameFrom() }}</h2>
               <app-icon-button icon="edit" label="Renombrar el ramo" (click)="startNameEdit()" />
             </div>
-            @if (renameSaved()) {
-              <span class="saved-note">✓ Nombre guardado</span>
-            }
           }
         </div>
 

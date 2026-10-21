@@ -8,7 +8,7 @@ import {
   signal,
 } from '@angular/core';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
-import { catchError, map, of, startWith, switchMap } from 'rxjs';
+import { catchError, map, of, scan, startWith, switchMap } from 'rxjs';
 
 import { ProfileService } from '../../../core/auth/profile.service';
 import {
@@ -21,7 +21,6 @@ import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { CheckboxComponent } from '../../../shared/ui/checkbox/checkbox.component';
 import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
 import { InputComponent } from '../../../shared/ui/input/input.component';
-import { ToastService } from '../../../shared/ui/toast/toast.service';
 
 type ProfileState =
   { status: 'loading' } | { status: 'ok'; profile: InsuredProfile } | { status: 'error' };
@@ -39,7 +38,6 @@ type ProfileState =
 })
 export class ProfileComponent {
   private readonly profileService = inject(ProfileService);
-  private readonly toast = inject(ToastService);
 
   protected readonly consentSummary = IMAGE_CONSENT_SUMMARY;
   protected readonly consentDetail = IMAGE_CONSENT_DETAIL;
@@ -56,6 +54,10 @@ export class ProfileComponent {
           startWith<ProfileState>({ status: 'loading' }),
           catchError(() => of<ProfileState>({ status: 'error' })),
         ),
+      ),
+      // The reload after a save keeps the form on screen, so its button can show "Guardado".
+      scan((prev: ProfileState, next: ProfileState) =>
+        next.status === 'loading' && prev.status === 'ok' ? prev : next,
       ),
     ),
     { initialValue: { status: 'loading' } as ProfileState },
@@ -137,7 +139,6 @@ export class ProfileComponent {
         next: () => {
           this.saving.set(false);
           this.reload.update((n) => n + 1);
-          this.toast.show('Tus datos se guardaron', 'ok');
         },
         error: (err: HttpErrorResponse) => {
           this.saving.set(false);

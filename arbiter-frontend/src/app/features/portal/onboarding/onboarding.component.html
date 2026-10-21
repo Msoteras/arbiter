@@ -99,6 +99,7 @@
             autocomplete="email"
             placeholder="Email"
             [(value)]="email"
+            (enter)="submit()"
           />
           @if (email().length > 0 && !emailValid()) {
             <p class="field-error">Revisá el email: no parece una dirección válida.</p>
@@ -113,6 +114,7 @@
             autocomplete="tel"
             placeholder="Teléfono"
             [(value)]="phone"
+            (enter)="submit()"
           />
           @if (phone().length > 0 && !phoneValid()) {
             <p class="field-error">Revisá el teléfono: parece incompleto.</p>

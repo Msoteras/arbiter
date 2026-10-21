@@ -161,6 +161,9 @@
   gap: var(--space-1);
   flex: 0 1 11rem;
 }
+.filter-dates {
+  flex-basis: 15rem;
+}
 
 @include media.phone {
   .portal {

@@ -108,6 +108,7 @@
       <app-input
         [value]="deleteConfirmText()"
         (valueChange)="deleteConfirmText.set($event)"
+        (enter)="!deleting() && confirmDelete()"
         placeholder="Nombre y apellido del usuario"
       />
     </label>

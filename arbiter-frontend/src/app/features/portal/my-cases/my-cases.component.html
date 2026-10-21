@@ -55,14 +55,18 @@
           />
         </label>
       }
-      <label class="filter">
-        <span class="t-field-label">Hecho desde</span>
-        <app-input type="date" [(value)]="dateFrom" (valueChange)="onFilterChange()" />
-      </label>
-      <label class="filter">
-        <span class="t-field-label">Hecho hasta</span>
-        <app-input type="date" [(value)]="dateTo" (valueChange)="onFilterChange()" />
-      </label>
+      <div class="filter filter-dates">
+        <span class="t-field-label" aria-hidden="true">Fecha del hecho</span>
+        <app-date-range-picker
+          ariaLabel="Fecha del hecho"
+          [(from)]="dateFrom"
+          [(to)]="dateTo"
+          [max]="today"
+          [presets]="datePresets"
+          (fromChange)="onFilterChange()"
+          (toChange)="onFilterChange()"
+        />
+      </div>
       @if (hasFilters()) {
         <app-button variant="secondary" (click)="clearFilters()">Limpiar</app-button>
       }
