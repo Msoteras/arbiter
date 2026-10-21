@@ -96,21 +96,13 @@
                   [(value)]="selectedPolicyNumber"
                   [options]="policyOptions()"
                   placeholder="Seleccioná una póliza"
-                />
-                @if (selectedPolicy(); as p) {
-                  <div class="policy-summary">
-                    <span class="policy-tag">{{ p.insurerName }}</span>
-                    <span class="policy-meta">{{ p.branch }} · {{ p.product }}</span>
-                    @if (p.insuredItem) {
-                      <span class="policy-item">{{ p.insuredItem }}</span>
-                    }
-                    @if (p.upToDate) {
-                      <span class="policy-ok">✓ Póliza vigente</span>
-                    } @else {
-                      <span class="policy-warn">Póliza con premios adeudados</span>
-                    }
-                  </div>
-                }
+                >
+                  @if (selectedPolicy(); as p) {
+                    <span selectAside [class]="p.upToDate ? 'policy-ok' : 'policy-warn'">{{
+                      p.upToDate ? '✓ Póliza vigente' : 'Premios adeudados'
+                    }}</span>
+                  }
+                </app-select>
               }
             }
           }
@@ -162,42 +154,19 @@
             placeholder="Indicá el bien afectado"
             [(value)]="insuredItem"
             [readonly]="lockInsuredItem()"
+            (enter)="next()"
           />
 
           <p class="field-label">¿Cuándo pasó? *</p>
-          <app-chip-group
-            class="date-shortcuts"
-            size="sm"
-            [options]="eventDateOptions"
-            [value]="eventDateShortcut()"
-            (valueChange)="selectEventDateShortcut($event)"
-            ariaLabel="Fecha del hecho"
-          />
-          <!-- Own labels: browsers ignore the placeholder on type="date" and type="time". -->
           <div class="datetime-grid">
-            <label class="subfield">
-              <span class="t-note">Fecha</span>
-              <app-input type="date" [max]="today" [(value)]="eventDate" />
-            </label>
-            <label class="subfield">
-              <span class="t-note">Hora</span>
-              <app-input type="time" [(value)]="eventTime" />
-            </label>
+            <app-date-picker
+              ariaLabel="Fecha del hecho"
+              [max]="today"
+              [shortcuts]="eventDateShortcuts"
+              [(value)]="eventDate"
+            />
+            <app-time-picker ariaLabel="Hora del hecho" [slots]="timeSlots" [(value)]="eventTime" />
           </div>
-          <!-- The chip writes a representative hour into the field above, which remains the actual value. -->
-          <app-chip-group
-            class="time-shortcuts"
-            size="sm"
-            [allowDeselect]="true"
-            [options]="timeSlots"
-            [value]="eventTimeSlot()"
-            (valueChange)="setEventTimeSlot($event)"
-            ariaLabel="Franja horaria aproximada del hecho"
-          />
-          <p class="t-note">
-            Si no te acordás la hora exacta, elegí la franja: la usamos para verificar los plazos de
-            tu cobertura, no hace falta que sea al minuto.
-          </p>
 
           <!-- Right under the date it validates, so the insured learns before filling in the rest. -->
           @if (eligibilityError(); as reason) {
@@ -240,41 +209,20 @@
 
           @if (requiresPoliceReport() && !policyBlocked() && policeReportFiled()) {
             <p class="field-label">¿Cuándo la hiciste? *</p>
-            <!-- Relative to the event date so no option can precede the claim itself. -->
-            @if (policeDateAnchored()) {
-              <app-chip-group
-                class="date-shortcuts"
-                size="sm"
-                [options]="policeDateOptions()"
-                [value]="policeDateShortcut()"
-                (valueChange)="selectPoliceDateShortcut($event)"
-                ariaLabel="Fecha de la denuncia policial"
-              />
-            }
             <div class="datetime-grid">
-              <label class="subfield">
-                <span class="t-note">Fecha</span>
-                <app-input
-                  type="date"
-                  [min]="eventDate()"
-                  [max]="today"
-                  [(value)]="policeReportDate"
-                />
-              </label>
-              <label class="subfield">
-                <span class="t-note">Hora</span>
-                <app-input type="time" [(value)]="policeReportTime" />
-              </label>
+              <app-date-picker
+                ariaLabel="Fecha de la denuncia policial"
+                [min]="eventDate() || null"
+                [max]="today"
+                [shortcuts]="policeDateShortcuts()"
+                [(value)]="policeReportDate"
+              />
+              <app-time-picker
+                ariaLabel="Hora de la denuncia policial"
+                [slots]="timeSlots"
+                [(value)]="policeReportTime"
+              />
             </div>
-            <app-chip-group
-              class="time-shortcuts"
-              size="sm"
-              [allowDeselect]="true"
-              [options]="timeSlots"
-              [value]="policeTimeSlot()"
-              (valueChange)="setPoliceTimeSlot($event)"
-              ariaLabel="Franja horaria aproximada de la denuncia policial"
-            />
             <p class="t-note">La constancia se adjunta en el paso siguiente.</p>
           }
 
@@ -304,8 +252,12 @@
                   requiredMessage="Elegí la localidad donde pasó."
                 />
               </div>
-              <app-input placeholder="Calle y número" [(value)]="streetAddress" />
-              <app-input placeholder="Entre calles (opcional)" [(value)]="crossStreets" />
+              <app-input placeholder="Calle y número" [(value)]="streetAddress" (enter)="next()" />
+              <app-input
+                placeholder="Entre calles (opcional)"
+                [(value)]="crossStreets"
+                (enter)="next()"
+              />
             </div>
 
             <label class="field-label" for="claim-amount">Monto reclamado (opcional)</label>
@@ -317,6 +269,7 @@
               [normalize]="amountInputDisplay"
               [value]="amountInputLabel(claimedAmount())"
               (valueChange)="claimedAmount.set(amountInputValue($event))"
+              (enter)="next()"
             />
 
             <label class="field-label" for="claim-description">Descripción del hecho *</label>
@@ -334,12 +287,14 @@
                 placeholder="Email"
                 [(value)]="contactEmail"
                 [readonly]="!!selectedPolicy()?.contactEmail"
+                (enter)="next()"
               />
               <app-input
                 type="tel"
                 placeholder="Teléfono"
                 [(value)]="contactPhone"
                 [readonly]="!!selectedPolicy()?.contactPhone"
+                (enter)="next()"
               />
             </div>
           }
@@ -411,8 +366,8 @@
             </div>
           }
 
-          @if (missingDocs().length) {
-            <p class="doc-missing" role="status">
+          @if (showMissingDocs() && missingDocs().length) {
+            <p class="doc-missing" role="alert">
               Para enviar la denuncia falta adjuntar: {{ missingDocLabels() }}.
             </p>
           }
@@ -437,15 +392,15 @@
 
         @if (step() < 3) {
           <div class="wizard-actions-right">
-            @if (missingFields().length) {
-              <p class="missing-hint" role="status">
+            @if (showMissing() && missingFields().length) {
+              <p class="missing-hint" role="alert">
                 Falta completar: <strong>{{ missingFieldsLabel() }}</strong>
               </p>
             }
             <app-button
               class="wizard-primary"
               [block]="true"
-              [disabled]="(step() === 1 && !step1Valid()) || (step() === 2 && !step2Valid())"
+              [disabled]="eligibilityError() !== null || eligibilityChecking()"
               (click)="next()"
             >
               Continuar →
@@ -455,7 +410,7 @@
           <app-button
             class="wizard-primary"
             [block]="true"
-            [disabled]="!canSubmit()"
+            [disabled]="submitting() || docsLoading()"
             (click)="submit()"
           >
             {{ submitting() ? 'Enviando…' : 'Enviar denuncia →' }}

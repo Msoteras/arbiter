@@ -171,6 +171,7 @@
                   type="date"
                   [value]="draftDateFrom()"
                   (valueChange)="draftDateFrom.set($event)"
+                  (enter)="applyFilters()"
                 />
               </label>
 
@@ -180,6 +181,7 @@
                   type="date"
                   [value]="draftDateTo()"
                   (valueChange)="draftDateTo.set($event)"
+                  (enter)="applyFilters()"
                 />
               </label>
 

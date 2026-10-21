@@ -10,7 +10,6 @@
           Seguí el estado de tu denuncia. Te avisamos por acá y por mail cuando haya novedades.
         </p>
       </div>
-      <app-button variant="accent" (click)="newClaim.open()">+ Nueva denuncia</app-button>
     </header>
 
     @if (needsIdentity()) {
@@ -150,7 +149,7 @@
 
       <div class="tiles">
         <button type="button" class="tile" (click)="newClaim.open()">
-          <span class="tile-icon dark" aria-hidden="true">
+          <span class="tile-icon accent" aria-hidden="true">
             <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
               <path
                 d="M10 4v12M4 10h12"

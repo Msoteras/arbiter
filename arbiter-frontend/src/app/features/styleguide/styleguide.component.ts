@@ -32,6 +32,13 @@ import { TabLink, TabNavComponent } from '../../shared/ui/tabs/tab-nav.component
 import { IconButtonComponent } from '../../shared/ui/icon-button/icon-button.component';
 import { SwitchComponent } from '../../shared/ui/switch/switch.component';
 import {
+  DatePickerComponent,
+  DateShortcut,
+} from '../../shared/ui/date-picker/date-picker.component';
+import { TimePickerComponent, TimeSlot } from '../../shared/ui/date-picker/time-picker.component';
+import { DateRangePickerComponent } from '../../shared/ui/date-picker/date-range-picker.component';
+import { addDays, todayIso } from '../../core/util/datetime';
+import {
   DistributionComponent,
   DistributionItem,
 } from '../../shared/ui/distribution/distribution.component';
@@ -95,6 +102,9 @@ interface Swatch {
     SwitchComponent,
     DistributionComponent,
     StatTileComponent,
+    DatePickerComponent,
+    TimePickerComponent,
+    DateRangePickerComponent,
   ],
   template: `
     <div class="sg">
@@ -287,6 +297,18 @@ interface Swatch {
           <app-button variant="primary" [disabled]="true">Disabled</app-button>
           <app-button variant="primary" [loading]="true">Loading</app-button>
           <app-button variant="secondary" [loading]="true">Loading</app-button>
+        </div>
+        <p class="sg-p">
+          Botón de guardado (<span class="mono">saving</span>): Guardar → Guardando (se va pintando)
+          → Guardado. Con <span class="mono">saveFailed</span> vuelve a Guardar sin pasar por
+          Guardado; <span class="mono">saveSettled</span> avisa cuando terminó, para cerrar un
+          formulario después de mostrarlo.
+        </p>
+        <div class="row">
+          <app-button [saving]="demoSaving()" (click)="demoSave()">Guardar</app-button>
+          <app-button variant="accent" [saving]="demoSaving()" (click)="demoSave()">
+            Guardar
+          </app-button>
         </div>
       </section>
 
@@ -518,6 +540,36 @@ interface Swatch {
             [searchable]="true"
             [required]="true"
             requiredMessage="Elegí la provincia donde pasó."
+          />
+        </div>
+      </section>
+
+      <section class="sg-block">
+        <h3 class="sg-h3">Date, time y date range picker</h3>
+        <p class="sg-p">
+          Campos con panel propio, porque el selector nativo no admite atajos.
+          <span class="mono">app-date-picker</span> lleva <span class="mono">shortcuts</span> (ej.
+          Hoy / Ayer) arriba del calendario; <span class="mono">app-time-picker</span> ofrece las
+          franjas del día junto a la hora exacta; <span class="mono">app-date-range-picker</span>
+          arma un rango en un solo campo y deja abierto el extremo que quede vacío.
+        </p>
+        <div class="row">
+          <app-date-picker
+            ariaLabel="Fecha del hecho"
+            [max]="today"
+            [shortcuts]="dateShortcutsDemo"
+            [(value)]="sampleDate"
+          />
+          <app-time-picker
+            ariaLabel="Hora del hecho"
+            [slots]="timeSlotsDemo"
+            [(value)]="sampleTime"
+          />
+          <app-date-range-picker
+            ariaLabel="Fecha del hecho"
+            [max]="today"
+            [(from)]="sampleRangeFrom"
+            [(to)]="sampleRangeTo"
           />
         </div>
       </section>
@@ -1532,6 +1584,25 @@ export class StyleguideComponent {
   protected readonly sampleInput = signal('');
   protected readonly samplePassword = signal('');
   protected readonly sampleDate = signal('');
+  protected readonly sampleTime = signal('');
+  protected readonly demoSaving = signal(false);
+
+  protected demoSave(): void {
+    this.demoSaving.set(true);
+    setTimeout(() => this.demoSaving.set(false), 1800);
+  }
+  protected readonly sampleRangeFrom = signal('');
+  protected readonly sampleRangeTo = signal('');
+  protected readonly today = todayIso();
+  protected readonly dateShortcutsDemo: readonly DateShortcut[] = [
+    { label: 'Hoy', date: this.today },
+    { label: 'Ayer', date: addDays(this.today, -1) },
+  ];
+  protected readonly timeSlotsDemo: readonly TimeSlot[] = [
+    { label: 'Mañana', time: '09:00', startsAt: '06:00' },
+    { label: 'Tarde', time: '15:00', startsAt: '12:00' },
+    { label: 'Noche', time: '21:00', startsAt: '19:00' },
+  ];
   protected readonly sampleArea = signal('');
   protected readonly sampleSelect = signal('');
   protected readonly sampleSelectOptions = [

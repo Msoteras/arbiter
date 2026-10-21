@@ -28,6 +28,11 @@ import { CardComponent } from '../../../shared/ui/card/card.component';
 import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { InputComponent } from '../../../shared/ui/input/input.component';
+import {
+  DateRangePickerComponent,
+  DateRangePreset,
+} from '../../../shared/ui/date-picker/date-range-picker.component';
+import { addDays, todayIso } from '../../../core/util/datetime';
 import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
 import { PaginationComponent } from '../../../shared/ui/pagination/pagination.component';
 import { SelectComponent, SelectOption } from '../../../shared/ui/select/select.component';
@@ -47,6 +52,7 @@ type LoadState =
     CardComponent,
     BadgeComponent,
     ButtonComponent,
+    DateRangePickerComponent,
     InputComponent,
     InlineLoadingComponent,
     PaginationComponent,
@@ -68,6 +74,13 @@ export class MyCasesComponent {
   protected readonly statusFilter = signal<InsuredStatusCode | ''>('');
   protected readonly dateFrom = signal('');
   protected readonly dateTo = signal('');
+  protected readonly today = todayIso();
+  /** Open on the "Hasta" side: nothing can have happened after today. */
+  protected readonly datePresets: readonly DateRangePreset[] = [
+    { label: 'Últimos 30 días', from: addDays(this.today, -30), to: '' },
+    { label: 'Últimos 90 días', from: addDays(this.today, -90), to: '' },
+    { label: 'Este año', from: `${this.today.slice(0, 4)}-01-01`, to: '' },
+  ];
   protected readonly insurerFilter = signal('');
   protected readonly page = signal(0);
   protected readonly size = signal(10);

@@ -47,6 +47,14 @@ import { SelectComponent, SelectOption } from '../../../shared/ui/select/select.
 import { FilePreviewComponent } from '../../../shared/ui/file-preview/file-preview.component';
 import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
 import { SwitchComponent } from '../../../shared/ui/switch/switch.component';
+import {
+  DatePickerComponent,
+  DateShortcut,
+} from '../../../shared/ui/date-picker/date-picker.component';
+import {
+  TimePickerComponent,
+  TimeSlot,
+} from '../../../shared/ui/date-picker/time-picker.component';
 
 type Step = 1 | 2 | 3;
 
@@ -123,29 +131,11 @@ type EligibilityState =
   // Unknown, not 'ok'. Doesn't block "Siguiente" (submit re-checks) but the insured is told.
   | { status: 'unknown' };
 
-const SLOT_TIMES: Record<string, string> = {
-  overnight: '03:00',
-  morning: '09:00',
-  afternoon: '15:00',
-  night: '21:00',
-};
-
-/** Boundaries follow everyday speech (afternoon starts at noon, night at dusk), not six-hour blocks. */
-function slotOf(time: string): string {
-  if (!/^\d{2}:\d{2}$/.test(time)) {
-    return '';
-  }
-  const hour = Number(time.slice(0, 2));
-  if (hour < 6) return 'overnight';
-  if (hour < 12) return 'morning';
-  if (hour < 19) return 'afternoon';
-  return 'night';
-}
-
 @Component({
   selector: 'app-new-claim',
   imports: [
     ChipGroupComponent,
+    DatePickerComponent,
     RouterLink,
     ButtonComponent,
     CardComponent,
@@ -155,6 +145,7 @@ function slotOf(time: string): string {
     FilePreviewComponent,
     InlineLoadingComponent,
     SwitchComponent,
+    TimePickerComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './new-claim.component.html',
@@ -179,6 +170,9 @@ export class NewClaimComponent {
   protected readonly submitting = signal(false);
   protected readonly submitError = signal<string | null>(null);
   protected readonly submittedCase = signal<CaseResponse | null>(null);
+  /** The missing fields and documents are listed only after a try to move on, not while filling in. */
+  protected readonly showMissing = signal(false);
+  protected readonly showMissingDocs = signal(false);
 
   private readonly insuredId = this.session.insuredId();
 
@@ -382,81 +376,37 @@ export class NewClaimComponent {
   }
   /**
    * Each slot writes its midpoint, not its edge, so picking one doesn't push the time against a
-   * deadline counted in hours. The slot is derived from the time field, which remains the value.
+   * deadline counted in hours. Boundaries follow everyday speech (afternoon starts at noon, night at
+   * dusk), not six-hour blocks.
    */
-  protected readonly timeSlots: readonly ChipOption[] = [
-    { value: 'overnight', label: 'Madrugada' },
-    { value: 'morning', label: 'Mañana' },
-    { value: 'afternoon', label: 'Tarde' },
-    { value: 'night', label: 'Noche' },
+  protected readonly timeSlots: readonly TimeSlot[] = [
+    { label: 'Madrugada', time: '03:00', startsAt: '00:00' },
+    { label: 'Mañana', time: '09:00', startsAt: '06:00' },
+    { label: 'Tarde', time: '15:00', startsAt: '12:00' },
+    { label: 'Noche', time: '21:00', startsAt: '19:00' },
   ];
 
-  /** Built once so the chips don't shift if the form is filled across midnight. */
-  private readonly eventDateShortcuts: Record<string, string> = {
-    today: this.today,
-    yesterday: addDays(this.today, -1),
-    dayBeforeYesterday: addDays(this.today, -2),
-  };
-
-  /** The chip writes the date field, which remains the actual value. */
-  protected readonly eventDateOptions: readonly ChipOption[] = [
-    { value: 'today', label: 'Hoy' },
-    { value: 'yesterday', label: 'Ayer' },
-    { value: 'dayBeforeYesterday', label: 'Anteayer' },
+  /** Built once so the shortcuts don't shift if the form is filled across midnight. */
+  protected readonly eventDateShortcuts: readonly DateShortcut[] = [
+    { label: 'Hoy', date: this.today },
+    { label: 'Ayer', date: addDays(this.today, -1) },
+    { label: 'Anteayer', date: addDays(this.today, -2) },
   ];
 
-  /** Derived from the field, so typing a date by hand lights up the matching chip. */
-  protected readonly eventDateShortcut = computed(() => {
-    const date = this.eventDate();
-    return (
-      Object.keys(this.eventDateShortcuts).find((k) => this.eventDateShortcuts[k] === date) ?? ''
-    );
-  });
-
-  selectEventDateShortcut(key: string): void {
-    this.eventDate.set(this.eventDateShortcuts[key] ?? '');
-  }
-
-  /** Relative to the event date, so no option can express a report filed before the event. */
-  protected readonly policeDateOptions = computed<ChipOption[]>(() => {
-    const options: ChipOption[] = [{ value: 'sameDay', label: 'El mismo día' }];
-    // Offering "al día siguiente" for a claim that happened today would be offering tomorrow.
-    if (this.eventDate() !== this.today) {
-      options.push({ value: 'nextDay', label: 'Al día siguiente' });
-    }
-    return options;
-  });
-
-  /** Without an event date there is nothing to anchor to, and the chips would write ''. */
-  protected readonly policeDateAnchored = computed(() => isTypedDate(this.eventDate()));
-
-  protected readonly policeDateShortcut = computed(() => {
-    const police = this.policeReportDate();
+  /**
+   * Relative to the event date, so no option can express a report filed before the event. The
+   * picker drops "Al día siguiente" when that would be tomorrow.
+   */
+  protected readonly policeDateShortcuts = computed<DateShortcut[]>(() => {
     const event = this.eventDate();
-    if (!isTypedDate(police) || !isTypedDate(event)) {
-      return '';
+    if (!isTypedDate(event)) {
+      return [];
     }
-    if (police === event) {
-      return 'sameDay';
-    }
-    return police === addDays(event, 1) ? 'nextDay' : '';
+    return [
+      { label: 'El mismo día', date: event },
+      { label: 'Al día siguiente', date: addDays(event, 1) },
+    ];
   });
-
-  selectPoliceDateShortcut(key: string): void {
-    const event = this.eventDate();
-    this.policeReportDate.set(key === 'nextDay' ? addDays(event, 1) : event);
-  }
-
-  protected readonly eventTimeSlot = computed(() => slotOf(this.eventTime()));
-  protected readonly policeTimeSlot = computed(() => slotOf(this.policeReportTime()));
-
-  setEventTimeSlot(slot: string): void {
-    this.eventTime.set(SLOT_TIMES[slot] ?? '');
-  }
-
-  setPoliceTimeSlot(slot: string): void {
-    this.policeReportTime.set(SLOT_TIMES[slot] ?? '');
-  }
 
   protected readonly claimedAmount = signal<string>('');
   protected readonly amountInputLabel = amountInputLabel;
@@ -747,18 +697,29 @@ export class NewClaimComponent {
     this.selectedType.set(this.claimTypes().find((t) => t.key === key) ?? null);
   }
 
+  /** With fields missing it lists them instead of moving on; a policy block keeps the step. */
   next(): void {
-    if (this.step() < 3) {
-      const nextStep = (this.step() + 1) as Step;
-      this.step.set(nextStep);
-      if (nextStep > this.maxStepReached()) {
-        this.maxStepReached.set(nextStep);
-      }
+    if (this.step() === 3) {
+      return;
+    }
+    if (this.missingFields().length) {
+      this.showMissing.set(true);
+      return;
+    }
+    if (!(this.step() === 1 ? this.step1Valid() : this.step2Valid())) {
+      return;
+    }
+    const nextStep = (this.step() + 1) as Step;
+    this.showMissing.set(false);
+    this.step.set(nextStep);
+    if (nextStep > this.maxStepReached()) {
+      this.maxStepReached.set(nextStep);
     }
   }
 
   prev(): void {
     if (this.step() > 1) {
+      this.showMissing.set(false);
       this.step.update((s) => (s - 1) as Step);
     }
   }
@@ -766,6 +727,7 @@ export class NewClaimComponent {
   /** Any reached step is navigable; a new one still requires "Continuar". */
   goToStep(s: Step): void {
     if (s <= this.maxStepReached()) {
+      this.showMissing.set(false);
       this.step.set(s);
     }
   }
@@ -800,6 +762,10 @@ export class NewClaimComponent {
   submit(): void {
     const type = this.selectedType();
     const policy = this.selectedPolicy();
+    if (this.missingDocs().length) {
+      this.showMissingDocs.set(true);
+      return;
+    }
     if (!type || !policy || !this.canSubmit()) return;
 
     this.submitting.set(true);
