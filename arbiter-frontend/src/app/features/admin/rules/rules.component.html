@@ -363,9 +363,15 @@
                                       (checkedChange)="toggleHardRule(c.id, rule.ruleType)"
                                     />
                                     <div class="rule-text">
-                                      <span class="t-field-label">{{
-                                        hardRuleLabel(rule.ruleType)
-                                      }}</span>
+                                      <span class="t-field-label"
+                                        >{{ hardRuleLabel(rule.ruleType) }}
+                                        @if (rule.ruleType === 'MAX_EVENTS_YEAR') {
+                                          <app-info-tip>
+                                            Cuenta los siniestros liquidados en esta póliza, de
+                                            todas sus coberturas, en el año de vigencia.
+                                          </app-info-tip>
+                                        }
+                                      </span>
                                     </div>
                                     @if (rule.enabled) {
                                       <div class="rule-value">
@@ -428,8 +434,12 @@
                               </label>
                               <label class="fieldset">
                                 <span class="t-field-label"
-                                  >Pago desde el 2.º siniestro del año</span
-                                >
+                                  >Pago desde el 2.º siniestro del año
+                                  <app-info-tip>
+                                    Cuenta los siniestros liquidados en esta póliza, en el año de
+                                    vigencia.
+                                  </app-info-tip>
+                                </span>
                                 <span class="with-unit">
                                   <app-input
                                     type="number"
