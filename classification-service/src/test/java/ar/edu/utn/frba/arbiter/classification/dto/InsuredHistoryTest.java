@@ -62,6 +62,29 @@ class InsuredHistoryTest {
         assertThat(history.eventOrdinalFor(EVENT, CURRENT_POLICY)).isEqualTo(1);
     }
 
+    /** Cases filed through Arbiter join the history with their CaseStatus, not the insurer's status. */
+    @Test
+    void anApprovedArbiterCaseOnTheSamePolicyCounts() {
+        InsuredHistory history = history(claim(EVENT.minusMonths(2), POLICY, "Robo", "APPROVED"));
+
+        assertThat(history.eventOrdinalFor(EVENT, CURRENT_POLICY)).isEqualTo(2);
+    }
+
+    @Test
+    void aRejectedArbiterCaseDoesNotCount() {
+        InsuredHistory history = history(claim(EVENT.minusMonths(2), POLICY, "Robo", "REJECTED"));
+
+        assertThat(history.eventOrdinalFor(EVENT, CURRENT_POLICY)).isEqualTo(1);
+    }
+
+    /** The cap counts indemnities: a case still in progress hasn't paid anything yet. */
+    @Test
+    void anArbiterCaseStillInProgressDoesNotCount() {
+        InsuredHistory history = history(claim(EVENT.minusMonths(2), POLICY, "Robo", "PENDING_ANALYST_REVIEW"));
+
+        assertThat(history.eventOrdinalFor(EVENT, CURRENT_POLICY)).isEqualTo(1);
+    }
+
     /** In favor of the insured: a claim that can't be tied to this policy isn't charged to it. */
     @Test
     void aClaimWithNoPolicyNumberDoesNotCount() {

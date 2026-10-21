@@ -1,11 +1,13 @@
 package ar.edu.utn.frba.arbiter.classification.dto;
 
+import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 import lombok.Builder;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Set;
 
 @Builder
 public record InsuredHistory(
@@ -17,16 +19,20 @@ public record InsuredHistory(
         List<ClaimRecord> claims
 ) {
 
-    /** Insurer DB value ({@code estado_resolucion}) of a paid claim. */
-    private static final String SETTLED = "LIQUIDADO";
+    /**
+     * Statuses of an indemnified claim: {@code LIQUIDADO} from the insurer's history
+     * ({@code estado_resolucion}), {@code APPROVED} from the cases filed through Arbiter.
+     */
+    private static final Set<String> INDEMNIFIED = Set.of("LIQUIDADO", CaseStatus.APPROVED.name());
 
     /**
      * Which event of the policy year the claim under analysis is, starting at 1. Shared by the
      * events-per-year rule and the settlement so both count the window identically.
      *
-     * <p>Counts the settled claims of the same policy, across all its coverages: the contracts cap
-     * indemnities "per policy" and "per year of validity". Rejected claims and claims with no
-     * policy number don't count; when in doubt, the contract reads in favor of the insured.
+     * <p>Counts the indemnified claims of the same policy, across all its coverages: the contracts cap
+     * indemnities "per policy" and "per year of validity". Rejected claims, cases still in progress
+     * and claims with no policy number don't count; when in doubt, the contract reads in favor of
+     * the insured.
      */
     public int eventOrdinalFor(LocalDate eventDate, InsuredPolicy policy) {
         if (eventDate == null || policy == null || policy.policyNumber() == null || claims == null) {
@@ -37,7 +43,7 @@ public record InsuredHistory(
         long priorInWindow = claims.stream()
                 .filter(record -> record.date() != null)
                 .filter(record -> policy.policyNumber().equals(record.policyNumber()))
-                .filter(record -> SETTLED.equals(record.status()))
+                .filter(record -> INDEMNIFIED.contains(record.status()))
                 .filter(record -> !record.date().isBefore(windowStart) && !record.date().isAfter(eventDate))
                 .count();
         return (int) priorInWindow + 1;
