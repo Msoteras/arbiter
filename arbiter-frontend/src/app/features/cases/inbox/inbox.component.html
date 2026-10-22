@@ -240,7 +240,13 @@
         <app-empty-state
           message="Ningún expediente coincide con los filtros aplicados."
           sub="Sin coincidencias"
-        />
+        >
+          @if (activeChips().length > 0) {
+            <app-button variant="secondary" size="sm" (click)="clearAllChips()"
+              >Limpiar filtros</app-button
+            >
+          }
+        </app-empty-state>
       } @else if (emptyByLens()) {
         <app-empty-state [message]="emptyLensMessage().message" [sub]="emptyLensMessage().sub" />
       } @else {

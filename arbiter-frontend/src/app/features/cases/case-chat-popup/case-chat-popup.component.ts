@@ -1,10 +1,19 @@
-import { ChangeDetectionStrategy, Component, computed, input, model, output } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  inject,
+  input,
+  model,
+  output,
+} from '@angular/core';
 import { RouterLink } from '@angular/router';
 
 import { CaseMessage, ChatEvent } from '../../../core/models/case-message';
 import { CaseChatComponent } from '../case-chat/case-chat.component';
 import { QuickReply } from '../case-chat/quick-replies';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
+import { CaseMessagesSocketService } from '../case-messages-socket.service';
 
 /**
  * The case chat as a floating window, for both sides, with its launcher when closed. The thread only
@@ -21,7 +30,13 @@ import { ButtonComponent } from '../../../shared/ui/button/button.component';
         <header class="head">
           <span class="avatar" aria-hidden="true">{{ initials() }}</span>
           <div class="title">
-            <p class="name">{{ counterparty() }}</p>
+            <p class="name">
+              {{ counterparty() }}
+              @if (socket.live()) {
+                <span class="live" title="Mensajes en tiempo real" aria-hidden="true"></span>
+                <span class="sr-only">Mensajes en tiempo real</span>
+              }
+            </p>
             @if (subtitle()) {
               <p class="sub">{{ subtitle() }}</p>
             }
@@ -126,9 +141,35 @@ import { ButtonComponent } from '../../../shared/ui/button/button.component';
       min-width: 0;
     }
     .name {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
       margin: 0;
       font-weight: var(--font-weight-medium);
       color: var(--text-primary);
+    }
+    /* The socket is up: the dot breathes once in a while, it never blinks. */
+    .live {
+      width: var(--space-2);
+      height: var(--space-2);
+      border-radius: var(--radius-pill);
+      background: var(--status-ok);
+      box-shadow: 0 0 0 0 color-mix(in srgb, var(--status-ok) 45%, transparent);
+      animation: live-pulse 2.4s var(--ease-standard) infinite;
+    }
+    @keyframes live-pulse {
+      0%,
+      60% {
+        box-shadow: 0 0 0 0 color-mix(in srgb, var(--status-ok) 45%, transparent);
+      }
+      100% {
+        box-shadow: 0 0 0 var(--space-1) transparent;
+      }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .live {
+        animation: none;
+      }
     }
     .sub {
       margin: 0;
@@ -245,6 +286,7 @@ import { ButtonComponent } from '../../../shared/ui/button/button.component';
   `,
 })
 export class CaseChatPopupComponent {
+  protected readonly socket = inject(CaseMessagesSocketService);
   readonly open = model(false);
   readonly caseId = input.required<number>();
   readonly insurer = input<string | null | undefined>(null);
