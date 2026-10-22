@@ -55,7 +55,7 @@
   background: var(--surface);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-modal);
-  box-shadow: var(--shadow-raised);
+  box-shadow: var(--shadow-card);
   overflow: hidden;
   transition:
     box-shadow var(--dur-2) var(--ease-standard),
@@ -63,7 +63,7 @@
 }
 .case-card:hover {
   border-color: var(--border-control);
-  box-shadow: var(--shadow-raised-hover);
+  box-shadow: var(--shadow-card-hover);
 }
 @media (prefers-reduced-motion: reduce) {
   .case-card {

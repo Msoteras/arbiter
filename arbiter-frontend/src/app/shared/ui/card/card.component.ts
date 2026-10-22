@@ -8,8 +8,6 @@ type Variant = 'default' | 'soft' | 'ai';
  * `cardAside` (e.g. a badge) goes at the right end of the heading; not on collapsible cards.
  * `headingSize="lg"` is for a card that is the whole panel, where the heading acts as its title;
  * `md` for the same card when the page already shows a title above it.
- * `raised` lifts it off the canvas and stresses it on hover, for dashboards (the home) where cards
- * are the content and not a frame around a form.
  */
 @Component({
   selector: 'app-card',
@@ -21,7 +19,6 @@ type Variant = 'default' | 'soft' | 'ai';
       [class.ai]="variant() === 'ai'"
       [class.flush]="flush()"
       [class.bare]="bare()"
-      [class.raised]="raised()"
     >
       @if (heading()) {
         @if (isCollapsible()) {
@@ -75,20 +72,20 @@ type Variant = 'default' | 'soft' | 'ai';
          content (height:100% does inside an auto-height flex column). */
       min-height: 100%;
     }
-    /* Shadow and border only, no transform: a transformed card would become the containing block
-       of the fixed panels inside it (info tips, selects). */
-    .card.raised {
-      box-shadow: var(--shadow-raised);
+    /* On hover the shadow grows and the border firms up. Shadow and border only, no transform: a
+       transformed card would become the containing block of the fixed panels inside it (info
+       tips, selects). */
+    .card {
       transition:
         box-shadow var(--dur-2) var(--ease-standard),
         border-color var(--dur-2) var(--ease-standard);
     }
-    .card.raised:hover {
+    .card:not(.bare):hover {
       border-color: var(--border-control);
-      box-shadow: var(--shadow-raised-hover);
+      box-shadow: var(--shadow-card-hover);
     }
     @media (prefers-reduced-motion: reduce) {
-      .card.raised {
+      .card {
         transition: none;
       }
     }
@@ -211,7 +208,6 @@ export class CardComponent {
   readonly flush = input(false);
   /** No border/background/padding, for when the outer container already is the box. */
   readonly bare = input(false);
-  readonly raised = input(false);
   /** Requires `heading`. */
   readonly collapsible = input(false);
   /** Initial state; only applies with `collapsible`. */

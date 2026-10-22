@@ -96,7 +96,7 @@
     background: var(--brand-panel-bg);
     background-size: 220% 220%;
     color: var(--brand-panel-fg);
-    box-shadow: var(--shadow-raised);
+    box-shadow: var(--shadow-card);
     animation: hero-drift 22s ease-in-out infinite alternate;
 
     @include media.phone {

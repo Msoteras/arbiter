@@ -43,7 +43,7 @@ import { ChangeDetectionStrategy, Component, input, model } from '@angular/core'
       height: 16px;
       border-radius: var(--radius-pill);
       background: var(--text-on-emphasis);
-      box-shadow: var(--shadow-card);
+      box-shadow: var(--shadow-knob);
       transition: transform var(--dur-1) ease;
     }
     /* --accent-fill, not the strong teal: that one is tuned for white text on solid buttons and

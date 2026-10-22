@@ -58,12 +58,7 @@
 
     <div class="cols">
       <div class="col col-main" #mainCol>
-        <app-card
-          [raised]="true"
-          heading="Liquidaciones para autorizar"
-          headingSize="md"
-          [flush]="true"
-        >
+        <app-card heading="Liquidaciones para autorizar" headingSize="md" [flush]="true">
           <a cardAside routerLink="/insurer/settlements" class="see-all">Ver todas ›</a>
           @if (settlements() === null) {
             <p class="t-note pad">No pudimos cargar las liquidaciones.</p>
@@ -98,7 +93,6 @@
         </app-card>
 
         <app-card
-          [raised]="true"
           heading="Alertas de fraude abiertas"
           headingSize="md"
           [flush]="true"
@@ -147,7 +141,7 @@
       <div class="col col-side">
         <!-- Only while the insurer is being set up; it hides itself once everything is done. -->
         <app-setup-card />
-        <app-card [raised]="true" heading="Plazos del art. 56" headingSize="md">
+        <app-card heading="Plazos del art. 56" headingSize="md">
           @if (deadlines(); as d) {
             <span class="term-bar" aria-hidden="true">
               @for (seg of d.segments; track seg.label) {
@@ -169,7 +163,7 @@
           }
         </app-card>
 
-        <app-card [raised]="true" heading="Carga del equipo" headingSize="md">
+        <app-card heading="Carga del equipo" headingSize="md">
           <a cardAside routerLink="/insurer/users" class="see-all">Usuarios ›</a>
           @if (workload() === null) {
             <p class="t-note">No pudimos cargar la carga del equipo.</p>

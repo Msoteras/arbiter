@@ -43,7 +43,6 @@
     <div class="cols">
       <div class="col col-main" #mainCol>
         <app-card
-          [raised]="true"
           heading="Expedientes asignados"
           headingSize="md"
           [flush]="true"
@@ -90,12 +89,7 @@
           >
         </app-card>
 
-        <app-card
-          [raised]="true"
-          heading="Mensajes recientes"
-          headingSize="md"
-          class="messages-card grow"
-        >
+        <app-card heading="Mensajes recientes" headingSize="md" class="messages-card grow">
           <a cardAside routerLink="/messages" class="see-all">Todos ›</a>
           @if (chatsFailed()) {
             <p class="t-note">No pudimos cargar los mensajes.</p>
@@ -127,7 +121,7 @@
       </div>
 
       <div class="col col-side">
-        <app-card [raised]="true">
+        <app-card>
           <div class="unassigned">
             <div>
               <h2 class="unassigned-count">
@@ -158,7 +152,7 @@
           </div>
         </app-card>
 
-        <app-card [raised]="true" heading="Tu bandeja" headingSize="md">
+        <app-card heading="Tu bandeja" headingSize="md">
           @if (caseload(); as c) {
             <span cardAside class="t-note"
               >{{ c.total }} {{ c.total === 1 ? 'expediente' : 'expedientes' }}</span
@@ -197,7 +191,7 @@
           }
         </app-card>
 
-        <app-card [raised]="true" heading="Tu semana" headingSize="md" class="grow">
+        <app-card heading="Tu semana" headingSize="md" class="grow">
           <a cardAside routerLink="/insurer/reports" class="see-all">Reportes ›</a>
           @if (weekLoading()) {
             <app-inline-loading [size]="22" message="Calculando tu semana…" />

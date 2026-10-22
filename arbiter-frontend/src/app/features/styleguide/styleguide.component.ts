@@ -436,14 +436,13 @@ interface Swatch {
 
       <section class="sg-block">
         <h3 class="sg-h3">Card</h3>
+        <p class="sg-p">
+          Todas tienen relieve (<span class="mono">--shadow-card</span>) y, al pasar el mouse, la
+          sombra crece y el borde se marca.
+        </p>
         <div class="row cards">
           <app-card heading="Resumen del siniestro">
             <p class="sg-p">Contenido de la tarjeta.</p>
-          </app-card>
-          <app-card [raised]="true" heading="Con relieve">
-            <p class="sg-p">
-              <span class="mono">raised</span>: para tableros como el inicio. Pasá el mouse.
-            </p>
           </app-card>
           <app-card variant="soft" heading="Fondo tenue">
             <p class="sg-p">Variante <span class="mono">soft</span>.</p>
