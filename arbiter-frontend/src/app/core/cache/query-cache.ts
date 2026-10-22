@@ -70,7 +70,9 @@ export class QueryCache {
         this.markSeen(key);
         subscriber.next(shown as T);
       }
-      const subscription = this.refresh(entry, new HttpContext()).subscribe({
+      // With a value already on screen the refresh is background work: no activity bar, no toast.
+      const context = hadValue ? silentRequest() : new HttpContext();
+      const subscription = this.refresh(entry, context).subscribe({
         next: (fresh) => {
           if (!hadValue) {
             subscriber.next(fresh as T);
