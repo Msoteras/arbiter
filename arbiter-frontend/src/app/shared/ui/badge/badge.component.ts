@@ -20,6 +20,7 @@ type Variant = 'solid' | 'strong' | 'dashed';
       [class.dashed]="variant() === 'dashed'"
       [attr.data-tone]="tone() !== 'neutral' ? tone() : null"
       [class.busy]="busy()"
+      [class.wrap]="wrap()"
     >
       @if (tone() !== 'neutral') {
         <span class="dot" aria-hidden="true"></span>
@@ -35,6 +36,11 @@ type Variant = 'solid' | 'strong' | 'dashed';
       border-radius: var(--radius-pill);
       line-height: 1.4;
       white-space: nowrap;
+    }
+    /* In a narrow table cell: the label breaks into lines and the pill becomes a rounded box. */
+    .badge.wrap {
+      white-space: normal;
+      border-radius: var(--radius-ctl);
     }
     .badge.solid {
       border: 1px solid var(--border-control);
@@ -100,4 +106,5 @@ export class BadgeComponent {
   readonly variant = input<Variant>('solid');
   readonly tone = input<StatusTone>('neutral');
   readonly busy = input(false);
+  readonly wrap = input(false);
 }

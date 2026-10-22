@@ -7,40 +7,67 @@
   color: var(--text-muted);
 }
 
-/* The gauge needs a minimum width for its 4 segments to stay distinguishable. */
-.gauge-cell {
-  min-width: calc(var(--space-7) * 3);
-}
-
 .order-note {
   margin: 0 0 var(--space-3);
   color: var(--text-muted);
 }
 
-/* The text columns wrap so the table fits its card instead of scrolling sideways; the id, the date,
-   the gauge and the status stay on one line. The floor keeps a name from breaking word by word. */
-.wrap,
-.signals-cell {
+/* Widths of the fixed columns; Asegurado, Tipo and Señales share what's left. The gauge needs its
+   width for the 4 segments to stay distinguishable. */
+.col-id {
+  width: calc(var(--space-7) * 2);
+}
+.col-date {
+  width: calc(var(--space-7) * 2.75);
+}
+.col-gauge {
+  width: calc(var(--space-7) * 4);
+}
+.col-signals {
+  width: 26%;
+}
+.col-status {
+  width: calc(var(--space-7) * 4.5);
+}
+
+td {
+  vertical-align: top;
+}
+/* Every cell may wrap; long words break instead of spilling into the next column. */
+td.wrap,
+td:last-child {
   white-space: normal;
-  overflow-wrap: break-word;
-}
-.wrap {
-  min-width: calc(var(--space-7) * 4);
-}
-.signals {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  max-width: calc(var(--space-7) * 7);
-}
-/* Own line under the badges, wrapping inside the column. */
-.signal-note {
-  flex-basis: 100%;
-  font-size: var(--font-size-xs);
-  color: var(--text-secondary);
   overflow-wrap: anywhere;
 }
-.signals + app-badge {
+.primary {
+  font-weight: var(--font-weight-medium);
+}
+
+.signals {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+.signals li {
+  position: relative;
+  padding-left: var(--space-3);
+}
+.signals li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.6em;
+  width: var(--space-1);
+  height: var(--space-1);
+  border-radius: var(--radius-pill);
+  background: var(--status-risk);
+}
+.determined {
   display: inline-block;
   margin-top: var(--space-2);
 }

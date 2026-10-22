@@ -14,7 +14,7 @@ import { caseStatusLabel, caseStatusTone } from '../../../core/models/case-statu
 import { comparisonReference } from '../../../core/models/comparison';
 import { RiskBand, riskBandLabel } from '../../../core/models/risk-band';
 import { StatusTone } from '../../../core/models/status-tone';
-import { formatDate, formatDateTime } from '../../../core/util/datetime';
+import { formatDate, formatTime } from '../../../core/util/datetime';
 import { formatRate } from '../../../core/util/percent';
 import { trendText } from '../../../core/util/trend';
 import { staggerReveal } from '../../../shared/animations';
@@ -179,7 +179,7 @@ export class FraudReportComponent extends ReportTab<
   );
 
   protected readonly formatDate = formatDate;
-  protected readonly formatDateTime = formatDateTime;
+  protected readonly formatTime = formatTime;
   protected readonly riskBandLabel = riskBandLabel;
   protected readonly caseStatusLabel = caseStatusLabel;
   protected readonly caseStatusTone = caseStatusTone;

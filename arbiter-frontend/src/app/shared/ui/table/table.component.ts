@@ -29,6 +29,7 @@ import {
       [class.more-right]="moreRight()"
       [class.sticky-head]="stickyHeader()"
       [class.scrolled]="scrolled()"
+      [style.min-width]="minWidth()"
     >
       <ng-content />
     </table>
@@ -137,6 +138,8 @@ export class TableComponent {
 
   /** Columns with no declared width end up equal (useful for matrices). */
   readonly fixed = input(false);
+  /** Below this the table scrolls instead of squeezing its columns (a fixed table would). */
+  readonly minWidth = input<string | null>(null);
   readonly pinFirstColumn = input(false);
   readonly pinLastColumn = input(false);
   readonly stickyHeader = input(false);
