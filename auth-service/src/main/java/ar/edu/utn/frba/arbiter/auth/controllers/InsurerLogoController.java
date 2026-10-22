@@ -1,7 +1,7 @@
 package ar.edu.utn.frba.arbiter.auth.controllers;
 
 import ar.edu.utn.frba.arbiter.auth.dto.InsurerLogoResponse;
-import ar.edu.utn.frba.arbiter.auth.models.entities.InsurerLogo;
+import ar.edu.utn.frba.arbiter.common.models.entities.InsurerLogo;
 import ar.edu.utn.frba.arbiter.auth.services.InsurerLogoService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;

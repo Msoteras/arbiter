@@ -70,7 +70,7 @@ public class AuthService {
                     onboardingComplete = profile.get().onboardingComplete();
                 }
                 if (rol != UserRole.ASEGURADO) {
-                    logoVersion = insurerLogoService.version().orElse(null);
+                    logoVersion = insurerLogoService.version(primaryInsurer.get().getId()).orElse(null);
                 }
             } finally {
                 TenantContext.clear();

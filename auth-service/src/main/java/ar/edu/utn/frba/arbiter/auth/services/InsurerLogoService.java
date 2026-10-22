@@ -2,8 +2,10 @@ package ar.edu.utn.frba.arbiter.auth.services;
 
 import ar.edu.utn.frba.arbiter.auth.exceptions.InvalidLogoException;
 import ar.edu.utn.frba.arbiter.auth.exceptions.LogoNotFoundException;
-import ar.edu.utn.frba.arbiter.auth.models.entities.InsurerLogo;
+import ar.edu.utn.frba.arbiter.auth.config.tenant.TenantContext;
 import ar.edu.utn.frba.arbiter.auth.models.repositories.InsurerLogoRepository;
+import ar.edu.utn.frba.arbiter.auth.models.repositories.InsurerRepository;
+import ar.edu.utn.frba.arbiter.common.models.entities.InsurerLogo;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -16,8 +18,8 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * The logo of the insurer the request is for (the tenant resolved from the JWT). Every user of the
- * insurer reads it; only the referent changes it (enforced by the controller).
+ * The logo of the insurer the request is for: the one whose schema the JWT resolved to. Every user
+ * of the insurer reads it; only the referent changes it (enforced by the controller).
  */
 @Service
 @RequiredArgsConstructor
@@ -34,29 +36,37 @@ public class InsurerLogoService {
     private static final String SVG = "image/svg+xml";
 
     private final InsurerLogoRepository repository;
+    private final InsurerRepository insurers;
 
     @Transactional(readOnly = true)
     public InsurerLogo get() {
-        return repository.findById(InsurerLogo.SINGLETON_ID).orElseThrow(LogoNotFoundException::new);
+        return repository.findById(currentInsurerId()).orElseThrow(LogoNotFoundException::new);
     }
 
-    /** When the current logo was uploaded; empty without one. */
+    /** When the insurer's logo was uploaded; empty without one. Used by the login. */
     @Transactional(readOnly = true)
-    public Optional<Instant> version() {
-        return repository.findUpdatedAt();
+    public Optional<Instant> version(Long insurerId) {
+        return repository.findUpdatedAt(insurerId);
     }
 
     @Transactional
     public Instant replace(byte[] content, String declaredType) {
         String type = validate(content, declaredType);
         Instant now = Instant.now();
-        repository.save(new InsurerLogo(InsurerLogo.SINGLETON_ID, content, type, now));
+        repository.save(new InsurerLogo(currentInsurerId(), content, type, now));
         return now;
     }
 
     @Transactional
     public void remove() {
-        repository.deleteById(InsurerLogo.SINGLETON_ID);
+        repository.deleteById(currentInsurerId());
+    }
+
+    private Long currentInsurerId() {
+        String schema = TenantContext.get();
+        return insurers.findBySchemaName(schema)
+                .orElseThrow(() -> new IllegalStateException("No insurer for schema " + schema))
+                .getId();
     }
 
     private static String validate(byte[] content, String declaredType) {

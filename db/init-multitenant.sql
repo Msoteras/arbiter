@@ -54,6 +54,17 @@ CREATE TABLE arbiter_common.insurer (
     schema_name     VARCHAR(60)  NOT NULL UNIQUE
 );
 
+-- ─── insurer_logo ────────────────────────────────────────────────────────────
+-- The logo the referent uploads, shown in the app bar of the insurer's people. Its own table, not
+-- a column of insurer: insurer is read on every login and tenant resolution, and would carry the
+-- bytes along. Bytes in the database: ≤ 256 KB, read once per session.
+CREATE TABLE arbiter_common.insurer_logo (
+    insurer_id      BIGINT       PRIMARY KEY REFERENCES arbiter_common.insurer(id) ON DELETE CASCADE,
+    content         BYTEA        NOT NULL,
+    content_type    VARCHAR(50)  NOT NULL,
+    updated_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+
 -- ─── users ───────────────────────────────────────────────────────────────────
 -- Identity backed by Auth0. Shared because login happens before the tenant is known;
 -- names live on the per-tenant role profiles (insured, claims_analyst, insurer_referent).
@@ -276,18 +287,6 @@ BEGIN
             name            VARCHAR(255) NOT NULL,
             surname         VARCHAR(255) NOT NULL,
             user_id         BIGINT       NOT NULL REFERENCES arbiter_common.users(id)
-        )$ddl$, p_schema);
-
-    -- ─── insurer_logo ────────────────────────────────────────────────────────────
-    -- The insurer's logo, shown in the app bar of its people. Uploaded by the referent; one row
-    -- at most (id is always 1). Bytes in the database: it is small (≤ 256 KB) and read once per
-    -- session, so it doesn't justify a bucket.
-    EXECUTE format($ddl$
-        CREATE TABLE %I.insurer_logo (
-            id              SMALLINT     PRIMARY KEY DEFAULT 1 CHECK (id = 1),
-            content         BYTEA        NOT NULL,
-            content_type    VARCHAR(50)  NOT NULL,
-            updated_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW()
         )$ddl$, p_schema);
 
     -- ─── branch ──────────────────────────────────────────────────────────────────

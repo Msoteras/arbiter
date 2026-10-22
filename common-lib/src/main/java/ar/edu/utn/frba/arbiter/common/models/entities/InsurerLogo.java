@@ -1,4 +1,4 @@
-package ar.edu.utn.frba.arbiter.auth.models.entities;
+package ar.edu.utn.frba.arbiter.common.models.entities;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -11,22 +11,19 @@ import lombok.Setter;
 
 import java.time.Instant;
 
-/**
- * The insurer's logo, in its own tenant schema: which row is read depends on the resolved tenant.
- * One row at most, so the id is always {@link #SINGLETON_ID}.
- */
+/** An insurer's logo, one row per insurer at most. Kept apart from {@link Insurer} so its bytes
+ *  don't travel with every login. */
 @Entity
-@Table(name = "insurer_logo")
+@Table(name = "insurer_logo", schema = "arbiter_common")
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 public class InsurerLogo {
 
-    public static final short SINGLETON_ID = 1;
-
     @Id
-    private Short id;
+    @Column(name = "insurer_id")
+    private Long insurerId;
 
     @Column(nullable = false)
     private byte[] content;
