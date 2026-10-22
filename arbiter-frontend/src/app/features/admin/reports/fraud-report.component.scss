@@ -17,9 +17,15 @@
   color: var(--text-muted);
 }
 
-/* The only cell allowed to wrap. */
+/* The text columns wrap so the table fits its card instead of scrolling sideways; the id, the date,
+   the gauge and the status stay on one line. The floor keeps a name from breaking word by word. */
+.wrap,
 .signals-cell {
   white-space: normal;
+  overflow-wrap: break-word;
+}
+.wrap {
+  min-width: calc(var(--space-7) * 4);
 }
 .signals {
   display: flex;

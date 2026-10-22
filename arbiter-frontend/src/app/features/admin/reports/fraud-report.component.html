@@ -174,7 +174,7 @@
                 <td class="mono">
                   <a class="case-link" [routerLink]="['/cases', row.caseId]">#{{ row.caseId }}</a>
                 </td>
-                <td>
+                <td class="wrap">
                   {{ row.insuredName }}
                   <span class="sub">DNI {{ row.insuredDni }}</span>
                   <!-- Context, not a signal: it isn't why the claim is listed. -->
@@ -182,7 +182,7 @@
                     <span class="sub">{{ row.claimsInWindow }} denuncias en 12 meses</span>
                   }
                 </td>
-                <td>
+                <td class="wrap">
                   {{ row.claimCause }}
                   <span class="sub">{{ row.branch }}</span>
                 </td>

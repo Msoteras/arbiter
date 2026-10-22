@@ -47,6 +47,9 @@ import {
     :host {
       display: block;
       overflow: auto;
+      /* When a table does scroll, a thin bar in the border tone instead of the system's default. */
+      scrollbar-width: thin;
+      scrollbar-color: var(--border-strong) transparent;
       /* The shade on the right edge says there is more table: without it the only hint that
          content is missing is the scrollbar, which on a Mac isn't even drawn at rest. */
       background: linear-gradient(to left, var(--surface-sunken), transparent 60%) right /
