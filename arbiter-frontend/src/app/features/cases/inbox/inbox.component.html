@@ -226,8 +226,8 @@
       }
     </section>
 
-    @if (loading()) {
-      <!-- On refetch the filters stay; only the table is replaced by the skeleton. -->
+    @if (loading() && cases().length === 0) {
+      <!-- Only with nothing on screen yet; otherwise the previous page stays, dimmed. -->
       <app-skeleton
         shape="table"
         [rows]="8"
@@ -256,7 +256,7 @@
         <app-empty-state message="Todavía no hay expedientes cargados." sub="Sin expedientes" />
       }
     } @else {
-      <app-card [flush]="true" class="table-card">
+      <app-card [flush]="true" class="table-card" [class.refreshing]="refreshing()">
         <div
           class="table-scroll"
           #tableScroll

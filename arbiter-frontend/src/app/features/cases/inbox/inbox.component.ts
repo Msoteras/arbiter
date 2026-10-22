@@ -9,6 +9,7 @@ import {
   HostListener,
   afterRenderEffect,
   inject,
+  linkedSignal,
   signal,
   untracked,
   viewChild,
@@ -355,9 +356,20 @@ export class InboxComponent {
   });
   protected readonly firstLoad = computed(() => this.loading() && !this.hasLoaded());
 
+  /**
+   * The page on screen. While the next one loads (a page, a filter) the previous stays, dimmed:
+   * only the rows change, and the filters and the pager above and below don't move.
+   */
+  private readonly shown = linkedSignal<LoadState, Extract<LoadState, { status: 'ok' }> | null>({
+    source: () => this.state(),
+    computation: (s, previous) =>
+      s.status === 'ok' ? s : s.status === 'loading' ? (previous?.value ?? null) : null,
+  });
+  protected readonly refreshing = computed(() => this.loading() && this.shown() !== null);
+
   protected readonly cases = computed<CaseResponse[]>(() => {
-    const s = this.state();
-    return s.status === 'ok' ? s.data : [];
+    const s = this.shown();
+    return s ? s.data : [];
   });
 
   // Lets the detail navigate previous/next in this visible order.
@@ -365,15 +377,9 @@ export class InboxComponent {
     this.caseNav.setSequence(this.cases().map((c) => c.id));
   });
 
-  protected readonly totalElements = computed(() => {
-    const s = this.state();
-    return s.status === 'ok' ? s.totalElements : 0;
-  });
+  protected readonly totalElements = computed(() => this.shown()?.totalElements ?? 0);
 
-  protected readonly totalPages = computed(() => {
-    const s = this.state();
-    return s.status === 'ok' ? s.totalPages : 0;
-  });
+  protected readonly totalPages = computed(() => this.shown()?.totalPages ?? 0);
 
   protected readonly isEmpty = computed(
     () => this.state().status === 'ok' && this.cases().length === 0,
