@@ -440,6 +440,11 @@ interface Swatch {
           <app-card heading="Resumen del siniestro">
             <p class="sg-p">Contenido de la tarjeta.</p>
           </app-card>
+          <app-card [raised]="true" heading="Con relieve">
+            <p class="sg-p">
+              <span class="mono">raised</span>: para tableros como el inicio. Pasá el mouse.
+            </p>
+          </app-card>
           <app-card variant="soft" heading="Fondo tenue">
             <p class="sg-p">Variante <span class="mono">soft</span>.</p>
           </app-card>
