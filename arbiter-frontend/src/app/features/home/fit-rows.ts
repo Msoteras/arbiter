@@ -54,7 +54,10 @@ export function fitRows(
   );
   const rowHeight = Math.ceil(tallest - extraNow);
   // Fractional pixels add up across cards; the floor keeps the card from overflowing by one.
-  const room = Math.floor(col.clientHeight - othersHeight - gap * others.length - chrome);
+  // The column's padding is shadow room (see _home-dashboard.scss), not room for rows.
+  const colStyle = getComputedStyle(col);
+  const padding = parseFloat(colStyle.paddingTop) + parseFloat(colStyle.paddingBottom);
+  const room = Math.floor(col.clientHeight - padding - othersHeight - gap * others.length - chrome);
   const rows = Math.max(1, Math.floor(room / rowHeight));
   // Spread only when the rows really fill the card; with fewer items the rest stays below.
   const extra = available >= rows ? Math.max(0, Math.floor((room - rows * rowHeight) / rows)) : 0;

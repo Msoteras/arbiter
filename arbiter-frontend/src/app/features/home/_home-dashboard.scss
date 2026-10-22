@@ -39,6 +39,18 @@
       max-height: none;
     }
   }
+  // The columns clip (the main one hides, the side one scrolls), and that cut the cards' shadow at
+  // their edges. Padding gives the shadow room inside the clip; the negative margin gives the
+  // layout its space back.
+  .home.fit .col {
+    padding: var(--space-1) var(--space-4) var(--space-5);
+    margin: calc(var(--space-1) * -1) calc(var(--space-4) * -1) calc(var(--space-5) * -1);
+
+    @include media.phone {
+      padding: 0;
+      margin: 0;
+    }
+  }
   .home.fit .col-main {
     overflow: hidden;
 
