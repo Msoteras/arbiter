@@ -1,5 +1,6 @@
 package ar.edu.utn.frba.arbiter.auth.services;
 
+import ar.edu.utn.frba.arbiter.auth.exceptions.InsuredEmailTakenException;
 import ar.edu.utn.frba.arbiter.auth.exceptions.InsuredProfileConflictException;
 import ar.edu.utn.frba.arbiter.auth.models.repositories.ClaimsAnalystRepository;
 import ar.edu.utn.frba.arbiter.auth.models.repositories.InsuredRepository;
@@ -76,6 +77,19 @@ class TenantProfileServiceTest {
                 user(7L), "Martina", "Soteras", "42.987.654", "m@example.com", "11-5555-0001"))
                 .isInstanceOf(InsuredProfileConflictException.class)
                 .hasMessageContaining("42.987.654");
+
+        verify(insuredRepository, never()).save(any(Insured.class));
+    }
+
+    @Test
+    void userAlreadyInsuredUnderAnotherDni_isNotGivenASecondProfile() {
+        when(insuredRepository.findByDni("30.111.222")).thenReturn(Optional.empty());
+        when(insuredRepository.findByUserId(1L)).thenReturn(Optional.of(insuredOf(user(1L))));
+
+        assertThatThrownBy(() -> service.createInsuredIfMissing(
+                user(1L), "Roman", "Castillo", "30.111.222", "alguien@example.com", "11-5555-0007"))
+                .isInstanceOf(InsuredEmailTakenException.class)
+                .hasMessage("El email ya pertenece a otro asegurado.");
 
         verify(insuredRepository, never()).save(any(Insured.class));
     }
