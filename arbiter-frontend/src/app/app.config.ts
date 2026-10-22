@@ -8,7 +8,7 @@ import {
 } from '@angular/core';
 import { provideRouter } from '@angular/router';
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
-import { provideAnimations } from '@angular/platform-browser/animations';
+import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
 import { provideEchartsCore } from 'ngx-echarts';
 
 import { routes } from './app.routes';
@@ -35,7 +35,7 @@ export const appConfig: ApplicationConfig = {
         onboardingInterceptor,
       ]),
     ),
-    provideAnimations(),
+    provideAnimationsAsync(),
     // Lazy import keeps ECharts out of the initial bundle; echarts-core registers only the chart
     // types in use.
     provideEchartsCore({ echarts: () => import('./shared/ui/chart/echarts-core') }),
