@@ -174,9 +174,17 @@ function normalize(text: string): string {
       padding: var(--space-2) calc(var(--space-3) + 1.5em) var(--space-2) var(--space-3);
       border: 1px solid var(--border-control);
       border-radius: var(--radius-ctl);
-      background: var(--surface);
+      background: linear-gradient(180deg, var(--surface), var(--surface-soft));
       color: var(--text-primary);
+      box-shadow: var(--shadow-btn);
+      transition:
+        border-color var(--dur-1) ease,
+        box-shadow var(--dur-2) var(--ease-standard);
       cursor: pointer;
+    }
+    .trigger:hover:not(:disabled) {
+      border-color: var(--border-strong);
+      box-shadow: var(--shadow-btn-hover);
     }
     .trigger:focus-visible,
     .select.open .trigger {

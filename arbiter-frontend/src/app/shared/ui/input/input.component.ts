@@ -102,6 +102,10 @@ import {
       border-radius: var(--radius-ctl);
       background: var(--surface);
       color: var(--text-primary);
+      box-shadow: var(--shadow-field);
+      transition:
+        border-color var(--dur-1) ease,
+        box-shadow var(--dur-2) var(--ease-standard);
     }
     .field.has-reveal {
       padding-right: calc(var(--space-2) + 30px);
@@ -121,10 +125,13 @@ import {
         min-height: var(--touch-target);
       }
     }
+    .field:hover:not(:focus):not([readonly]) {
+      border-color: var(--border-strong);
+    }
     .field:focus {
       outline: none;
       border-color: var(--border-focus);
-      box-shadow: var(--focus-ring);
+      box-shadow: var(--focus-ring), var(--shadow-field);
     }
     .field::placeholder {
       color: var(--text-muted);

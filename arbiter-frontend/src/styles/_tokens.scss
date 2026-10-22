@@ -125,13 +125,26 @@
   /* ===== Shadows / overlay ===== */
   /* Every card: a contact shadow plus a soft drop, and a light edge on top for the volume. */
   --shadow-card:
-    inset 0 1px 0 rgba(255, 255, 255, 0.7), 0 1px 2px rgba(25, 28, 31, 0.05),
-    0 6px 16px -4px rgba(25, 28, 31, 0.08);
+    inset 0 1px 0 rgba(255, 255, 255, 0.8), 0 1px 2px rgba(25, 28, 31, 0.08),
+    0 3px 8px -2px rgba(25, 28, 31, 0.08), 0 12px 28px -8px rgba(25, 28, 31, 0.16);
   --shadow-card-hover:
-    inset 0 1px 0 rgba(255, 255, 255, 0.7), 0 2px 4px rgba(25, 28, 31, 0.06),
-    0 16px 32px -8px rgba(25, 28, 31, 0.16);
+    inset 0 1px 0 rgba(255, 255, 255, 0.8), 0 2px 4px rgba(25, 28, 31, 0.08),
+    0 8px 16px -4px rgba(25, 28, 31, 0.1), 0 24px 44px -12px rgba(25, 28, 31, 0.26);
   --shadow-pop: 0 12px 32px rgba(25, 28, 31, 0.16);
   --shadow-modal: 0 10px 40px rgba(25, 28, 31, 0.18);
+  /* Controls. Solid buttons carry a gloss on top and a drop below; outlined ones a soft lift that
+     grows on hover; pressed ones sink. Fields are slightly sunk into the surface. */
+  --gloss: linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0) 70%);
+  --shadow-btn: 0 1px 2px rgba(25, 28, 31, 0.08), inset 0 -1px 0 rgba(25, 28, 31, 0.05);
+  --shadow-btn-hover: 0 4px 10px -3px rgba(25, 28, 31, 0.18), inset 0 -1px 0 rgba(25, 28, 31, 0.05);
+  --shadow-btn-solid:
+    inset 0 1px 0 rgba(255, 255, 255, 0.16), 0 1px 2px rgba(25, 28, 31, 0.28),
+    0 4px 10px -4px rgba(25, 28, 31, 0.4);
+  --shadow-btn-solid-hover:
+    inset 0 1px 0 rgba(255, 255, 255, 0.16), 0 2px 4px rgba(25, 28, 31, 0.28),
+    0 10px 20px -8px rgba(25, 28, 31, 0.5);
+  --shadow-pressed: inset 0 1px 3px rgba(25, 28, 31, 0.22);
+  --shadow-field: inset 0 1px 2px rgba(25, 28, 31, 0.07);
   /* Small raised control, like a switch knob. */
   --shadow-knob: 0 1px 2px rgba(25, 28, 31, 0.2);
   --overlay-backdrop: rgba(25, 28, 31, 0.4);

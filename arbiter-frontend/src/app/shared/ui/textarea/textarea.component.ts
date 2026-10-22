@@ -31,6 +31,10 @@ import { ChangeDetectionStrategy, Component, computed, input, model, output } fr
       border-radius: var(--radius-ctl);
       background: var(--surface);
       color: var(--text-primary);
+      box-shadow: var(--shadow-field);
+      transition:
+        border-color var(--dur-1) ease,
+        box-shadow var(--dur-2) var(--ease-standard);
       resize: vertical;
     }
     @include media.desktop {
@@ -38,10 +42,13 @@ import { ChangeDetectionStrategy, Component, computed, input, model, output } fr
         font-size: var(--font-size-body);
       }
     }
+    .field:hover:not(:focus):not([readonly]) {
+      border-color: var(--border-strong);
+    }
     .field:focus {
       outline: none;
       border-color: var(--border-focus);
-      box-shadow: var(--focus-ring);
+      box-shadow: var(--focus-ring), var(--shadow-field);
     }
     .field::placeholder {
       color: var(--text-muted);

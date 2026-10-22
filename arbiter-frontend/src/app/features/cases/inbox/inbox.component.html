@@ -45,183 +45,186 @@
       />
     </div>
   } @else {
-    @if (canAssign() || isReferent()) {
-      <app-tabs
-        class="lens"
-        [tabs]="lifecycleTabOptions()"
-        [value]="lifecycle()"
-        (valueChange)="setLifecycle($any($event))"
-        ariaLabel="Ciclo de vida"
-      >
-        <span class="lens-divider" aria-hidden="true"></span>
-        <div class="lens-group" role="group" aria-label="Pertenencia">
-          @for (tab of ownershipTabs(); track tab.value) {
-            <button
-              type="button"
-              class="lens-tab"
-              [class.lens-tab--alert]="tab.value === 'fraud'"
-              [class.active]="ownership() === tab.value"
-              [attr.aria-pressed]="ownership() === tab.value"
-              (click)="toggleOwnership(tab.value)"
-            >
-              @if (tab.value === 'fraud') {
-                <span class="lens-alert-mark" aria-hidden="true">▲</span>
-              }
-              {{ tab.label }} <span class="lens-count">{{ ownershipCount(tab.value) }}</span>
-              @if (ownership() === tab.value) {
-                <span class="lens-clear" aria-hidden="true">✕</span>
-              }
-            </button>
-          }
-        </div>
-      </app-tabs>
-    }
-
-    @if (assignError()) {
-      <app-card
-        ><p class="t-note">{{ assignError() }}</p></app-card
-      >
-    }
-
-    <div class="toolbar">
-      <app-input
-        class="search"
-        [value]="qDraft()"
-        (valueChange)="onSearchInput($event)"
-        placeholder="Buscar por N° de expediente, asegurado o N° de póliza…"
-      />
-
-      @if (hasNewer()) {
-        <app-button variant="secondary" size="sm" (click)="applyNewer()">Actualizar</app-button>
-      }
-
-      <div class="filters-anchor">
-        <app-button variant="secondary" (click)="toggleFilters()">
-          <span class="filters-btn">
-            <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-              <path
-                d="M2 3.5h12M4.5 8h7M6.5 12.5h3"
-                stroke="currentColor"
-                stroke-width="1.5"
-                stroke-linecap="round"
-              />
-            </svg>
-            Filtros
-            @if (activeFilterCount() > 0) {
-              <span class="filters-badge">{{ activeFilterCount() }}</span>
-            }
-          </span>
-        </app-button>
-
-        @if (filtersOpen()) {
-          <div class="filters-pop" role="dialog" aria-label="Filtrar expedientes">
-            <div class="filters-pop-head">
-              <span class="filters-pop-title">Filtrar expedientes</span>
+    <!-- Every way of narrowing the list, in one raised panel above the table. -->
+    <section class="controls" aria-label="Filtrar la bandeja">
+      @if (canAssign() || isReferent()) {
+        <app-tabs
+          class="lens"
+          [tabs]="lifecycleTabOptions()"
+          [value]="lifecycle()"
+          (valueChange)="setLifecycle($any($event))"
+          ariaLabel="Ciclo de vida"
+        >
+          <span class="lens-divider" aria-hidden="true"></span>
+          <div class="lens-group" role="group" aria-label="Pertenencia">
+            @for (tab of ownershipTabs(); track tab.value) {
               <button
                 type="button"
-                class="filters-pop-close"
-                aria-label="Cerrar"
-                (click)="closeFilters()"
+                class="lens-tab"
+                [class.lens-tab--alert]="tab.value === 'fraud'"
+                [class.active]="ownership() === tab.value"
+                [attr.aria-pressed]="ownership() === tab.value"
+                (click)="toggleOwnership(tab.value)"
               >
-                ✕
+                @if (tab.value === 'fraud') {
+                  <span class="lens-alert-mark" aria-hidden="true">▲</span>
+                }
+                {{ tab.label }} <span class="lens-count">{{ ownershipCount(tab.value) }}</span>
+                @if (ownership() === tab.value) {
+                  <span class="lens-clear" aria-hidden="true">✕</span>
+                }
               </button>
-            </div>
+            }
+          </div>
+        </app-tabs>
+      }
 
-            <div class="filters-pop-grid">
-              <label class="filter-field">
-                <span class="t-field-label">Estado</span>
-                <app-select
-                  [value]="draftStatus()"
-                  (valueChange)="draftStatus.set($event)"
-                  [options]="statusOptions"
-                  placeholder="Todos los estados"
+      @if (assignError()) {
+        <app-card
+          ><p class="t-note">{{ assignError() }}</p></app-card
+        >
+      }
+
+      <div class="toolbar">
+        <app-input
+          class="search"
+          [value]="qDraft()"
+          (valueChange)="onSearchInput($event)"
+          placeholder="Buscar por N° de expediente, asegurado o N° de póliza…"
+        />
+
+        @if (hasNewer()) {
+          <app-button variant="secondary" size="sm" (click)="applyNewer()">Actualizar</app-button>
+        }
+
+        <div class="filters-anchor">
+          <app-button variant="secondary" (click)="toggleFilters()">
+            <span class="filters-btn">
+              <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                <path
+                  d="M2 3.5h12M4.5 8h7M6.5 12.5h3"
+                  stroke="currentColor"
+                  stroke-width="1.5"
+                  stroke-linecap="round"
                 />
-              </label>
+              </svg>
+              Filtros
+              @if (activeFilterCount() > 0) {
+                <span class="filters-badge">{{ activeFilterCount() }}</span>
+              }
+            </span>
+          </app-button>
 
-              <label class="filter-field">
-                <span class="t-field-label">Tipo de siniestro</span>
-                <app-select
-                  [value]="draftClaimCause()"
-                  (valueChange)="draftClaimCause.set($event)"
-                  [options]="claimCauseOptions()"
-                  placeholder="Todos los tipos"
-                />
-              </label>
+          @if (filtersOpen()) {
+            <div class="filters-pop" role="dialog" aria-label="Filtrar expedientes">
+              <div class="filters-pop-head">
+                <span class="filters-pop-title">Filtrar expedientes</span>
+                <button
+                  type="button"
+                  class="filters-pop-close"
+                  aria-label="Cerrar"
+                  (click)="closeFilters()"
+                >
+                  ✕
+                </button>
+              </div>
 
-              <label class="filter-field">
-                <span class="t-field-label">Score de riesgo de fraude</span>
-                <app-select
-                  [value]="draftRiskBand()"
-                  (valueChange)="draftRiskBand.set($event)"
-                  [options]="riskBandOptions"
-                  placeholder="Todos los niveles"
-                />
-              </label>
-
-              @if (isReferent()) {
+              <div class="filters-pop-grid">
                 <label class="filter-field">
-                  <span class="t-field-label">Analista</span>
+                  <span class="t-field-label">Estado</span>
                   <app-select
-                    [value]="draftAnalyst()"
-                    (valueChange)="draftAnalyst.set($event)"
-                    [options]="analystOptions()"
-                    placeholder="Todos los analistas"
+                    [value]="draftStatus()"
+                    (valueChange)="draftStatus.set($event)"
+                    [options]="statusOptions"
+                    placeholder="Todos los estados"
                   />
                 </label>
-              }
 
-              <label class="filter-field">
-                <span class="t-field-label">Fecha del hecho — desde</span>
-                <app-input
-                  type="date"
-                  [value]="draftDateFrom()"
-                  (valueChange)="draftDateFrom.set($event)"
-                  (enter)="applyFilters()"
-                />
-              </label>
+                <label class="filter-field">
+                  <span class="t-field-label">Tipo de siniestro</span>
+                  <app-select
+                    [value]="draftClaimCause()"
+                    (valueChange)="draftClaimCause.set($event)"
+                    [options]="claimCauseOptions()"
+                    placeholder="Todos los tipos"
+                  />
+                </label>
 
-              <label class="filter-field">
-                <span class="t-field-label">Fecha del hecho — hasta</span>
-                <app-input
-                  type="date"
-                  [value]="draftDateTo()"
-                  (valueChange)="draftDateTo.set($event)"
-                  (enter)="applyFilters()"
-                />
-              </label>
+                <label class="filter-field">
+                  <span class="t-field-label">Score de riesgo de fraude</span>
+                  <app-select
+                    [value]="draftRiskBand()"
+                    (valueChange)="draftRiskBand.set($event)"
+                    [options]="riskBandOptions"
+                    placeholder="Todos los niveles"
+                  />
+                </label>
 
-              <label class="filter-field">
-                <span class="t-field-label">Seguimiento</span>
-                <app-select
-                  [value]="draftFollowUp()"
-                  (valueChange)="draftFollowUp.set($event)"
-                  [options]="followUpOptions"
-                  placeholder="Todos"
-                />
-              </label>
+                @if (isReferent()) {
+                  <label class="filter-field">
+                    <span class="t-field-label">Analista</span>
+                    <app-select
+                      [value]="draftAnalyst()"
+                      (valueChange)="draftAnalyst.set($event)"
+                      [options]="analystOptions()"
+                      placeholder="Todos los analistas"
+                    />
+                  </label>
+                }
+
+                <label class="filter-field">
+                  <span class="t-field-label">Fecha del hecho — desde</span>
+                  <app-input
+                    type="date"
+                    [value]="draftDateFrom()"
+                    (valueChange)="draftDateFrom.set($event)"
+                    (enter)="applyFilters()"
+                  />
+                </label>
+
+                <label class="filter-field">
+                  <span class="t-field-label">Fecha del hecho — hasta</span>
+                  <app-input
+                    type="date"
+                    [value]="draftDateTo()"
+                    (valueChange)="draftDateTo.set($event)"
+                    (enter)="applyFilters()"
+                  />
+                </label>
+
+                <label class="filter-field">
+                  <span class="t-field-label">Seguimiento</span>
+                  <app-select
+                    [value]="draftFollowUp()"
+                    (valueChange)="draftFollowUp.set($event)"
+                    [options]="followUpOptions"
+                    placeholder="Todos"
+                  />
+                </label>
+              </div>
+
+              <div class="filters-pop-foot">
+                <app-button variant="secondary" size="sm" (click)="clearDraft()">
+                  Limpiar filtros
+                </app-button>
+                <app-button size="sm" (click)="applyFilters()">Aplicar</app-button>
+              </div>
             </div>
-
-            <div class="filters-pop-foot">
-              <app-button variant="secondary" size="sm" (click)="clearDraft()">
-                Limpiar filtros
-              </app-button>
-              <app-button size="sm" (click)="applyFilters()">Aplicar</app-button>
-            </div>
-          </div>
-        }
+          }
+        </div>
       </div>
-    </div>
 
-    @if (activeChips().length > 0) {
-      <div class="active-chips">
-        @for (chip of activeChips(); track chip.key) {
-          <button type="button" class="chip" (click)="removeChip(chip.key)">
-            {{ chip.label }} <span class="chip-x" aria-hidden="true">✕</span>
-          </button>
-        }
-        <button type="button" class="chip-clear" (click)="clearAllChips()">Limpiar todo</button>
-      </div>
-    }
+      @if (activeChips().length > 0) {
+        <div class="active-chips">
+          @for (chip of activeChips(); track chip.key) {
+            <button type="button" class="chip" (click)="removeChip(chip.key)">
+              {{ chip.label }} <span class="chip-x" aria-hidden="true">✕</span>
+            </button>
+          }
+          <button type="button" class="chip-clear" (click)="clearAllChips()">Limpiar todo</button>
+        </div>
+      }
+    </section>
 
     @if (loading()) {
       <!-- On refetch the filters stay; only the table is replaced by the skeleton. -->
@@ -351,7 +354,7 @@
                           @if (!c.assignedAnalystId && canTake()) {
                             <app-button
                               class="grow"
-                              variant="accent"
+                              variant="secondary"
                               size="sm"
                               [block]="true"
                               [loading]="assigning() === c.id"

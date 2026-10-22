@@ -91,11 +91,18 @@ const SAVED_MS = 1600;
       transition:
         background-color var(--dur-1) ease,
         border-color var(--dur-1) ease,
+        box-shadow var(--dur-2) var(--ease-standard),
         transform var(--dur-1) var(--ease-standard);
     }
-    /* Press feedback: the click registers even when the response takes a while. */
+    /* Press feedback: the button sinks, and the click registers even when the response takes a
+       while. */
     .btn:active:not(:disabled) {
       transform: scale(0.97);
+      box-shadow: var(--shadow-pressed);
+    }
+    .btn:focus-visible {
+      outline: none;
+      box-shadow: var(--focus-ring);
     }
     @media (prefers-reduced-motion: reduce) {
       .btn {
@@ -122,21 +129,25 @@ const SAVED_MS = 1600;
       }
     }
     .btn.primary {
-      background: var(--action-primary-bg);
+      background: var(--gloss), var(--action-primary-bg);
       border-color: var(--action-primary-bg);
       color: var(--action-primary-fg);
+      box-shadow: var(--shadow-btn-solid);
     }
     .btn.primary:hover:not(:disabled) {
-      background: var(--action-primary-bg-hover);
+      background: var(--gloss), var(--action-primary-bg-hover);
       border-color: var(--action-primary-bg-hover);
+      box-shadow: var(--shadow-btn-solid-hover);
     }
     .btn.secondary {
-      background: var(--action-secondary-bg);
+      background: linear-gradient(180deg, var(--action-secondary-bg), var(--surface-soft));
       border-color: var(--action-secondary-border);
       color: var(--action-secondary-fg);
+      box-shadow: var(--shadow-btn);
     }
     .btn.secondary:hover:not(:disabled) {
       border-color: var(--action-secondary-border-hover);
+      box-shadow: var(--shadow-btn-hover);
     }
     .btn[data-tone='ok'] {
       --btn-tone: var(--status-ok);
@@ -152,13 +163,15 @@ const SAVED_MS = 1600;
       border-color: var(--btn-tone);
     }
     .btn.accent {
-      background: var(--action-accent-bg);
+      background: var(--gloss), var(--action-accent-bg);
       border-color: var(--action-accent-bg);
       color: var(--action-accent-fg);
+      box-shadow: var(--shadow-btn-solid);
     }
     .btn.accent:hover:not(:disabled) {
-      background: var(--action-accent-bg-hover);
+      background: var(--gloss), var(--action-accent-bg-hover);
       border-color: var(--action-accent-bg-hover);
+      box-shadow: var(--shadow-btn-solid-hover);
     }
     /* [loading] also disables the native <button>; excluding it keeps a loading button in its
        variant colors with the spinner instead of looking disabled. */
@@ -232,6 +245,7 @@ const SAVED_MS = 1600;
       color: var(--text-muted);
       background: var(--surface-sunken);
       border-color: var(--border-subtle);
+      box-shadow: none;
       cursor: default;
       pointer-events: none;
     }
