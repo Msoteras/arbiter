@@ -42,14 +42,16 @@ type Shape = 'text' | 'block' | 'table';
     </div>
   `,
   styles: `
+    /* Flex, not block: a consumer that only sets min-height still stretches a "block" bone. */
     :host {
-      display: block;
+      display: flex;
+      flex-direction: column;
     }
     .skeleton {
+      flex: 1 1 auto;
       display: flex;
       flex-direction: column;
       gap: var(--space-2);
-      height: 100%;
     }
     .bone {
       display: block;
