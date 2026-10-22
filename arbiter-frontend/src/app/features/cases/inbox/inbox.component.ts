@@ -4,10 +4,14 @@ import {
   Component,
   computed,
   effect,
+  DestroyRef,
+  ElementRef,
   HostListener,
+  afterRenderEffect,
   inject,
   signal,
   untracked,
+  viewChild,
 } from '@angular/core';
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, ParamMap, Router, RouterLink } from '@angular/router';
@@ -693,6 +697,31 @@ export class InboxComponent {
   }
 
   protected readonly opening = signal<number | null>(null);
+
+  private readonly tableScroll = viewChild<ElementRef<HTMLElement>>('tableScroll');
+  /** Columns hidden under the pinned analyst column: only then does its edge show. */
+  protected readonly moreRight = signal(false);
+
+  private readonly trackTableScroll = (() => {
+    const observer = new ResizeObserver(() => this.measureScroll());
+    inject(DestroyRef).onDestroy(() => observer.disconnect());
+    let observed: HTMLElement | null = null;
+    return afterRenderEffect(() => {
+      this.cases();
+      const el = this.tableScroll()?.nativeElement ?? null;
+      if (el !== observed) {
+        if (observed) observer.unobserve(observed);
+        if (el) observer.observe(el);
+        observed = el;
+      }
+      this.measureScroll();
+    });
+  })();
+
+  protected measureScroll(): void {
+    const el = this.tableScroll()?.nativeElement;
+    this.moreRight.set(!!el && el.scrollWidth - el.clientWidth - el.scrollLeft > 1);
+  }
 
   protected goTo(id: number): void {
     this.opening.set(id);

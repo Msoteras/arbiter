@@ -257,7 +257,12 @@
       }
     } @else {
       <app-card [flush]="true" class="table-card">
-        <div class="table-scroll">
+        <div
+          class="table-scroll"
+          #tableScroll
+          [class.more-right]="moreRight()"
+          (scroll)="measureScroll()"
+        >
           <table>
             <thead>
               <tr>
@@ -354,7 +359,7 @@
                           @if (!c.assignedAnalystId && canTake()) {
                             <app-button
                               class="grow"
-                              variant="secondary"
+                              variant="accent"
                               size="sm"
                               [block]="true"
                               [loading]="assigning() === c.id"
