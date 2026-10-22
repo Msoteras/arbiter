@@ -297,6 +297,20 @@ En el `.mdj`, un extremo sin cardinalidad cuenta como `1`.
 
 **Acción:** corregir los tres extremos.
 
+### 39 · Un usuario por persona en cada aseguradora
+
+Migración: `2026-10-21-un-usuario-por-persona.sql`. `usuario_id` pasa a ser UNIQUE en `asegurado`,
+`analista_siniestro` y `referente_aseguradora`: dentro de una aseguradora, un usuario es como mucho
+un perfil de cada uno.
+
+| Relación | En el `.mdj` | Debería ser |
+|---|---|---|
+| `usuario` — `asegurado` | `1—1` | `1—0..1` |
+| `usuario` — `analista_siniestro` | `1—0..*` | `1—0..1` |
+| `usuario` — `referente_aseguradora` | no está (entrada 35) | `1—0..1` |
+
+**Acción:** corregir los dos extremos y crear la relación del referente ya con `1—0..1`.
+
 ---
 
 ## Decisiones pendientes antes de tocar el `.mdj`
