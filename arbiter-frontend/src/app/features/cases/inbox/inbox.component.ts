@@ -64,7 +64,7 @@ import {
   MenuButtonComponent,
   MenuItem,
 } from '../../../shared/ui/menu-button/menu-button.component';
-import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
+import { SkeletonComponent } from '../../../shared/ui/skeleton/skeleton.component';
 import { TabOption, TabsComponent } from '../../../shared/ui/tabs/tabs.component';
 import { fadeStagger, staggerReveal } from '../../../shared/animations';
 
@@ -130,7 +130,7 @@ const LINK_PARAMS = [
     FraudGaugeComponent,
     EmptyStateComponent,
     MenuButtonComponent,
-    InlineLoadingComponent,
+    SkeletonComponent,
     TabsComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,

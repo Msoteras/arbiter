@@ -2,7 +2,9 @@
   <header class="det-header" @fadeInUp>
     <div class="det-header-row">
       <div class="identity">
-        <h1 class="t-page-title mono">Expediente #{{ d.id }}</h1>
+        <h1 class="t-page-title mono">
+          Expediente #{{ d.id }}
+        </h1>
         <app-badge [tone]="statusTone()" [title]="'Técnico'">{{ statusLabel() }}</app-badge>
         <app-badge variant="dashed" [title]="'Simplificado (vista del asegurado)'"
           >Asegurado ve: {{ simplifiedStatusLabel() }}</app-badge
@@ -1102,8 +1104,17 @@
     (latest)="lastMessage.set($event)"
   />
 } @else if (loading()) {
-  <div class="detail-loading">
-    <app-inline-loading [size]="32" message="Cargando expediente…" />
+  <!-- Same frame as the loaded screen, so nothing jumps when the case arrives. -->
+  <div class="det-header">
+    <app-skeleton class="sk-heading" [lines]="2" label="Cargando expediente" />
+  </div>
+  <div class="det-content" aria-hidden="true">
+    <div class="reasoning">
+      @for (card of [1, 2, 3]; track card) {
+        <app-skeleton class="sk-card" shape="block" />
+      }
+    </div>
+    <app-skeleton class="sk-body" shape="block" />
   </div>
 } @else if (hasError()) {
   <div class="state-wrap">

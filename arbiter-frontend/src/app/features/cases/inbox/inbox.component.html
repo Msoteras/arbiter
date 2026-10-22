@@ -37,7 +37,12 @@
   @if (firstLoad()) {
     <!-- First load hides the filters too; they only appear once there is data. -->
     <div class="first-load">
-      <app-inline-loading [size]="30" message="Cargando expedientes…" />
+      <app-skeleton
+        shape="table"
+        [rows]="8"
+        [columns]="columns.length"
+        label="Cargando expedientes"
+      />
     </div>
   } @else {
     @if (canAssign() || isReferent()) {
@@ -219,8 +224,13 @@
     }
 
     @if (loading()) {
-      <!-- On refetch the filters stay; only the table is replaced by the spinner. -->
-      <app-inline-loading message="Cargando expedientes…" />
+      <!-- On refetch the filters stay; only the table is replaced by the skeleton. -->
+      <app-skeleton
+        shape="table"
+        [rows]="8"
+        [columns]="columns.length"
+        label="Cargando expedientes"
+      />
     } @else if (hasError()) {
       <app-card>
         <p class="t-note">No se pudo cargar el listado. Probá de nuevo en unos minutos.</p>

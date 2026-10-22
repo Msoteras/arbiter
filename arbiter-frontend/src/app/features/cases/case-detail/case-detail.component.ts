@@ -132,6 +132,7 @@ import {
   MenuItem,
 } from '../../../shared/ui/menu-button/menu-button.component';
 import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
+import { SkeletonComponent } from '../../../shared/ui/skeleton/skeleton.component';
 import { TabOption, TabsComponent } from '../../../shared/ui/tabs/tabs.component';
 import { fadeInUp, staggerReveal, tabSwitch } from '../../../shared/animations';
 
@@ -206,6 +207,7 @@ interface BriefAlert {
     TextareaComponent,
     MenuButtonComponent,
     InlineLoadingComponent,
+    SkeletonComponent,
     TabsComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,

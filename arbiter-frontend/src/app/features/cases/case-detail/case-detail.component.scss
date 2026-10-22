@@ -441,11 +441,14 @@
   max-width: 760px;
 }
 
-.detail-loading {
-  min-height: 70vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.sk-heading {
+  max-width: 24rem;
+}
+.sk-card {
+  height: calc(var(--space-7) * 4);
+}
+.sk-body {
+  height: var(--chart-h-tall);
 }
 
 .note {

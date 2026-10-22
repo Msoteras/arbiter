@@ -83,6 +83,8 @@
   /* ===== Chrome layout =====
      Global because any sticky header on an internal screen must anchor below the fixed topbar. */
   --appbar-h: 56px;
+  /* Progress line pinned to the top of the viewport while a request is in flight. */
+  --activity-bar-h: 2px;
   /* Toast width (same as Sonner's): fits a title, a description line and an action. */
   --toast-w: 356px;
   /* Narrowest the referent home's setup checklist gets when it sits beside the main content. */

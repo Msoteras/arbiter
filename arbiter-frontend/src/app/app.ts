@@ -28,6 +28,8 @@ import { ToastStackComponent } from './shared/ui/toast/toast-stack.component';
 import { ToastService } from './shared/ui/toast/toast.service';
 import { NewClaimComponent } from './features/cases/new-claim/new-claim.component';
 import { GlobalSearchComponent } from './features/cases/global-search/global-search.component';
+import { ActivityBarComponent } from './shared/ui/activity-bar/activity-bar.component';
+import { silentRequest } from './core/cache/query-cache';
 
 /** Below this width the nav panel overlays the content instead of pushing it. */
 const OVERLAY_NAV_QUERY = '(max-width: 1024px)';
@@ -49,6 +51,7 @@ const UNREAD_POLL_MS = 30_000;
     GlobalSearchComponent,
     NotificationsPanelComponent,
     LoadingComponent,
+    ActivityBarComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   // CSS animations honor prefers-reduced-motion via media queries; @angular/animations don't, so
@@ -102,10 +105,10 @@ export class App {
 
     effect(() => {
       if (this.session.session()) {
-        this.notifications.refreshUnreadCount();
+        this.notifications.refreshUnreadCount(silentRequest());
       }
       if (this.canSeeMessages()) {
-        this.messages.inbox().subscribe({ error: () => undefined });
+        this.messages.inbox(silentRequest()).subscribe({ error: () => undefined });
       }
     });
 
@@ -118,10 +121,10 @@ export class App {
           return;
         }
         if (this.session.session()) {
-          this.notifications.refreshUnreadCount();
+          this.notifications.refreshUnreadCount(silentRequest());
         }
         if (this.canSeeMessages()) {
-          this.messages.inbox().subscribe({ error: () => undefined });
+          this.messages.inbox(silentRequest()).subscribe({ error: () => undefined });
         }
       });
   }
