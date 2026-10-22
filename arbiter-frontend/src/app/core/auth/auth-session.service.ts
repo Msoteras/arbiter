@@ -14,6 +14,8 @@ export interface AuthSession {
   insuredId: string | null;
   /** Null for roles without onboarding. */
   onboardingComplete: boolean | null;
+  /** Null for the insured. Missing in a session stored before the field existed. */
+  insurerName?: string | null;
 }
 
 /**

@@ -83,6 +83,7 @@ public class AuthService {
                 nombre,
                 apellido,
                 insuredId,
-                onboardingComplete);
+                onboardingComplete,
+                rol == UserRole.ASEGURADO ? null : primaryInsurer.map(Insurer::getName).orElse(null));
     }
 }

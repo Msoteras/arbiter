@@ -293,6 +293,12 @@ export class App {
     return `${firstName?.[0] ?? ''}${lastName?.[0] ?? ''}`.toUpperCase() || '—';
   }
 
+  /** Initials of the insurer's first two words: "Seguros del Sur" → "SD". */
+  protected monogram(insurerName: string): string {
+    const [first = '', second = ''] = insurerName.trim().split(/\s+/);
+    return `${first[0] ?? ''}${second[0] ?? ''}`.toUpperCase();
+  }
+
   /** Testing aid: walks the setup checklist again without touching the configuration. */
   protected readonly showOnboardingReset = signal(false);
   protected readonly resettingOnboarding = signal(false);

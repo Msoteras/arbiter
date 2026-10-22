@@ -111,7 +111,7 @@ public class InsuredProfileService {
                 token.token(), token.expiresAt(),
                 user.getId(), user.getEmail(), UserRole.ASEGURADO,
                 insured.getName(), insured.getSurname(), insured.getDni(),
-                insured.isOnboardingComplete());
+                insured.isOnboardingComplete(), null);
     }
 
     private ProfileResponse toProfileResponse(Insured insured) {

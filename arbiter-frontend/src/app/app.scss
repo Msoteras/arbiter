@@ -69,6 +69,37 @@
   letter-spacing: -0.02em;
 }
 
+.appbar-tenant {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding-left: var(--space-3);
+  border-left: 1px solid var(--chrome-hair);
+  min-width: 0;
+}
+.appbar-tenant-mark {
+  display: grid;
+  place-items: center;
+  width: var(--icon-btn-sm);
+  height: var(--icon-btn-sm);
+  border-radius: var(--radius-ctl);
+  background: var(--chrome-item-active);
+  color: var(--chrome-fg);
+  font-size: var(--font-size-2xs);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: 0.02em;
+}
+.appbar-tenant-name {
+  max-width: 16rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-medium);
+  color: var(--chrome-fg);
+}
+
 .appbar-nav {
   flex: none;
   display: flex;
@@ -376,7 +407,8 @@
 
 /* The brand name gives way before the search field has to shrink and truncate its placeholder. */
 @media (max-width: 900px) {
-  .appbar-brand-name {
+  .appbar-brand-name,
+  .appbar-tenant-name {
     display: none;
   }
 }

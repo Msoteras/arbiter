@@ -29,6 +29,8 @@ export interface LoginResponse {
   insuredId: string | null;
   /** Whether the insured already went through first-time onboarding. Null for other roles. */
   onboardingComplete: boolean | null;
+  /** Insurer the session works in. Null for the insured, whose cases may span several. */
+  insurerName: string | null;
 }
 
 @Injectable({ providedIn: 'root' })
