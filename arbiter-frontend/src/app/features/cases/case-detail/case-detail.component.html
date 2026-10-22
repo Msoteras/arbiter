@@ -5,7 +5,12 @@
         <h1 class="t-page-title mono">
           Expediente <span class="case-id">#{{ d.id }}</span>
         </h1>
-        <app-badge [tone]="statusTone()" [title]="'Técnico'">{{ statusLabel() }}</app-badge>
+        <app-badge
+          [tone]="statusTone()"
+          [busy]="d.status === 'PENDING_CLASSIFICATION'"
+          [title]="'Técnico'"
+          >{{ statusLabel() }}</app-badge
+        >
         <app-badge variant="dashed" [title]="'Simplificado (vista del asegurado)'"
           >Asegurado ve: {{ simplifiedStatusLabel() }}</app-badge
         >
@@ -49,6 +54,7 @@
         @if (classificationLabel()) {
           <p
             class="reco-value"
+            @fadeInUp
             [attr.data-tone]="classificationTone() !== 'neutral' ? classificationTone() : null"
           >
             {{ classificationLabel() }}
@@ -59,6 +65,12 @@
                 <button type="button" class="brief-link" (click)="viewAnalysis()">
                   Ver motivos ({{ analysisReasons().length }})
                 </button>
+              </p>
+            }
+            @if (modelRunLine(); as run) {
+              <p class="model-run mono">
+                <span class="sr-only">Registro de auditoría:</span>
+                {{ run }}
               </p>
             }
           } @else if (needsDocs()) {
@@ -79,6 +91,8 @@
               </app-info-tip>
             </p>
           }
+        } @else if (d.status === 'PENDING_CLASSIFICATION') {
+          <app-classification-progress [since]="classificationSince()" />
         } @else {
           <p class="nodata">El modelo todavía no generó una recomendación.</p>
         }

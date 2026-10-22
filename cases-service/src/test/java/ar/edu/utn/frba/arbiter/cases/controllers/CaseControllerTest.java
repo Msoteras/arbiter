@@ -384,7 +384,7 @@ class CaseControllerTest {
                         List.of("La tipografía del encabezado no coincide con el resto"),
                         List.of(new DocumentAnalysisSummary.Detail("N° de factura", "0001-00034521")),
                         "COMPLETE")),
-                List.of(), null, null
+                List.of(), null, null, null
         );
         when(caseService.getCase(1L, (String) null)).thenReturn(response);
 
@@ -522,7 +522,7 @@ class CaseControllerTest {
                 LocalDate.of(2026, 7, 13), DeadlinePriority.NONE,
                 null,
                 null,
-                List.of(), List.of(), null, null
+                List.of(), List.of(), null, null, null
         );
     }
 }

@@ -291,9 +291,11 @@
                     >
                   </td>
                   <td>
-                    <app-badge [tone]="caseStatusTone(c.status)">{{
-                      workStatusLabel(c)
-                    }}</app-badge>
+                    <app-badge
+                      [tone]="caseStatusTone(c.status)"
+                      [busy]="c.status === 'PENDING_CLASSIFICATION'"
+                      >{{ workStatusLabel(c) }}</app-badge
+                    >
                   </td>
                   <td>
                     @if (isClosed(c)) {

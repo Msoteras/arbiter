@@ -1115,7 +1115,8 @@ public class CaseServiceImpl implements CaseService {
                 documentAnalyses,
                 traceability.ruleResults(),
                 traceability.policySnapshot(),
-                repairProvider
+                repairProvider,
+                current.modelRun()
         );
         // Trimmed here, where every case response is built, so no endpoint can skip it.
         return accessPolicy.currentUserIsInsured() ? response.forInsured() : response;

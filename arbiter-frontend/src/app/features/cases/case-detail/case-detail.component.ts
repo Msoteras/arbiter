@@ -117,6 +117,9 @@ import { InfoTipComponent } from '../../../shared/ui/info-tip/info-tip.component
 import { EmptyStateComponent } from '../../../shared/ui/empty-state/empty-state.component';
 import { StatusTimelineComponent } from '../../../shared/ui/status-timeline/status-timeline.component';
 import { ForensicAnalysisComponent } from './forensic-analysis/forensic-analysis.component';
+import { ClassificationProgressComponent } from './classification-progress/classification-progress.component';
+import { silentRequest } from '../../../core/cache/query-cache';
+import { ToastService } from '../../../shared/ui/toast/toast.service';
 import { CaseDocumentsComponent } from '../case-documents/case-documents.component';
 import { CaseChatPopupComponent } from '../case-chat-popup/case-chat-popup.component';
 import { analystQuickReplies } from '../case-chat/quick-replies';
@@ -135,6 +138,9 @@ import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline
 import { SkeletonComponent } from '../../../shared/ui/skeleton/skeleton.component';
 import { TabOption, TabsComponent } from '../../../shared/ui/tabs/tabs.component';
 import { fadeInUp, staggerReveal, tabSwitch } from '../../../shared/animations';
+
+/** Classification lands within minutes; a quarter minute keeps the wait from feeling stuck. */
+const CLASSIFICATION_POLL_MS = 15_000;
 
 type LoadState =
   | { status: 'loading' }
@@ -196,6 +202,7 @@ interface BriefAlert {
     EmptyStateComponent,
     StatusTimelineComponent,
     ForensicAnalysisComponent,
+    ClassificationProgressComponent,
     CaseDocumentsComponent,
     CaseChatPopupComponent,
     CardComponent,
@@ -223,6 +230,7 @@ interface BriefAlert {
 export class CaseDetailComponent {
   private readonly route = inject(ActivatedRoute);
   private readonly service = inject(CaseService);
+  private readonly toast = inject(ToastService);
   private readonly caseNav = inject(CaseNavigationService);
   private readonly session = inject(AuthSessionService);
   private readonly users = inject(UserAdminService);
@@ -279,9 +287,63 @@ export class CaseDetailComponent {
   protected readonly loading = computed(() => this.state().status === 'loading');
   protected readonly hasError = computed(() => this.state().status === 'error');
 
+  /** A fresher copy fetched while the case classifies; dropped on every regular load. */
+  private readonly polled = linkedSignal<LoadState, CaseResponse | null>({
+    source: () => this.state(),
+    computation: () => null,
+  });
+
   protected readonly data = computed<CaseResponse | null>(() => {
     const s = this.state();
-    return s.status === 'ok' ? s.data : null;
+    const loaded = s.status === 'ok' ? s.data : null;
+    const polled = this.polled();
+    return loaded && polled?.id === loaded.id ? polled : loaded;
+  });
+
+  private readonly classifyingId = computed(() => {
+    const d = this.data();
+    return d?.status === 'PENDING_CLASSIFICATION' ? d.id : null;
+  });
+
+  /** "qwen3-vl:8b-instruct · classification-v7 · 21/10 14:32 · 41 s" for the AI card's footer. */
+  protected readonly modelRunLine = computed(() => {
+    const run = this.data()?.modelRun;
+    if (!run) return null;
+    const parts = [run.model, run.promptVersion, formatDateTime(run.analyzedAt)];
+    if (run.latencyMs != null) parts.push(`${Math.round(run.latencyMs / 1000)} s`);
+    return parts.join(' · ');
+  });
+
+  /** When the case entered classification: the latest move into it, or the claim itself. */
+  protected readonly classificationSince = computed(() => {
+    const d = this.data();
+    if (!d) return '';
+    const entered = (d.statusHistory ?? [])
+      .filter((t) => t.toStatus === 'PENDING_CLASSIFICATION')
+      .at(-1);
+    return entered?.changedAt ?? d.createdAt;
+  });
+
+  /**
+   * Classification is asynchronous: while it runs the case is re-read in the background, without
+   * the skeleton, so the recommendation shows up without reloading. Skipped while the tab is hidden.
+   */
+  private readonly pollClassification = effect((onCleanup) => {
+    const id = this.classifyingId();
+    if (id === null) return;
+    const timer = setInterval(() => {
+      if (document.visibilityState !== 'visible') return;
+      this.service.getById(id, null, silentRequest()).subscribe({
+        next: (fresh) => {
+          if (fresh.status !== 'PENDING_CLASSIFICATION') {
+            this.toast.show('Arbiter terminó de clasificar el expediente.', 'ok');
+          }
+          this.polled.set(fresh);
+        },
+        error: () => undefined,
+      });
+    }, CLASSIFICATION_POLL_MS);
+    onCleanup(() => clearInterval(timer));
   });
 
   protected readonly notFound = computed(() => {

@@ -344,13 +344,15 @@ interface Swatch {
         </div>
         <p class="sg-p">
           Con punto de semáforo (<span class="mono">tone</span>): solo el punto lleva color, el
-          texto sigue neutro.
+          texto sigue neutro. Con <span class="mono">busy</span> el punto late: el backend está
+          trabajando en ese estado (una clasificación en curso).
         </p>
         <div class="row">
           <app-badge tone="ok">Aprobado</app-badge>
           <app-badge tone="warning">Falta documentación</app-badge>
           <app-badge tone="danger">Rechazado</app-badge>
           <app-badge tone="info">En revisión</app-badge>
+          <app-badge tone="info" [busy]="true">Pendiente de clasificación</app-badge>
         </div>
       </section>
 
