@@ -17,5 +17,7 @@ public record LoginResponse(
         Boolean onboardingComplete,
         // Name of the insurer the session works in. Null for ASEGURADO: their cases may span
         // several insurers, so naming one would be wrong.
-        String insurerName
+        String insurerName,
+        // When the insurer's logo was uploaded; null without one, and for ASEGURADO.
+        Instant insurerLogoVersion
 ) {}

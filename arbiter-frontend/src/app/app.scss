@@ -90,6 +90,21 @@
   font-weight: var(--font-weight-bold);
   letter-spacing: 0.02em;
 }
+.appbar-tenant-plate {
+  display: flex;
+  align-items: center;
+  height: calc(var(--appbar-h) - var(--space-5));
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-ctl);
+  background: var(--surface);
+  box-shadow: var(--shadow-btn);
+}
+.appbar-tenant-logo {
+  display: block;
+  height: 100%;
+  max-width: calc(var(--space-7) * 4);
+  object-fit: contain;
+}
 .appbar-tenant-name {
   max-width: 16rem;
   overflow: hidden;

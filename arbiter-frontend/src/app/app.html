@@ -165,9 +165,17 @@
 
         @if (session.session()?.insurerName; as insurer) {
           <span class="appbar-tenant" [title]="insurer">
-            <span class="appbar-tenant-mark" aria-hidden="true">{{ monogram(insurer) }}</span>
-            <span class="sr-only">Aseguradora:</span>
-            <span class="appbar-tenant-name">{{ insurer }}</span>
+            @if (insurerLogo.logoUrl(); as logo) {
+              <!-- The logo usually carries the name: it stands alone, on a light plate so a dark
+                   mark still reads on the dark bar. -->
+              <span class="appbar-tenant-plate">
+                <img class="appbar-tenant-logo" [src]="logo" [alt]="insurer" />
+              </span>
+            } @else {
+              <span class="appbar-tenant-mark" aria-hidden="true">{{ monogram(insurer) }}</span>
+              <span class="sr-only">Aseguradora:</span>
+              <span class="appbar-tenant-name">{{ insurer }}</span>
+            }
           </span>
         }
 
@@ -334,6 +342,9 @@
             </a>
             <a routerLink="/insurer/settlements" routerLinkActive="active"
               ><span class="nav-dot"></span>Autorizaciones</a
+            >
+            <a routerLink="/insurer/brand" routerLinkActive="active"
+              ><span class="nav-dot"></span>Marca</a
             >
           }
         </nav>

@@ -1,0 +1,159 @@
+/* The shell adds no padding: each screen sets its own on :host. */
+:host {
+  display: block;
+  padding: var(--space-5);
+}
+
+.brand-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  max-width: calc(var(--space-7) * 24);
+}
+.page-head .t-page-title {
+  margin: 0;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: var(--space-5);
+  align-items: stretch;
+}
+@media (max-width: 760px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.preview-block .t-section-label {
+  margin: 0 0 var(--space-2);
+}
+
+/* A slice of the real app bar: the same chrome colors and sizes. */
+.bar-preview {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: var(--appbar-h);
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-card);
+  background: var(--chrome-bg);
+  color: var(--chrome-fg);
+  box-shadow: var(--shadow-card);
+}
+.bar-logo {
+  --logo-size: 1.4rem;
+}
+.bar-brand {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: -0.02em;
+}
+.bar-tenant {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 100%;
+  margin-left: var(--space-1);
+  padding-left: var(--space-3);
+  border-left: 1px solid var(--chrome-hair);
+  min-width: 0;
+}
+.plate {
+  display: flex;
+  align-items: center;
+  height: calc(var(--appbar-h) - var(--space-5));
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-ctl);
+  background: var(--surface);
+  box-shadow: var(--shadow-btn);
+  animation: plate-in var(--dur-3) var(--ease-out);
+}
+.plate img {
+  display: block;
+  height: 100%;
+  max-width: calc(var(--space-7) * 4);
+  object-fit: contain;
+}
+.mark {
+  display: grid;
+  place-items: center;
+  width: var(--icon-btn-sm);
+  height: var(--icon-btn-sm);
+  border-radius: var(--radius-ctl);
+  background: var(--chrome-item-active);
+  font-size: var(--font-size-2xs);
+  font-weight: var(--font-weight-bold);
+}
+.name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-medium);
+}
+@keyframes plate-in {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+}
+
+.drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  padding: var(--space-5) var(--space-4);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-card);
+  background: var(--surface-sunken);
+  text-align: center;
+  cursor: pointer;
+  transition:
+    border-color var(--dur-1) ease,
+    background-color var(--dur-1) ease,
+    box-shadow var(--dur-2) var(--ease-standard);
+}
+.drop:hover,
+.drop.dragging {
+  border-color: var(--border-focus);
+  background: var(--selected-bg);
+}
+.drop.dragging,
+.drop:focus-within {
+  border-color: var(--border-focus);
+  box-shadow: var(--focus-ring);
+}
+.drop-icon {
+  width: var(--icon-btn);
+  height: var(--icon-btn);
+  color: var(--accent-fg);
+}
+.drop-title {
+  font-weight: var(--font-weight-medium);
+  color: var(--text-primary);
+}
+
+.error {
+  margin: var(--space-3) 0 0;
+  color: var(--status-danger);
+  font-size: var(--font-size-sm);
+}
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .plate {
+    animation: none;
+  }
+  .drop {
+    transition: none;
+  }
+}

@@ -31,6 +31,8 @@ export interface LoginResponse {
   onboardingComplete: boolean | null;
   /** Insurer the session works in. Null for the insured, whose cases may span several. */
   insurerName: string | null;
+  /** When the insurer's logo was uploaded (ISO); null without one, and for the insured. */
+  insurerLogoVersion: string | null;
 }
 
 @Injectable({ providedIn: 'root' })

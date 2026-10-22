@@ -50,7 +50,7 @@ class AuthControllerTest {
     void login_validCredentials_returns200WithToken() throws Exception {
         LoginResponse response = new LoginResponse(
                 "signed.jwt.token", Instant.now().plusSeconds(3600), 2L,
-                "analista@arbiter.test", UserRole.ANALISTA_SINIESTROS, "Lucas", "Gómez", null, null, "Seguros Demo");
+                "analista@arbiter.test", UserRole.ANALISTA_SINIESTROS, "Lucas", "Gómez", null, null, "Seguros Demo", null);
         when(authService.login(any())).thenReturn(response);
 
         mockMvc.perform(post("/api/v1/auth/login")
@@ -124,7 +124,7 @@ class AuthControllerTest {
     void resetPassword_validToken_returnsAnAlreadyIssuedSession() throws Exception {
         LoginResponse session = new LoginResponse(
                 "signed.jwt.token", Instant.now().plusSeconds(3600), 2L,
-                "analista@arbiter.test", UserRole.ANALISTA_SINIESTROS, "Lucas", "Gómez", null, null, "Seguros Demo");
+                "analista@arbiter.test", UserRole.ANALISTA_SINIESTROS, "Lucas", "Gómez", null, null, "Seguros Demo", null);
         when(userService.resetPassword(anyString(), anyString())).thenReturn(session);
 
         mockMvc.perform(post("/api/v1/auth/reset-password")

@@ -278,6 +278,18 @@ BEGIN
             user_id         BIGINT       NOT NULL REFERENCES arbiter_common.users(id)
         )$ddl$, p_schema);
 
+    -- ─── insurer_logo ────────────────────────────────────────────────────────────
+    -- The insurer's logo, shown in the app bar of its people. Uploaded by the referent; one row
+    -- at most (id is always 1). Bytes in the database: it is small (≤ 256 KB) and read once per
+    -- session, so it doesn't justify a bucket.
+    EXECUTE format($ddl$
+        CREATE TABLE %I.insurer_logo (
+            id              SMALLINT     PRIMARY KEY DEFAULT 1 CHECK (id = 1),
+            content         BYTEA        NOT NULL,
+            content_type    VARCHAR(50)  NOT NULL,
+            updated_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+        )$ddl$, p_schema);
+
     -- ─── branch ──────────────────────────────────────────────────────────────────
     -- The insurer's own lines, under its own names. external_name is what the insurer database
     -- calls the line (poliza.rama): the match with incoming policies hangs off it, so renaming

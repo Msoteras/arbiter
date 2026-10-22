@@ -30,6 +30,7 @@ import { NewClaimComponent } from './features/cases/new-claim/new-claim.componen
 import { GlobalSearchComponent } from './features/cases/global-search/global-search.component';
 import { ActivityBarComponent } from './shared/ui/activity-bar/activity-bar.component';
 import { silentRequest } from './core/cache/query-cache';
+import { InsurerLogoService } from './core/services/insurer-logo.service';
 
 /** Below this width the nav panel overlays the content instead of pushing it. */
 const OVERLAY_NAV_QUERY = '(max-width: 1024px)';
@@ -69,6 +70,7 @@ export class App {
   protected readonly onboarding = inject(OnboardingService);
   private readonly toast = inject(ToastService);
   private readonly appReady = inject(AppReadyService);
+  protected readonly insurerLogo = inject(InsurerLogoService);
 
   private readonly reduceMotionMql =
     typeof window !== 'undefined' && window.matchMedia

@@ -10,6 +10,7 @@ import ar.edu.utn.frba.arbiter.common.enums.UserRole;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
@@ -22,6 +23,7 @@ public class AuthService {
     private final TenantResolver tenantResolver;
     private final TenantProfileService tenantProfileService;
     private final PasswordCipher passwordCipher;
+    private final InsurerLogoService insurerLogoService;
 
     /**
      * The envelope is opened here and not in {@link CredentialsAuthenticator}: it's about how the
@@ -54,6 +56,7 @@ public class AuthService {
         String apellido = null;
         String insuredId = null;
         Boolean onboardingComplete = null;
+        Instant logoVersion = null;
         String tenantSchema = primaryInsurer.map(Insurer::getSchemaName).orElse(null);
 
         if (tenantSchema != null) {
@@ -65,6 +68,9 @@ public class AuthService {
                     apellido = profile.get().surname();
                     insuredId = profile.get().dni();
                     onboardingComplete = profile.get().onboardingComplete();
+                }
+                if (rol != UserRole.ASEGURADO) {
+                    logoVersion = insurerLogoService.version().orElse(null);
                 }
             } finally {
                 TenantContext.clear();
@@ -84,6 +90,7 @@ public class AuthService {
                 apellido,
                 insuredId,
                 onboardingComplete,
-                rol == UserRole.ASEGURADO ? null : primaryInsurer.map(Insurer::getName).orElse(null));
+                rol == UserRole.ASEGURADO ? null : primaryInsurer.map(Insurer::getName).orElse(null),
+                logoVersion);
     }
 }
