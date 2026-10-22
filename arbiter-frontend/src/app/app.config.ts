@@ -4,9 +4,10 @@ import {
   ApplicationConfig,
   LOCALE_ID,
   provideBrowserGlobalErrorListeners,
+  inject,
   provideZoneChangeDetection,
 } from '@angular/core';
-import { provideRouter } from '@angular/router';
+import { Router, provideRouter, withViewTransitions } from '@angular/router';
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { provideAnimations } from '@angular/platform-browser/animations';
 import { provideEchartsCore } from 'ngx-echarts';
@@ -27,7 +28,26 @@ export const appConfig: ApplicationConfig = {
     { provide: LOCALE_ID, useValue: 'es-AR' },
     provideBrowserGlobalErrorListeners(),
     provideZoneChangeDetection({ eventCoalescing: true }),
-    provideRouter(routes),
+    provideRouter(
+      routes,
+      withViewTransitions({
+        skipInitialTransition: true,
+        // A filter or a tab that only rewrites the query is the same screen: no crossfade.
+        onViewTransitionCreated: ({ transition }) => {
+          const router = inject(Router);
+          const target = router.currentNavigation()?.finalUrl;
+          const sameScreen =
+            target &&
+            router.isActive(target, {
+              paths: 'exact',
+              matrixParams: 'exact',
+              queryParams: 'ignored',
+              fragment: 'ignored',
+            });
+          if (sameScreen) transition.skipTransition();
+        },
+      }),
+    ),
     provideHttpClient(
       withInterceptors([
         httpActivityInterceptor,

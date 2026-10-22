@@ -29,6 +29,11 @@
 .identity h1 {
   margin: 0;
 }
+/* Target of the inbox row's id when the case opens (view transition). */
+.case-id {
+  display: inline-block;
+  view-transition-name: case-id;
+}
 .subtitle {
   margin: var(--space-2) 0 0;
   font-size: var(--font-size-body);

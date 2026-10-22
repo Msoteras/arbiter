@@ -692,7 +692,10 @@ export class InboxComponent {
     this.page.set(0);
   }
 
+  protected readonly opening = signal<number | null>(null);
+
   protected goTo(id: number): void {
+    this.opening.set(id);
     this.router.navigate(['/cases', id]);
   }
 

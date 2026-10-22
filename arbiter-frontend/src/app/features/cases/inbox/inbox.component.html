@@ -275,10 +275,12 @@
               @for (c of cases(); track c.id) {
                 <tr class="row-link" (click)="goTo(c.id)">
                   <td>
+                    <!-- The opened row's id morphs into the detail title (view transition). -->
                     <a
                       class="mono id-link"
                       [routerLink]="['/cases', c.id]"
-                      (click)="$event.stopPropagation()"
+                      [style.view-transition-name]="opening() === c.id ? 'case-id' : null"
+                      (click)="$event.stopPropagation(); opening.set(c.id)"
                       >#{{ c.id }}</a
                     >
                   </td>

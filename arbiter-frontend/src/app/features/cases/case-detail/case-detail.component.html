@@ -3,7 +3,7 @@
     <div class="det-header-row">
       <div class="identity">
         <h1 class="t-page-title mono">
-          Expediente #{{ d.id }}
+          Expediente <span class="case-id">#{{ d.id }}</span>
         </h1>
         <app-badge [tone]="statusTone()" [title]="'Técnico'">{{ statusLabel() }}</app-badge>
         <app-badge variant="dashed" [title]="'Simplificado (vista del asegurado)'"
