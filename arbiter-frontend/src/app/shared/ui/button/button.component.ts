@@ -48,6 +48,7 @@ const SAVED_MS = 1600;
       [class.saved]="phase() === 'saved'"
       [type]="type()"
       [disabled]="disabled() || loading() || phase() !== 'idle'"
+      (pointerdown)="ripple($event)"
     >
       @if (loading()) {
         <app-spinner [size]="16" />
@@ -162,16 +163,46 @@ const SAVED_MS = 1600;
     .btn.secondary[data-tone]:hover:not(:disabled) {
       border-color: var(--btn-tone);
     }
+    /* Flat on purpose: the teal CTA reads as one clean color (it repeats down table rows). */
     .btn.accent {
-      background: var(--gloss), var(--action-accent-bg);
+      background: var(--action-accent-bg);
       border-color: var(--action-accent-bg);
       color: var(--action-accent-fg);
-      box-shadow: var(--shadow-btn-solid);
+      box-shadow: var(--shadow-btn);
     }
     .btn.accent:hover:not(:disabled) {
-      background: var(--gloss), var(--action-accent-bg-hover);
+      background: var(--action-accent-bg-hover);
       border-color: var(--action-accent-bg-hover);
-      box-shadow: var(--shadow-btn-solid-hover);
+    }
+    /* Click ripple: a disc of the text color growing from the pointer, then fading. */
+    .btn {
+      position: relative;
+      overflow: hidden;
+      isolation: isolate;
+    }
+    .ripple {
+      position: absolute;
+      z-index: -1;
+      width: var(--ripple-size);
+      height: var(--ripple-size);
+      margin: calc(var(--ripple-size) / -2) 0 0 calc(var(--ripple-size) / -2);
+      border-radius: var(--radius-pill);
+      background: currentColor;
+      opacity: 0.22;
+      transform: scale(0);
+      animation: ripple var(--dur-3) var(--ease-out) forwards;
+      pointer-events: none;
+    }
+    @keyframes ripple {
+      to {
+        transform: scale(1);
+        opacity: 0;
+      }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .ripple {
+        display: none;
+      }
     }
     /* [loading] also disables the native <button>; excluding it keeps a loading button in its
        variant colors with the spinner instead of looking disabled. */
@@ -267,6 +298,25 @@ export class ButtonComponent {
 
   protected readonly phase = signal<SavePhase>('idle');
   private settleTimer: ReturnType<typeof setTimeout> | undefined;
+
+  /** Spawned at the pointer and removed when its animation ends; plain DOM, no change detection. */
+  protected ripple(event: PointerEvent): void {
+    const button = event.currentTarget as HTMLElement;
+    const rect = button.getBoundingClientRect();
+    const dot = document.createElement('span');
+    dot.className = 'ripple';
+    // Created outside the template, so it lacks the attribute the scoped styles match on.
+    for (const attr of Array.from(button.attributes)) {
+      if (attr.name.startsWith('_ngcontent')) dot.setAttribute(attr.name, '');
+    }
+    // Big enough to cover the farthest corner from the pointer.
+    const size = Math.hypot(rect.width, rect.height) * 2;
+    dot.style.setProperty('--ripple-size', `${size}px`);
+    dot.style.left = `${event.clientX - rect.left}px`;
+    dot.style.top = `${event.clientY - rect.top}px`;
+    dot.addEventListener('animationend', () => dot.remove());
+    button.appendChild(dot);
+  }
 
   constructor() {
     effect(() => {

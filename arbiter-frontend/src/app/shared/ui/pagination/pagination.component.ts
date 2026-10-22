@@ -5,54 +5,72 @@ import { ChangeDetectionStrategy, Component, computed, input, output } from '@an
   selector: 'app-pagination',
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="pager">
-      <span class="t-note summary">
+    <nav class="pager" aria-label="Paginación">
+      <span class="summary">
         @if (totalElements() === 0) {
           Sin resultados
         } @else {
-          {{ rangeStart() }}–{{ rangeEnd() }} de {{ totalElements() }}
+          <strong class="tabular">{{ rangeStart() }}–{{ rangeEnd() }}</strong> de
+          <strong class="tabular">{{ totalElements() }}</strong>
         }
       </span>
 
       <div class="controls">
-        <label class="size-picker">
-          <span class="t-note">Por página</span>
-          <select
-            class="size-select"
-            [value]="size()"
-            (change)="sizeChange.emit(+$any($event.target).value)"
-          >
+        <div class="size-picker" role="group" aria-label="Expedientes por página">
+          <span class="size-label">Por página</span>
+          <div class="segmented">
             @for (s of sizeOptions(); track s) {
-              <!-- [selected] as well as the select's [value]: the native <select> renders before
-                   its options and would otherwise fall back to the first one. -->
-              <option [value]="s" [selected]="s === size()">{{ s }}</option>
+              <button
+                type="button"
+                class="seg"
+                [class.active]="s === size()"
+                [attr.aria-pressed]="s === size()"
+                (click)="s !== size() && sizeChange.emit(s)"
+              >
+                {{ s }}
+              </button>
             }
-          </select>
-        </label>
+          </div>
+        </div>
 
-        <button
-          type="button"
-          class="nav-btn"
-          [disabled]="page() === 0"
-          (click)="pageChange.emit(page() - 1)"
-        >
-          ‹ Anterior
-        </button>
-
-        <span class="t-note page-indicator"
-          >Página {{ page() + 1 }} de {{ totalPages() || 1 }}</span
-        >
-
-        <button
-          type="button"
-          class="nav-btn"
-          [disabled]="page() + 1 >= totalPages()"
-          (click)="pageChange.emit(page() + 1)"
-        >
-          Siguiente ›
-        </button>
+        <div class="segmented pages">
+          <button
+            type="button"
+            class="seg arrow"
+            aria-label="Página anterior"
+            [disabled]="page() === 0"
+            (click)="pageChange.emit(page() - 1)"
+          >
+            ‹
+          </button>
+          @for (p of pageItems(); track $index) {
+            @if (p === null) {
+              <span class="gap" aria-hidden="true">…</span>
+            } @else {
+              <button
+                type="button"
+                class="seg"
+                [class.active]="p === page()"
+                [attr.aria-current]="p === page() ? 'page' : null"
+                [attr.aria-label]="'Página ' + (p + 1)"
+                (click)="p !== page() && pageChange.emit(p)"
+              >
+                {{ p + 1 }}
+              </button>
+            }
+          }
+          <button
+            type="button"
+            class="seg arrow"
+            aria-label="Página siguiente"
+            [disabled]="page() + 1 >= pageCount()"
+            (click)="pageChange.emit(page() + 1)"
+          >
+            ›
+          </button>
+        </div>
       </div>
-    </div>
+    </nav>
   `,
   styles: `
     @use 'media';
@@ -68,10 +86,18 @@ import { ChangeDetectionStrategy, Component, computed, input, output } from '@an
       justify-content: space-between;
       gap: var(--space-3);
     }
+    .summary {
+      font-size: var(--font-size-sm);
+      color: var(--text-muted);
+    }
+    .summary strong {
+      color: var(--text-primary);
+      font-weight: var(--font-weight-medium);
+    }
     .controls {
       display: flex;
       align-items: center;
-      gap: var(--space-3);
+      gap: var(--space-4);
       flex-wrap: wrap;
     }
     .size-picker {
@@ -79,40 +105,79 @@ import { ChangeDetectionStrategy, Component, computed, input, output } from '@an
       align-items: center;
       gap: var(--space-2);
     }
-    .size-select {
-      font: inherit;
+    .size-label {
       font-size: var(--font-size-sm);
-      padding: var(--space-1) var(--space-2);
-      border: 1px solid var(--border-control);
-      border-radius: var(--radius-ctl);
-      background: var(--surface);
-      color: var(--text-secondary);
+      color: var(--text-muted);
     }
-    .nav-btn {
-      font: inherit;
-      font-size: var(--font-size-sm);
-      padding: var(--space-1) var(--space-3);
+
+    /* One raised strip; the selected segment is a teal pill inside it. */
+    .segmented {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-1);
+      padding: var(--space-1);
       border: 1px solid var(--border-control);
       border-radius: var(--radius-ctl);
-      background: var(--surface);
+      background: linear-gradient(180deg, var(--surface), var(--surface-soft));
+      box-shadow: var(--shadow-btn);
+    }
+    .seg {
+      min-width: calc(var(--space-6) - var(--space-1));
+      padding: var(--space-1) var(--space-2);
+      border: 1px solid transparent;
+      border-radius: calc(var(--radius-ctl) - var(--space-1) / 2);
+      background: transparent;
+      font: inherit;
+      font-size: var(--font-size-sm);
+      font-variant-numeric: tabular-nums;
       color: var(--text-secondary);
       cursor: pointer;
+      transition:
+        background-color var(--dur-1) ease,
+        color var(--dur-1) ease,
+        box-shadow var(--dur-2) var(--ease-standard);
     }
-    .nav-btn:hover:not(:disabled) {
-      border-color: var(--action-secondary-border-hover);
+    .seg:hover:not(:disabled):not(.active) {
+      background: color-mix(in srgb, var(--text-primary) 6%, transparent);
+      color: var(--text-primary);
     }
-    .nav-btn:disabled {
-      opacity: 0.4;
-      cursor: not-allowed;
+    .seg:active:not(:disabled) {
+      box-shadow: var(--shadow-pressed);
     }
-    .page-indicator {
-      white-space: nowrap;
+    .seg:focus-visible {
+      outline: none;
+      box-shadow: var(--focus-ring);
+    }
+    .seg.active {
+      border-color: var(--selected-border);
+      background: var(--selected-bg);
+      color: var(--accent-fg);
+      font-weight: var(--font-weight-medium);
+      cursor: default;
+    }
+    .seg.arrow {
+      font-size: var(--font-size-md);
+      line-height: 1;
+    }
+    .seg:disabled {
+      color: var(--text-muted);
+      opacity: 0.45;
+      cursor: default;
+    }
+    .gap {
+      padding: 0 var(--space-1);
+      color: var(--text-muted);
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .seg {
+        transition: none;
+      }
     }
 
     @include media.touch {
-      .nav-btn,
-      .size-select {
+      .seg {
         min-height: var(--touch-target);
+        min-width: var(--touch-target);
       }
     }
     @include media.phone {
@@ -121,16 +186,7 @@ import { ChangeDetectionStrategy, Component, computed, input, output } from '@an
         width: 100%;
       }
       .controls {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-      }
-      .size-picker,
-      .page-indicator {
-        grid-column: 1 / -1;
-      }
-      .page-indicator {
-        text-align: center;
-        order: -1;
+        justify-content: space-between;
       }
     }
   `,
@@ -145,8 +201,25 @@ export class PaginationComponent {
   readonly pageChange = output<number>();
   readonly sizeChange = output<number>();
 
+  protected readonly pageCount = computed(() => Math.max(1, this.totalPages()));
+
   protected readonly rangeStart = computed(() => this.page() * this.size() + 1);
   protected readonly rangeEnd = computed(() =>
     Math.min((this.page() + 1) * this.size(), this.totalElements()),
   );
+
+  /** First, last and the neighbors of the current page; `null` where pages are skipped. */
+  protected readonly pageItems = computed<(number | null)[]>(() => {
+    const total = this.pageCount();
+    const current = this.page();
+    const shown = [...new Set([0, current - 1, current, current + 1, total - 1])]
+      .filter((p) => p >= 0 && p < total)
+      .sort((a, b) => a - b);
+    const items: (number | null)[] = [];
+    shown.forEach((p, i) => {
+      if (i > 0 && p - shown[i - 1] > 1) items.push(null);
+      items.push(p);
+    });
+    return items;
+  });
 }
