@@ -32,7 +32,7 @@ import { chatDayLabel, formatTime } from '../../../core/util/datetime';
 import { CardComponent } from '../../../shared/ui/card/card.component';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { TextareaComponent } from '../../../shared/ui/textarea/textarea.component';
-import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
+import { SkeletonComponent } from '../../../shared/ui/skeleton/skeleton.component';
 import { QuickReply } from './quick-replies';
 
 type ThreadRow =
@@ -55,12 +55,20 @@ const POLL_MS = 60_000;
 @Component({
   selector: 'app-case-chat',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, CardComponent, ButtonComponent, TextareaComponent, InlineLoadingComponent],
+  imports: [RouterLink, CardComponent, ButtonComponent, TextareaComponent, SkeletonComponent],
   host: { '[class.full-height]': 'fullHeight()' },
   templateUrl: './case-chat.component.html',
   styleUrl: './case-chat.component.scss',
 })
 export class CaseChatComponent {
+  /** The loading thread: a few bubbles from each side, of varied length. */
+  protected readonly skeletonBubbles = [
+    { mine: false, width: 72, tall: true },
+    { mine: false, width: 48, tall: false },
+    { mine: true, width: 64, tall: false },
+    { mine: false, width: 84, tall: true },
+    { mine: true, width: 42, tall: false },
+  ];
   private readonly service = inject(CaseMessagesService);
   private readonly socket = inject(CaseMessagesSocketService);
   private readonly destroyRef = inject(DestroyRef);
