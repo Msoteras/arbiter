@@ -55,7 +55,7 @@ const UNREAD_POLL_MS = 30_000;
   // they are disabled for the whole tree here.
   host: { '[@.disabled]': 'reduceMotion()' },
   templateUrl: './app.html',
-  styleUrl: './app.scss',
+  styleUrls: ['./app.scss', './app-portal.scss'],
 })
 export class App {
   private readonly router = inject(Router);
