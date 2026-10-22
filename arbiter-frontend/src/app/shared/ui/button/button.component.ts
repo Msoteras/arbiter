@@ -88,6 +88,22 @@ const SAVED_MS = 1600;
       border-radius: var(--radius-ctl);
       border: 1px solid transparent;
       white-space: nowrap;
+      transition:
+        background-color var(--dur-1) ease,
+        border-color var(--dur-1) ease,
+        transform var(--dur-1) var(--ease-standard);
+    }
+    /* Press feedback: the click registers even when the response takes a while. */
+    .btn:active:not(:disabled) {
+      transform: scale(0.97);
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .btn {
+        transition: none;
+      }
+      .btn:active:not(:disabled) {
+        transform: none;
+      }
     }
     .btn.loading {
       display: inline-flex;
