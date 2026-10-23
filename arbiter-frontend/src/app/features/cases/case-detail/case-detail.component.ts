@@ -670,6 +670,22 @@ export class CaseDetailComponent {
    * Only current policies are listed, so the claim's policy is missing if it expired after the
    * claim; the title is omitted then.
    */
+  /** "4 pólizas · todas al día", or how many are in arrears. */
+  protected readonly policiesSummary = computed(() => {
+    const policies = this.insuredPolicies();
+    const inArrears = policies.filter((p) => !p.upToDate).length;
+    const count = policies.length === 1 ? '1 póliza' : `${policies.length} pólizas`;
+    const payment =
+      inArrears === 0
+        ? policies.length === 1
+          ? 'al día'
+          : 'todas al día'
+        : `${inArrears} en mora`;
+    return `${count} · ${payment}`;
+  });
+
+  protected readonly initialsOf = initialsOf;
+
   protected readonly policyGroups = computed<{ heading: string; policies: Policy[] }[]>(() => {
     const amountValue = this.data()?.policyNumber;
     const allPolicies = this.insuredPolicies();
