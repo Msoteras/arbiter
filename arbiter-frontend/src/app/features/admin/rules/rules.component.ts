@@ -1,3 +1,4 @@
+import { NgTemplateOutlet } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
 import {
   ChangeDetectionStrategy,
@@ -65,6 +66,7 @@ import { SaveBarComponent } from '../../../shared/ui/save-bar/save-bar.component
 import { MonthsInputComponent } from './months-input.component';
 import { StringListEditorComponent } from './string-list-editor.component';
 import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
+import { SkeletonComponent } from '../../../shared/ui/skeleton/skeleton.component';
 import { InfoTipComponent } from '../../../shared/ui/info-tip/info-tip.component';
 import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
 import { SwitchComponent } from '../../../shared/ui/switch/switch.component';
@@ -117,6 +119,8 @@ type GeneralView =
     StringListEditorComponent,
     MonthsInputComponent,
     InlineLoadingComponent,
+    SkeletonComponent,
+    NgTemplateOutlet,
     InfoTipComponent,
     BadgeComponent,
     SwitchComponent,
