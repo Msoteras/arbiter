@@ -347,15 +347,6 @@ export class InboxComponent {
   protected readonly loading = computed(() => this.state().status === 'loading');
   protected readonly hasError = computed(() => this.state().status === 'error');
 
-  // Tells the first load (spinner only) apart from refetches (filters stay, only the table is replaced).
-  protected readonly hasLoaded = signal(false);
-  private readonly latchLoaded = effect(() => {
-    if (!this.loading()) {
-      this.hasLoaded.set(true);
-    }
-  });
-  protected readonly firstLoad = computed(() => this.loading() && !this.hasLoaded());
-
   /**
    * The last page that arrived. While the next one loads (a page, a filter) it keeps the totals, so
    * the pager doesn't disappear, and sizes the skeleton to the rows it replaces.
@@ -388,7 +379,7 @@ export class InboxComponent {
   );
 
   /** Lens counts honor the current filters: how many of what you're looking at, not absolute totals. */
-  private readonly counts = toSignal(
+  private readonly summary = toSignal<LensSummary | null>(
     toObservable(
       computed(() => ({
         filters: this.activeFilters(),
@@ -399,10 +390,14 @@ export class InboxComponent {
         this.service.lensSummary(filters).pipe(catchError(() => of(NO_SUMMARY))),
       ),
     ),
-    { initialValue: NO_SUMMARY },
+    { initialValue: null },
   );
+  private readonly counts = computed(() => this.summary() ?? NO_SUMMARY);
+  /** Until the first summary arrives the tabs show no number: a 0 would read as an empty inbox. */
+  protected readonly countsReady = computed(() => this.summary() !== null);
 
-  protected lifecycleCount(lifecycle: Lifecycle): number {
+  protected lifecycleCount(lifecycle: Lifecycle): number | null {
+    if (!this.countsReady()) return null;
     const row = this.counts()[lifecycle];
     const ownership = this.ownership();
     return ownership ? row[ownership] : row.total;

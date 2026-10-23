@@ -11,398 +11,387 @@
         </p>
       }
     </div>
-    @if (hasLoaded()) {
-      <app-menu-button
-        [items]="exportOptions"
-        [disabled]="exporting() || isEmpty()"
-        align="end"
-        (itemSelected)="exportAs($event)"
-      >
-        <span class="btn-with-icon">
-          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-            <path
-              d="M8 2v8m0 0 3-3m-3 3L5 7M3 13h10"
-              stroke="currentColor"
-              stroke-width="1.5"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            />
-          </svg>
-          {{ exporting() ? 'Exportando…' : 'Exportar' }}
-        </span>
-      </app-menu-button>
-    }
+    <app-menu-button
+      [items]="exportOptions"
+      [disabled]="exporting() || loading() || isEmpty()"
+      align="end"
+      (itemSelected)="exportAs($event)"
+    >
+      <span class="btn-with-icon">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+          <path
+            d="M8 2v8m0 0 3-3m-3 3L5 7M3 13h10"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+        </svg>
+        {{ exporting() ? 'Exportando…' : 'Exportar' }}
+      </span>
+    </app-menu-button>
   </header>
 
-  @if (firstLoad()) {
-    <!-- First load hides the filters too; they only appear once there is data. -->
-    <div class="first-load">
-      <app-skeleton
-        shape="table"
-        [rows]="8"
-        [columns]="columns.length"
-        note="Cargando expedientes…"
-      />
-    </div>
-  } @else {
-    <!-- Every way of narrowing the list, in one raised panel above the table. -->
-    <section class="controls" aria-label="Filtrar la bandeja">
-      @if (canAssign() || isReferent()) {
-        <app-tabs
-          class="lens"
-          [tabs]="lifecycleTabOptions()"
-          [value]="lifecycle()"
-          (valueChange)="setLifecycle($any($event))"
-          ariaLabel="Ciclo de vida"
-        >
-          <span class="lens-divider" aria-hidden="true"></span>
-          <div class="lens-group" role="group" aria-label="Pertenencia">
-            @for (tab of ownershipTabs(); track tab.value) {
-              <button
-                type="button"
-                class="lens-tab"
-                [class.lens-tab--alert]="tab.value === 'fraud'"
-                [class.active]="ownership() === tab.value"
-                [attr.aria-pressed]="ownership() === tab.value"
-                (click)="toggleOwnership(tab.value)"
-              >
-                @if (tab.value === 'fraud') {
-                  <span class="lens-alert-mark" aria-hidden="true">▲</span>
-                }
-                {{ tab.label }} <span class="lens-count">{{ ownershipCount(tab.value) }}</span>
-                @if (ownership() === tab.value) {
-                  <span class="lens-clear" aria-hidden="true">✕</span>
-                }
-              </button>
-            }
-          </div>
-        </app-tabs>
-      }
-
-      @if (assignError()) {
-        <app-card
-          ><p class="t-note">{{ assignError() }}</p></app-card
-        >
-      }
-
-      <div class="toolbar">
-        <app-input
-          class="search"
-          [value]="qDraft()"
-          (valueChange)="onSearchInput($event)"
-          placeholder="Buscar por N° de expediente, asegurado o N° de póliza…"
-        />
-
-        @if (hasNewer()) {
-          <app-button variant="secondary" size="sm" (click)="applyNewer()">Actualizar</app-button>
-        }
-
-        <div class="filters-anchor">
-          <app-button variant="secondary" (click)="toggleFilters()">
-            <span class="filters-btn">
-              <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                <path
-                  d="M2 3.5h12M4.5 8h7M6.5 12.5h3"
-                  stroke="currentColor"
-                  stroke-width="1.5"
-                  stroke-linecap="round"
-                />
-              </svg>
-              Filtros
-              @if (activeFilterCount() > 0) {
-                <span class="filters-badge">{{ activeFilterCount() }}</span>
+  <!-- Every way of narrowing the list, in one raised panel above the table. -->
+  <section class="controls" aria-label="Filtrar la bandeja">
+    @if (canAssign() || isReferent()) {
+      <app-tabs
+        class="lens"
+        [tabs]="lifecycleTabOptions()"
+        [value]="lifecycle()"
+        (valueChange)="setLifecycle($any($event))"
+        ariaLabel="Ciclo de vida"
+      >
+        <span class="lens-divider" aria-hidden="true"></span>
+        <div class="lens-group" role="group" aria-label="Pertenencia">
+          @for (tab of ownershipTabs(); track tab.value) {
+            <button
+              type="button"
+              class="lens-tab"
+              [class.lens-tab--alert]="tab.value === 'fraud'"
+              [class.active]="ownership() === tab.value"
+              [attr.aria-pressed]="ownership() === tab.value"
+              (click)="toggleOwnership(tab.value)"
+            >
+              @if (tab.value === 'fraud') {
+                <span class="lens-alert-mark" aria-hidden="true">▲</span>
               }
-            </span>
-          </app-button>
-
-          @if (filtersOpen()) {
-            <div class="filters-pop" role="dialog" aria-label="Filtrar expedientes">
-              <div class="filters-pop-head">
-                <span class="filters-pop-title">Filtrar expedientes</span>
-                <button
-                  type="button"
-                  class="filters-pop-close"
-                  aria-label="Cerrar"
-                  (click)="closeFilters()"
-                >
-                  ✕
-                </button>
-              </div>
-
-              <div class="filters-pop-grid">
-                <label class="filter-field">
-                  <span class="t-field-label">Estado</span>
-                  <app-select
-                    [value]="draftStatus()"
-                    (valueChange)="draftStatus.set($event)"
-                    [options]="statusOptions"
-                    placeholder="Todos los estados"
-                  />
-                </label>
-
-                <label class="filter-field">
-                  <span class="t-field-label">Tipo de siniestro</span>
-                  <app-select
-                    [value]="draftClaimCause()"
-                    (valueChange)="draftClaimCause.set($event)"
-                    [options]="claimCauseOptions()"
-                    placeholder="Todos los tipos"
-                  />
-                </label>
-
-                <label class="filter-field">
-                  <span class="t-field-label">Score de riesgo de fraude</span>
-                  <app-select
-                    [value]="draftRiskBand()"
-                    (valueChange)="draftRiskBand.set($event)"
-                    [options]="riskBandOptions"
-                    placeholder="Todos los niveles"
-                  />
-                </label>
-
-                @if (isReferent()) {
-                  <label class="filter-field">
-                    <span class="t-field-label">Analista</span>
-                    <app-select
-                      [value]="draftAnalyst()"
-                      (valueChange)="draftAnalyst.set($event)"
-                      [options]="analystOptions()"
-                      placeholder="Todos los analistas"
-                    />
-                  </label>
-                }
-
-                <label class="filter-field">
-                  <span class="t-field-label">Fecha del hecho — desde</span>
-                  <app-input
-                    type="date"
-                    [value]="draftDateFrom()"
-                    (valueChange)="draftDateFrom.set($event)"
-                    (enter)="applyFilters()"
-                  />
-                </label>
-
-                <label class="filter-field">
-                  <span class="t-field-label">Fecha del hecho — hasta</span>
-                  <app-input
-                    type="date"
-                    [value]="draftDateTo()"
-                    (valueChange)="draftDateTo.set($event)"
-                    (enter)="applyFilters()"
-                  />
-                </label>
-
-                <label class="filter-field">
-                  <span class="t-field-label">Seguimiento</span>
-                  <app-select
-                    [value]="draftFollowUp()"
-                    (valueChange)="draftFollowUp.set($event)"
-                    [options]="followUpOptions"
-                    placeholder="Todos"
-                  />
-                </label>
-              </div>
-
-              <div class="filters-pop-foot">
-                <app-button variant="secondary" size="sm" (click)="clearDraft()">
-                  Limpiar filtros
-                </app-button>
-                <app-button size="sm" (click)="applyFilters()">Aplicar</app-button>
-              </div>
-            </div>
-          }
-        </div>
-      </div>
-
-      @if (activeChips().length > 0) {
-        <div class="active-chips">
-          @for (chip of activeChips(); track chip.key) {
-            <button type="button" class="chip" (click)="removeChip(chip.key)">
-              {{ chip.label }} <span class="chip-x" aria-hidden="true">✕</span>
+              {{ tab.label }}
+              @if (countsReady()) {
+                <span class="lens-count">{{ ownershipCount(tab.value) }}</span>
+              }
+              @if (ownership() === tab.value) {
+                <span class="lens-clear" aria-hidden="true">✕</span>
+              }
             </button>
           }
-          <button type="button" class="chip-clear" (click)="clearAllChips()">Limpiar todo</button>
         </div>
-      }
-    </section>
+      </app-tabs>
+    }
 
-    @if (loading()) {
-      <!-- A page, a filter or a refresh: the table turns into its skeleton, same height as the rows
-           it replaces, and the filters above and the pager below stay put. -->
-      <app-skeleton
-        shape="table"
-        [rows]="skeletonRows()"
-        [columns]="columns.length"
-        note="Cargando expedientes…"
+    @if (assignError()) {
+      <app-card
+        ><p class="t-note">{{ assignError() }}</p></app-card
+      >
+    }
+
+    <div class="toolbar">
+      <app-input
+        class="search"
+        [value]="qDraft()"
+        (valueChange)="onSearchInput($event)"
+        placeholder="Buscar por N° de expediente, asegurado o N° de póliza…"
       />
-    } @else if (hasError()) {
-      <app-card>
-        <p class="t-note">No se pudo cargar el listado. Probá de nuevo en unos minutos.</p>
-      </app-card>
-    } @else if (isEmpty()) {
-      @if (hasActiveFilters()) {
-        <app-empty-state
-          message="Ningún expediente coincide con los filtros aplicados."
-          sub="Sin coincidencias"
-        >
-          @if (activeChips().length > 0) {
-            <app-button variant="secondary" size="sm" (click)="clearAllChips()"
-              >Limpiar filtros</app-button
-            >
-          }
-        </app-empty-state>
-      } @else if (emptyByLens()) {
-        <app-empty-state [message]="emptyLensMessage().message" [sub]="emptyLensMessage().sub" />
-      } @else {
-        <app-empty-state message="Todavía no hay expedientes cargados." sub="Sin expedientes" />
+
+      @if (hasNewer()) {
+        <app-button variant="secondary" size="sm" (click)="applyNewer()">Actualizar</app-button>
       }
-    } @else {
-      <app-card [flush]="true" class="table-card">
-        <div
-          class="table-scroll"
-          #tableScroll
-          [class.more-right]="moreRight()"
-          (scroll)="measureScroll()"
-        >
-          <table>
-            <thead>
-              <tr>
-                @for (col of columns; track col.field) {
-                  <th>
-                    <button
-                      type="button"
-                      class="sort-btn"
-                      [class.is-sorted]="sortField() === col.field"
-                      (click)="toggleSort(col.field)"
-                    >
-                      {{ col.label }}
-                      @if (sortField() === col.field) {
-                        <span class="sort-arrow" aria-hidden="true">{{
-                          sortDir() === 'asc' ? '↑' : '↓'
-                        }}</span>
-                      }
-                    </button>
-                  </th>
-                }
-              </tr>
-            </thead>
-            <tbody @fadeStagger>
-              @for (c of cases(); track c.id) {
-                <tr class="row-link" (click)="goTo(c.id)">
-                  <td>
-                    <!-- The opened row's id morphs into the detail title (view transition). -->
-                    <a
-                      class="mono id-link"
-                      [routerLink]="['/cases', c.id]"
-                      [style.view-transition-name]="opening() === c.id ? 'case-id' : null"
-                      (click)="$event.stopPropagation(); opening.set(c.id)"
-                      >#{{ c.id }}</a
-                    >
-                  </td>
-                  <td>
-                    <app-badge
-                      [tone]="caseStatusTone(c.status)"
-                      [busy]="c.status === 'PENDING_CLASSIFICATION'"
-                      >{{ workStatusLabel(c) }}</app-badge
-                    >
-                  </td>
-                  <td>
-                    @if (isClosed(c)) {
-                      <span class="t-note">—</span>
-                    } @else if (isPaused(c)) {
-                      <span class="t-note">En pausa</span>
-                    } @else if (deadlinePrioritized(c)) {
-                      <app-badge [tone]="deadlineTone(c.deadlinePriority)">{{
-                        deadlineLabel(c)
-                      }}</app-badge>
-                    } @else {
-                      <span class="t-note">{{ formatDate(c.responseDeadline) }}</span>
-                    }
-                  </td>
-                  <td>
-                    <span [class.t-note]="!c.insuredName">{{ displayInsured(c) }}</span>
-                    <br />
-                    <span class="t-note mono">{{ displayInsuredId(c) }}</span>
-                  </td>
-                  <td>{{ c.claimCause }}</td>
-                  <td>{{ formatDate(c.eventDate) }}</td>
-                  <td class="mono num">{{ formatAmount(c.claimedAmount) }}</td>
-                  <td>
-                    <app-fraud-gauge
-                      [band]="riskGaugeBand(c)"
-                      [emptyLabel]="riskGaugeEmptyLabel(c)"
-                    />
-                  </td>
-                  <td>
-                    @if (c.analysisClassification) {
-                      <app-badge [tone]="classificationTone(c.analysisClassification)">
-                        {{ classificationLabel(c.analysisClassification) }}
-                      </app-badge>
-                    } @else {
-                      <span class="t-note">—</span>
-                    }
-                  </td>
-                  <td class="assign-cell" (click)="$event.stopPropagation()">
-                    <div class="assign-row">
-                      @if (c.assignedAnalystId) {
-                        <div class="assignee">
-                          <span class="avatar" aria-hidden="true">{{ analystInitials(c) }}</span>
-                          <span class="assignee-text">
-                            <span class="assignee-name">{{ c.assignedAnalystName }}</span>
-                            <span class="assignee-sub">Asignado</span>
-                          </span>
-                        </div>
-                      } @else if (!canAssign() || isClosed(c)) {
-                        <span class="t-note">Sin asignar</span>
-                      }
-                      @if (canAssign() && !isClosed(c)) {
-                        <div class="assign-actions" [class.fill]="!c.assignedAnalystId">
-                          @if (!c.assignedAnalystId && canTake()) {
-                            <app-button
-                              class="grow"
-                              variant="accent"
-                              size="sm"
-                              [block]="true"
-                              [loading]="assigning() === c.id"
-                              [disabled]="assigning() !== null"
-                              (click)="take(c)"
-                            >
-                              + Asignarme
-                            </app-button>
-                          }
-                          <app-menu-button
-                            [items]="assignMenuItems(c)"
-                            heading="Asignar a otro analista"
-                            [disabled]="assigning() !== null"
-                            align="end"
-                            size="sm"
-                            (itemSelected)="onAssignMenu(c, $event)"
-                          >
-                            <span aria-hidden="true">⋯</span>
-                            <span class="sr-only">Más acciones de asignación</span>
-                          </app-menu-button>
-                        </div>
-                      }
-                    </div>
-                  </td>
-                </tr>
+
+      <div class="filters-anchor">
+        <app-button variant="secondary" (click)="toggleFilters()">
+          <span class="filters-btn">
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <path
+                d="M2 3.5h12M4.5 8h7M6.5 12.5h3"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+              />
+            </svg>
+            Filtros
+            @if (activeFilterCount() > 0) {
+              <span class="filters-badge">{{ activeFilterCount() }}</span>
+            }
+          </span>
+        </app-button>
+
+        @if (filtersOpen()) {
+          <div class="filters-pop" role="dialog" aria-label="Filtrar expedientes">
+            <div class="filters-pop-head">
+              <span class="filters-pop-title">Filtrar expedientes</span>
+              <button
+                type="button"
+                class="filters-pop-close"
+                aria-label="Cerrar"
+                (click)="closeFilters()"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div class="filters-pop-grid">
+              <label class="filter-field">
+                <span class="t-field-label">Estado</span>
+                <app-select
+                  [value]="draftStatus()"
+                  (valueChange)="draftStatus.set($event)"
+                  [options]="statusOptions"
+                  placeholder="Todos los estados"
+                />
+              </label>
+
+              <label class="filter-field">
+                <span class="t-field-label">Tipo de siniestro</span>
+                <app-select
+                  [value]="draftClaimCause()"
+                  (valueChange)="draftClaimCause.set($event)"
+                  [options]="claimCauseOptions()"
+                  placeholder="Todos los tipos"
+                />
+              </label>
+
+              <label class="filter-field">
+                <span class="t-field-label">Score de riesgo de fraude</span>
+                <app-select
+                  [value]="draftRiskBand()"
+                  (valueChange)="draftRiskBand.set($event)"
+                  [options]="riskBandOptions"
+                  placeholder="Todos los niveles"
+                />
+              </label>
+
+              @if (isReferent()) {
+                <label class="filter-field">
+                  <span class="t-field-label">Analista</span>
+                  <app-select
+                    [value]="draftAnalyst()"
+                    (valueChange)="draftAnalyst.set($event)"
+                    [options]="analystOptions()"
+                    placeholder="Todos los analistas"
+                  />
+                </label>
               }
-            </tbody>
-          </table>
-        </div>
-      </app-card>
-    }
 
-    <!-- Outside the table's branches: it stays while the next page loads. -->
-    @if (totalElements() > 0 && !hasError()) {
-      <app-pagination
-        [page]="page()"
-        [totalPages]="totalPages()"
-        [totalElements]="totalElements()"
-        [size]="size()"
-        (pageChange)="onPageChange($event)"
-        (sizeChange)="onSizeChange($event)"
-      />
+              <label class="filter-field">
+                <span class="t-field-label">Fecha del hecho — desde</span>
+                <app-input
+                  type="date"
+                  [value]="draftDateFrom()"
+                  (valueChange)="draftDateFrom.set($event)"
+                  (enter)="applyFilters()"
+                />
+              </label>
+
+              <label class="filter-field">
+                <span class="t-field-label">Fecha del hecho — hasta</span>
+                <app-input
+                  type="date"
+                  [value]="draftDateTo()"
+                  (valueChange)="draftDateTo.set($event)"
+                  (enter)="applyFilters()"
+                />
+              </label>
+
+              <label class="filter-field">
+                <span class="t-field-label">Seguimiento</span>
+                <app-select
+                  [value]="draftFollowUp()"
+                  (valueChange)="draftFollowUp.set($event)"
+                  [options]="followUpOptions"
+                  placeholder="Todos"
+                />
+              </label>
+            </div>
+
+            <div class="filters-pop-foot">
+              <app-button variant="secondary" size="sm" (click)="clearDraft()">
+                Limpiar filtros
+              </app-button>
+              <app-button size="sm" (click)="applyFilters()">Aplicar</app-button>
+            </div>
+          </div>
+        }
+      </div>
+    </div>
+
+    @if (activeChips().length > 0) {
+      <div class="active-chips">
+        @for (chip of activeChips(); track chip.key) {
+          <button type="button" class="chip" (click)="removeChip(chip.key)">
+            {{ chip.label }} <span class="chip-x" aria-hidden="true">✕</span>
+          </button>
+        }
+        <button type="button" class="chip-clear" (click)="clearAllChips()">Limpiar todo</button>
+      </div>
     }
+  </section>
+
+  @if (loading()) {
+    <!-- A page, a filter or a refresh: the table turns into its skeleton, same height as the rows
+           it replaces, and the filters above and the pager below stay put. -->
+    <app-skeleton
+      shape="table"
+      [rows]="skeletonRows()"
+      [columns]="columns.length"
+      note="Cargando expedientes…"
+    />
+  } @else if (hasError()) {
+    <app-card>
+      <p class="t-note">No se pudo cargar el listado. Probá de nuevo en unos minutos.</p>
+    </app-card>
+  } @else if (isEmpty()) {
+    @if (hasActiveFilters()) {
+      <app-empty-state
+        message="Ningún expediente coincide con los filtros aplicados."
+        sub="Sin coincidencias"
+      >
+        @if (activeChips().length > 0) {
+          <app-button variant="secondary" size="sm" (click)="clearAllChips()"
+            >Limpiar filtros</app-button
+          >
+        }
+      </app-empty-state>
+    } @else if (emptyByLens()) {
+      <app-empty-state [message]="emptyLensMessage().message" [sub]="emptyLensMessage().sub" />
+    } @else {
+      <app-empty-state message="Todavía no hay expedientes cargados." sub="Sin expedientes" />
+    }
+  } @else {
+    <app-card [flush]="true" class="table-card">
+      <div
+        class="table-scroll"
+        #tableScroll
+        [class.more-right]="moreRight()"
+        (scroll)="measureScroll()"
+      >
+        <table>
+          <thead>
+            <tr>
+              @for (col of columns; track col.field) {
+                <th>
+                  <button
+                    type="button"
+                    class="sort-btn"
+                    [class.is-sorted]="sortField() === col.field"
+                    (click)="toggleSort(col.field)"
+                  >
+                    {{ col.label }}
+                    @if (sortField() === col.field) {
+                      <span class="sort-arrow" aria-hidden="true">{{
+                        sortDir() === 'asc' ? '↑' : '↓'
+                      }}</span>
+                    }
+                  </button>
+                </th>
+              }
+            </tr>
+          </thead>
+          <tbody @fadeStagger>
+            @for (c of cases(); track c.id) {
+              <tr class="row-link" (click)="goTo(c.id)">
+                <td>
+                  <!-- The opened row's id morphs into the detail title (view transition). -->
+                  <a
+                    class="mono id-link"
+                    [routerLink]="['/cases', c.id]"
+                    [style.view-transition-name]="opening() === c.id ? 'case-id' : null"
+                    (click)="$event.stopPropagation(); opening.set(c.id)"
+                    >#{{ c.id }}</a
+                  >
+                </td>
+                <td>
+                  <app-badge
+                    [tone]="caseStatusTone(c.status)"
+                    [busy]="c.status === 'PENDING_CLASSIFICATION'"
+                    >{{ workStatusLabel(c) }}</app-badge
+                  >
+                </td>
+                <td>
+                  @if (isClosed(c)) {
+                    <span class="t-note">—</span>
+                  } @else if (isPaused(c)) {
+                    <span class="t-note">En pausa</span>
+                  } @else if (deadlinePrioritized(c)) {
+                    <app-badge [tone]="deadlineTone(c.deadlinePriority)">{{
+                      deadlineLabel(c)
+                    }}</app-badge>
+                  } @else {
+                    <span class="t-note">{{ formatDate(c.responseDeadline) }}</span>
+                  }
+                </td>
+                <td>
+                  <span [class.t-note]="!c.insuredName">{{ displayInsured(c) }}</span>
+                  <br />
+                  <span class="t-note mono">{{ displayInsuredId(c) }}</span>
+                </td>
+                <td>{{ c.claimCause }}</td>
+                <td>{{ formatDate(c.eventDate) }}</td>
+                <td class="mono num">{{ formatAmount(c.claimedAmount) }}</td>
+                <td>
+                  <app-fraud-gauge
+                    [band]="riskGaugeBand(c)"
+                    [emptyLabel]="riskGaugeEmptyLabel(c)"
+                  />
+                </td>
+                <td>
+                  @if (c.analysisClassification) {
+                    <app-badge [tone]="classificationTone(c.analysisClassification)">
+                      {{ classificationLabel(c.analysisClassification) }}
+                    </app-badge>
+                  } @else {
+                    <span class="t-note">—</span>
+                  }
+                </td>
+                <td class="assign-cell" (click)="$event.stopPropagation()">
+                  <div class="assign-row">
+                    @if (c.assignedAnalystId) {
+                      <div class="assignee">
+                        <span class="avatar" aria-hidden="true">{{ analystInitials(c) }}</span>
+                        <span class="assignee-text">
+                          <span class="assignee-name">{{ c.assignedAnalystName }}</span>
+                          <span class="assignee-sub">Asignado</span>
+                        </span>
+                      </div>
+                    } @else if (!canAssign() || isClosed(c)) {
+                      <span class="t-note">Sin asignar</span>
+                    }
+                    @if (canAssign() && !isClosed(c)) {
+                      <div class="assign-actions" [class.fill]="!c.assignedAnalystId">
+                        @if (!c.assignedAnalystId && canTake()) {
+                          <app-button
+                            class="grow"
+                            variant="accent"
+                            size="sm"
+                            [block]="true"
+                            [loading]="assigning() === c.id"
+                            [disabled]="assigning() !== null"
+                            (click)="take(c)"
+                          >
+                            + Asignarme
+                          </app-button>
+                        }
+                        <app-menu-button
+                          [items]="assignMenuItems(c)"
+                          heading="Asignar a otro analista"
+                          [disabled]="assigning() !== null"
+                          align="end"
+                          size="sm"
+                          (itemSelected)="onAssignMenu(c, $event)"
+                        >
+                          <span aria-hidden="true">⋯</span>
+                          <span class="sr-only">Más acciones de asignación</span>
+                        </app-menu-button>
+                      </div>
+                    }
+                  </div>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </app-card>
+  }
+
+  <!-- Outside the table's branches: it stays while the next page loads. -->
+  @if (totalElements() > 0 && !hasError()) {
+    <app-pagination
+      [page]="page()"
+      [totalPages]="totalPages()"
+      [totalElements]="totalElements()"
+      [size]="size()"
+      (pageChange)="onPageChange($event)"
+      (sizeChange)="onSizeChange($event)"
+    />
   }
 </div>
