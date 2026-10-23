@@ -353,7 +353,8 @@
 }
 .sk-chip {
   width: calc(var(--space-7) * 2);
-  height: var(--space-5);
+  --skeleton-line-h: var(--space-6);
+  --skeleton-radius: var(--radius-pill);
 }
 .sk-note {
   margin-bottom: var(--space-3);
@@ -364,9 +365,11 @@
 .sk-figure {
   width: 70%;
   height: var(--space-7);
+  --skeleton-radius: var(--radius-ctl);
 }
 .sk-action {
   height: var(--touch-target);
+  --skeleton-radius: var(--radius-ctl);
 }
 .sk-tabs {
   display: flex;

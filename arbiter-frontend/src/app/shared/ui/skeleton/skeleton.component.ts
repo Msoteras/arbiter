@@ -78,9 +78,10 @@ type Shape = 'text' | 'block' | 'table' | 'card';
       font-size: var(--font-size-sm);
       color: var(--text-secondary);
     }
+    /* --skeleton-radius lets a consumer match a pill, like a chip. */
     .bone {
       display: block;
-      border-radius: var(--radius-ctl);
+      border-radius: var(--skeleton-radius, var(--radius-ctl));
       /* Border tones, not surfaces: it must read both on a card and on the sunken canvas. */
       background: linear-gradient(
         90deg,
@@ -98,7 +99,7 @@ type Shape = 'text' | 'block' | 'table' | 'card';
     .block {
       flex: 1 1 auto;
       min-height: var(--space-7);
-      border-radius: var(--radius-card);
+      border-radius: var(--skeleton-radius, var(--radius-card));
     }
     .table {
       border: 1px solid var(--border-default);
