@@ -719,38 +719,6 @@
 
         @case ('analysis') {
           <div class="analysis-grid">
-            <app-card heading="Razones del modelo">
-              @if (analysisReasons().length > 0) {
-                <span cardAside class="t-note"
-                  >{{ analysisReasons().length }}
-                  {{ analysisReasons().length === 1 ? 'motivo' : 'motivos' }}</span
-                >
-              }
-              @if (analysisReasons().length > 0) {
-                <ol class="reason-list">
-                  @for (reason of analysisReasons(); track $index) {
-                    <li class="reason-item">
-                      <span class="reason-num mono" aria-hidden="true">{{
-                        ($index + 1).toString().padStart(2, '0')
-                      }}</span>
-                      <span class="t-body">{{ reason }}</span>
-                    </li>
-                  }
-                </ol>
-              } @else {
-                <app-empty-state
-                  message="El modelo no dejó razones"
-                  sub="Cuando decide una regla no se consulta al modelo; el score sale de los datos."
-                />
-              }
-              @if (classificationLabel() && !isDeterministicOutcome()) {
-                <p class="t-note">
-                  Confianza del modelo: {{ confidencePercent() }}% · Estimación del propio modelo,
-                  no una probabilidad de acierto.
-                </p>
-              }
-            </app-card>
-
             <app-card heading="Score de fraude">
               @if (riskScorePct() !== null) {
                 <div class="risk-head">
@@ -818,6 +786,37 @@
                 }
               } @else {
                 <app-empty-state message="Este expediente todavía no tiene score de fraude" />
+              }
+            </app-card>
+            <app-card heading="Razones del modelo">
+              @if (analysisReasons().length > 0) {
+                <span cardAside class="t-note"
+                  >{{ analysisReasons().length }}
+                  {{ analysisReasons().length === 1 ? 'motivo' : 'motivos' }}</span
+                >
+              }
+              @if (analysisReasons().length > 0) {
+                <ol class="reason-list">
+                  @for (reason of analysisReasons(); track $index) {
+                    <li class="reason-item">
+                      <span class="reason-num mono" aria-hidden="true">{{
+                        ($index + 1).toString().padStart(2, '0')
+                      }}</span>
+                      <span class="t-body">{{ reason }}</span>
+                    </li>
+                  }
+                </ol>
+              } @else {
+                <app-empty-state
+                  message="El modelo no dejó razones"
+                  sub="Cuando decide una regla no se consulta al modelo; el score sale de los datos."
+                />
+              }
+              @if (classificationLabel() && !isDeterministicOutcome()) {
+                <p class="t-note">
+                  Confianza del modelo: {{ confidencePercent() }}% · Estimación del propio modelo,
+                  no una probabilidad de acierto.
+                </p>
               }
             </app-card>
           </div>
@@ -1015,14 +1014,7 @@
                                   >▸</span
                                 >
                                 <span class="cov-toggle-text">
-                                  <span class="policy-id">
-                                    <span class="mono">{{ p.policyNumber }}</span>
-                                    @if (p.policyNumber === d.policyNumber) {
-                                      <app-badge variant="strong" tone="info"
-                                        >Este expediente</app-badge
-                                      >
-                                    }
-                                  </span>
+                                  <span class="mono">{{ p.policyNumber }}</span>
                                   <span class="cov-hint">
                                     {{ p.coverages.length }}
                                     {{ p.coverages.length === 1 ? 'cobertura' : 'coberturas' }}

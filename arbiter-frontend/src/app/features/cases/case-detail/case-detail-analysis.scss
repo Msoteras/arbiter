@@ -46,8 +46,9 @@
 
 .analysis-grid {
   display: grid;
-  /* The reasons get the room: they're sentences; the score is a figure and a list of factors. */
-  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  /* Score first, then the reasons; these get the room: they're sentences, the score is a figure
+     and a list of factors. */
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
   align-items: start;
   gap: var(--space-4);
 }

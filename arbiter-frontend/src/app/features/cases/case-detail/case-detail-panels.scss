@@ -503,13 +503,7 @@ app-textarea {
 
 /* Amount and recalculate button share a row so it's clear typing alone applies nothing. */
 
-/* The policy of this case, among the insured's others. */
-.policy-id {
-  display: inline-flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-}
+/* The policy of this case, among the insured's others (its group heading already names it). */
 .trace-table tr.current-policy td {
   background: var(--selected-bg);
 }
