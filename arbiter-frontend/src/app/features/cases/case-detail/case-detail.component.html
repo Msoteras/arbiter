@@ -26,22 +26,23 @@
         </div>
       </div>
       <div class="det-header-side">
-        @if (prevId() || nextId()) {
-          <div class="case-nav">
-            <a
-              class="nav-link"
-              [class.disabled]="!prevId()"
-              [routerLink]="prevId() ? ['/cases', prevId()] : null"
-              >‹ Anterior</a
-            >
-            <a
-              class="nav-link"
-              [class.disabled]="!nextId()"
-              [routerLink]="nextId() ? ['/cases', nextId()] : null"
-              >Siguiente ›</a
-            >
-          </div>
-        }
+        <!-- Always there: without a neighbor (a deep link, the end of the inbox) they're disabled. -->
+        <div class="case-nav">
+          <a
+            class="nav-link"
+            [class.disabled]="!prevId()"
+            [attr.aria-disabled]="!prevId()"
+            [routerLink]="prevId() ? ['/cases', prevId()] : null"
+            >‹ Anterior</a
+          >
+          <a
+            class="nav-link"
+            [class.disabled]="!nextId()"
+            [attr.aria-disabled]="!nextId()"
+            [routerLink]="nextId() ? ['/cases', nextId()] : null"
+            >Siguiente ›</a
+          >
+        </div>
       </div>
     </div>
   </header>
