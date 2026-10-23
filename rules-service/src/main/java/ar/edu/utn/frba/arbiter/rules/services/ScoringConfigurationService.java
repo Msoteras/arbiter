@@ -20,7 +20,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.List;
 
 /**
  * The insurer's fraud scoring (factors + bands), for the referente's Scoring tab. A single row per
@@ -51,6 +53,7 @@ public class ScoringConfigurationService {
 
     @Transactional
     public ScoringConfigResponse upsert(ScoringConfigDto dto, String actorEmail) {
+        validateWeights(dto.factors());
         onboardingTracker.touch(OnboardingStep.SCORING, null);
         ScoringConfiguration config = scoringConfigurationRepository.findFirstByOrderByIdAsc().orElse(null);
         Instant now = Instant.now();
@@ -84,6 +87,32 @@ public class ScoringConfigurationService {
         scoringConfigurationRepository.save(config);
         saveChildren(config, dto);
         return new ScoringConfigResponse(config.getId(), toDto(config));
+    }
+
+    private static void validateWeights(List<FactorWeightDto> factors) {
+        if (factors == null || factors.isEmpty()) {
+            return;
+        }
+        BigDecimal total = BigDecimal.ZERO;
+        for (FactorWeightDto factor : factors) {
+            BigDecimal weight = factor.weight();
+            if (weight == null || weight.signum() <= 0) {
+                throw new InvalidRuleConfigurationException("Cada factor prendido necesita un peso mayor que 0%.");
+            }
+            if (asPercent(weight).stripTrailingZeros().scale() > 0) {
+                throw new InvalidRuleConfigurationException("Los pesos van en porcentajes enteros.");
+            }
+            total = total.add(weight);
+        }
+        if (total.compareTo(BigDecimal.ONE) != 0) {
+            throw new InvalidRuleConfigurationException(
+                    "Los pesos suman " + asPercent(total).stripTrailingZeros().toPlainString()
+                            + "% y tienen que sumar 100%.");
+        }
+    }
+
+    private static BigDecimal asPercent(BigDecimal fraction) {
+        return fraction.movePointRight(2);
     }
 
     private void saveChildren(ScoringConfiguration config, ScoringConfigDto dto) {

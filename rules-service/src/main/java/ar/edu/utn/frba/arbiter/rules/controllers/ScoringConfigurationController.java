@@ -35,7 +35,8 @@ public class ScoringConfigurationController {
     @PutMapping
     @PreAuthorize("hasRole('REFERENTE_ASEGURADORA')")
     @Operation(summary = "Guardar scoring de la aseguradora",
-            description = "Reemplaza factores y bandas. Cada cambio deja un snapshot en el historial. "
+            description = "Reemplaza factores y bandas. Los pesos de los factores suman 1 (100%), en porcentajes "
+                    + "enteros y mayores que 0. Cada cambio deja un snapshot en el historial. "
                     + "Devuelve la config tal como quedó persistida, con el id de scoring_configuration.")
     public ScoringConfigResponse upsert(@RequestBody @Valid ScoringConfigDto config, Authentication authentication) {
         return scoringConfigurationService.upsert(config, authentication.getName());

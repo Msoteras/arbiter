@@ -29,7 +29,10 @@ public class AuthExceptionHandler {
 
     @ExceptionHandler(AccountLockedException.class)
     public ProblemDetail handleAccountLocked(AccountLockedException ex) {
-        return warn(423, ex);
+        log.warn("[Auth] AccountLockedException — locked until {}", ex.getLockedUntil());
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(423), ex.getMessage());
+        problem.setProperty("lockedUntil", ex.getLockedUntil());
+        return problem;
     }
 
     @ExceptionHandler(EmailAlreadyExistsException.class)

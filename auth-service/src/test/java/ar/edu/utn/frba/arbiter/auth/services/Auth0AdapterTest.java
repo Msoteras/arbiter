@@ -117,6 +117,22 @@ class Auth0AdapterTest {
     }
 
     @Test
+    void authenticate_failureAfterLockExpired_countsAsFirstFailureWithoutLocking() throws Auth0Exception {
+        User user = newUser();
+        user.setFailedAttempts(5);
+        user.setLockedUntil(Instant.now().minusSeconds(60));
+        when(userRepository.findByEmail(EMAIL)).thenReturn(Optional.of(user));
+        when(auth0AuthApi.login(eq(EMAIL), any(char[].class), eq(CONNECTION))).thenReturn(tokenRequest);
+        when(tokenRequest.execute()).thenThrow(new Auth0Exception("Wrong email or password"));
+
+        assertThatThrownBy(() -> authenticator.authenticate(EMAIL, "wrong"))
+                .isInstanceOf(InvalidCredentialsException.class);
+
+        assertThat(user.getFailedAttempts()).isEqualTo(1);
+        assertThat(user.getLockedUntil()).isNull();
+    }
+
+    @Test
     void authenticate_accountCurrentlyLocked_throwsAccountLockedWithoutCallingAuth0() {
         User user = newUser();
         user.setLockedUntil(Instant.now().plusSeconds(600));

@@ -77,15 +77,18 @@ class AuthControllerTest {
     }
 
     @Test
-    void login_lockedAccount_returns423() throws Exception {
-        when(authService.login(any())).thenThrow(new AccountLockedException(Instant.now().plusSeconds(900)));
+    void login_lockedAccount_returns423WithUnlockTimeApartFromDetail() throws Exception {
+        when(authService.login(any()))
+                .thenThrow(new AccountLockedException(Instant.parse("2026-10-23T15:19:52.326693Z")));
 
         mockMvc.perform(post("/api/v1/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"email": "analista@arbiter.test", "password": "changeme123"}
                                 """))
-                .andExpect(status().isLocked());
+                .andExpect(status().isLocked())
+                .andExpect(jsonPath("$.detail").value("Cuenta bloqueada temporalmente. Probá de nuevo más tarde."))
+                .andExpect(jsonPath("$.lockedUntil").value("2026-10-23T15:19:52.326693Z"));
     }
 
     @Test

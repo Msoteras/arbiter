@@ -73,22 +73,31 @@ export class ScoringConfigComponent {
     this.load();
   }
 
-  /**
-   * Weights are relative: the engine computes `Σ(score × weight) / Σ(weight)`, so they needn't add up
-   * to 100%. The UI shows the effective weight, which is what the engine actually applies.
-   */
-  private readonly totalWeight = computed(() =>
-    this.draft().factors.reduce((sum, f) => sum + f.weight, 0),
+  private readonly weightPcts = computed(() =>
+    this.draft().factors.map((f) => this.weightPctOf(f.weight)),
   );
 
-  protected effectiveWeightPct(factorId: string): string {
-    const total = this.totalWeight();
-    const factor = this.draft().factors.find((f) => f.factorId === factorId);
-    if (!factor || total === 0) {
-      return '—';
+  protected readonly hasActiveFactors = computed(() => this.weightPcts().length > 0);
+
+  private readonly totalPct = computed(() => this.weightPcts().reduce((sum, pct) => sum + pct, 0));
+
+  protected readonly totalLabel = computed(() => formatRate(this.totalPct() / 100, 2));
+
+  protected readonly totalOff = computed(() => this.totalPct() !== 100);
+
+  protected readonly weightsInvalidReason = computed<string | null>(() => {
+    const pcts = this.weightPcts();
+    if (pcts.length === 0) {
+      return null;
     }
-    return formatRate(factor.weight / total, 1);
-  }
+    if (pcts.some((pct) => pct <= 0)) {
+      return 'Cada factor prendido necesita un peso mayor que 0%.';
+    }
+    if (pcts.some((pct) => !Number.isInteger(pct))) {
+      return 'Los pesos van en porcentajes enteros.';
+    }
+    return this.totalPct() === 100 ? null : 'Los pesos tienen que sumar 100%.';
+  });
 
   /**
    * Grouped by cost: data factors always run; document and image factors need heavy analysis and may
@@ -123,15 +132,6 @@ export class ScoringConfigComponent {
     return group.ids
       .map((id) => this.riskFactors.find((f) => f.id === id))
       .filter((f): f is { id: string; label: string } => f != null);
-  }
-
-  protected effectiveWeightRatio(factorId: string): number {
-    const total = this.totalWeight();
-    const factor = this.draft().factors.find((f) => f.factorId === factorId);
-    if (!factor || total === 0) {
-      return 0;
-    }
-    return (factor.weight / total) * 100;
   }
 
   protected bandRangeLabel(band: RiskBand): string {
@@ -246,7 +246,7 @@ export class ScoringConfigComponent {
 
   protected factorWeightPct(id: string): string {
     const f = this.draft().factors.find((x) => x.factorId === id);
-    return f ? this.pctFromRatio(f.weight) : '';
+    return f ? String(this.weightPctOf(f.weight)) : '';
   }
 
   protected setFactorWeight(id: string, value: string): void {
@@ -271,7 +271,7 @@ export class ScoringConfigComponent {
   }
 
   protected saveScoring(): void {
-    if (this.saving()) {
+    if (this.saving() || this.weightsInvalidReason()) {
       return;
     }
     this.error.set(null);
@@ -311,6 +311,10 @@ export class ScoringConfigComponent {
       return detail ?? `El backend rechazó el guardado (${e.status}).`;
     }
     return e instanceof Error ? e.message : 'No se pudo guardar.';
+  }
+
+  private weightPctOf(weight: number): number {
+    return Math.round(weight * 10000) / 100;
   }
 
   private pctFromRatio(ratio: number | null): string {
