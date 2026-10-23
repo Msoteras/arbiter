@@ -38,7 +38,6 @@ import { DocumentAgendaService } from '../document-agenda.service';
 import { ChipGroupComponent, ChipOption } from '../../../shared/ui/chip-group/chip-group.component';
 import { CaseNavigationService } from '../case-navigation.service';
 import { CaseMessagesService } from '../case-messages.service';
-import { CaseMessage } from '../../../core/models/case-message';
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
 import { UserAdminService } from '../../../core/auth/user-admin.service';
 import { SettlementAuthoritiesService } from '../../admin/settlement-authorities.service';
@@ -105,12 +104,7 @@ import {
 } from '../../../core/models/deadline-priority';
 import { RiskBand, riskBandLabel, riskBandTone } from '../../../core/models/risk-band';
 import { StatusTone } from '../../../core/models/status-tone';
-import {
-  chatListStamp,
-  formatDate,
-  formatDateTime,
-  formatDayMonth,
-} from '../../../core/util/datetime';
+import { formatDate, formatDateTime, formatDayMonth } from '../../../core/util/datetime';
 import { amountInputDisplay, amountInputLabel, amountInputValue } from '../../../core/util/money';
 import { InfoTipComponent } from '../../../shared/ui/info-tip/info-tip.component';
 import { EmptyStateComponent } from '../../../shared/ui/empty-state/empty-state.component';
@@ -245,21 +239,15 @@ export class CaseDetailComponent {
       const id = this.loadedCaseId();
       untracked(() => {
         this.unreadMessages.set(0);
-        this.lastMessage.set(null);
         if (id) {
           this.messages.thread(id).subscribe({
-            next: (thread) => {
-              this.unreadMessages.set(thread.unread);
-              this.lastMessage.set(thread.messages.at(-1) ?? null);
-            },
+            next: (thread) => this.unreadMessages.set(thread.unread),
             error: () => undefined,
           });
         }
       });
     });
   }
-
-  protected readonly lastMessage = signal<CaseMessage | null>(null);
 
   /** Bumped after a decision is recorded, to refetch the case and reflect the real backend status. */
   private readonly reloadTrigger = signal(0);
@@ -1988,7 +1976,6 @@ export class CaseDetailComponent {
   verdictTone = verdictTone;
   repairOutcomeLabel = repairOutcomeLabel;
   formatDateTime = formatDateTime;
-  chatListStamp = chatListStamp;
 
   ruleTypeLabel = ruleTypeLabel;
   ruleResultLabel = ruleResultLabel;
@@ -2131,7 +2118,6 @@ export class CaseDetailComponent {
   });
 
   protected readonly analystInitials = computed(() => initialsOf(this.assignedName()));
-  protected readonly insuredInitials = computed(() => initialsOf(this.data()?.insuredName));
   protected readonly insuredFirstName = computed(
     () => (this.data()?.insuredName ?? '').trim().split(/\s+/)[0] || 'el asegurado',
   );

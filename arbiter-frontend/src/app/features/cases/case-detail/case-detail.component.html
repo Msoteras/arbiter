@@ -20,12 +20,12 @@
             >Asegurado ve: {{ simplifiedStatusLabel() }}</app-badge
           >
           <app-badge>{{ d.branch }}</app-badge>
+          @if (deadlineText(); as deadline) {
+            <app-badge variant="strong" [tone]="deadlineTone()">{{ deadline }}</app-badge>
+          }
         </div>
       </div>
       <div class="det-header-side">
-        @if (deadlineText(); as deadline) {
-          <app-badge variant="strong" [tone]="deadlineTone()">{{ deadline }}</app-badge>
-        }
         @if (prevId() || nextId()) {
           <div class="case-nav">
             <a
@@ -103,20 +103,20 @@
       <div class="strip-col">
         <h2 class="strip-label">Riesgo de fraude</h2>
         @if (riskScorePct() !== null) {
-          <div class="score-head">
-            <span class="score-value tabular">{{ riskScorePct() }}</span>
-            <span class="score-max">/100</span>
+          <div class="risk-head">
+            <span class="risk-score tabular">{{ riskScorePct() }}</span>
+            <span class="risk-max">/100</span>
             @if (riskBandText(); as band) {
               <span class="band-chip" [attr.data-tone]="riskTone()">{{ band }}</span>
             }
           </div>
           <!-- Low to critical, left to right; the marker is where this claim's score falls. -->
           <div
-            class="score-bar"
+            class="risk-bar"
             role="img"
             [attr.aria-label]="'Puntaje ' + riskScorePct() + ' de 100'"
           >
-            <span class="score-marker" [style.left.%]="riskScorePct()"></span>
+            <span class="risk-marker" [style.left.%]="riskScorePct()"></span>
           </div>
         } @else {
           <p class="nodata">{{ riskGaugeEmptyLabel() }}</p>
@@ -632,36 +632,6 @@
                 @if (assignError()) {
                   <p class="rcard-note error">{{ assignError() }}</p>
                 }
-              </app-card>
-
-              <app-card [heading]="'Conversación con ' + insuredFirstName()">
-                @if (lastMessage(); as m) {
-                  <div class="chat-preview">
-                    <span class="chat-preview-avatar" aria-hidden="true">{{
-                      m.mine ? 'Vos' : insuredInitials()
-                    }}</span>
-                    <div class="chat-preview-text">
-                      <p class="chat-preview-head">
-                        <span class="who">{{
-                          m.mine ? 'Vos' : (d.insuredName ?? 'Asegurado')
-                        }}</span>
-                        <span class="at tabular">{{ chatListStamp(m.createdAt) }}</span>
-                      </p>
-                      <p class="body">{{ m.body }}</p>
-                    </div>
-                  </div>
-                } @else {
-                  <p class="nodata">Todavía no hay mensajes.</p>
-                }
-                <app-button variant="accent" [block]="true" (click)="chatOpen.set(true)">
-                  @if (unreadMessages() > 0) {
-                    Abrir chat · {{ unreadMessages() }} sin leer
-                  } @else if (lastMessage()) {
-                    Abrir chat
-                  } @else {
-                    Escribirle a {{ insuredFirstName() }}
-                  }
-                </app-button>
               </app-card>
 
               <!-- About the person, not this claim, hence the side column. -->
@@ -1191,7 +1161,6 @@
     [quickReplies]="quickReplies()"
     [unread]="unreadMessages()"
     (unreadChange)="unreadMessages.set($event)"
-    (latest)="lastMessage.set($event)"
   />
 } @else if (loading()) {
   <!-- Same frame as the loaded screen, so nothing jumps when the case arrives. -->

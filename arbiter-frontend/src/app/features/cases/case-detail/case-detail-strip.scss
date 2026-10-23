@@ -82,23 +82,23 @@
 .decision-strip .reco-value {
   padding: 0;
   border: 0;
-  font-size: var(--font-size-display);
+  font-size: var(--font-size-2xl);
   font-weight: var(--font-weight-bold);
   letter-spacing: -0.03em;
   line-height: 1.05;
 }
-.score-head {
+.risk-head {
   display: flex;
   align-items: baseline;
   gap: var(--space-2);
 }
-.score-value {
+.risk-score {
   font-size: var(--font-size-display);
   font-weight: var(--font-weight-bold);
   letter-spacing: -0.03em;
   line-height: 1;
 }
-.score-max {
+.risk-max {
   font-size: var(--font-size-md);
   color: var(--text-secondary);
 }
@@ -125,7 +125,7 @@
 .band-chip[data-tone='danger'] {
   background: var(--status-danger-strong);
 }
-.score-bar {
+.risk-bar {
   position: relative;
   height: var(--space-2);
   margin-top: var(--space-2);
@@ -138,7 +138,7 @@
     var(--status-danger) 100%
   );
 }
-.score-marker {
+.risk-marker {
   position: absolute;
   top: calc(var(--space-1) * -1);
   width: var(--space-1);
@@ -147,15 +147,15 @@
   background: var(--text-primary);
   box-shadow: 0 0 0 calc(var(--space-1) / 2) var(--surface);
   transform: translateX(-50%);
-  animation: marker-in var(--dur-3) var(--ease-out);
+  animation: risk-marker-in var(--dur-3) var(--ease-out);
 }
-@keyframes marker-in {
+@keyframes risk-marker-in {
   from {
     left: 0;
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .score-marker {
+  .risk-marker {
     animation: none;
   }
 }
