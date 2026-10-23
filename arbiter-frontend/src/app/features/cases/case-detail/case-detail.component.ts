@@ -130,7 +130,7 @@ import {
 import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
 import { SkeletonComponent } from '../../../shared/ui/skeleton/skeleton.component';
 import { TabOption, TabsComponent } from '../../../shared/ui/tabs/tabs.component';
-import { fadeInUp, staggerReveal, tabSwitch } from '../../../shared/animations';
+import { accordion, fadeInUp, staggerReveal, tabSwitch } from '../../../shared/animations';
 
 /** Classification lands within minutes; a quarter minute keeps the wait from feeling stuck. */
 const CLASSIFICATION_POLL_MS = 15_000;
@@ -210,7 +210,7 @@ interface BriefAlert {
     TabsComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  animations: [fadeInUp, staggerReveal, tabSwitch],
+  animations: [accordion, fadeInUp, staggerReveal, tabSwitch],
   templateUrl: './case-detail.component.html',
   // Order matters: both files are concatenated in this order and the cascade depends on it.
   styleUrls: [
@@ -592,6 +592,47 @@ export class CaseDetailComponent {
 
   protected readonly passedRules = computed(
     () => this.hardRuleResults().filter((r) => r.result === 'PASS').length,
+  );
+
+  /** Each factor's bar against the biggest one: the largest fills its track. */
+  protected breakdownWidth(item: RiskBreakdownItem): number {
+    const top = Math.max(...this.riskBreakdown().map((i) => this.scoreContribution(i)), 1);
+    return Math.round((this.scoreContribution(item) / top) * 100);
+  }
+
+  /**
+   * The document factor lists one finding per mismatch, joined with " · " by the backend
+   * (DocumentInconsistencyEvaluator): with several, they open as a list instead of one long line.
+   */
+  protected findings(item: RiskBreakdownItem): string[] | null {
+    if (item.factorId !== 'document_inconsistency' || !item.rationale) return null;
+    const list = this.factorRationale(item.rationale).split(' · ');
+    return list.length > 1 ? list : null;
+  }
+
+  private readonly openFindings = signal<ReadonlySet<string>>(new Set());
+
+  protected isFindingsOpen(item: RiskBreakdownItem): boolean {
+    return this.openFindings().has(item.factorId);
+  }
+
+  protected toggleFindings(item: RiskBreakdownItem): void {
+    this.openFindings.update((open) => {
+      const next = new Set(open);
+      if (!next.delete(item.factorId)) next.add(item.factorId);
+      return next;
+    });
+  }
+
+  protected readonly ruleFilterOptions: ChipOption[] = [
+    { value: 'all', label: 'Todas' },
+    { value: 'failing', label: 'Solo no cumple' },
+  ];
+  protected readonly ruleFilter = signal<'all' | 'failing'>('all');
+  protected readonly shownRuleResults = computed(() =>
+    this.ruleFilter() === 'failing'
+      ? this.hardRuleResults().filter((r) => r.result === 'FAIL')
+      : this.hardRuleResults(),
   );
 
   protected readonly scoreSegments = computed(() =>

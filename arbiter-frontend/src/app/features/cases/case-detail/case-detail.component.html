@@ -721,6 +721,12 @@
           <div class="analysis-grid">
             <app-card heading="Razones del modelo">
               @if (analysisReasons().length > 0) {
+                <span cardAside class="t-note"
+                  >{{ analysisReasons().length }}
+                  {{ analysisReasons().length === 1 ? 'motivo' : 'motivos' }}</span
+                >
+              }
+              @if (analysisReasons().length > 0) {
                 <ol class="reason-list">
                   @for (reason of analysisReasons(); track $index) {
                     <li class="reason-item">
@@ -746,20 +752,20 @@
             </app-card>
 
             <app-card heading="Score de fraude">
-              @if (riskScorePct(); as scorePct) {
-                <p class="score-value tabular" [attr.data-tone]="riskTone()">
-                  <strong>{{ scorePct }}</strong
-                  ><span class="score-max">/100</span>
-                </p>
-                <div
-                  class="score-bar"
-                  role="img"
-                  [attr.aria-label]="'Score de fraude ' + scorePct + ' sobre 100'"
-                  [attr.data-tone]="riskTone()"
-                >
-                  @for (seg of scoreSegments(); track seg.factorId) {
-                    <span class="score-seg" [style.flex-basis.%]="seg.contribution"></span>
+              @if (riskScorePct() !== null) {
+                <div class="risk-head">
+                  <span class="risk-score tabular">{{ riskScorePct() }}</span>
+                  <span class="risk-max">/100</span>
+                  @if (riskBandText(); as band) {
+                    <span class="band-chip" [attr.data-tone]="riskTone()">{{ band }}</span>
                   }
+                </div>
+                <div
+                  class="risk-bar"
+                  role="img"
+                  [attr.aria-label]="'Score de fraude ' + riskScorePct() + ' sobre 100'"
+                >
+                  <span class="risk-marker" [style.left.%]="riskScorePct()"></span>
                 </div>
                 @if (fastTrackScoreScope() === 'partial') {
                   <p class="t-note">
@@ -773,27 +779,45 @@
                   </p>
                 }
                 @if (riskBreakdown().length > 0) {
-                  <ul class="score-factors">
+                  <ul class="breakdown">
                     @for (item of riskBreakdown(); track item.factorId) {
-                      <li class="score-factor" [class.zero]="scoreContribution(item) === 0">
-                        <span class="score-factor-text">
-                          <span class="score-factor-name">{{ factorLabel(item.factorId) }}</span>
-                          @if (item.rationale) {
-                            <span class="t-note">{{ factorRationale(item.rationale) }}</span>
-                          }
+                      <li class="breakdown-item" [class.zero]="scoreContribution(item) === 0">
+                        <span class="factor-row">
+                          <span class="breakdown-name">{{ factorLabel(item.factorId) }}</span>
+                          <strong class="tabular">+{{ scoreContribution(item) }}</strong>
                         </span>
-                        <span class="score-factor-contribution tabular"
-                          >+{{ scoreContribution(item) }}</span
-                        >
+                        <span class="factor-track"
+                          ><span class="factor-fill" [style.width.%]="breakdownWidth(item)"></span
+                        ></span>
+                        @if (findings(item); as list) {
+                          <button
+                            type="button"
+                            class="brief-link"
+                            [attr.aria-expanded]="isFindingsOpen(item)"
+                            (click)="toggleFindings(item)"
+                          >
+                            {{
+                              isFindingsOpen(item)
+                                ? 'Ocultar detalle'
+                                : 'Ver ' + list.length + ' inconsistencias'
+                            }}
+                          </button>
+                          @if (isFindingsOpen(item)) {
+                            <ul class="findings" @accordion>
+                              @for (f of list; track $index) {
+                                <li>{{ f }}</li>
+                              }
+                            </ul>
+                          }
+                        } @else if (item.rationale) {
+                          <span class="t-note">{{ factorRationale(item.rationale) }}</span>
+                        }
                       </li>
                     }
                   </ul>
                 }
               } @else {
-                <app-empty-state
-                  message="Este expediente todavía no tiene score de fraude"
-                  sub=""
-                />
+                <app-empty-state message="Este expediente todavía no tiene score de fraude" />
               }
             </app-card>
           </div>
@@ -847,10 +871,25 @@
 
             <app-card heading="Reglas evaluadas">
               @if (hardRuleResults().length > 0) {
-                <p class="t-note rules-meta">
-                  {{ passedRules() }} de {{ hardRuleResults().length }} cumplen · evaluadas el
-                  {{ formatDateTime(hardRuleResults()[0].evaluatedAt) }}
-                </p>
+                <app-chip-group
+                  cardAside
+                  size="sm"
+                  ariaLabel="Qué reglas ver"
+                  [options]="ruleFilterOptions"
+                  [value]="ruleFilter()"
+                  (valueChange)="ruleFilter.set($any($event))"
+                />
+              }
+              @if (hardRuleResults().length > 0) {
+                <div class="rules-meta">
+                  <span class="rules-count"
+                    ><strong class="tabular">{{ passedRules() }}</strong> de
+                    {{ hardRuleResults().length }} cumplen</span
+                  >
+                  <span class="t-note"
+                    >Evaluadas el {{ formatDateTime(hardRuleResults()[0].evaluatedAt) }}</span
+                  >
+                </div>
                 <div class="trace-scroll">
                   <table class="trace-table">
                     <thead>
@@ -861,7 +900,7 @@
                       </tr>
                     </thead>
                     <tbody>
-                      @for (r of hardRuleResults(); track r.id) {
+                      @for (r of shownRuleResults(); track r.id) {
                         <tr [class.failing-row]="r.result === 'FAIL'">
                           <td>{{ ruleTypeLabel(r.ruleType) }}</td>
                           <td>
