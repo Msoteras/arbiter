@@ -1541,6 +1541,15 @@ export class CaseDetailComponent {
       : `Vence el ${dateLabel}`;
   });
 
+  /** The "Antes de resolver" column: only while the analyst decides, and only with something in it. */
+  protected readonly showBeforeDeciding = computed(() => {
+    if (this.decisionState() !== 'pending' || !this.canAct() || this.awaitingAuthorization()) {
+      return false;
+    }
+    const amount = this.displayedSettlement()?.calculatedAmount ?? 0;
+    return this.decisionAlerts().length > 0 || this.answeredDerivations().length > 0 || amount > 0;
+  });
+
   protected readonly deadlineTone = computed<StatusTone>(() => {
     const d = this.data();
     return d && isDeadlinePrioritized(d.deadlinePriority)

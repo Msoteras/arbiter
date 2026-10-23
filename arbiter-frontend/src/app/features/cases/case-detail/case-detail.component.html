@@ -2,55 +2,65 @@
   <header class="det-header" @fadeInUp>
     <div class="det-header-row">
       <div class="identity">
-        <h1 class="t-page-title mono">
-          Expediente <span class="case-id">#{{ d.id }}</span>
+        <nav class="crumbs" aria-label="Ubicación">
+          <a routerLink="/inbox">Bandeja</a>
+          <span aria-hidden="true">/</span>
+          <span class="mono case-id">EXP-{{ d.id }}</span>
+        </nav>
+        <h1 class="t-page-title det-title">
+          <span [class.mono]="!d.insuredName">{{ d.insuredName ?? d.insuredId }}</span>
+          <span class="det-title-sub">· {{ d.claimCause }}</span>
         </h1>
-        <app-badge
-          [tone]="statusTone()"
-          [busy]="d.status === 'PENDING_CLASSIFICATION'"
-          [title]="'Técnico'"
-          >{{ statusLabel() }}</app-badge
-        >
-        <app-badge variant="dashed" [title]="'Simplificado (vista del asegurado)'"
-          >Asegurado ve: {{ simplifiedStatusLabel() }}</app-badge
-        >
-      </div>
-      @if (prevId() || nextId()) {
-        <div class="case-nav">
-          <a
-            class="nav-link"
-            [class.disabled]="!prevId()"
-            [routerLink]="prevId() ? ['/cases', prevId()] : null"
-            >‹ Anterior</a
+        <div class="chips">
+          <app-badge
+            [tone]="statusTone()"
+            [busy]="d.status === 'PENDING_CLASSIFICATION'"
+            [title]="'Técnico'"
+            >{{ statusLabel() }}</app-badge
           >
-          <a
-            class="nav-link"
-            [class.disabled]="!nextId()"
-            [routerLink]="nextId() ? ['/cases', nextId()] : null"
-            >Siguiente ›</a
+          <app-badge variant="dashed" [title]="'Simplificado (vista del asegurado)'"
+            >Asegurado ve: {{ simplifiedStatusLabel() }}</app-badge
           >
+          <app-badge>{{ d.branch }}</app-badge>
         </div>
-      }
+      </div>
+      <div class="det-header-side">
+        @if (deadlineText(); as deadline) {
+          <app-badge variant="strong" [tone]="deadlineTone()">{{ deadline }}</app-badge>
+        }
+        @if (prevId() || nextId()) {
+          <div class="case-nav">
+            <a
+              class="nav-link"
+              [class.disabled]="!prevId()"
+              [routerLink]="prevId() ? ['/cases', prevId()] : null"
+              >‹ Anterior</a
+            >
+            <a
+              class="nav-link"
+              [class.disabled]="!nextId()"
+              [routerLink]="nextId() ? ['/cases', nextId()] : null"
+              >Siguiente ›</a
+            >
+          </div>
+        }
+      </div>
     </div>
-    <p class="subtitle">
-      <span [class.mono]="!d.insuredName">{{ d.insuredName ?? d.insuredId }}</span>
-      · {{ d.claimCause }} · {{ d.branch }}
-    </p>
   </header>
 
   <main class="det-content">
-    <!-- Three equal cards; anything longer goes to the notices strip below so no card stretches the row. -->
-    <div class="reasoning" @staggerReveal>
+    <!-- One band: what Arbiter recommends, the fraud risk, what to weigh and the decision itself.
+         Anything longer goes to the notices below so no column stretches the band. -->
+    <section class="decision-strip" @staggerReveal>
       <!-- Wording depends on the source: a non-binding LLM recommendation or an objective rules
            check (no confidence to show). Missing documentation is the insured's action, not the analyst's. -->
-      <app-card
-        class="rcard reco"
-        variant="ai"
-        icon="✦"
-        [heading]="
-          isDeterministicOutcome() ? 'Resultado del motor de reglas' : 'Recomendación de Arbiter'
-        "
-      >
+      <div class="strip-col">
+        <h2 class="strip-label">
+          <span class="ai-mark" aria-hidden="true">✦</span>
+          {{
+            isDeterministicOutcome() ? 'Resultado del motor de reglas' : 'Recomendación de Arbiter'
+          }}
+        </h2>
         @if (classificationLabel()) {
           <p
             class="reco-value"
@@ -90,17 +100,50 @@
         } @else {
           <p class="nodata">El modelo todavía no generó una recomendación.</p>
         }
-      </app-card>
+      </div>
 
-      <app-card class="rcard" heading="Nivel de riesgo de fraude">
+      <div class="strip-col">
+        <h2 class="strip-label">Riesgo de fraude</h2>
         <app-fraud-gauge
           [band]="riskGaugeBand()"
           [score]="riskScorePct()"
           [emptyLabel]="riskGaugeEmptyLabel()"
         />
-      </app-card>
+      </div>
 
-      <app-card class="rcard" [heading]="decisionCardHeading()">
+      <!-- What to weigh before deciding: the evidence already on the case, never a suggestion. -->
+      @if (showBeforeDeciding()) {
+        <div class="strip-col">
+          <h2 class="strip-label">Antes de resolver</h2>
+          <ul class="weigh-list">
+            @for (a of decisionAlerts(); track a.tab) {
+              <li>
+                <span class="weigh-dot" [class.is-danger]="a.danger" aria-hidden="true"></span>
+                <button type="button" class="weigh-link" (click)="onAlert(a)">{{ a.label }}</button>
+              </li>
+            }
+            @for (p of answeredDerivations(); track p.id) {
+              <li>
+                <app-badge variant="solid" [tone]="derivationResultTone(p)">{{
+                  derivationResult(p)
+                }}</app-badge>
+              </li>
+            }
+            <!-- Hidden at zero: it means an input is missing, not that nothing is owed. -->
+            @if (displayedSettlement(); as s) {
+              @if (s.calculatedAmount > 0) {
+                <li class="weigh-amount">
+                  Monto a pagar
+                  <strong class="tabular">{{ exactAmount(s.calculatedAmount) }}</strong>
+                </li>
+              }
+            }
+          </ul>
+        </div>
+      }
+
+      <div class="strip-col strip-actions">
+        <h2 class="strip-label">{{ decisionCardHeading() }}</h2>
         @switch (decisionState()) {
           @case ('approved') {
             <p class="registered">Aprobado{{ resolution() ? ' el ' + resolution()?.at : '' }}</p>
@@ -187,47 +230,7 @@
                 <p class="rcard-note error">{{ signError() }}</p>
               }
             } @else if (canAct()) {
-              <!-- Surfaces existing evidence only; it never suggests what to decide. -->
               <div class="decision-row">
-                <div class="decision-info">
-                  <p class="brief">
-                    @if (deadlineText(); as deadline) {
-                      @if (deadlineTone() !== 'neutral') {
-                        <app-badge variant="solid" [tone]="deadlineTone()">{{
-                          deadline
-                        }}</app-badge>
-                      } @else {
-                        <span>{{ deadline }}</span>
-                      }
-                    }
-                    <!-- Hidden at zero: it means an input is missing, not that nothing is owed. -->
-                    @if (displayedSettlement(); as s) {
-                      @if (s.calculatedAmount > 0) {
-                        <span
-                          >Monto a pagar
-                          <strong class="tabular">{{
-                            exactAmount(s.calculatedAmount)
-                          }}</strong></span
-                        >
-                      }
-                    }
-                    @for (p of answeredDerivations(); track p.id) {
-                      <app-badge variant="solid" [tone]="derivationResultTone(p)">
-                        {{ derivationResult(p) }}
-                      </app-badge>
-                    }
-                  </p>
-                  @if (decisionAlerts().length > 0) {
-                    <p class="brief-alerts">
-                      @for (a of decisionAlerts(); track a.tab) {
-                        <button type="button" class="brief-link" (click)="onAlert(a)">
-                          <span aria-hidden="true" [class.is-danger]="a.danger">▲</span>
-                          {{ a.label }}
-                        </button>
-                      }
-                    </p>
-                  }
-                </div>
                 @if (canDecide()) {
                   <div class="decision-side">
                     <app-button
@@ -371,8 +374,8 @@
         @if (decisionError()) {
           <p class="rcard-note error">{{ decisionError() }}</p>
         }
-      </app-card>
-    </div>
+      </div>
+    </section>
 
     @if (hasWarnings()) {
       <div class="notice-list">
