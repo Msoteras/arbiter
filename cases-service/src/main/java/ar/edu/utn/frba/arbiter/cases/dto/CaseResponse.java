@@ -82,7 +82,7 @@ public record CaseResponse(
         List<RuleResultResponse> ruleResults,
         /** What the insurer DB answered at classification time, not today. */
         PolicySnapshotResponse policySnapshot,
-        /** Only on GET /{id} while in PENDING_REPAIR: the one derivation detail the insured sees. */
+        /** Only on GET /{id}, once referred to a repair service: the one derivation detail the insured sees. */
         RepairProviderResponse repairProvider
 ) {
 

@@ -7,9 +7,13 @@ import ar.edu.utn.frba.arbiter.cases.models.entities.CaseStatusHistory;
 import ar.edu.utn.frba.arbiter.cases.models.entities.StatusChangeActor;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseStatusHistoryRepository;
+import ar.edu.utn.frba.arbiter.cases.models.repositories.UserRepository;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 import ar.edu.utn.frba.arbiter.common.models.entities.CaseState;
+import ar.edu.utn.frba.arbiter.common.models.entities.User;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -74,6 +78,7 @@ public class CaseStatusService {
 
     private final CaseRepository caseRepository;
     private final CaseStatusHistoryRepository historyRepository;
+    private final UserRepository userRepository;
     private final CaseStateCatalog caseStateCatalog;
     private final CaseNotificationService notificationService;
     private final Clock clock;
@@ -237,8 +242,21 @@ public class CaseStatusService {
                 .initialStatus(from)
                 .finalStatus(to)
                 .actor(actor)
+                .changedBy(actor == StatusChangeActor.SYSTEM ? null : currentUserId())
                 .reason(reason)
                 .observation(observation)
                 .build());
+    }
+
+    /**
+     * Null when there is no session or it doesn't match a user: the move still happens, it just
+     * isn't attributed. Never fails a transition over who made it.
+     */
+    private Long currentUserId() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null) {
+            return null;
+        }
+        return userRepository.findByEmail(authentication.getName()).map(User::getId).orElse(null);
     }
 }

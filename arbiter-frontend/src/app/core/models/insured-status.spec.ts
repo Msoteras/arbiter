@@ -66,6 +66,12 @@ describe('insuredMovementLabel', () => {
     );
   });
 
+  it('names who has the item at the repair shop', () => {
+    expect(
+      insuredMovementLabel(movement('UNDER_REPAIR', 'UNDER_ANALYSIS'), 'Service Celular Once'),
+    ).toBe('Enviado al servicio técnico: Service Celular Once');
+  });
+
   it('names the reopening of a closed case', () => {
     for (const closed of ['APPROVED', 'REJECTED', 'LAPSED'] as const) {
       expect(insuredMovementLabel(movement('UNDER_ANALYSIS', closed))).toBe(
