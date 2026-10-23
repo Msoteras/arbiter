@@ -221,6 +221,7 @@ interface BriefAlert {
   // Order matters: both files are concatenated in this order and the cascade depends on it.
   styleUrls: [
     './case-detail.component.scss',
+    './case-detail-strip.scss',
     './case-detail-panels.scss',
     './case-detail-analysis.scss',
   ],
@@ -495,56 +496,34 @@ export class CaseDetailComponent {
    */
   protected readonly isDeterministicOutcome = computed(() => this.data()?.resolvedByRules === true);
 
-  protected readonly summaryGroups = computed<{ heading: string; fields: FieldItem[] }[]>(() => {
-    const d = this.data();
+  /** Claimed amount over the sum insured, in whole percent; null without both. */
+  protected readonly claimedRatio = computed<number | null>(() => {
+    const amount = this.data()?.claimedAmount;
     const sumInsured = this.policySnapshot()?.sumInsured;
+    return amount && sumInsured ? Math.round((amount / sumInsured) * 100) : null;
+  });
+
+  protected readonly reportDelayText = computed(() => {
+    const d = this.data();
+    return d?.createdAt && d.eventDate ? (reportDelay(d.eventDate, d.createdAt) ?? null) : null;
+  });
+
+  /** The biggest factor fills the track; the others are drawn in proportion to it. */
+  protected factorWidth(contribution: number): number {
+    const top = Math.max(...this.topRiskFactors().map((f) => f.contribution), 1);
+    return Math.round((contribution / top) * 100);
+  }
+
+  protected readonly insuredFacts = computed<FieldItem[]>(() => {
+    const d = this.data();
     return [
-      {
-        heading: 'Siniestro',
-        fields: [
-          { label: 'Hecho generador', value: d?.claimCause ?? null },
-          {
-            label: 'Fecha y hora de ocurrencia',
-            value: d?.eventDate ? formatDateTime(d.eventDate) : null,
-          },
-          // Only claims with a police report carry it; an empty row would read as missing data.
-          ...(d?.policeReportAt
-            ? [{ label: 'Denuncia policial', value: formatDateTime(d.policeReportAt) }]
-            : []),
-          { label: 'Ubicación', value: d?.eventLocation ?? null },
-        ],
-      },
-      {
-        heading: 'Bien asegurado',
-        fields: [
-          { label: 'Bien asegurado', value: d?.insuredItem ?? null },
-          {
-            label: 'Importe reclamado',
-            value: d?.claimedAmount ? this.formatAmount(d.claimedAmount) : null,
-            sub:
-              d?.claimedAmount && sumInsured
-                ? `${Math.round((d.claimedAmount / sumInsured) * 100)}% de la suma asegurada`
-                : undefined,
-          },
-          {
-            label: 'Fecha de denuncia',
-            value: d?.createdAt ? formatDateTime(d.createdAt) : null,
-            sub: d?.createdAt && d.eventDate ? reportDelay(d.eventDate, d.createdAt) : undefined,
-          },
-        ],
-      },
-      {
-        heading: 'Asegurado y póliza',
-        fields: [
-          { label: 'Asegurado', value: d?.insuredName ?? null },
-          { label: 'DNI', value: d?.insuredId ?? null, mono: true },
-          // "No" is a value, not missing data, so it skips the `?? null` "Sin datos" path.
-          { label: 'PEP', value: d ? (d.pep ? 'Sí' : 'No') : null },
-          { label: 'N° de póliza', value: d?.policyNumber ?? null, mono: true },
-          { label: 'Producto', value: d?.product ?? null },
-          { label: 'Rama', value: d?.branch ?? null },
-        ],
-      },
+      { label: 'Asegurado', value: d?.insuredName ?? null },
+      { label: 'DNI', value: d?.insuredId ?? null, mono: true },
+      // "No" is a value, not missing data, so it skips the `?? null` "Sin datos" path.
+      { label: 'PEP', value: d ? (d.pep ? 'Sí' : 'No') : null },
+      { label: 'N° de póliza', value: d?.policyNumber ?? null, mono: true },
+      { label: 'Producto', value: d?.product ?? null },
+      { label: 'Rama', value: d?.branch ?? null },
     ];
   });
 
@@ -2020,7 +1999,7 @@ export class CaseDetailComponent {
     return ruleEvaluationText(ruleType, evaluatedValue, this.documentTypes.definitions());
   }
 
-  private formatAmount(amount: number): string {
+  protected formatAmount(amount: number): string {
     return new Intl.NumberFormat('es-AR', {
       style: 'currency',
       currency: 'ARS',

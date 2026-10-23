@@ -27,34 +27,150 @@
   grid-template-columns: 1fr 1fr;
   gap: var(--space-3) var(--space-4);
 }
-.summary-block + .summary-block {
-  margin-top: var(--space-4);
-  padding-top: var(--space-4);
-  border-top: 1px solid var(--border-subtle);
+/* The main card: three key tiles, the insured's story, then who and which policy. */
+.summary-card {
+  --summary-gap: var(--space-5);
 }
-.summary-block-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  margin-bottom: var(--space-3);
-}
-.summary-block-head h2 {
-  margin: 0;
-}
-.summary-fields {
-  margin: 0;
+.key-tiles {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--space-3) var(--space-4);
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: var(--space-3);
 }
-.narrative {
-  margin-top: var(--space-3);
-  padding: var(--space-3);
+.key-tile {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+  padding: var(--space-4);
+  border-radius: var(--radius-card);
+  background: var(--surface-soft);
+}
+.key-label {
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+}
+.key-value {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+.key-value.small {
+  font-size: var(--font-size-lg);
+}
+.key-sub {
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+}
+.ratio-chip {
+  align-self: flex-start;
+  margin-top: var(--space-1);
+  padding: var(--space-1) var(--space-2);
   border-radius: var(--radius-ctl);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-secondary);
   background: var(--surface-sunken);
 }
-.narrative p {
-  margin: var(--space-1) 0 0;
+/* More than the sum insured: the text and a faint tint carry it, never a saturated fill. */
+.ratio-chip.is-over {
+  color: var(--status-danger-strong);
+  background: var(--surface-danger-soft);
+}
+.summary-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--summary-gap);
+}
+.summary-heading {
+  margin: 0;
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-primary);
+}
+.narrative-quote {
+  margin: 0;
+  font-size: var(--font-size-lg);
+  line-height: 1.5;
+  color: var(--text-secondary);
+  text-wrap: pretty;
+}
+.facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: var(--space-4) var(--space-5);
+  margin: 0;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border-subtle);
+}
+.fact {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.fact dt {
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+}
+.fact dd {
+  margin: 0;
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+
+/* Risk factors: each one's points over a track, the biggest filling it. */
+.factor-bars {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.factor-bars li {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.factor-row {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  font-size: var(--font-size-body);
+  color: var(--text-primary);
+}
+.factor-row strong {
+  color: var(--status-danger-strong);
+}
+.factor-track {
+  display: block;
+  height: var(--space-1);
+  border-radius: var(--radius-pill);
+  background: var(--surface-sunken);
+  overflow: hidden;
+}
+.factor-fill {
+  display: block;
+  height: 100%;
+  border-radius: var(--radius-pill);
+  background: var(--status-risk);
+  transform-origin: left;
+  animation: factor-grow var(--dur-3) var(--ease-out);
+}
+@keyframes factor-grow {
+  from {
+    transform: scaleX(0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .factor-fill {
+    animation: none;
+  }
 }
 .field.full {
   grid-column: 1 / -1;
@@ -94,8 +210,7 @@ app-textarea {
   .summary-grid {
     grid-template-columns: 1fr;
   }
-  .fields,
-  .summary-fields {
+  .fields {
     grid-template-columns: 1fr;
   }
 }

@@ -473,71 +473,104 @@
           <div class="summary-grid">
             <div class="col-main">
               <app-card class="summary-card">
-                @for (g of summaryGroups(); track g.heading; let first = $first) {
-                  <section class="summary-block">
-                    <div class="summary-block-head">
-                      <h2 class="t-section-label">{{ g.heading }}</h2>
-                      @if (first) {
-                        <span class="t-note mono">Siniestro #{{ d.id }}</span>
+                <!-- The three facts an analyst checks first, then the story and who it is about. -->
+                <div class="key-tiles">
+                  <div class="key-tile">
+                    <span class="key-label">Importe reclamado</span>
+                    @if (d.claimedAmount) {
+                      <span class="key-value tabular">{{ formatAmount(d.claimedAmount) }}</span>
+                      @if (claimedRatio(); as ratio) {
+                        <span class="ratio-chip" [class.is-over]="ratio > 100"
+                          >{{ ratio }}% de la suma asegurada</span
+                        >
                       }
-                    </div>
-                    <dl class="summary-fields">
-                      @for (f of g.fields; track f.label) {
-                        <div class="field">
-                          <dt class="t-field-label">{{ f.label }}</dt>
-                          @if (f.value) {
-                            <dd [class.mono]="f.mono">{{ f.value }}</dd>
-                            @if (f.sub) {
-                              <dd class="t-note">{{ f.sub }}</dd>
-                            }
-                          } @else {
-                            <dd class="nodata">Sin datos</dd>
-                          }
-                        </div>
+                    } @else {
+                      <span class="nodata">Sin datos</span>
+                    }
+                  </div>
+                  <div class="key-tile">
+                    <span class="key-label">Bien asegurado</span>
+                    <span class="key-value small">{{ d.insuredItem || 'Sin datos' }}</span>
+                    @if (d.product) {
+                      <span class="key-sub">{{ d.product }}</span>
+                    }
+                  </div>
+                  <div class="key-tile">
+                    <span class="key-label">Denuncia</span>
+                    <span class="key-value small">{{ reportDelayText() ?? 'Sin datos' }}</span>
+                    <span class="key-sub">
+                      @if (d.eventDate) {
+                        Hecho {{ formatDateTime(d.eventDate) }}
                       }
-                    </dl>
-                    @if (first) {
-                      <div class="narrative">
-                        <span class="t-field-label">Relato del asegurado</span>
-                        @if (d.description) {
-                          <p class="t-body">{{ d.description }}</p>
-                        } @else {
-                          <p class="nodata">Sin datos</p>
-                        }
+                      @if (d.createdAt) {
+                        · Denuncia {{ formatDateTime(d.createdAt) }}
+                      }
+                    </span>
+                    @if (d.policeReportAt) {
+                      <span class="key-sub"
+                        >Denuncia policial {{ formatDateTime(d.policeReportAt) }}</span
+                      >
+                    }
+                  </div>
+                </div>
+
+                <section class="summary-section">
+                  <h2 class="summary-heading">Relato del asegurado</h2>
+                  @if (d.description) {
+                    <p class="narrative-quote">“{{ d.description }}”</p>
+                  } @else {
+                    <p class="nodata">Sin datos</p>
+                  }
+                  <span class="key-sub">
+                    {{ d.claimCause }}
+                    @if (d.eventLocation) {
+                      · Ubicación {{ d.eventLocation }}
+                    }
+                  </span>
+                </section>
+
+                <section class="summary-section">
+                  <h2 class="summary-heading">Asegurado y póliza</h2>
+                  <dl class="facts">
+                    @for (f of insuredFacts(); track f.label) {
+                      <div class="fact">
+                        <dt>{{ f.label }}</dt>
+                        <dd [class.mono]="f.mono">{{ f.value ?? 'Sin datos' }}</dd>
                       </div>
                     }
-                  </section>
-                }
+                  </dl>
+                </section>
               </app-card>
             </div>
 
             <div class="col-side">
-              <app-card heading="Conversación con el asegurado">
-                @if (lastMessage(); as m) {
-                  <div class="chat-preview">
-                    <span class="chat-preview-avatar" aria-hidden="true">{{
-                      m.mine ? 'Vos' : insuredInitials()
-                    }}</span>
-                    <div class="chat-preview-text">
-                      <p class="chat-preview-head">
-                        <span class="who">{{
-                          m.mine ? 'Vos' : (d.insuredName ?? 'Asegurado')
-                        }}</span>
-                        <span class="at tabular">{{ chatListStamp(m.createdAt) }}</span>
-                      </p>
-                      <p class="body">{{ m.body }}</p>
-                    </div>
-                  </div>
-                } @else {
-                  <p class="nodata">Todavía no hay mensajes.</p>
-                }
-                <app-button variant="secondary" [block]="true" (click)="chatOpen.set(true)">
-                  Abrir chat
-                  @if (unreadMessages() > 0) {
-                    · {{ unreadMessages() }} sin leer
+              <!-- Answers "why this band" without leaving the tab where the analyst decides. -->
+              @if (topRiskFactors().length > 0) {
+                <app-card heading="Factores de riesgo">
+                  <button cardAside type="button" class="brief-link" (click)="viewAnalysis()">
+                    Ver desglose
+                  </button>
+                  <ul class="factor-bars">
+                    @for (f of topRiskFactors(); track f.factorId) {
+                      <li>
+                        <span class="factor-row">
+                          <span>{{ factorLabel(f.factorId) }}</span>
+                          <strong class="tabular">+{{ f.contribution }}</strong>
+                        </span>
+                        <span class="factor-track"
+                          ><span
+                            class="factor-fill"
+                            [style.width.%]="factorWidth(f.contribution)"
+                          ></span
+                        ></span>
+                      </li>
+                    }
+                  </ul>
+                  @if (fastTrackScoreScope() === 'partial') {
+                    <p class="rcard-note">Score parcial: sin documentos ni imágenes.</p>
                   }
-                </app-button>
-              </app-card>
+                </app-card>
+              }
 
               <!-- Kept apart from the decision on purpose: being assigned is not having resolved. -->
               <app-card heading="Analista asignado">
@@ -601,25 +634,35 @@
                 }
               </app-card>
 
-              <!-- Answers "why this band" without leaving the tab where the analyst decides. -->
-              @if (topRiskFactors().length > 0) {
-                <app-card heading="Factores principales de riesgo">
-                  <ul class="risk-factors">
-                    @for (f of topRiskFactors(); track f.factorId) {
-                      <li>
-                        <span>{{ factorLabel(f.factorId) }}</span>
-                        <span class="tabular">+{{ f.contribution }}</span>
-                      </li>
-                    }
-                  </ul>
-                  @if (fastTrackScoreScope() === 'partial') {
-                    <p class="rcard-note">Score parcial: sin documentos ni imágenes.</p>
+              <app-card [heading]="'Conversación con ' + insuredFirstName()">
+                @if (lastMessage(); as m) {
+                  <div class="chat-preview">
+                    <span class="chat-preview-avatar" aria-hidden="true">{{
+                      m.mine ? 'Vos' : insuredInitials()
+                    }}</span>
+                    <div class="chat-preview-text">
+                      <p class="chat-preview-head">
+                        <span class="who">{{
+                          m.mine ? 'Vos' : (d.insuredName ?? 'Asegurado')
+                        }}</span>
+                        <span class="at tabular">{{ chatListStamp(m.createdAt) }}</span>
+                      </p>
+                      <p class="body">{{ m.body }}</p>
+                    </div>
+                  </div>
+                } @else {
+                  <p class="nodata">Todavía no hay mensajes.</p>
+                }
+                <app-button variant="accent" [block]="true" (click)="chatOpen.set(true)">
+                  @if (unreadMessages() > 0) {
+                    Abrir chat · {{ unreadMessages() }} sin leer
+                  } @else if (lastMessage()) {
+                    Abrir chat
+                  } @else {
+                    Escribirle a {{ insuredFirstName() }}
                   }
-                  <button type="button" class="brief-link risk-breakdown" (click)="viewAnalysis()">
-                    Ver desglose completo
-                  </button>
-                </app-card>
-              }
+                </app-button>
+              </app-card>
 
               <!-- About the person, not this claim, hence the side column. -->
               @if (fraudRecordVisible()) {
