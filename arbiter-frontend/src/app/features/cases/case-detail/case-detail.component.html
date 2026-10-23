@@ -311,14 +311,29 @@
                     }
                   </div>
                 } @else if (!isAssigned() && canTake()) {
-                  <app-button
-                    variant="accent"
-                    size="sm"
-                    [disabled]="assignSaving()"
-                    (click)="take()"
-                  >
-                    {{ assignSaving() ? 'Asignando…' : '+ Asignarme' }}
-                  </app-button>
+                  <!-- Unassigned: taking it, or handing it to someone, is the decision to make here. -->
+                  <div class="assign-stack">
+                    <app-button
+                      variant="accent"
+                      [block]="true"
+                      [disabled]="assignSaving()"
+                      (click)="take()"
+                    >
+                      {{ assignSaving() ? 'Asignando…' : '+ Asignarme' }}
+                    </app-button>
+                    @if (canAssign()) {
+                      <app-menu-button
+                        [block]="true"
+                        [items]="analystMenuItems()"
+                        heading="Asignar a otro analista"
+                        [disabled]="assignSaving() || analystsLoading()"
+                        align="end"
+                        (itemSelected)="assignTo($event)"
+                      >
+                        {{ analystsLoading() ? 'Cargando…' : 'Asignar a…' }}
+                      </app-menu-button>
+                    }
+                  </div>
                 }
               </div>
               <!-- Why a referral isn't offered: a fact about this claim, not an alert, so the
