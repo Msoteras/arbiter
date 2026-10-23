@@ -39,6 +39,9 @@ function normalize(text: string): string {
  * Custom listbox rather than a native `<select>`, whose panel is drawn by the OS and ignores the
  * tokens. `placeholder` is the empty option; omit it for required fields.
  *
+ * `[selectAside]` content sits in the trigger, right of the label (e.g. "✓ Póliza vigente"). Not
+ * shown when `searchable`, whose trigger is an input.
+ *
  * `searchable` turns the trigger into a filter input. Typed text only filters: closing without
  * picking restores the selected label, so free text never becomes the value.
  */
@@ -90,6 +93,7 @@ function normalize(text: string): string {
           <span class="trigger-label" [class.is-placeholder]="!selectedLabel()">
             {{ selectedLabel() || placeholder() }}
           </span>
+          <ng-content select="[selectAside]" />
         </button>
       }
 
@@ -196,6 +200,10 @@ function normalize(text: string): string {
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
+    }
+    .trigger ::ng-deep [selectAside] {
+      flex: none;
+      font-size: var(--font-size-sm);
     }
     .trigger-label.is-placeholder {
       color: var(--text-muted);

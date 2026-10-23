@@ -10,9 +10,17 @@
     <app-info-tip cardAside>{{ stepLine.SCORING }}</app-info-tip>
     <div class="sc-section">
       <div class="sc-section-head">
-        <span class="t-section-label">Factores y pesos</span>
-        <app-info-tip>Los pesos son relativos. No tienen que sumar 100.</app-info-tip>
+        <span class="t-section-label">
+          Factores y pesos
+          <app-info-tip>Los pesos de los factores prendidos suman 100%.</app-info-tip>
+        </span>
+        @if (hasActiveFactors()) {
+          <span class="sc-total" [class.invalid]="totalOff()"> Total: {{ totalLabel() }} </span>
+        }
       </div>
+      @if (weightsInvalidReason(); as reason) {
+        <p class="sc-total-note" role="alert">{{ reason }}</p>
+      }
 
       @for (group of factorGroups; track group.title) {
         <h3 class="sc-group">
@@ -44,22 +52,18 @@
                 <span class="t-field-label">{{ f.label }}</span>
               </div>
               @if (isFactorActive(f.id)) {
-                <!-- Effective share (weight over active total), which is what the engine applies. -->
-                <div class="sc-share">
-                  <span class="sc-bar" aria-hidden="true">
-                    <span class="sc-bar-fill" [style.width.%]="effectiveWeightRatio(f.id)"></span>
-                  </span>
-                  <span class="sc-share-note">pesa {{ effectiveWeightPct(f.id) }}</span>
-                </div>
                 <label class="rule-value">
                   <span class="t-note">Peso</span>
                   <span class="sr-only"> de {{ f.label }}</span>
                   <app-input
                     type="number"
                     [min]="0"
+                    max="100"
+                    inputmode="numeric"
                     [value]="factorWeightPct(f.id)"
                     (valueChange)="setFactorWeight(f.id, $event)"
                   />
+                  <span class="t-note" aria-hidden="true">%</span>
                 </label>
               } @else {
                 <span class="rule-off-note t-note">No se evalúa</span>
@@ -108,6 +112,7 @@
       [dirty]="dirty()"
       [saving]="saving()"
       [error]="error()"
+      [canSave]="!weightsInvalidReason()"
       (save)="saveScoring()"
       (discard)="discard()"
     />

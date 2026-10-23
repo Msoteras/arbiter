@@ -1,4 +1,12 @@
-import { ChangeDetectionStrategy, Component, computed, input, model, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  input,
+  model,
+  output,
+  signal,
+} from '@angular/core';
 
 /** Deliberately not a ControlValueAccessor: the app does not use Angular Forms. */
 @Component({
@@ -183,6 +191,11 @@ export class InputComponent {
   readonly inputmode = input<string | null>(null);
   /** Rewrites what is typed in place; a bound value that comes out unchanged never repaints the field. */
   readonly normalize = input<((typed: string) => string) | null>(null);
+  /**
+   * Enter pressed, for fields outside a `<form>` that trigger an action (search, add, confirm).
+   * Inside a form, Enter already submits it: binding this too would run the action twice.
+   */
+  readonly enter = output<void>();
 
   /** The native `min` is enforced by the arrows and submit, but not by typing or pasting "-500". */
   private readonly rejectsNegative = computed(
@@ -197,6 +210,10 @@ export class InputComponent {
   );
 
   protected onKeydown(event: KeyboardEvent): void {
+    if (event.key === 'Enter' && !event.isComposing) {
+      this.enter.emit();
+      return;
+    }
     if (this.type() !== 'number') {
       return;
     }

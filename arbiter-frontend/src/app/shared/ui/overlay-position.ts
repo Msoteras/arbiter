@@ -38,3 +38,29 @@ export function anchorToTrigger(
     width: align === 'stretch' ? trigger.width : null,
   };
 }
+
+export interface PanelPosition {
+  top: number | null;
+  bottom: number | null;
+  left: number;
+  maxHeight: number;
+}
+
+/**
+ * For a panel wider than its trigger (pickers). Keeps the panel inside the viewport horizontally and
+ * caps its height to the side it opens to, so on a phone it scrolls instead of leaving the screen.
+ */
+export function anchorPanel(trigger: DOMRect, height: number, width: number): PanelPosition {
+  const viewportWidth = document.documentElement.clientWidth;
+  const viewportHeight = document.documentElement.clientHeight;
+  const spaceBelow = viewportHeight - trigger.bottom - 2 * GAP;
+  const spaceAbove = trigger.top - 2 * GAP;
+  const dropUp = spaceBelow < height && spaceAbove > spaceBelow;
+  const maxLeft = Math.max(GAP, viewportWidth - width - GAP);
+  return {
+    top: dropUp ? null : trigger.bottom + GAP,
+    bottom: dropUp ? viewportHeight - trigger.top + GAP : null,
+    left: Math.min(Math.max(GAP, trigger.left), maxLeft),
+    maxHeight: dropUp ? spaceAbove : spaceBelow,
+  };
+}

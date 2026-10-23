@@ -200,16 +200,6 @@ export class CaseChatComponent {
     }
   }
 
-  /** Enter sends, Shift+Enter breaks the line. */
-  protected onEnter(event: Event): void {
-    const key = event as KeyboardEvent;
-    if (key.shiftKey || key.isComposing) {
-      return;
-    }
-    event.preventDefault();
-    this.send();
-  }
-
   protected useQuickReply(reply: QuickReply): void {
     this.draft.set(reply.text);
     this.focusField();

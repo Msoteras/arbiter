@@ -194,9 +194,9 @@ export class ProvidersConfigComponent {
         ? this.providersService.create(request)
         : this.providersService.update(d.id, request);
     call.subscribe({
+      // The form closes once the button has shown "Guardado" (saveSettled).
       next: () => {
         this.saving.set(false);
-        this.draft.set(null);
         this.reload();
       },
       error: (err: HttpErrorResponse) => {

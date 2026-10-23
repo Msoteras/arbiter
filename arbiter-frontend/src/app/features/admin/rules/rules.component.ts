@@ -182,7 +182,6 @@ export class RulesComponent {
 
   // Renaming is the only branch edit exposed here; creating/deleting branches isn't in the UI.
   protected readonly renaming = signal(false);
-  protected readonly renameSaved = signal(false);
   protected readonly renameError = signal<string | null>(null);
   /** The name only becomes an input after the pencil is pressed. */
   protected readonly editingName = signal(false);
@@ -605,7 +604,6 @@ export class RulesComponent {
     this.exclError.set(null);
     this.docError.set(null);
     this.rulesError.set(null);
-    this.renameSaved.set(false);
     this.renameError.set(null);
     this.editingName.set(false);
     this.beginDetailLoad(r.id);
@@ -963,11 +961,9 @@ export class RulesComponent {
 
   protected setName(name: string): void {
     this.draft.update((d) => (d ? { ...d, name } : d));
-    this.renameSaved.set(false);
   }
 
   protected startNameEdit(): void {
-    this.renameSaved.set(false);
     this.renameError.set(null);
     this.editingName.set(true);
   }
@@ -1024,13 +1020,11 @@ export class RulesComponent {
       return;
     }
     this.renameError.set(null);
-    this.renameSaved.set(false);
     this.renaming.set(true);
     this.branchesService.rename(branchId, name).subscribe({
       next: (branch) => {
+        // The editor closes once the button has shown "Guardado" (saveSettled).
         this.renaming.set(false);
-        this.renameSaved.set(true);
-        this.editingName.set(false);
         this.branches.update((list) =>
           list.map((r) => (r.id === String(branch.id) ? { ...r, name: branch.name } : r)),
         );

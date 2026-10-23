@@ -26,7 +26,7 @@ import { caseStatusLabel, caseStatusTone } from '../../../core/models/case-statu
 import { RiskBand, riskBandLabel, riskBandTone } from '../../../core/models/risk-band';
 import { ruleTypeDescription, ruleTypeLabel } from '../../../core/models/rule-type';
 import { StatusTone } from '../../../core/models/status-tone';
-import { formatDateRange, todayIso } from '../../../core/util/datetime';
+import { formatDateRange, formatDayMonth, todayIso } from '../../../core/util/datetime';
 import { formatRate } from '../../../core/util/percent';
 import { formatMoney } from '../../../core/util/money';
 import { percentagePoints, trendText } from '../../../core/util/trend';
@@ -742,7 +742,7 @@ export class DashboardComponent {
     if (this.data()?.granularity === 'MONTH') {
       return date.toLocaleDateString('es-AR', { month: 'short', year: 'numeric' });
     }
-    return date.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' });
+    return formatDayMonth(date);
   }
 }
 

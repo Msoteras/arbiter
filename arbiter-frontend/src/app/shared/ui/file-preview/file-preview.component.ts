@@ -10,23 +10,28 @@ import {
 } from '@angular/core';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 
+import { ModalComponent } from '../modal/modal.component';
 import {
   formatFileSize,
   isPreviewableImage,
   isPreviewablePdf,
 } from '../../../core/models/case-document';
 
-/** Preview of a locally selected file before upload, served from an object URL. */
+/**
+ * Preview of a locally selected file before upload, served from an object URL. The large view opens
+ * in a modal: inline, it would stretch whatever row hosts the thumbnail.
+ */
 @Component({
   selector: 'app-file-preview',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [ModalComponent],
   template: `
     <div class="preview">
       <button
         type="button"
         class="thumb"
         [class.expandable]="canPreview()"
-        [attr.aria-expanded]="canPreview() ? expanded() : null"
+        [attr.aria-label]="canPreview() ? 'Ver ' + file().name : null"
         [disabled]="!canPreview()"
         (click)="toggle()"
       >
@@ -41,20 +46,24 @@ import {
         <span class="name" [title]="file().name">{{ file().name }}</span>
         <span class="size">{{ size() }}</span>
         @if (canPreview()) {
-          <button type="button" class="toggle" (click)="toggle()">
-            {{ expanded() ? 'Ocultar' : 'Ver más grande' }}
-          </button>
+          <button type="button" class="toggle" (click)="toggle()">Ver más grande</button>
         }
       </div>
     </div>
 
-    @if (expanded() && url()) {
+    <app-modal
+      [open]="expanded() && !!url()"
+      [heading]="file().name"
+      size="lg"
+      [hideActions]="true"
+      (close)="expanded.set(false)"
+    >
       @if (isImage()) {
         <div class="expanded image"><img [src]="url()!" [alt]="file().name" /></div>
       } @else if (isPdf() && safeUrl()) {
         <iframe class="expanded pdf" [src]="safeUrl()!" [title]="file().name"></iframe>
       }
-    }
+    </app-modal>
   `,
   styles: `
     :host {
@@ -142,7 +151,6 @@ import {
     .expanded {
       display: block;
       width: 100%;
-      margin-top: var(--space-3);
       border: 1px solid var(--border-subtle);
       border-radius: var(--radius-ctl);
       background: var(--surface-sunken);
@@ -154,13 +162,13 @@ import {
     }
     .expanded.image img {
       max-width: 100%;
-      max-height: 420px;
+      max-height: 70dvh;
       object-fit: contain;
       outline: 1px solid rgb(0 0 0 / 0.1);
       outline-offset: -1px;
     }
     .expanded.pdf {
-      height: 420px;
+      height: 70dvh;
     }
   `,
 })

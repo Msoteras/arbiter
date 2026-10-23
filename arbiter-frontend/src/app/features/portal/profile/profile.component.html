@@ -78,6 +78,7 @@
             autocomplete="email"
             placeholder="tunombre@email.com"
             [(value)]="email"
+            (enter)="save()"
           />
           @if (email().length > 0 && !emailValid()) {
             <p class="field-error">Revisá el email: no parece una dirección válida.</p>
@@ -92,6 +93,7 @@
             autocomplete="tel"
             placeholder="11 5555-0000"
             [(value)]="phone"
+            (enter)="save()"
           />
           @if (phone().length > 0 && !phoneValid()) {
             <p class="field-error">Revisá el teléfono: parece incompleto.</p>
@@ -131,8 +133,14 @@
     }
 
     <div class="actions">
-      <app-button variant="accent" [disabled]="!canSave()" [loading]="saving()" (click)="save()">
-        Guardar cambios
+      <app-button
+        variant="accent"
+        [disabled]="!canSave()"
+        [saving]="saving()"
+        [saveFailed]="!!saveError()"
+        (click)="save()"
+      >
+        Guardar
       </app-button>
     </div>
   }

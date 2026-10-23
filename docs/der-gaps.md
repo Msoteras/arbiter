@@ -64,17 +64,11 @@ Nada: el `.mdj` del 18/10 a las 11:56 coincide con el esquema, salvo lo que est�
 
 ## Para el esquema (historias)
 
-### 39 · `usuario_id` sin UNIQUE en `asegurado`, `analista_siniestro` y `referente_aseguradora`
+Nada: la entrada 39 se cerró el 23/10. `develop` agregó la UNIQUE en `usuario_id` de `asegurado`,
+`analista_siniestro` y `referente_aseguradora` (`2026-10-21-un-usuario-por-persona.sql`), y el alta en
+bloque ya no cuelga un segundo asegurado del mismo usuario.
 
-El DER dibuja `usuario` 1—0..1 contra las tres: una persona es un usuario, y dentro de una aseguradora
-es como mucho un asegurado, un analista y un referente (decidido el 17/10 y el 18/10). El esquema no
-lo garantiza: ninguna de las tres tiene UNIQUE en `usuario_id`. En `asegurado` además pasa: el alta
-en bloque busca el usuario por email y el asegurado por DNI, así que dos personas con DNI distinto y
-el mismo email quedan colgadas del mismo usuario, y la segunda entra al portal con la cuenta de la
-primera.
-
-**Acción:** no es del `.mdj`. Va como historia: UNIQUE en `usuario_id` de las tres tablas, y que el
-alta en bloque informe el caso del email compartido en vez de reusar el usuario.
+---
 
 ## En standby
 

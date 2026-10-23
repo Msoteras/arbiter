@@ -105,7 +105,12 @@ import {
 } from '../../../core/models/deadline-priority';
 import { RiskBand, riskBandLabel } from '../../../core/models/risk-band';
 import { StatusTone } from '../../../core/models/status-tone';
-import { chatListStamp, formatDate, formatDateTime } from '../../../core/util/datetime';
+import {
+  chatListStamp,
+  formatDate,
+  formatDateTime,
+  formatDayMonth,
+} from '../../../core/util/datetime';
 import { amountInputDisplay, amountInputLabel, amountInputValue } from '../../../core/util/money';
 import { FraudGaugeComponent } from '../../../shared/ui/fraud-gauge/fraud-gauge.component';
 import { InfoTipComponent } from '../../../shared/ui/info-tip/info-tip.component';
@@ -152,14 +157,14 @@ interface FieldItem {
 
 /** Hours for the first couple of days, days afterwards. */
 function reportDelay(eventDate: string, createdAt: string): string | undefined {
-  const hours = Math.round((Date.parse(createdAt) - Date.parse(eventDate)) / 3_600_000);
+  const hours = Math.floor((Date.parse(createdAt) - Date.parse(eventDate)) / 3_600_000);
   if (Number.isNaN(hours) || hours < 0) {
     return undefined;
   }
   if (hours < 48) {
     return hours === 1 ? '1 h después del hecho' : `${hours} h después del hecho`;
   }
-  return `${Math.round(hours / 24)} días después del hecho`;
+  return `${Math.floor(hours / 24)} días después del hecho`;
 }
 
 /** A signal worth reading before deciding, and the tab where its evidence lives. */
@@ -1810,8 +1815,8 @@ export class CaseDetailComponent {
       : this.service.uploadExpertReport(d.id, result as ExpertVerdict, note, parsedAmount, file);
     request.subscribe({
       next: () => {
+        // The modal closes once the button has shown "Guardado" (saveSettled).
         this.reportSaving.set(false);
-        this.showReport.set(false);
         this.reloadTrigger.update((v) => v + 1);
       },
       error: (err: HttpErrorResponse) => {
@@ -2087,17 +2092,15 @@ export class CaseDetailComponent {
   );
 
   /**
-   * Assignment date from the history: an assignment leaves an entry with fromStatus == toStatus and
-   * actor ANALYST or REFERENT; the last one is the current assignment.
+   * Assignment date from the history: the last "expediente asignado a …" entry. Settlement notes
+   * also leave fromStatus == toStatus entries, so the reason is what tells them apart.
    */
   private readonly assignedSince = computed<string | null>(() => {
     const milestones = (this.data()?.statusHistory ?? []).filter(
-      (t) => t.fromStatus === t.toStatus && (t.actor === 'ANALYST' || t.actor === 'REFERENT'),
+      (t) => t.fromStatus === t.toStatus && t.reason.startsWith('expediente asignado a'),
     );
     const last = milestones.at(-1);
-    return last
-      ? new Date(last.changedAt).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' })
-      : null;
+    return last ? formatDayMonth(last.changedAt) : null;
   });
 
   /** e.g. "Vos · desde el 04/06". */

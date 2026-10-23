@@ -67,8 +67,8 @@ public class PolicySnapshot {
     private BigDecimal overdueBalance;
 
     /**
-     * 1 is the first. Uses the same 12-month window as the MAX_EVENTS_YEAR rule, so the events cap and
-     * the percentage payable can't disagree.
+     * 1 is the first. Uses the same count as the MAX_EVENTS_YEAR rule (settled claims of this policy in
+     * its current policy year), so the events cap and the percentage payable can't disagree.
      */
     @Column(name = "events_in_year")
     private Integer eventsInYear;

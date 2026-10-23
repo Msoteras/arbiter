@@ -124,11 +124,18 @@ export function ruleEvaluationText(
       return t['policeReportAt']
         ? `Denuncia policial ${hoursLabel(t['policeReportAt'])} después del hecho · máximo ${hoursLabel(t['max'])}`
         : evaluatedValue;
+    // events12m: classifications made before the cap counted per policy and policy year.
     case 'MAX_EVENTS_YEAR': {
-      const n = Number(t['events12m']);
-      return t['events12m']
-        ? `${n} ${n === 1 ? 'siniestro' : 'siniestros'} en los últimos 12 meses · máximo ${t['max']}`
-        : evaluatedValue;
+      const window = t['eventsPolicyYear']
+        ? { count: t['eventsPolicyYear'], label: 'en este año de vigencia de la póliza' }
+        : t['events12m']
+          ? { count: t['events12m'], label: 'en los últimos 12 meses' }
+          : null;
+      if (!window) {
+        return evaluatedValue;
+      }
+      const n = Number(window.count);
+      return `${n} ${n === 1 ? 'siniestro' : 'siniestros'} ${window.label} · máximo ${t['max']}`;
     }
     case 'POLICY_STANDING':
     case 'FT_POLICY_UP_TO_DATE':

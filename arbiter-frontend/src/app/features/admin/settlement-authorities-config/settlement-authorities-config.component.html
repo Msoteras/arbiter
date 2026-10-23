@@ -28,6 +28,7 @@
             placeholder="Sin tope"
             [value]="draftLabel(a.branchId)"
             (valueChange)="setDraft(a.branchId, $event)"
+            (enter)="!saving() && save()"
           />
         </li>
       } @empty {

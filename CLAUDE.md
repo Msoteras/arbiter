@@ -224,7 +224,7 @@ Antes de escribir markup de UI, usá los componentes que ya existen en vez de re
 
 | Selector | Uso |
 |----------|-----|
-| `app-button` | todo botón/acción. `primary` (oscuro) \| `secondary` \| `accent`; `size` `md`/`sm`; `tone` `ok`/`danger` para acciones cuyo resultado es un estado (aprobar, rechazar); `block`, `loading`. |
+| `app-button` | todo botón/acción. `primary` (oscuro) \| `secondary` \| `accent`; `size` `md`/`sm`; `tone` `ok`/`danger` para acciones cuyo resultado es un estado (aprobar, rechazar); `block`, `loading`; `saving` para guardar (Guardar → Guardando → Guardado, con `saveFailed` y `saveSettled`). |
 | `app-menu-button` | botón que abre un menú de acciones (ej. "Exportar", "Derivar a…"). |
 | `app-badge` | chips de estado/etiqueta. `solid` \| `strong` \| `dashed`; `tone` del semáforo → punto de color. |
 | `app-card` | contenedor de contenido. `heading` (con `headingSize` `sm`/`md`/`lg`), `icon`; variante `ai` para salida del modelo; `collapsible`, `flush`. |
@@ -234,6 +234,7 @@ Antes de escribir markup de UI, usá los componentes que ya existen en vez de re
 | `app-textarea` | texto multilínea. |
 | `app-select` | desplegable propio (no el nativo); `searchable`, `required`. |
 | `app-chip-group` | elegir una opción entre 2 y 5, todas a la vista. |
+| `app-date-picker`, `app-time-picker`, `app-date-range-picker` | fecha con atajos (Hoy, Ayer), hora con franjas del día y rango de fechas en un solo campo (cada extremo puede quedar abierto). Panel propio: el selector nativo no admite atajos. |
 | `app-checkbox`, `app-switch` | casilla nativa y switch para ajustes con efecto inmediato. |
 | `app-tabs`, `app-tab-nav` | solapas de una pantalla (`tablist`, con número, punto de estado y `scrollable`) y solapas que son rutas (enlaces con `aria-current`). |
 | `app-modal` | diálogos; `variant="side"` es panel lateral para altas sobre una lista; `dismissable=false` para formularios que no se cierran por accidente. |
