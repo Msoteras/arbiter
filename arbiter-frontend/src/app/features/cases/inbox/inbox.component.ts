@@ -70,6 +70,7 @@ import {
   MenuItem,
 } from '../../../shared/ui/menu-button/menu-button.component';
 import { SkeletonComponent } from '../../../shared/ui/skeleton/skeleton.component';
+import { SpinnerComponent } from '../../../shared/ui/spinner/spinner.component';
 import { TabOption, TabsComponent } from '../../../shared/ui/tabs/tabs.component';
 import { fadeStagger, staggerReveal } from '../../../shared/animations';
 
@@ -136,6 +137,7 @@ const LINK_PARAMS = [
     EmptyStateComponent,
     MenuButtonComponent,
     SkeletonComponent,
+    SpinnerComponent,
     TabsComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -357,15 +359,17 @@ export class InboxComponent {
   protected readonly firstLoad = computed(() => this.loading() && !this.hasLoaded());
 
   /**
-   * The page on screen. While the next one loads (a page, a filter) the previous stays, dimmed:
-   * only the rows change, and the filters and the pager above and below don't move.
+   * The last page that arrived. While the next one loads (a page, a filter) it keeps the totals, so
+   * the pager doesn't disappear, and sizes the skeleton to the rows it replaces.
    */
   private readonly shown = linkedSignal<LoadState, Extract<LoadState, { status: 'ok' }> | null>({
     source: () => this.state(),
     computation: (s, previous) =>
       s.status === 'ok' ? s : s.status === 'loading' ? (previous?.value ?? null) : null,
   });
-  protected readonly refreshing = computed(() => this.loading() && this.shown() !== null);
+  protected readonly skeletonRows = computed(() =>
+    Math.min(this.shown()?.data.length || 8, this.size()),
+  );
 
   protected readonly cases = computed<CaseResponse[]>(() => {
     const s = this.shown();

@@ -226,11 +226,16 @@
       }
     </section>
 
-    @if (loading() && cases().length === 0) {
-      <!-- Only with nothing on screen yet; otherwise the previous page stays, dimmed. -->
+    @if (loading()) {
+      <!-- A page, a filter or a refresh: the table turns into its skeleton, same height as the rows
+           it replaces, and the filters above and the pager below stay put. -->
+      <p class="loading-note" role="status">
+        <app-spinner [size]="16" />
+        Cargando expedientes…
+      </p>
       <app-skeleton
         shape="table"
-        [rows]="8"
+        [rows]="skeletonRows()"
         [columns]="columns.length"
         label="Cargando expedientes"
       />
@@ -256,7 +261,7 @@
         <app-empty-state message="Todavía no hay expedientes cargados." sub="Sin expedientes" />
       }
     } @else {
-      <app-card [flush]="true" class="table-card" [class.refreshing]="refreshing()">
+      <app-card [flush]="true" class="table-card">
         <div
           class="table-scroll"
           #tableScroll
@@ -390,7 +395,10 @@
           </table>
         </div>
       </app-card>
+    }
 
+    <!-- Outside the table's branches: it stays while the next page loads. -->
+    @if (totalElements() > 0 && !hasError()) {
       <app-pagination
         [page]="page()"
         [totalPages]="totalPages()"
