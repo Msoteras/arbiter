@@ -227,7 +227,7 @@ Antes de escribir markup de UI, usá los componentes que ya existen en vez de re
 | `app-button` | todo botón/acción. `primary` (oscuro) \| `secondary` \| `accent`; `size` `md`/`sm`; `tone` `ok`/`danger` para acciones cuyo resultado es un estado (aprobar, rechazar); `block`, `loading`; `saving` para guardar (Guardar → Guardando → Guardado, con `saveFailed` y `saveSettled`). |
 | `app-menu-button` | botón que abre un menú de acciones (ej. "Exportar", "Derivar a…"). |
 | `app-badge` | chips de estado/etiqueta. `solid` \| `strong` \| `dashed`; `tone` del semáforo → punto de color. |
-| `app-card` | contenedor de contenido. `heading` (con `headingSize` `sm`/`md`/`lg`), `icon`; variante `ai` para salida del modelo; `collapsible`, `flush`. |
+| `app-card` | contenedor de contenido. `heading` (con `headingSize` `sm`/`md`/`lg`), `icon`; variante `ai` para salida del modelo; `collapsible`, `flush`. Un `app-info-tip` con `cardTip` va al lado del título; `cardAside`, a la derecha, es para acciones. |
 | `app-tabs` | solapas (rol `tablist`, flechas, Inicio y Fin). `tabs` con `status` opcional para marcar una solapa incompleta o sin configurar. |
 | `app-icon-button` | botón de solo ícono (editar, borrar, confirmar). `label` obligatorio: es su nombre accesible y su tooltip. |
 | `app-input` | campo de texto (sin Angular Forms). `prefix`, `align`, `inputmode`, `revealable`; `normalize` para reescribir lo tipeado (montos: `amountInputDisplay` de `core/util/money.ts`). |

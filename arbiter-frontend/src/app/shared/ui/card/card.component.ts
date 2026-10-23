@@ -7,7 +7,8 @@ type Variant = 'default' | 'soft' | 'ai';
  * destroyed, so whatever the user opened inside stays open when expanded again. An element marked
  * `cardAside` (e.g. a badge) goes at the right end of the heading; not on collapsible cards.
  * `headingSize="lg"` is for a card that is the whole panel, where the heading acts as its title;
- * `md` for the same card when the page already shows a title above it.
+ * `md` for the same card when the page already shows a title above it. An `app-info-tip` marked
+ * `cardTip` goes right after the heading: help about the card belongs to its title, not to its actions.
  */
 @Component({
   selector: 'app-card',
@@ -49,6 +50,7 @@ type Variant = 'default' | 'soft' | 'ai';
             >
               {{ heading() }}
             </h2>
+            <ng-content select="[cardTip]" />
             <span class="card-aside"><ng-content select="[cardAside]" /></span>
           </div>
         }
