@@ -1121,11 +1121,11 @@ public class CaseServiceImpl implements CaseService {
         return accessPolicy.currentUserIsInsured() ? response.forInsured() : response;
     }
 
-    /** Only while the item is at the repair shop, and only in the detail since it costs a query. */
+    /**
+     * Also once the item is back, so the insured's history still names who had it. Only in the detail
+     * since it costs a query.
+     */
     private RepairProviderResponse repairProviderOf(Case entity) {
-        if (entity.getStatus() != CaseStatus.PENDING_REPAIR) {
-            return null;
-        }
         return caseReferralRepository
                 .findByCaseIdAndProviderType(entity.getId(), ProviderType.SERVICIO_TECNICO)
                 .map(RepairProviderResponse::from)

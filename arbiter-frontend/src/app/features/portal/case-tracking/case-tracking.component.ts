@@ -143,8 +143,9 @@ export class CaseTrackingComponent {
 
   protected readonly movements = computed<Movement[]>(() => {
     const history = this.history();
+    const repairProviderName = this.data()?.repairProvider?.name ?? null;
     return history.map((h, i) => ({
-      label: insuredMovementLabel(h),
+      label: insuredMovementLabel(h, repairProviderName),
       date: formatDateTime(h.changedAt, ''),
       current: i === history.length - 1,
     }));

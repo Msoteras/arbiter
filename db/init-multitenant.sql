@@ -573,7 +573,6 @@ BEGIN
             -- engine decided is in rule_result.
             rules_classification        VARCHAR(50),
             fraud_determined            BOOLEAN       NOT NULL DEFAULT FALSE,
-            destination                 VARCHAR(40),
             -- What the insured claims, compared against policy_snapshot to surface gaps with
             -- what the insurer has on file.
             claimed_amount              NUMERIC(38,2),
