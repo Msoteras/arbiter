@@ -31,8 +31,12 @@ public class Auth0Adapter implements CredentialsAuthenticator {
     public User authenticate(String email, String rawPassword) {
         User user = userRepository.findByEmail(email).orElseThrow(InvalidCredentialsException::new);
 
-        if (user.getLockedUntil() != null && user.getLockedUntil().isAfter(Instant.now())) {
-            throw new AccountLockedException(user.getLockedUntil());
+        if (user.getLockedUntil() != null) {
+            if (user.getLockedUntil().isAfter(Instant.now())) {
+                throw new AccountLockedException(user.getLockedUntil());
+            }
+            user.setFailedAttempts(0);
+            user.setLockedUntil(null);
         }
 
         try {
