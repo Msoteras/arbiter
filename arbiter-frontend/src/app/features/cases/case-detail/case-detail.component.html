@@ -1238,17 +1238,68 @@
     (unreadChange)="unreadMessages.set($event)"
   />
 } @else if (loading()) {
-  <!-- Same frame as the loaded screen, so nothing jumps when the case arrives. -->
-  <div class="det-header">
-    <app-skeleton class="sk-heading" [lines]="2" label="Cargando expediente" />
-  </div>
-  <div class="det-content" aria-hidden="true">
-    <div class="reasoning">
-      @for (card of [1, 2, 3]; track card) {
-        <app-skeleton class="sk-card" shape="block" />
+  <!-- Same frame as the loaded screen, so nothing jumps when the case arrives: the white header,
+       the decision band, the tabs and the summary with its side column. -->
+  <header class="det-header">
+    <div class="identity sk-identity" aria-hidden="true">
+      <app-skeleton class="sk-title" [lines]="1" />
+      <app-skeleton class="sk-sub" [lines]="1" />
+      <div class="chips">
+        @for (chip of [1, 2, 3]; track chip) {
+          <app-skeleton class="sk-chip" shape="block" />
+        }
+      </div>
+    </div>
+  </header>
+  <div class="det-content">
+    <app-skeleton class="sk-note" [lines]="0" note="Cargando expediente…" />
+    <div class="decision-strip" aria-hidden="true">
+      @for (col of [1, 2, 3]; track col) {
+        <div class="strip-col">
+          <app-skeleton class="sk-label" [lines]="1" />
+          <app-skeleton class="sk-figure" shape="block" />
+          <app-skeleton [lines]="2" />
+        </div>
+      }
+      <div class="strip-col">
+        <app-skeleton class="sk-label" [lines]="1" />
+        <app-skeleton class="sk-action" shape="block" />
+        <app-skeleton class="sk-action" shape="block" />
+      </div>
+    </div>
+    <div class="sk-tabs" aria-hidden="true">
+      @for (tab of [1, 2, 3, 4, 5, 6]; track tab) {
+        <app-skeleton class="sk-tab" [lines]="1" />
       }
     </div>
-    <app-skeleton class="sk-body" shape="block" />
+    <div class="summary-grid" aria-hidden="true">
+      <div class="col-main">
+        <app-card class="summary-card">
+          <div class="key-tiles">
+            @for (tile of [1, 2, 3]; track tile) {
+              <app-skeleton class="sk-tile" shape="block" />
+            }
+          </div>
+          <div class="summary-section">
+            <app-skeleton class="sk-label" [lines]="1" />
+            <app-skeleton [lines]="3" />
+          </div>
+          <div class="summary-section">
+            <app-skeleton class="sk-label" [lines]="1" />
+            <div class="facts">
+              @for (fact of [1, 2, 3, 4, 5, 6]; track fact) {
+                <app-skeleton [lines]="2" />
+              }
+            </div>
+          </div>
+        </app-card>
+      </div>
+      <div class="col-side">
+        <app-skeleton shape="card" [rows]="3" />
+        <app-skeleton shape="card" [rows]="1" />
+        <app-skeleton shape="card" [rows]="1" />
+      </div>
+    </div>
   </div>
 } @else if (hasError()) {
   <div class="state-wrap">

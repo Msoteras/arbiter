@@ -1,5 +1,5 @@
 @if (loading()) {
-  <app-inline-loading message="Cargando documentación…" />
+  <app-skeleton shape="card" [rows]="3" note="Cargando documentación…" />
 } @else if (hasError()) {
   <app-card>
     <p class="t-note">No se pudo cargar la documentación. Probá de nuevo en unos minutos.</p>

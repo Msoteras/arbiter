@@ -63,7 +63,12 @@
     >
   } @else if (tab() === 'pending') {
     @if (loading()) {
-      <app-inline-loading message="Cargando liquidaciones pendientes…" />
+      <app-skeleton
+        shape="table"
+        [rows]="4"
+        [columns]="4"
+        note="Cargando liquidaciones pendientes…"
+      />
     } @else if (pending().length === 0) {
       <app-empty-state
         message="Cuando un analista determine un monto por encima del tope de su ramo, va a aparecer acá."
@@ -120,7 +125,12 @@
     }
   } @else {
     @if (authorizedLoading()) {
-      <app-inline-loading message="Cargando liquidaciones autorizadas…" />
+      <app-skeleton
+        shape="table"
+        [rows]="4"
+        [columns]="3"
+        note="Cargando liquidaciones autorizadas…"
+      />
     } @else if (authorized().length === 0) {
       <app-empty-state
         message="Las liquidaciones que autorices van a aparecer acá."

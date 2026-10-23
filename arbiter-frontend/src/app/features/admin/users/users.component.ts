@@ -16,7 +16,7 @@ import { IconButtonComponent } from '../../../shared/ui/icon-button/icon-button.
 import { InputComponent } from '../../../shared/ui/input/input.component';
 import { ModalComponent } from '../../../shared/ui/modal/modal.component';
 import { TableComponent } from '../../../shared/ui/table/table.component';
-import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
+import { SkeletonComponent } from '../../../shared/ui/skeleton/skeleton.component';
 import { ToastService } from '../../../shared/ui/toast/toast.service';
 import { fadeStagger, staggerReveal } from '../../../shared/animations';
 import { OnboardingTargetDirective } from '../../../core/onboarding/onboarding-target.directive';
@@ -36,7 +36,7 @@ import { OnboardingTargetDirective } from '../../../core/onboarding/onboarding-t
     InputComponent,
     ModalComponent,
     TableComponent,
-    InlineLoadingComponent,
+    SkeletonComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   animations: [staggerReveal, fadeStagger],

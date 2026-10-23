@@ -1,5 +1,5 @@
 @if (loading()) {
-  <app-inline-loading [size]="26" message="Cargando gestión de fraude…" />
+  <app-skeleton shape="card" [rows]="4" note="Cargando gestión de fraude…" />
 } @else if (rule(); as r) {
   <app-card
     class="gf-card"

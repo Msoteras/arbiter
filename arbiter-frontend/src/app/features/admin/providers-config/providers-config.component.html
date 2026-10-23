@@ -13,7 +13,7 @@
   }
 
   @if (loading()) {
-    <app-inline-loading [size]="26" message="Cargando proveedores…" />
+    <app-skeleton shape="card" [rows]="3" note="Cargando proveedores…" />
   } @else if (providers().length === 0 && !draft()) {
     <app-empty-state
       message="Todavía no hay proveedores cargados"

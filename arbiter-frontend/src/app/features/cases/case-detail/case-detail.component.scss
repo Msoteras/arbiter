@@ -340,14 +340,46 @@
   max-width: 760px;
 }
 
-.sk-heading {
-  max-width: 24rem;
+/* Loading frame: each bone sized like the text or control it stands for. */
+.sk-identity {
+  width: min(100%, 28rem);
 }
-.sk-card {
-  height: calc(var(--space-7) * 4);
+.sk-title {
+  width: 60%;
+  --skeleton-line-h: var(--font-size-2xl);
 }
-.sk-body {
-  height: var(--chart-h-tall);
+.sk-sub {
+  width: 80%;
+}
+.sk-chip {
+  width: calc(var(--space-7) * 2);
+  height: var(--space-5);
+}
+.sk-note {
+  margin-bottom: var(--space-3);
+}
+.sk-label {
+  width: 40%;
+}
+.sk-figure {
+  width: 70%;
+  height: var(--space-7);
+}
+.sk-action {
+  height: var(--touch-target);
+}
+.sk-tabs {
+  display: flex;
+  gap: var(--space-5);
+  margin-bottom: var(--space-5);
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--border-default);
+}
+.sk-tab {
+  width: calc(var(--space-7) * 2);
+}
+.sk-tile {
+  height: calc(var(--space-7) * 2);
 }
 
 .note {

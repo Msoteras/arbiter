@@ -17,6 +17,7 @@ import { InputComponent } from '../../../shared/ui/input/input.component';
 import { SelectComponent, SelectOption } from '../../../shared/ui/select/select.component';
 import { EmptyStateComponent } from '../../../shared/ui/empty-state/empty-state.component';
 import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
+import { SkeletonComponent } from '../../../shared/ui/skeleton/skeleton.component';
 import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
 import { ONBOARDING_STEP_LINE } from '../../../core/onboarding/onboarding';
 import { InfoTipComponent } from '../../../shared/ui/info-tip/info-tip.component';
@@ -46,6 +47,7 @@ interface ProviderDraft extends ProviderRequest {
     EmptyStateComponent,
     BadgeComponent,
     InlineLoadingComponent,
+    SkeletonComponent,
     ModalComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,

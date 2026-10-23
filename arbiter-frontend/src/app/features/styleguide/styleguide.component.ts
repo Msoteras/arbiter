@@ -1049,13 +1049,19 @@ interface Swatch {
           Primera carga de una pantalla con forma conocida: ocupa el lugar del contenido que llega,
           así la pantalla no salta. <span class="mono">text</span> (párrafo),
           <span class="mono">block</span> (el consumidor fija la altura) y
-          <span class="mono">table</span> (encabezado + filas). Sin shimmer con movimiento reducido.
+          <span class="mono">table</span> (encabezado + filas) y
+          <span class="mono">card</span> (card con título + filas de lista).
+          <span class="mono">note</span> suma arriba un spinner con el texto de qué se está
+          cargando. Sin shimmer con movimiento reducido.
         </p>
         <div class="sg-skeletons">
           <app-skeleton [lines]="3" />
           <app-skeleton class="sg-skeleton-block" shape="block" />
         </div>
-        <app-skeleton shape="table" [rows]="4" [columns]="5" />
+        <div class="sg-skeletons">
+          <app-skeleton shape="card" [rows]="3" note="Cargando proveedores…" />
+          <app-skeleton shape="table" [rows]="4" [columns]="5" />
+        </div>
       </section>
 
       <section class="sg-block">

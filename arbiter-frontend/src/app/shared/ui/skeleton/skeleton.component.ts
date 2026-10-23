@@ -1,18 +1,27 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 
-type Shape = 'text' | 'block' | 'table';
+import { SpinnerComponent } from '../spinner/spinner.component';
+
+type Shape = 'text' | 'block' | 'table' | 'card';
 
 /**
  * Placeholder with the shape of the content that is on its way, so the screen doesn't jump when it
  * arrives. `text`: a paragraph of `lines`; `block`: one surface that fills the host (the consumer
- * sets its height); `table`: a header and `rows` × `columns` cells inside a card.
+ * sets its height); `table`: a header and `rows` × `columns` cells inside a card; `card`: a card with
+ * a heading and `rows` list rows. `note` shows a spinner and that text above the shape, for a load
+ * long enough to need saying what is on its way.
  */
 @Component({
   selector: 'app-skeleton',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [SpinnerComponent],
   template: `
     <div class="skeleton" role="status" aria-live="polite">
-      <span class="sr-only">{{ label() }}</span>
+      @if (note()) {
+        <p class="note"><app-spinner [size]="16" />{{ note() }}</p>
+      } @else {
+        <span class="sr-only">{{ label() }}</span>
+      }
       @switch (shape()) {
         @case ('text') {
           @for (width of lineWidths(); track $index) {
@@ -38,6 +47,14 @@ type Shape = 'text' | 'block' | 'table';
             }
           </div>
         }
+        @case ('card') {
+          <div class="card">
+            <span class="bone line title"></span>
+            @for (row of rowList(); track $index) {
+              <span class="bone list-row"></span>
+            }
+          </div>
+        }
       }
     </div>
   `,
@@ -53,6 +70,14 @@ type Shape = 'text' | 'block' | 'table';
       flex-direction: column;
       gap: var(--space-2);
     }
+    .note {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      margin: 0 0 var(--space-1);
+      font-size: var(--font-size-sm);
+      color: var(--text-secondary);
+    }
     .bone {
       display: block;
       border-radius: var(--radius-ctl);
@@ -66,8 +91,9 @@ type Shape = 'text' | 'block' | 'table';
       background-size: 300% 100%;
       animation: bone-shimmer 1.4s var(--ease-standard) infinite;
     }
+    /* --skeleton-line-h lets a consumer match a bigger text, like a page title. */
     .line {
-      height: var(--font-size-body);
+      height: var(--skeleton-line-h, var(--font-size-body));
     }
     .block {
       flex: 1 1 auto;
@@ -80,6 +106,30 @@ type Shape = 'text' | 'block' | 'table';
       background: var(--surface);
       box-shadow: var(--shadow-card);
       overflow: hidden;
+    }
+    .card {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-3);
+      padding: var(--space-5);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-card);
+      background: var(--surface);
+      box-shadow: var(--shadow-card);
+    }
+    .title {
+      width: 35%;
+      height: var(--font-size-md);
+      margin-bottom: var(--space-2);
+    }
+    .list-row {
+      height: var(--space-6);
+    }
+    .list-row:nth-child(2n) {
+      animation-delay: 80ms;
+    }
+    .list-row:nth-child(3n) {
+      animation-delay: 160ms;
     }
     .row {
       display: grid;
@@ -128,10 +178,12 @@ export class SkeletonComponent {
   readonly columns = input(5);
   /** What the screen reader announces. */
   readonly label = input('Cargando');
+  /** Visible "Cargando…" line above the shape; it replaces `label` for the screen reader. */
+  readonly note = input('');
 
-  /** The last line is shorter, like the end of a paragraph. */
+  /** The last line of a paragraph is shorter; a single line is as wide as the host. */
   protected readonly lineWidths = computed(() =>
-    Array.from({ length: this.lines() }, (_, i) => (i === this.lines() - 1 ? 60 : 100)),
+    Array.from({ length: this.lines() }, (_, i) => (i === this.lines() - 1 && i > 0 ? 60 : 100)),
   );
   protected readonly rowList = computed(() => Array.from({ length: this.rows() }, (_, i) => i));
   protected readonly columnList = computed(() =>

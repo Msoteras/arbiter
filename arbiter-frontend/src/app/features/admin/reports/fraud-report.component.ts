@@ -28,7 +28,7 @@ import {
 import { EmptyStateComponent } from '../../../shared/ui/empty-state/empty-state.component';
 import { FraudGaugeComponent } from '../../../shared/ui/fraud-gauge/fraud-gauge.component';
 import { InfoTipComponent } from '../../../shared/ui/info-tip/info-tip.component';
-import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
+import { SkeletonComponent } from '../../../shared/ui/skeleton/skeleton.component';
 import { PaginationComponent } from '../../../shared/ui/pagination/pagination.component';
 import { SelectComponent, SelectOption } from '../../../shared/ui/select/select.component';
 import { StatTileComponent } from '../../../shared/ui/stat-tile/stat-tile.component';
@@ -72,7 +72,7 @@ const ALERT_BANDS: RiskBand[] = ['HIGH', 'CRITICAL'];
     EmptyStateComponent,
     FraudGaugeComponent,
     InfoTipComponent,
-    InlineLoadingComponent,
+    SkeletonComponent,
     PaginationComponent,
     ReportActionsComponent,
     ReportFiltersComponent,

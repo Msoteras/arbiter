@@ -40,7 +40,7 @@
 
   <app-card heading="Vista previa">
     @if (loading()) {
-      <app-inline-loading message="Buscando denuncias con señales…" />
+      <app-skeleton shape="table" [rows]="5" [columns]="7" note="Buscando denuncias con señales…" />
     } @else if (report(); as current) {
       <!-- Filters as the backend applied them, so any mismatch with the controls is visible. -->
       <p class="applied t-note">

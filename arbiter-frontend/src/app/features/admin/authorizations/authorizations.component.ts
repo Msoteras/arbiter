@@ -13,7 +13,7 @@ import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { CardComponent } from '../../../shared/ui/card/card.component';
 import { ChipGroupComponent, ChipOption } from '../../../shared/ui/chip-group/chip-group.component';
 import { EmptyStateComponent } from '../../../shared/ui/empty-state/empty-state.component';
-import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
+import { SkeletonComponent } from '../../../shared/ui/skeleton/skeleton.component';
 import { ModalComponent } from '../../../shared/ui/modal/modal.component';
 import { TableComponent } from '../../../shared/ui/table/table.component';
 import { TextareaComponent } from '../../../shared/ui/textarea/textarea.component';
@@ -37,7 +37,7 @@ type Tab = 'pending' | 'authorized';
     CardComponent,
     ChipGroupComponent,
     EmptyStateComponent,
-    InlineLoadingComponent,
+    SkeletonComponent,
     ModalComponent,
     TableComponent,
     TextareaComponent,

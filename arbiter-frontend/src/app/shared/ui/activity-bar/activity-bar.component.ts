@@ -54,7 +54,8 @@ const FADE_MS = 300;
     :host(.fixed) {
       position: fixed;
       inset: 0 0 auto;
-      z-index: 70;
+      /* Above app-loading's veil (200): the home loads behind frosted glass, the bar stays sharp. */
+      z-index: 210;
     }
     .bar {
       height: 100%;

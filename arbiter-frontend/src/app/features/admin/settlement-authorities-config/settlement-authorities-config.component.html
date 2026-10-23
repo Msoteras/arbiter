@@ -1,5 +1,5 @@
 @if (loading()) {
-  <app-inline-loading [size]="26" message="Cargando atribuciones…" />
+  <app-skeleton shape="card" [rows]="4" note="Cargando atribuciones…" />
 } @else {
   <app-card
     heading="Atribuciones de liquidación"

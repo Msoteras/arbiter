@@ -13,7 +13,7 @@
   </header>
 
   @if (loading()) {
-    <app-inline-loading message="Cargando tus pólizas…" />
+    <app-skeleton shape="card" [rows]="3" note="Cargando tus pólizas…" />
   } @else if (loadError()) {
     <div class="load-error" role="alert">
       <p class="t-body">No pudimos cargar tus pólizas en este momento.</p>

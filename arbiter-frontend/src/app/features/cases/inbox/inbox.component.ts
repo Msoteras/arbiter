@@ -70,7 +70,6 @@ import {
   MenuItem,
 } from '../../../shared/ui/menu-button/menu-button.component';
 import { SkeletonComponent } from '../../../shared/ui/skeleton/skeleton.component';
-import { SpinnerComponent } from '../../../shared/ui/spinner/spinner.component';
 import { TabOption, TabsComponent } from '../../../shared/ui/tabs/tabs.component';
 import { fadeStagger, staggerReveal } from '../../../shared/animations';
 
@@ -137,7 +136,6 @@ const LINK_PARAMS = [
     EmptyStateComponent,
     MenuButtonComponent,
     SkeletonComponent,
-    SpinnerComponent,
     TabsComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,

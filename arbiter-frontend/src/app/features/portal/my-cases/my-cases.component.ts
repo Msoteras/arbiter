@@ -33,7 +33,7 @@ import {
   DateRangePreset,
 } from '../../../shared/ui/date-picker/date-range-picker.component';
 import { addDays, todayIso } from '../../../core/util/datetime';
-import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
+import { SkeletonComponent } from '../../../shared/ui/skeleton/skeleton.component';
 import { PaginationComponent } from '../../../shared/ui/pagination/pagination.component';
 import { SelectComponent, SelectOption } from '../../../shared/ui/select/select.component';
 import { listStagger, staggerReveal } from '../../../shared/animations';
@@ -54,7 +54,7 @@ type LoadState =
     ButtonComponent,
     DateRangePickerComponent,
     InputComponent,
-    InlineLoadingComponent,
+    SkeletonComponent,
     PaginationComponent,
     SelectComponent,
   ],

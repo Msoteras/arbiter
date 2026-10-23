@@ -9,7 +9,7 @@ import {
 } from '../fraud-rule.service';
 import { CardComponent } from '../../../shared/ui/card/card.component';
 import { InfoTipComponent } from '../../../shared/ui/info-tip/info-tip.component';
-import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
+import { SkeletonComponent } from '../../../shared/ui/skeleton/skeleton.component';
 import { SaveBarComponent } from '../../../shared/ui/save-bar/save-bar.component';
 import { SwitchComponent } from '../../../shared/ui/switch/switch.component';
 
@@ -28,7 +28,7 @@ import { MonthsInputComponent } from '../rules/months-input.component';
     CardComponent,
     InfoTipComponent,
     MonthsInputComponent,
-    InlineLoadingComponent,
+    SkeletonComponent,
     SaveBarComponent,
     SwitchComponent,
   ],

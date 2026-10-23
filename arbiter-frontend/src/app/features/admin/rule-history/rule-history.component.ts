@@ -11,7 +11,7 @@ import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { CardComponent } from '../../../shared/ui/card/card.component';
 import { EmptyStateComponent } from '../../../shared/ui/empty-state/empty-state.component';
-import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
+import { SkeletonComponent } from '../../../shared/ui/skeleton/skeleton.component';
 import { InputComponent } from '../../../shared/ui/input/input.component';
 import { PaginationComponent } from '../../../shared/ui/pagination/pagination.component';
 import { SelectComponent, SelectOption } from '../../../shared/ui/select/select.component';
@@ -97,7 +97,7 @@ interface HistoryRow {
     ButtonComponent,
     CardComponent,
     EmptyStateComponent,
-    InlineLoadingComponent,
+    SkeletonComponent,
     InputComponent,
     PaginationComponent,
     SelectComponent,
