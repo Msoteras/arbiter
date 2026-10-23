@@ -1,79 +1,73 @@
-<div class="brand-page" @fadeInUp>
-  <header class="page-head">
-    <h1 class="t-page-title">Marca</h1>
-  </header>
+<app-card heading="Marca" headingSize="lg">
+  <span cardAside>
+    <app-info-tip>
+      PNG, JPG, WebP o SVG de hasta 256 KB. Con fondo transparente se ve mejor.
+    </app-info-tip>
+  </span>
 
-  <app-card heading="Logo de la aseguradora" headingSize="md">
-    <span cardAside>
-      <app-info-tip>
-        PNG, JPG, WebP o SVG de hasta 256 KB. Con fondo transparente se ve mejor.
-      </app-info-tip>
-    </span>
-
-    <div class="layout">
-      <div class="preview-block">
-        <p class="t-section-label">Vista previa</p>
-        <!-- The app bar as the insurer's people see it. -->
-        <div class="bar-preview" aria-hidden="true">
-          <app-logo variant="symbol" class="bar-logo" />
-          <span class="bar-brand">Arbiter</span>
-          <span class="bar-tenant">
-            @if (logoUrl(); as url) {
-              <span class="plate"><img [src]="url" alt="" /></span>
-            } @else {
-              <span class="mark">{{ monogram() }}</span>
-              <span class="name">{{ insurerName() }}</span>
-            }
-          </span>
-        </div>
+  <div class="layout">
+    <div class="preview-block">
+      <p class="t-section-label">Vista previa</p>
+      <!-- The app bar as the insurer's people see it. -->
+      <div class="bar-preview" aria-hidden="true">
+        <app-logo variant="symbol" class="bar-logo" />
+        <span class="bar-brand">Arbiter</span>
+        <span class="bar-tenant">
+          @if (logoUrl(); as url) {
+            <span class="plate"><img [src]="url" alt="" /></span>
+          } @else {
+            <span class="mark">{{ monogram() }}</span>
+            <span class="name">{{ insurerName() }}</span>
+          }
+        </span>
       </div>
-
-      <label
-        class="drop"
-        [class.dragging]="dragging()"
-        (dragover)="onDragOver($event)"
-        (dragleave)="dragging.set(false)"
-        (drop)="onDrop($event)"
-      >
-        <input class="sr-only" type="file" [accept]="accept" (change)="onPick($event)" />
-        <svg
-          class="drop-icon"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          aria-hidden="true"
-        >
-          <path
-            d="M12 16V4m0 0-4 4m4-4 4 4"
-            stroke-width="1.6"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          />
-          <path
-            d="M4 16v2.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V16"
-            stroke-width="1.6"
-            stroke-linecap="round"
-          />
-        </svg>
-        <span class="drop-title">{{ logoUrl() ? 'Cambiar el logo' : 'Subir el logo' }}</span>
-        <span class="t-note">Arrastralo acá o hacé clic para elegirlo.</span>
-      </label>
     </div>
 
-    @if (error(); as message) {
-      <p class="error" role="alert">{{ message }}</p>
-    }
+    <label
+      class="drop"
+      [class.dragging]="dragging()"
+      (dragover)="onDragOver($event)"
+      (dragleave)="dragging.set(false)"
+      (drop)="onDrop($event)"
+    >
+      <input class="sr-only" type="file" [accept]="accept" (change)="onPick($event)" />
+      <svg
+        class="drop-icon"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        aria-hidden="true"
+      >
+        <path
+          d="M12 16V4m0 0-4 4m4-4 4 4"
+          stroke-width="1.6"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        />
+        <path
+          d="M4 16v2.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V16"
+          stroke-width="1.6"
+          stroke-linecap="round"
+        />
+      </svg>
+      <span class="drop-title">{{ logoUrl() ? 'Cambiar el logo' : 'Subir el logo' }}</span>
+      <span class="t-note">Arrastralo acá o hacé clic para elegirlo.</span>
+    </label>
+  </div>
 
-    @if (uploading() || logoUrl()) {
-      <div class="actions">
-        @if (uploading()) {
-          <app-button variant="secondary" [loading]="true">Subiendo</app-button>
-        } @else {
-          <app-button variant="secondary" tone="danger" [loading]="removing()" (click)="remove()"
-            >Quitar el logo</app-button
-          >
-        }
-      </div>
-    }
-  </app-card>
-</div>
+  @if (error(); as message) {
+    <p class="error" role="alert">{{ message }}</p>
+  }
+
+  @if (uploading() || logoUrl()) {
+    <div class="actions">
+      @if (uploading()) {
+        <app-button variant="secondary" [loading]="true">Subiendo</app-button>
+      } @else {
+        <app-button variant="secondary" tone="danger" [loading]="removing()" (click)="remove()"
+          >Quitar el logo</app-button
+        >
+      }
+    </div>
+  }
+</app-card>

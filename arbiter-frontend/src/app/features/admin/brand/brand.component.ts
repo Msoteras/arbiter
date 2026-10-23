@@ -3,7 +3,6 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
 import { InsurerLogoService } from '../../../core/services/insurer-logo.service';
-import { fadeInUp } from '../../../shared/animations';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { CardComponent } from '../../../shared/ui/card/card.component';
 import { InfoTipComponent } from '../../../shared/ui/info-tip/info-tip.component';
@@ -14,12 +13,14 @@ import { ToastService } from '../../../shared/ui/toast/toast.service';
 const ACCEPTED_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml'];
 const MAX_BYTES = 256 * 1024;
 
-/** The referent's screen for the insurer's logo, the one its people see in the app bar. */
+/**
+ * The insurer's logo, the one its people see in the app bar. A section of the Rules screen
+ * ("Otras configuraciones"), next to the other insurer-wide settings.
+ */
 @Component({
   selector: 'app-brand',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [ButtonComponent, CardComponent, InfoTipComponent, LogoComponent],
-  animations: [fadeInUp],
   templateUrl: './brand.component.html',
   styleUrl: './brand.component.scss',
 })

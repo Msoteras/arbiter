@@ -188,14 +188,6 @@ export const routes: Routes = [
       import('./features/admin/rules/rules.component').then((m) => m.RulesComponent),
   },
   {
-    // The insurer's logo, shown in its people's app bar.
-    path: 'insurer/brand',
-    canActivate: [roleGuard],
-    data: { roles: ['REFERENTE_ASEGURADORA'] },
-    loadComponent: () =>
-      import('./features/admin/brand/brand.component').then((m) => m.BrandComponent),
-  },
-  {
     // Settlements above the analyst's authority limit, awaiting the referente's sign-off.
     path: 'insurer/settlements',
     canActivate: [roleGuard],

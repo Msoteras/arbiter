@@ -59,6 +59,7 @@ import { FraudConfigComponent } from '../fraud-config/fraud-config.component';
 import { ProvidersConfigComponent } from '../providers-config/providers-config.component';
 import { DerivationsConfigComponent } from '../derivations-config/derivations-config.component';
 import { ResolutionTargetConfigComponent } from '../resolution-target-config/resolution-target-config.component';
+import { BrandComponent } from '../brand/brand.component';
 import { RuleHistoryComponent } from '../rule-history/rule-history.component';
 import { SaveBarComponent } from '../../../shared/ui/save-bar/save-bar.component';
 import { MonthsInputComponent } from './months-input.component';
@@ -86,7 +87,7 @@ function wholeMonths(months: number | null): number | null {
 
 /** Right-panel views that don't depend on the selected branch. */
 type GeneralView =
-  'hardStop' | 'scoring' | 'fraud' | 'providers' | 'authorities' | 'target' | 'history';
+  'hardStop' | 'scoring' | 'fraud' | 'providers' | 'authorities' | 'target' | 'brand' | 'history';
 
 /**
  * Branch master-detail with per-tab drafts, each saved by its own button. Branches belong
@@ -110,6 +111,7 @@ type GeneralView =
     DerivationsConfigComponent,
     SettlementAuthoritiesConfigComponent,
     ResolutionTargetConfigComponent,
+    BrandComponent,
     RuleHistoryComponent,
     SaveBarComponent,
     StringListEditorComponent,
@@ -523,6 +525,7 @@ export class RulesComponent {
     // Caps are per branch but listed together so they can be compared at a glance.
     { id: 'authorities', label: 'Atribuciones de liquidación' },
     { id: 'target', label: 'Objetivo de resolución' },
+    { id: 'brand', label: 'Marca' },
     // 'history' is deliberately not here: it configures nothing and has its own Audit block.
   ];
 
