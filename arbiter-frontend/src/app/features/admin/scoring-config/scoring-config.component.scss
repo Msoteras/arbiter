@@ -87,31 +87,19 @@
   opacity: 0.55;
 }
 
-/* ── Weight share ─────────────────────────────────────────────────────────────
-   Weights are relative, so the bar shows each factor's share of the active total. */
-.sc-share {
-  flex: 0 0 auto;
-  width: 120px;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-}
-.sc-bar {
-  display: block;
-  height: 4px;
-  border-radius: var(--radius-pill);
-  background: var(--surface-sunken);
-  overflow: hidden;
-}
-.sc-bar-fill {
-  display: block;
-  height: 100%;
-  background: var(--accent-fg);
-}
-.sc-share-note {
-  font-size: var(--font-size-2xs);
-  color: var(--text-muted);
+.sc-total {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-secondary);
   font-variant-numeric: tabular-nums;
+}
+.sc-total.invalid {
+  color: var(--status-danger);
+}
+.sc-total-note {
+  margin: 0;
+  color: var(--status-danger);
+  font-size: var(--font-size-sm);
 }
 
 /* ── Bands ──────────────────────────────────────────────────────────────────── */
@@ -190,9 +178,6 @@
 @media (max-width: 640px) {
   .rule-row {
     flex-wrap: wrap;
-  }
-  .sc-share {
-    width: 100%;
   }
 }
 

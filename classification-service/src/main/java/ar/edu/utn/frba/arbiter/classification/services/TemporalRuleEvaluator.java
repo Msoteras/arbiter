@@ -55,7 +55,7 @@ public class TemporalRuleEvaluator {
         evaluateWaitingPeriod(active.get(RuleType.WAITING_PERIOD), claim, policy, rules, outcome);
         evaluateReportDeadline(active.get(RuleType.REPORT_DEADLINE), claim, rules, outcome);
         evaluatePoliceReportDeadline(active.get(RuleType.POLICE_DEADLINE), claim, rules, outcome);
-        evaluateMaxAnnualEvents(active.get(RuleType.MAX_EVENTS_YEAR), claim, history, rules, outcome);
+        evaluateMaxAnnualEvents(active.get(RuleType.MAX_EVENTS_YEAR), claim, policy, history, rules, outcome);
         evaluatePolicyStanding(active.get(RuleType.POLICY_STANDING), policy, outcome);
 
         if (outcome.blocksFastTrack) {
@@ -180,22 +180,22 @@ public class TemporalRuleEvaluator {
                                 + "de la cobertura", hours, rules.reportDeadlineHours()));
     }
 
-    /** Scoped by branch as the closest approximation to "per policy". */
+    /** The cap is the claim's coverage's; the count spans the whole policy (see {@link InsuredHistory#eventOrdinalFor}). */
     private void evaluateMaxAnnualEvents(
-            BusinessRules.EvaluableRule rule, ClaimReport claim, InsuredHistory history,
+            BusinessRules.EvaluableRule rule, ClaimReport claim, InsuredPolicy policy, InsuredHistory history,
             BusinessRules rules, Outcome outcome) {
         if (rule == null || rules.maxEventsPerYear() == null
                 || claim.eventDate() == null || history.claims() == null) {
             return;
         }
         // Shared with the settlement so the quota and the payable percentage count the same events.
-        int ordinal = history.eventOrdinalFor(claim.eventDate().toLocalDate(), claim.branch());
+        int ordinal = history.eventOrdinalFor(claim.eventDate().toLocalDate(), policy);
         int priorInWindow = ordinal - 1;
         outcome.record(rule, ordinal <= rules.maxEventsPerYear(),
-                "events12m=" + ordinal + " max=" + rules.maxEventsPerYear(),
-                String.format("Supera el tope de %s por año: %s en los últimos 12 meses",
+                "eventsPolicyYear=" + ordinal + " max=" + rules.maxEventsPerYear(),
+                String.format("Supera el tope de %s por año: %s en este año de vigencia de la póliza",
                         count(rules.maxEventsPerYear(), "siniestro", "siniestros"),
-                        count(priorInWindow, "siniestro previo", "siniestros previos")));
+                        count(priorInWindow, "siniestro liquidado previo", "siniestros liquidados previos")));
     }
 
     private static String count(int n, String singular, String plural) {

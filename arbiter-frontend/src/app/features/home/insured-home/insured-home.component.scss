@@ -22,9 +22,6 @@
 .hero-text {
   min-width: 0;
 }
-.hero > app-button {
-  flex: none;
-}
 .eyebrow {
   font-size: var(--font-size-2xs);
   font-weight: var(--font-weight-medium);
@@ -311,9 +308,9 @@ button.tile:hover {
   background: var(--surface-sunken);
   color: var(--text-secondary);
 }
-.tile-icon.dark {
-  background: var(--action-primary-bg);
-  color: var(--action-primary-fg);
+.tile-icon.accent {
+  background: var(--action-accent-bg);
+  color: var(--action-accent-fg);
 }
 .tile-title {
   margin-top: var(--space-3);

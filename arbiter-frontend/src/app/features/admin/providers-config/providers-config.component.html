@@ -123,7 +123,15 @@
   }
   <ng-container modalActions>
     <app-button variant="secondary" [disabled]="saving()" (click)="cancel()">Cancelar</app-button>
-    <app-button [disabled]="!canSave()" [loading]="saving()" (click)="save()">Guardar</app-button>
+    <app-button
+      [disabled]="!canSave()"
+      [saving]="saving()"
+      [saveFailed]="!!error()"
+      (click)="save()"
+      (saveSettled)="draft.set(null)"
+    >
+      Guardar
+    </app-button>
   </ng-container>
 </app-modal>
 

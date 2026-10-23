@@ -32,7 +32,7 @@ const RULE_TYPE_INFO: Record<string, { label: string; description: string }> = {
   MAX_EVENTS_YEAR: {
     label: 'Tope de eventos por año',
     description:
-      'El asegurado superó la cantidad máxima de siniestros del ramo en los últimos 12 meses.',
+      'La póliza superó la cantidad máxima de siniestros liquidados en el año de vigencia.',
   },
   POLICY_STANDING: {
     label: 'Mora de la póliza',

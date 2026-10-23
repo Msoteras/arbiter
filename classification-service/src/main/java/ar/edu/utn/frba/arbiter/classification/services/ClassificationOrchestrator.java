@@ -244,7 +244,7 @@ public class ClassificationOrchestrator {
                     policy.overdueBalance(),
                     ctx.history().eventOrdinalFor(
                             claim.eventDate() != null ? claim.eventDate().toLocalDate() : null,
-                            claim.branch()),
+                            policy),
                     insurerPayload(policy, ctx.history())));
             log.info("[Orchestrator] Policy snapshot recorded for case {}", caseId);
         } catch (Exception e) {

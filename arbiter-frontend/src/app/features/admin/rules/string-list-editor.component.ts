@@ -34,6 +34,7 @@ import { InputComponent } from '../../../shared/ui/input/input.component';
                 class="grow"
                 [value]="item"
                 (valueChange)="update($index, $event)"
+                (enter)="stopEditing($index)"
                 [placeholder]="placeholder()"
               />
               <app-icon-button icon="confirm" label="Listo" (click)="stopEditing($index)" />

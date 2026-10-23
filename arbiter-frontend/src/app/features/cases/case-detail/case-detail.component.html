@@ -1611,10 +1611,13 @@
   <ng-container modalActions>
     <app-button variant="secondary" (click)="cancelReport()">Cancelar</app-button>
     <app-button
-      [disabled]="!verdictInput() || !reportFile() || reportAmountMissing() || reportSaving()"
+      [disabled]="!verdictInput() || !reportFile() || reportAmountMissing()"
+      [saving]="reportSaving()"
+      [saveFailed]="!!reportError()"
       (click)="confirmReport()"
+      (saveSettled)="showReport.set(false)"
     >
-      {{ reportSaving() ? 'Guardando…' : 'Guardar' }}
+      Guardar
     </app-button>
   </ng-container>
 </app-modal>

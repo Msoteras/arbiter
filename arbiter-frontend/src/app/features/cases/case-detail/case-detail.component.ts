@@ -1815,8 +1815,8 @@ export class CaseDetailComponent {
       : this.service.uploadExpertReport(d.id, result as ExpertVerdict, note, parsedAmount, file);
     request.subscribe({
       next: () => {
+        // The modal closes once the button has shown "Guardado" (saveSettled).
         this.reportSaving.set(false);
-        this.showReport.set(false);
         this.reloadTrigger.update((v) => v + 1);
       },
       error: (err: HttpErrorResponse) => {

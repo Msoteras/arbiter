@@ -56,7 +56,8 @@
             [rows]="1"
             [placeholder]="placeholder()"
             [disabled]="sending()"
-            (keydown.enter)="onEnter($event)"
+            [submitOnEnter]="true"
+            (enter)="send()"
           />
           <app-button [disabled]="!canSend()" [loading]="sending()" (click)="send()">
             Enviar

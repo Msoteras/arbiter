@@ -1,13 +1,31 @@
-import { ChangeDetectionStrategy, Component, input } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  effect,
+  inject,
+  input,
+  output,
+  signal,
+  untracked,
+} from '@angular/core';
 
 import { SpinnerComponent } from '../spinner/spinner.component';
 
 type Variant = 'primary' | 'secondary' | 'accent';
 type Size = 'md' | 'sm';
+type SavePhase = 'idle' | 'saving' | 'saved';
+
+/** How long "Guardado" stays before the button goes back to its label. */
+const SAVED_MS = 1600;
 
 /**
  * `tone` (secondary only) tints border and text with a status color, for actions whose outcome is a
  * status, such as approving or rejecting a case.
+ *
+ * `saving` turns it into a save button: Guardar → Guardando (the button fills up) → Guardado. When
+ * `saving` goes back to false without `saveFailed`, it reads "Guardado" for a moment and then emits
+ * `saveSettled`. A form that closes after saving closes on `saveSettled`, so "Guardado" is seen.
  */
 @Component({
   selector: 'app-button',
@@ -15,7 +33,7 @@ type Size = 'md' | 'sm';
   imports: [SpinnerComponent],
   host: {
     '[class.block]': 'block()',
-    '[class.is-disabled]': 'disabled() || loading()',
+    '[class.is-disabled]': "disabled() || loading() || phase() !== 'idle'",
   },
   template: `
     <button
@@ -26,13 +44,22 @@ type Size = 'md' | 'sm';
       [attr.data-tone]="variant() === 'secondary' ? tone() : null"
       [class.sm]="size() === 'sm'"
       [class.loading]="loading()"
+      [class.saving]="phase() === 'saving'"
+      [class.saved]="phase() === 'saved'"
       [type]="type()"
-      [disabled]="disabled() || loading()"
+      [disabled]="disabled() || loading() || phase() !== 'idle'"
     >
       @if (loading()) {
         <app-spinner [size]="16" />
       }
-      <ng-content />
+      <!-- The save labels share one cell, so the button keeps the width of the longest. -->
+      <span class="labels" [attr.aria-live]="saving() === null ? null : 'polite'">
+        <span class="label" [class.off]="phase() !== 'idle'"><ng-content /></span>
+        @if (saving() !== null) {
+          <span class="label" [class.off]="phase() !== 'saving'">Guardando</span>
+          <span class="label" [class.off]="phase() !== 'saved'">✓ Guardado</span>
+        }
+      </span>
     </button>
   `,
   styles: `
@@ -119,7 +146,73 @@ type Size = 'md' | 'sm';
     }
     /* [loading] also disables the native <button>; excluding it keeps a loading button in its
        variant colors with the spinner instead of looking disabled. */
-    .btn:disabled:not(.loading) {
+    /* Save cycle. The fill eases toward 90% (the real duration is unknown) and completes on success. */
+    .btn.primary {
+      --btn-fill: var(--action-primary-bg);
+    }
+    .btn.accent {
+      --btn-fill: var(--action-accent-bg);
+    }
+    .btn.secondary {
+      --btn-fill: var(--selected-bg);
+    }
+    .btn.saving,
+    .btn.saved {
+      position: relative;
+      overflow: hidden;
+      isolation: isolate;
+      cursor: default;
+    }
+    .btn.saving {
+      background: color-mix(in srgb, var(--btn-fill) 75%, var(--surface));
+    }
+    .btn.saving::before,
+    .btn.saved::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      z-index: -1;
+      background: var(--btn-fill);
+      transform-origin: left;
+    }
+    .btn.saving::before {
+      animation: save-fill 4s var(--ease-out) forwards;
+    }
+    .btn.saved::before {
+      transform: scaleX(1);
+      animation: save-complete var(--dur-2) ease-out;
+    }
+    @keyframes save-fill {
+      from {
+        transform: scaleX(0);
+      }
+      to {
+        transform: scaleX(0.9);
+      }
+    }
+    @keyframes save-complete {
+      from {
+        transform: scaleX(0.9);
+      }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .btn.saving::before,
+      .btn.saved::before {
+        animation: none;
+        transform: scaleX(1);
+      }
+    }
+    .labels {
+      display: inline-grid;
+    }
+    .label {
+      grid-area: 1 / 1;
+    }
+    .label.off {
+      visibility: hidden;
+    }
+
+    .btn:disabled:not(.loading):not(.saving):not(.saved) {
       color: var(--text-muted);
       background: var(--surface-sunken);
       border-color: var(--border-subtle);
@@ -137,4 +230,36 @@ export class ButtonComponent {
   readonly tone = input<'ok' | 'danger' | null>(null);
   /** Shows an inline spinner and disables the button. */
   readonly loading = input(false);
+  /** `null`: not a save button. See the class comment. */
+  readonly saving = input<boolean | null>(null);
+  readonly saveFailed = input(false);
+  readonly saveSettled = output<void>();
+
+  protected readonly phase = signal<SavePhase>('idle');
+  private settleTimer: ReturnType<typeof setTimeout> | undefined;
+
+  constructor() {
+    effect(() => {
+      const saving = this.saving();
+      untracked(() => {
+        if (saving) {
+          clearTimeout(this.settleTimer);
+          this.phase.set('saving');
+        } else if (this.phase() === 'saving') {
+          // The consumer sets its error and clears `saving` in the same callback, so both are
+          // already up to date here.
+          if (this.saveFailed()) {
+            this.phase.set('idle');
+            return;
+          }
+          this.phase.set('saved');
+          this.settleTimer = setTimeout(() => {
+            this.phase.set('idle');
+            this.saveSettled.emit();
+          }, SAVED_MS);
+        }
+      });
+    });
+    inject(DestroyRef).onDestroy(() => clearTimeout(this.settleTimer));
+  }
 }

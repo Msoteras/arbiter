@@ -116,7 +116,7 @@ class ClassificationOrchestratorSnapshotTest {
         assertThat(snapshot.eventsInYear()).isEqualTo(1);
     }
 
-    /** Same 12-month window as MAX_EVENTS_YEAR: the cap and the payable percentage must agree. */
+    /** Same count as MAX_EVENTS_YEAR: the cap and the payable percentage must agree. */
     @Test
     void countsThisClaimAsTheSecondEventWhenOneFallsInsideTheYear() {
         when(insurerAdapter.getHistory(any())).thenReturn(InsuredHistory.builder()
@@ -127,6 +127,7 @@ class ClassificationOrchestratorSnapshotTest {
                 .claims(List.of(InsuredHistory.ClaimRecord.builder()
                         .claimId("1")
                         .date(RiskFixtures.EVENT_DATE.toLocalDate().minusMonths(3))
+                        .policyNumber("POL-CEL-2024-001")
                         .branch("Celulares")
                         .status("LIQUIDADO")
                         .build()))

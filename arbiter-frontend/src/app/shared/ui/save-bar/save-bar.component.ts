@@ -12,21 +12,25 @@ import { ButtonComponent } from '../button/button.component';
   imports: [ButtonComponent],
   template: `
     <div class="save-bar">
-      <span class="state" [class.dirty]="dirty()">
+      <span class="state">
         @if (error()) {
           <span class="error">{{ error() }}</span>
-        } @else if (dirty()) {
+        } @else if (dirty() && !saving()) {
           Cambios sin guardar
-        } @else {
-          <span aria-hidden="true">✓</span> Todo guardado
         }
       </span>
       <div class="actions">
         <app-button variant="secondary" [disabled]="!dirty() || saving()" (click)="discard.emit()">
           Descartar
         </app-button>
-        <app-button [disabled]="!dirty() || saving() || !canSave()" (click)="save.emit()">
-          {{ saving() ? 'Guardando…' : saveLabel() }}
+        <!-- The button itself reads Guardando / Guardado: no separate "saved" text. -->
+        <app-button
+          [disabled]="!dirty() || !canSave()"
+          [saving]="saving()"
+          [saveFailed]="!!error()"
+          (click)="save.emit()"
+        >
+          {{ saveLabel() }}
         </app-button>
       </div>
     </div>
@@ -55,9 +59,6 @@ import { ButtonComponent } from '../button/button.component';
     /* Unsaved changes are grey, not red: they are intentional, not an error. */
     .state {
       font-size: var(--font-size-sm);
-      color: var(--status-ok);
-    }
-    .state.dirty {
       color: var(--text-secondary);
     }
     .error {
@@ -72,7 +73,7 @@ export class SaveBarComponent {
   /** Backend error from a failed save; replaces the state text while present. */
   readonly error = input<string | null>(null);
   readonly canSave = input(true);
-  readonly saveLabel = input('Guardar cambios');
+  readonly saveLabel = input('Guardar');
 
   readonly save = output<void>();
   readonly discard = output<void>();

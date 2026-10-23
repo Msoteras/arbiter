@@ -175,13 +175,15 @@ app-card {
   box-shadow: var(--focus-ring);
 }
 
+/* Card radius, not a pill: a long draft grows into several lines and the round ends would clip it.
+   The button stays at the bottom, next to the line being typed. */
 .composer-box {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   gap: var(--space-2);
   padding: var(--space-1) var(--space-1) var(--space-1) var(--space-3);
   border: 1px solid var(--border-control);
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-card);
   background: var(--surface);
 }
 .composer-box:focus-within {
@@ -198,7 +200,9 @@ app-card {
 .composer-box app-textarea ::ng-deep .field {
   field-sizing: content;
   max-height: 8rem;
-  padding: var(--space-1) 0;
+  overflow-y: auto;
+  overflow-wrap: anywhere;
+  padding: var(--space-2) 0;
   border: none;
   background: transparent;
   resize: none;
@@ -206,7 +210,7 @@ app-card {
 }
 
 .composer-box app-button ::ng-deep .btn {
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-ctl);
 }
 
 .hint {

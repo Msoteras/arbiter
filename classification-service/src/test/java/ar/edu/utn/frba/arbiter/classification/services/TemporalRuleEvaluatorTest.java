@@ -25,6 +25,7 @@ class TemporalRuleEvaluatorTest {
 
     private static final LocalDateTime EVENT = LocalDateTime.of(2026, 6, 13, 20, 0);
     private static final long POLICE_DEADLINE_HOURS = 72L;
+    private static final String POLICY = "POL-CEL-2024-001";
 
     private static BusinessRules.EvaluableRule active(long id, RuleType type) {
         return BusinessRules.EvaluableRule.builder()
@@ -210,9 +211,9 @@ class TemporalRuleEvaluatorTest {
                 .build();
     }
 
-    private InsuredHistory.ClaimRecord priorClaim(LocalDate date, String branch) {
-        return InsuredHistory.ClaimRecord.builder().claimId("x").date(date).branch(branch)
-                .claimCause("Robo en vía pública").status("Aprobado").build();
+    private InsuredHistory.ClaimRecord priorClaim(LocalDate date, String policyNumber) {
+        return InsuredHistory.ClaimRecord.builder().claimId("x").date(date).policyNumber(policyNumber)
+                .branch("Celulares").claimCause("Robo en vía pública").status("LIQUIDADO").build();
     }
 
     private BusinessRules rules(Long reportDeadlineHours, Integer maxEventsPerYear) {
@@ -337,10 +338,10 @@ class TemporalRuleEvaluatorTest {
 
     @Test
     void exceedsMaxAnnualEvents_blocks() {
-        // Cap of 1/year, already 1 claim in the branch over the trailing 12 months → this one is #2.
+        // Cap of 1/year, already 1 settled claim on this policy in its current policy year → this one is #2.
         var result = evaluator.evaluate(
                 claim(null), policy(LocalDate.of(2024, 1, 1), LocalDate.of(2027, 1, 1)),
-                history(List.of(priorClaim(LocalDate.of(2026, 2, 1), "Celulares"))), rules(null, 1));
+                history(List.of(priorClaim(LocalDate.of(2026, 2, 1), POLICY))), rules(null, 1));
 
         assertThat(result.blocksFastTrack()).isTrue();
         assertThat(result.reasons()).anyMatch(r -> r.contains("Supera el tope"));
@@ -350,18 +351,18 @@ class TemporalRuleEvaluatorTest {
     void withinMaxAnnualEvents_ok() {
         var result = evaluator.evaluate(
                 claim(null), policy(LocalDate.of(2024, 1, 1), LocalDate.of(2027, 1, 1)),
-                history(List.of(priorClaim(LocalDate.of(2026, 2, 1), "Celulares"))), rules(null, 2));
+                history(List.of(priorClaim(LocalDate.of(2026, 2, 1), POLICY))), rules(null, 2));
 
         assertThat(result.blocksFastTrack()).isFalse();
     }
 
     @Test
-    void priorClaimOutsideWindowOrOtherBranch_doesNotCount() {
+    void priorClaimFromThePreviousPolicyYearOrAnotherPolicy_doesNotCount() {
         var result = evaluator.evaluate(
                 claim(null), policy(LocalDate.of(2024, 1, 1), LocalDate.of(2027, 1, 1)),
                 history(List.of(
-                        priorClaim(LocalDate.of(2024, 1, 1), "Celulares"), // outside the 12-month window
-                        priorClaim(LocalDate.of(2026, 3, 1), "Hogar"))),    // other branch
+                        priorClaim(LocalDate.of(2025, 12, 31), POLICY),        // previous policy year
+                        priorClaim(LocalDate.of(2026, 3, 1), "POL-CEL-2025-077"))), // another policy
                 rules(null, 1));
 
         assertThat(result.blocksFastTrack()).isFalse();
@@ -430,7 +431,7 @@ class TemporalRuleEvaluatorTest {
         var result = evaluator.evaluate(
                 claim(EVENT.plusHours(500)), // far past any deadline
                 policy(LocalDate.of(2026, 6, 12), LocalDate.of(2026, 6, 20)),
-                history(List.of(priorClaim(LocalDate.of(2026, 2, 1), "Celulares"))),
+                history(List.of(priorClaim(LocalDate.of(2026, 2, 1), POLICY))),
                 noRules);
 
         assertThat(result.blocksFastTrack()).isFalse();

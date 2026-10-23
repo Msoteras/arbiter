@@ -24,8 +24,11 @@ describe('FraudConfigComponent', () => {
     return fixture.nativeElement as HTMLElement;
   }
 
+  // The visible label: the button also holds its hidden "Guardando" and "Guardado" labels.
   const saveButton = (el: HTMLElement) =>
-    [...el.querySelectorAll('button')].find((b) => b.textContent?.trim() === 'Guardar cambios');
+    [...el.querySelectorAll('button')].find(
+      (b) => b.querySelector('.label')?.textContent?.trim() === 'Guardar',
+    );
 
   it('lets a referent save the default policy the insurer never saved', () => {
     const el = mount({ ruleId: null, windowMonths: 36, blocksFastTrack: false });

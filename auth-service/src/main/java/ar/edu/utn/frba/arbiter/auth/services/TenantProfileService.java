@@ -1,5 +1,6 @@
 package ar.edu.utn.frba.arbiter.auth.services;
 
+import ar.edu.utn.frba.arbiter.auth.exceptions.InsuredEmailTakenException;
 import ar.edu.utn.frba.arbiter.auth.exceptions.InsuredProfileConflictException;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.ClaimsAnalyst;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Insured;
@@ -55,6 +56,9 @@ public class TenantProfileService {
                 throw new InsuredProfileConflictException(dni, ownerId, user.getId());
             }
             return false;
+        }
+        if (insuredRepository.findByUserId(user.getId()).isPresent()) {
+            throw new InsuredEmailTakenException();
         }
         insuredRepository.save(Insured.builder()
                 .name(name)
