@@ -5,6 +5,7 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
 import { AuthService } from '../../../core/auth/auth.service';
 import { homeRouteFor } from '../../../core/models/user-role';
+import { formatTime } from '../../../core/util/datetime';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { InputComponent } from '../../../shared/ui/input/input.component';
 import { LogoComponent } from '../../../shared/ui/logo/logo.component';
@@ -62,7 +63,7 @@ export class LoginComponent {
       return err.error?.detail ?? 'Email o contraseña inválidos.';
     }
     if (err.status === 423) {
-      return err.error?.detail ?? 'Cuenta bloqueada temporalmente. Probá de nuevo más tarde.';
+      return this.lockedMessage(err.error?.lockedUntil);
     }
     // canSubmit already catches empty fields, so a 400 from the server means the sealed password
     // couldn't be opened: the backend rotated its key on restart, or the browser clock is off.
@@ -79,5 +80,14 @@ export class LoginComponent {
       return 'El servicio no está disponible por el momento. Ya estamos al tanto; probá de nuevo en unos minutos o avisá a soporte si sigue.';
     }
     return 'No se pudo iniciar sesión. Probá de nuevo en unos minutos.';
+  }
+
+  private lockedMessage(lockedUntil: string | undefined): string {
+    const unlockMs = lockedUntil ? new Date(lockedUntil).getTime() : NaN;
+    if (Number.isNaN(unlockMs)) {
+      return 'Cuenta bloqueada temporalmente. Probá de nuevo más tarde.';
+    }
+    const unlockMinute = new Date(Math.ceil(unlockMs / 60_000) * 60_000);
+    return `Cuenta bloqueada hasta las ${formatTime(unlockMinute)} por demasiados intentos fallidos.`;
   }
 }
