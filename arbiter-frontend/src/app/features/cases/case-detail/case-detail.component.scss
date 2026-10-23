@@ -21,32 +21,16 @@
   gap: var(--space-2);
   min-width: 0;
 }
-.crumbs {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  font-size: var(--font-size-sm);
-  color: var(--text-muted);
-}
-.crumbs a {
-  color: var(--text-muted);
-  text-decoration: none;
-}
-.crumbs a:hover {
-  color: var(--accent-fg);
-}
-.crumbs .mono {
-  color: var(--text-primary);
-}
 .det-title {
   margin: 0;
   font-size: var(--font-size-2xl);
   font-weight: var(--font-weight-bold);
   letter-spacing: -0.02em;
 }
-.det-title-sub {
-  font-weight: var(--font-weight-regular);
-  color: var(--text-muted);
+.det-sub {
+  margin: 0;
+  font-size: var(--font-size-md);
+  color: var(--text-secondary);
 }
 .chips {
   display: flex;
@@ -125,10 +109,86 @@
 .ai-mark {
   color: var(--accent-fg);
 }
+/* Headline figures: the recommendation and the score are what the analyst reads first. */
 .decision-strip .reco-value {
-  font-size: var(--font-size-xl);
+  padding: 0;
+  border: 0;
+  font-size: var(--font-size-display);
   font-weight: var(--font-weight-bold);
-  letter-spacing: -0.02em;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+}
+.score-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+.score-value {
+  font-size: var(--font-size-display);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+.score-max {
+  font-size: var(--font-size-md);
+  color: var(--text-secondary);
+}
+.band-chip {
+  align-self: center;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-ctl);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+  line-height: 1;
+  color: var(--text-on-emphasis);
+  background: var(--text-muted);
+}
+.band-chip[data-tone='ok'] {
+  background: var(--status-ok-strong);
+}
+.band-chip[data-tone='warning'] {
+  background: var(--status-warning-strong);
+  color: var(--text-primary);
+}
+.band-chip[data-tone='risk'] {
+  background: var(--status-risk-strong);
+}
+.band-chip[data-tone='danger'] {
+  background: var(--status-danger-strong);
+}
+.score-bar {
+  position: relative;
+  height: var(--space-2);
+  margin-top: var(--space-2);
+  border-radius: var(--radius-pill);
+  background: linear-gradient(
+    90deg,
+    var(--status-ok) 0%,
+    var(--status-warning) 45%,
+    var(--status-risk) 70%,
+    var(--status-danger) 100%
+  );
+}
+.score-marker {
+  position: absolute;
+  top: calc(var(--space-1) * -1);
+  width: var(--space-1);
+  height: calc(var(--space-2) + var(--space-2));
+  border-radius: var(--radius-pill);
+  background: var(--text-primary);
+  box-shadow: 0 0 0 calc(var(--space-1) / 2) var(--surface);
+  transform: translateX(-50%);
+  animation: marker-in var(--dur-3) var(--ease-out);
+}
+@keyframes marker-in {
+  from {
+    left: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .score-marker {
+    animation: none;
+  }
 }
 .weigh-list {
   display: flex;
@@ -152,8 +212,21 @@
   border-radius: var(--radius-pill);
   background: var(--status-warning);
 }
-.weigh-dot.is-danger {
+.weigh-dot.is-danger,
+.weigh-dot[data-tone='danger'] {
   background: var(--status-danger);
+}
+.weigh-dot[data-tone='ok'] {
+  background: var(--status-ok);
+}
+.weigh-dot[data-tone='risk'] {
+  background: var(--status-risk);
+}
+.weigh-dot[data-tone='info'] {
+  background: var(--status-info);
+}
+.weigh-dot[data-tone='neutral'] {
+  background: var(--text-muted);
 }
 .weigh-link {
   padding: 0;
@@ -326,7 +399,8 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-2);
 }
-.decision-side > app-menu-button {
+.decision-side .verdict-main,
+.decision-side .span-all {
   grid-column: 1 / -1;
 }
 

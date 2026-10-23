@@ -103,7 +103,7 @@ import {
   deadlinePriorityTone,
   isDeadlinePrioritized,
 } from '../../../core/models/deadline-priority';
-import { RiskBand, riskBandLabel } from '../../../core/models/risk-band';
+import { RiskBand, riskBandLabel, riskBandTone } from '../../../core/models/risk-band';
 import { StatusTone } from '../../../core/models/status-tone';
 import {
   chatListStamp,
@@ -112,7 +112,6 @@ import {
   formatDayMonth,
 } from '../../../core/util/datetime';
 import { amountInputDisplay, amountInputLabel, amountInputValue } from '../../../core/util/money';
-import { FraudGaugeComponent } from '../../../shared/ui/fraud-gauge/fraud-gauge.component';
 import { InfoTipComponent } from '../../../shared/ui/info-tip/info-tip.component';
 import { EmptyStateComponent } from '../../../shared/ui/empty-state/empty-state.component';
 import { StatusTimelineComponent } from '../../../shared/ui/status-timeline/status-timeline.component';
@@ -197,7 +196,6 @@ interface BriefAlert {
   imports: [
     ChipGroupComponent,
     RouterLink,
-    FraudGaugeComponent,
     InfoTipComponent,
     EmptyStateComponent,
     StatusTimelineComponent,
@@ -368,21 +366,31 @@ export class CaseDetailComponent {
     return d ? d.insuredStatus.label : '';
   });
 
-  private static readonly RISK_BAND_GAUGE: Record<string, 1 | 2 | 3 | 4> = {
-    LOW: 1,
-    MEDIUM: 2,
-    HIGH: 3,
-    CRITICAL: 4,
-  };
-
-  protected readonly riskGaugeBand = computed<1 | 2 | 3 | 4 | null>(() => {
-    const band = this.data()?.riskBand;
-    return band ? CaseDetailComponent.RISK_BAND_GAUGE[band] : null;
-  });
-
   protected readonly riskGaugeEmptyLabel = computed(() => {
     const d = this.data();
     return d ? riskBandEmptyLabel(d.status, d.analysisClassification) : 'Sin datos';
+  });
+
+  protected readonly riskBandText = computed(() => {
+    const band = this.data()?.riskBand;
+    return band ? riskBandLabel(band) : null;
+  });
+
+  protected readonly riskTone = computed(() => riskBandTone(this.data()?.riskBand ?? null));
+
+  /**
+   * The verdict the model points to, shown first and filled. Only for its two directional outputs:
+   * Fast Track, missing documents and manual review leave both verdicts on equal footing.
+   */
+  protected readonly recommendedVerdict = computed<'approve' | 'reject' | null>(() => {
+    switch (this.data()?.analysisClassification) {
+      case 'LLM_RECOMIENDA_APROBAR':
+        return 'approve';
+      case 'LLM_NO_RECOMIENDA_APROBAR':
+        return 'reject';
+      default:
+        return null;
+    }
   });
 
   protected readonly riskScorePct = computed<number | null>(() => {
@@ -627,12 +635,6 @@ export class CaseDetailComponent {
 
   /** The summary card only answers "why this band": zero-contribution factors explain nothing. */
   protected readonly topRiskFactors = computed(() => this.scoreSegments().slice(0, 2));
-
-  protected readonly scoreTone = computed<StatusTone>(() => {
-    const tones: Record<number, StatusTone> = { 1: 'ok', 2: 'warning', 3: 'risk', 4: 'danger' };
-    const band = this.riskGaugeBand();
-    return band ? tones[band] : 'neutral';
-  });
 
   protected readonly policySnapshot = computed<PolicySnapshot | null>(
     () => this.data()?.policySnapshot ?? null,

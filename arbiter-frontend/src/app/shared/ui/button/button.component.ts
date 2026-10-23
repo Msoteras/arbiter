@@ -20,8 +20,8 @@ type SavePhase = 'idle' | 'saving' | 'saved';
 const SAVED_MS = 1600;
 
 /**
- * `tone` (secondary only) tints border and text with a status color, for actions whose outcome is a
- * status, such as approving or rejecting a case.
+ * `tone` is for actions whose outcome is a status, such as approving or rejecting a case: on a
+ * secondary it tints border and text; on a primary it fills it (the verdict the model recommends).
  *
  * `saving` turns it into a save button: Guardar → Guardando (the button fills up) → Guardado. When
  * `saving` goes back to false without `saveFailed`, it reads "Guardado" for a moment and then emits
@@ -41,7 +41,7 @@ const SAVED_MS = 1600;
       [class.primary]="variant() === 'primary'"
       [class.secondary]="variant() === 'secondary'"
       [class.accent]="variant() === 'accent'"
-      [attr.data-tone]="variant() === 'secondary' ? tone() : null"
+      [attr.data-tone]="tone()"
       [class.sm]="size() === 'sm'"
       [class.loading]="loading()"
       [class.saving]="phase() === 'saving'"
@@ -164,6 +164,25 @@ const SAVED_MS = 1600;
       border-color: var(--btn-tone);
     }
     /* Flat on purpose: the teal CTA reads as one clean color (it repeats down table rows). */
+    /* A verdict the model recommends: the primary filled in its status color. */
+    .btn.primary[data-tone='danger'] {
+      background: var(--status-danger-strong);
+      border-color: var(--status-danger-strong);
+      color: var(--text-on-emphasis);
+    }
+    .btn.primary[data-tone='danger']:hover:not(:disabled) {
+      background: var(--status-danger-strong-hover);
+      border-color: var(--status-danger-strong-hover);
+    }
+    .btn.primary[data-tone='ok'] {
+      background: var(--action-accent-bg);
+      border-color: var(--action-accent-bg);
+      color: var(--action-accent-fg);
+    }
+    .btn.primary[data-tone='ok']:hover:not(:disabled) {
+      background: var(--action-accent-bg-hover);
+      border-color: var(--action-accent-bg-hover);
+    }
     .btn.accent {
       background: var(--action-accent-bg);
       border-color: var(--action-accent-bg);

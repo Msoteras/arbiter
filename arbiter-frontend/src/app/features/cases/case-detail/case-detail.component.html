@@ -2,15 +2,13 @@
   <header class="det-header" @fadeInUp>
     <div class="det-header-row">
       <div class="identity">
-        <nav class="crumbs" aria-label="Ubicación">
-          <a routerLink="/inbox">Bandeja</a>
-          <span aria-hidden="true">/</span>
-          <span class="mono case-id">EXP-{{ d.id }}</span>
-        </nav>
         <h1 class="t-page-title det-title">
-          <span [class.mono]="!d.insuredName">{{ d.insuredName ?? d.insuredId }}</span>
-          <span class="det-title-sub">· {{ d.claimCause }}</span>
+          Expediente <span class="case-id">#{{ d.id }}</span>
         </h1>
+        <p class="det-sub">
+          <span [class.mono]="!d.insuredName">{{ d.insuredName ?? d.insuredId }}</span>
+          · {{ d.claimCause }}
+        </p>
         <div class="chips">
           <app-badge
             [tone]="statusTone()"
@@ -104,17 +102,31 @@
 
       <div class="strip-col">
         <h2 class="strip-label">Riesgo de fraude</h2>
-        <app-fraud-gauge
-          [band]="riskGaugeBand()"
-          [score]="riskScorePct()"
-          [emptyLabel]="riskGaugeEmptyLabel()"
-        />
+        @if (riskScorePct() !== null) {
+          <div class="score-head">
+            <span class="score-value tabular">{{ riskScorePct() }}</span>
+            <span class="score-max">/100</span>
+            @if (riskBandText(); as band) {
+              <span class="band-chip" [attr.data-tone]="riskTone()">{{ band }}</span>
+            }
+          </div>
+          <!-- Low to critical, left to right; the marker is where this claim's score falls. -->
+          <div
+            class="score-bar"
+            role="img"
+            [attr.aria-label]="'Puntaje ' + riskScorePct() + ' de 100'"
+          >
+            <span class="score-marker" [style.left.%]="riskScorePct()"></span>
+          </div>
+        } @else {
+          <p class="nodata">{{ riskGaugeEmptyLabel() }}</p>
+        }
       </div>
 
       <!-- What to weigh before deciding: the evidence already on the case, never a suggestion. -->
       @if (showBeforeDeciding()) {
         <div class="strip-col">
-          <h2 class="strip-label">Antes de resolver</h2>
+          <h2 class="strip-label">Pendientes</h2>
           <ul class="weigh-list">
             @for (a of decisionAlerts(); track a.tab) {
               <li>
@@ -124,9 +136,12 @@
             }
             @for (p of answeredDerivations(); track p.id) {
               <li>
-                <app-badge variant="solid" [tone]="derivationResultTone(p)">{{
-                  derivationResult(p)
-                }}</app-badge>
+                <span
+                  class="weigh-dot"
+                  [attr.data-tone]="derivationResultTone(p)"
+                  aria-hidden="true"
+                ></span>
+                {{ derivationResult(p) }}
               </li>
             }
             <!-- Hidden at zero: it means an input is missing, not that nothing is owed. -->
@@ -233,26 +248,47 @@
               <div class="decision-row">
                 @if (canDecide()) {
                   <div class="decision-side">
-                    <app-button
-                      variant="secondary"
-                      tone="ok"
-                      [block]="true"
-                      [disabled]="decisionSaving()"
-                      (click)="askDecision('approve')"
-                      >✓ Aprobar</app-button
-                    >
-                    <app-button
-                      variant="secondary"
-                      tone="danger"
-                      [block]="true"
-                      [disabled]="decisionSaving()"
-                      (click)="askDecision('reject')"
-                      >✕ Rechazar</app-button
-                    >
+                    @if (recommendedVerdict(); as rec) {
+                      <app-button
+                        class="verdict-main"
+                        [tone]="rec === 'reject' ? 'danger' : 'ok'"
+                        [block]="true"
+                        [disabled]="decisionSaving()"
+                        (click)="askDecision(rec)"
+                        >{{
+                          rec === 'reject' ? 'Rechazar siniestro' : 'Aprobar siniestro'
+                        }}</app-button
+                      >
+                      <app-button
+                        variant="secondary"
+                        [block]="true"
+                        [disabled]="decisionSaving()"
+                        (click)="askDecision(rec === 'reject' ? 'approve' : 'reject')"
+                        >{{ rec === 'reject' ? 'Aprobar' : 'Rechazar' }}</app-button
+                      >
+                    } @else {
+                      <app-button
+                        variant="secondary"
+                        tone="ok"
+                        [block]="true"
+                        [disabled]="decisionSaving()"
+                        (click)="askDecision('approve')"
+                        >✓ Aprobar</app-button
+                      >
+                      <app-button
+                        variant="secondary"
+                        tone="danger"
+                        [block]="true"
+                        [disabled]="decisionSaving()"
+                        (click)="askDecision('reject')"
+                        >✕ Rechazar</app-button
+                      >
+                    }
                     <!-- Referral is not a third decision (it suspends to gather evidence), hence
                          no tone. Always a menu: the full target name doesn't fit this column. -->
                     @if (derivationChoices().length > 0) {
                       <app-menu-button
+                        class="span-all"
                         [block]="true"
                         [items]="deriveMenuItems()"
                         [disabled]="decisionSaving()"
@@ -697,7 +733,7 @@
 
             <app-card heading="Score de fraude">
               @if (riskScorePct(); as scorePct) {
-                <p class="score-value tabular" [attr.data-tone]="scoreTone()">
+                <p class="score-value tabular" [attr.data-tone]="riskTone()">
                   <strong>{{ scorePct }}</strong
                   ><span class="score-max">/100</span>
                 </p>
@@ -705,7 +741,7 @@
                   class="score-bar"
                   role="img"
                   [attr.aria-label]="'Score de fraude ' + scorePct + ' sobre 100'"
-                  [attr.data-tone]="scoreTone()"
+                  [attr.data-tone]="riskTone()"
                 >
                   @for (seg of scoreSegments(); track seg.factorId) {
                     <span class="score-seg" [style.flex-basis.%]="seg.contribution"></span>

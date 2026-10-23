@@ -21,6 +21,10 @@
   --accent-blue: #2e4a9e;
   /* Faint alert tint for risk-signal backgrounds (e.g. the fraud card). */
   --accent-red-soft: #fdeceb;
+  /* Strong shades: fills behind white text (a verdict button, a risk chip) that pass AA. */
+  --accent-red-strong: #c4291f;
+  --accent-red-deep: #a32119;
+  --accent-orange-strong: #b4451a;
   --accent-red-soft-border: #f4c9c5;
 
   /* ===== Color: text ===== */
@@ -74,6 +78,7 @@
   --font-size-title: 19px; /* panel titles */
   --font-size-xl: 22px; /* page titles */
   --font-size-2xl: 28px; /* hero titles (login, portal) */
+  --font-size-display: 34px; /* a headline figure: the recommendation, the risk score */
 
   /* ===== Typography: weights ===== */
   --font-weight-regular: 400;
