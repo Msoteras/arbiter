@@ -5,48 +5,48 @@
   display: block;
 }
 
-.layout {
-  display: grid;
-  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
-  gap: var(--space-5);
-  align-items: stretch;
+/* Full-bleed bands inside the flush card, split by hairlines. */
+.section {
+  padding: var(--space-4);
+  border-top: 1px solid var(--border-subtle);
 }
-@include media.phone {
-  .layout {
-    grid-template-columns: minmax(0, 1fr);
-  }
+.section .t-section-label {
+  margin: 0 0 var(--space-3);
 }
 
-.preview-block .t-section-label {
-  margin: 0 0 var(--space-2);
-}
-
-/* A slice of the real app bar: the same chrome colors and sizes. */
-.bar-preview {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  height: var(--appbar-h);
-  padding: 0 var(--space-4);
+/* ───── Preview: a slice of the real app bar, same chrome colors and sizes ───── */
+.preview {
+  overflow: hidden;
+  border: 1px solid var(--border-default);
   border-radius: var(--radius-card);
-  background: var(--chrome-bg);
-  color: var(--chrome-fg);
+  background: var(--surface-sunken);
   box-shadow: var(--shadow-card);
 }
-.bar-logo {
-  --logo-size: 1.4rem;
+.bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  height: var(--appbar-h);
+  padding: 0 var(--space-4);
+  background: var(--chrome-bg);
+  color: var(--chrome-fg);
 }
 .bar-brand {
-  font-size: var(--font-size-xl);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--font-size-lg);
   font-weight: var(--font-weight-bold);
   letter-spacing: -0.02em;
+}
+.bar-logo {
+  --logo-size: 1.3rem;
 }
 .bar-tenant {
   display: flex;
   align-items: center;
   gap: var(--space-2);
   height: 100%;
-  margin-left: var(--space-1);
   padding-left: var(--space-3);
   border-left: 1px solid var(--chrome-hair);
   min-width: 0;
@@ -84,14 +84,115 @@
   font-size: var(--font-size-body);
   font-weight: var(--font-weight-medium);
 }
+.bar-nav {
+  margin-left: auto;
+  font-size: var(--font-size-sm);
+  color: var(--chrome-muted);
+}
+.bar-avatar {
+  display: grid;
+  place-items: center;
+  width: var(--icon-btn);
+  height: var(--icon-btn);
+  border-radius: var(--radius-pill);
+  background: var(--chrome-avatar-bg);
+  font-size: var(--font-size-2xs);
+  font-weight: var(--font-weight-bold);
+}
+.page {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-4);
+}
+.line {
+  display: block;
+  width: 45%;
+  height: var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--border-default);
+}
+.line.wide {
+  width: 70%;
+}
 @keyframes plate-in {
   from {
     opacity: 0;
     transform: scale(0.92);
   }
 }
+@include media.phone {
+  .bar-nav {
+    display: none;
+  }
+}
+
+/* ───── Current logo ───── */
+.file {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  transition:
+    border-color var(--dur-1) ease,
+    box-shadow var(--dur-2) var(--ease-standard);
+}
+.file.dragging {
+  border-color: var(--border-focus);
+  box-shadow: var(--focus-ring);
+}
+.thumb {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: calc(var(--space-7) + var(--space-3));
+  height: var(--space-7);
+  padding: var(--space-1);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-ctl);
+  background: var(--surface-soft);
+}
+.thumb img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+.file-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.file-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: var(--font-weight-medium);
+  color: var(--text-primary);
+}
+.file-text .t-note {
+  margin: 0;
+}
+.file-actions {
+  flex: none;
+  display: flex;
+  gap: var(--space-2);
+}
+@include media.phone {
+  .file {
+    flex-wrap: wrap;
+  }
+  .file-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+}
 
 .drop {
+  width: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -101,6 +202,8 @@
   border: 1px dashed var(--border-strong);
   border-radius: var(--radius-card);
   background: var(--surface-sunken);
+  font: inherit;
+  color: inherit;
   text-align: center;
   cursor: pointer;
   transition:
@@ -108,15 +211,19 @@
     background-color var(--dur-1) ease,
     box-shadow var(--dur-2) var(--ease-standard);
 }
-.drop:hover,
+.drop:hover:not(:disabled),
 .drop.dragging {
   border-color: var(--border-focus);
   background: var(--selected-bg);
 }
 .drop.dragging,
-.drop:focus-within {
+.drop:focus-visible {
+  outline: none;
   border-color: var(--border-focus);
   box-shadow: var(--focus-ring);
+}
+.drop:disabled {
+  cursor: default;
 }
 .drop-icon {
   width: var(--icon-btn);
@@ -128,22 +235,29 @@
   color: var(--text-primary);
 }
 
+/* The rules for the file, as a row of short items. */
+.specs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+
 .error {
   margin: var(--space-3) 0 0;
   color: var(--status-danger);
   font-size: var(--font-size-sm);
-}
-.actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: var(--space-2);
-  margin-top: var(--space-4);
 }
 
 @media (prefers-reduced-motion: reduce) {
   .plate {
     animation: none;
   }
+  .file,
   .drop {
     transition: none;
   }

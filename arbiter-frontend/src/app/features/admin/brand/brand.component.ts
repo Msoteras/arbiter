@@ -2,7 +2,8 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
-import { InsurerLogoService } from '../../../core/services/insurer-logo.service';
+import { InsurerLogo, InsurerLogoService } from '../../../core/services/insurer-logo.service';
+import { formatDate } from '../../../core/util/datetime';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { CardComponent } from '../../../shared/ui/card/card.component';
 import { InfoTipComponent } from '../../../shared/ui/info-tip/info-tip.component';
@@ -12,6 +13,13 @@ import { ToastService } from '../../../shared/ui/toast/toast.service';
 /** Mirrors InsurerLogoService (auth-service): checked here too so a wrong file fails at once. */
 const ACCEPTED_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml'];
 const MAX_BYTES = 256 * 1024;
+
+const TYPE_LABELS: Record<string, string> = {
+  'image/png': 'PNG',
+  'image/jpeg': 'JPG',
+  'image/webp': 'WebP',
+  'image/svg+xml': 'SVG',
+};
 
 /**
  * The insurer's logo, the one its people see in the app bar. A section of the Rules screen
@@ -25,22 +33,29 @@ const MAX_BYTES = 256 * 1024;
   styleUrl: './brand.component.scss',
 })
 export class BrandComponent {
-  private readonly logo = inject(InsurerLogoService);
+  private readonly logoService = inject(InsurerLogoService);
   private readonly toast = inject(ToastService);
   private readonly session = inject(AuthSessionService);
 
   protected readonly accept = ACCEPTED_TYPES.join(',');
-  protected readonly logoUrl = this.logo.logoUrl;
+  protected readonly logo = this.logoService.logo;
   protected readonly insurerName = computed(() => this.session.session()?.insurerName ?? '');
-  protected readonly monogram = computed(() => {
-    const [first = '', second = ''] = this.insurerName().trim().split(/\s+/);
-    return `${first[0] ?? ''}${second[0] ?? ''}`.toUpperCase();
+  protected readonly monogram = computed(() => initials(this.insurerName()));
+  protected readonly userInitials = computed(() => {
+    const s = this.session.session();
+    return s ? initials(`${s.nombre} ${s.apellido}`) : '';
   });
 
   protected readonly uploading = signal(false);
   protected readonly removing = signal(false);
   protected readonly dragging = signal(false);
   protected readonly error = signal<string | null>(null);
+
+  /** "SVG · 12 KB · subido el 14/10/2026". */
+  protected details(logo: InsurerLogo): string {
+    const type = TYPE_LABELS[logo.type] ?? logo.type;
+    return `${type} · ${fileSize(logo.bytes)} · subido el ${formatDate(logo.uploadedAt)}`;
+  }
 
   protected onPick(event: Event): void {
     const input = event.target as HTMLInputElement;
@@ -65,7 +80,7 @@ export class BrandComponent {
   protected remove(): void {
     this.error.set(null);
     this.removing.set(true);
-    this.logo.remove().subscribe({
+    this.logoService.remove().subscribe({
       next: () => {
         this.removing.set(false);
         this.toast.show('Quitaste el logo.', 'ok');
@@ -88,7 +103,7 @@ export class BrandComponent {
       return;
     }
     this.uploading.set(true);
-    this.logo.upload(file).subscribe({
+    this.logoService.upload(file).subscribe({
       next: () => {
         this.uploading.set(false);
         this.toast.show('Logo actualizado.', 'ok');
@@ -99,6 +114,18 @@ export class BrandComponent {
       },
     });
   }
+}
+
+/** Initials of the first two words: "Seguros del Sur" → "SD". */
+function initials(name: string): string {
+  const [first = '', second = ''] = name.trim().split(/\s+/);
+  return `${first[0] ?? ''}${second[0] ?? ''}`.toUpperCase();
+}
+
+function fileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  const kb = bytes / 1024;
+  return `${kb < 10 ? kb.toFixed(1).replace('.', ',') : Math.round(kb)} KB`;
 }
 
 /** The backend's own wording for a rejected file (400); anything else gets the generic notice. */

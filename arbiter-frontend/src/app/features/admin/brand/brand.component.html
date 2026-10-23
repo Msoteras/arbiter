@@ -1,73 +1,124 @@
-<app-card heading="Marca" headingSize="lg">
-  <span cardAside>
-    <app-info-tip>
-      PNG, JPG, WebP o SVG de hasta 256 KB. Con fondo transparente se ve mejor.
-    </app-info-tip>
-  </span>
+<app-card heading="Marca" headingSize="lg" [flush]="true">
+  <app-info-tip cardAside>
+    Tu logo aparece junto al de Arbiter en el encabezado de todas las pantallas de tu compañía.
+  </app-info-tip>
 
-  <div class="layout">
-    <div class="preview-block">
-      <p class="t-section-label">Vista previa</p>
-      <!-- The app bar as the insurer's people see it. -->
-      <div class="bar-preview" aria-hidden="true">
-        <app-logo variant="symbol" class="bar-logo" />
-        <span class="bar-brand">Arbiter</span>
+  <!-- One picker for the drop zone and for "Reemplazar". -->
+  <input
+    #picker
+    class="sr-only"
+    type="file"
+    tabindex="-1"
+    aria-hidden="true"
+    [accept]="accept"
+    (change)="onPick($event)"
+  />
+
+  <section class="section">
+    <p class="t-section-label">Vista previa</p>
+    <!-- The app bar as the insurer's people see it, over a hint of the screen below. -->
+    <div class="preview" aria-hidden="true">
+      <div class="bar">
+        <span class="bar-brand">
+          <app-logo variant="symbol" class="bar-logo" />
+          Arbiter
+        </span>
         <span class="bar-tenant">
-          @if (logoUrl(); as url) {
-            <span class="plate"><img [src]="url" alt="" /></span>
+          @if (logo(); as current) {
+            <span class="plate"><img [src]="current.url" alt="" /></span>
           } @else {
             <span class="mark">{{ monogram() }}</span>
             <span class="name">{{ insurerName() }}</span>
           }
         </span>
+        <span class="bar-nav">Inicio</span>
+        <span class="bar-avatar">{{ userInitials() }}</span>
+      </div>
+      <div class="page">
+        <span class="line wide"></span>
+        <span class="line"></span>
       </div>
     </div>
+  </section>
 
-    <label
-      class="drop"
-      [class.dragging]="dragging()"
-      (dragover)="onDragOver($event)"
-      (dragleave)="dragging.set(false)"
-      (drop)="onDrop($event)"
-    >
-      <input class="sr-only" type="file" [accept]="accept" (change)="onPick($event)" />
-      <svg
-        class="drop-icon"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        aria-hidden="true"
+  <section class="section">
+    <p class="t-section-label">Logo actual</p>
+    @if (logo(); as current) {
+      <div
+        class="file"
+        [class.dragging]="dragging()"
+        (dragover)="onDragOver($event)"
+        (dragleave)="dragging.set(false)"
+        (drop)="onDrop($event)"
       >
-        <path
-          d="M12 16V4m0 0-4 4m4-4 4 4"
-          stroke-width="1.6"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        />
-        <path
-          d="M4 16v2.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V16"
-          stroke-width="1.6"
-          stroke-linecap="round"
-        />
-      </svg>
-      <span class="drop-title">{{ logoUrl() ? 'Cambiar el logo' : 'Subir el logo' }}</span>
-      <span class="t-note">Arrastralo acá o hacé clic para elegirlo.</span>
-    </label>
-  </div>
-
-  @if (error(); as message) {
-    <p class="error" role="alert">{{ message }}</p>
-  }
-
-  @if (uploading() || logoUrl()) {
-    <div class="actions">
-      @if (uploading()) {
-        <app-button variant="secondary" [loading]="true">Subiendo</app-button>
-      } @else {
-        <app-button variant="secondary" tone="danger" [loading]="removing()" (click)="remove()"
-          >Quitar el logo</app-button
+        <span class="thumb"><img [src]="current.url" alt="" /></span>
+        <div class="file-text">
+          <span class="file-name">{{ insurerName() }}</span>
+          <span class="t-note">{{ details(current) }}</span>
+        </div>
+        <div class="file-actions">
+          <app-button
+            variant="secondary"
+            size="sm"
+            [loading]="uploading()"
+            [disabled]="removing()"
+            (click)="picker.click()"
+            >Reemplazar</app-button
+          >
+          <app-button
+            variant="secondary"
+            size="sm"
+            tone="danger"
+            [loading]="removing()"
+            [disabled]="uploading()"
+            (click)="remove()"
+            >Quitar</app-button
+          >
+        </div>
+      </div>
+    } @else {
+      <button
+        type="button"
+        class="drop"
+        [class.dragging]="dragging()"
+        [disabled]="uploading()"
+        (click)="picker.click()"
+        (dragover)="onDragOver($event)"
+        (dragleave)="dragging.set(false)"
+        (drop)="onDrop($event)"
+      >
+        <svg
+          class="drop-icon"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          aria-hidden="true"
         >
-      }
-    </div>
-  }
+          <path
+            d="M12 16V4m0 0-4 4m4-4 4 4"
+            stroke-width="1.6"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+          <path
+            d="M4 16v2.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V16"
+            stroke-width="1.6"
+            stroke-linecap="round"
+          />
+        </svg>
+        <span class="drop-title">{{ uploading() ? 'Subiendo…' : 'Subir el logo' }}</span>
+        <span class="t-note">Arrastralo acá o hacé clic para elegirlo.</span>
+      </button>
+    }
+
+    <ul class="specs">
+      <li>PNG, JPG, WebP o SVG</li>
+      <li>Hasta 256 KB</li>
+      <li>Fondo transparente</li>
+    </ul>
+
+    @if (error(); as message) {
+      <p class="error" role="alert">{{ message }}</p>
+    }
+  </section>
 </app-card>
