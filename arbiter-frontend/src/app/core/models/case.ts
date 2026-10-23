@@ -141,16 +141,6 @@ export interface CaseResponse {
   policySnapshot: PolicySnapshot | null;
   /** Only in GET /{id} while under repair. The one referral the insured gets to see. */
   repairProvider: RepairProvider | null;
-  /** The audited model run behind the recommendation; null on a rules outcome. Analyst-only. */
-  modelRun?: ModelRun | null;
-}
-
-/** Mirror of cases-service's ModelRunResponse: one `llm_analysis` row (Disposición SSN 2/2023). */
-export interface ModelRun {
-  model: string;
-  promptVersion: string;
-  analyzedAt: string;
-  latencyMs: number | null;
 }
 
 export interface RepairProvider {

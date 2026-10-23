@@ -305,15 +305,6 @@ export class CaseDetailComponent {
     return d?.status === 'PENDING_CLASSIFICATION' ? d.id : null;
   });
 
-  /** "qwen3-vl:8b-instruct · classification-v7 · 21/10 14:32 · 41 s" for the AI card's footer. */
-  protected readonly modelRunLine = computed(() => {
-    const run = this.data()?.modelRun;
-    if (!run) return null;
-    const parts = [run.model, run.promptVersion, formatDateTime(run.analyzedAt)];
-    if (run.latencyMs != null) parts.push(`${Math.round(run.latencyMs / 1000)} s`);
-    return parts.join(' · ');
-  });
-
   /** When the case entered classification: the latest move into it, or the claim itself. */
   protected readonly classificationSince = computed(() => {
     const d = this.data();

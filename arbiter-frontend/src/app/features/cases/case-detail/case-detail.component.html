@@ -67,12 +67,6 @@
                 </button>
               </p>
             }
-            @if (modelRunLine(); as run) {
-              <p class="model-run mono">
-                <span class="sr-only">Registro de auditoría:</span>
-                {{ run }}
-              </p>
-            }
           } @else if (needsDocs()) {
             <p class="note">Falta documentación obligatoria de la agenda del ramo.</p>
           } @else if (!isFastTrack()) {

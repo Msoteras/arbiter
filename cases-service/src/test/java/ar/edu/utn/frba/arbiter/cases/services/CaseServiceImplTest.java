@@ -16,7 +16,6 @@ import ar.edu.utn.frba.arbiter.common.models.entities.User;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseDocumentResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseResponse;
-import ar.edu.utn.frba.arbiter.cases.dto.ModelRunResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.EligibilityCheckRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.InsuredStatusResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.IntakeDocumentsResponse;
@@ -475,9 +474,7 @@ class CaseServiceImplTest {
         when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
         when(caseAnalysisRepository.findByCaseId(1L)).thenReturn(new CaseAnalysis(
                 Classification.LLM_RECOMIENDA_APROBAR, 0.87,
-                List.of("Monto bajo", "Primer siniestro"), null, null, null, null,
-                new ModelRunResponse("qwen3-vl:8b-instruct", "classification-v7",
-                        Instant.parse("2026-06-13T22:55:00Z"), 41_000)));
+                List.of("Monto bajo", "Primer siniestro"), null, null, null, null));
 
         CaseResponse response = caseService.getCase(1L);
 
@@ -486,7 +483,6 @@ class CaseServiceImplTest {
         assertThat(response.analysisClassification()).isEqualTo(Classification.LLM_RECOMIENDA_APROBAR);
         assertThat(response.analysisConfidence()).isEqualTo(0.87);
         assertThat(response.analysisReasons()).containsExactly("Monto bajo", "Primer siniestro");
-        assertThat(response.modelRun().promptVersion()).isEqualTo("classification-v7");
     }
 
     @Test
@@ -526,7 +522,7 @@ class CaseServiceImplTest {
         when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
         when(caseAnalysisRepository.findByCaseId(1L)).thenReturn(new CaseAnalysis(
                 Classification.LLM_RECOMIENDA_APROBAR, 0.9, List.of("Motivo viejo"), null,
-                null, null, null, null));
+                null, null, null));
 
         CaseResponse response = caseService.getCase(1L);
 
@@ -1765,7 +1761,7 @@ class CaseServiceImplTest {
 
     private static final CaseAnalysis ASSESSMENT = new CaseAnalysis(
             Classification.LLM_NO_RECOMIENDA_APROBAR, 0.9, List.of("Relato inconsistente"), List.of(),
-            CauseConsistency.CONTRADICTS, "Hurto", "me lo sacaron de la mochila", null);
+            CauseConsistency.CONTRADICTS, "Hurto", "me lo sacaron de la mochila");
 
     private Case assessedCase() {
         Case entity = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);

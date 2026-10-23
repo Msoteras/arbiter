@@ -83,9 +83,7 @@ public record CaseResponse(
         /** What the insurer DB answered at classification time, not today. */
         PolicySnapshotResponse policySnapshot,
         /** Only on GET /{id} while in PENDING_REPAIR: the one derivation detail the insured sees. */
-        RepairProviderResponse repairProvider,
-        /** The audited model run behind the recommendation; null on a rules outcome. Analyst-only. */
-        ModelRunResponse modelRun
+        RepairProviderResponse repairProvider
 ) {
 
     /**
@@ -109,6 +107,6 @@ public record CaseResponse(
                                 .map(StatusTransitionResponse::forInsured)
                                 .toList(),
                 List.of(), List.of(), null,
-                repairProvider, null);
+                repairProvider);
     }
 }
