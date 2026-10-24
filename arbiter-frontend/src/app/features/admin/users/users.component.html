@@ -10,7 +10,7 @@
         Dar de alta asegurados
       </app-button>
       <app-button appOnboardingTarget="ANALYSTS" (click)="showCreatePanel.set(true)"
-        >+ Nuevo analista</app-button
+        >+ Invitar analista</app-button
       >
     </div>
   </header>
@@ -23,74 +23,81 @@
   }
 
   @if (loading()) {
-    <app-skeleton shape="table" [rows]="6" [columns]="7" note="Cargando usuarios…" />
+    <app-skeleton shape="table" [rows]="6" [columns]="5" note="Cargando usuarios…" />
   } @else if (hasError()) {
     <app-card><p class="t-note">No se pudo cargar el listado de usuarios.</p></app-card>
   } @else if (isEmpty()) {
     <app-empty-state message="Todavía no hay usuarios cargados." sub="Sin usuarios" />
   } @else {
-    @if (resendError()) {
-      <p class="error">{{ resendError() }}</p>
-    }
     <app-card [flush]="true">
-      <app-table [pinLastColumn]="true" scrollLabel="Usuarios">
-        <thead>
-          <tr>
-            <th>Nombre</th>
-            <th>Email</th>
-            <th>Rol</th>
-            <th>Estado</th>
-            <th>Último acceso</th>
-            <th>Acciones</th>
-          </tr>
-        </thead>
-        <tbody @fadeStagger>
-          @for (u of users(); track u.id) {
+      <div class="toolbar">
+        <app-input
+          class="search"
+          [value]="query()"
+          (valueChange)="query.set($event)"
+          placeholder="Buscar por nombre o email"
+        />
+        <app-tabs
+          class="lens"
+          ariaLabel="Filtrar usuarios"
+          [tabs]="lensTabs()"
+          [value]="lens()"
+          (valueChange)="lens.set($any($event))"
+        />
+      </div>
+
+      @if (visibleUsers().length === 0) {
+        <p class="t-note no-match">Ningún usuario coincide con la búsqueda.</p>
+      } @else {
+        <app-table [pinLastColumn]="true" scrollLabel="Usuarios">
+          <thead>
             <tr>
-              <td>{{ u.nombre }} {{ u.apellido }}</td>
-              <td class="mono">{{ u.email }}</td>
-              <td>
-                <span class="role-cell" [title]="isSelf(u) ? 'No podés cambiar tu propio rol' : ''">
-                  <span class="t-body">{{ roleLabel(u.rol) }}</span>
-                  @if (canEditRole(u)) {
-                    <app-icon-button
-                      icon="edit"
-                      size="sm"
-                      [label]="'Cambiar el rol de ' + u.nombre + ' ' + u.apellido"
-                      (click)="requestRoleChange(u)"
+              <th>Usuario</th>
+              <th>Rol</th>
+              <th>Estado</th>
+              <th>Último acceso</th>
+              <th><span class="sr-only">Acciones</span></th>
+            </tr>
+          </thead>
+          <tbody @fadeStagger>
+            @for (u of visibleUsers(); track u.id) {
+              <tr>
+                <td>
+                  <div class="user-cell">
+                    <span class="avatar" aria-hidden="true">{{ initials(u) }}</span>
+                    <div class="user-text">
+                      <span class="user-name">
+                        {{ u.nombre }} {{ u.apellido }}
+                        @if (isSelf(u)) {
+                          <app-badge variant="strong">Vos</app-badge>
+                        }
+                      </span>
+                      <span class="mono user-email">{{ u.email }}</span>
+                    </div>
+                  </div>
+                </td>
+                <td>{{ roleLabel(u.rol) }}</td>
+                <td>
+                  <app-badge [tone]="statusTone(u.estado)">{{ statusLabel(u.estado) }}</app-badge>
+                </td>
+                <td class="tabular">{{ lastAccess(u) }}</td>
+                <td class="actions-cell">
+                  @let items = rowActions().get(u.id) ?? [];
+                  @if (items.length > 0) {
+                    <app-menu-button
+                      align="end"
+                      [items]="items"
+                      [label]="'Acciones para ' + u.nombre + ' ' + u.apellido"
+                      [disabled]="resendingId() === u.id"
+                      (itemSelected)="onAction(u, $event)"
                     />
                   }
-                </span>
-              </td>
-              <td>
-                <app-badge [tone]="statusTone(u.estado)">{{ statusLabel(u.estado) }}</app-badge>
-                @if (resendOkId() === u.id) {
-                  <p class="t-note resend-ok">Invitación reenviada.</p>
-                }
-              </td>
-              <td class="tabular">{{ lastAccess(u) }}</td>
-              <td class="actions-cell">
-                @if (u.estado === 'PENDING') {
-                  <app-button
-                    variant="secondary"
-                    [disabled]="resendingId() === u.id"
-                    (click)="resendInvite(u)"
-                    >{{
-                      resendingId() === u.id ? 'Reenviando…' : 'Reenviar invitación'
-                    }}</app-button
-                  >
-                }
-                <!-- The title lives on the wrapper: a disabled app-button gets no hover. -->
-                <span [title]="isSelf(u) ? 'No podés eliminar tu propia cuenta' : ''">
-                  <app-button variant="secondary" [disabled]="isSelf(u)" (click)="requestDelete(u)"
-                    >Eliminar</app-button
-                  >
-                </span>
-              </td>
-            </tr>
-          }
-        </tbody>
-      </app-table>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </app-table>
+      }
     </app-card>
   }
 </div>
@@ -158,7 +165,7 @@
 
 <app-modal
   [open]="showCreatePanel()"
-  heading="Nuevo analista"
+  heading="Invitar analista"
   variant="side"
   (close)="showCreatePanel.set(false)"
 >

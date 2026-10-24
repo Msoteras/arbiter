@@ -55,15 +55,34 @@ export class MenuButtonRegistry {
   host: { '[class.block]': 'block()' },
   template: `
     <div class="menu" [class.open]="open()">
-      <app-button
-        variant="secondary"
-        [size]="size()"
-        [block]="block()"
-        [disabled]="disabled()"
-        (click)="toggle()"
-      >
-        <ng-content />
-      </app-button>
+      @if (label(); as name) {
+        <button
+          type="button"
+          class="more"
+          aria-haspopup="menu"
+          [attr.aria-expanded]="open()"
+          [attr.aria-label]="name"
+          [attr.title]="name"
+          [disabled]="disabled()"
+          (click)="toggle()"
+        >
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <circle cx="5" cy="12" r="1.6" />
+            <circle cx="12" cy="12" r="1.6" />
+            <circle cx="19" cy="12" r="1.6" />
+          </svg>
+        </button>
+      } @else {
+        <app-button
+          variant="secondary"
+          [size]="size()"
+          [block]="block()"
+          [disabled]="disabled()"
+          (click)="toggle()"
+        >
+          <ng-content />
+        </app-button>
+      }
 
       @if (open()) {
         <ul
@@ -95,8 +114,50 @@ export class MenuButtonRegistry {
     </div>
   `,
   styles: `
+    @use 'media';
+
     :host {
       display: inline-block;
+    }
+
+    /* Icon-only trigger for a row's actions: no border until hovered, so a column of them stays quiet. */
+    .more {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: var(--icon-btn);
+      height: var(--icon-btn);
+      padding: 0;
+      background: none;
+      border: 1px solid transparent;
+      border-radius: var(--radius-ctl);
+      color: var(--text-secondary);
+      cursor: pointer;
+    }
+    .more svg {
+      width: var(--icon-lg);
+      height: var(--icon-lg);
+    }
+    @include media.touch {
+      .more {
+        width: var(--touch-target);
+        height: var(--touch-target);
+      }
+    }
+    .more:hover:not(:disabled),
+    .open .more {
+      border-color: var(--border-control);
+      background: var(--surface-sunken);
+      color: var(--text-primary);
+    }
+    .more:focus-visible {
+      outline: none;
+      border-color: var(--border-focus);
+      box-shadow: var(--focus-ring);
+    }
+    .more:disabled {
+      opacity: 0.5;
+      cursor: default;
     }
     :host(.block) {
       display: block;
@@ -185,6 +246,11 @@ export class MenuButtonComponent implements ClosableMenu {
   readonly disabled = input(false);
   readonly block = input(false);
   readonly size = input<'md' | 'sm'>('md');
+  /**
+   * Turns the trigger into a bare "⋯" icon, for a row's actions; this text is its accessible name
+   * and tooltip. Projected content is ignored then.
+   */
+  readonly label = input<string | null>(null);
   /** Trigger edge the panel is anchored to; `end` for triggers near the right edge. */
   readonly align = input<'start' | 'end'>('start');
 
