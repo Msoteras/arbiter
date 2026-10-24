@@ -31,7 +31,7 @@ import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { EmptyStateComponent } from '../../../shared/ui/empty-state/empty-state.component';
 import { LoadingComponent } from '../../../shared/ui/loading/loading.component';
-import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
+import { HomeSkeletonComponent } from '../home-skeleton/home-skeleton.component';
 import { AppReadyService } from '../../../core/app-ready.service';
 import { fitRows } from '../fit-rows';
 import { SetupCardComponent } from './setup-card/setup-card.component';
@@ -76,7 +76,7 @@ interface DeadlineSegment {
     ButtonComponent,
     EmptyStateComponent,
     LoadingComponent,
-    InlineLoadingComponent,
+    HomeSkeletonComponent,
     SetupCardComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,

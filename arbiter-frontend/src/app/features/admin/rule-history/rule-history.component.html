@@ -36,7 +36,7 @@
   </div>
 
   @if (loading()) {
-    <app-inline-loading [size]="26" message="Cargando historial…" />
+    <app-skeleton shape="card" [rows]="5" note="Cargando historial…" />
   } @else if (error()) {
     <p class="hr-error t-note" role="alert">{{ error() }}</p>
     <app-button variant="secondary" (click)="load()">Reintentar</app-button>

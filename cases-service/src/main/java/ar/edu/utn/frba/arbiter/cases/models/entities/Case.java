@@ -133,10 +133,6 @@ public class Case {
     @Column(name = "fraud_determined", nullable = false)
     private boolean fraudDetermined = false;
 
-    /** Plain string, not an enum: its values were never defined. Nothing writes it yet. */
-    @Column(length = 40)
-    private String destination;
-
     /** Raw id: rules-service's table. Null when the baseline scoring was used. */
     @Column(name = "scoring_configuration_id")
     private Long scoringConfigurationId;

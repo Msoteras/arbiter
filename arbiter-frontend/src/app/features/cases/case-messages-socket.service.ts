@@ -1,4 +1,4 @@
-import { Injectable, inject } from '@angular/core';
+import { Injectable, computed, inject, signal } from '@angular/core';
 import { Client, IMessage, StompSubscription } from '@stomp/stompjs';
 import { Observable } from 'rxjs';
 
@@ -15,6 +15,10 @@ import { CaseMessageEvent } from '../../core/models/case-message';
 @Injectable({ providedIn: 'root' })
 export class CaseMessagesSocketService {
   private readonly session = inject(AuthSessionService);
+  private readonly connections = signal(0);
+
+  /** Some thread is receiving over the socket right now (not just polling). */
+  readonly live = computed(() => this.connections() > 0);
 
   /** Errors stay quiet: the caller still polls, and a socket that cannot connect is not a broken thread. */
   watch(topic: string): Observable<CaseMessageEvent> {
@@ -25,6 +29,13 @@ export class CaseMessagesSocketService {
       }
 
       let subscription: StompSubscription | undefined;
+      // onConnect fires again on every reconnect: count each client once.
+      let counted = false;
+      const setCounted = (value: boolean) => {
+        if (counted === value) return;
+        counted = value;
+        this.connections.update((n) => n + (value ? 1 : -1));
+      };
       const client = new Client({
         brokerURL: this.brokerUrl(),
         connectHeaders: { Authorization: `Bearer ${token}` },
@@ -32,14 +43,17 @@ export class CaseMessagesSocketService {
         heartbeatIncoming: 20000,
         heartbeatOutgoing: 20000,
         onConnect: () => {
+          setCounted(true);
           subscription = client.subscribe(topic, (frame: IMessage) => {
             subscriber.next(JSON.parse(frame.body) as CaseMessageEvent);
           });
         },
+        onWebSocketClose: () => setCounted(false),
       });
       client.activate();
 
       return () => {
+        setCounted(false);
         subscription?.unsubscribe();
         void client.deactivate();
       };

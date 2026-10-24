@@ -459,8 +459,22 @@ class CaseServiceImplTest {
         assertThat(provider.email()).isEqualTo("service@example.com");
     }
 
+    /** Back from repair, the insured's history still names who had the item. */
     @Test
-    void getCase_outsideRepair_carriesNoProvider() {
+    void getCase_backFromRepair_stillTellsWhoHadTheItem() {
+        when(caseRepository.findById(1L))
+                .thenReturn(Optional.of(caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW)));
+        when(caseReferralRepository.findByCaseIdAndProviderType(1L, ProviderType.SERVICIO_TECNICO))
+                .thenReturn(Optional.of(CaseReferral.builder()
+                        .caseId(1L)
+                        .providerName("Service Celular Once")
+                        .build()));
+
+        assertThat(caseService.getCase(1L).repairProvider().name()).isEqualTo("Service Celular Once");
+    }
+
+    @Test
+    void getCase_neverRepaired_carriesNoProvider() {
         when(caseRepository.findById(1L))
                 .thenReturn(Optional.of(caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW)));
 

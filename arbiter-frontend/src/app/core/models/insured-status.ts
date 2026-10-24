@@ -134,9 +134,12 @@ export function insuredStatusDescription(
 
 /**
  * Names a movement from the insured's side. The backend already sends only the ones they can tell
- * happened, so every movement gets a label.
+ * happened, so every movement gets a label. `repairProviderName` is the only referral ever named.
  */
-export function insuredMovementLabel(movement: InsuredMovement): string {
+export function insuredMovementLabel(
+  movement: InsuredMovement,
+  repairProviderName: string | null = null,
+): string {
   const from = movement.fromInsuredStatus?.code ?? null;
   if (from === null) {
     return 'Denuncia recibida';
@@ -163,7 +166,9 @@ export function insuredMovementLabel(movement: InsuredMovement): string {
     case 'UNDER_VERIFICATION':
       return 'Enviado a verificación con un perito';
     case 'UNDER_REPAIR':
-      return 'Enviado al servicio técnico';
+      return repairProviderName
+        ? `Enviado al servicio técnico: ${repairProviderName}`
+        : 'Enviado al servicio técnico';
     case 'APPROVED':
       return 'Siniestro aprobado';
     case 'REJECTED':

@@ -51,6 +51,10 @@ public class CaseStatusHistory {
     @Column(nullable = false, length = 20)
     private StatusChangeActor actor;
 
+    /** The person behind the move, as a raw user id; null for SYSTEM moves, which have none. */
+    @Column(name = "changed_by")
+    private Long changedBy;
+
     @Column(nullable = false)
     private String reason;
 

@@ -38,11 +38,11 @@ import { ChartComponent } from '../../../shared/ui/chart/chart.component';
 import { EmptyStateComponent } from '../../../shared/ui/empty-state/empty-state.component';
 import { InfoTipComponent } from '../../../shared/ui/info-tip/info-tip.component';
 import { InputComponent } from '../../../shared/ui/input/input.component';
-import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
 import {
   MenuButtonComponent,
   MenuItem,
 } from '../../../shared/ui/menu-button/menu-button.component';
+import { SkeletonComponent } from '../../../shared/ui/skeleton/skeleton.component';
 import { StatTileComponent } from '../../../shared/ui/stat-tile/stat-tile.component';
 import { ToastService } from '../../../shared/ui/toast/toast.service';
 import { BranchesService } from '../branches.service';
@@ -109,9 +109,9 @@ function legalTone(rate: number | null): StatusTone {
     EmptyStateComponent,
     InfoTipComponent,
     InputComponent,
-    InlineLoadingComponent,
     MenuButtonComponent,
     RouterLink,
+    SkeletonComponent,
     StatTileComponent,
     DistributionComponent,
   ],

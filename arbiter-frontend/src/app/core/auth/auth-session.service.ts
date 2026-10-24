@@ -14,6 +14,10 @@ export interface AuthSession {
   insuredId: string | null;
   /** Null for roles without onboarding. */
   onboardingComplete: boolean | null;
+  /** Null for the insured. Missing in a session stored before the field existed. */
+  insurerName?: string | null;
+  /** See LoginResponse. Missing in a session stored before the field existed. */
+  insurerLogoVersion?: string | null;
 }
 
 /**
@@ -32,6 +36,14 @@ export class AuthSessionService {
   start(session: AuthSession): void {
     this._session.set(session);
     sessionStorage.setItem(AuthSessionService.STORAGE_KEY, JSON.stringify(session));
+  }
+
+  /** Changes some fields of the current session (e.g. after uploading the logo), stored too. */
+  patch(changes: Partial<AuthSession>): void {
+    const current = this._session();
+    if (current) {
+      this.start({ ...current, ...changes });
+    }
   }
 
   clear(): void {

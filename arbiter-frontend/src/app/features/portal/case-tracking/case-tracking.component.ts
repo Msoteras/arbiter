@@ -21,7 +21,7 @@ import { CardComponent } from '../../../shared/ui/card/card.component';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { CaseDocumentsComponent } from '../../cases/case-documents/case-documents.component';
 import { CaseMessagesService } from '../../cases/case-messages.service';
-import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
+import { SkeletonComponent } from '../../../shared/ui/skeleton/skeleton.component';
 import {
   InsuredChatComponent,
   initialsOf,
@@ -48,7 +48,7 @@ interface Movement {
     ButtonComponent,
     CaseDocumentsComponent,
     InsuredChatComponent,
-    InlineLoadingComponent,
+    SkeletonComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './case-tracking.component.html',
@@ -143,8 +143,9 @@ export class CaseTrackingComponent {
 
   protected readonly movements = computed<Movement[]>(() => {
     const history = this.history();
+    const repairProviderName = this.data()?.repairProvider?.name ?? null;
     return history.map((h, i) => ({
-      label: insuredMovementLabel(h),
+      label: insuredMovementLabel(h, repairProviderName),
       date: formatDateTime(h.changedAt, ''),
       current: i === history.length - 1,
     }));

@@ -302,3 +302,18 @@
   border-radius: var(--radius-pill);
   background: currentColor;
 }
+
+// Loading frame of a tab (see #tabSkeleton).
+.tab-skeleton {
+  display: block;
+}
+.sk-heading {
+  max-width: calc(var(--space-7) * 6);
+  margin-bottom: var(--space-4);
+}
+.sk-row {
+  height: calc(var(--space-7) + var(--space-3));
+}
+.sk-row + .sk-row {
+  margin-top: var(--space-2);
+}

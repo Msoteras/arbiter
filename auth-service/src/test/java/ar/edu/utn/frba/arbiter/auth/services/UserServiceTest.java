@@ -258,7 +258,7 @@ class UserServiceTest {
 
     private LoginResponse dummySession() {
         return new LoginResponse("signed.jwt.token", Instant.now().plusSeconds(3600), 9L,
-                "nuevo.analista@arbiter.test", UserRole.ANALISTA_SINIESTROS, "Lucas", "Gómez", null, null);
+                "nuevo.analista@arbiter.test", UserRole.ANALISTA_SINIESTROS, "Lucas", "Gómez", null, null, "Seguros Demo", null);
     }
 
     @Test

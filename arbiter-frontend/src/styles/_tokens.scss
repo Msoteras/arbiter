@@ -21,6 +21,10 @@
   --accent-blue: #2e4a9e;
   /* Faint alert tint for risk-signal backgrounds (e.g. the fraud card). */
   --accent-red-soft: #fdeceb;
+  /* Strong shades: fills behind white text (a verdict button, a risk chip) that pass AA. */
+  --accent-red-strong: #c4291f;
+  --accent-red-deep: #a32119;
+  --accent-orange-strong: #b4451a;
   --accent-red-soft-border: #f4c9c5;
 
   /* ===== Color: text ===== */
@@ -74,6 +78,7 @@
   --font-size-title: 19px; /* panel titles */
   --font-size-xl: 22px; /* page titles */
   --font-size-2xl: 28px; /* hero titles (login, portal) */
+  --font-size-display: 34px; /* a headline figure: the recommendation, the risk score */
 
   /* ===== Typography: weights ===== */
   --font-weight-regular: 400;
@@ -83,6 +88,8 @@
   /* ===== Chrome layout =====
      Global because any sticky header on an internal screen must anchor below the fixed topbar. */
   --appbar-h: 56px;
+  /* Progress line pinned to the top of the viewport while a request is in flight. */
+  --activity-bar-h: 2px;
   /* Toast width (same as Sonner's): fits a title, a description line and an action. */
   --toast-w: 356px;
   /* Narrowest the referent home's setup checklist gets when it sits beside the main content. */
@@ -121,10 +128,35 @@
   --radius-pill: 999px;
 
   /* ===== Shadows / overlay ===== */
-  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.03);
+  /* Every card: a contact shadow plus a soft drop, and a light edge on top for the volume. */
+  --shadow-card:
+    inset 0 1px 0 rgba(255, 255, 255, 0.8), 0 1px 2px rgba(25, 28, 31, 0.08),
+    0 3px 8px -2px rgba(25, 28, 31, 0.08), 0 12px 28px -8px rgba(25, 28, 31, 0.16);
+  --shadow-card-hover:
+    inset 0 1px 0 rgba(255, 255, 255, 0.8), 0 2px 4px rgba(25, 28, 31, 0.08),
+    0 8px 16px -4px rgba(25, 28, 31, 0.1), 0 24px 44px -12px rgba(25, 28, 31, 0.26);
   --shadow-pop: 0 12px 32px rgba(25, 28, 31, 0.16);
   --shadow-modal: 0 10px 40px rgba(25, 28, 31, 0.18);
+  /* Controls. Solid buttons carry a gloss on top and a drop below; outlined ones a soft lift that
+     grows on hover; pressed ones sink. Fields are slightly sunk into the surface. */
+  --gloss: linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0) 70%);
+  --shadow-btn: 0 1px 2px rgba(25, 28, 31, 0.08), inset 0 -1px 0 rgba(25, 28, 31, 0.05);
+  --shadow-btn-hover: 0 4px 10px -3px rgba(25, 28, 31, 0.18), inset 0 -1px 0 rgba(25, 28, 31, 0.05);
+  --shadow-btn-solid:
+    inset 0 1px 0 rgba(255, 255, 255, 0.16), 0 1px 2px rgba(25, 28, 31, 0.28),
+    0 4px 10px -4px rgba(25, 28, 31, 0.4);
+  --shadow-btn-solid-hover:
+    inset 0 1px 0 rgba(255, 255, 255, 0.16), 0 2px 4px rgba(25, 28, 31, 0.28),
+    0 10px 20px -8px rgba(25, 28, 31, 0.5);
+  --shadow-pressed: inset 0 1px 3px rgba(25, 28, 31, 0.22);
+  --shadow-field: inset 0 1px 2px rgba(25, 28, 31, 0.07);
+  /* Shade cast by a column pinned to the right over the cells scrolling under it. */
+  --shadow-pin-edge: -10px 0 12px -10px rgba(25, 28, 31, 0.22);
+  /* Small raised control, like a switch knob. */
+  --shadow-knob: 0 1px 2px rgba(25, 28, 31, 0.2);
   --overlay-backdrop: rgba(25, 28, 31, 0.4);
+  /* Frosted veil over a screen that is still loading. */
+  --blur-veil: 6px;
 
   /* ===== Motion =====
      @angular/animations can't read custom properties, so their literal timings mirror these. */

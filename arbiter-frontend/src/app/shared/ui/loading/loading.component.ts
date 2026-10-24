@@ -2,13 +2,16 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 
 import { SpinnerComponent } from '../spinner/spinner.component';
 
-/** Full-viewport loading overlay that covers the sidebar, topbar and content. */
+/**
+ * Full-viewport loading overlay that covers the sidebar, topbar and content. `veil` turns it into
+ * frosted glass: the screen being loaded (its skeleton) shows through, blurred.
+ */
 @Component({
   selector: 'app-loading',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [SpinnerComponent],
   template: `
-    <div class="loading" role="status" aria-live="polite">
+    <div class="loading" [class.veil]="veil()" role="status" aria-live="polite">
       <app-spinner [size]="72" />
       <div class="loading-text">
         <p class="msg">
@@ -39,6 +42,16 @@ import { SpinnerComponent } from '../spinner/spinner.component';
       color: var(--text-primary);
       padding: var(--space-6);
       text-align: center;
+    }
+    .loading.veil {
+      background: color-mix(in srgb, var(--surface-sunken) 55%, transparent);
+      backdrop-filter: blur(var(--blur-veil));
+      animation: veil-in var(--dur-3) var(--ease-out);
+    }
+    @keyframes veil-in {
+      from {
+        opacity: 0;
+      }
     }
     .loading-text {
       display: flex;
@@ -84,4 +97,5 @@ import { SpinnerComponent } from '../spinner/spinner.component';
 export class LoadingComponent {
   readonly message = input('Cargando');
   readonly sub = input('');
+  readonly veil = input(false);
 }

@@ -1,9 +1,12 @@
 @if (showFullLoader()) {
-  <app-loading message="Preparando el panorama de tu operación" sub="Aguardá un momento" />
+  <app-home-skeleton />
+  <app-loading
+    message="Preparando el panorama de tu operación"
+    sub="Aguardá un momento"
+    [veil]="true"
+  />
 } @else if (loading()) {
-  <div class="partial-load">
-    <app-inline-loading [size]="30" message="Actualizando el panorama…" />
-  </div>
+  <app-home-skeleton />
 } @else {
   <div class="home fit" @staggerReveal>
     <header class="hero">

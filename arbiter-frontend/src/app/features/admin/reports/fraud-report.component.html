@@ -40,7 +40,7 @@
 
   <app-card heading="Vista previa">
     @if (loading()) {
-      <app-inline-loading message="Buscando denuncias con señales…" />
+      <app-skeleton shape="table" [rows]="5" [columns]="7" note="Buscando denuncias con señales…" />
     } @else if (report(); as current) {
       <!-- Filters as the backend applied them, so any mismatch with the controls is visible. -->
       <p class="applied t-note">
@@ -153,10 +153,23 @@
         </p>
 
         <app-table
+          [fixed]="true"
+          minWidth="calc(var(--space-7) * 20)"
           [pinFirstColumn]="true"
           [stickyHeader]="true"
           scrollLabel="Denuncias con señales, tabla desplazable"
         >
+          <!-- Fixed layout: the short columns get their width and the three text columns share the
+               rest and wrap, so the table fits its card instead of scrolling sideways. -->
+          <colgroup>
+            <col class="col-id" />
+            <col />
+            <col />
+            <col class="col-date" />
+            <col class="col-gauge" />
+            <col class="col-signals" />
+            <col class="col-status" />
+          </colgroup>
           <thead>
             <tr>
               <th scope="col">Nº</th>
@@ -174,41 +187,38 @@
                 <td class="mono">
                   <a class="case-link" [routerLink]="['/cases', row.caseId]">#{{ row.caseId }}</a>
                 </td>
-                <td>
-                  {{ row.insuredName }}
+                <td class="wrap">
+                  <span class="primary">{{ row.insuredName }}</span>
                   <span class="sub">DNI {{ row.insuredDni }}</span>
                   <!-- Context, not a signal: it isn't why the claim is listed. -->
                   @if (row.claimsInWindow > 1) {
                     <span class="sub">{{ row.claimsInWindow }} denuncias en 12 meses</span>
                   }
                 </td>
-                <td>
+                <td class="wrap">
                   {{ row.claimCause }}
                   <span class="sub">{{ row.branch }}</span>
                 </td>
-                <td class="tabular">{{ formatDateTime(row.reportedAt) }}</td>
-                <td class="gauge-cell">
+                <td class="tabular">
+                  {{ formatDate(row.reportedAt) }}
+                  <span class="sub">{{ formatTime(row.reportedAt) }}</span>
+                </td>
+                <td>
                   <app-fraud-gauge
                     [band]="riskGaugeBand(row)"
                     [emptyLabel]="alertEmptyLabel(row)"
                   />
                 </td>
-                <td class="signals-cell">
+                <td class="wrap">
                   <!-- No "N señales" badge: the row's left edge (tr.multi-signal) marks coinciding
-                       signals. -->
-                  <div class="signals">
+                       signals. A list, not badges: the document note is a whole sentence. -->
+                  <ul class="signals">
                     @for (indicator of indicators(row); track indicator) {
-                      <!-- The document note is a sentence, sometimes several: a badge never wraps
-                           and it ran over the next column. -->
-                      @if (indicator === row.documentInconsistencyNote) {
-                        <span class="signal-note">{{ indicator }}</span>
-                      } @else {
-                        <app-badge>{{ indicator }}</app-badge>
-                      }
+                      <li>{{ indicator }}</li>
                     }
-                  </div>
+                  </ul>
                   @if (row.fraudDetermined) {
-                    <app-badge variant="strong" tone="danger">
+                    <app-badge class="determined" variant="strong" tone="danger" [wrap]="true">
                       {{
                         row.expertBacked ? 'Fraude determinado · pericial' : 'Fraude determinado'
                       }}
@@ -216,7 +226,7 @@
                   }
                 </td>
                 <td>
-                  <app-badge [tone]="caseStatusTone(row.status)">{{
+                  <app-badge [tone]="caseStatusTone(row.status)" [wrap]="true">{{
                     caseStatusLabel(row.status)
                   }}</app-badge>
                 </td>

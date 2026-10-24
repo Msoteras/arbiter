@@ -1,5 +1,5 @@
 <app-card heading="Proveedores externos" headingSize="lg">
-  <app-info-tip cardAside>{{ stepLine.PROVIDERS }}</app-info-tip>
+  <app-info-tip cardTip>{{ stepLine.PROVIDERS }}</app-info-tip>
   @if (!draft()) {
     <app-button
       cardAside
@@ -13,7 +13,7 @@
   }
 
   @if (loading()) {
-    <app-inline-loading [size]="26" message="Cargando proveedores…" />
+    <app-skeleton shape="card" [rows]="3" note="Cargando proveedores…" />
   } @else if (providers().length === 0 && !draft()) {
     <app-empty-state
       message="Todavía no hay proveedores cargados"

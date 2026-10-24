@@ -375,3 +375,12 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* ─── Loading frame ──────────────────────────────────────────────────────── */
+
+.sk-tile {
+  height: calc(var(--space-7) * 2);
+}
+.sk-chart {
+  height: calc(var(--chart-h-tall) + var(--space-7) * 2);
+}

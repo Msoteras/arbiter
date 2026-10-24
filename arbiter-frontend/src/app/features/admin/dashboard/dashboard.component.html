@@ -69,7 +69,24 @@
   }
 
   @if (loading() && !data()) {
-    <app-inline-loading [size]="32" message="Calculando los indicadores…" />
+    <!-- The frame of the loaded board: funnel, KPI tiles, timeline and attention, distributions. -->
+    <div class="body">
+      <app-skeleton shape="card" [rows]="4" note="Calculando los indicadores…" />
+      <div class="stats" aria-hidden="true">
+        @for (tile of [1, 2, 3, 4, 5]; track tile) {
+          <app-skeleton class="sk-tile" shape="block" />
+        }
+      </div>
+      <div class="middle" aria-hidden="true">
+        <app-skeleton class="sk-chart" shape="block" />
+        <app-skeleton shape="card" [rows]="4" />
+      </div>
+      <div class="panels" aria-hidden="true">
+        @for (panel of [1, 2, 3]; track panel) {
+          <app-skeleton shape="card" [rows]="3" />
+        }
+      </div>
+    </div>
   } @else if (failed()) {
     <app-empty-state
       message="No pudimos traer los indicadores del período"

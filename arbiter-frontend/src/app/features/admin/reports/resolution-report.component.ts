@@ -21,7 +21,7 @@ import {
 } from '../../../shared/ui/distribution/distribution.component';
 import { EmptyStateComponent } from '../../../shared/ui/empty-state/empty-state.component';
 import { InfoTipComponent } from '../../../shared/ui/info-tip/info-tip.component';
-import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
+import { SkeletonComponent } from '../../../shared/ui/skeleton/skeleton.component';
 import { PaginationComponent } from '../../../shared/ui/pagination/pagination.component';
 import { SelectComponent, SelectOption } from '../../../shared/ui/select/select.component';
 import { StatTileComponent } from '../../../shared/ui/stat-tile/stat-tile.component';
@@ -57,7 +57,7 @@ import { ResolutionReportService } from './resolution-report.service';
     DistributionComponent,
     EmptyStateComponent,
     InfoTipComponent,
-    InlineLoadingComponent,
+    SkeletonComponent,
     PaginationComponent,
     ReportActionsComponent,
     ReportFiltersComponent,

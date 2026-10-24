@@ -1,9 +1,8 @@
 @if (showFullLoader()) {
-  <app-loading message="Preparando tu inicio" sub="Aguardá un momento" />
+  <app-home-skeleton />
+  <app-loading message="Preparando tu inicio" sub="Aguardá un momento" [veil]="true" />
 } @else if (loading()) {
-  <div class="partial-load">
-    <app-inline-loading [size]="30" message="Actualizando tu inicio…" />
-  </div>
+  <app-home-skeleton />
 } @else {
   <div class="home fit" @staggerReveal>
     <header class="hero">

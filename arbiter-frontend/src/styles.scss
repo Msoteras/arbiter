@@ -84,3 +84,22 @@ app-card.onboarding-target {
     animation: none;
   }
 }
+
+/* Route changes (withViewTransitions): a short crossfade. The chrome is identical on both sides,
+   so only the screen appears to change. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: var(--dur-2);
+  animation-timing-function: var(--ease-standard);
+}
+::view-transition-group(case-id) {
+  animation-duration: var(--dur-3);
+  animation-timing-function: var(--ease-out);
+}
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
+}

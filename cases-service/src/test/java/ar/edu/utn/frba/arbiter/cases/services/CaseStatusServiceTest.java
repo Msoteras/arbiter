@@ -6,9 +6,12 @@ import ar.edu.utn.frba.arbiter.cases.models.entities.CaseStatusHistory;
 import ar.edu.utn.frba.arbiter.cases.models.entities.StatusChangeActor;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseStatusHistoryRepository;
+import ar.edu.utn.frba.arbiter.cases.models.repositories.UserRepository;
 import ar.edu.utn.frba.arbiter.cases.support.CaseStates;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 import ar.edu.utn.frba.arbiter.common.models.entities.CaseState;
+import ar.edu.utn.frba.arbiter.common.models.entities.User;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
@@ -17,11 +20,14 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -45,6 +51,10 @@ class CaseStatusServiceTest {
     @Mock
     private CaseStateCatalog caseStateCatalog;
 
+    /** Only reached when a person makes the move: SYSTEM moves have no author to look up. */
+    @Mock
+    private UserRepository userRepository;
+
     /** Notifying is a side effect of the transition, not part of it: these tests cover the move. */
     @Mock
     private CaseNotificationService notificationService;
@@ -55,6 +65,51 @@ class CaseStatusServiceTest {
 
     @InjectMocks
     private CaseStatusService caseStatusService;
+
+    @AfterEach
+    void clearSession() {
+        SecurityContextHolder.clearContext();
+    }
+
+    @Test
+    void transition_byAPerson_recordsWhoMadeIt() {
+        signIn("analista@arbiter.test");
+        User analyst = User.builder().id(7L).email("analista@arbiter.test").build();
+        when(userRepository.findByEmail("analista@arbiter.test")).thenReturn(Optional.of(analyst));
+        Case entity = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
+        when(caseStateCatalog.resolve(CaseStatus.APPROVED)).thenReturn(CaseStates.of(CaseStatus.APPROVED));
+        when(caseRepository.save(any(Case.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        caseStatusService.transition(entity, CaseStatus.APPROVED, StatusChangeActor.ANALYST, "aprobado");
+
+        assertThat(captureHistory().getChangedBy()).isEqualTo(7L);
+    }
+
+    @Test
+    void transition_bySystem_recordsNoAuthor_evenWithASession() {
+        signIn("analista@arbiter.test");
+        Case entity = caseRecord(1L, CaseStatus.PENDING_CLASSIFICATION);
+        when(caseStateCatalog.resolve(CaseStatus.PENDING_ANALYST_REVIEW))
+                .thenReturn(CaseStates.of(CaseStatus.PENDING_ANALYST_REVIEW));
+        when(caseRepository.save(any(Case.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        caseStatusService.transition(entity, CaseStatus.PENDING_ANALYST_REVIEW,
+                StatusChangeActor.SYSTEM, "clasificación terminada");
+
+        assertThat(captureHistory().getChangedBy()).isNull();
+        verifyNoInteractions(userRepository);
+    }
+
+    /** Who made a move is part of the record, not a precondition: the transition still happens. */
+    @Test
+    void transition_byAPersonWithoutASession_stillHappens_withNoAuthor() {
+        Case entity = caseRecord(1L, CaseStatus.PENDING_CLASSIFICATION);
+
+        caseStatusService.recordCreation(entity, StatusChangeActor.INSURED, "denuncia registrada");
+
+        assertThat(captureHistory().getChangedBy()).isNull();
+        verifyNoInteractions(userRepository);
+    }
 
     @Test
     void recordCreation_appendsHistoryFromNull_withoutSavingCase() {
@@ -383,6 +438,11 @@ class CaseStatusServiceTest {
 
         assertThat(caseStatusService.lastTransitionAt(9L, CaseStatus.CLASSIFICATION_FAILED,
                 CaseStatus.PENDING_CLASSIFICATION, StatusChangeActor.SYSTEM)).contains(requeuedAt);
+    }
+
+    private void signIn(String email) {
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken(email, "n/a", List.of()));
     }
 
     private CaseState stateWithId(CaseStatus status, Long id) {
