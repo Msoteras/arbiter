@@ -1,0 +1,38 @@
+@use '../home-dashboard';
+
+:host {
+  display: block;
+}
+
+@include home-dashboard.layout;
+
+// The real hero's box, but on the canvas: the bones need a light surface to read.
+.hero {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-6);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+}
+.hero-title {
+  max-width: 24rem;
+}
+.shortcuts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(calc(var(--space-7) * 3.5), 1fr));
+  gap: var(--space-5);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border-subtle);
+}
+.shortcut {
+  max-width: 8rem;
+}
+.card {
+  min-height: calc(var(--space-7) * 3);
+}
+.card.tall {
+  min-height: calc(var(--space-7) * 6);
+}

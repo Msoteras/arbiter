@@ -11,7 +11,7 @@ import { CardComponent } from '../../../shared/ui/card/card.component';
 import { SaveBarComponent } from '../../../shared/ui/save-bar/save-bar.component';
 import { InfoTipComponent } from '../../../shared/ui/info-tip/info-tip.component';
 import { InputComponent } from '../../../shared/ui/input/input.component';
-import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
+import { SkeletonComponent } from '../../../shared/ui/skeleton/skeleton.component';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { fadeInUp } from '../../../shared/animations';
 import { ONBOARDING_STEP_LINE } from '../../../core/onboarding/onboarding';
@@ -29,7 +29,7 @@ import { OnboardingTargetDirective } from '../../../core/onboarding/onboarding-t
     CardComponent,
     InfoTipComponent,
     InputComponent,
-    InlineLoadingComponent,
+    SkeletonComponent,
     SaveBarComponent,
     ButtonComponent,
   ],

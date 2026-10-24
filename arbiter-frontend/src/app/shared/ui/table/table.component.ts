@@ -29,6 +29,7 @@ import {
       [class.more-right]="moreRight()"
       [class.sticky-head]="stickyHeader()"
       [class.scrolled]="scrolled()"
+      [style.min-width]="minWidth()"
     >
       <ng-content />
     </table>
@@ -47,6 +48,9 @@ import {
     :host {
       display: block;
       overflow: auto;
+      /* When a table does scroll, a thin bar in the border tone instead of the system's default. */
+      scrollbar-width: thin;
+      scrollbar-color: var(--border-strong) transparent;
       /* The shade on the right edge says there is more table: without it the only hint that
          content is missing is the scrollbar, which on a Mac isn't even drawn at rest. */
       background: linear-gradient(to left, var(--surface-sunken), transparent 60%) right /
@@ -134,6 +138,8 @@ export class TableComponent {
 
   /** Columns with no declared width end up equal (useful for matrices). */
   readonly fixed = input(false);
+  /** Below this the table scrolls instead of squeezing its columns (a fixed table would). */
+  readonly minWidth = input<string | null>(null);
   readonly pinFirstColumn = input(false);
   readonly pinLastColumn = input(false);
   readonly stickyHeader = input(false);

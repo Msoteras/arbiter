@@ -163,6 +163,22 @@
           <span class="appbar-brand-name">Arbiter</span>
         </a>
 
+        @if (session.session()?.insurerName; as insurer) {
+          <span class="appbar-tenant" [title]="insurer">
+            @if (insurerLogo.logoUrl(); as logo) {
+              <!-- The logo usually carries the name: it stands alone, on a light plate so a dark
+                   mark still reads on the dark bar. -->
+              <span class="appbar-tenant-plate">
+                <img class="appbar-tenant-logo" [src]="logo" [alt]="insurer" />
+              </span>
+            } @else {
+              <span class="appbar-tenant-mark" aria-hidden="true">{{ monogram(insurer) }}</span>
+              <span class="sr-only">Aseguradora:</span>
+              <span class="appbar-tenant-name">{{ insurer }}</span>
+            }
+          </span>
+        }
+
         <nav class="appbar-nav">
           <a [routerLink]="homeLink()" routerLinkActive="active">Inicio</a>
           @if (showBack()) {
@@ -239,6 +255,9 @@
                   <div class="profile-head">
                     <span class="profile-name">{{ s.nombre }} {{ s.apellido }}</span>
                     <span class="profile-role">{{ roleLabel(s.rol) }}</span>
+                    @if (s.insurerName) {
+                      <span class="profile-role">{{ s.insurerName }}</span>
+                    }
                   </div>
                   @if (showAdminNav()) {
                     <button
@@ -390,3 +409,4 @@
 }
 
 <app-toast-stack />
+<app-activity-bar />

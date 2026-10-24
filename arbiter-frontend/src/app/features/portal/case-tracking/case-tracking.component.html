@@ -214,7 +214,9 @@
     [showMissing]="false"
   />
 } @else if (loading()) {
-  <div class="state-wrap"><app-inline-loading [size]="28" message="Cargando tu siniestro…" /></div>
+  <div class="state-wrap">
+    <app-skeleton shape="card" [rows]="5" note="Cargando tu siniestro…" />
+  </div>
 } @else if (notFound()) {
   <div class="state-wrap">
     <app-card>

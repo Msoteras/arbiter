@@ -27,7 +27,7 @@
     </div>
 
     @if (loading()) {
-      <app-inline-loading message="Cargando conversaciones…" />
+      <app-skeleton shape="card" [rows]="5" note="Cargando conversaciones…" />
     } @else if (loadError()) {
       <p class="t-note conv-error">No se pudieron cargar las conversaciones.</p>
     } @else if (filtered().length === 0) {

@@ -1,0 +1,253 @@
+/* Header and decision band of the case detail. Split from case-detail.component.scss to stay under
+   the `anyComponentStyle` budget, like case-detail-panels.scss. */
+
+/* ===== Header ===== */
+/* White, pinned under the app bar: the case's identity stays in view while scrolling the tabs. */
+.det-header {
+  position: sticky;
+  top: var(--appbar-h);
+  z-index: 10;
+  padding: var(--space-4) var(--space-6);
+  border-bottom: 1px solid var(--border-default);
+  background: var(--surface);
+}
+.det-header-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+.identity {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.det-title {
+  margin: 0;
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: -0.02em;
+}
+.det-sub {
+  margin: 0;
+  font-size: var(--font-size-md);
+  color: var(--text-secondary);
+}
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.det-header-side {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+/* Target of the inbox row's id when the case opens (view transition). */
+.case-id {
+  display: inline-block;
+  view-transition-name: case-id;
+}
+
+/* ===== Decision band ===== */
+/* The model's teal wash: the band is Arbiter's reading of the case plus the analyst's decision. */
+.decision-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  gap: var(--space-5) var(--space-6);
+  align-items: start;
+  margin: 0 0 var(--space-4);
+  padding: var(--space-5) var(--space-6);
+  border: 1px solid var(--border-ai);
+  border-radius: var(--radius-modal);
+  background: var(--surface-ai);
+  box-shadow: var(--shadow-card);
+}
+.strip-col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.strip-label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin: 0;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-regular);
+  color: var(--text-secondary);
+}
+.ai-mark {
+  color: var(--accent-fg);
+}
+/* Headline figures: the recommendation and the score are what the analyst reads first. */
+.decision-strip .reco-value {
+  padding: 0;
+  border: 0;
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+}
+.risk-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+.risk-score {
+  font-size: var(--font-size-display);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+.risk-max {
+  font-size: var(--font-size-md);
+  color: var(--text-secondary);
+}
+.band-chip {
+  align-self: center;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-ctl);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+  line-height: 1;
+  color: var(--text-on-emphasis);
+  background: var(--text-muted);
+}
+.band-chip[data-tone='ok'] {
+  background: var(--status-ok-strong);
+}
+.band-chip[data-tone='warning'] {
+  background: var(--status-warning-strong);
+  color: var(--text-primary);
+}
+.band-chip[data-tone='risk'] {
+  background: var(--status-risk-strong);
+}
+.band-chip[data-tone='danger'] {
+  background: var(--status-danger-strong);
+}
+.risk-bar {
+  position: relative;
+  height: var(--space-2);
+  margin-top: var(--space-2);
+  border-radius: var(--radius-pill);
+  background: linear-gradient(
+    90deg,
+    var(--status-ok) 0%,
+    var(--status-warning) 45%,
+    var(--status-risk) 70%,
+    var(--status-danger) 100%
+  );
+}
+.risk-marker {
+  position: absolute;
+  top: calc(var(--space-1) * -1);
+  width: var(--space-1);
+  height: calc(var(--space-2) + var(--space-2));
+  border-radius: var(--radius-pill);
+  background: var(--text-primary);
+  box-shadow: 0 0 0 calc(var(--space-1) / 2) var(--surface);
+  transform: translateX(-50%);
+  animation: risk-marker-in var(--dur-3) var(--ease-out);
+}
+@keyframes risk-marker-in {
+  from {
+    left: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .risk-marker {
+    animation: none;
+  }
+}
+.weigh-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--font-size-md);
+}
+.weigh-list li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.weigh-dot {
+  flex: none;
+  width: var(--space-2);
+  height: var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--status-warning);
+}
+.weigh-dot.is-danger,
+.weigh-dot[data-tone='danger'] {
+  background: var(--status-danger);
+}
+.weigh-dot[data-tone='ok'] {
+  background: var(--status-ok);
+}
+.weigh-dot[data-tone='risk'] {
+  background: var(--status-risk);
+}
+.weigh-dot[data-tone='info'] {
+  background: var(--status-info);
+}
+.weigh-dot[data-tone='neutral'] {
+  background: var(--text-muted);
+}
+.weigh-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--text-primary);
+  text-align: left;
+  cursor: pointer;
+}
+.weigh-link:hover {
+  color: var(--accent-fg);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+.weigh-link:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: var(--radius-ctl);
+}
+.weigh-amount {
+  color: var(--text-secondary);
+}
+.weigh-amount strong {
+  margin-left: var(--space-1);
+  color: var(--text-primary);
+}
+.decision-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+/* Approve and reject side by side; referral and closing below, full width: they aren't verdicts. */
+.decision-side {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+.decision-side .verdict-main,
+.decision-side .span-all {
+  grid-column: 1 / -1;
+}
+
+/* Unassigned case: the two ways to give it an owner, stacked across the column. */
+.assign-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}

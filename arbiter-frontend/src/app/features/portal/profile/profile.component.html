@@ -5,7 +5,7 @@
   </header>
 
   @if (loading()) {
-    <app-inline-loading message="Cargando tu perfil…" />
+    <app-skeleton shape="card" [rows]="4" note="Cargando tu perfil…" />
   } @else if (loadError()) {
     <div class="load-error" role="alert">
       <p class="t-body">No pudimos cargar tu perfil en este momento.</p>

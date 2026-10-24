@@ -29,6 +29,7 @@ import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { EmptyStateComponent } from '../../../shared/ui/empty-state/empty-state.component';
 import { LoadingComponent } from '../../../shared/ui/loading/loading.component';
+import { HomeSkeletonComponent } from '../home-skeleton/home-skeleton.component';
 import { staggerReveal } from '../../../shared/animations';
 import { InsuredHelpComponent } from './insured-help/insured-help.component';
 
@@ -58,6 +59,7 @@ interface Step {
     ButtonComponent,
     EmptyStateComponent,
     LoadingComponent,
+    HomeSkeletonComponent,
     InsuredChatComponent,
     InsuredHelpComponent,
   ],

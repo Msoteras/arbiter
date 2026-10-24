@@ -88,6 +88,13 @@
   --status-risk: var(--accent-orange);
   --status-danger: var(--accent-red);
   --status-info: var(--accent-blue);
+  /* Status as a fill behind text (a chip, a verdict button): the strong shades keep AA. Warning
+     stays yellow and takes dark text. */
+  --status-ok-strong: var(--accent-strong);
+  --status-warning-strong: var(--accent-yellow);
+  --status-risk-strong: var(--accent-orange-strong);
+  --status-danger-strong: var(--accent-red-strong);
+  --status-danger-strong-hover: var(--accent-red-deep);
 
   /* Tinted surface + border pair for cards that communicate risk. */
   --surface-danger-soft: var(--accent-red-soft);

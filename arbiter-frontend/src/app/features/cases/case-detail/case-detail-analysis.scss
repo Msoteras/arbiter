@@ -46,8 +46,10 @@
 
 .analysis-grid {
   display: grid;
-  /* Equal halves, stretched to the taller card: the score's breakdown can run as long as the reasons. */
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  /* Score first, then the reasons; these get the room: they're sentences, the score is a figure
+     and a list of factors. */
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  align-items: start;
   gap: var(--space-4);
 }
 
@@ -73,83 +75,57 @@
   padding-top: var(--space-1);
 }
 
-.score-value {
-  margin: 0 0 var(--space-3);
-  color: var(--text-primary);
-}
-.score-value strong {
-  font-size: var(--font-size-xl);
-  font-weight: var(--font-weight-bold);
-}
-.score-max {
-  color: var(--text-tertiary);
-  font-size: var(--font-size-sm);
-}
-
-/* The full bar is 100; each segment is one factor's contribution, colored by risk band. */
-.score-bar {
-  --score-tone: var(--text-tertiary);
-  display: flex;
-  gap: var(--space-1);
-  height: var(--space-2);
-  border-radius: var(--radius-pill);
-  background: var(--surface-sunken);
-  overflow: hidden;
-  margin-bottom: var(--space-3);
-}
-.score-bar[data-tone='ok'] {
-  --score-tone: var(--status-ok);
-}
-.score-bar[data-tone='warning'] {
-  --score-tone: var(--status-warning);
-}
-.score-bar[data-tone='risk'] {
-  --score-tone: var(--status-risk);
-}
-.score-bar[data-tone='danger'] {
-  --score-tone: var(--status-danger);
-}
-.score-seg {
-  flex-grow: 0;
-  flex-shrink: 1;
-  background: var(--score-tone);
-}
-/* Alternating opacity marks where one factor ends and the next begins. */
-.score-seg:nth-child(even) {
-  opacity: 0.6;
-}
-
-.score-factors {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-.score-factor {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: var(--space-3);
-  padding: var(--space-2) 0;
-  border-top: 1px solid var(--border-subtle);
-  font-size: var(--font-size-sm);
-}
-.score-factor-text {
+.breakdown {
   display: flex;
   flex-direction: column;
+  margin: var(--space-4) 0 0;
+  padding: 0;
+  list-style: none;
 }
-.score-factor-contribution {
-  font-weight: var(--font-weight-bold);
-  white-space: nowrap;
+.breakdown-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  padding: var(--space-3) 0;
+  border-top: 1px solid var(--border-subtle);
 }
-.score-factor.zero .score-factor-name,
-.score-factor.zero .score-factor-contribution {
+.breakdown-item .factor-row,
+.breakdown-item .factor-track {
+  align-self: stretch;
+}
+.breakdown-name {
+  font-weight: var(--font-weight-medium);
+}
+.breakdown-item.zero .factor-row strong,
+.breakdown-item.zero .breakdown-name {
   color: var(--text-tertiary);
   font-weight: var(--font-weight-regular);
 }
+.findings {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding-left: var(--space-4);
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
 
 .rules-meta {
-  display: block;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
   margin: 0 0 var(--space-3);
+}
+.rules-count {
+  font-size: var(--font-size-md);
+  color: var(--text-secondary);
+}
+.rules-count strong {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-primary);
 }
 .trace-table tr.failing-row td {
   font-weight: var(--font-weight-medium);

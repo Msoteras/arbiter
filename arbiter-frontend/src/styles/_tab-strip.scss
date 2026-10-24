@@ -42,6 +42,10 @@
     cursor: pointer;
     border-bottom: 2px solid transparent;
     margin-bottom: -1px;
+    border-radius: var(--radius-ctl) var(--radius-ctl) 0 0;
+    transition:
+      color var(--dur-1) ease,
+      background-color var(--dur-1) ease;
   }
   @include media.touch {
     .tab {
@@ -50,6 +54,7 @@
   }
   .tab:hover {
     color: var(--text-primary);
+    background: color-mix(in srgb, var(--text-primary) 4%, transparent);
   }
   .tab:focus-visible {
     outline: none;

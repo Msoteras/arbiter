@@ -30,13 +30,6 @@
   color: var(--text-muted);
 }
 
-.first-load {
-  flex: 1 1 auto;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
 .btn-with-icon {
   display: inline-flex;
   align-items: center;
@@ -127,6 +120,18 @@
   .lens-divider {
     display: none;
   }
+}
+
+// ───────────────── Controls panel ─────────────────
+.controls {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-4) var(--space-4);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
 }
 
 // ───────────────── Toolbar ─────────────────
@@ -400,7 +405,12 @@ td:last-child {
   position: sticky;
   right: 0;
   background: var(--surface);
-  box-shadow: inset 1px 0 0 var(--border-subtle);
+  transition: box-shadow var(--dur-2) var(--ease-standard);
+}
+// The edge shows only when columns scroll under the pinned one: a soft shade, not a rule.
+.table-scroll.more-right th:last-child,
+.table-scroll.more-right td:last-child {
+  box-shadow: var(--shadow-pin-edge);
 }
 thead th:last-child {
   background: var(--surface-head);

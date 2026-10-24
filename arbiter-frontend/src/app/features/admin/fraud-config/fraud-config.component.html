@@ -1,5 +1,5 @@
 @if (loading()) {
-  <app-inline-loading [size]="26" message="Cargando gestión de fraude…" />
+  <app-skeleton shape="card" [rows]="4" note="Cargando gestión de fraude…" />
 } @else if (rule(); as r) {
   <app-card
     class="gf-card"
@@ -8,7 +8,7 @@
     @fadeInUp
     appOnboardingTarget="FRAUD"
   >
-    <app-info-tip cardAside>{{ stepLine.FRAUD }}</app-info-tip>
+    <app-info-tip cardTip>{{ stepLine.FRAUD }}</app-info-tip>
     <div class="sc-section-head">
       <span class="t-section-label">
         Antecedente de reincidencia

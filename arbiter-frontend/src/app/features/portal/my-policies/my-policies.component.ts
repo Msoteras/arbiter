@@ -5,7 +5,7 @@ import { catchError, map, of, startWith } from 'rxjs';
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
 import { Policy, isExpired } from '../../../core/models/policy';
 import { EmptyStateComponent } from '../../../shared/ui/empty-state/empty-state.component';
-import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
+import { SkeletonComponent } from '../../../shared/ui/skeleton/skeleton.component';
 import { PolicyCardComponent } from '../../../shared/ui/policy-card/policy-card.component';
 import { PolicyService } from '../../cases/policy.service';
 
@@ -15,7 +15,7 @@ type PoliciesState =
 /** Read-only: policies are the insurer's data, so corrections go to the insurer, not Arbiter. */
 @Component({
   selector: 'app-my-policies',
-  imports: [EmptyStateComponent, InlineLoadingComponent, PolicyCardComponent],
+  imports: [EmptyStateComponent, SkeletonComponent, PolicyCardComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './my-policies.component.html',
   styleUrl: './my-policies.component.scss',

@@ -29,6 +29,7 @@ import {
 import { CardComponent } from '../../../shared/ui/card/card.component';
 import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
 import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
+import { SkeletonComponent } from '../../../shared/ui/skeleton/skeleton.component';
 
 /** `value` null renders as "No aplica": the document doesn't state it. */
 interface ExtractedField {
@@ -66,7 +67,7 @@ type PreviewState =
 @Component({
   selector: 'app-case-documents',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CardComponent, BadgeComponent, InlineLoadingComponent],
+  imports: [CardComponent, BadgeComponent, InlineLoadingComponent, SkeletonComponent],
   templateUrl: './case-documents.component.html',
   styleUrl: './case-documents.component.scss',
 })

@@ -106,6 +106,22 @@ public class AuthExceptionHandler {
         return warn(404, ex);
     }
 
+    @ExceptionHandler(InvalidLogoException.class)
+    public ProblemDetail handleInvalidLogo(InvalidLogoException ex) {
+        return warn(400, ex);
+    }
+
+    @ExceptionHandler(LogoNotFoundException.class)
+    public ProblemDetail handleLogoNotFound(LogoNotFoundException ex) {
+        return warn(404, ex);
+    }
+
+    /** Spring's own limit (spring.servlet.multipart) answers before the service sees the file. */
+    @ExceptionHandler(org.springframework.web.multipart.MaxUploadSizeExceededException.class)
+    public ProblemDetail handleMaxUploadSize(Exception ex) {
+        return warn(400, new InvalidLogoException("El archivo es demasiado grande."));
+    }
+
     /** WARN, not ERROR: these are expected client-facing outcomes, not bugs. */
     private ProblemDetail warn(int status, Exception ex) {
         log.warn("[Auth] {} — {}", ex.getClass().getSimpleName(), ex.getMessage());

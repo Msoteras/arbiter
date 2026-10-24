@@ -73,7 +73,7 @@
     </div>
 
     @if (loading()) {
-      <app-inline-loading message="Cargando tus siniestros…" />
+      <app-skeleton shape="card" [rows]="4" note="Cargando tus siniestros…" />
     } @else if (hasError()) {
       <app-card>
         <p class="t-note">No se pudieron cargar tus siniestros. Probá de nuevo en unos minutos.</p>

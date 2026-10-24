@@ -14,7 +14,7 @@ import { caseStatusLabel, caseStatusTone } from '../../../core/models/case-statu
 import { comparisonReference } from '../../../core/models/comparison';
 import { RiskBand, riskBandLabel } from '../../../core/models/risk-band';
 import { StatusTone } from '../../../core/models/status-tone';
-import { formatDate, formatDateTime } from '../../../core/util/datetime';
+import { formatDate, formatTime } from '../../../core/util/datetime';
 import { formatRate } from '../../../core/util/percent';
 import { trendText } from '../../../core/util/trend';
 import { staggerReveal } from '../../../shared/animations';
@@ -28,7 +28,7 @@ import {
 import { EmptyStateComponent } from '../../../shared/ui/empty-state/empty-state.component';
 import { FraudGaugeComponent } from '../../../shared/ui/fraud-gauge/fraud-gauge.component';
 import { InfoTipComponent } from '../../../shared/ui/info-tip/info-tip.component';
-import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
+import { SkeletonComponent } from '../../../shared/ui/skeleton/skeleton.component';
 import { PaginationComponent } from '../../../shared/ui/pagination/pagination.component';
 import { SelectComponent, SelectOption } from '../../../shared/ui/select/select.component';
 import { StatTileComponent } from '../../../shared/ui/stat-tile/stat-tile.component';
@@ -72,7 +72,7 @@ const ALERT_BANDS: RiskBand[] = ['HIGH', 'CRITICAL'];
     EmptyStateComponent,
     FraudGaugeComponent,
     InfoTipComponent,
-    InlineLoadingComponent,
+    SkeletonComponent,
     PaginationComponent,
     ReportActionsComponent,
     ReportFiltersComponent,
@@ -179,7 +179,7 @@ export class FraudReportComponent extends ReportTab<
   );
 
   protected readonly formatDate = formatDate;
-  protected readonly formatDateTime = formatDateTime;
+  protected readonly formatTime = formatTime;
   protected readonly riskBandLabel = riskBandLabel;
   protected readonly caseStatusLabel = caseStatusLabel;
   protected readonly caseStatusTone = caseStatusTone;

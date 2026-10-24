@@ -28,6 +28,9 @@ import { ToastStackComponent } from './shared/ui/toast/toast-stack.component';
 import { ToastService } from './shared/ui/toast/toast.service';
 import { NewClaimComponent } from './features/cases/new-claim/new-claim.component';
 import { GlobalSearchComponent } from './features/cases/global-search/global-search.component';
+import { ActivityBarComponent } from './shared/ui/activity-bar/activity-bar.component';
+import { silentRequest } from './core/cache/query-cache';
+import { InsurerLogoService } from './core/services/insurer-logo.service';
 
 /** Below this width the nav panel overlays the content instead of pushing it. */
 const OVERLAY_NAV_QUERY = '(max-width: 1024px)';
@@ -49,6 +52,7 @@ const UNREAD_POLL_MS = 30_000;
     GlobalSearchComponent,
     NotificationsPanelComponent,
     LoadingComponent,
+    ActivityBarComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   // CSS animations honor prefers-reduced-motion via media queries; @angular/animations don't, so
@@ -66,6 +70,7 @@ export class App {
   protected readonly onboarding = inject(OnboardingService);
   private readonly toast = inject(ToastService);
   private readonly appReady = inject(AppReadyService);
+  protected readonly insurerLogo = inject(InsurerLogoService);
 
   private readonly reduceMotionMql =
     typeof window !== 'undefined' && window.matchMedia
@@ -102,10 +107,10 @@ export class App {
 
     effect(() => {
       if (this.session.session()) {
-        this.notifications.refreshUnreadCount();
+        this.notifications.refreshUnreadCount(silentRequest());
       }
       if (this.canSeeMessages()) {
-        this.messages.inbox().subscribe({ error: () => undefined });
+        this.messages.inbox(silentRequest()).subscribe({ error: () => undefined });
       }
     });
 
@@ -118,10 +123,10 @@ export class App {
           return;
         }
         if (this.session.session()) {
-          this.notifications.refreshUnreadCount();
+          this.notifications.refreshUnreadCount(silentRequest());
         }
         if (this.canSeeMessages()) {
-          this.messages.inbox().subscribe({ error: () => undefined });
+          this.messages.inbox(silentRequest()).subscribe({ error: () => undefined });
         }
       });
   }
@@ -288,6 +293,12 @@ export class App {
 
   protected initials(firstName: string, lastName: string): string {
     return `${firstName?.[0] ?? ''}${lastName?.[0] ?? ''}`.toUpperCase() || '—';
+  }
+
+  /** Initials of the insurer's first two words: "Seguros del Sur" → "SD". */
+  protected monogram(insurerName: string): string {
+    const [first = '', second = ''] = insurerName.trim().split(/\s+/);
+    return `${first[0] ?? ''}${second[0] ?? ''}`.toUpperCase();
   }
 
   /** Testing aid: walks the setup checklist again without touching the configuration. */

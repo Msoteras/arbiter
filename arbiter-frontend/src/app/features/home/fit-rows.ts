@@ -42,7 +42,7 @@ export function fitRows(
     (sum, other) =>
       sum +
       (other.classList.contains('grow')
-        ? (other.querySelector<HTMLElement>('section')?.scrollHeight ?? other.offsetHeight)
+        ? contentHeight(other)
         : other.getBoundingClientRect().height),
     0,
   );
@@ -54,9 +54,29 @@ export function fitRows(
   );
   const rowHeight = Math.ceil(tallest - extraNow);
   // Fractional pixels add up across cards; the floor keeps the card from overflowing by one.
-  const room = Math.floor(col.clientHeight - othersHeight - gap * others.length - chrome);
+  // The column's padding is shadow room (see _home-dashboard.scss), not room for rows.
+  const colStyle = getComputedStyle(col);
+  const padding = parseFloat(colStyle.paddingTop) + parseFloat(colStyle.paddingBottom);
+  const room = Math.floor(col.clientHeight - padding - othersHeight - gap * others.length - chrome);
   const rows = Math.max(1, Math.floor(room / rowHeight));
   // Spread only when the rows really fill the card; with fewer items the rest stays below.
   const extra = available >= rows ? Math.max(0, Math.floor((room - rows * rowHeight) / rows)) : 0;
   return { rows, extra };
+}
+
+/**
+ * A growing card's height if it didn't grow. Not its section's `scrollHeight`: the card has
+ * `min-height: 100%`, so that returns the stretched height, which shrinks as the fitted list grows;
+ * the fit then moved the list again and, near a row boundary, it never settled (the row shook).
+ * The body is a plain block, so its own `scrollHeight` is the content's.
+ */
+function contentHeight(card: HTMLElement): number {
+  const section = card.querySelector<HTMLElement>('section');
+  const body = section?.querySelector<HTMLElement>('.card-body');
+  if (!section || !body) return card.offsetHeight;
+  const style = getComputedStyle(section);
+  const top = body.getBoundingClientRect().top - section.getBoundingClientRect().top;
+  return (
+    top + body.scrollHeight + parseFloat(style.paddingBottom) + parseFloat(style.borderBottomWidth)
+  );
 }

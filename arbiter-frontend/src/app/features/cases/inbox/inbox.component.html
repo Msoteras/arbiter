@@ -11,35 +11,29 @@
         </p>
       }
     </div>
-    @if (hasLoaded()) {
-      <app-menu-button
-        [items]="exportOptions"
-        [disabled]="exporting() || isEmpty()"
-        align="end"
-        (itemSelected)="exportAs($event)"
-      >
-        <span class="btn-with-icon">
-          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-            <path
-              d="M8 2v8m0 0 3-3m-3 3L5 7M3 13h10"
-              stroke="currentColor"
-              stroke-width="1.5"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            />
-          </svg>
-          {{ exporting() ? 'Exportando…' : 'Exportar' }}
-        </span>
-      </app-menu-button>
-    }
+    <app-menu-button
+      [items]="exportOptions"
+      [disabled]="exporting() || loading() || isEmpty()"
+      align="end"
+      (itemSelected)="exportAs($event)"
+    >
+      <span class="btn-with-icon">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+          <path
+            d="M8 2v8m0 0 3-3m-3 3L5 7M3 13h10"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+        </svg>
+        {{ exporting() ? 'Exportando…' : 'Exportar' }}
+      </span>
+    </app-menu-button>
   </header>
 
-  @if (firstLoad()) {
-    <!-- First load hides the filters too; they only appear once there is data. -->
-    <div class="first-load">
-      <app-inline-loading [size]="30" message="Cargando expedientes…" />
-    </div>
-  } @else {
+  <!-- Every way of narrowing the list, in one raised panel above the table. -->
+  <section class="controls" aria-label="Filtrar la bandeja">
     @if (canAssign() || isReferent()) {
       <app-tabs
         class="lens"
@@ -62,7 +56,10 @@
               @if (tab.value === 'fraud') {
                 <span class="lens-alert-mark" aria-hidden="true">▲</span>
               }
-              {{ tab.label }} <span class="lens-count">{{ ownershipCount(tab.value) }}</span>
+              {{ tab.label }}
+              @if (countsReady()) {
+                <span class="lens-count">{{ ownershipCount(tab.value) }}</span>
+              }
               @if (ownership() === tab.value) {
                 <span class="lens-clear" aria-hidden="true">✕</span>
               }
@@ -217,160 +214,184 @@
         <button type="button" class="chip-clear" (click)="clearAllChips()">Limpiar todo</button>
       </div>
     }
+  </section>
 
-    @if (loading()) {
-      <!-- On refetch the filters stay; only the table is replaced by the spinner. -->
-      <app-inline-loading message="Cargando expedientes…" />
-    } @else if (hasError()) {
-      <app-card>
-        <p class="t-note">No se pudo cargar el listado. Probá de nuevo en unos minutos.</p>
-      </app-card>
-    } @else if (isEmpty()) {
-      @if (hasActiveFilters()) {
-        <app-empty-state
-          message="Ningún expediente coincide con los filtros aplicados."
-          sub="Sin coincidencias"
-        />
-      } @else if (emptyByLens()) {
-        <app-empty-state [message]="emptyLensMessage().message" [sub]="emptyLensMessage().sub" />
-      } @else {
-        <app-empty-state message="Todavía no hay expedientes cargados." sub="Sin expedientes" />
-      }
+  @if (loading()) {
+    <!-- A page, a filter or a refresh: the table turns into its skeleton, same height as the rows
+           it replaces, and the filters above and the pager below stay put. -->
+    <app-skeleton
+      shape="table"
+      [rows]="skeletonRows()"
+      [columns]="columns.length"
+      note="Cargando expedientes…"
+    />
+  } @else if (hasError()) {
+    <app-card>
+      <p class="t-note">No se pudo cargar el listado. Probá de nuevo en unos minutos.</p>
+    </app-card>
+  } @else if (isEmpty()) {
+    @if (hasActiveFilters()) {
+      <app-empty-state
+        message="Ningún expediente coincide con los filtros aplicados."
+        sub="Sin coincidencias"
+      >
+        @if (activeChips().length > 0) {
+          <app-button variant="secondary" size="sm" (click)="clearAllChips()"
+            >Limpiar filtros</app-button
+          >
+        }
+      </app-empty-state>
+    } @else if (emptyByLens()) {
+      <app-empty-state [message]="emptyLensMessage().message" [sub]="emptyLensMessage().sub" />
     } @else {
-      <app-card [flush]="true" class="table-card">
-        <div class="table-scroll">
-          <table>
-            <thead>
-              <tr>
-                @for (col of columns; track col.field) {
-                  <th>
-                    <button
-                      type="button"
-                      class="sort-btn"
-                      [class.is-sorted]="sortField() === col.field"
-                      (click)="toggleSort(col.field)"
-                    >
-                      {{ col.label }}
-                      @if (sortField() === col.field) {
-                        <span class="sort-arrow" aria-hidden="true">{{
-                          sortDir() === 'asc' ? '↑' : '↓'
-                        }}</span>
-                      }
-                    </button>
-                  </th>
-                }
-              </tr>
-            </thead>
-            <tbody @fadeStagger>
-              @for (c of cases(); track c.id) {
-                <tr class="row-link" (click)="goTo(c.id)">
-                  <td>
-                    <a
-                      class="mono id-link"
-                      [routerLink]="['/cases', c.id]"
-                      (click)="$event.stopPropagation()"
-                      >#{{ c.id }}</a
-                    >
-                  </td>
-                  <td>
-                    <app-badge [tone]="caseStatusTone(c.status)">{{
-                      workStatusLabel(c)
-                    }}</app-badge>
-                  </td>
-                  <td>
-                    @if (isClosed(c)) {
-                      <span class="t-note">—</span>
-                    } @else if (isPaused(c)) {
-                      <span class="t-note">En pausa</span>
-                    } @else if (deadlinePrioritized(c)) {
-                      <app-badge [tone]="deadlineTone(c.deadlinePriority)">{{
-                        deadlineLabel(c)
-                      }}</app-badge>
-                    } @else {
-                      <span class="t-note">{{ formatDate(c.responseDeadline) }}</span>
-                    }
-                  </td>
-                  <td>
-                    <span [class.t-note]="!c.insuredName">{{ displayInsured(c) }}</span>
-                    <br />
-                    <span class="t-note mono">{{ displayInsuredId(c) }}</span>
-                  </td>
-                  <td>{{ c.claimCause }}</td>
-                  <td>{{ formatDate(c.eventDate) }}</td>
-                  <td class="mono num">{{ formatAmount(c.claimedAmount) }}</td>
-                  <td>
-                    <app-fraud-gauge
-                      [band]="riskGaugeBand(c)"
-                      [emptyLabel]="riskGaugeEmptyLabel(c)"
-                    />
-                  </td>
-                  <td>
-                    @if (c.analysisClassification) {
-                      <app-badge [tone]="classificationTone(c.analysisClassification)">
-                        {{ classificationLabel(c.analysisClassification) }}
-                      </app-badge>
-                    } @else {
-                      <span class="t-note">—</span>
-                    }
-                  </td>
-                  <td class="assign-cell" (click)="$event.stopPropagation()">
-                    <div class="assign-row">
-                      @if (c.assignedAnalystId) {
-                        <div class="assignee">
-                          <span class="avatar" aria-hidden="true">{{ analystInitials(c) }}</span>
-                          <span class="assignee-text">
-                            <span class="assignee-name">{{ c.assignedAnalystName }}</span>
-                            <span class="assignee-sub">Asignado</span>
-                          </span>
-                        </div>
-                      } @else if (!canAssign() || isClosed(c)) {
-                        <span class="t-note">Sin asignar</span>
-                      }
-                      @if (canAssign() && !isClosed(c)) {
-                        <div class="assign-actions" [class.fill]="!c.assignedAnalystId">
-                          @if (!c.assignedAnalystId && canTake()) {
-                            <app-button
-                              class="grow"
-                              variant="accent"
-                              size="sm"
-                              [block]="true"
-                              [loading]="assigning() === c.id"
-                              [disabled]="assigning() !== null"
-                              (click)="take(c)"
-                            >
-                              + Asignarme
-                            </app-button>
-                          }
-                          <app-menu-button
-                            [items]="assignMenuItems(c)"
-                            heading="Asignar a otro analista"
-                            [disabled]="assigning() !== null"
-                            align="end"
-                            size="sm"
-                            (itemSelected)="onAssignMenu(c, $event)"
-                          >
-                            <span aria-hidden="true">⋯</span>
-                            <span class="sr-only">Más acciones de asignación</span>
-                          </app-menu-button>
-                        </div>
-                      }
-                    </div>
-                  </td>
-                </tr>
-              }
-            </tbody>
-          </table>
-        </div>
-      </app-card>
-
-      <app-pagination
-        [page]="page()"
-        [totalPages]="totalPages()"
-        [totalElements]="totalElements()"
-        [size]="size()"
-        (pageChange)="onPageChange($event)"
-        (sizeChange)="onSizeChange($event)"
-      />
+      <app-empty-state message="Todavía no hay expedientes cargados." sub="Sin expedientes" />
     }
+  } @else {
+    <app-card [flush]="true" class="table-card">
+      <div
+        class="table-scroll"
+        #tableScroll
+        [class.more-right]="moreRight()"
+        (scroll)="measureScroll()"
+      >
+        <table>
+          <thead>
+            <tr>
+              @for (col of columns; track col.field) {
+                <th>
+                  <button
+                    type="button"
+                    class="sort-btn"
+                    [class.is-sorted]="sortField() === col.field"
+                    (click)="toggleSort(col.field)"
+                  >
+                    {{ col.label }}
+                    @if (sortField() === col.field) {
+                      <span class="sort-arrow" aria-hidden="true">{{
+                        sortDir() === 'asc' ? '↑' : '↓'
+                      }}</span>
+                    }
+                  </button>
+                </th>
+              }
+            </tr>
+          </thead>
+          <tbody @fadeStagger>
+            @for (c of cases(); track c.id) {
+              <tr class="row-link" (click)="goTo(c.id)">
+                <td>
+                  <!-- The opened row's id morphs into the detail title (view transition). -->
+                  <a
+                    class="mono id-link"
+                    [routerLink]="['/cases', c.id]"
+                    [style.view-transition-name]="opening() === c.id ? 'case-id' : null"
+                    (click)="$event.stopPropagation(); opening.set(c.id)"
+                    >#{{ c.id }}</a
+                  >
+                </td>
+                <td>
+                  <app-badge
+                    [tone]="caseStatusTone(c.status)"
+                    [busy]="c.status === 'PENDING_CLASSIFICATION'"
+                    >{{ workStatusLabel(c) }}</app-badge
+                  >
+                </td>
+                <td>
+                  @if (isClosed(c)) {
+                    <span class="t-note">—</span>
+                  } @else if (isPaused(c)) {
+                    <span class="t-note">En pausa</span>
+                  } @else if (deadlinePrioritized(c)) {
+                    <app-badge [tone]="deadlineTone(c.deadlinePriority)">{{
+                      deadlineLabel(c)
+                    }}</app-badge>
+                  } @else {
+                    <span class="t-note">{{ formatDate(c.responseDeadline) }}</span>
+                  }
+                </td>
+                <td>
+                  <span [class.t-note]="!c.insuredName">{{ displayInsured(c) }}</span>
+                  <br />
+                  <span class="t-note mono">{{ displayInsuredId(c) }}</span>
+                </td>
+                <td>{{ c.claimCause }}</td>
+                <td>{{ formatDate(c.eventDate) }}</td>
+                <td class="mono num">{{ formatAmount(c.claimedAmount) }}</td>
+                <td>
+                  <app-fraud-gauge
+                    [band]="riskGaugeBand(c)"
+                    [emptyLabel]="riskGaugeEmptyLabel(c)"
+                  />
+                </td>
+                <td>
+                  @if (c.analysisClassification) {
+                    <app-badge [tone]="classificationTone(c.analysisClassification)">
+                      {{ classificationLabel(c.analysisClassification) }}
+                    </app-badge>
+                  } @else {
+                    <span class="t-note">—</span>
+                  }
+                </td>
+                <td class="assign-cell" (click)="$event.stopPropagation()">
+                  <div class="assign-row">
+                    @if (c.assignedAnalystId) {
+                      <div class="assignee">
+                        <span class="avatar" aria-hidden="true">{{ analystInitials(c) }}</span>
+                        <span class="assignee-text">
+                          <span class="assignee-name">{{ c.assignedAnalystName }}</span>
+                          <span class="assignee-sub">Asignado</span>
+                        </span>
+                      </div>
+                    } @else if (!canAssign() || isClosed(c)) {
+                      <span class="t-note">Sin asignar</span>
+                    }
+                    @if (canAssign() && !isClosed(c)) {
+                      <div class="assign-actions" [class.fill]="!c.assignedAnalystId">
+                        @if (!c.assignedAnalystId && canTake()) {
+                          <app-button
+                            class="grow"
+                            variant="accent"
+                            size="sm"
+                            [block]="true"
+                            [loading]="assigning() === c.id"
+                            [disabled]="assigning() !== null"
+                            (click)="take(c)"
+                          >
+                            + Asignarme
+                          </app-button>
+                        }
+                        <app-menu-button
+                          [items]="assignMenuItems(c)"
+                          heading="Asignar a otro analista"
+                          [disabled]="assigning() !== null"
+                          align="end"
+                          size="sm"
+                          (itemSelected)="onAssignMenu(c, $event)"
+                        >
+                          <span aria-hidden="true">⋯</span>
+                          <span class="sr-only">Más acciones de asignación</span>
+                        </app-menu-button>
+                      </div>
+                    }
+                  </div>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </app-card>
+  }
+
+  <!-- Outside the table's branches: it stays while the next page loads. -->
+  @if (totalElements() > 0 && !hasError()) {
+    <app-pagination
+      [page]="page()"
+      [totalPages]="totalPages()"
+      [totalElements]="totalElements()"
+      [size]="size()"
+      (pageChange)="onPageChange($event)"
+      (sizeChange)="onSizeChange($event)"
+    />
   }
 </div>

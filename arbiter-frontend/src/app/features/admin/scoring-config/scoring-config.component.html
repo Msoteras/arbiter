@@ -1,5 +1,5 @@
 @if (loading()) {
-  <app-inline-loading [size]="26" message="Cargando puntaje de riesgo…" />
+  <app-skeleton shape="card" [rows]="5" note="Cargando puntaje de riesgo…" />
 } @else if (loadFailed()) {
   <app-card heading="Puntaje de riesgo" headingSize="lg">
     <p class="t-note load-error" role="alert">No se pudo cargar el puntaje de riesgo.</p>
@@ -7,7 +7,7 @@
   </app-card>
 } @else {
   <app-card heading="Puntaje de riesgo" headingSize="lg" @fadeInUp appOnboardingTarget="SCORING">
-    <app-info-tip cardAside>{{ stepLine.SCORING }}</app-info-tip>
+    <app-info-tip cardTip>{{ stepLine.SCORING }}</app-info-tip>
     <div class="sc-section">
       <div class="sc-section-head">
         <span class="t-section-label">

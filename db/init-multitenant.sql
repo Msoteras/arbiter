@@ -54,6 +54,17 @@ CREATE TABLE arbiter_common.insurer (
     schema_name     VARCHAR(60)  NOT NULL UNIQUE
 );
 
+-- ─── insurer_logo ────────────────────────────────────────────────────────────
+-- The logo the referent uploads, shown in the app bar of the insurer's people. Its own table, not
+-- a column of insurer: insurer is read on every login and tenant resolution, and would carry the
+-- bytes along. Bytes in the database: ≤ 256 KB, read once per session.
+CREATE TABLE arbiter_common.insurer_logo (
+    insurer_id      BIGINT       PRIMARY KEY REFERENCES arbiter_common.insurer(id) ON DELETE CASCADE,
+    content         BYTEA        NOT NULL,
+    content_type    VARCHAR(50)  NOT NULL,
+    updated_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+
 -- ─── users ───────────────────────────────────────────────────────────────────
 -- Identity backed by Auth0. Shared because login happens before the tenant is known;
 -- names live on the per-tenant role profiles (insured, claims_analyst, insurer_referent).

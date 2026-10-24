@@ -1,5 +1,5 @@
 @if (loading()) {
-  <app-inline-loading [size]="26" message="Cargando derivaciones…" />
+  <app-skeleton shape="card" [rows]="4" note="Cargando derivaciones…" />
 } @else if (loadFailed()) {
   <app-card heading="Derivaciones" headingSize="md">
     <p class="warn-note" role="alert">No se pudieron cargar las derivaciones.</p>

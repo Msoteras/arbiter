@@ -16,7 +16,7 @@ import { DerivationRulesService } from '../derivation-rules.service';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { CardComponent } from '../../../shared/ui/card/card.component';
 import { InfoTipComponent } from '../../../shared/ui/info-tip/info-tip.component';
-import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
+import { SkeletonComponent } from '../../../shared/ui/skeleton/skeleton.component';
 import { InputComponent } from '../../../shared/ui/input/input.component';
 import { SaveBarComponent } from '../../../shared/ui/save-bar/save-bar.component';
 import { SwitchComponent } from '../../../shared/ui/switch/switch.component';
@@ -40,7 +40,7 @@ interface DerivationsDraft {
     ButtonComponent,
     CardComponent,
     InfoTipComponent,
-    InlineLoadingComponent,
+    SkeletonComponent,
     InputComponent,
     SaveBarComponent,
     SwitchComponent,

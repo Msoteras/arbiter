@@ -1,4 +1,4 @@
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpContext } from '@angular/common/http';
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { catchError, of, tap } from 'rxjs';
 
@@ -38,9 +38,9 @@ export class NotificationsService {
   readonly loading = this._loading.asReadonly();
   readonly hasUnread = computed(() => this._unread() > 0);
 
-  refreshUnreadCount(): void {
+  refreshUnreadCount(context?: HttpContext): void {
     this.http
-      .get<number>(`${this.baseUrl}/unread-count`)
+      .get<number>(`${this.baseUrl}/unread-count`, { context })
       .pipe(catchError(() => of(0)))
       .subscribe((count) => this._unread.set(Math.max(0, count)));
   }

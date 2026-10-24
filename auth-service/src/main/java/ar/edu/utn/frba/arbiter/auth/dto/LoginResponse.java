@@ -14,5 +14,10 @@ public record LoginResponse(
         String apellido,
         // Null for non-ASEGURADO users.
         String insuredId,
-        Boolean onboardingComplete
+        Boolean onboardingComplete,
+        // Name of the insurer the session works in. Null for ASEGURADO: their cases may span
+        // several insurers, so naming one would be wrong.
+        String insurerName,
+        // When the insurer's logo was uploaded; null without one, and for ASEGURADO.
+        Instant insurerLogoVersion
 ) {}

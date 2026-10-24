@@ -1,5 +1,20 @@
 @if (loading()) {
-  <app-inline-loading message="Cargando la conversación…" />
+  <!-- The thread's own frame with bubble-shaped bones, so the chat doesn't jump when it loads. -->
+  <app-card [heading]="bare() ? '' : heading()" [bare]="bare()" [class.full-height]="fullHeight()">
+    <ol class="thread skeleton-thread" [class.full-height]="fullHeight()" aria-hidden="true">
+      @for (bubble of skeletonBubbles; track $index) {
+        <li class="msg" [class.mine]="bubble.mine">
+          <app-skeleton
+            class="bubble-bone"
+            [class.tall]="bubble.tall"
+            shape="block"
+            [style.width.%]="bubble.width"
+          />
+        </li>
+      }
+    </ol>
+    <span class="sr-only" role="status">Cargando la conversación</span>
+  </app-card>
 } @else if (loadError()) {
   <app-card [bare]="bare()">
     <p class="t-note">No se pudo cargar la conversación. Probá de nuevo en un momento.</p>
