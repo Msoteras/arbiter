@@ -117,6 +117,7 @@ public class CaseNotificationService {
     private final InsurerRepository insurerRepository;
     private final SendGridAdapter sendGridAdapter;
     private final CaseSettlementRepository settlementRepository;
+    private final InsuredMailBranding mailBranding;
 
     /** Best-effort by contract: a delivery failure must never break the case transition. */
     public void notifyStatusChange(Case caseRecord, CaseStatus newStatus) {
@@ -175,7 +176,8 @@ public class CaseNotificationService {
                       String type) {
         try {
             // sent=true only if the mail really went out: with no API key the adapter no-ops.
-            if (!sendGridAdapter.send(address, message.subject(), body(message, caseRecord, type))) {
+            InsuredMailBranding.Branded mail = mailBranding.brand(body(message, caseRecord, type));
+            if (!sendGridAdapter.send(address, message.subject(), mail.htmlBody(), mail.attachments())) {
                 return;
             }
             notification.setSent(true);

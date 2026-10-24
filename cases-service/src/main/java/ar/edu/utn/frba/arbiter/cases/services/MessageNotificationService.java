@@ -41,6 +41,7 @@ public class MessageNotificationService {
     private final NotificationRepository notificationRepository;
     private final CaseNotificationService caseNotificationService;
     private final SendGridAdapter sendGridAdapter;
+    private final InsuredMailBranding mailBranding;
 
     /**
      * @param senderRole who wrote the message; the recipient is the other side
@@ -100,7 +101,8 @@ public class MessageNotificationService {
     private void send(Notification notification, String address) {
         try {
             // sent=true only if the mail really went out: with no API key the adapter no-ops.
-            if (!sendGridAdapter.send(address, SUBJECT, body(notification))) {
+            InsuredMailBranding.Branded mail = mailBranding.brand(body(notification));
+            if (!sendGridAdapter.send(address, SUBJECT, mail.htmlBody(), mail.attachments())) {
                 return;
             }
             notification.setSent(true);
