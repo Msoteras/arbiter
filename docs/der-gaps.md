@@ -7,6 +7,8 @@ quedan afuera del backlog de Trello por eso.
 El DER sigue siendo la fuente de verdad (`CLAUDE.md`). Este documento no propone desvíos: es la
 lista de qué hay que corregirle. Cuando una entrada queda aplicada en el `.mdj`, se borra de acá.
 
+**Última revisión: 24/10/2026, duodécima pasada.** No queda nada abierto.
+
 **Revisado el 16/10/2026, novena pasada** contra el `.mdj` editado ese día y contra
 `db/init-multitenant.sql`. Salieron las entradas 5, 6, 8, 9, 13 (`analisis_llm.fecha_analisis`), 16,
 17, 22, 23, 25, 26, 27 y 32, que ya están en el diagrama. Las entradas 7, 10, 11, 12, 15, 18, 21 y 31
@@ -37,6 +39,32 @@ editar en el `.mdj`. Salieron también las entradas de notas de texto (4, 12, 18
   solo las de Arbiter. Su dato ya queda persistido en Arbiter: cada clasificación lo congela en
   `poliza_consultada.payload_bd_aseguradora`.
 
+**Duodécima pasada, 23/10:** contra el `.mdj` de la rama `feature/fix-der` (al día con `develop`) y
+contra `db/init-multitenant.sql`. Se cruzó cada FK del esquema con su línea dibujada, mirando qué
+muestra cada extremo. Salieron siete entradas, y quedaron aplicadas el mismo día:
+
+- **40:** `logo_aseguradora`, tabla nueva del esquema común (`2026-10-22-logo-de-la-aseguradora.sql`).
+  Sale `aseguradora.logo`, y la decisión 14 ya no vale.
+- **41:** la línea `usuario` — `referente_aseguradora` tiene relación propia y muestra `1—0..1`.
+- **42:** `permiso` — `rol_permiso`, `expediente` — `analisis_llm` y `analisis_documento` —
+  `hallazgo_visual_documento` tenían la cardinalidad al revés.
+- **43:** cuatro cardinalidades no coincidían con el esquema (`analisis_riesgo_expediente`,
+  `atribucion_liquidacion`, `clasificacion_expediente` y `resultado_regla`).
+- **44:** `rol.nombre` sin Unique, `usuario.email` con Unique, `resultado_regla.resultado` en
+  VARCHAR(20), `reinicio_puesta_en_marcha.id` en SMALLINT, y `metrica_diaria_ingreso` sin la columna
+  vacía.
+- **45:** doce líneas de FK que admite nulo pasaron a `0..1` del lado del padre.
+- **46:** `rama_id` pasó a `ramo_id` en las cinco entidades que lo tenían.
+
+Las dos líneas desfasadas que quedan (`usuario` — `configuracion_scoring` y `poliza_consultada` —
+`liquidacion`) siguen como se decidió el 18/10.
+
+El 24/10 se cerró la 20. La simplificación del modelo de métricas no llegó, y Railway tiene las
+cuatro tablas igual que el esquema en los tres esquemas de aseguradora (consultado en modo
+lectura). Se cargaron las columnas de las tres `metrica_diaria_*`, se dibujaron `metrica_dia` y
+`hecho_generador` 1—0..* contra cada una (con una segunda vista de `hecho_generador` al lado), y
+`metrica` salió del modelo.
+
 **Criterios que valen para todas las entradas:**
 
 - **Cada línea se compara dibujo contra modelo.** Una línea que se ve entre dos entidades pero cuya
@@ -46,7 +74,8 @@ editar en el `.mdj`. Salieron también las entradas de notas de texto (4, 12, 18
 - **Solo cuenta lo que se ve en el diagrama.** Las relaciones que quedaron en el explorador del
   modelo sin línea dibujada no son baches.
 - **UNIQUE en una columna FK:** no se marca. La cardinalidad 1:1 va en la relación del diagrama (el
-  extremo con `1` en vez de `0..*`).
+  extremo con `0..1` en vez de `0..*`).
+- **FK que admite nulo** (decidido el 23/10): el extremo del padre lleva `0..1`, no `1`.
 - **UNIQUE compuesta (dos o más columnas) y FK compuesta:** StarUML no deja modelarlas y el DER no
   lleva notas de texto (decidido el 17/10). No son baches.
 - **Esquema común o por aseguradora:** se distingue por el borde de la entidad. Las del esquema
@@ -58,7 +87,7 @@ editar en el `.mdj`. Salieron también las entradas de notas de texto (4, 12, 18
 
 ## Para editar en el `.mdj`
 
-Nada: el `.mdj` del 18/10 a las 11:56 coincide con el esquema, salvo lo que está en standby.
+Nada: el `.mdj` del 24/10 coincide con el esquema.
 
 ---
 
@@ -72,39 +101,7 @@ bloque ya no cuelga un segundo asegurado del mismo usuario.
 
 ## En standby
 
-### 20 · `metrica_dia` y las tres `metrica_diaria_*` — en standby
-
-La entidad `metrica` del DER no existe en el esquema. Lo implementado son cuatro tablas por
-aseguradora que guardan los totales de los días ya cerrados.
-
-| Tabla | Columna | Tipo de dato | Nulo | Restricciones |
-|---|---|---|---|---|
-| `metrica_dia` (`metrics_day`) | `dia` (`day`) | DATE | no | PK |
-| `metrica_dia` | `fecha_calculo` (`computed_at`) | TIMESTAMPTZ | no | default `NOW()` |
-| `metrica_diaria_ingreso` (`metrics_daily_intake`) | `dia` (`day`) | DATE | no | FK → `metrica_dia.dia` |
-| `metrica_diaria_ingreso` | `hecho_generador_id` (`claim_cause_id`) | BIGINT | no | FK → `hecho_generador.id` |
-| `metrica_diaria_ingreso` | `analista_id` (`analyst_id`) | BIGINT | sí | sin FK |
-| `metrica_diaria_ingreso` | `denunciados` (`reported`), `fast_track` | BIGINT | no | — |
-| `metrica_diaria_resolucion` (`metrics_daily_resolution`) | `dia`, `hecho_generador_id`, `analista_id` | — | — | igual que en `metrica_diaria_ingreso` |
-| `metrica_diaria_resolucion` | `estado_final` (`final_status`) | VARCHAR(60) | no | — |
-| `metrica_diaria_resolucion` | `resueltos`, `fast_track`, `en_plazo`, `reabiertos`, `acuerdo_evaluables`, `acuerdo_coincidentes`, `fraude_determinado`, `fraude_respaldado_por_perito` | BIGINT | no | — |
-| `metrica_diaria_resolucion` | `segundos_totales`, `segundos_en_espera`, `segundos_fast_track` | DOUBLE PRECISION | no | — |
-| `metrica_diaria_resolucion` | `monto_reclamado_fraude` (`fraud_claimed_amount`) | NUMERIC(38,2) | no | — |
-| `metrica_diaria_liquidacion` (`metrics_daily_settlement`) | `dia`, `hecho_generador_id`, `analista_id` | — | — | igual que en `metrica_diaria_ingreso` |
-| `metrica_diaria_liquidacion` | `liquidaciones` (`settlements`), `expedientes_con_reclamo` (`claimed_cases`) | BIGINT | no | — |
-| `metrica_diaria_liquidacion` | `monto_liquidado`, `monto_reclamado`, `monto_franquicia`, `monto_cuotas`, `monto_saldo_deuda` | NUMERIC(38,2) | no | — |
-
-Las tres `metrica_diaria_*` no tienen `id`: son una fila por día, hecho generador y analista.
-
-Al 17/10 `metrica` ya no está en el diagrama, y las cuatro entidades existen. `metrica_dia` tiene
-sus columnas pero `dia` no está marcada como PK; las tres `metrica_diaria_*` están vacías.
-
-**Acción:** marcar `metrica_dia.dia` como PK, cargar las columnas de las tres `metrica_diaria_*` y
-dibujar `metrica_dia` 1—N contra cada `metrica_diaria_*` y `hecho_generador` 1—N contra cada una.
-
-**En standby (17/10):** Aylu va a pedir que se simplifique el modelo de métricas: una tabla por
-grupo de métricas es poco extensible. El diagrama queda como está (`metrica_dia` con columnas, las
-tres `metrica_diaria_*` vacías) hasta que se decida el modelo nuevo.
+Nada.
 
 ---
 
