@@ -51,6 +51,16 @@ public class CaseExceptionHandler extends ResponseEntityExceptionHandler {
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(400), ex.getMessage());
     }
 
+    @ExceptionHandler(DocumentationPendingException.class)
+    public ProblemDetail handleDocumentationPending(DocumentationPendingException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(409), ex.getMessage());
+    }
+
+    @ExceptionHandler(InvalidDocumentRequestException.class)
+    public ProblemDetail handleInvalidDocumentRequest(InvalidDocumentRequestException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(400), ex.getMessage());
+    }
+
     @ExceptionHandler(DocumentReadException.class)
     public ProblemDetail handleDocumentRead(DocumentReadException ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(422), ex.getMessage());

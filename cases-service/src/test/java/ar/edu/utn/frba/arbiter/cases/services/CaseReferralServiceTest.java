@@ -1,5 +1,7 @@
 package ar.edu.utn.frba.arbiter.cases.services;
 
+import ar.edu.utn.frba.arbiter.cases.exceptions.DocumentationPendingException;
+import ar.edu.utn.frba.arbiter.common.enums.Classification;
 import ar.edu.utn.frba.arbiter.cases.dto.DerivationOptionsResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.ProviderType;
 import ar.edu.utn.frba.arbiter.cases.dto.RepairOutcome;
@@ -146,6 +148,21 @@ class CaseReferralServiceTest {
 
         assertThat(response.notified()).isFalse();
         verify(caseStatusService).transition(any(), eq(CaseStatus.PENDING_EXPERT_REPORT), any(), any());
+    }
+
+    /** The model didn't run yet: there is nothing for an expert to verify against. */
+    @Test
+    void derive_whileDocumentationIsPending_isRefused() {
+        Case caseRecord = caseAwaitingReview();
+        caseRecord.setRulesClassification(Classification.FALTA_DOCUMENTACION);
+        when(caseRepository.findById(CASE_ID)).thenReturn(Optional.of(caseRecord));
+        when(claimsAnalystRepository.findByEmail(ANALYST_EMAIL)).thenReturn(Optional.of(analyst()));
+
+        assertThatThrownBy(() -> caseReferralService.derive(CASE_ID,
+                new CaseReferralRequest(3L, "motivo"), ProviderType.ESTUDIO_LIQUIDADOR))
+                .isInstanceOf(DocumentationPendingException.class);
+
+        verify(caseReferralRepository, never()).save(any());
     }
 
     @Test

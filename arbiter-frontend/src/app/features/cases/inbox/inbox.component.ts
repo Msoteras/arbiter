@@ -481,6 +481,7 @@ export class InboxComponent {
     { value: 'RETURNED_BY_REFERENT', label: 'Devuelto por el referente' },
     { value: 'AWAITING_REFERENT', label: 'Esperando al referente' },
     { value: 'AWAITING_ANALYST', label: 'Pendiente de decisión' },
+    { value: 'DOCUMENTATION_TO_CONFIRM', label: 'Falta documentación por confirmar' },
   ];
 
   protected readonly columns: ColumnDef[] = [

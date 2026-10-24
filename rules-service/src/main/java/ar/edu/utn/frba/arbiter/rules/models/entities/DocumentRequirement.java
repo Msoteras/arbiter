@@ -1,10 +1,13 @@
 package ar.edu.utn.frba.arbiter.rules.models.entities;
 
+import ar.edu.utn.frba.arbiter.common.enums.RiskBand;
 import ar.edu.utn.frba.arbiter.common.models.entities.DocumentType;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Branch;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.ClaimCause;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -37,9 +40,10 @@ public class DocumentRequirement {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    /** LOW | MEDIUM | HIGH | CRITICAL, nullable — not every requirement is risk-scoped. */
+    /** The lowest band that needs it; null means every case does. */
+    @Enumerated(EnumType.STRING)
     @Column(name = "risk_band", length = 20)
-    private String riskBand;
+    private RiskBand riskBand;
 
     /** Always one of the branch's own ({@link BranchDocumentType}); the database enforces it too. */
     @ManyToOne(fetch = FetchType.LAZY)

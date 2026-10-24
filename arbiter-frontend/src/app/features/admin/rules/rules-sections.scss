@@ -75,6 +75,12 @@
   justify-content: center;
   gap: 0;
 }
+/* Under the box, only while the document is in the schedule. */
+.doc-band {
+  display: block;
+  margin-top: var(--space-1);
+  text-align: start;
+}
 
 @include media.phone {
   .doc-col,

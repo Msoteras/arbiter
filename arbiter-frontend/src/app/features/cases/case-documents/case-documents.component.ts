@@ -172,7 +172,7 @@ export class CaseDocumentsComponent {
       ...agenda,
       ...this.extraDocuments().map((doc) => ({
         type: doc.type,
-        label: this.documentTypes.label(doc.type),
+        label: doc.description ?? this.documentTypes.label(doc.type),
         doc,
         extra: true,
         readIssue: readIssue(doc.type),

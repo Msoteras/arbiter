@@ -6,6 +6,7 @@ import ar.edu.utn.frba.arbiter.cases.models.entities.CaseDocument;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
 import ar.edu.utn.frba.arbiter.cases.models.entities.StatusChangeActor;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseRepository;
+import ar.edu.utn.frba.arbiter.common.dto.AnalystDocumentNote;
 import ar.edu.utn.frba.arbiter.common.dto.ClaimReport;
 import ar.edu.utn.frba.arbiter.common.dto.ClaimResponse;
 import ar.edu.utn.frba.arbiter.common.dto.FraudRecordRequest;
@@ -57,6 +58,7 @@ public class ClassificationServiceClient implements ClaimsAnalysisClient {
     private final String uploadTarget;
     private final CaseStatusService caseStatusService;
     private final CaseRepository caseRepository;
+    private final AnalystNotificationService analystNotificationService;
     private final SecretKey jwtKey;
 
     public ClassificationServiceClient(
@@ -64,6 +66,7 @@ public class ClassificationServiceClient implements ClaimsAnalysisClient {
             ConnectionRetryInterceptor connectionRetry,
             CaseStatusService caseStatusService,
             CaseRepository caseRepository,
+            AnalystNotificationService analystNotificationService,
             @Value("${arbiter.classification-service.url:http://classification-service:8082}") String classificationServiceUrl,
             @Value("${arbiter.auth.jwt.secret}") String jwtSecret
     ) {
@@ -76,6 +79,7 @@ public class ClassificationServiceClient implements ClaimsAnalysisClient {
         this.uploadTarget = "POST " + URI.create(classificationServiceUrl).getAuthority();
         this.caseStatusService = caseStatusService;
         this.caseRepository = caseRepository;
+        this.analystNotificationService = analystNotificationService;
         this.jwtKey = JwtSupport.key(jwtSecret);
     }
 
@@ -165,6 +169,12 @@ public class ClassificationServiceClient implements ClaimsAnalysisClient {
                 .imageConsent(caseRecord.getInsured().isImageConsent())
                 .attachmentsOcr(List.of())
                 .priorClaims(antecedentsOf(caseRecord))
+                .analystDocumentNotes(caseRecord.getRequestedDocuments().stream()
+                        .filter(requested -> requested.description() != null)
+                        .map(requested -> new AnalystDocumentNote(
+                                requested.type(), requested.description(), requested.reason()))
+                        .toList())
+                .documentationRequestedByAnalyst(!caseRecord.getRequestedDocuments().isEmpty())
                 .build();
 
         MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
@@ -236,11 +246,15 @@ public class ClassificationServiceClient implements ClaimsAnalysisClient {
                 // The model's recommendation isn't copied: it is joined from llm_analysis on read.
                 // Only what the inbox filters on, or has no other table, is cached here.
                 resolved.setRulesClassification(response.resolvedByRules() ? response.classification() : null);
-                // Null when unscored; never coerced to a band.
-                resolved.setRiskScore(response.riskScore());
-                resolved.setRiskBand(response.riskBand());
+                // Null when unscored; never coerced to a band. Never lower than before: documents were
+                // asked for because the risk was high, and a new one doesn't make it low.
+                resolved.setRiskScore(higher(resolved.getRiskScore(), response.riskScore()));
+                resolved.setRiskBand(higher(resolved.getRiskBand(), response.riskBand()));
                 resolved.setForensicReport(response.forensicReport());
                 caseRepository.save(resolved);
+                if (response.classification() == Classification.FALTA_DOCUMENTACION) {
+                    analystNotificationService.notifyDocumentationToConfirm(resolved);
+                }
                 return true;
             }
         } catch (RestClientResponseException exception) {
@@ -262,11 +276,19 @@ public class ClassificationServiceClient implements ClaimsAnalysisClient {
         return response.analyzedAt().isBefore(caseStatusService.enteredCurrentStatusAt(caseRecord));
     }
 
-    /** Missing documentation is the insured's turn; every other result goes to the analyst. */
+    /**
+     * Every result goes to the analyst, missing documentation too: the analyst chooses what the insured
+     * is asked for, so asking for the whole schedule isn't the system's call.
+     */
     private CaseStatus statusFor(Classification classification) {
-        return classification == Classification.FALTA_DOCUMENTACION
-                ? CaseStatus.AWAITING_DOCUMENTATION
-                : CaseStatus.PENDING_ANALYST_REVIEW;
+        return CaseStatus.PENDING_ANALYST_REVIEW;
+    }
+
+    private static <T extends Comparable<T>> T higher(T previous, T current) {
+        if (previous == null || current == null) {
+            return current == null ? previous : current;
+        }
+        return previous.compareTo(current) >= 0 ? previous : current;
     }
 
     @Override

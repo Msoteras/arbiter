@@ -209,8 +209,6 @@ public class ClassificationRefreshScheduler {
     /** Same reset + retrigger as the analyst's manual retry-classification button, actor SYSTEM. */
     private void doRequeueAfterInfrastructureFailure(Case caseRecord, Optional<Coverage> verifiedCoverage) {
         verifiedCoverage.ifPresent(caseRecord::setCoverage);
-        caseRecord.setRiskScore(null);
-        caseRecord.setRiskBand(null);
         caseRecord.setRulesClassification(null);
         caseRecord.setClassificationAttempts(0);
         caseStatusService.transition(caseRecord, CaseStatus.PENDING_CLASSIFICATION,

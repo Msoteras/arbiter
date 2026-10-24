@@ -297,7 +297,8 @@ class ClassificationRefreshSchedulerTest {
         verify(caseStatusService).transition(eq(entity), eq(CaseStatus.PENDING_CLASSIFICATION),
                 eq(StatusChangeActor.SYSTEM), any());
         assertThat(entity.getClassificationAttempts()).isEqualTo(0);
-        assertThat(entity.getRiskScore()).isNull();
+        // The risk stays: a reclassification never lowers it.
+        assertThat(entity.getRiskScore()).isEqualTo(0.8);
         assertThat(entity.getRulesClassification()).isNull();
         verify(claimsAnalysisClient).analyzeAndPersistAsSystem(entity, List.of());
     }

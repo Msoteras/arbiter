@@ -23,6 +23,8 @@ const NOTIFICATION_TITLES: Record<string, string> = {
   VOIDED: 'Cerramos tu denuncia',
   // Not a CaseStatus: a reopening lands in PENDING_ANALYST_REVIEW, so the backend gives it its own type.
   REOPENED: 'Reabrimos tu siniestro',
+  // The only analyst-facing type with a title of its own: the case waits for them to choose.
+  DOCUMENTATION_TO_CONFIRM: 'Falta documentación por confirmar',
 };
 
 /** Shared by the insured portal and internal shells; the shell owns opening and closing it. */

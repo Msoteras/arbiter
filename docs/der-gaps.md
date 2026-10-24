@@ -58,7 +58,16 @@ editar en el `.mdj`. Salieron también las entradas de notas de texto (4, 12, 18
 
 ## Para editar en el `.mdj`
 
-Nada: el `.mdj` del 18/10 a las 11:56 coincide con el esquema, salvo lo que está en standby.
+### 40 · `expediente.documentos_pedidos` — columna nueva (23/10)
+
+Los documentos que el analista le pide al asegurado fuera de la agenda
+(`2026-10-23-documentos-pedidos-por-el-analista.sql`).
+
+| Columna | Tipo de dato | Nulo | Restricciones |
+|---|---|---|---|
+| `documentos_pedidos` (`requested_documents`) | JSONB | no | default `'[]'` |
+
+**Acción:** agregar la columna a `expediente`.
 
 ---
 

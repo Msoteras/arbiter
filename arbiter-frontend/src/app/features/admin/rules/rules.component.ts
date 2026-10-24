@@ -71,6 +71,7 @@ import { TableComponent } from '../../../shared/ui/table/table.component';
 import { TabOption, TabsComponent } from '../../../shared/ui/tabs/tabs.component';
 import { CheckboxComponent } from '../../../shared/ui/checkbox/checkbox.component';
 import { SelectComponent, SelectOption } from '../../../shared/ui/select/select.component';
+import { RiskBand } from '../../../core/models/risk-band';
 import { ToastService } from '../../../shared/ui/toast/toast.service';
 import { ONBOARDING_STEP_LINE, onboardingStepArea } from '../../../core/onboarding/onboarding';
 import { OnboardingService } from '../../../core/onboarding/onboarding.service';
@@ -263,7 +264,9 @@ export class RulesComponent {
   protected readonly covDirty = computed(() => this.sliceChanged('coverages'));
   protected readonly exclDirty = computed(() => this.sliceChanged('commonExclusions'));
   protected readonly ftDirty = computed(() => this.sliceChanged('fastTrack'));
-  protected readonly docDirty = computed(() => this.sliceChanged('requiredDocumentsByClaimCause'));
+  protected readonly docDirty = computed(() =>
+    this.sliceChanged('requiredDocumentsByClaimCause', 'documentBandsByClaimCause'),
+  );
   protected readonly rulesDirty = computed(() => this.sliceChanged('businessRules'));
 
   protected discardCoverages(): void {
@@ -282,7 +285,7 @@ export class RulesComponent {
   }
 
   protected discardDocuments(): void {
-    this.restoreSlice('requiredDocumentsByClaimCause');
+    this.restoreSlice('requiredDocumentsByClaimCause', 'documentBandsByClaimCause');
     this.docError.set(null);
   }
 
@@ -496,6 +499,7 @@ export class RulesComponent {
       coverageCount: 0,
       commonExclusions: [],
       requiredDocumentsByClaimCause: {},
+      documentBandsByClaimCause: {},
       businessRules: [],
       fastTrack: {
         enabled: true,
@@ -884,19 +888,27 @@ export class RulesComponent {
       return;
     }
     this.trackDetail(r.id, this.documentsService.get(branchId, claimCauseId)).subscribe({
-      next: (types) => {
+      next: (items) => {
+        const bands: Record<string, RiskBand> = {};
+        items.forEach(({ documentType, minRiskBand }) => {
+          if (minRiskBand) bands[documentType] = minRiskBand;
+        });
         this.draft.update((d) =>
           d
             ? {
                 ...d,
                 requiredDocumentsByClaimCause: {
                   ...d.requiredDocumentsByClaimCause,
-                  [claimCauseId]: types,
+                  [claimCauseId]: items.map((item) => item.documentType),
+                },
+                documentBandsByClaimCause: {
+                  ...d.documentBandsByClaimCause,
+                  [claimCauseId]: bands,
                 },
               }
             : d,
         );
-        this.markPersisted('requiredDocumentsByClaimCause');
+        this.markPersisted('requiredDocumentsByClaimCause', 'documentBandsByClaimCause');
       },
       error: () => {
         /* best-effort */
@@ -1837,13 +1849,16 @@ export class RulesComponent {
         this.documentsService.save(
           branchId,
           claimCauseId,
-          d.requiredDocumentsByClaimCause[claimCauseId] ?? [],
+          (d.requiredDocumentsByClaimCause[claimCauseId] ?? []).map((documentType) => ({
+            documentType,
+            minRiskBand: d.documentBandsByClaimCause[claimCauseId]?.[documentType] ?? null,
+          })),
         ),
       ),
     ).subscribe({
       next: () => {
         this.docSaving.set(false);
-        this.markPersisted('requiredDocumentsByClaimCause');
+        this.markPersisted('requiredDocumentsByClaimCause', 'documentBandsByClaimCause');
         changed.forEach((claimCauseId) => this.loadDocumentsFromBackend(d, claimCauseId));
       },
       error: (e: unknown) => {
@@ -1863,10 +1878,48 @@ export class RulesComponent {
         return d;
       }
       const current = d.requiredDocumentsByClaimCause[claimCauseId] ?? [];
-      const next = current.includes(code) ? current.filter((c) => c !== code) : [...current, code];
+      const removing = current.includes(code);
+      const next = removing ? current.filter((c) => c !== code) : [...current, code];
+      // A document taken out of the schedule loses its band: added back, it starts as "always".
+      const bands = { ...(d.documentBandsByClaimCause[claimCauseId] ?? {}) };
+      if (removing) delete bands[code];
       return {
         ...d,
         requiredDocumentsByClaimCause: { ...d.requiredDocumentsByClaimCause, [claimCauseId]: next },
+        documentBandsByClaimCause: { ...d.documentBandsByClaimCause, [claimCauseId]: bands },
+      };
+    });
+  }
+
+  /**
+   * LOW is left out: from Bajo up is every scored case, which reads the same as "always". The band
+   * alone, without "Desde": the columns are narrow, and the card's tip says it is a lower bound.
+   */
+  protected readonly documentBandOptions: SelectOption[] = [
+    { value: '', label: 'Siempre' },
+    { value: 'MEDIUM', label: 'Medio' },
+    { value: 'HIGH', label: 'Alto' },
+    { value: 'CRITICAL', label: 'Crítico' },
+  ];
+
+  protected docBandFor(claimCauseId: number, code: string): string {
+    return this.draft()?.documentBandsByClaimCause[claimCauseId]?.[code] ?? '';
+  }
+
+  protected setDocBand(claimCauseId: number, code: string, value: string): void {
+    this.draft.update((d) => {
+      if (!d) {
+        return d;
+      }
+      const bands = { ...(d.documentBandsByClaimCause[claimCauseId] ?? {}) };
+      if (value) {
+        bands[code] = value as RiskBand;
+      } else {
+        delete bands[code];
+      }
+      return {
+        ...d,
+        documentBandsByClaimCause: { ...d.documentBandsByClaimCause, [claimCauseId]: bands },
       };
     });
   }
@@ -1883,9 +1936,15 @@ export class RulesComponent {
   private changedClaimCauses(): number[] {
     const current = this.draft()?.requiredDocumentsByClaimCause ?? {};
     const base = this.persisted()?.requiredDocumentsByClaimCause ?? {};
+    const currentBands = this.draft()?.documentBandsByClaimCause ?? {};
+    const baseBands = this.persisted()?.documentBandsByClaimCause ?? {};
     return this.claimCauses()
       .map((c) => c.id)
-      .filter((id) => JSON.stringify(current[id] ?? []) !== JSON.stringify(base[id] ?? []));
+      .filter(
+        (id) =>
+          JSON.stringify(current[id] ?? []) !== JSON.stringify(base[id] ?? []) ||
+          JSON.stringify(currentBands[id] ?? {}) !== JSON.stringify(baseBands[id] ?? {}),
+      );
   }
 
   protected saveBusinessRules(): void {

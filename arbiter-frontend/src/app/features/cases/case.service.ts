@@ -6,7 +6,12 @@ import { environment } from '../../../environments/environment';
 import { CacheReadOptions, QueryCache, paramsKey } from '../../core/cache/query-cache';
 import { InsuredStatus, InsuredStatusCode } from '../../core/models/insured-status';
 import { CaseResponse } from '../../core/models/case';
-import { CaseDocument } from '../../core/models/case-document';
+import {
+  CaseDocument,
+  DocumentRequestItem,
+  PendingDocument,
+  RequestableDocument,
+} from '../../core/models/case-document';
 import { Policy } from '../../core/models/policy';
 import {
   Derivation,
@@ -190,7 +195,8 @@ export interface CaseListParams {
     | 'PROVIDER_REPORT_RECEIVED'
     | 'RETURNED_BY_REFERENT'
     | 'AWAITING_REFERENT'
-    | 'AWAITING_ANALYST';
+    | 'AWAITING_ANALYST'
+    | 'DOCUMENTATION_TO_CONFIRM';
   /** Backend default: `ALL`. */
   scope?: 'OPEN' | 'CLOSED' | 'ALL';
   /** Only for an insured with policies at more than one insurer. */
@@ -385,6 +391,29 @@ export class CaseService {
   listDocuments(caseId: number, insurer?: string | null): Observable<CaseDocument[]> {
     const options = insurer ? { params: new HttpParams().set('insurer', insurer) } : {};
     return this.http.get<CaseDocument[]>(`${this.baseUrl}/${caseId}/documents`, options);
+  }
+
+  /**
+   * What the insured still has to upload: the analyst's open request, or else what is missing from
+   * the schedule. 503 if the schedule can't be read.
+   */
+  pendingDocuments(caseId: number, insurer?: string | null): Observable<PendingDocument[]> {
+    const options = insurer ? { params: new HttpParams().set('insurer', insurer) } : {};
+    return this.http.get<PendingDocument[]>(`${this.baseUrl}/${caseId}/pending-documents`, options);
+  }
+
+  /** The branch's documents not uploaded and not already asked for. */
+  requestableDocuments(caseId: number): Observable<RequestableDocument[]> {
+    return this.http.get<RequestableDocument[]>(
+      `${this.baseUrl}/${caseId}/document-requests/options`,
+    );
+  }
+
+  /** Only the assigned analyst, from PENDING_ANALYST_REVIEW. Moves the case to AWAITING_DOCUMENTATION. */
+  requestDocuments(caseId: number, documents: DocumentRequestItem[]): Observable<CaseResponse> {
+    return this.http.post<CaseResponse>(`${this.baseUrl}/${caseId}/document-requests`, {
+      documents,
+    });
   }
 
   /** Through HttpClient, not an <a href>: the endpoint needs the JWT the interceptor adds. */

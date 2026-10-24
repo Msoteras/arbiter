@@ -59,8 +59,9 @@ public class CaseStatusService {
             Map.entry(PENDING_CLASSIFICATION, Set.of(PENDING_ANALYST_REVIEW, AWAITING_DOCUMENTATION,
                     CLASSIFICATION_FAILED)),
             Map.entry(AWAITING_DOCUMENTATION, Set.of(PENDING_CLASSIFICATION, LAPSED, WITHDRAWN, VOIDED)),
+            // AWAITING_DOCUMENTATION: the analyst asks the insured for documents outside the schedule.
             Map.entry(PENDING_ANALYST_REVIEW, Set.of(APPROVED, REJECTED, PRESCRIBED, PENDING_CLASSIFICATION,
-                    PENDING_EXPERT_REPORT, PENDING_REPAIR, WITHDRAWN, VOIDED)),
+                    AWAITING_DOCUMENTATION, PENDING_EXPERT_REPORT, PENDING_REPAIR, WITHDRAWN, VOIDED)),
             Map.entry(CLASSIFICATION_FAILED, Set.of(PENDING_CLASSIFICATION, WITHDRAWN, VOIDED)),
             // Back to the analyst only: a referred case can't be decided without its report.
             Map.entry(PENDING_EXPERT_REPORT, Set.of(PENDING_ANALYST_REVIEW)),

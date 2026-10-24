@@ -69,11 +69,7 @@
               Cumplió los criterios objetivos de Fast Track.
               <app-info-tip>
                 Fast Track es la vía express para un siniestro que cumple ciertos criterios
-                objetivos. No es una recomendación de aprobar: la decisión sigue siendo del
-                analista.
-                @if (fastTrackCriteria().length > 0) {
-                  Qué se verificó está en «Evaluación de reglas».
-                }
+                objetivos.
               </app-info-tip>
             </p>
           }
@@ -220,25 +216,28 @@
                 </div>
                 @if (canDecide()) {
                   <div class="decision-side">
-                    <app-button
-                      variant="secondary"
-                      tone="ok"
-                      [block]="true"
-                      [disabled]="decisionSaving()"
-                      (click)="askDecision('approve')"
-                      >✓ Aprobar</app-button
-                    >
-                    <app-button
-                      variant="secondary"
-                      tone="danger"
-                      [block]="true"
-                      [disabled]="decisionSaving()"
-                      (click)="askDecision('reject')"
-                      >✕ Rechazar</app-button
-                    >
+                    <!-- Missing documentation: nothing to decide on until the analyst asks for it. -->
+                    @if (!needsDocs()) {
+                      <app-button
+                        variant="secondary"
+                        tone="ok"
+                        [block]="true"
+                        [disabled]="decisionSaving()"
+                        (click)="askDecision('approve')"
+                        >✓ Aprobar</app-button
+                      >
+                      <app-button
+                        variant="secondary"
+                        tone="danger"
+                        [block]="true"
+                        [disabled]="decisionSaving()"
+                        (click)="askDecision('reject')"
+                        >✕ Rechazar</app-button
+                      >
+                    }
                     <!-- Referral is not a third decision (it suspends to gather evidence), hence
                          no tone. Always a menu: the full target name doesn't fit this column. -->
-                    @if (derivationChoices().length > 0) {
+                    @if (derivationChoices().length > 0 && !needsDocs()) {
                       <app-menu-button
                         [block]="true"
                         [items]="deriveMenuItems()"
@@ -246,6 +245,17 @@
                         align="end"
                         (itemSelected)="onDeriveMenu($event)"
                         >Derivar a…</app-menu-button
+                      >
+                    }
+                    <!-- Suspends the case until the insured uploads, like a referral: no tone.
+                         Never on Fast Track: what it has is enough to decide. -->
+                    @if (!isFastTrack()) {
+                      <app-button
+                        [variant]="needsDocs() ? 'primary' : 'secondary'"
+                        [block]="true"
+                        [disabled]="decisionSaving()"
+                        (click)="showDocumentRequest.set(true)"
+                        >Pedir documentación</app-button
                       >
                     }
                     <!-- Not a verdict, hence no tone and last in the column. -->
@@ -271,14 +281,17 @@
                   </app-button>
                 }
               </div>
+              @if (needsDocs() && canDecide()) {
+                <p class="rcard-note">Falta documentación. Elegí qué le pedís al asegurado.</p>
+              }
               <!-- Why a referral isn't offered: a fact about this claim, not an alert, so the
                    reason waits behind the tip. -->
-              @if (canDerive() && notDerivableReason(); as blockReason) {
+              @if (canDerive() && !needsDocs() && notDerivableReason(); as blockReason) {
                 <p class="rcard-note">
                   Peritaje no disponible <app-info-tip>{{ blockReason }}</app-info-tip>
                 </p>
               }
-              @if (noRepairShopReason(); as blockReason) {
+              @if (!needsDocs() && noRepairShopReason(); as blockReason) {
                 <p class="rcard-note">
                   Servicio técnico no disponible <app-info-tip>{{ blockReason }}</app-info-tip>
                 </p>
@@ -322,7 +335,7 @@
                   <p class="rcard-note error">{{ retryError() }}</p>
                 }
               }
-            } @else if (needsDocs()) {
+            } @else if (awaitingInsuredDocs()) {
               <p class="registered">Esperando al asegurado</p>
               <p class="rcard-note">
                 Cuando cargue la documentación faltante, el expediente se reclasifica y pasa a tu
@@ -1367,6 +1380,15 @@
     </app-button>
   </ng-container>
 </app-modal>
+
+@if (data(); as d) {
+  <app-document-request-modal
+    [open]="showDocumentRequest()"
+    [caseId]="d.id"
+    (closed)="showDocumentRequest.set(false)"
+    (requested)="onDocumentsRequested()"
+  />
+}
 
 <!-- The reason is mandatory: it is the audit trail for why a closed case was reopened. -->
 <app-modal [open]="showReopen()" heading="¿Reabrir el expediente?" (close)="cancelReopen()">
