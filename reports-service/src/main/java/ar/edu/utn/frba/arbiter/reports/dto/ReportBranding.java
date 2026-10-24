@@ -5,7 +5,12 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 
-public record ReportBranding(String insurerName, String insurerLegalName) {
+/** {@code logo} is the insurer's uploaded image (PNG or JPG), null without one. */
+public record ReportBranding(String insurerName, String insurerLegalName, byte[] logo) {
+
+    public ReportBranding(String insurerName, String insurerLegalName) {
+        this(insurerName, insurerLegalName, null);
+    }
 
     public static final ReportBranding UNKNOWN = new ReportBranding("Aseguradora", "Aseguradora");
 
