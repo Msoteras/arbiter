@@ -1,10 +1,13 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  DestroyRef,
   ElementRef,
+  afterRenderEffect,
   inject,
   input,
   model,
+  viewChild,
 } from '@angular/core';
 
 export interface TabOption {
@@ -39,6 +42,7 @@ const STATUS_LABELS: Record<NonNullable<TabOption['status']>, string> = {
   template: `
     <div class="strip" [class.is-scrollable]="scrollable()">
       <div class="tablist" role="tablist" [attr.aria-label]="ariaLabel()">
+        <span class="ink" #ink aria-hidden="true"></span>
         @for (tab of tabs(); track tab.id) {
           <button
             type="button"
@@ -77,9 +81,39 @@ const STATUS_LABELS: Record<NonNullable<TabOption['status']>, string> = {
     }
     @include tab-strip.styles;
     .tablist {
+      position: relative;
       display: flex;
       flex-wrap: inherit;
       gap: var(--space-1);
+    }
+    /* One underline that slides to the selected tab instead of jumping between tabs. Placed from
+       code; until then (and if the tab wraps to another row) each tab keeps its own border. */
+    .ink {
+      position: absolute;
+      left: 0;
+      bottom: -1px;
+      height: 2px;
+      width: 0;
+      border-radius: var(--radius-pill);
+      background: var(--accent-fill);
+      opacity: 0;
+      pointer-events: none;
+    }
+    .ink.placed {
+      opacity: 1;
+    }
+    .ink.animated {
+      transition:
+        transform var(--dur-3) var(--ease-out),
+        width var(--dur-3) var(--ease-out);
+    }
+    .tablist.has-ink .tab.active {
+      border-bottom-color: transparent;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .ink.animated {
+        transition: none;
+      }
     }
   `,
 })
@@ -93,6 +127,44 @@ export class TabsComponent {
   readonly scrollable = input(false);
 
   protected readonly statusLabels = STATUS_LABELS;
+
+  private readonly ink = viewChild.required<ElementRef<HTMLElement>>('ink');
+
+  constructor() {
+    // Re-placed on every selection and whenever the strip changes size (fonts, wrapping, counts).
+    const observer = new ResizeObserver(() => this.placeInk());
+    inject(DestroyRef).onDestroy(() => observer.disconnect());
+    let observing = false;
+    afterRenderEffect(() => {
+      this.value();
+      this.tabs();
+      if (!observing) {
+        observer.observe(this.host.nativeElement);
+        observing = true;
+      }
+      this.placeInk();
+    });
+  }
+
+  private placeInk(): void {
+    const ink = this.ink().nativeElement;
+    const list = ink.parentElement as HTMLElement;
+    const active = list.querySelector<HTMLElement>('.tab.active');
+    // A tab on a second row would put the line under the first: let its own border show instead.
+    if (!active || active.offsetTop !== (list.querySelector<HTMLElement>('.tab')?.offsetTop ?? 0)) {
+      ink.classList.remove('placed');
+      list.classList.remove('has-ink');
+      return;
+    }
+    ink.style.width = `${active.offsetWidth}px`;
+    ink.style.transform = `translateX(${active.offsetLeft}px)`;
+    if (!ink.classList.contains('placed')) {
+      ink.classList.add('placed');
+      list.classList.add('has-ink');
+      // The first placement lands in place; only later moves slide.
+      requestAnimationFrame(() => ink.classList.add('animated'));
+    }
+  }
 
   protected onKeydown(event: KeyboardEvent): void {
     const tabs = this.tabs();

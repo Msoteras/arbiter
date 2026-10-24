@@ -4,7 +4,10 @@ import { AsyncSubject, Observable } from 'rxjs';
 
 import { AuthSessionService } from '../auth/auth-session.service';
 
-/** Marks a request nobody is waiting for (a prefetch): retried like any other, without the toast. */
+/**
+ * Marks a request nobody is waiting for (a prefetch, a poll): retried like any other, without the
+ * toast and without the activity bar.
+ */
 export const SILENT_RETRY = new HttpContextToken<boolean>(() => false);
 
 /** Builds the request; the cache passes the context, which a prefetch marks with SILENT_RETRY. */
@@ -67,7 +70,9 @@ export class QueryCache {
         this.markSeen(key);
         subscriber.next(shown as T);
       }
-      const subscription = this.refresh(entry, new HttpContext()).subscribe({
+      // With a value already on screen the refresh is background work: no activity bar, no toast.
+      const context = hadValue ? silentRequest() : new HttpContext();
+      const subscription = this.refresh(entry, context).subscribe({
         next: (fresh) => {
           if (!hadValue) {
             subscriber.next(fresh as T);
@@ -96,7 +101,7 @@ export class QueryCache {
     if (entry.has || entry.inflight) {
       return;
     }
-    this.refresh(entry, silent()).subscribe({ error: () => undefined });
+    this.refresh(entry, silentRequest()).subscribe({ error: () => undefined });
   }
 
   peek<T>(key: string): T | undefined {
@@ -122,7 +127,7 @@ export class QueryCache {
       this.entries.set(key, fresh);
       this.markSeen(key);
       if (Date.now() - entry.lastRead < WARM_WINDOW_MS) {
-        this.refresh(fresh, silent()).subscribe({ error: () => undefined });
+        this.refresh(fresh, silentRequest()).subscribe({ error: () => undefined });
       }
     }
   }
@@ -187,7 +192,7 @@ export class QueryCache {
   }
 }
 
-function silent(): HttpContext {
+export function silentRequest(): HttpContext {
   return new HttpContext().set(SILENT_RETRY, true);
 }
 

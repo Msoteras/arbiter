@@ -39,6 +39,18 @@
       max-height: none;
     }
   }
+  // The columns clip (the main one hides, the side one scrolls), and that cut the cards' shadow at
+  // their edges. Padding gives the shadow room inside the clip; the negative margin gives the
+  // layout its space back.
+  .home.fit .col {
+    padding: var(--space-1) var(--space-4) var(--space-5);
+    margin: calc(var(--space-1) * -1) calc(var(--space-4) * -1) calc(var(--space-5) * -1);
+
+    @include media.phone {
+      padding: 0;
+      margin: 0;
+    }
+  }
   .home.fit .col-main {
     overflow: hidden;
 
@@ -82,20 +94,61 @@
 }
 
 @mixin hero {
+  // The brand gradient drifts and a soft light crosses it: slow enough to read as ambient, never
+  // as something to look at.
   .hero {
     position: relative;
     overflow: hidden;
+    isolation: isolate;
     display: flex;
     flex-direction: column;
     gap: var(--space-3);
     padding: var(--space-4) var(--space-6);
     border-radius: var(--radius-card);
     background: var(--brand-panel-bg);
+    background-size: 220% 220%;
     color: var(--brand-panel-fg);
     box-shadow: var(--shadow-card);
+    animation: hero-drift 22s ease-in-out infinite alternate;
 
     @include media.phone {
       padding: var(--space-4);
+    }
+  }
+  .hero::before {
+    content: '';
+    position: absolute;
+    z-index: -1;
+    inset: -40% auto -40% -30%;
+    width: 60%;
+    background: radial-gradient(
+      closest-side,
+      color-mix(in srgb, var(--brand-panel-fg) 16%, transparent),
+      transparent
+    );
+    animation: hero-glow 16s ease-in-out infinite alternate;
+    pointer-events: none;
+  }
+  @keyframes hero-drift {
+    from {
+      background-position: 0% 0%;
+    }
+    to {
+      background-position: 100% 100%;
+    }
+  }
+  @keyframes hero-glow {
+    from {
+      transform: translateX(0);
+    }
+    to {
+      transform: translateX(200%);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .hero,
+    .hero::before {
+      animation: none;
     }
   }
   .hero-head {

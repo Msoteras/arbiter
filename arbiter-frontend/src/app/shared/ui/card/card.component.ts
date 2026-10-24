@@ -7,7 +7,8 @@ type Variant = 'default' | 'soft' | 'ai';
  * destroyed, so whatever the user opened inside stays open when expanded again. An element marked
  * `cardAside` (e.g. a badge) goes at the right end of the heading; not on collapsible cards.
  * `headingSize="lg"` is for a card that is the whole panel, where the heading acts as its title;
- * `md` for the same card when the page already shows a title above it.
+ * `md` for the same card when the page already shows a title above it. An `app-info-tip` marked
+ * `cardTip` goes right after the heading: help about the card belongs to its title, not to its actions.
  */
 @Component({
   selector: 'app-card',
@@ -49,6 +50,7 @@ type Variant = 'default' | 'soft' | 'ai';
             >
               {{ heading() }}
             </h2>
+            <ng-content select="[cardTip]" />
             <span class="card-aside"><ng-content select="[cardAside]" /></span>
           </div>
         }
@@ -71,6 +73,23 @@ type Variant = 'default' | 'soft' | 'ai';
       /* min-height, not height: fills a stretched grid/flex cell but never shrinks below its
          content (height:100% does inside an auto-height flex column). */
       min-height: 100%;
+    }
+    /* On hover the shadow grows and the border firms up. Shadow and border only, no transform: a
+       transformed card would become the containing block of the fixed panels inside it (info
+       tips, selects). */
+    .card {
+      transition:
+        box-shadow var(--dur-2) var(--ease-standard),
+        border-color var(--dur-2) var(--ease-standard);
+    }
+    .card:not(.bare):hover {
+      border-color: var(--border-control);
+      box-shadow: var(--shadow-card-hover);
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .card {
+        transition: none;
+      }
     }
     .card.soft {
       background: var(--surface-soft);

@@ -4,37 +4,6 @@
   display: block;
 }
 
-/* ===== Sticky header ===== */
-.det-header {
-  position: sticky;
-  top: var(--appbar-h);
-  background: var(--surface);
-  border-bottom: 1px solid var(--border-default);
-  padding: var(--space-4) var(--space-6);
-  z-index: 10;
-}
-.det-header-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-4);
-  flex-wrap: wrap;
-}
-.identity {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  flex-wrap: wrap;
-}
-.identity h1 {
-  margin: 0;
-}
-.subtitle {
-  margin: var(--space-2) 0 0;
-  font-size: var(--font-size-body);
-  color: var(--text-muted);
-}
-
 .case-nav {
   display: flex;
   gap: var(--space-2);
@@ -63,13 +32,6 @@
   font-size: var(--font-size-body);
 }
 
-/* ===== Reasoning cards ===== */
-.reasoning {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: var(--space-3);
-  margin: 0 0 var(--space-4);
-}
 /* Fraud record: color only on the border and badge dot; saturating it would read as a verdict on a person. */
 
 .fraud-item + .fraud-item {
@@ -186,30 +148,6 @@
   color: var(--text-secondary);
   overflow-wrap: anywhere;
 }
-.brief,
-.brief-alerts {
-  margin: 0;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-1) var(--space-3);
-  font-size: var(--font-size-sm);
-  color: var(--text-secondary);
-}
-.brief strong {
-  color: var(--text-primary);
-}
-/* A badge never wraps: clipped at the column edge so a long one can't run under the buttons. */
-.brief app-badge {
-  display: block;
-  max-width: 100%;
-  overflow: hidden;
-  /* Pulled left so the pill sits closer to the text edge of the lines above it. */
-  margin-left: calc(-1 * var(--space-2));
-}
-.brief-alerts {
-  margin-top: var(--space-1);
-}
 .brief-link {
   padding: 0;
   border: 0;
@@ -222,61 +160,10 @@
   text-underline-offset: 0.2em;
   white-space: nowrap;
 }
-.brief-link span {
-  color: var(--text-secondary);
-  font-size: var(--font-size-2xs);
-}
-.brief-link span.is-danger {
-  color: var(--status-danger);
-}
 .brief-link:focus-visible {
   outline: none;
   box-shadow: var(--focus-ring);
   border-radius: var(--radius-ctl);
-}
-
-.decision-row {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-3);
-}
-.decision-info {
-  flex: 1;
-  min-width: 0;
-}
-/* Fixed width: the two button labels differ in length and looked uneven at content width. */
-.decision-side {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  flex-shrink: 0;
-  width: 10rem;
-  /* Centered against the whole card, title included: the negative margin is the title's height,
-     so centering the margin box in the row lifts the buttons by half of it. */
-  align-self: center;
-  margin-top: calc(-1 * (var(--font-size-xs) * 1.5 + var(--space-3)));
-}
-/* Measured against the card, not the viewport: between the 3-column breakpoint and a wide screen
-   the card is too narrow for the buttons beside the brief, which then wrapped word by word. */
-.rcard {
-  container-type: inline-size;
-}
-@container (max-width: 22rem) {
-  .decision-row {
-    flex-direction: column;
-    align-items: stretch;
-  }
-  .decision-side {
-    width: auto;
-    flex-direction: row;
-    /* The referral button drops to its own line instead of squeezing the two decisions. */
-    flex-wrap: wrap;
-    align-self: stretch;
-    margin-top: var(--space-3);
-  }
-  .decision-side > * {
-    flex: 1;
-  }
 }
 
 .decision-btns {
@@ -297,28 +184,86 @@
   display: block;
   margin-top: var(--space-4);
 }
-.assessment {
-  display: grid;
-  gap: var(--space-1);
-  margin: 0 0 var(--space-3);
-}
-.assessment dt {
-  margin-top: var(--space-2);
-}
-.assessment dt:first-child {
-  margin-top: 0;
-}
-.assessment dd {
-  margin: 0;
-  font-size: var(--font-size-body);
-  color: var(--text-primary);
-}
-
-.assessment-verdict {
+.provider-head {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
-  margin-bottom: var(--space-2);
+  gap: var(--space-3);
+  padding-bottom: var(--space-4);
+  border-bottom: 1px solid var(--border-subtle);
+}
+.provider-avatar {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: var(--space-7);
+  height: var(--space-7);
+  border-radius: var(--radius-card);
+  background: var(--surface-sunken);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-secondary);
+}
+.provider-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.provider-name {
+  margin: 0;
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-primary);
+}
+/* Derivation → result: a dot per step on a rail, teal once it happened. */
+.referral-steps {
+  display: flex;
+  flex-direction: column;
+  margin: var(--space-4) 0 0;
+  padding: 0;
+  list-style: none;
+}
+.referral-step {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  padding: 0 0 var(--space-5) var(--space-6);
+}
+.referral-step:last-child {
+  padding-bottom: 0;
+}
+.referral-step::before {
+  content: '';
+  position: absolute;
+  left: var(--space-1);
+  top: var(--space-1);
+  width: var(--space-3);
+  height: var(--space-3);
+  border-radius: var(--radius-pill);
+  border: 2px solid var(--border-strong);
+  background: var(--surface);
+}
+.referral-step.done::before {
+  border-color: var(--accent-fill-border);
+  background: var(--accent-fill);
+}
+.referral-step:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  left: calc(var(--space-1) + var(--space-3) / 2 - 1px);
+  top: calc(var(--space-1) + var(--space-3) + var(--space-1));
+  bottom: var(--space-1);
+  border-left: 2px solid var(--border-default);
+}
+.referral-step p {
+  margin: 0;
+}
+.step-title {
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-primary);
 }
 
 /* Native input hidden so the visible control is an app-button (the kit has no file picker). */
@@ -336,52 +281,6 @@
 }
 
 /* ===== Conversation preview ===== */
-.chat-preview {
-  display: flex;
-  gap: var(--space-3);
-  margin-bottom: var(--space-3);
-}
-.chat-preview-avatar {
-  flex-shrink: 0;
-  width: 34px;
-  height: 34px;
-  border-radius: var(--radius-pill);
-  background: var(--selected-bg);
-  color: var(--accent-fg);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: var(--font-size-2xs);
-  font-weight: var(--font-weight-medium);
-}
-.chat-preview-text {
-  flex: 1;
-  min-width: 0;
-}
-.chat-preview-head {
-  display: flex;
-  justify-content: space-between;
-  gap: var(--space-2);
-  margin: 0 0 var(--space-1);
-}
-.chat-preview-head .who {
-  font-weight: var(--font-weight-medium);
-  color: var(--text-primary);
-}
-.chat-preview-head .at {
-  font-size: var(--font-size-xs);
-  color: var(--text-muted);
-}
-.chat-preview-text .body {
-  margin: 0;
-  color: var(--text-secondary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-}
-
 /* ===== Assignment ===== */
 .assignee {
   display: flex;
@@ -441,11 +340,49 @@
   max-width: 760px;
 }
 
-.detail-loading {
-  min-height: 70vh;
+/* Loading frame: each bone sized like the text or control it stands for. */
+.sk-identity {
+  width: min(100%, 28rem);
+}
+.sk-title {
+  width: 60%;
+  --skeleton-line-h: var(--font-size-2xl);
+}
+.sk-sub {
+  width: 80%;
+}
+.sk-chip {
+  width: calc(var(--space-7) * 2);
+  --skeleton-line-h: var(--space-6);
+  --skeleton-radius: var(--radius-pill);
+}
+.sk-note {
+  margin-bottom: var(--space-3);
+}
+.sk-label {
+  width: 40%;
+}
+.sk-figure {
+  width: 70%;
+  height: var(--space-7);
+  --skeleton-radius: var(--radius-ctl);
+}
+.sk-action {
+  height: var(--touch-target);
+  --skeleton-radius: var(--radius-ctl);
+}
+.sk-tabs {
   display: flex;
-  align-items: center;
-  justify-content: center;
+  gap: var(--space-5);
+  margin-bottom: var(--space-5);
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--border-default);
+}
+.sk-tab {
+  width: calc(var(--space-7) * 2);
+}
+.sk-tile {
+  height: calc(var(--space-7) * 2);
 }
 
 .note {

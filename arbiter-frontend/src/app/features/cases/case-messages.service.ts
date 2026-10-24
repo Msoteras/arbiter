@@ -1,4 +1,4 @@
-import { HttpClient, HttpParams } from '@angular/common/http';
+import { HttpClient, HttpContext, HttpParams } from '@angular/common/http';
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { Observable, tap } from 'rxjs';
 
@@ -27,9 +27,9 @@ export class CaseMessagesService {
   );
 
   /** Also feeds `inboxItems`/`unreadChats`, which the nav badges and summary cards read. */
-  inbox(): Observable<CaseMessageInboxItem[]> {
+  inbox(context?: HttpContext): Observable<CaseMessageInboxItem[]> {
     return this.http
-      .get<CaseMessageInboxItem[]>(`${this.base}/messages/inbox`)
+      .get<CaseMessageInboxItem[]>(`${this.base}/messages/inbox`, { context })
       .pipe(tap((items) => this._inbox.set(items)));
   }
 

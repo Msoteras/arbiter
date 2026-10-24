@@ -44,7 +44,7 @@ import { OnboardingTargetDirective } from '../../../core/onboarding/onboarding-t
         @fadeInUp
         appOnboardingTarget="TARGET"
       >
-        <app-info-tip cardAside>{{ stepLine.TARGET }}</app-info-tip>
+        <app-info-tip cardTip>{{ stepLine.TARGET }}</app-info-tip>
         <label class="row">
           <app-switch [(checked)]="enabled" ariaLabel="Fijar un objetivo de resolución" />
           <span class="row-text">

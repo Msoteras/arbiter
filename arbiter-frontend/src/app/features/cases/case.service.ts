@@ -271,9 +271,13 @@ export class CaseService {
    * `insurer` is sent only by the insured portal when the insured has several insurers: case ids
    * repeat across tenants. The backend validates it against the token.
    */
-  getById(id: string | number, insurer?: string | null): Observable<CaseResponse> {
-    const options = insurer ? { params: new HttpParams().set('insurer', insurer) } : {};
-    return this.http.get<CaseResponse>(`${this.baseUrl}/${id}`, options);
+  getById(
+    id: string | number,
+    insurer?: string | null,
+    context?: HttpContext,
+  ): Observable<CaseResponse> {
+    const params = insurer ? new HttpParams().set('insurer', insurer) : undefined;
+    return this.http.get<CaseResponse>(`${this.baseUrl}/${id}`, { params, context });
   }
 
   /** Not cached: searches and exports. The screens use `cachedList`. */

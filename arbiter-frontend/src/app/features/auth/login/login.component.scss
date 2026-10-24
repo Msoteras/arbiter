@@ -25,6 +25,68 @@
   opacity: 0.8;
   pointer-events: none;
   user-select: none;
+  transform-origin: 60% 100%;
+  animation: mtn-drift 48s ease-in-out infinite alternate;
+}
+
+/* Slow push-in on the range, anchored at the base so the bottom edge never shows. */
+@keyframes mtn-drift {
+  from {
+    transform: scale(1) translateX(0);
+  }
+  to {
+    transform: scale(1.06) translateX(-1.5%);
+  }
+}
+
+/* Two banks of cloud drifting across the peaks, over the image and under the form. Same box as the
+   image (2000 × 870), so the bands sit at the same height whatever the width. */
+.mist {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  aspect-ratio: 2000 / 870;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+.mist::before,
+.mist::after {
+  content: '';
+  position: absolute;
+  left: -50%;
+  width: 200%;
+  background: radial-gradient(
+      closest-side,
+      color-mix(in srgb, var(--surface) 70%, transparent),
+      transparent
+    )
+    0 0 / 30% 100% repeat-x;
+}
+.mist::before {
+  top: 34%;
+  height: 22%;
+  animation: mist-drift 70s linear infinite;
+}
+.mist::after {
+  top: 52%;
+  height: 16%;
+  opacity: 0.7;
+  animation: mist-drift 110s linear infinite reverse;
+}
+@keyframes mist-drift {
+  to {
+    transform: translateX(30%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mtn,
+  .mist::before,
+  .mist::after {
+    animation: none;
+  }
 }
 
 .stack {
@@ -124,7 +186,8 @@
 }
 
 @media (max-height: 640px) {
-  .mtn {
+  .mtn,
+  .mist {
     display: none;
   }
   .login-page {

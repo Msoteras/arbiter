@@ -242,3 +242,14 @@ app-card {
     overflow-y: visible;
   }
 }
+
+/* Loading thread: bubbles of fixed share, so the bone widths have something to be a share of. */
+.skeleton-thread .msg {
+  width: 80%;
+}
+.bubble-bone {
+  height: calc(var(--space-6) + var(--space-1));
+}
+.bubble-bone.tall {
+  height: calc(var(--space-7) + var(--space-5));
+}

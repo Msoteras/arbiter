@@ -7,34 +7,69 @@
   color: var(--text-muted);
 }
 
-/* The gauge needs a minimum width for its 4 segments to stay distinguishable. */
-.gauge-cell {
-  min-width: calc(var(--space-7) * 3);
-}
-
 .order-note {
   margin: 0 0 var(--space-3);
   color: var(--text-muted);
 }
 
-/* The only cell allowed to wrap. */
-.signals-cell {
+/* The short columns get what they need; Señales and Estado a share of the width; Asegurado and Tipo
+   split the rest. The gauge needs its width for the 4 segments to stay distinguishable. */
+.col-id {
+  width: calc(var(--space-7) * 1.8);
+}
+.col-date {
+  width: calc(var(--space-7) * 2.6);
+}
+.col-gauge {
+  width: calc(var(--space-7) * 3.8);
+}
+.col-signals {
+  width: 24%;
+}
+.col-status {
+  width: 15%;
+}
+
+td {
+  vertical-align: top;
+}
+/* Every cell may wrap; long words break instead of spilling into the next column. :host lifts the
+   specificity over app-table's own `td { white-space: nowrap }`, which otherwise ties and wins by
+   loading later. */
+:host td.wrap,
+:host td:last-child {
   white-space: normal;
-}
-.signals {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  max-width: calc(var(--space-7) * 7);
-}
-/* Own line under the badges, wrapping inside the column. */
-.signal-note {
-  flex-basis: 100%;
-  font-size: var(--font-size-xs);
-  color: var(--text-secondary);
   overflow-wrap: anywhere;
 }
-.signals + app-badge {
+.primary {
+  font-weight: var(--font-weight-medium);
+}
+
+.signals {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+.signals li {
+  position: relative;
+  padding-left: var(--space-3);
+}
+.signals li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.6em;
+  width: var(--space-1);
+  height: var(--space-1);
+  border-radius: var(--radius-pill);
+  background: var(--status-risk);
+}
+.determined {
   display: inline-block;
   margin-top: var(--space-2);
 }

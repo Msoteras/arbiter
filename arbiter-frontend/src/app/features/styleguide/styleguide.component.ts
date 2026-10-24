@@ -25,6 +25,8 @@ import { StatusTimelineComponent } from '../../shared/ui/status-timeline/status-
 import { MenuButtonComponent, MenuItem } from '../../shared/ui/menu-button/menu-button.component';
 import { SpinnerComponent } from '../../shared/ui/spinner/spinner.component';
 import { InlineLoadingComponent } from '../../shared/ui/inline-loading/inline-loading.component';
+import { SkeletonComponent } from '../../shared/ui/skeleton/skeleton.component';
+import { ActivityBarComponent } from '../../shared/ui/activity-bar/activity-bar.component';
 import { SaveBarComponent } from '../../shared/ui/save-bar/save-bar.component';
 import { ChipGroupComponent, ChipOption } from '../../shared/ui/chip-group/chip-group.component';
 import { TabOption, TabsComponent } from '../../shared/ui/tabs/tabs.component';
@@ -105,6 +107,8 @@ interface Swatch {
     DatePickerComponent,
     TimePickerComponent,
     DateRangePickerComponent,
+    SkeletonComponent,
+    ActivityBarComponent,
   ],
   template: `
     <div class="sg">
@@ -340,13 +344,15 @@ interface Swatch {
         </div>
         <p class="sg-p">
           Con punto de semáforo (<span class="mono">tone</span>): solo el punto lleva color, el
-          texto sigue neutro.
+          texto sigue neutro. Con <span class="mono">busy</span> el punto late: el backend está
+          trabajando en ese estado (una clasificación en curso).
         </p>
         <div class="row">
           <app-badge tone="ok">Aprobado</app-badge>
           <app-badge tone="warning">Falta documentación</app-badge>
           <app-badge tone="danger">Rechazado</app-badge>
           <app-badge tone="info">En revisión</app-badge>
+          <app-badge tone="info" [busy]="true">Pendiente de clasificación</app-badge>
         </div>
       </section>
 
@@ -430,6 +436,10 @@ interface Swatch {
 
       <section class="sg-block">
         <h3 class="sg-h3">Card</h3>
+        <p class="sg-p">
+          Todas tienen relieve (<span class="mono">--shadow-card</span>) y, al pasar el mouse, la
+          sombra crece y el borde se marca.
+        </p>
         <div class="row cards">
           <app-card heading="Resumen del siniestro">
             <p class="sg-p">Contenido de la tarjeta.</p>
@@ -581,7 +591,9 @@ interface Swatch {
           Mismo trigger que <span class="mono">app-button</span>; el panel usa el tratamiento visual
           de <span class="mono">app-select</span>. Acepta el mismo
           <span class="mono">size</span> que el botón: <span class="mono">sm</span> para triggers
-          que viven dentro de una fila de tabla (ej. "Reasignar" en la columna Analista).
+          que viven dentro de una fila de tabla (ej. "Reasignar" en la columna Analista). Con
+          <span class="mono">label</span> el trigger es un "⋯" solo, para las acciones de una fila
+          (ej. la lista de usuarios).
         </p>
         <div class="row">
           <app-menu-button [items]="sampleMenuItems" (itemSelected)="onSampleMenuSelect($event)">
@@ -594,6 +606,11 @@ interface Swatch {
           >
             Exportar (sm)
           </app-menu-button>
+          <app-menu-button
+            [items]="sampleMenuItems"
+            label="Acciones"
+            (itemSelected)="onSampleMenuSelect($event)"
+          />
           @if (sampleMenuChoice(); as choice) {
             <span class="t-note"
               >Elegiste: <span class="mono">{{ choice }}</span></span
@@ -1034,6 +1051,43 @@ interface Swatch {
       </section>
 
       <section class="sg-block">
+        <h3 class="sg-h3">Skeleton</h3>
+        <p class="sg-p">
+          Primera carga de una pantalla con forma conocida: ocupa el lugar del contenido que llega,
+          así la pantalla no salta. <span class="mono">text</span> (párrafo),
+          <span class="mono">block</span> (el consumidor fija la altura) y
+          <span class="mono">table</span> (encabezado + filas) y
+          <span class="mono">card</span> (card con título + filas de lista).
+          <span class="mono">note</span> suma arriba un spinner con el texto de qué se está
+          cargando. Sin shimmer con movimiento reducido.
+        </p>
+        <div class="sg-skeletons">
+          <app-skeleton [lines]="3" />
+          <app-skeleton class="sg-skeleton-block" shape="block" />
+        </div>
+        <div class="sg-skeletons">
+          <app-skeleton shape="card" [rows]="3" note="Cargando proveedores…" />
+          <app-skeleton shape="table" [rows]="4" [columns]="5" />
+        </div>
+      </section>
+
+      <section class="sg-block">
+        <h3 class="sg-h3">Barra de actividad</h3>
+        <p class="sg-p">
+          Línea de 2 px fija arriba de todo mientras hay un pedido al backend en curso. Aparece
+          recién a los 180 ms, avanza hacia el 90% y completa al terminar el último pedido. Los
+          pedidos marcados con <span class="mono">SILENT_RETRY</span> (precarga, polls) no la
+          disparan. Se monta una vez en <span class="mono">app.html</span>.
+        </p>
+        <app-activity-bar [active]="activityDemo()" />
+        <div class="row">
+          <app-button variant="secondary" size="sm" (click)="activityDemo.set(!activityDemo())">
+            {{ activityDemo() ? 'Terminar' : 'Simular pedido' }}
+          </app-button>
+        </div>
+      </section>
+
+      <section class="sg-block">
         <h3 class="sg-h3">Loading (pantalla completa)</h3>
         <p class="sg-p">
           Overlay a viewport completo con el spinner de marca y un mensaje. Se reserva al arranque
@@ -1198,6 +1252,15 @@ interface Swatch {
       color: var(--text-secondary);
     }
 
+    .sg-skeletons {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--space-4);
+      margin-bottom: var(--space-4);
+    }
+    .sg-skeleton-block {
+      height: calc(var(--space-7) * 2);
+    }
     .row {
       display: flex;
       gap: var(--space-3);
@@ -1580,6 +1643,7 @@ export class StyleguideComponent {
   }
 
   protected readonly modalOpen = signal(false);
+  protected readonly activityDemo = signal(false);
   protected readonly sidePanelOpen = signal(false);
   protected readonly sampleInput = signal('');
   protected readonly samplePassword = signal('');

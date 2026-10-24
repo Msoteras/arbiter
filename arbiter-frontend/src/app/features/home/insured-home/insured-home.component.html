@@ -1,5 +1,6 @@
 @if (loading()) {
-  <app-loading message="Cargando tus siniestros" sub="Aguardá un momento" />
+  <app-home-skeleton [columns]="false" />
+  <app-loading message="Cargando tus siniestros" sub="Aguardá un momento" [veil]="true" />
 } @else {
   <div class="home" @staggerReveal>
     <header class="hero">

@@ -31,8 +31,12 @@
   list-style: none;
 }
 
-.doc-item + .doc-item {
-  border-top: 1px solid var(--border-subtle);
+/* Tiles, not rows: the selected one is marked by the selection tint, like the design system's
+   other selected states. */
+.doc-items {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
 }
 
 /* Opens the non-agenda group, hence its own top border instead of `+ .doc-item`. */
@@ -49,8 +53,8 @@
   gap: var(--space-1);
   width: 100%;
   padding: var(--space-3);
-  border: none;
-  border-radius: var(--radius-ctl);
+  border: 1px solid transparent;
+  border-radius: var(--radius-card);
   background: none;
   text-align: left;
   font: inherit;
@@ -59,15 +63,17 @@
 
 button.doc-btn {
   cursor: pointer;
-  transition: background-color 0.1s;
+  transition:
+    background-color var(--dur-1) ease,
+    border-color var(--dur-1) ease;
 }
 button.doc-btn:hover {
   background: var(--surface-sunken);
 }
 
 button.doc-btn.selected {
-  background: var(--surface-soft);
-  box-shadow: inset 2px 0 0 var(--accent-blue);
+  border-color: var(--selected-border);
+  background: var(--selected-bg);
 }
 
 .doc-btn.is-missing {
@@ -83,7 +89,8 @@ button.doc-btn.selected {
 
 .doc-label {
   font-size: var(--font-size-body);
-  color: var(--text-secondary);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-primary);
 }
 
 .doc-filename {
@@ -125,7 +132,7 @@ button.doc-btn.selected {
   align-items: center;
   min-height: 40px;
   font-size: var(--font-size-sm);
-  color: var(--accent-blue);
+  color: var(--accent-fg);
   text-decoration: none;
   border: 1px solid var(--border-control);
   border-radius: var(--radius-ctl);
@@ -221,10 +228,13 @@ button.doc-btn.selected {
   color: var(--text-muted);
 }
 
+/* Something to check, not document content: a faint warning tint and border, never a fill. */
 .visual-findings {
   margin-top: var(--space-4);
-  padding-top: var(--space-3);
-  border-top: 1px solid var(--border-subtle);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid color-mix(in srgb, var(--status-warning) 45%, var(--border-default));
+  border-radius: var(--radius-card);
+  background: color-mix(in srgb, var(--status-warning) 8%, var(--surface));
 }
 .visual-findings ul {
   margin: var(--space-2) 0;

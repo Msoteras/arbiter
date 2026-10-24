@@ -38,7 +38,6 @@ import { DocumentAgendaService } from '../document-agenda.service';
 import { ChipGroupComponent, ChipOption } from '../../../shared/ui/chip-group/chip-group.component';
 import { CaseNavigationService } from '../case-navigation.service';
 import { CaseMessagesService } from '../case-messages.service';
-import { CaseMessage } from '../../../core/models/case-message';
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
 import { UserAdminService } from '../../../core/auth/user-admin.service';
 import { SettlementAuthoritiesService } from '../../admin/settlement-authorities.service';
@@ -103,20 +102,17 @@ import {
   deadlinePriorityTone,
   isDeadlinePrioritized,
 } from '../../../core/models/deadline-priority';
-import { RiskBand, riskBandLabel } from '../../../core/models/risk-band';
+import { RiskBand, riskBandLabel, riskBandTone } from '../../../core/models/risk-band';
 import { StatusTone } from '../../../core/models/status-tone';
-import {
-  chatListStamp,
-  formatDate,
-  formatDateTime,
-  formatDayMonth,
-} from '../../../core/util/datetime';
+import { formatDate, formatDateTime, formatDayMonth } from '../../../core/util/datetime';
 import { amountInputDisplay, amountInputLabel, amountInputValue } from '../../../core/util/money';
-import { FraudGaugeComponent } from '../../../shared/ui/fraud-gauge/fraud-gauge.component';
 import { InfoTipComponent } from '../../../shared/ui/info-tip/info-tip.component';
 import { EmptyStateComponent } from '../../../shared/ui/empty-state/empty-state.component';
 import { StatusTimelineComponent } from '../../../shared/ui/status-timeline/status-timeline.component';
 import { ForensicAnalysisComponent } from './forensic-analysis/forensic-analysis.component';
+import { ClassificationProgressComponent } from './classification-progress/classification-progress.component';
+import { silentRequest } from '../../../core/cache/query-cache';
+import { ToastService } from '../../../shared/ui/toast/toast.service';
 import { CaseDocumentsComponent } from '../case-documents/case-documents.component';
 import { CaseChatPopupComponent } from '../case-chat-popup/case-chat-popup.component';
 import { analystQuickReplies } from '../case-chat/quick-replies';
@@ -132,9 +128,13 @@ import {
   MenuItem,
 } from '../../../shared/ui/menu-button/menu-button.component';
 import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
+import { SkeletonComponent } from '../../../shared/ui/skeleton/skeleton.component';
 import { TabOption, TabsComponent } from '../../../shared/ui/tabs/tabs.component';
-import { fadeInUp, staggerReveal, tabSwitch } from '../../../shared/animations';
+import { accordion, fadeInUp, staggerReveal, tabSwitch } from '../../../shared/animations';
 import { DocumentRequestModalComponent } from '../document-request/document-request-modal.component';
+
+/** Classification lands within minutes; a quarter minute keeps the wait from feeling stuck. */
+const CLASSIFICATION_POLL_MS = 15_000;
 
 type LoadState =
   | { status: 'loading' }
@@ -191,11 +191,11 @@ interface BriefAlert {
   imports: [
     ChipGroupComponent,
     RouterLink,
-    FraudGaugeComponent,
     InfoTipComponent,
     EmptyStateComponent,
     StatusTimelineComponent,
     ForensicAnalysisComponent,
+    ClassificationProgressComponent,
     CaseDocumentsComponent,
     CaseChatPopupComponent,
     CardComponent,
@@ -207,15 +207,17 @@ interface BriefAlert {
     TextareaComponent,
     MenuButtonComponent,
     InlineLoadingComponent,
+    SkeletonComponent,
     TabsComponent,
     DocumentRequestModalComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  animations: [fadeInUp, staggerReveal, tabSwitch],
+  animations: [accordion, fadeInUp, staggerReveal, tabSwitch],
   templateUrl: './case-detail.component.html',
   // Order matters: both files are concatenated in this order and the cascade depends on it.
   styleUrls: [
     './case-detail.component.scss',
+    './case-detail-strip.scss',
     './case-detail-panels.scss',
     './case-detail-analysis.scss',
   ],
@@ -223,6 +225,7 @@ interface BriefAlert {
 export class CaseDetailComponent {
   private readonly route = inject(ActivatedRoute);
   private readonly service = inject(CaseService);
+  private readonly toast = inject(ToastService);
   private readonly caseNav = inject(CaseNavigationService);
   private readonly session = inject(AuthSessionService);
   private readonly users = inject(UserAdminService);
@@ -238,21 +241,15 @@ export class CaseDetailComponent {
       const id = this.loadedCaseId();
       untracked(() => {
         this.unreadMessages.set(0);
-        this.lastMessage.set(null);
         if (id) {
           this.messages.thread(id).subscribe({
-            next: (thread) => {
-              this.unreadMessages.set(thread.unread);
-              this.lastMessage.set(thread.messages.at(-1) ?? null);
-            },
+            next: (thread) => this.unreadMessages.set(thread.unread),
             error: () => undefined,
           });
         }
       });
     });
   }
-
-  protected readonly lastMessage = signal<CaseMessage | null>(null);
 
   /** Bumped after a decision is recorded, to refetch the case and reflect the real backend status. */
   private readonly reloadTrigger = signal(0);
@@ -279,9 +276,54 @@ export class CaseDetailComponent {
   protected readonly loading = computed(() => this.state().status === 'loading');
   protected readonly hasError = computed(() => this.state().status === 'error');
 
+  /** A fresher copy fetched while the case classifies; dropped on every regular load. */
+  private readonly polled = linkedSignal<LoadState, CaseResponse | null>({
+    source: () => this.state(),
+    computation: () => null,
+  });
+
   protected readonly data = computed<CaseResponse | null>(() => {
     const s = this.state();
-    return s.status === 'ok' ? s.data : null;
+    const loaded = s.status === 'ok' ? s.data : null;
+    const polled = this.polled();
+    return loaded && polled?.id === loaded.id ? polled : loaded;
+  });
+
+  private readonly classifyingId = computed(() => {
+    const d = this.data();
+    return d?.status === 'PENDING_CLASSIFICATION' ? d.id : null;
+  });
+
+  /** When the case entered classification: the latest move into it, or the claim itself. */
+  protected readonly classificationSince = computed(() => {
+    const d = this.data();
+    if (!d) return '';
+    const entered = (d.statusHistory ?? [])
+      .filter((t) => t.toStatus === 'PENDING_CLASSIFICATION')
+      .at(-1);
+    return entered?.changedAt ?? d.createdAt;
+  });
+
+  /**
+   * Classification is asynchronous: while it runs the case is re-read in the background, without
+   * the skeleton, so the recommendation shows up without reloading. Skipped while the tab is hidden.
+   */
+  private readonly pollClassification = effect((onCleanup) => {
+    const id = this.classifyingId();
+    if (id === null) return;
+    const timer = setInterval(() => {
+      if (document.visibilityState !== 'visible') return;
+      this.service.getById(id, null, silentRequest()).subscribe({
+        next: (fresh) => {
+          if (fresh.status !== 'PENDING_CLASSIFICATION') {
+            this.toast.show('Arbiter terminó de clasificar el expediente.', 'ok');
+          }
+          this.polled.set(fresh);
+        },
+        error: () => undefined,
+      });
+    }, CLASSIFICATION_POLL_MS);
+    onCleanup(() => clearInterval(timer));
   });
 
   protected readonly notFound = computed(() => {
@@ -315,21 +357,31 @@ export class CaseDetailComponent {
     return d ? d.insuredStatus.label : '';
   });
 
-  private static readonly RISK_BAND_GAUGE: Record<string, 1 | 2 | 3 | 4> = {
-    LOW: 1,
-    MEDIUM: 2,
-    HIGH: 3,
-    CRITICAL: 4,
-  };
-
-  protected readonly riskGaugeBand = computed<1 | 2 | 3 | 4 | null>(() => {
-    const band = this.data()?.riskBand;
-    return band ? CaseDetailComponent.RISK_BAND_GAUGE[band] : null;
-  });
-
   protected readonly riskGaugeEmptyLabel = computed(() => {
     const d = this.data();
     return d ? riskBandEmptyLabel(d.status, d.analysisClassification) : 'Sin datos';
+  });
+
+  protected readonly riskBandText = computed(() => {
+    const band = this.data()?.riskBand;
+    return band ? riskBandLabel(band) : null;
+  });
+
+  protected readonly riskTone = computed(() => riskBandTone(this.data()?.riskBand ?? null));
+
+  /**
+   * The verdict the model points to, shown first and filled. Only for its two directional outputs:
+   * Fast Track, missing documents and manual review leave both verdicts on equal footing.
+   */
+  protected readonly recommendedVerdict = computed<'approve' | 'reject' | null>(() => {
+    switch (this.data()?.analysisClassification) {
+      case 'LLM_RECOMIENDA_APROBAR':
+        return 'approve';
+      case 'LLM_NO_RECOMIENDA_APROBAR':
+        return 'reject';
+      default:
+        return null;
+    }
   });
 
   protected readonly riskScorePct = computed<number | null>(() => {
@@ -434,56 +486,34 @@ export class CaseDetailComponent {
    */
   protected readonly isDeterministicOutcome = computed(() => this.data()?.resolvedByRules === true);
 
-  protected readonly summaryGroups = computed<{ heading: string; fields: FieldItem[] }[]>(() => {
-    const d = this.data();
+  /** Claimed amount over the sum insured, in whole percent; null without both. */
+  protected readonly claimedRatio = computed<number | null>(() => {
+    const amount = this.data()?.claimedAmount;
     const sumInsured = this.policySnapshot()?.sumInsured;
+    return amount && sumInsured ? Math.round((amount / sumInsured) * 100) : null;
+  });
+
+  protected readonly reportDelayText = computed(() => {
+    const d = this.data();
+    return d?.createdAt && d.eventDate ? (reportDelay(d.eventDate, d.createdAt) ?? null) : null;
+  });
+
+  /** The biggest factor fills the track; the others are drawn in proportion to it. */
+  protected factorWidth(contribution: number): number {
+    const top = Math.max(...this.topRiskFactors().map((f) => f.contribution), 1);
+    return Math.round((contribution / top) * 100);
+  }
+
+  protected readonly insuredFacts = computed<FieldItem[]>(() => {
+    const d = this.data();
     return [
-      {
-        heading: 'Siniestro',
-        fields: [
-          { label: 'Hecho generador', value: d?.claimCause ?? null },
-          {
-            label: 'Fecha y hora de ocurrencia',
-            value: d?.eventDate ? formatDateTime(d.eventDate) : null,
-          },
-          // Only claims with a police report carry it; an empty row would read as missing data.
-          ...(d?.policeReportAt
-            ? [{ label: 'Denuncia policial', value: formatDateTime(d.policeReportAt) }]
-            : []),
-          { label: 'Ubicación', value: d?.eventLocation ?? null },
-        ],
-      },
-      {
-        heading: 'Bien asegurado',
-        fields: [
-          { label: 'Bien asegurado', value: d?.insuredItem ?? null },
-          {
-            label: 'Importe reclamado',
-            value: d?.claimedAmount ? this.formatAmount(d.claimedAmount) : null,
-            sub:
-              d?.claimedAmount && sumInsured
-                ? `${Math.round((d.claimedAmount / sumInsured) * 100)}% de la suma asegurada`
-                : undefined,
-          },
-          {
-            label: 'Fecha de denuncia',
-            value: d?.createdAt ? formatDateTime(d.createdAt) : null,
-            sub: d?.createdAt && d.eventDate ? reportDelay(d.eventDate, d.createdAt) : undefined,
-          },
-        ],
-      },
-      {
-        heading: 'Asegurado y póliza',
-        fields: [
-          { label: 'Asegurado', value: d?.insuredName ?? null },
-          { label: 'DNI', value: d?.insuredId ?? null, mono: true },
-          // "No" is a value, not missing data, so it skips the `?? null` "Sin datos" path.
-          { label: 'PEP', value: d ? (d.pep ? 'Sí' : 'No') : null },
-          { label: 'N° de póliza', value: d?.policyNumber ?? null, mono: true },
-          { label: 'Producto', value: d?.product ?? null },
-          { label: 'Rama', value: d?.branch ?? null },
-        ],
-      },
+      { label: 'Asegurado', value: d?.insuredName ?? null },
+      { label: 'DNI', value: d?.insuredId ?? null, mono: true },
+      // "No" is a value, not missing data, so it skips the `?? null` "Sin datos" path.
+      { label: 'PEP', value: d ? (d.pep ? 'Sí' : 'No') : null },
+      { label: 'N° de póliza', value: d?.policyNumber ?? null, mono: true },
+      { label: 'Producto', value: d?.product ?? null },
+      { label: 'Rama', value: d?.branch ?? null },
     ];
   });
 
@@ -566,6 +596,47 @@ export class CaseDetailComponent {
     () => this.hardRuleResults().filter((r) => r.result === 'PASS').length,
   );
 
+  /** Each factor's bar against the biggest one: the largest fills its track. */
+  protected breakdownWidth(item: RiskBreakdownItem): number {
+    const top = Math.max(...this.riskBreakdown().map((i) => this.scoreContribution(i)), 1);
+    return Math.round((this.scoreContribution(item) / top) * 100);
+  }
+
+  /**
+   * The document factor lists one finding per mismatch, joined with " · " by the backend
+   * (DocumentInconsistencyEvaluator): with several, they open as a list instead of one long line.
+   */
+  protected findings(item: RiskBreakdownItem): string[] | null {
+    if (item.factorId !== 'document_inconsistency' || !item.rationale) return null;
+    const list = this.factorRationale(item.rationale).split(' · ');
+    return list.length > 1 ? list : null;
+  }
+
+  private readonly openFindings = signal<ReadonlySet<string>>(new Set());
+
+  protected isFindingsOpen(item: RiskBreakdownItem): boolean {
+    return this.openFindings().has(item.factorId);
+  }
+
+  protected toggleFindings(item: RiskBreakdownItem): void {
+    this.openFindings.update((open) => {
+      const next = new Set(open);
+      if (!next.delete(item.factorId)) next.add(item.factorId);
+      return next;
+    });
+  }
+
+  protected readonly ruleFilterOptions: ChipOption[] = [
+    { value: 'all', label: 'Todas' },
+    { value: 'failing', label: 'Solo no cumple' },
+  ];
+  protected readonly ruleFilter = signal<'all' | 'failing'>('all');
+  protected readonly shownRuleResults = computed(() =>
+    this.ruleFilter() === 'failing'
+      ? this.hardRuleResults().filter((r) => r.result === 'FAIL')
+      : this.hardRuleResults(),
+  );
+
   protected readonly scoreSegments = computed(() =>
     this.riskBreakdown()
       .map((item) => ({ factorId: item.factorId, contribution: this.scoreContribution(item) }))
@@ -574,12 +645,6 @@ export class CaseDetailComponent {
 
   /** The summary card only answers "why this band": zero-contribution factors explain nothing. */
   protected readonly topRiskFactors = computed(() => this.scoreSegments().slice(0, 2));
-
-  protected readonly scoreTone = computed<StatusTone>(() => {
-    const tones: Record<number, StatusTone> = { 1: 'ok', 2: 'warning', 3: 'risk', 4: 'danger' };
-    const band = this.riskGaugeBand();
-    return band ? tones[band] : 'neutral';
-  });
 
   protected readonly policySnapshot = computed<PolicySnapshot | null>(
     () => this.data()?.policySnapshot ?? null,
@@ -607,6 +672,22 @@ export class CaseDetailComponent {
    * Only current policies are listed, so the claim's policy is missing if it expired after the
    * claim; the title is omitted then.
    */
+  /** "4 pólizas · todas al día", or how many are in arrears. */
+  protected readonly policiesSummary = computed(() => {
+    const policies = this.insuredPolicies();
+    const inArrears = policies.filter((p) => !p.upToDate).length;
+    const count = policies.length === 1 ? '1 póliza' : `${policies.length} pólizas`;
+    const payment =
+      inArrears === 0
+        ? policies.length === 1
+          ? 'al día'
+          : 'todas al día'
+        : `${inArrears} en mora`;
+    return `${count} · ${payment}`;
+  });
+
+  protected readonly initialsOf = initialsOf;
+
   protected readonly policyGroups = computed<{ heading: string; policies: Policy[] }[]>(() => {
     const amountValue = this.data()?.policyNumber;
     const allPolicies = this.insuredPolicies();
@@ -1496,6 +1577,15 @@ export class CaseDetailComponent {
       : `Vence el ${dateLabel}`;
   });
 
+  /** The "Antes de resolver" column: only while the analyst decides, and only with something in it. */
+  protected readonly showBeforeDeciding = computed(() => {
+    if (this.decisionState() !== 'pending' || !this.canAct() || this.awaitingAuthorization()) {
+      return false;
+    }
+    const amount = this.displayedSettlement()?.calculatedAmount ?? 0;
+    return this.decisionAlerts().length > 0 || this.answeredDerivations().length > 0 || amount > 0;
+  });
+
   protected readonly deadlineTone = computed<StatusTone>(() => {
     const d = this.data();
     return d && isDeadlinePrioritized(d.deadlinePriority)
@@ -1953,7 +2043,6 @@ export class CaseDetailComponent {
   verdictTone = verdictTone;
   repairOutcomeLabel = repairOutcomeLabel;
   formatDateTime = formatDateTime;
-  chatListStamp = chatListStamp;
 
   ruleTypeLabel = ruleTypeLabel;
   ruleResultLabel = ruleResultLabel;
@@ -1964,7 +2053,7 @@ export class CaseDetailComponent {
     return ruleEvaluationText(ruleType, evaluatedValue, this.documentTypes.definitions());
   }
 
-  private formatAmount(amount: number): string {
+  protected formatAmount(amount: number): string {
     return new Intl.NumberFormat('es-AR', {
       style: 'currency',
       currency: 'ARS',
@@ -2096,7 +2185,6 @@ export class CaseDetailComponent {
   });
 
   protected readonly analystInitials = computed(() => initialsOf(this.assignedName()));
-  protected readonly insuredInitials = computed(() => initialsOf(this.data()?.insuredName));
   protected readonly insuredFirstName = computed(
     () => (this.data()?.insuredName ?? '').trim().split(/\s+/)[0] || 'el asegurado',
   );

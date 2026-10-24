@@ -12,14 +12,43 @@ import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { CardComponent } from '../../../shared/ui/card/card.component';
 import { ChipGroupComponent, ChipOption } from '../../../shared/ui/chip-group/chip-group.component';
 import { EmptyStateComponent } from '../../../shared/ui/empty-state/empty-state.component';
-import { IconButtonComponent } from '../../../shared/ui/icon-button/icon-button.component';
 import { InputComponent } from '../../../shared/ui/input/input.component';
+import {
+  MenuButtonComponent,
+  MenuItem,
+} from '../../../shared/ui/menu-button/menu-button.component';
 import { ModalComponent } from '../../../shared/ui/modal/modal.component';
 import { TableComponent } from '../../../shared/ui/table/table.component';
-import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
+import { TabOption, TabsComponent } from '../../../shared/ui/tabs/tabs.component';
+import { SkeletonComponent } from '../../../shared/ui/skeleton/skeleton.component';
 import { ToastService } from '../../../shared/ui/toast/toast.service';
 import { fadeStagger, staggerReveal } from '../../../shared/animations';
 import { OnboardingTargetDirective } from '../../../core/onboarding/onboarding-target.directive';
+
+type UserLens = 'ALL' | 'ANALYSTS' | 'REFERENTS' | 'INSURED' | 'INVITES';
+
+const LENSES: { id: UserLens; label: string }[] = [
+  { id: 'ALL', label: 'Todos' },
+  { id: 'ANALYSTS', label: 'Analistas' },
+  { id: 'REFERENTS', label: 'Referentes' },
+  { id: 'INSURED', label: 'Asegurados' },
+  { id: 'INVITES', label: 'Invitaciones' },
+];
+
+function matchesLens(user: UserResponse, lens: UserLens): boolean {
+  switch (lens) {
+    case 'ANALYSTS':
+      return user.rol === 'ANALISTA_SINIESTROS';
+    case 'REFERENTS':
+      return user.rol === 'REFERENTE_ASEGURADORA';
+    case 'INSURED':
+      return user.rol === 'ASEGURADO';
+    case 'INVITES':
+      return user.estado === 'PENDING';
+    default:
+      return true;
+  }
+}
 
 /** The referente can't change their own role: the backend enforces it, the UI just disables it. */
 @Component({
@@ -32,11 +61,12 @@ import { OnboardingTargetDirective } from '../../../core/onboarding/onboarding-t
     CardComponent,
     ChipGroupComponent,
     EmptyStateComponent,
-    IconButtonComponent,
     InputComponent,
+    MenuButtonComponent,
     ModalComponent,
     TableComponent,
-    InlineLoadingComponent,
+    TabsComponent,
+    SkeletonComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   animations: [staggerReveal, fadeStagger],
@@ -83,8 +113,36 @@ export class UsersComponent {
   );
 
   protected readonly resendingId = signal<number | null>(null);
-  protected readonly resendError = signal<string | null>(null);
-  protected readonly resendOkId = signal<number | null>(null);
+
+  protected readonly query = signal('');
+  protected readonly lens = signal<UserLens>('ALL');
+
+  private readonly searchedUsers = computed(() => {
+    const q = this.query().trim().toLocaleLowerCase();
+    if (!q) return this.users();
+    return this.users().filter((u) =>
+      `${u.nombre} ${u.apellido} ${u.email}`.toLocaleLowerCase().includes(q),
+    );
+  });
+
+  /** Counts follow the search, so each tab says how many rows it would show. */
+  protected readonly lensTabs = computed<TabOption[]>(() => {
+    const list = this.searchedUsers();
+    return LENSES.map((l) => ({
+      id: l.id,
+      label: l.label,
+      count: list.filter((u) => matchesLens(u, l.id)).length,
+    }));
+  });
+
+  protected readonly visibleUsers = computed(() =>
+    this.searchedUsers().filter((u) => matchesLens(u, this.lens())),
+  );
+
+  /** Built once per list change, so each row's menu keeps the same items between checks. */
+  protected readonly rowActions = computed(
+    () => new Map(this.users().map((u) => [u.id, this.actionsFor(u)])),
+  );
 
   // Bulk insured provisioning asks for confirmation: it sends real emails and can't be undone.
   protected readonly showProvisionConfirm = signal(false);
@@ -101,7 +159,26 @@ export class UsersComponent {
 
   /** The backend answers 202 and keeps working, so there's no summary: only "started". */
   protected lastAccess(user: UserResponse): string {
+    if (user.estado === 'PENDING') return 'Nunca entró';
     return formatDateTime(user.lastAccessAt, 'Sin registro');
+  }
+
+  protected initials(user: UserResponse): string {
+    return `${user.nombre.charAt(0)}${user.apellido.charAt(0)}`.toLocaleUpperCase();
+  }
+
+  private actionsFor(user: UserResponse): MenuItem[] {
+    const items: MenuItem[] = [];
+    if (this.canEditRole(user)) items.push({ value: 'role', label: 'Cambiar rol' });
+    if (user.estado === 'PENDING') items.push({ value: 'resend', label: 'Reenviar invitación' });
+    if (!this.isSelf(user)) items.push({ value: 'delete', label: 'Eliminar', danger: true });
+    return items;
+  }
+
+  protected onAction(user: UserResponse, action: string): void {
+    if (action === 'role') this.requestRoleChange(user);
+    else if (action === 'resend') this.resendInvite(user);
+    else if (action === 'delete') this.requestDelete(user);
   }
 
   protected confirmProvision(): void {
@@ -169,19 +246,17 @@ export class UsersComponent {
 
   /** Only shown for PENDING rows in the template — the backend rejects it otherwise. */
   protected resendInvite(user: UserResponse): void {
-    this.resendError.set(null);
-    this.resendOkId.set(null);
     this.resendingId.set(user.id);
 
     this.service.resendInvite(user.id).subscribe({
       next: (updated) => {
         this.resendingId.set(null);
-        this.resendOkId.set(updated.id);
         this.users.update((list) => list.map((u) => (u.id === updated.id ? updated : u)));
+        this.toastService.show(`Invitación reenviada a ${updated.email}.`, 'ok');
       },
       error: (err: HttpErrorResponse) => {
         this.resendingId.set(null);
-        this.resendError.set(
+        this.toastService.show(
           err.error?.detail ?? 'No se pudo reenviar la invitación. Probá de nuevo.',
         );
       },

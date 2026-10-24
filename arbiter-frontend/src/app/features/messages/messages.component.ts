@@ -24,7 +24,7 @@ import { BadgeComponent } from '../../shared/ui/badge/badge.component';
 import { ButtonComponent } from '../../shared/ui/button/button.component';
 import { InputComponent } from '../../shared/ui/input/input.component';
 import { EmptyStateComponent } from '../../shared/ui/empty-state/empty-state.component';
-import { InlineLoadingComponent } from '../../shared/ui/inline-loading/inline-loading.component';
+import { SkeletonComponent } from '../../shared/ui/skeleton/skeleton.component';
 
 type InboxFilter = 'ALL' | 'UNREAD' | 'WAITING';
 
@@ -38,7 +38,7 @@ type InboxFilter = 'ALL' | 'UNREAD' | 'WAITING';
     ButtonComponent,
     InputComponent,
     EmptyStateComponent,
-    InlineLoadingComponent,
+    SkeletonComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './messages.component.html',

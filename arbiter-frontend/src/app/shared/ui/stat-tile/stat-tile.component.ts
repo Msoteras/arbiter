@@ -41,6 +41,18 @@ type Tone = 'default' | 'accent' | 'danger';
       border-radius: var(--radius-card);
       background: var(--surface);
       box-shadow: var(--shadow-card);
+      transition:
+        box-shadow var(--dur-2) var(--ease-standard),
+        border-color var(--dur-2) var(--ease-standard);
+    }
+    .stat:hover {
+      border-color: var(--border-control);
+      box-shadow: var(--shadow-card-hover);
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .stat {
+        transition: none;
+      }
     }
     /* A grid of tiles sets --stat-label-lines to its longest label, so the values line up. */
     .stat-label {

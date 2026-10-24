@@ -4,10 +4,15 @@ import {
   Component,
   computed,
   effect,
+  DestroyRef,
+  ElementRef,
   HostListener,
+  afterRenderEffect,
   inject,
+  linkedSignal,
   signal,
   untracked,
+  viewChild,
 } from '@angular/core';
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, ParamMap, Router, RouterLink } from '@angular/router';
@@ -64,7 +69,7 @@ import {
   MenuButtonComponent,
   MenuItem,
 } from '../../../shared/ui/menu-button/menu-button.component';
-import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
+import { SkeletonComponent } from '../../../shared/ui/skeleton/skeleton.component';
 import { TabOption, TabsComponent } from '../../../shared/ui/tabs/tabs.component';
 import { fadeStagger, staggerReveal } from '../../../shared/animations';
 
@@ -130,7 +135,7 @@ const LINK_PARAMS = [
     FraudGaugeComponent,
     EmptyStateComponent,
     MenuButtonComponent,
-    InlineLoadingComponent,
+    SkeletonComponent,
     TabsComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -342,18 +347,22 @@ export class InboxComponent {
   protected readonly loading = computed(() => this.state().status === 'loading');
   protected readonly hasError = computed(() => this.state().status === 'error');
 
-  // Tells the first load (spinner only) apart from refetches (filters stay, only the table is replaced).
-  protected readonly hasLoaded = signal(false);
-  private readonly latchLoaded = effect(() => {
-    if (!this.loading()) {
-      this.hasLoaded.set(true);
-    }
+  /**
+   * The last page that arrived. While the next one loads (a page, a filter) it keeps the totals, so
+   * the pager doesn't disappear, and sizes the skeleton to the rows it replaces.
+   */
+  private readonly shown = linkedSignal<LoadState, Extract<LoadState, { status: 'ok' }> | null>({
+    source: () => this.state(),
+    computation: (s, previous) =>
+      s.status === 'ok' ? s : s.status === 'loading' ? (previous?.value ?? null) : null,
   });
-  protected readonly firstLoad = computed(() => this.loading() && !this.hasLoaded());
+  protected readonly skeletonRows = computed(() =>
+    Math.min(this.shown()?.data.length || 8, this.size()),
+  );
 
   protected readonly cases = computed<CaseResponse[]>(() => {
-    const s = this.state();
-    return s.status === 'ok' ? s.data : [];
+    const s = this.shown();
+    return s ? s.data : [];
   });
 
   // Lets the detail navigate previous/next in this visible order.
@@ -361,22 +370,16 @@ export class InboxComponent {
     this.caseNav.setSequence(this.cases().map((c) => c.id));
   });
 
-  protected readonly totalElements = computed(() => {
-    const s = this.state();
-    return s.status === 'ok' ? s.totalElements : 0;
-  });
+  protected readonly totalElements = computed(() => this.shown()?.totalElements ?? 0);
 
-  protected readonly totalPages = computed(() => {
-    const s = this.state();
-    return s.status === 'ok' ? s.totalPages : 0;
-  });
+  protected readonly totalPages = computed(() => this.shown()?.totalPages ?? 0);
 
   protected readonly isEmpty = computed(
     () => this.state().status === 'ok' && this.cases().length === 0,
   );
 
   /** Lens counts honor the current filters: how many of what you're looking at, not absolute totals. */
-  private readonly counts = toSignal(
+  private readonly summary = toSignal<LensSummary | null>(
     toObservable(
       computed(() => ({
         filters: this.activeFilters(),
@@ -387,10 +390,14 @@ export class InboxComponent {
         this.service.lensSummary(filters).pipe(catchError(() => of(NO_SUMMARY))),
       ),
     ),
-    { initialValue: NO_SUMMARY },
+    { initialValue: null },
   );
+  private readonly counts = computed(() => this.summary() ?? NO_SUMMARY);
+  /** Until the first summary arrives the tabs show no number: a 0 would read as an empty inbox. */
+  protected readonly countsReady = computed(() => this.summary() !== null);
 
-  protected lifecycleCount(lifecycle: Lifecycle): number {
+  protected lifecycleCount(lifecycle: Lifecycle): number | null {
+    if (!this.countsReady()) return null;
     const row = this.counts()[lifecycle];
     const ownership = this.ownership();
     return ownership ? row[ownership] : row.total;
@@ -693,7 +700,35 @@ export class InboxComponent {
     this.page.set(0);
   }
 
+  protected readonly opening = signal<number | null>(null);
+
+  private readonly tableScroll = viewChild<ElementRef<HTMLElement>>('tableScroll');
+  /** Columns hidden under the pinned analyst column: only then does its edge show. */
+  protected readonly moreRight = signal(false);
+
+  private readonly trackTableScroll = (() => {
+    const observer = new ResizeObserver(() => this.measureScroll());
+    inject(DestroyRef).onDestroy(() => observer.disconnect());
+    let observed: HTMLElement | null = null;
+    return afterRenderEffect(() => {
+      this.cases();
+      const el = this.tableScroll()?.nativeElement ?? null;
+      if (el !== observed) {
+        if (observed) observer.unobserve(observed);
+        if (el) observer.observe(el);
+        observed = el;
+      }
+      this.measureScroll();
+    });
+  })();
+
+  protected measureScroll(): void {
+    const el = this.tableScroll()?.nativeElement;
+    this.moreRight.set(!!el && el.scrollWidth - el.clientWidth - el.scrollLeft > 1);
+  }
+
   protected goTo(id: number): void {
+    this.opening.set(id);
     this.router.navigate(['/cases', id]);
   }
 
