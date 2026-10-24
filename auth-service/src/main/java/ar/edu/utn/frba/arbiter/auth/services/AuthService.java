@@ -69,7 +69,7 @@ public class AuthService {
                     insuredId = profile.get().dni();
                     onboardingComplete = profile.get().onboardingComplete();
                 }
-                if (rol != UserRole.ASEGURADO) {
+                if (showsBrand(rol, insurerIds)) {
                     logoVersion = insurerLogoService.version(primaryInsurer.get().getId()).orElse(null);
                 }
             } finally {
@@ -90,7 +90,15 @@ public class AuthService {
                 apellido,
                 insuredId,
                 onboardingComplete,
-                rol == UserRole.ASEGURADO ? null : primaryInsurer.map(Insurer::getName).orElse(null),
+                showsBrand(rol, insurerIds) ? primaryInsurer.map(Insurer::getName).orElse(null) : null,
                 logoVersion);
+    }
+
+    /**
+     * The insurer's name and logo go in the app bar for staff, and for an insured with a single
+     * insurer: with several there is no one brand to show, each claim shows its own.
+     */
+    static boolean showsBrand(UserRole rol, List<Long> insurerIds) {
+        return rol != UserRole.ASEGURADO || insurerIds.size() == 1;
     }
 }

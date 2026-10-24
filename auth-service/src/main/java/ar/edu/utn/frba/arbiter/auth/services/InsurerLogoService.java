@@ -5,12 +5,13 @@ import ar.edu.utn.frba.arbiter.auth.exceptions.LogoNotFoundException;
 import ar.edu.utn.frba.arbiter.auth.config.tenant.TenantContext;
 import ar.edu.utn.frba.arbiter.auth.models.repositories.InsurerLogoRepository;
 import ar.edu.utn.frba.arbiter.auth.models.repositories.InsurerRepository;
+import ar.edu.utn.frba.arbiter.auth.models.repositories.UserRepository;
+import ar.edu.utn.frba.arbiter.common.models.entities.Insurer;
 import ar.edu.utn.frba.arbiter.common.models.entities.InsurerLogo;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.Locale;
@@ -31,16 +32,34 @@ public class InsurerLogoService {
     /** The declared type has to match the file's first bytes: the header alone is the client's word. */
     private static final Map<String, byte[]> SIGNATURES = Map.of(
             "image/png", new byte[]{(byte) 0x89, 'P', 'N', 'G'},
-            "image/jpeg", new byte[]{(byte) 0xFF, (byte) 0xD8, (byte) 0xFF},
-            "image/webp", new byte[]{'R', 'I', 'F', 'F'});
-    private static final String SVG = "image/svg+xml";
+            "image/jpeg", new byte[]{(byte) 0xFF, (byte) 0xD8, (byte) 0xFF});
 
     private final InsurerLogoRepository repository;
     private final InsurerRepository insurers;
+    private final UserRepository users;
+    private final TenantResolver tenantResolver;
 
     @Transactional(readOnly = true)
     public InsurerLogo get() {
         return repository.findById(currentInsurerId()).orElseThrow(LogoNotFoundException::new);
+    }
+
+    /**
+     * The logo of one of the user's insurers, by its schema: the portal shows, on each claim, the
+     * insurer that claim belongs to. Not found for an insurer the user doesn't belong to.
+     */
+    @Transactional(readOnly = true)
+    public InsurerLogo forInsurer(String schemaName, String email) {
+        Long insurerId = insurers.findBySchemaName(schemaName)
+                .map(Insurer::getId)
+                .orElseThrow(LogoNotFoundException::new);
+        boolean member = users.findByEmail(email)
+                .map(user -> tenantResolver.insurerIdsFor(user.getId()).contains(insurerId))
+                .orElse(false);
+        if (!member) {
+            throw new LogoNotFoundException();
+        }
+        return repository.findById(insurerId).orElseThrow(LogoNotFoundException::new);
     }
 
     /** When the insurer's logo was uploaded; empty without one. Used by the login. */
@@ -77,16 +96,9 @@ public class InsurerLogoService {
             throw new InvalidLogoException("El logo pesa más de 256 KB. Subí una versión más liviana.");
         }
         String type = declaredType == null ? "" : declaredType.toLowerCase(Locale.ROOT).split(";")[0].trim();
-        if (SVG.equals(type)) {
-            String head = new String(content, 0, Math.min(content.length, 1024), StandardCharsets.UTF_8);
-            if (!head.contains("<svg")) {
-                throw new InvalidLogoException("El archivo no es un SVG válido.");
-            }
-            return type;
-        }
         byte[] signature = SIGNATURES.get(type);
         if (signature == null) {
-            throw new InvalidLogoException("El logo tiene que ser PNG, JPG, WebP o SVG.");
+            throw new InvalidLogoException("El logo tiene que ser PNG o JPG.");
         }
         if (content.length < signature.length
                 || !Arrays.equals(Arrays.copyOf(content, signature.length), signature)) {
