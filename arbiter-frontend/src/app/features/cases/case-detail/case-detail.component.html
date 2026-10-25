@@ -77,7 +77,7 @@
               </p>
             }
           } @else if (needsDocs()) {
-            <p class="note">Falta documentación obligatoria de la agenda del ramo.</p>
+            <p class="note">Falta documentación para su nivel de riesgo.</p>
           } @else if (!isFastTrack()) {
             <!-- Coverage exclusion or prescription: the model never ran. -->
             <p class="note">El detalle está en «Evaluación de reglas».</p>
@@ -350,9 +350,6 @@
                   </div>
                 }
               </div>
-              @if (needsDocs() && canDecide()) {
-                <p class="rcard-note">Falta documentación. Elegí qué le pedís al asegurado.</p>
-              }
               <!-- Why a referral isn't offered: a fact about this claim, not an alert, so the
                    reason waits behind the tip. -->
               @if (canDerive() && !needsDocs() && notDerivableReason(); as blockReason) {
