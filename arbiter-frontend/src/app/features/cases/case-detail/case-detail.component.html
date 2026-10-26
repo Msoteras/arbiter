@@ -159,10 +159,20 @@
       }
 
       <div class="strip-col strip-actions">
-        <h2 class="strip-label">{{ decisionCardHeading() }}</h2>
+        <!-- With only the action buttons below, the label says nothing they don't: screen readers only. -->
+        <h2
+          class="strip-label"
+          [class.sr-only]="decisionState() === 'pending' && canAct() && !awaitingAuthorization()"
+        >
+          {{ decisionCardHeading() }}
+        </h2>
         @switch (decisionState()) {
+          <!-- Resolved: the verdict is the column's headline, like the recommendation and the score. -->
           @case ('approved') {
-            <p class="registered">Aprobado{{ resolution() ? ' el ' + resolution()?.at : '' }}</p>
+            <p class="verdict"><span class="weigh-dot" data-tone="ok"></span>Aprobado</p>
+            @if (resolution(); as r) {
+              <p class="note">{{ r.at }}</p>
+            }
             @if (resolution()?.justification; as why) {
               <p class="decision-reason">{{ why }}</p>
             }
@@ -179,35 +189,38 @@
             }
           }
           @case ('rejected') {
-            <p class="registered rejected">
-              Rechazado{{ resolution() ? ' el ' + resolution()?.at : '' }}
-            </p>
+            <p class="verdict"><span class="weigh-dot" data-tone="danger"></span>Rechazado</p>
+            @if (resolution(); as r) {
+              <p class="note">{{ r.at }}</p>
+            }
             @if (resolution()?.justification; as why) {
               <p class="decision-reason">{{ why }}</p>
             }
           }
           @case ('prescribed') {
-            <p class="registered rejected">
-              Rechazado por prescripción{{ resolution() ? ' el ' + resolution()?.at : '' }}
-            </p>
+            <p class="verdict"><span class="weigh-dot" data-tone="danger"></span>Rechazado</p>
+            <p class="note">Por prescripción{{ resolution() ? ' · ' + resolution()?.at : '' }}</p>
             @if (resolution()?.justification; as why) {
               <p class="decision-reason">{{ why }}</p>
             }
           }
           @case ('withdrawn') {
-            <p class="registered">Cerrado por desistimiento</p>
+            <p class="verdict"><span class="weigh-dot" data-tone="neutral"></span>Cerrado</p>
+            <p class="note">Por desistimiento</p>
             @if (closureNote(); as why) {
               <p class="decision-reason">{{ why }}</p>
             }
           }
           @case ('voided') {
-            <p class="registered">Dado de baja por error de carga</p>
+            <p class="verdict"><span class="weigh-dot" data-tone="neutral"></span>Dado de baja</p>
+            <p class="note">Por error de carga</p>
             @if (closureNote(); as why) {
               <p class="decision-reason">{{ why }}</p>
             }
           }
           @case ('lapsed') {
-            <p class="registered">Cerrado por caducidad</p>
+            <p class="verdict"><span class="weigh-dot" data-tone="neutral"></span>Cerrado</p>
+            <p class="note">Por caducidad</p>
             <p class="rcard-note">
               Pasaron 18 meses desde la denuncia sin que el asegurado trajera la documentación
               pedida.
@@ -261,6 +274,7 @@
                         }}</app-button
                       >
                       <app-button
+                        class="span-all"
                         variant="secondary"
                         [block]="true"
                         [disabled]="decisionSaving()"
@@ -286,10 +300,11 @@
                       >
                     }
                     <!-- Referral is not a third decision (it suspends to gather evidence), hence
-                         no tone. Always a menu: the full target name doesn't fit this column. -->
+                         no tone. Always a menu: the full target name doesn't fit this column.
+                         Referral and closing share a row; whichever is alone spans it. -->
                     @if (derivationChoices().length > 0) {
                       <app-menu-button
-                        class="span-all"
+                        [class.span-all]="!canClose()"
                         [block]="true"
                         [items]="deriveMenuItems()"
                         [disabled]="decisionSaving()"
@@ -301,6 +316,7 @@
                     <!-- Not a verdict, hence no tone and last in the column. -->
                     @if (canClose()) {
                       <app-menu-button
+                        [class.span-all]="derivationChoices().length === 0"
                         [block]="true"
                         [items]="closeMenuItems"
                         [disabled]="decisionSaving()"
