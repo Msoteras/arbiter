@@ -153,6 +153,8 @@ interface FieldItem {
   mono?: boolean;
   full?: boolean;
   sub?: string;
+  /** Renders the value as a link (mailto:, tel:). */
+  href?: string;
 }
 
 /** Hours for the first couple of days, days afterwards. */
@@ -512,6 +514,17 @@ export class CaseDetailComponent {
       { label: 'N° de póliza', value: d?.policyNumber ?? null, mono: true },
       { label: 'Producto', value: d?.product ?? null },
       { label: 'Rama', value: d?.branch ?? null },
+      // Contact outside the chat: the insured may not open the portal.
+      {
+        label: 'Mail',
+        value: d?.insuredEmail ?? null,
+        href: d?.insuredEmail ? `mailto:${d.insuredEmail}` : undefined,
+      },
+      {
+        label: 'Teléfono',
+        value: d?.insuredPhone ?? null,
+        href: d?.insuredPhone ? `tel:${d.insuredPhone.replace(/[^\d+]/g, '')}` : undefined,
+      },
     ];
   });
 
@@ -963,7 +976,9 @@ export class CaseDetailComponent {
       this.decisionSaving() ||
       !this.justification().trim() ||
       (this.pendingDecision() === 'approve' &&
-        (this.recalculationPending() || this.approvalBlockedReason() !== null)),
+        (this.recalculationPending() ||
+          this.settledAmountTyping() ||
+          this.approvalBlockedReason() !== null)),
   );
 
   askDecision(v: Verb): void {
@@ -975,6 +990,7 @@ export class CaseDetailComponent {
     this.replacementInput.set('');
     this.replacementApplied.set(null);
     this.settledAmountInput.set('');
+    this.settledAmountStable.set('');
     this.adjustmentReason.set('');
     if (v === 'approve') {
       this.prefillProviderAmount();
@@ -1093,7 +1109,7 @@ export class CaseDetailComponent {
   /** Computed on the proposal, so the analyst learns before confirming that it needs sign-off. */
   protected readonly needsReferent = computed(() => {
     const limit = this.settlement()?.authorityLimit;
-    const amount = this.amountToAuthorize();
+    const amount = this.stableAmountToAuthorize();
     return limit != null && amount != null && amount > limit;
   });
 
@@ -1186,6 +1202,7 @@ export class CaseDetailComponent {
       return;
     }
     this.settledAmountInput.set(String(amount));
+    this.settledAmountStable.set(String(amount));
   }
 
   private applyReplacementValue(): void {
@@ -1214,22 +1231,49 @@ export class CaseDetailComponent {
   protected readonly settledAmountInput = signal('');
   protected readonly adjustmentReason = signal('');
 
-  /** Null while there is no proposal or the input isn't a number. */
-  protected readonly amountToAuthorize = computed<number | null>(() => {
-    const raw = this.settledAmountInput().trim();
-    if (raw === '') {
+  /**
+   * The amount once the analyst stops typing. The fields and notices it brings follow this one, so
+   * the dialog doesn't grow and shrink with every digit of an amount still half typed.
+   */
+  private readonly settledAmountStable = signal('');
+  private readonly settledAmountSettling = toObservable(this.settledAmountInput)
+    .pipe(debounceTime(800), takeUntilDestroyed())
+    .subscribe((raw) => this.settledAmountStable.set(raw));
+
+  /** Blocks confirming too: the adjustment field may not be showing yet. */
+  protected readonly settledAmountTyping = computed(
+    () => this.settledAmountInput() !== this.settledAmountStable(),
+  );
+
+  private parseSettledAmount(raw: string): number | null {
+    const trimmed = raw.trim();
+    if (trimmed === '') {
       return this.settlement()?.calculatedAmount ?? null;
     }
-    const parsed = Number(raw);
+    const parsed = Number(trimmed);
     return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
-  });
+  }
+
+  private isAdjustment(authorized: number | null): boolean {
+    const proposed = this.settlement()?.calculatedAmount;
+    return proposed != null && authorized != null && authorized !== proposed;
+  }
+
+  /** Null while there is no proposal or the input isn't a number. */
+  protected readonly amountToAuthorize = computed(() =>
+    this.parseSettledAmount(this.settledAmountInput()),
+  );
+  private readonly stableAmountToAuthorize = computed(() =>
+    this.parseSettledAmount(this.settledAmountStable()),
+  );
 
   /** An adjustment must be justified: that is what makes it auditable. */
-  protected readonly settlementAdjusted = computed(() => {
-    const proposed = this.settlement()?.calculatedAmount;
-    const authorized = this.amountToAuthorize();
-    return proposed != null && authorized != null && authorized !== proposed;
-  });
+  protected readonly settlementAdjusted = computed(() =>
+    this.isAdjustment(this.amountToAuthorize()),
+  );
+  protected readonly adjustmentFieldShown = computed(() =>
+    this.isAdjustment(this.stableAmountToAuthorize()),
+  );
 
   /** The sum insured is the indemnity ceiling (art. 3). */
   protected readonly settlementAboveSumInsured = computed(() => {
