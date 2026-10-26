@@ -67,22 +67,12 @@ public class SendGridAdapter {
     }
 
     private Attachments toSendGrid(Attachment attachment) {
-        Attachments.Builder builder = new Attachments.Builder(
+        return new Attachments.Builder(
                 attachment.filename(), Base64.getEncoder().encodeToString(attachment.content()))
-                .withType(attachment.contentType());
-        return attachment.contentId() == null
-                ? builder.withDisposition("attachment").build()
-                : builder.withDisposition("inline").withContentId(attachment.contentId()).build();
+                .withType(attachment.contentType())
+                .withDisposition("attachment")
+                .build();
     }
 
-    /**
-     * With a {@code contentId} the file goes inline: the body shows it with
-     * {@code <img src="cid:...">} instead of listing it as an attachment.
-     */
-    public record Attachment(String filename, String contentType, byte[] content, String contentId) {
-
-        public Attachment(String filename, String contentType, byte[] content) {
-            this(filename, contentType, content, null);
-        }
-    }
+    public record Attachment(String filename, String contentType, byte[] content) {}
 }

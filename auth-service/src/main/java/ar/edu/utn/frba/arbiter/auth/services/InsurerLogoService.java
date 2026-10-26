@@ -64,6 +64,20 @@ public class InsurerLogoService {
         return repository.findById(insurerId).orElseThrow(LogoNotFoundException::new);
     }
 
+    /**
+     * Public: the mails to the insured point their <img> here. Only PNG and JPG, the formats the
+     * mail clients show; an older WebP or SVG upload reads as no logo.
+     */
+    @Transactional(readOnly = true)
+    public InsurerLogo publicLogo(String insurerSlug) {
+        return insurers.findAll().stream()
+                .filter(insurer -> slugOf(insurer).equalsIgnoreCase(insurerSlug))
+                .findFirst()
+                .flatMap(insurer -> repository.findById(insurer.getId()))
+                .filter(logo -> SIGNATURES.containsKey(logo.getContentType()))
+                .orElseThrow(LogoNotFoundException::new);
+    }
+
     /** The schema without its prefix, the same rule as cases-service's InsurerSlug: "arbiter_bbva" → "bbva". */
     private static String slugOf(Insurer insurer) {
         String schema = insurer.getSchemaName();

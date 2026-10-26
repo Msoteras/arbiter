@@ -101,8 +101,7 @@ public class MessageNotificationService {
     private void send(Notification notification, String address) {
         try {
             // sent=true only if the mail really went out: with no API key the adapter no-ops.
-            InsuredMailBranding.Branded mail = mailBranding.brand(body(notification));
-            if (!sendGridAdapter.send(address, SUBJECT, mail.htmlBody(), mail.attachments())) {
+            if (!sendGridAdapter.send(address, SUBJECT, body(notification))) {
                 return;
             }
             notification.setSent(true);
@@ -118,7 +117,6 @@ public class MessageNotificationService {
                 <p>Hola,</p>
                 <p>%s</p>
                 <p>Siniestro <strong>#%d</strong>.</p>
-                <p>Arbiter</p>
-                """.formatted(TO_INSURED, notification.getCaseEntity().getId());
+                %s""".formatted(TO_INSURED, notification.getCaseEntity().getId(), mailBranding.signature());
     }
 }

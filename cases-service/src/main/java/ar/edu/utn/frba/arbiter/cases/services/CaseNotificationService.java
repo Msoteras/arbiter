@@ -176,8 +176,7 @@ public class CaseNotificationService {
                       String type) {
         try {
             // sent=true only if the mail really went out: with no API key the adapter no-ops.
-            InsuredMailBranding.Branded mail = mailBranding.brand(body(message, caseRecord, type));
-            if (!sendGridAdapter.send(address, message.subject(), mail.htmlBody(), mail.attachments())) {
+            if (!sendGridAdapter.send(address, message.subject(), body(message, caseRecord, type))) {
                 return;
             }
             notification.setSent(true);
@@ -338,8 +337,8 @@ public class CaseNotificationService {
                 <p>Hola,</p>
                 <p>%s</p>%s
                 <p>Siniestro <strong>#%d</strong>.</p>
-                <p>Arbiter</p>
-                """.formatted(message.body(), approvedAmountLine(caseRecord, type), caseRecord.getId());
+                %s""".formatted(message.body(), approvedAmountLine(caseRecord, type), caseRecord.getId(),
+                mailBranding.signature());
     }
 
     /** Empty without a settlement; best-effort, so a failed read never stops the approval email. */

@@ -50,6 +50,21 @@ public class InsurerLogoController {
         return image(service.forInsurer(insurerSlug, authentication.getName()));
     }
 
+    /** No ".png" at the end: the front's nginx serves every path with an image extension itself. */
+    @GetMapping("/public/insurers/{insurerSlug}/logo")
+    @Operation(summary = "Leer el logo de una aseguradora, sin sesión",
+            description = "Para la imagen de los mails al asegurado. Solo PNG o JPG. 404 sin logo.")
+    public ResponseEntity<byte[]> getPublic(@PathVariable String insurerSlug) {
+        InsurerLogo logo = service.publicLogo(insurerSlug);
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(logo.getContentType()))
+                // Public: Gmail's image proxy keeps a copy, so a sleeping service is hit once.
+                .cacheControl(CacheControl.maxAge(Duration.ofDays(1)).cachePublic())
+                .header("Content-Security-Policy", IMAGE_CSP)
+                .header("X-Content-Type-Options", "nosniff")
+                .body(logo.getContent());
+    }
+
     private static ResponseEntity<byte[]> image(InsurerLogo logo) {
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(logo.getContentType()))

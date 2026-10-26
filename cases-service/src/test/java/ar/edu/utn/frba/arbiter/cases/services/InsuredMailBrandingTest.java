@@ -9,7 +9,6 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -31,14 +30,15 @@ class InsuredMailBrandingTest {
     @Mock
     private InsurerLogoRepository insurerLogoRepository;
 
-    @InjectMocks
     private InsuredMailBranding branding;
 
     @BeforeEach
     void resolveTenant() {
+        branding = new InsuredMailBranding(insurerRepository, insurerLogoRepository,
+                "https://arbiter-prod.up.railway.app/");
         TenantContext.set("arbiter_bbva");
-        when(insurerRepository.findBySchemaName("arbiter_bbva"))
-                .thenReturn(Optional.of(Insurer.builder().id(BBVA).schemaName("arbiter_bbva").build()));
+        when(insurerRepository.findBySchemaName("arbiter_bbva")).thenReturn(Optional.of(
+                Insurer.builder().id(BBVA).name("BBVA Seguros").schemaName("arbiter_bbva").build()));
     }
 
     @AfterEach
@@ -47,34 +47,27 @@ class InsuredMailBrandingTest {
     }
 
     @Test
-    void embedsTheLogoAboveTheBody() {
+    void signsWithTheLogoByItsPublicUrl() {
         when(insurerLogoRepository.findById(BBVA))
                 .thenReturn(Optional.of(new InsurerLogo(BBVA, PNG, "image/png", Instant.now())));
 
-        InsuredMailBranding.Branded mail = branding.brand("<p>Hola,</p>");
-
-        assertThat(mail.htmlBody()).startsWith("<p><img src=\"cid:insurer-logo\"").endsWith("<p>Hola,</p>");
-        assertThat(mail.attachments()).singleElement().satisfies(logo -> {
-            assertThat(logo.contentId()).isEqualTo("insurer-logo");
-            assertThat(logo.contentType()).isEqualTo("image/png");
-        });
+        assertThat(branding.signature()).contains(
+                "src=\"https://arbiter-prod.up.railway.app/api/v1/auth/public/insurers/bbva/logo\"",
+                "<p>BBVA Seguros</p>");
     }
 
     @Test
-    void withoutALogoTheMailIsAsBefore() {
+    void withoutALogoItSignsAsArbiter() {
         when(insurerLogoRepository.findById(BBVA)).thenReturn(Optional.empty());
 
-        InsuredMailBranding.Branded mail = branding.brand("<p>Hola,</p>");
-
-        assertThat(mail.htmlBody()).isEqualTo("<p>Hola,</p>");
-        assertThat(mail.attachments()).isEmpty();
+        assertThat(branding.signature()).isEqualTo(InsuredMailBranding.DEFAULT_SIGNATURE);
     }
 
     @Test
-    void anOlderSvgLogoIsLeftOut() {
+    void anOlderSvgLogoSignsAsArbiter() {
         when(insurerLogoRepository.findById(BBVA))
                 .thenReturn(Optional.of(new InsurerLogo(BBVA, PNG, "image/svg+xml", Instant.now())));
 
-        assertThat(branding.brand("<p>Hola,</p>").attachments()).isEmpty();
+        assertThat(branding.signature()).isEqualTo(InsuredMailBranding.DEFAULT_SIGNATURE);
     }
 }

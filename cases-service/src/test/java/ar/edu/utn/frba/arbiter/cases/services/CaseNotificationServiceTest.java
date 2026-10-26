@@ -32,7 +32,6 @@ import java.util.Optional;
 import java.util.stream.IntStream;
 
 import static org.mockito.Mockito.lenient;
-import static org.mockito.ArgumentMatchers.anyList;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -73,9 +72,8 @@ class CaseNotificationServiceTest {
     private CaseNotificationService service;
 
     @BeforeEach
-    void mailsGoWithoutALogo() {
-        lenient().when(mailBranding.brand(anyString()))
-                .thenAnswer(call -> new InsuredMailBranding.Branded(call.getArgument(0), List.of()));
+    void signsAsArbiter() {
+        lenient().when(mailBranding.signature()).thenReturn("<p>Arbiter</p>");
     }
 
     @AfterEach
@@ -88,7 +86,7 @@ class CaseNotificationServiceTest {
     @Test
     void notifyStatusChange_writesTheRowAndSendsTheEmail() {
         savesWhatItIsGiven();
-        when(sendGridAdapter.send(anyString(), anyString(), anyString(), anyList())).thenReturn(true);
+        when(sendGridAdapter.send(anyString(), anyString(), anyString())).thenReturn(true);
 
         service.notifyStatusChange(caseWith(insuredWith(INSURED_EMAIL)), CaseStatus.APPROVED);
 
@@ -99,7 +97,7 @@ class CaseNotificationServiceTest {
         assertThat(saved.isRead()).isFalse();
         assertThat(saved.isSent()).isTrue();
         assertThat(saved.getSentAt()).isNotNull();
-        verify(sendGridAdapter).send(eq(INSURED_EMAIL), anyString(), anyString(), anyList());
+        verify(sendGridAdapter).send(eq(INSURED_EMAIL), anyString(), anyString());
     }
 
     /**
@@ -109,7 +107,7 @@ class CaseNotificationServiceTest {
     @Test
     void notifyStatusChange_doesNotMarkSentWhenNothingWentOut() {
         savesWhatItIsGiven();
-        when(sendGridAdapter.send(anyString(), anyString(), anyString(), anyList())).thenReturn(false);
+        when(sendGridAdapter.send(anyString(), anyString(), anyString())).thenReturn(false);
 
         service.notifyStatusChange(caseWith(insuredWith(INSURED_EMAIL)), CaseStatus.APPROVED);
 
@@ -134,7 +132,7 @@ class CaseNotificationServiceTest {
     void notifyStatusChange_keepsTheRowWhenTheEmailFails() {
         savesWhatItIsGiven();
         doThrow(new RuntimeException("SendGrid caído"))
-                .when(sendGridAdapter).send(anyString(), anyString(), anyString(), anyList());
+                .when(sendGridAdapter).send(anyString(), anyString(), anyString());
 
         assertThatCode(() -> service.notifyStatusChange(
                 caseWith(insuredWith(INSURED_EMAIL)), CaseStatus.REJECTED))
@@ -151,7 +149,7 @@ class CaseNotificationServiceTest {
     void notifyStatusChange_survivesAnErrorAndNotJustAnException() {
         savesWhatItIsGiven();
         doThrow(new NoClassDefFoundError("com/sendgrid/helpers/mail/Mail"))
-                .when(sendGridAdapter).send(anyString(), anyString(), anyString(), anyList());
+                .when(sendGridAdapter).send(anyString(), anyString(), anyString());
 
         assertThatCode(() -> service.notifyStatusChange(
                 caseWith(insuredWith(INSURED_EMAIL)), CaseStatus.APPROVED))
@@ -167,7 +165,7 @@ class CaseNotificationServiceTest {
 
         service.notifyStatusChange(caseWith(insuredWith("  ")), CaseStatus.APPROVED);
 
-        verify(sendGridAdapter).send(eq(ACCOUNT_EMAIL), anyString(), anyString(), anyList());
+        verify(sendGridAdapter).send(eq(ACCOUNT_EMAIL), anyString(), anyString());
     }
 
     /** recipient_id is NOT NULL, so an insured who never signed up can't have a row. */
@@ -316,14 +314,14 @@ class CaseNotificationServiceTest {
     @Test
     void notifyReopened_writesItsOwnTypeAndSendsTheEmail() {
         savesWhatItIsGiven();
-        when(sendGridAdapter.send(anyString(), anyString(), anyString(), anyList())).thenReturn(true);
+        when(sendGridAdapter.send(anyString(), anyString(), anyString())).thenReturn(true);
 
         service.notifyReopened(caseWith(insuredWith(INSURED_EMAIL)));
 
         Notification saved = firstSaved();
         assertThat(saved.getType()).isEqualTo("REOPENED");
         assertThat(saved.isSent()).isTrue();
-        verify(sendGridAdapter).send(eq(INSURED_EMAIL), anyString(), anyString(), anyList());
+        verify(sendGridAdapter).send(eq(INSURED_EMAIL), anyString(), anyString());
     }
 
     /**
@@ -333,12 +331,12 @@ class CaseNotificationServiceTest {
     @Test
     void notifyReopened_saysNothingAboutWhy() {
         savesWhatItIsGiven();
-        when(sendGridAdapter.send(anyString(), anyString(), anyString(), anyList())).thenReturn(true);
+        when(sendGridAdapter.send(anyString(), anyString(), anyString())).thenReturn(true);
 
         service.notifyReopened(caseWith(insuredWith(INSURED_EMAIL)));
 
         ArgumentCaptor<String> body = ArgumentCaptor.forClass(String.class);
-        verify(sendGridAdapter).send(anyString(), anyString(), body.capture(), anyList());
+        verify(sendGridAdapter).send(anyString(), anyString(), body.capture());
         assertThat(body.getValue().toLowerCase())
                 .doesNotContain("fraude", "riesgo", "sospech", "clasificac", "motivo");
     }

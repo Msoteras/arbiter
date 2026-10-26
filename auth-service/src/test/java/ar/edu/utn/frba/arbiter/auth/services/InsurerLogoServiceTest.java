@@ -143,6 +143,24 @@ class InsurerLogoServiceTest {
         verify(repository, never()).findById(any());
     }
 
+    @Test
+    void thePublicReadFindsTheInsurerBySlug() {
+        InsurerLogo logo = new InsurerLogo(BBVA, PNG, "image/png", Instant.now());
+        when(insurers.findAll()).thenReturn(List.of(bbva()));
+        when(repository.findById(BBVA)).thenReturn(Optional.of(logo));
+
+        assertThat(service.publicLogo("bbva")).isSameAs(logo);
+    }
+
+    @Test
+    void thePublicReadLeavesOutAnOlderSvg() {
+        when(insurers.findAll()).thenReturn(List.of(bbva()));
+        when(repository.findById(BBVA))
+                .thenReturn(Optional.of(new InsurerLogo(BBVA, PNG, "image/svg+xml", Instant.now())));
+
+        assertThatThrownBy(() -> service.publicLogo("bbva")).isInstanceOf(LogoNotFoundException.class);
+    }
+
     private static Insurer bbva() {
         return Insurer.builder().id(BBVA).schemaName("arbiter_bbva").build();
     }
