@@ -38,6 +38,9 @@ public record CaseResponse(
         String insuredName,
         /** Politically exposed person: a due-diligence fact, deliberately kept out of scoring and the prompt. */
         boolean pep,
+        /** Contact data the insured keeps in their profile; null until they load it. */
+        String insuredEmail,
+        String insuredPhone,
         String policyNumber,
         String description,
         LocalDateTime eventDate,
@@ -94,7 +97,7 @@ public record CaseResponse(
     public CaseResponse forInsured() {
         return new CaseResponse(
                 id, insurerSlug, insurerName, null, insuredStatus, branch, product, claimCause, coverage,
-                insuredItem, insuredId, insuredName, pep, policyNumber, description, eventDate,
+                insuredItem, insuredId, insuredName, pep, insuredEmail, insuredPhone, policyNumber, description, eventDate,
                 policeReportAt, eventLocation, claimedAmount,
                 null, false, 0.0, List.of(), null, null, null,
                 null, null, List.of(), null,

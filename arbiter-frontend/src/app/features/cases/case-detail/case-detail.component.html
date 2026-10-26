@@ -567,7 +567,13 @@
                     @for (f of insuredFacts(); track f.label) {
                       <div class="fact">
                         <dt>{{ f.label }}</dt>
-                        <dd [class.mono]="f.mono">{{ f.value ?? 'Sin datos' }}</dd>
+                        <dd [class.mono]="f.mono">
+                          @if (f.href) {
+                            <a class="fact-link" [href]="f.href">{{ f.value }}</a>
+                          } @else {
+                            {{ f.value ?? 'Sin datos' }}
+                          }
+                        </dd>
                       </div>
                     }
                   </dl>

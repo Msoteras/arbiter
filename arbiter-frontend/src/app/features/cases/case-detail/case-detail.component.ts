@@ -153,6 +153,8 @@ interface FieldItem {
   mono?: boolean;
   full?: boolean;
   sub?: string;
+  /** Renders the value as a link (mailto:, tel:). */
+  href?: string;
 }
 
 /** Hours for the first couple of days, days afterwards. */
@@ -512,6 +514,17 @@ export class CaseDetailComponent {
       { label: 'N° de póliza', value: d?.policyNumber ?? null, mono: true },
       { label: 'Producto', value: d?.product ?? null },
       { label: 'Rama', value: d?.branch ?? null },
+      // Contact outside the chat: the insured may not open the portal.
+      {
+        label: 'Mail',
+        value: d?.insuredEmail ?? null,
+        href: d?.insuredEmail ? `mailto:${d.insuredEmail}` : undefined,
+      },
+      {
+        label: 'Teléfono',
+        value: d?.insuredPhone ?? null,
+        href: d?.insuredPhone ? `tel:${d.insuredPhone.replace(/[^\d+]/g, '')}` : undefined,
+      },
     ];
   });
 
