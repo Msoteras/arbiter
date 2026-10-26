@@ -1465,7 +1465,7 @@
           </p>
         }
 
-        @if (settlementAdjusted()) {
+        @if (adjustmentFieldShown()) {
           <label class="fieldset">
             <span class="t-field-label">Justificación del ajuste</span>
             <app-textarea
@@ -1502,7 +1502,10 @@
       [(value)]="justification"
     />
   </label>
-  @if (pendingDecision() === 'approve' && approvalBlockedReason(); as blockReason) {
+  @if (
+    pendingDecision() === 'approve' && !settledAmountTyping() && approvalBlockedReason();
+    as blockReason
+  ) {
     <p class="rcard-note error">{{ blockReason }}</p>
   }
   <ng-container modalActions>
