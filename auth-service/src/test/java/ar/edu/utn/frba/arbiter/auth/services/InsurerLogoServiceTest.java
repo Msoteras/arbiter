@@ -125,18 +125,25 @@ class InsurerLogoServiceTest {
         InsurerLogo logo = new InsurerLogo(BBVA, PNG, "image/png", Instant.now());
         when(users.findByEmail("ana@mail.com")).thenReturn(Optional.of(User.builder().id(3L).build()));
         when(tenantResolver.insurerIdsFor(3L)).thenReturn(List.of(BBVA));
+        when(insurers.findAllById(List.of(BBVA))).thenReturn(List.of(bbva()));
         when(repository.findById(BBVA)).thenReturn(Optional.of(logo));
 
-        assertThat(service.forInsurer("arbiter_bbva", "ana@mail.com")).isSameAs(logo);
+        assertThat(service.forInsurer("bbva", "ana@mail.com")).isSameAs(logo);
     }
 
     @Test
     void theLogoOfAnotherInsurerIsNotFound() {
         when(users.findByEmail("ana@mail.com")).thenReturn(Optional.of(User.builder().id(3L).build()));
         when(tenantResolver.insurerIdsFor(3L)).thenReturn(List.of(99L));
+        when(insurers.findAllById(List.of(99L))).thenReturn(
+                List.of(Insurer.builder().id(99L).schemaName("arbiter_provincia").build()));
 
-        assertThatThrownBy(() -> service.forInsurer("arbiter_bbva", "ana@mail.com"))
+        assertThatThrownBy(() -> service.forInsurer("bbva", "ana@mail.com"))
                 .isInstanceOf(LogoNotFoundException.class);
         verify(repository, never()).findById(any());
+    }
+
+    private static Insurer bbva() {
+        return Insurer.builder().id(BBVA).schemaName("arbiter_bbva").build();
     }
 }

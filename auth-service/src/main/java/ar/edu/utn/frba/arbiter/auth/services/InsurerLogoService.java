@@ -8,6 +8,7 @@ import ar.edu.utn.frba.arbiter.auth.models.repositories.InsurerRepository;
 import ar.edu.utn.frba.arbiter.auth.models.repositories.UserRepository;
 import ar.edu.utn.frba.arbiter.common.models.entities.Insurer;
 import ar.edu.utn.frba.arbiter.common.models.entities.InsurerLogo;
+import ar.edu.utn.frba.arbiter.common.models.entities.User;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,6 +28,8 @@ import java.util.Optional;
 public class InsurerLogoService {
 
     /** A logo is a small mark: anything bigger is a photo or an unoptimized export. */
+    private static final String SCHEMA_PREFIX = "arbiter_";
+
     public static final int MAX_BYTES = 256 * 1024;
 
     /** The declared type has to match the file's first bytes: the header alone is the client's word. */
@@ -45,21 +48,26 @@ public class InsurerLogoService {
     }
 
     /**
-     * The logo of one of the user's insurers, by its schema: the portal shows, on each claim, the
-     * insurer that claim belongs to. Not found for an insurer the user doesn't belong to.
+     * The logo of one of the user's insurers, by the slug the portal uses for it: each claim shows
+     * the insurer it belongs to. Not found for an insurer the user doesn't belong to.
      */
     @Transactional(readOnly = true)
-    public InsurerLogo forInsurer(String schemaName, String email) {
-        Long insurerId = insurers.findBySchemaName(schemaName)
-                .map(Insurer::getId)
+    public InsurerLogo forInsurer(String insurerSlug, String email) {
+        Long userId = users.findByEmail(email)
+                .map(User::getId)
                 .orElseThrow(LogoNotFoundException::new);
-        boolean member = users.findByEmail(email)
-                .map(user -> tenantResolver.insurerIdsFor(user.getId()).contains(insurerId))
-                .orElse(false);
-        if (!member) {
-            throw new LogoNotFoundException();
-        }
+        Long insurerId = insurers.findAllById(tenantResolver.insurerIdsFor(userId)).stream()
+                .filter(insurer -> slugOf(insurer).equalsIgnoreCase(insurerSlug))
+                .map(Insurer::getId)
+                .findFirst()
+                .orElseThrow(LogoNotFoundException::new);
         return repository.findById(insurerId).orElseThrow(LogoNotFoundException::new);
+    }
+
+    /** The schema without its prefix, the same rule as cases-service's InsurerSlug: "arbiter_bbva" → "bbva". */
+    private static String slugOf(Insurer insurer) {
+        String schema = insurer.getSchemaName();
+        return schema.startsWith(SCHEMA_PREFIX) ? schema.substring(SCHEMA_PREFIX.length()) : schema;
     }
 
     /** When the insurer's logo was uploaded; empty without one. Used by the login. */
