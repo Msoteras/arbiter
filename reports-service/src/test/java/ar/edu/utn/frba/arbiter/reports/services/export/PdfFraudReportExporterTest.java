@@ -4,15 +4,21 @@ import ar.edu.utn.frba.arbiter.common.enums.RiskBand;
 import ar.edu.utn.frba.arbiter.reports.config.RequesterContext;
 import ar.edu.utn.frba.arbiter.reports.dto.FraudReport;
 import ar.edu.utn.frba.arbiter.reports.dto.FraudReportRow;
+import ar.edu.utn.frba.arbiter.reports.dto.ReportBranding;
 import ar.edu.utn.frba.arbiter.reports.dto.FraudSummary;
 import ar.edu.utn.frba.arbiter.reports.services.FraudSummaries;
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.pdmodel.PDResources;
 import org.apache.pdfbox.text.PDFTextStripper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.stream.LongStream;
 
@@ -204,6 +210,37 @@ class PdfFraudReportExporterTest {
         Rendered pdf = render(List.of(flaggedRow(42, "Ana 😀 Pérez")));
 
         assertThat(pdf.text()).contains("Ana ? Pérez");
+    }
+
+    @Test
+    void withALogo_theHeaderDrawsItInsteadOfTheMonogram() throws IOException {
+        PdfFraudReportExporter branded = new PdfFraudReportExporter(CLOCK, brandedAs(
+                new ReportBranding(BBVA.insurerName(), BBVA.insurerLegalName(), png())));
+
+        try (PDDocument document = Loader.loadPDF(branded.export(septemberFraudReport(
+                List.of(flaggedRow(1482)))))) {
+            PDResources resources = document.getPage(0).getResources();
+            assertThat(resources.getXObjectNames()).isNotEmpty();
+            assertThat(new PDFTextStripper().getText(document)).doesNotContain("BS");
+        }
+    }
+
+    @Test
+    void aLogoThatCantBeDrawnFallsBackToTheMonogram() throws IOException {
+        PdfFraudReportExporter branded = new PdfFraudReportExporter(CLOCK, brandedAs(
+                new ReportBranding(BBVA.insurerName(), BBVA.insurerLegalName(),
+                        "<svg/>".getBytes(StandardCharsets.UTF_8))));
+
+        try (PDDocument document = Loader.loadPDF(branded.export(septemberFraudReport(
+                List.of(flaggedRow(1482)))))) {
+            assertThat(new PDFTextStripper().getText(document)).contains("BS");
+        }
+    }
+
+    private static byte[] png() throws IOException {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        ImageIO.write(new BufferedImage(40, 10, BufferedImage.TYPE_INT_RGB), "png", out);
+        return out.toByteArray();
     }
 
     private Rendered render(List<FraudReportRow> rows) throws IOException {
