@@ -12,6 +12,7 @@
         <app-switch
           [checked]="d.expertEnabled"
           ariaLabel="Derivación a peritaje"
+          [disabled]="readOnly()"
           (checkedChange)="toggleExpert()"
         />
         <div class="rule-text">
@@ -31,6 +32,7 @@
               placeholder="Monto mínimo"
               [normalize]="amountInputDisplay"
               [value]="expertAmountLabel()"
+              [disabled]="readOnly()"
               (valueChange)="setExpertAmount($event)"
             />
           </div>
@@ -38,7 +40,7 @@
           <span class="rule-off-note t-note">No se deriva</span>
         }
       </li>
-      @if (expertInvalid()) {
+      @if (expertInvalid() && !readOnly()) {
         <li class="rule-row detail">
           <p class="warn-note">Indicá desde qué monto se deriva a peritaje.</p>
         </li>
@@ -71,13 +73,15 @@
       -->
     </ul>
 
-    <app-save-bar
-      [dirty]="dirty()"
-      [saving]="saving()"
-      [error]="error()"
-      [canSave]="!expertInvalid()"
-      (save)="save()"
-      (discard)="discard()"
-    />
+    @if (!readOnly()) {
+      <app-save-bar
+        [dirty]="dirty()"
+        [saving]="saving()"
+        [error]="error()"
+        [canSave]="!expertInvalid()"
+        (save)="save()"
+        (discard)="discard()"
+      />
+    }
   </app-card>
 }

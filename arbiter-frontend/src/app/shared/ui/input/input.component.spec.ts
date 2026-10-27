@@ -87,6 +87,15 @@ describe('InputComponent · numeric fields', () => {
     paste('-guión al principio');
     expect(fixture.componentInstance.value()).toBe('-guión al principio');
   });
+
+  it('disables the native field and keeps showing its value', () => {
+    fixture.componentInstance.value.set('72');
+    fixture.componentRef.setInput('disabled', true);
+    fixture.detectChanges();
+
+    expect(field().disabled).toBeTrue();
+    expect(field().value).toBe('72');
+  });
 });
 
 @Component({
