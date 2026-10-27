@@ -1,6 +1,6 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, computed, effect, inject, signal, untracked } from '@angular/core';
-import { Observable, map, tap } from 'rxjs';
+import { Observable, catchError, map, of, shareReplay, tap } from 'rxjs';
 
 import { environment } from '../../../environments/environment';
 import { AuthSessionService } from '../auth/auth-session.service';
@@ -32,12 +32,33 @@ export class InsurerLogoService {
   readonly logo = this._logo.asReadonly();
   readonly logoUrl = computed(() => this._logo()?.url ?? null);
   private loadedVersion: string | null = null;
+  /** Logos of the insured's insurers, by slug, for the claim detail. Kept for the session. */
+  private readonly byInsurer = new Map<string, Observable<string | null>>();
 
   constructor() {
     effect(() => {
       const version = this.session.session()?.insurerLogoVersion ?? null;
       untracked(() => this.sync(version));
     });
+  }
+
+  /** Object URL of one of the user's insurers' logo; null without one. */
+  forInsurer(slug: string): Observable<string | null> {
+    let logo = this.byInsurer.get(slug);
+    if (!logo) {
+      logo = this.http
+        .get(`${environment.apiBaseUrl}/auth/insurers/${encodeURIComponent(slug)}/logo`, {
+          responseType: 'blob',
+          context: silentRequest(),
+        })
+        .pipe(
+          map((blob) => URL.createObjectURL(blob)),
+          catchError(() => of(null)),
+          shareReplay(1),
+        );
+      this.byInsurer.set(slug, logo);
+    }
+    return logo;
   }
 
   upload(file: File): Observable<void> {

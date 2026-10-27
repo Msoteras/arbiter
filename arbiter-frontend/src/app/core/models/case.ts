@@ -89,6 +89,9 @@ export interface CaseResponse {
   insuredName: string | null;
   /** Politically exposed person, as self-declared (AML due diligence). Not a fraud signal. */
   pep: boolean;
+  /** From the insured's profile; null until they load it. */
+  insuredEmail: string | null;
+  insuredPhone: string | null;
   policyNumber: string;
   description: string;
   eventDate: string;

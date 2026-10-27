@@ -57,6 +57,14 @@
 .hero h1 {
   margin: 0;
 }
+/* The insurer of this claim, above its number. */
+.hero-insurer-logo {
+  align-self: flex-start;
+  height: var(--space-7);
+  max-width: calc(var(--space-7) * 5);
+  margin-bottom: var(--space-2);
+  object-fit: contain;
+}
 .eyebrow {
   font-size: var(--font-size-2xs);
   font-weight: var(--font-weight-medium);
