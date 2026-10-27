@@ -31,12 +31,14 @@ const MONTHS_PER: Record<Unit, number> = { months: 1, years: 12 };
       [min]="1"
       [value]="amount()"
       [placeholder]="placeholder()"
+      [disabled]="disabled()"
       (valueChange)="setAmount($event)"
     />
     <app-select
       class="unit"
       [options]="unitOptions"
       [value]="unit()"
+      [disabled]="disabled()"
       (valueChange)="setUnit($event)"
     />
   `,
@@ -58,6 +60,7 @@ export class MonthsInputComponent {
   readonly months = input<number | null>(null);
   readonly id = input<string | null>(null);
   readonly placeholder = input('');
+  readonly disabled = input(false);
 
   readonly monthsChange = output<number | null>();
 

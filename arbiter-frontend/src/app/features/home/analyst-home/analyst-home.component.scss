@@ -1,4 +1,3 @@
-@use 'media';
 @use '../home-dashboard';
 
 :host {
@@ -162,8 +161,8 @@
   overflow: hidden;
 }
 // Neutral, not the brand accent: these are counts, not a selection or an active state.
-.split-yours {
-  display: block;
+.split-yours,
+.key-yours {
   background: var(--text-secondary);
 }
 // One column: side by side, the labels wrapped and the counts lost their alignment.
@@ -183,9 +182,6 @@
   width: var(--space-2);
   height: var(--space-2);
   border-radius: var(--radius-pill);
-}
-.key-yours {
-  background: var(--text-secondary);
 }
 .key-waiting {
   background: var(--border-strong);
@@ -213,10 +209,6 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-3);
   margin: 0;
-
-  @include media.phone {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
 }
 .week > div {
   display: flex;

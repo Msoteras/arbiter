@@ -26,7 +26,7 @@ public class FastTrackRuleController {
     private final FastTrackRuleService fastTrackRuleService;
 
     @GetMapping("/fast-track")
-    @PreAuthorize("hasRole('REFERENTE_ASEGURADORA')")
+    @PreAuthorize("hasAnyRole('REFERENTE_ASEGURADORA', 'ANALISTA_SINIESTROS')")
     @Operation(summary = "Umbrales Fast Track de una cobertura",
             description = "Devuelve los umbrales configurados para (ramo, cobertura). Si no hay regla, "
                     + "devuelve una configuración vacía (todos los campos en null).")

@@ -23,7 +23,9 @@ import { InputComponent } from '../../../shared/ui/input/input.component';
         @if (emptyHint()) {
           <p class="empty-hint">{{ emptyHint() }}</p>
         }
-        <app-button (click)="add()">{{ emptyCta() || addLabel() }}</app-button>
+        @if (!readOnly()) {
+          <app-button (click)="add()">{{ emptyCta() || addLabel() }}</app-button>
+        }
       </div>
     } @else {
       <ul class="items">
@@ -50,17 +52,21 @@ import { InputComponent } from '../../../shared/ui/input/input.component';
               <div class="text">
                 <p class="item-text">{{ item || placeholder() }}</p>
               </div>
-              <div class="row-actions">
-                <app-icon-button icon="edit" label="Editar" (click)="startEditing($index)" />
-                <app-icon-button icon="delete" label="Quitar" (click)="remove($index)" />
-              </div>
+              @if (!readOnly()) {
+                <div class="row-actions">
+                  <app-icon-button icon="edit" label="Editar" (click)="startEditing($index)" />
+                  <app-icon-button icon="delete" label="Quitar" (click)="remove($index)" />
+                </div>
+              }
             }
           </li>
         } @empty {
           <li class="empty t-note">{{ emptyText() }}</li>
         }
       </ul>
-      <app-button variant="secondary" size="sm" (click)="add()">{{ addLabel() }}</app-button>
+      @if (!readOnly()) {
+        <app-button variant="secondary" size="sm" (click)="add()">{{ addLabel() }}</app-button>
+      }
     }
   `,
   styles: `
@@ -176,6 +182,7 @@ export class StringListEditorComponent {
   readonly emptyCta = input('');
   /** Decorative leading mark on each row (the "not covered" ✗ in exclusions). */
   readonly marker = input(false);
+  readonly readOnly = input(false);
 
   readonly itemsChange = output<string[]>();
 

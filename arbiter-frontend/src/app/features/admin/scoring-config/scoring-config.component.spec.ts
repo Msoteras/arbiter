@@ -11,7 +11,10 @@ import { ScoringRulesService } from '../scoring-rules.service';
 describe('ScoringConfigComponent', () => {
   let fixture: ComponentFixture<ScoringConfigComponent>;
 
-  async function render(factors: { factorId: string; weight: number }[]): Promise<void> {
+  async function render(
+    factors: { factorId: string; weight: number }[],
+    readOnly = false,
+  ): Promise<void> {
     await TestBed.configureTestingModule({
       imports: [ScoringConfigComponent],
       providers: [
@@ -29,6 +32,7 @@ describe('ScoringConfigComponent', () => {
     }).compileComponents();
 
     fixture = TestBed.createComponent(ScoringConfigComponent);
+    fixture.componentRef.setInput('readOnly', readOnly);
     fixture.detectChanges();
   }
 
@@ -145,5 +149,24 @@ describe('ScoringConfigComponent', () => {
     expect(host().querySelector('.sc-total')).toBeNull();
     expect(host().querySelector('.sc-total-note')).toBeNull();
     expect(saveButton().disabled).toBeFalse();
+  });
+
+  it('shows the scoring to an analyst with nothing to change or save', async () => {
+    await render(
+      [
+        { factorId: 'amount_ratio', weight: 2 },
+        { factorId: 'claim_frequency', weight: 1 },
+      ],
+      true,
+    );
+
+    expect(text('.sc-total')).toBe('Total: 300%');
+    expect(host().querySelector('.sc-total-note')).toBeNull();
+    expect(host().querySelector('app-save-bar')).toBeNull();
+    const controls = [
+      ...host().querySelectorAll<HTMLInputElement | HTMLButtonElement>('input, [role="switch"]'),
+    ];
+    expect(controls.length).toBeGreaterThan(0);
+    expect(controls.filter((c) => !c.disabled)).toEqual([]);
   });
 });

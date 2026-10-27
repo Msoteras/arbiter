@@ -8,7 +8,7 @@ import { FraudConfigComponent } from './fraud-config.component';
 import { FraudRecordRule, FraudRuleService } from '../fraud-rule.service';
 
 describe('FraudConfigComponent', () => {
-  function mount(rule: FraudRecordRule): HTMLElement {
+  function mount(rule: FraudRecordRule, readOnly = false): HTMLElement {
     TestBed.configureTestingModule({
       imports: [FraudConfigComponent],
       providers: [
@@ -20,6 +20,7 @@ describe('FraudConfigComponent', () => {
       ],
     });
     const fixture = TestBed.createComponent(FraudConfigComponent);
+    fixture.componentRef.setInput('readOnly', readOnly);
     fixture.detectChanges();
     return fixture.nativeElement as HTMLElement;
   }
@@ -40,5 +41,19 @@ describe('FraudConfigComponent', () => {
     const el = mount({ ruleId: 7, windowMonths: 36, blocksFastTrack: false });
 
     expect(saveButton(el)?.disabled).toBeTrue();
+  });
+
+  it('shows the policy to an analyst with nothing to change or save', () => {
+    const el = mount({ ruleId: 7, windowMonths: 36, blocksFastTrack: true }, true);
+
+    expect(el.querySelector('app-save-bar')).toBeNull();
+    const controls = [
+      ...el.querySelectorAll<HTMLInputElement | HTMLButtonElement>(
+        'input, [role="switch"], [role="combobox"]',
+      ),
+    ];
+    expect(controls.length).toBe(3);
+    expect(controls.every((c) => c.disabled)).toBeTrue();
+    expect(el.querySelector<HTMLInputElement>('app-months-input input')?.value).toBe('3');
   });
 });
