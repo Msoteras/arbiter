@@ -93,7 +93,7 @@
         } @else if (d.status === 'PENDING_CLASSIFICATION') {
           <app-classification-progress [since]="classificationSince()" />
         } @else {
-          <p class="nodata">El modelo todavía no generó una recomendación.</p>
+          <p class="nodata">Arbiter todavía no generó una recomendación.</p>
         }
       </div>
 
@@ -837,7 +837,7 @@
                 <app-empty-state message="Este expediente todavía no tiene score de fraude" />
               }
             </app-card>
-            <app-card heading="Razones del modelo">
+            <app-card heading="Razones de Arbiter">
               @if (analysisReasons().length > 0) {
                 <span cardAside class="t-note"
                   >{{ analysisReasons().length }}
@@ -857,15 +857,15 @@
                 </ol>
               } @else {
                 <app-empty-state
-                  message="El modelo no dejó razones"
-                  sub="Cuando decide una regla no se consulta al modelo; el score sale de los datos."
+                  [message]="
+                    isDeterministicOutcome()
+                      ? 'Lo resolvió el motor de reglas.'
+                      : 'Arbiter no dejó razones.'
+                  "
                 />
               }
               @if (classificationLabel() && !isDeterministicOutcome()) {
-                <p class="t-note">
-                  Confianza del modelo: {{ confidencePercent() }}% · Estimación del propio modelo,
-                  no una probabilidad de acierto.
-                </p>
+                <p class="t-note">Confianza de Arbiter: {{ confidencePercent() }}%</p>
               }
             </app-card>
           </div>
@@ -1784,7 +1784,7 @@
 >
   <p class="t-note">
     El expediente vuelve a tu revisión con
-    {{ reportIsRepair() ? 'la respuesta' : 'el informe' }} al lado de la recomendación del modelo.
+    {{ reportIsRepair() ? 'la respuesta' : 'el informe' }}.
   </p>
   <app-select
     [options]="reportIsRepair() ? repairOutcomeOptions : verdictOptions"

@@ -123,5 +123,8 @@ Notas:
   se muestran tal cual y ensucian la lectura.
 - "Texto plano" quiere decir sin formato, **no sin acentos**: escribí en español correcto, con todos
   los tildes y la ñ ("año", "límite", "documentación", "últimos"). Nunca los omitas ni los reemplaces.
+- Cada factor describe el hecho, no quién lo notó. No nombres al modelo, a la IA, al LLM ni al
+  sistema: ✅ "La fecha del ticket es posterior a la denuncia", ❌ "El modelo detectó que la fecha
+  del ticket es posterior a la denuncia".
 - La confianza debe reflejar qué tan seguro estás de la clasificación (0.0 = completamente inseguro, 1.0 = completamente seguro).
 - Si hay duda o incertidumbre sobre cómo clasificar, optá por LLM_SOLICITA_REVISION_MANUAL.

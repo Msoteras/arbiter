@@ -114,7 +114,7 @@ type OptionsState =
                     >Motivo
                     <span class="required" aria-hidden="true">*</span>
                     <app-info-tip
-                      >El asegurado no lo ve. Lo usa el modelo al reclasificar.</app-info-tip
+                      >El asegurado no lo ve. Arbiter lo usa al reclasificar.</app-info-tip
                     >
                   </span>
                   <app-textarea

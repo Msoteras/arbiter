@@ -52,7 +52,7 @@ public class PdfResolutionReportExporter implements ResolutionReportExporter {
     private static final String KIND = "RES";
 
     private static final String SCOPE = "Incluye los expedientes cerrados dentro del período, con "
-            + "sus tiempos, la clasificación sugerida por el sistema y la decisión del analista. No "
+            + "sus tiempos, la clasificación sugerida por Arbiter y la decisión del analista. No "
             + "incluye los expedientes que siguen abiertos.";
 
     private static final String METHOD = "Se tomaron los expedientes cuya fecha de resolución cae "
@@ -71,8 +71,8 @@ public class PdfResolutionReportExporter implements ResolutionReportExporter {
                     "Solo cuenta los expedientes con recomendación. Fast Track y revisión manual "
                             + "no sugieren decisión, así que quedan fuera."),
             new DefinitionsBlock.Definition("Fast Track",
-                    "Expediente que las reglas habilitaron a resolver sin análisis del modelo."),
-            new DefinitionsBlock.Definition("Clasificación", "Sugerencia del sistema."),
+                    "Expediente que cumplió los criterios objetivos de la aseguradora."),
+            new DefinitionsBlock.Definition("Clasificación", "Sugerencia de Arbiter."),
             new DefinitionsBlock.Definition("Espera de terceros",
                     "Tiempo esperando al asegurado, al perito o al servicio técnico. No se imputa "
                             + "a la gestión."),
@@ -85,7 +85,7 @@ public class PdfResolutionReportExporter implements ResolutionReportExporter {
             new TableBlock.Column("Siniestro", 18, false),
             new TableBlock.Column("Denuncia · cierre", 17, false),
             new TableBlock.Column("Tiempo", 13, true),
-            new TableBlock.Column("Sistema · analista", 15, false),
+            new TableBlock.Column("Arbiter · analista", 15, false),
             new TableBlock.Column("Estado final", 12, false));
 
     private static final int MAX_LISTED_DEVIATIONS = 6;
@@ -272,7 +272,7 @@ public class PdfResolutionReportExporter implements ResolutionReportExporter {
         if (deviations.size() == 1) {
             ResolutionReportRow row = deviations.getFirst();
             bullets.add(new BulletsBlock.Bullet(
-                    "El expediente #%d se %s pese a que el sistema recomendaba lo contrario."
+                    "El expediente #%d se %s pese a que Arbiter recomendaba lo contrario."
                             .formatted(row.caseId(),
                                     ReportLabels.decision(row.analystDecision())
                                             .toLowerCase(Locale.ROOT)),
@@ -284,7 +284,7 @@ public class PdfResolutionReportExporter implements ResolutionReportExporter {
                     .reduce((a, b) -> a + ", " + b)
                     .orElseThrow();
             bullets.add(new BulletsBlock.Bullet(
-                    "%d expedientes se resolvieron en contra de la recomendación del sistema: %s%s."
+                    "%d expedientes se resolvieron en contra de la recomendación de Arbiter: %s%s."
                             .formatted(deviations.size(), ids,
                                     deviations.size() > MAX_LISTED_DEVIATIONS ? " y otros" : ""),
                     ReportTheme.STATUS_DANGER));
@@ -389,7 +389,7 @@ public class PdfResolutionReportExporter implements ResolutionReportExporter {
             matrixRows.add(new MatrixBlock.Row(
                     ReportLabels.classification(classification), row));
         }
-        return new MatrixBlock("Sistema y analista, cruzados", columns, matrixRows, MATRIX_LEGEND);
+        return new MatrixBlock("Arbiter y analista, cruzados", columns, matrixRows, MATRIX_LEGEND);
     }
 
     private static int decisionColumn(String decision) {
