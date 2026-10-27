@@ -42,7 +42,7 @@ import { ChangeDetectionStrategy, Component, computed, input, model, output } fr
         font-size: var(--font-size-body);
       }
     }
-    .field:hover:not(:focus):not([readonly]) {
+    .field:hover:not(:focus):not([readonly]):not(:disabled) {
       border-color: var(--border-strong);
     }
     .field:focus {
@@ -54,8 +54,9 @@ import { ChangeDetectionStrategy, Component, computed, input, model, output } fr
       color: var(--text-muted);
     }
     .field:disabled {
-      color: var(--text-muted);
       cursor: default;
+      opacity: 0.55;
+      resize: none;
     }
   `,
 })

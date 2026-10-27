@@ -511,6 +511,20 @@ describe('RulesComponent', () => {
       ).toBe('Cobertura por rotura o caída accidental del equipo');
     });
 
+    it('drops the example placeholders, which read as instructions', async () => {
+      localStorage.removeItem(LAST_TAB_KEY);
+      await mount([coverage()], 'ANALISTA_SINIESTROS');
+      click(el().querySelector<HTMLElement>('.cov-toggle'));
+
+      const hints = [
+        ...el().querySelectorAll<HTMLInputElement | HTMLTextAreaElement>(
+          '.cov-body input, .cov-body textarea',
+        ),
+      ].map((f) => f.placeholder);
+      expect(hints).not.toContain('ej. 340');
+      expect(hints).not.toContain('Qué cubre, en una o dos frases');
+    });
+
     it('lets the analyst switch the Fast Track coverage to read each one', async () => {
       localStorage.setItem(LAST_TAB_KEY, 'fastTrack');
       await mount([coverage()], 'ANALISTA_SINIESTROS');

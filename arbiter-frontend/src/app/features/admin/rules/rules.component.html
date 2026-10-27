@@ -337,7 +337,7 @@
                                 [value]="c.clause"
                                 [disabled]="readOnly()"
                                 (valueChange)="setCoverageField(c.id, { clause: $event })"
-                                placeholder="ej. 340"
+                                [placeholder]="readOnly() ? '' : 'ej. 340'"
                               />
                             </label>
                             <label class="fieldset">
@@ -366,7 +366,7 @@
                               [value]="c.description"
                               [disabled]="readOnly()"
                               (valueChange)="setCoverageField(c.id, { description: $event })"
-                              placeholder="Qué cubre, en una o dos frases"
+                              [placeholder]="readOnly() ? '' : 'Qué cubre, en una o dos frases'"
                             />
                           </label>
 
