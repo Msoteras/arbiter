@@ -18,8 +18,8 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 
 /**
- * How much an analyst may authorize on their own per branch. Referente-only: the analyst must not
- * be able to raise the ceiling that limits them.
+ * How much an analyst may authorize on their own per branch. The analyst reads it; only the
+ * referente writes it, so the analyst can't raise the ceiling that limits them.
  */
 @RestController
 @RequestMapping("/api/v1/settlement-authorities")
@@ -30,7 +30,7 @@ public class SettlementAuthorityController {
     private final SettlementAuthorityService authorityService;
 
     @GetMapping
-    @PreAuthorize("hasRole('REFERENTE_ASEGURADORA')")
+    @PreAuthorize("hasAnyRole('REFERENTE_ASEGURADORA', 'ANALISTA_SINIESTROS')")
     @Operation(summary = "Attribution ceiling per branch",
             description = "Every branch, including the ones with no ceiling — those come back with a null "
                     + "maxAmount, which means the analyst authorizes any amount in that branch.")
