@@ -59,7 +59,7 @@ type OptionsState =
   template: `
     <app-modal
       [open]="open()"
-      variant="side"
+      size="lg"
       heading="Pedir documentación"
       [dismissable]="false"
       (close)="cancel()"
@@ -90,12 +90,7 @@ type OptionsState =
         }
 
         <div class="group">
-          <span class="t-field-label">
-            Otros documentos
-            <app-info-tip>
-              Para un documento que no está en la lista, o uno que llegó ilegible.
-            </app-info-tip>
-          </span>
+          <span class="t-field-label">Otros documentos</span>
           @for (other of others(); track other.id) {
             <div class="other">
               <div class="other-fields">
@@ -144,9 +139,7 @@ type OptionsState =
             <li class="t-body">{{ line }}</li>
           }
         </ul>
-        <p class="t-note">
-          El expediente pasa a Falta documentación y el asegurado recibe un mail.
-        </p>
+        <p class="t-note">El asegurado recibirá una notificación con los documentos a subir.</p>
       }
 
       @if (error()) {

@@ -12,7 +12,6 @@ import { catchError, map, of, scan, startWith, switchMap } from 'rxjs';
 
 import { ProfileService } from '../../../core/auth/profile.service';
 import {
-  IMAGE_CONSENT_DETAIL,
   IMAGE_CONSENT_SUMMARY,
   IMAGE_CONSENT_VERSION,
   InsuredProfile,
@@ -40,7 +39,6 @@ export class ProfileComponent {
   private readonly profileService = inject(ProfileService);
 
   protected readonly consentSummary = IMAGE_CONSENT_SUMMARY;
-  protected readonly consentDetail = IMAGE_CONSENT_DETAIL;
 
   // Bumped after saving: the PATCH returns a new token, not the profile, so it must be re-fetched.
   private readonly reload = signal(0);

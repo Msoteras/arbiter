@@ -126,6 +126,12 @@ public class CaseStatusService {
         CaseState target = caseStateCatalog.resolve(to);
         appendHistory(caseRecord.getId(), caseRecord.getCurrentStatus(), target, actor, reason, observation);
         caseRecord.setCurrentStatus(target);
+        if (to == PENDING_CLASSIFICATION) {
+            // A new run starts: a failure recorded by an earlier one would make the polling fail
+            // this one at once (see ClassificationRefreshScheduler).
+            caseRecord.setClassificationFailureReason(null);
+            caseRecord.setClassificationFailureMessage(null);
+        }
         resumeDeadlineIfInterrupted(caseRecord, from, to);
         Case saved = caseRepository.save(caseRecord);
 

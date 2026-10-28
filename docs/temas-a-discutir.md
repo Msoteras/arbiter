@@ -49,6 +49,31 @@ afuera; ahora son requisitos de diseño:
 
 ---
 
+## El score de riesgo no suma lo que encuentra el LLM — abierto (27/10/2026)
+
+**Qué se sabe.** El score sale solo de factores de datos: monto sobre suma asegurada, frecuencia de
+siniestros, estado de la póliza, inconsistencias entre documentos y similares. Lo que el LLM
+encuentra al leer el caso no entra en el cálculo.
+
+Caso que lo muestra: el expediente #64 (Valentín Aguirre, hurto en un bar de San Telmo). La
+constancia de última conexión ubica el celular, después del hurto, bajo la antena del domicilio del
+asegurado. El LLM lo detecta y lo pone en sus tres razones, y recomienda revisión manual. El score
+queda en 20/100, banda baja. El analista ve un riesgo bajo al lado de una contradicción grave.
+
+**Qué falta decidir.**
+
+- Si el score tiene que reflejar la lectura del LLM, o si se mantiene como medida de datos objetivos
+  y la recomendación del LLM va aparte. La separación sigue la implicancia de diseño 5 de
+  `CLAUDE.md`: las reglas evalúan condiciones objetivas y el LLM aporta la lectura interpretativa.
+- Si entra, cómo: un factor más en `scoring_configuration`, con un peso que configure cada
+  aseguradora, alimentado por la recomendación o por las inconsistencias que marque el LLM.
+- Si no entra, cómo se muestra en la UI para que un score bajo no se lea como "caso limpio".
+
+**Qué bloquea:** nada. El analista ve las razones del LLM en la solapa Análisis, pero el score y la
+banda que encabezan el expediente pueden contradecirlas.
+
+---
+
 ## ~~El ramo Tecnología Portátil de Provincia cubre un solo hecho generador~~ — ✅ cerrado (23/10/2026)
 
 **Encontrado:** 05/09/2026, corriendo `init-multitenant.sql` + `seed-demo.sql` sobre un Postgres

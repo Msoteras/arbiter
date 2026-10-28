@@ -57,7 +57,9 @@
         <h2 class="strip-label">
           <span class="ai-mark" aria-hidden="true">✦</span>
           {{
-            isDeterministicOutcome() ? 'Resultado del motor de reglas' : 'Recomendación de Arbiter'
+            isDeterministicOutcome()
+              ? 'Resultado del motor de reglas de Arbiter'
+              : 'Recomendación de Arbiter'
           }}
         </h2>
         @if (classificationLabel()) {
@@ -767,7 +769,8 @@
         }
 
         @case ('analysis') {
-          <div class="analysis-grid">
+          <!-- Without reasons (a rules outcome) the score takes the whole row. -->
+          <div class="analysis-grid" [class.single]="analysisReasons().length === 0">
             <app-card heading="Score de fraude">
               @if (riskScorePct() !== null) {
                 <div class="risk-head">
@@ -837,14 +840,12 @@
                 <app-empty-state message="Este expediente todavía no tiene score de fraude" />
               }
             </app-card>
-            <app-card heading="Razones de Arbiter">
-              @if (analysisReasons().length > 0) {
+            @if (analysisReasons().length > 0) {
+              <app-card heading="Razones">
                 <span cardAside class="t-note"
                   >{{ analysisReasons().length }}
                   {{ analysisReasons().length === 1 ? 'motivo' : 'motivos' }}</span
                 >
-              }
-              @if (analysisReasons().length > 0) {
                 <ol class="reason-list">
                   @for (reason of analysisReasons(); track $index) {
                     <li class="reason-item">
@@ -855,19 +856,11 @@
                     </li>
                   }
                 </ol>
-              } @else {
-                <app-empty-state
-                  [message]="
-                    isDeterministicOutcome()
-                      ? 'Lo resolvió el motor de reglas.'
-                      : 'Arbiter no dejó razones.'
-                  "
-                />
-              }
-              @if (classificationLabel() && !isDeterministicOutcome()) {
-                <p class="t-note">Confianza de Arbiter: {{ confidencePercent() }}%</p>
-              }
-            </app-card>
+                @if (classificationLabel() && !isDeterministicOutcome()) {
+                  <p class="t-note">Confianza de Arbiter: {{ confidencePercent() }}%</p>
+                }
+              </app-card>
+            }
           </div>
         }
 
