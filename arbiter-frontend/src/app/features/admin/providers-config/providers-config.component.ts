@@ -1,5 +1,5 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input, signal } from '@angular/core';
 
 import { BranchOption, BranchesService } from '../branches.service';
 import { ProviderAdmin, ProviderRequest, ProvidersService } from '../providers.service';
@@ -55,6 +55,8 @@ interface ProviderDraft extends ProviderRequest {
   styleUrl: './providers-config.component.scss',
 })
 export class ProvidersConfigComponent {
+  readonly readOnly = input(false);
+
   protected readonly stepLine = ONBOARDING_STEP_LINE;
 
   private readonly providersService = inject(ProvidersService);

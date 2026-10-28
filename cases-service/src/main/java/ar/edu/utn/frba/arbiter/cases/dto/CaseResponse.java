@@ -86,7 +86,9 @@ public record CaseResponse(
         /** What the insurer DB answered at classification time, not today. */
         PolicySnapshotResponse policySnapshot,
         /** Only on GET /{id}, once referred to a repair service: the one derivation detail the insured sees. */
-        RepairProviderResponse repairProvider
+        RepairProviderResponse repairProvider,
+        /** What the analyst asked for outside the schedule. The insured gets it without the reasons. */
+        List<RequestedDocumentResponse> requestedDocuments
 ) {
 
     /**
@@ -110,6 +112,8 @@ public record CaseResponse(
                                 .map(StatusTransitionResponse::forInsured)
                                 .toList(),
                 List.of(), List.of(), null,
-                repairProvider);
+                repairProvider,
+                requestedDocuments == null ? List.of()
+                        : requestedDocuments.stream().map(RequestedDocumentResponse::forInsured).toList());
     }
 }

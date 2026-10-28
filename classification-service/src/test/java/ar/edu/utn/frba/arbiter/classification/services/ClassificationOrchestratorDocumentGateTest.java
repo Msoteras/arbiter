@@ -20,8 +20,14 @@ import ar.edu.utn.frba.arbiter.common.enums.RiskBand;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.junit.jupiter.api.BeforeEach;
+import ar.edu.utn.frba.arbiter.classification.models.entities.DocumentAnalysis;
+import ar.edu.utn.frba.arbiter.common.dto.ImageForensicReport;
+import ar.edu.utn.frba.arbiter.common.dto.ClaimReport;
+import ar.edu.utn.frba.arbiter.common.dto.AnalystDocumentNote;
+import ar.edu.utn.frba.arbiter.classification.dto.ClassificationRequest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Spy;
@@ -29,9 +35,12 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -69,6 +78,7 @@ class ClassificationOrchestratorDocumentGateTest {
     @Mock private PolicySnapshotRepository policySnapshotRepository;
     @Mock private InsuredFraudRecordRepository fraudRecordRepository;
     @Mock private DocumentAnalysisRepository documentAnalysisRepository;
+    @Mock private RecordedExtractionService recordedExtractionService;
     @Spy private ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
 
     @InjectMocks private ClassificationOrchestrator orchestrator;
@@ -182,6 +192,66 @@ class ClassificationOrchestratorDocumentGateTest {
         verify(classifier, never()).classify(any());
     }
 
+    /** The analyst already chose what to ask for: what they left out of the schedule isn't missing. */
+    @Test
+    void afterTheAnalystsRequest_theScheduleIsNotDemandedAgain() {
+        when(fastTrackValidator.evaluate(any(), any(), any(), any(), any()))
+                .thenReturn(new FastTrackValidator.Result(false, List.of("no aplica"), List.of()));
+        when(classifier.classify(any())).thenReturn(ClassificationResponse.builder()
+                .classification(Classification.LLM_SOLICITA_REVISION_MANUAL)
+                .factors(List.of("falta la baja de IMEI"))
+                .confidence(0.6)
+                .resolvedByRules(false)
+                .build());
+        when(promptBuilder.renderRulesAndPolicy(any(), any())).thenReturn("");
+        when(promptBuilder.renderHistory(any())).thenReturn("");
+        ClaimReport claim = RiskFixtures.claim(new BigDecimal("100000"));
+        ClaimReport afterRequest = ClaimReport.builder()
+                .branch(claim.branch()).product(claim.product()).claimCause(claim.claimCause())
+                .insuredItem(claim.insuredItem()).insuredId(claim.insuredId()).policyNumber(claim.policyNumber())
+                .description(claim.description()).eventDate(claim.eventDate()).eventLocation(claim.eventLocation())
+                .claimedAmount(claim.claimedAmount())
+                .documentationRequestedByAnalyst(true)
+                .build();
+
+        ClassificationResponse response = orchestrator.classify(afterRequest, attachments(MINIMUM_DOCS));
+
+        assertThat(response.classification()).isEqualTo(Classification.LLM_SOLICITA_REVISION_MANUAL);
+        verify(classifier, times(1)).classify(any());
+    }
+
+    /** What the analyst wrote about a document the catalog doesn't name has to reach the model. */
+    @Test
+    void theAnalystsNotesOnAnOtherDocument_reachTheModel() {
+        when(fastTrackValidator.evaluate(any(), any(), any(), any(), any()))
+                .thenReturn(new FastTrackValidator.Result(false, List.of("no aplica"), List.of()));
+        when(classifier.classify(any())).thenReturn(ClassificationResponse.builder()
+                .classification(Classification.LLM_RECOMIENDA_APROBAR)
+                .factors(List.of("documentación consistente"))
+                .confidence(0.8)
+                .resolvedByRules(false)
+                .build());
+        when(promptBuilder.renderRulesAndPolicy(any(), any())).thenReturn("");
+        when(promptBuilder.renderHistory(any())).thenReturn("");
+        AnalystDocumentNote note = new AnalystDocumentNote(
+                "other_1", "Resumen de la tarjeta", "Confirmar la fecha de compra");
+        ClaimReport claim = RiskFixtures.claim(new BigDecimal("100000"));
+        ClaimReport withNote = ClaimReport.builder()
+                .branch(claim.branch()).product(claim.product()).claimCause(claim.claimCause())
+                .insuredItem(claim.insuredItem()).insuredId(claim.insuredId()).policyNumber(claim.policyNumber())
+                .description(claim.description()).eventDate(claim.eventDate()).eventLocation(claim.eventLocation())
+                .claimedAmount(claim.claimedAmount())
+                .analystDocumentNotes(List.of(note))
+                .documentationRequestedByAnalyst(true)
+                .build();
+
+        orchestrator.classify(withNote, attachments(AGENDA));
+
+        ArgumentCaptor<ClassificationRequest> sent = ArgumentCaptor.forClass(ClassificationRequest.class);
+        verify(classifier).classify(sent.capture());
+        assertThat(sent.getValue().analystDocumentNotes()).containsExactly(note);
+    }
+
     /** Complete schedule, no Fast Track: goes on to the model. */
     @Test
     void noFastTrackButACompleteSchedule_goesToTheModel() {
@@ -201,6 +271,39 @@ class ClassificationOrchestratorDocumentGateTest {
 
         assertThat(response.classification()).isEqualTo(Classification.LLM_RECOMIENDA_APROBAR);
         verify(classifier, times(1)).classify(any());
+    }
+
+    /** The documents already read keep their read: only the new one goes to the model. */
+    @Test
+    void aReclassification_readsOnlyTheDocumentsWithoutAnEarlierRead() {
+        when(fastTrackValidator.evaluate(any(), any(), any(), any(), any()))
+                .thenReturn(new FastTrackValidator.Result(false, List.of("no aplica"), List.of()));
+        when(classifier.classify(any())).thenReturn(ClassificationResponse.builder()
+                .classification(Classification.LLM_RECOMIENDA_APROBAR)
+                .factors(List.of("documentación consistente"))
+                .confidence(0.8)
+                .resolvedByRules(false)
+                .build());
+        when(promptBuilder.renderRulesAndPolicy(any(), any())).thenReturn("");
+        when(promptBuilder.renderHistory(any())).thenReturn("");
+        lenient().when(imageFraudAnalysisService.analyze(any(), any(), anyBoolean()))
+                .thenReturn(new ImageForensicReport(0, 0, false, List.of()));
+        List<AttachmentDocument> documents = attachments(AGENDA);
+        Long newDocumentId = documents.getLast().documentId();
+        Map<Long, DocumentExtraction> earlier = documents.stream()
+                .filter(doc -> !doc.documentId().equals(newDocumentId))
+                .collect(Collectors.toMap(AttachmentDocument::documentId,
+                        doc -> DocumentExtraction.of("leído antes: " + doc.type())));
+        when(recordedExtractionService.completeReadsOf(any())).thenReturn(earlier);
+
+        orchestrator.classify(1L, RiskFixtures.claim(new BigDecimal("100000")), documents);
+
+        verify(documentAnalyzer, times(1)).extract(any(), any(), any(), any());
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<DocumentAnalysis>> saved = ArgumentCaptor.forClass(List.class);
+        verify(documentAnalysisRepository).saveAll(saved.capture());
+        assertThat(saved.getValue()).extracting(DocumentAnalysis::getCaseDocumentId)
+                .containsExactly(newDocumentId);
     }
 
     private BusinessRules rules() {

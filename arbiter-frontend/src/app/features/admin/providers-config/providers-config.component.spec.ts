@@ -29,7 +29,7 @@ describe('ProvidersConfigComponent', () => {
     ...over,
   });
 
-  async function mount(providers: ProviderAdmin[] = []): Promise<void> {
+  async function mount(providers: ProviderAdmin[] = [], readOnly = false): Promise<void> {
     providersService = jasmine.createSpyObj<ProvidersService>('ProvidersService', [
       'list',
       'create',
@@ -55,6 +55,7 @@ describe('ProvidersConfigComponent', () => {
     }).compileComponents();
 
     fixture = TestBed.createComponent(ProvidersConfigComponent);
+    fixture.componentRef.setInput('readOnly', readOnly);
     fixture.detectChanges();
   }
 
@@ -117,6 +118,14 @@ describe('ProvidersConfigComponent', () => {
     );
 
     expect(labels).toEqual(['Editar Estudio Verifica', 'Borrar Estudio Verifica']);
+  });
+
+  it('lists the providers to an analyst with no way to add, edit or delete them', async () => {
+    await mount([provider()], true);
+
+    expect(el().querySelector('.provider-name')?.textContent).toContain('Estudio Verifica');
+    expect(el().querySelectorAll('.provider-actions').length).toBe(0);
+    expect(el().textContent).not.toContain('Agregar proveedor');
   });
 
   it('opens a new provider in a side panel with every branch checked', async () => {

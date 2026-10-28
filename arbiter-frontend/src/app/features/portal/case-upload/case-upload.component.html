@@ -18,9 +18,6 @@
         >.
       }
     </p>
-    @if (needsDocs()) {
-      <p class="subtitle-2 measure">La lista depende de lo que te pasó ({{ d.claimCause }}).</p>
-    }
   } @else if (loading()) {
     <p class="subtitle">Cargando tu siniestro…</p>
   }
@@ -28,13 +25,7 @@
 
 @if (needsDocs()) {
   <app-card heading="Documentos requeridos">
-    <app-doc-upload
-      [caseId]="caseId"
-      [insurerSlug]="insurerSlug"
-      [branch]="data()?.branch ?? null"
-      [claimCause]="data()?.claimCause ?? null"
-      (uploaded)="onUploaded()"
-    />
+    <app-doc-upload [caseId]="caseId" [insurerSlug]="insurerSlug" (uploaded)="onUploaded()" />
   </app-card>
 
   <p class="autosend-note">

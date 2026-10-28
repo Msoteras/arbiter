@@ -8,5 +8,7 @@ public enum CaseFollowUp {
     RETURNED_BY_REFERENT,
     AWAITING_REFERENT,
     /** Under the analyst's review and not yet sent to the referent: the decision is still theirs. */
-    AWAITING_ANALYST
+    AWAITING_ANALYST,
+    /** Classified as missing documentation: the analyst still has to choose what to ask for. */
+    DOCUMENTATION_TO_CONFIRM
 }

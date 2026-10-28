@@ -74,11 +74,13 @@ import { TableComponent } from '../../../shared/ui/table/table.component';
 import { TabOption, TabsComponent } from '../../../shared/ui/tabs/tabs.component';
 import { CheckboxComponent } from '../../../shared/ui/checkbox/checkbox.component';
 import { SelectComponent, SelectOption } from '../../../shared/ui/select/select.component';
+import { RiskBand } from '../../../core/models/risk-band';
 import { ToastService } from '../../../shared/ui/toast/toast.service';
 import { ONBOARDING_STEP_LINE, onboardingStepArea } from '../../../core/onboarding/onboarding';
 import { OnboardingService } from '../../../core/onboarding/onboarding.service';
 import { accordion, fadeInUp, listStagger, staggerReveal } from '../../../shared/animations';
 import { OnboardingTargetDirective } from '../../../core/onboarding/onboarding-target.directive';
+import { AuthSessionService } from '../../../core/auth/auth-session.service';
 
 type TabId = 'coverages' | 'exclusions' | 'fastTrack' | 'documents' | 'derivations' | 'rules';
 
@@ -147,6 +149,10 @@ export class RulesComponent {
   private readonly toastService = inject(ToastService);
   private readonly route = inject(ActivatedRoute);
   private readonly onboarding = inject(OnboardingService);
+  private readonly session = inject(AuthSessionService);
+  protected readonly readOnly = computed(
+    () => this.session.session()?.rol !== 'REFERENTE_ASEGURADORA',
+  );
   /** A request older than this screen was already handled by the address it opened with. */
   private reopenedFocusId = this.onboarding.focusRequest()?.id ?? null;
 
@@ -269,7 +275,9 @@ export class RulesComponent {
   protected readonly covDirty = computed(() => this.sliceChanged('coverages'));
   protected readonly exclDirty = computed(() => this.sliceChanged('commonExclusions'));
   protected readonly ftDirty = computed(() => this.sliceChanged('fastTrack'));
-  protected readonly docDirty = computed(() => this.sliceChanged('requiredDocumentsByClaimCause'));
+  protected readonly docDirty = computed(() =>
+    this.sliceChanged('requiredDocumentsByClaimCause', 'documentBandsByClaimCause'),
+  );
   protected readonly rulesDirty = computed(() => this.sliceChanged('businessRules'));
 
   protected discardCoverages(): void {
@@ -288,7 +296,7 @@ export class RulesComponent {
   }
 
   protected discardDocuments(): void {
-    this.restoreSlice('requiredDocumentsByClaimCause');
+    this.restoreSlice('requiredDocumentsByClaimCause', 'documentBandsByClaimCause');
     this.docError.set(null);
   }
 
@@ -359,7 +367,7 @@ export class RulesComponent {
    */
   private openLinkedView(params: ParamMap): boolean {
     const section = params.get('seccion');
-    if (section && this.generalSections.some((g) => g.id === section)) {
+    if (section && this.visibleGeneralSections().some((g) => g.id === section)) {
       this.selectGeneral(section as GeneralView);
       return true;
     }
@@ -502,6 +510,7 @@ export class RulesComponent {
       coverageCount: 0,
       commonExclusions: [],
       requiredDocumentsByClaimCause: {},
+      documentBandsByClaimCause: {},
       businessRules: [],
       fastTrack: {
         enabled: true,
@@ -520,7 +529,7 @@ export class RulesComponent {
     return this.view() === 'branch' && this.selectedId() === r.id;
   }
 
-  protected readonly generalSections: { id: GeneralView; label: string }[] = [
+  private readonly generalSections: { id: GeneralView; label: string; referentOnly?: boolean }[] = [
     { id: 'hardStop', label: 'Hard Stop' },
     { id: 'scoring', label: 'Puntaje de riesgo' },
     { id: 'fraud', label: 'Gestión de fraude' },
@@ -529,9 +538,13 @@ export class RulesComponent {
     // Caps are per branch but listed together so they can be compared at a glance.
     { id: 'authorities', label: 'Atribuciones de liquidación' },
     { id: 'target', label: 'Objetivo de resolución' },
-    { id: 'brand', label: 'Marca' },
+    { id: 'brand', label: 'Marca', referentOnly: true },
     // 'history' is deliberately not here: it configures nothing and has its own Audit block.
   ];
+
+  protected readonly visibleGeneralSections = computed(() =>
+    this.generalSections.filter((s) => !s.referentOnly || !this.readOnly()),
+  );
 
   protected selectGeneral(section: GeneralView): void {
     this.view.set(section);
@@ -891,19 +904,27 @@ export class RulesComponent {
       return;
     }
     this.trackDetail(r.id, this.documentsService.get(branchId, claimCauseId)).subscribe({
-      next: (types) => {
+      next: (items) => {
+        const bands: Record<string, RiskBand> = {};
+        items.forEach(({ documentType, minRiskBand }) => {
+          if (minRiskBand) bands[documentType] = minRiskBand;
+        });
         this.draft.update((d) =>
           d
             ? {
                 ...d,
                 requiredDocumentsByClaimCause: {
                   ...d.requiredDocumentsByClaimCause,
-                  [claimCauseId]: types,
+                  [claimCauseId]: items.map((item) => item.documentType),
+                },
+                documentBandsByClaimCause: {
+                  ...d.documentBandsByClaimCause,
+                  [claimCauseId]: bands,
                 },
               }
             : d,
         );
-        this.markPersisted('requiredDocumentsByClaimCause');
+        this.markPersisted('requiredDocumentsByClaimCause', 'documentBandsByClaimCause');
       },
       error: () => {
         /* best-effort */
@@ -1844,13 +1865,16 @@ export class RulesComponent {
         this.documentsService.save(
           branchId,
           claimCauseId,
-          d.requiredDocumentsByClaimCause[claimCauseId] ?? [],
+          (d.requiredDocumentsByClaimCause[claimCauseId] ?? []).map((documentType) => ({
+            documentType,
+            minRiskBand: d.documentBandsByClaimCause[claimCauseId]?.[documentType] ?? null,
+          })),
         ),
       ),
     ).subscribe({
       next: () => {
         this.docSaving.set(false);
-        this.markPersisted('requiredDocumentsByClaimCause');
+        this.markPersisted('requiredDocumentsByClaimCause', 'documentBandsByClaimCause');
         changed.forEach((claimCauseId) => this.loadDocumentsFromBackend(d, claimCauseId));
       },
       error: (e: unknown) => {
@@ -1870,10 +1894,48 @@ export class RulesComponent {
         return d;
       }
       const current = d.requiredDocumentsByClaimCause[claimCauseId] ?? [];
-      const next = current.includes(code) ? current.filter((c) => c !== code) : [...current, code];
+      const removing = current.includes(code);
+      const next = removing ? current.filter((c) => c !== code) : [...current, code];
+      // A document taken out of the schedule loses its band: added back, it starts as "always".
+      const bands = { ...(d.documentBandsByClaimCause[claimCauseId] ?? {}) };
+      if (removing) delete bands[code];
       return {
         ...d,
         requiredDocumentsByClaimCause: { ...d.requiredDocumentsByClaimCause, [claimCauseId]: next },
+        documentBandsByClaimCause: { ...d.documentBandsByClaimCause, [claimCauseId]: bands },
+      };
+    });
+  }
+
+  /**
+   * LOW is left out: from Bajo up is every scored case, which reads the same as "always". The band
+   * alone, without "Desde": the columns are narrow, and the card's tip says it is a lower bound.
+   */
+  protected readonly documentBandOptions: SelectOption[] = [
+    { value: '', label: 'Siempre' },
+    { value: 'MEDIUM', label: 'Medio' },
+    { value: 'HIGH', label: 'Alto' },
+    { value: 'CRITICAL', label: 'Crítico' },
+  ];
+
+  protected docBandFor(claimCauseId: number, code: string): string {
+    return this.draft()?.documentBandsByClaimCause[claimCauseId]?.[code] ?? '';
+  }
+
+  protected setDocBand(claimCauseId: number, code: string, value: string): void {
+    this.draft.update((d) => {
+      if (!d) {
+        return d;
+      }
+      const bands = { ...(d.documentBandsByClaimCause[claimCauseId] ?? {}) };
+      if (value) {
+        bands[code] = value as RiskBand;
+      } else {
+        delete bands[code];
+      }
+      return {
+        ...d,
+        documentBandsByClaimCause: { ...d.documentBandsByClaimCause, [claimCauseId]: bands },
       };
     });
   }
@@ -1890,9 +1952,15 @@ export class RulesComponent {
   private changedClaimCauses(): number[] {
     const current = this.draft()?.requiredDocumentsByClaimCause ?? {};
     const base = this.persisted()?.requiredDocumentsByClaimCause ?? {};
+    const currentBands = this.draft()?.documentBandsByClaimCause ?? {};
+    const baseBands = this.persisted()?.documentBandsByClaimCause ?? {};
     return this.claimCauses()
       .map((c) => c.id)
-      .filter((id) => JSON.stringify(current[id] ?? []) !== JSON.stringify(base[id] ?? []));
+      .filter(
+        (id) =>
+          JSON.stringify(current[id] ?? []) !== JSON.stringify(base[id] ?? []) ||
+          JSON.stringify(currentBands[id] ?? {}) !== JSON.stringify(baseBands[id] ?? {}),
+      );
   }
 
   protected saveBusinessRules(): void {

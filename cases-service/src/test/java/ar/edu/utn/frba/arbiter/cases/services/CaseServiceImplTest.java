@@ -38,6 +38,15 @@ import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidAnalystDecisionException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidSettlementException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidStatusTransitionException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.MissingRequiredDocumentsException;
+import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidDocumentRequestException;
+import ar.edu.utn.frba.arbiter.cases.exceptions.DocumentationPendingException;
+import ar.edu.utn.frba.arbiter.cases.dto.DocumentRequestRequest;
+import ar.edu.utn.frba.arbiter.cases.dto.PendingDocumentResponse;
+import ar.edu.utn.frba.arbiter.cases.dto.RequestedDocumentResponse;
+import ar.edu.utn.frba.arbiter.cases.dto.RequestableDocumentResponse;
+import ar.edu.utn.frba.arbiter.common.dto.DocumentRequirementItem;
+import ar.edu.utn.frba.arbiter.cases.models.entities.RequestedDocument;
+import ar.edu.utn.frba.arbiter.common.dto.DocumentTypeResponse;
 import ar.edu.utn.frba.arbiter.cases.exceptions.RulesMisconfiguredException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.RulesUnavailableException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.PolicyInsuredMismatchException;
@@ -107,6 +116,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
@@ -1181,6 +1191,315 @@ class CaseServiceImplTest {
                 .isInstanceOf(IllegalArgumentException.class);
 
         verify(caseRepository, never()).findById(any());
+    }
+
+    // ─── Documentation the analyst asks for ──────────────────────────────────────
+
+    private static final List<DocumentTypeResponse> CELULARES_DOCUMENTS = List.of(
+            new DocumentTypeResponse("police_report", "Denuncia policial"),
+            new DocumentTypeResponse("purchase_proof", "Comprobante de compra"));
+
+    private static DocumentRequestRequest request(DocumentRequestRequest.Item... items) {
+        return new DocumentRequestRequest(List.of(items));
+    }
+
+    private static DocumentRequestRequest.Item catalog(String type) {
+        return new DocumentRequestRequest.Item(type, null, null);
+    }
+
+    private static DocumentRequestRequest.Item other(String description, String reason) {
+        return new DocumentRequestRequest.Item(DocumentRequestRequest.OTHER, description, reason);
+    }
+
+    private static MockMultipartFile file(String type) {
+        return new MockMultipartFile(type, type + ".pdf", "application/pdf", type.getBytes());
+    }
+
+    @Test
+    void requestDocuments_movesTheCaseToAwaitingDocumentation_withTheRequestOnTheCase() {
+        Case entity = assignedCase(1L, CaseStatus.PENDING_ANALYST_REVIEW);
+        when(rulesServiceClient.branchDocumentTypes(any())).thenReturn(CELULARES_DOCUMENTS);
+        when(caseDocumentRepository.findByCaseId(1L)).thenReturn(List.of());
+
+        caseService.requestDocuments(1L, request(
+                catalog("purchase_proof"),
+                other("Resumen de la tarjeta", "Confirmar la fecha de compra")));
+
+        assertThat(entity.getRequestedDocuments()).containsExactly(
+                new RequestedDocument("purchase_proof", null, null, false, null),
+                new RequestedDocument("other_1", "Resumen de la tarjeta", "Confirmar la fecha de compra", false, null));
+        ArgumentCaptor<String> observation = ArgumentCaptor.forClass(String.class);
+        verify(caseStatusService).transition(eq(entity), eq(CaseStatus.AWAITING_DOCUMENTATION),
+                eq(StatusChangeActor.ANALYST), eq("documentación pedida por el analista"), observation.capture());
+        assertThat(observation.getValue())
+                .contains("Comprobante de compra", "Resumen de la tarjeta", "Confirmar la fecha de compra");
+    }
+
+    /** Numbered across the case: reusing other_1 would replace the document uploaded for it. */
+    @Test
+    void requestDocuments_numbersOtherDocumentsAfterTheOnesAlreadyAskedFor() {
+        Case entity = assignedCase(1L, CaseStatus.PENDING_ANALYST_REVIEW);
+        entity.setRequestedDocuments(List.of(new RequestedDocument("other_1", "Foto", "Ver el daño", true, null)));
+        when(rulesServiceClient.branchDocumentTypes(any())).thenReturn(CELULARES_DOCUMENTS);
+        when(caseDocumentRepository.findByCaseId(1L)).thenReturn(List.of());
+
+        caseService.requestDocuments(1L, request(other("Foto legible", "La anterior no se lee")));
+
+        assertThat(entity.getRequestedDocuments()).extracting(RequestedDocument::type)
+                .containsExactly("other_1", "other_2");
+    }
+
+    @Test
+    void requestDocuments_aDocumentAlreadyUploaded_isRefused() {
+        Case entity = assignedCase(1L, CaseStatus.PENDING_ANALYST_REVIEW);
+        when(rulesServiceClient.branchDocumentTypes(any())).thenReturn(CELULARES_DOCUMENTS);
+        when(caseDocumentRepository.findByCaseId(1L)).thenReturn(List.of(CaseDocument.builder()
+                .caseId(1L).type("purchase_proof").filename("f.pdf").contentType("application/pdf")
+                .content(new byte[0]).build()));
+
+        assertThatThrownBy(() -> caseService.requestDocuments(1L, request(catalog("purchase_proof"))))
+                .isInstanceOf(InvalidDocumentRequestException.class);
+
+        assertThat(entity.getRequestedDocuments()).isEmpty();
+        verify(caseStatusService, never()).transition(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void requestDocuments_aDocumentOutsideTheBranch_isRefused() {
+        assignedCase(1L, CaseStatus.PENDING_ANALYST_REVIEW);
+        when(rulesServiceClient.branchDocumentTypes(any())).thenReturn(CELULARES_DOCUMENTS);
+        when(caseDocumentRepository.findByCaseId(1L)).thenReturn(List.of());
+
+        assertThatThrownBy(() -> caseService.requestDocuments(1L, request(catalog("repair_quote"))))
+                .isInstanceOf(InvalidDocumentRequestException.class);
+    }
+
+    /** The reason is what the model reads the document against: without it there is nothing to check. */
+    @Test
+    void requestDocuments_anOtherDocumentWithoutReason_isRefused() {
+        assignedCase(1L, CaseStatus.PENDING_ANALYST_REVIEW);
+        when(rulesServiceClient.branchDocumentTypes(any())).thenReturn(CELULARES_DOCUMENTS);
+        when(caseDocumentRepository.findByCaseId(1L)).thenReturn(List.of());
+
+        assertThatThrownBy(() -> caseService.requestDocuments(1L, request(other("Resumen", " "))))
+                .isInstanceOf(InvalidDocumentRequestException.class);
+
+        verify(caseStatusService, never()).transition(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void requestDocuments_byAnotherAnalyst_isRefused() {
+        Case entity = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
+        entity.setAnalyst(ClaimsAnalyst.builder().id(8L).build());
+        when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
+        authenticateAs("analista@example.com");
+        when(claimsAnalystRepository.findByEmail("analista@example.com"))
+                .thenReturn(Optional.of(ClaimsAnalyst.builder().id(7L).build()));
+
+        assertThatThrownBy(() -> caseService.requestDocuments(1L, request(catalog("purchase_proof"))))
+                .isInstanceOf(CaseAssignedToAnotherAnalystException.class);
+    }
+
+    private static final List<DocumentTypeResponse> BRANCH_DOCUMENTS = List.of(
+            new DocumentTypeResponse("police_report", "Denuncia policial"),
+            new DocumentTypeResponse("purchase_proof", "Comprobante de compra"),
+            new DocumentTypeResponse("imei_deregistration", "Baja de IMEI (ENACOM)"));
+
+    private static final List<DocumentRequirementItem> SCHEDULE_BY_BAND = List.of(
+            new DocumentRequirementItem("police_report", null),
+            new DocumentRequirementItem("purchase_proof", RiskBand.HIGH),
+            new DocumentRequirementItem("imei_deregistration", RiskBand.CRITICAL));
+
+    private void stubSchedule(Case entity, List<CaseDocument> uploaded) {
+        when(caseRepository.findById(entity.getId())).thenReturn(Optional.of(entity));
+        when(rulesServiceClient.branchDocumentTypes(any())).thenReturn(BRANCH_DOCUMENTS);
+        lenient().when(rulesServiceClient.scheduleWithBands(any(), any())).thenReturn(SCHEDULE_BY_BAND);
+        when(caseDocumentRepository.findByCaseId(entity.getId())).thenReturn(uploaded);
+    }
+
+    private static CaseDocument uploaded(String type) {
+        return CaseDocument.builder().caseId(1L).type(type).filename(type + ".pdf")
+                .contentType("application/pdf").content(new byte[0]).build();
+    }
+
+    @Test
+    void requestableDocuments_suggestWhatTheScheduleAsksOfTheCasesBand() {
+        Case entity = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
+        entity.setRiskBand(RiskBand.HIGH);
+        stubSchedule(entity, List.of());
+
+        assertThat(caseService.requestableDocuments(1L)).containsExactly(
+                new RequestableDocumentResponse("police_report", "Denuncia policial",
+                        RequestableDocumentResponse.Suggestion.SCHEDULE),
+                new RequestableDocumentResponse("purchase_proof", "Comprobante de compra",
+                        RequestableDocumentResponse.Suggestion.RISK),
+                // From Crítico up: a high-risk case doesn't need it.
+                new RequestableDocumentResponse("imei_deregistration", "Baja de IMEI (ENACOM)", null));
+    }
+
+    /** What the analyst left out of the first request was their call: only a higher band adds to it. */
+    @Test
+    void requestableDocuments_afterARequest_suggestOnlyWhatAHigherBandNeeds() {
+        Case entity = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
+        entity.setRiskBand(RiskBand.CRITICAL);
+        entity.setRequestedDocuments(List.of(
+                new RequestedDocument("purchase_proof", null, null, true, RiskBand.HIGH)));
+        stubSchedule(entity, List.of(uploaded("purchase_proof")));
+
+        assertThat(caseService.requestableDocuments(1L)).containsExactly(
+                new RequestableDocumentResponse("police_report", "Denuncia policial", null),
+                new RequestableDocumentResponse("imei_deregistration", "Baja de IMEI (ENACOM)",
+                        RequestableDocumentResponse.Suggestion.RISK));
+    }
+
+    @Test
+    void requestableDocuments_onFastTrack_suggestNothing() {
+        Case entity = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
+        entity.setRulesClassification(Classification.FAST_TRACK);
+        entity.setRiskBand(RiskBand.CRITICAL);
+        stubSchedule(entity, List.of());
+
+        assertThat(caseService.requestableDocuments(1L))
+                .extracting(RequestableDocumentResponse::suggestion)
+                .containsOnlyNulls();
+        verify(rulesServiceClient, never()).scheduleWithBands(any(), any());
+    }
+
+    /** Missing documentation the analyst hasn't asked for: the model didn't run, nothing to decide on. */
+    @Test
+    void recordAnalystDecision_whileDocumentationIsPending_isRefused() {
+        Case entity = assignedCase(1L, CaseStatus.PENDING_ANALYST_REVIEW);
+        entity.setRulesClassification(Classification.FALTA_DOCUMENTACION);
+
+        assertThatThrownBy(() -> caseService.recordAnalystDecision(1L,
+                new AnalystDecisionRequest(null, "REJECT", "motivo", 0, null)))
+                .isInstanceOf(DocumentationPendingException.class);
+
+        verify(claimsAnalysisClient, never()).forwardAnalystDecision(any(), any());
+    }
+
+    /** Fast Track is enough to decide on. */
+    @Test
+    void requestDocuments_onFastTrack_isRefused() {
+        Case entity = caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW);
+        when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
+        entity.setRulesClassification(Classification.FAST_TRACK);
+
+        assertThatThrownBy(() -> caseService.requestDocuments(1L, request(catalog("purchase_proof"))))
+                .isInstanceOf(InvalidDocumentRequestException.class);
+
+        verify(caseStatusService, never()).transition(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void requestDocuments_recordsTheBandTheyWereAskedAt() {
+        Case entity = assignedCase(1L, CaseStatus.PENDING_ANALYST_REVIEW);
+        entity.setRiskBand(RiskBand.HIGH);
+        when(rulesServiceClient.branchDocumentTypes(any())).thenReturn(CELULARES_DOCUMENTS);
+        when(caseDocumentRepository.findByCaseId(1L)).thenReturn(List.of());
+
+        caseService.requestDocuments(1L, request(catalog("purchase_proof")));
+
+        assertThat(entity.getRequestedDocuments()).extracting(RequestedDocument::riskBand)
+                .containsExactly(RiskBand.HIGH);
+    }
+
+    @Test
+    void pendingDocuments_withAnOpenRequest_isTheRequestAlone() {
+        Case entity = caseRecord(1L, CaseStatus.AWAITING_DOCUMENTATION);
+        entity.setRequestedDocuments(List.of(
+                new RequestedDocument("other_1", "Foto", "Ver el daño", true, null),
+                new RequestedDocument("purchase_proof", null, null, false, null),
+                new RequestedDocument("other_2", "Resumen de la tarjeta", "Fecha de compra", false, null)));
+        when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
+
+        assertThat(caseService.pendingDocuments(1L, null)).containsExactly(
+                new PendingDocumentResponse("purchase_proof", null),
+                new PendingDocumentResponse("other_2", "Resumen de la tarjeta"));
+        // A Fast Track case never had its whole schedule asked: the request must not bring it in.
+        verify(rulesServiceClient, never()).requiredDocumentTypes(any(), any());
+    }
+
+    @Test
+    void pendingDocuments_withoutARequest_isWhatTheScheduleMisses() {
+        Case entity = caseRecord(1L, CaseStatus.AWAITING_DOCUMENTATION);
+        when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
+        when(rulesServiceClient.requiredDocumentTypes("Celulares", "Robo en vía pública"))
+                .thenReturn(List.of("police_report", "purchase_proof"));
+        when(caseDocumentRepository.findByCaseId(1L)).thenReturn(List.of(CaseDocument.builder()
+                .caseId(1L).type("police_report").filename("f.pdf").contentType("application/pdf")
+                .content(new byte[0]).build()));
+
+        assertThat(caseService.pendingDocuments(1L, null))
+                .containsExactly(new PendingDocumentResponse("purchase_proof", null));
+    }
+
+    @Test
+    void pendingDocuments_outsideAwaitingDocumentation_isEmpty() {
+        when(caseRepository.findById(1L)).thenReturn(Optional.of(caseRecord(1L, CaseStatus.PENDING_ANALYST_REVIEW)));
+
+        assertThat(caseService.pendingDocuments(1L, null)).isEmpty();
+    }
+
+    /** What was asked is the minimum: half of it would reclassify the case for nothing. */
+    @Test
+    void addDocumentsAndReclassify_partOfTheRequest_isRefusedBeforeStoringAnything() {
+        Case entity = caseRecord(1L, CaseStatus.AWAITING_DOCUMENTATION);
+        entity.setRequestedDocuments(List.of(
+                new RequestedDocument("purchase_proof", null, null, false, null),
+                new RequestedDocument("other_1", "Resumen de la tarjeta", "Fecha de compra", false, null)));
+        when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
+
+        assertThatThrownBy(() -> caseService.addDocumentsAndReclassify(1L,
+                Map.of("purchase_proof", file("purchase_proof")), null))
+                .isInstanceOf(MissingRequiredDocumentsException.class);
+
+        verify(caseDocumentRepository, never()).save(any());
+        verify(claimsAnalysisClient, never()).analyzeAndPersist(any(), any());
+    }
+
+    @Test
+    void addDocumentsAndReclassify_theWholeRequest_fulfillsItAndReclassifies() {
+        Case entity = caseRecord(1L, CaseStatus.AWAITING_DOCUMENTATION);
+        entity.setRequestedDocuments(List.of(
+                new RequestedDocument("purchase_proof", null, null, false, null),
+                new RequestedDocument("other_1", "Resumen de la tarjeta", "Fecha de compra", false, null)));
+        when(caseRepository.findById(1L)).thenReturn(Optional.of(entity));
+        when(caseDocumentRepository.findByCaseIdAndType(any(), any())).thenReturn(Optional.empty());
+        when(caseDocumentRepository.findByCaseId(1L)).thenReturn(List.of());
+        when(claimsAnalysisClient.analyzeAndPersist(any(), any()))
+                .thenReturn(new AnalysisResult(null, 0.0, "in progress"));
+
+        caseService.addDocumentsAndReclassify(1L, Map.of(
+                "purchase_proof", file("purchase_proof"),
+                "other_1", file("other_1")), null);
+
+        assertThat(entity.getRequestedDocuments()).allMatch(RequestedDocument::fulfilled);
+        verify(caseStatusService).transition(eq(entity), eq(CaseStatus.PENDING_CLASSIFICATION),
+                eq(StatusChangeActor.INSURED), any());
+        verify(claimsAnalysisClient).analyzeAndPersist(eq(entity), any());
+    }
+
+    /** An other_<n> key names nothing until the analyst asks for it. */
+    @Test
+    void addDocumentsAndReclassify_anOtherDocumentNobodyAskedFor_isRefused() {
+        when(caseRepository.findById(1L)).thenReturn(Optional.of(caseRecord(1L, CaseStatus.AWAITING_DOCUMENTATION)));
+
+        assertThatThrownBy(() -> caseService.addDocumentsAndReclassify(1L,
+                Map.of("other_1", file("other_1")), null))
+                .isInstanceOf(DocumentTypeNotAllowedException.class);
+
+        verify(caseDocumentRepository, never()).save(any());
+    }
+
+    @Test
+    void requestedDocuments_reachTheInsuredWithoutTheReason() {
+        RequestedDocumentResponse forInsured = RequestedDocumentResponse
+                .from(new RequestedDocument("other_1", "Resumen de la tarjeta", "Fecha de compra", false, null))
+                .forInsured();
+
+        assertThat(forInsured.description()).isEqualTo("Resumen de la tarjeta");
+        assertThat(forInsured.reason()).isNull();
     }
 
     /** A case in {@code status}, assigned to analyst 7, who is the one calling. */

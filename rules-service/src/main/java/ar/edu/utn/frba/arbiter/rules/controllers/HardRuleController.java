@@ -33,7 +33,7 @@ public class HardRuleController {
     private final HardRuleService service;
 
     @GetMapping("/hard-rules")
-    @PreAuthorize("hasRole('REFERENTE_ASEGURADORA')")
+    @PreAuthorize("hasAnyRole('REFERENTE_ASEGURADORA', 'ANALISTA_SINIESTROS')")
     @Operation(summary = "Reglas duras temporales de una cobertura",
             description = "Siempre devuelve el catálogo completo: la regla que la aseguradora nunca "
                     + "configuró viene apagada (enabled=false), que es como se comporta hoy — el motor no "

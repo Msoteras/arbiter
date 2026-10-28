@@ -60,9 +60,9 @@ classification-service/
 └── src/main/resources/
     ├── application.yml
     └── prompts/
-        ├── classification-v7.md          # current prompt (`arbiter.llm.prompt-version`)
-        ├── extraccion-documento-v8.md    # current document-OCR prompt
-        └── classification-v3..v6.md, extraccion-documento-v3..v7.md
+        ├── classification-v9.md          # current prompt (`arbiter.llm.prompt-version`)
+        ├── extraccion-documento-v9.md    # current document-OCR prompt
+        └── classification-v3..v7.md, extraccion-documento-v3..v7.md
                                           # superseded, kept so older analyses stay auditable
 ```
 

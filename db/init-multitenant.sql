@@ -610,6 +610,11 @@ BEGIN
             -- The analyst's note on the score, which it never overwrites. Written while the
             -- case is open, unlike case_classification.analyst_justification.
             manual_adjustment_note      TEXT,
+            -- Every document the analyst asked the insured for, outside the schedule:
+            -- [{type, description, reason, fulfilled}]. type is a catalog code or other_<n> for a
+            -- document the catalog doesn't name. reason is internal: the model reads it, the
+            -- insured never does. Who asked and when is on case_status_history.
+            requested_documents         JSONB         NOT NULL DEFAULT '[]',
             event_address               VARCHAR(120)  NOT NULL,
             event_latitude              NUMERIC(9,6),
             event_longitude             NUMERIC(9,6),

@@ -1,6 +1,9 @@
 <div class="rules-page" @staggerReveal>
   <header class="rules-head">
     <h1 class="t-page-title">Configuración de reglas</h1>
+    @if (readOnly()) {
+      <app-badge variant="solid">Solo lectura</app-badge>
+    }
   </header>
 
   <div class="rules-layout">
@@ -43,7 +46,7 @@
       <!-- ───────── General rules: insurer-wide, not per branch ───────── -->
       <app-card class="list-card" heading="Otras configuraciones">
         <ul class="branch-list">
-          @for (s of generalSections; track s.id) {
+          @for (s of visibleGeneralSections(); track s.id) {
             <li>
               <button
                 type="button"
@@ -89,15 +92,15 @@
     <!-- ───────── Right panel ───────── -->
     <div #editor class="editor">
       @if (view() === 'scoring') {
-        <app-scoring-config />
+        <app-scoring-config [readOnly]="readOnly()" />
       } @else if (view() === 'fraud') {
-        <app-fraud-config />
+        <app-fraud-config [readOnly]="readOnly()" />
       } @else if (view() === 'providers') {
-        <app-providers-config />
+        <app-providers-config [readOnly]="readOnly()" />
       } @else if (view() === 'authorities') {
-        <app-settlement-authorities-config />
+        <app-settlement-authorities-config [readOnly]="readOnly()" />
       } @else if (view() === 'target') {
-        <app-resolution-target-config />
+        <app-resolution-target-config [readOnly]="readOnly()" />
       } @else if (view() === 'brand') {
         <app-brand />
       } @else if (view() === 'history') {
@@ -109,7 +112,9 @@
           />
         } @else {
           <app-card heading="Hard Stop" headingSize="lg" @fadeInUp appOnboardingTarget="HARD_STOP">
-            <app-info-tip cardTip>{{ stepLine.HARD_STOP }}</app-info-tip>
+            @if (!readOnly()) {
+              <app-info-tip cardTip>{{ stepLine.HARD_STOP }}</app-info-tip>
+            }
             <p class="hs-banner">
               <span class="hs-banner-icon" aria-hidden="true">!</span>
               <span>Si no se cumple una regla, no se puede crear la denuncia.</span>
@@ -120,6 +125,7 @@
                 <app-switch
                   [checked]="policyInForceRule()?.enabled ?? false"
                   ariaLabel="Vigencia de la póliza"
+                  [disabled]="readOnly()"
                   (checkedChange)="toggleInsurerHardRule('POLICY_IN_FORCE')"
                 />
                 <div class="rule-text">
@@ -136,6 +142,7 @@
                 <app-switch
                   [checked]="policyStandingRule()?.enabled ?? false"
                   ariaLabel="Mora de la póliza"
+                  [disabled]="readOnly()"
                   (checkedChange)="toggleInsurerHardRule('POLICY_STANDING')"
                 />
                 <div class="rule-text">
@@ -146,6 +153,7 @@
                     <app-select
                       [options]="onArrearsOptions"
                       [value]="policyStandingRule()?.onArrears ?? 'STANDBY'"
+                      [disabled]="readOnly()"
                       (valueChange)="setOnArrears($event)"
                     />
                   </div>
@@ -155,13 +163,15 @@
               </li>
             </ul>
 
-            <app-save-bar
-              [dirty]="hardStopDirty()"
-              [saving]="hardStopSaving()"
-              [error]="hardStopError()"
-              (save)="saveHardStop()"
-              (discard)="discardHardStop()"
-            />
+            @if (!readOnly()) {
+              <app-save-bar
+                [dirty]="hardStopDirty()"
+                [saving]="hardStopSaving()"
+                [error]="hardStopError()"
+                (save)="saveHardStop()"
+                (discard)="discardHardStop()"
+              />
+            }
           </app-card>
         }
       } @else if (draft(); as d) {
@@ -198,7 +208,9 @@
           } @else {
             <div class="branch-heading">
               <h2 class="branch-title">{{ renameFrom() }}</h2>
-              <app-icon-button icon="edit" label="Renombrar el ramo" (click)="startNameEdit()" />
+              @if (!readOnly()) {
+                <app-icon-button icon="edit" label="Renombrar el ramo" (click)="startNameEdit()" />
+              }
             </div>
           }
         </div>
@@ -218,6 +230,7 @@
             [hidden]="activeTab() !== 'derivations'"
             [branchId]="branchId"
             [claimCauses]="claimCauses()"
+            [readOnly]="readOnly()"
           />
         }
 
@@ -238,9 +251,11 @@
             } @else {
               <div class="tab-panel" @fadeInUp>
                 <app-card [heading]="'Coberturas (' + d.coverages.length + ')'" headingSize="md">
-                  <app-info-tip cardTip>{{ stepLine.COVERAGES }}</app-info-tip>
+                  @if (!readOnly()) {
+                    <app-info-tip cardTip>{{ stepLine.COVERAGES }}</app-info-tip>
+                  }
                   <!-- Only with coverages: empty, the empty state below carries the one action. -->
-                  @if (d.coverages.length > 0) {
+                  @if (d.coverages.length > 0 && !readOnly()) {
                     <app-button
                       cardAside
                       variant="secondary"
@@ -297,7 +312,10 @@
                               <app-select
                                 [options]="coverageNameOptions(c)"
                                 [value]="c.name"
-                                [disabled]="(insurerCoverageNames() ?? []).length === 0 && !c.name"
+                                [disabled]="
+                                  readOnly() ||
+                                  ((insurerCoverageNames() ?? []).length === 0 && !c.name)
+                                "
                                 [placeholder]="
                                   insurerCoverageNames() === null
                                     ? 'Cargando coberturas…'
@@ -317,8 +335,9 @@
                               <span class="t-field-label">Cláusula</span>
                               <app-input
                                 [value]="c.clause"
+                                [disabled]="readOnly()"
                                 (valueChange)="setCoverageField(c.id, { clause: $event })"
-                                placeholder="ej. 340"
+                                [placeholder]="readOnly() ? '' : 'ej. 340'"
                               />
                             </label>
                             <label class="fieldset">
@@ -333,6 +352,7 @@
                                   type="number"
                                   [min]="0"
                                   [value]="coverageDeductiblePct(c)"
+                                  [disabled]="readOnly()"
                                   (valueChange)="setCoverageDeductible(c.id, $event)"
                                 />
                                 <span class="t-note">%</span>
@@ -344,8 +364,9 @@
                             <app-textarea
                               [rows]="2"
                               [value]="c.description"
+                              [disabled]="readOnly()"
                               (valueChange)="setCoverageField(c.id, { description: $event })"
-                              placeholder="Qué cubre, en una o dos frases"
+                              [placeholder]="readOnly() ? '' : 'Qué cubre, en una o dos frases'"
                             />
                           </label>
 
@@ -366,6 +387,7 @@
                                     <app-switch
                                       [checked]="rule.enabled"
                                       [ariaLabel]="hardRuleLabel(rule.ruleType)"
+                                      [disabled]="readOnly()"
                                       (checkedChange)="toggleHardRule(c.id, rule.ruleType)"
                                     />
                                     <div class="rule-text">
@@ -385,6 +407,7 @@
                                           type="number"
                                           [min]="0"
                                           [value]="hardRuleValue(c, rule.ruleType)"
+                                          [disabled]="readOnly()"
                                           (valueChange)="setHardRuleValue(c, rule.ruleType, $event)"
                                           placeholder="—"
                                         />
@@ -397,7 +420,7 @@
                                         hardRuleOffNote(rule.ruleType)
                                       }}</span>
                                     }
-                                    @if (ruleMissingValue(c, rule)) {
+                                    @if (ruleMissingValue(c, rule) && !readOnly()) {
                                       <p class="rule-missing" role="alert">
                                         Escribí un valor o apagá la regla.
                                       </p>
@@ -416,6 +439,7 @@
                                 <app-select
                                   [options]="settlementFormulaOptions"
                                   [value]="c.settlementFormula"
+                                  [disabled]="readOnly()"
                                   (valueChange)="setCoverageSettlementFormula(c.id, $event)"
                                 />
                               </label>
@@ -426,6 +450,7 @@
                                   <app-select
                                     [options]="settlementBasisOptions"
                                     [value]="c.settlementBasis"
+                                    [disabled]="readOnly()"
                                     (valueChange)="setCoverageSettlementBasis(c.id, $event)"
                                   />
                                 </label>
@@ -435,6 +460,7 @@
                                 <app-select
                                   [options]="deductibleBasisOptions"
                                   [value]="c.deductibleBasis"
+                                  [disabled]="readOnly()"
                                   (valueChange)="setCoverageDeductibleBasis(c.id, $event)"
                                 />
                               </label>
@@ -452,6 +478,7 @@
                                     [min]="0"
                                     max="100"
                                     [value]="coverageSecondEventPct(c)"
+                                    [disabled]="readOnly()"
                                     (valueChange)="setCoverageSecondEvent(c.id, $event)"
                                     placeholder="Sin reducción"
                                   />
@@ -465,6 +492,7 @@
                                   <app-switch
                                     [checked]="c.deductPendingInstallments"
                                     ariaLabel="Descontar las cuotas a vencer"
+                                    [disabled]="readOnly()"
                                     (checkedChange)="toggleDeductPendingInstallments(c)"
                                   />
                                   <div class="rule-text">
@@ -476,6 +504,7 @@
                                 <app-switch
                                   [checked]="c.deductOverdueBalance"
                                   ariaLabel="Descontar la deuda vencida"
+                                  [disabled]="readOnly()"
                                   (checkedChange)="toggleDeductOverdueBalance(c)"
                                 />
                                 <div class="rule-text">
@@ -489,6 +518,7 @@
                             <span class="t-section-label">Exclusiones de esta cobertura</span>
                             <app-string-list-editor
                               [items]="c.exclusions"
+                              [readOnly]="readOnly()"
                               (itemsChange)="setCoverageField(c.id, { exclusions: $event })"
                               placeholder="Exclusión específica de esta cobertura…"
                               addLabel="+ Agregar exclusión"
@@ -514,6 +544,7 @@
                                 @for (cause of claimCauses(); track cause.id) {
                                   <app-checkbox
                                     [checked]="isCauseCovered(c, cause.id)"
+                                    [disabled]="readOnly()"
                                     (checkedChange)="toggleExcludedCause(c.id, cause.id)"
                                   >
                                     {{ cause.name }}
@@ -523,16 +554,18 @@
                             }
                           </div>
 
-                          <div class="remove-cov">
-                            <app-button
-                              variant="secondary"
-                              size="sm"
-                              tone="danger"
-                              (click)="coverageToRemove.set(c)"
-                            >
-                              Quitar cobertura
-                            </app-button>
-                          </div>
+                          @if (!readOnly()) {
+                            <div class="remove-cov">
+                              <app-button
+                                variant="secondary"
+                                size="sm"
+                                tone="danger"
+                                (click)="coverageToRemove.set(c)"
+                              >
+                                Quitar cobertura
+                              </app-button>
+                            </div>
+                          }
                         </div>
                       }
                     </app-card>
@@ -555,20 +588,24 @@
                         />
                       </svg>
                       <p class="cov-empty-title">Este ramo todavía no tiene coberturas</p>
-                      <app-button appOnboardingTarget="COVERAGES" (click)="addCoverage()"
-                        >+ Agregar primera cobertura</app-button
-                      >
+                      @if (!readOnly()) {
+                        <app-button appOnboardingTarget="COVERAGES" (click)="addCoverage()"
+                          >+ Agregar primera cobertura</app-button
+                        >
+                      }
                     </div>
                   }
 
-                  <app-save-bar
-                    [dirty]="covDirty()"
-                    [canSave]="covCanSave()"
-                    [saving]="covSaving()"
-                    [error]="covError()"
-                    (save)="saveCoverages()"
-                    (discard)="discardCoverages()"
-                  />
+                  @if (!readOnly()) {
+                    <app-save-bar
+                      [dirty]="covDirty()"
+                      [canSave]="covCanSave()"
+                      [saving]="covSaving()"
+                      [error]="covError()"
+                      (save)="saveCoverages()"
+                      (discard)="discardCoverages()"
+                    />
+                  }
                 </app-card>
               </div>
             }
@@ -588,9 +625,12 @@
                   headingSize="md"
                   appOnboardingTarget="COMMON_EXCLUSIONS"
                 >
-                  <app-info-tip cardTip>{{ stepLine.COMMON_EXCLUSIONS }}</app-info-tip>
+                  @if (!readOnly()) {
+                    <app-info-tip cardTip>{{ stepLine.COMMON_EXCLUSIONS }}</app-info-tip>
+                  }
                   <app-string-list-editor
                     [items]="d.commonExclusions"
+                    [readOnly]="readOnly()"
                     (itemsChange)="setCommonExclusions($event)"
                     placeholder="Exclusión común…"
                     addLabel="+ Agregar exclusión"
@@ -612,13 +652,15 @@
                       <line x1="6" y1="18" x2="18" y2="6" stroke-linecap="round" />
                     </svg>
                   </app-string-list-editor>
-                  <app-save-bar
-                    [dirty]="exclDirty()"
-                    [saving]="exclSaving()"
-                    [error]="exclError()"
-                    (save)="saveCommonExclusions()"
-                    (discard)="discardCommonExclusions()"
-                  />
+                  @if (!readOnly()) {
+                    <app-save-bar
+                      [dirty]="exclDirty()"
+                      [saving]="exclSaving()"
+                      [error]="exclError()"
+                      (save)="saveCommonExclusions()"
+                      (discard)="discardCommonExclusions()"
+                    />
+                  }
                 </app-card>
               </div>
             }
@@ -633,7 +675,9 @@
             } @else {
               <div class="tab-panel" @fadeInUp>
                 <app-card heading="Fast Track" headingSize="md" appOnboardingTarget="FAST_TRACK">
-                  <app-info-tip cardTip>{{ stepLine.FAST_TRACK }}</app-info-tip>
+                  @if (!readOnly()) {
+                    <app-info-tip cardTip>{{ stepLine.FAST_TRACK }}</app-info-tip>
+                  }
 
                   <!-- Fast Track is one rule PER COVERAGE (each demands its own documents), so
                      the tab edits one coverage at a time. Locked while there are unsaved changes:
@@ -660,12 +704,20 @@
                   @if (ftCoveragesFailed()) {
                     <app-empty-state
                       message="No se pudieron cargar las coberturas"
-                      sub="Sin cobertura elegida no hay Fast Track que editar. Probá volver a abrir el ramo."
+                      [sub]="
+                        readOnly()
+                          ? 'Probá volver a abrir el ramo.'
+                          : 'Sin cobertura elegida no hay Fast Track que editar. Probá volver a abrir el ramo.'
+                      "
                     />
                   } @else if (ftCoverages().length === 0) {
                     <app-empty-state
                       message="Este ramo no tiene coberturas"
-                      sub="El Fast Track se configura por cobertura. Cargá una en la solapa Coberturas."
+                      [sub]="
+                        readOnly()
+                          ? ''
+                          : 'El Fast Track se configura por cobertura. Cargá una en la solapa Coberturas.'
+                      "
                     />
                   } @else if (ftLoading()) {
                     <app-inline-loading
@@ -684,6 +736,7 @@
                             <app-switch
                               [checked]="ftActive('minPolicyAgeMonths')"
                               ariaLabel="Antigüedad mínima de la póliza"
+                              [disabled]="readOnly()"
                               (checkedChange)="toggleFtThreshold('minPolicyAgeMonths')"
                             />
                             <div class="rule-text">
@@ -693,6 +746,7 @@
                               <div class="rule-value">
                                 <app-months-input
                                   [months]="d.fastTrack.minPolicyAgeMonths"
+                                  [disabled]="readOnly()"
                                   (monthsChange)="setMinPolicyAge($event)"
                                 />
                               </div>
@@ -705,6 +759,7 @@
                             <app-switch
                               [checked]="ftActive('maxPriorClaims')"
                               ariaLabel="Siniestros previos máximos"
+                              [disabled]="readOnly()"
                               (checkedChange)="toggleFtThreshold('maxPriorClaims')"
                             />
                             <div class="rule-text">
@@ -716,6 +771,7 @@
                                   type="number"
                                   [min]="0"
                                   [value]="ftMaxPriorStr()"
+                                  [disabled]="readOnly()"
                                   (valueChange)="setMaxPriorClaims($event)"
                                 />
                                 <span class="t-note">previos</span>
@@ -735,6 +791,7 @@
                               <div class="rule-value">
                                 <app-months-input
                                   [months]="d.fastTrack.priorClaimsWindowMonths"
+                                  [disabled]="readOnly()"
                                   (monthsChange)="setPriorClaimsWindow($event)"
                                   placeholder="Sin límite"
                                 />
@@ -746,6 +803,7 @@
                             <app-switch
                               [checked]="ftActive('maxClaimedAmountRatio')"
                               ariaLabel="Monto reclamado máximo"
+                              [disabled]="readOnly()"
                               (checkedChange)="toggleFtThreshold('maxClaimedAmountRatio')"
                             />
                             <div class="rule-text">
@@ -757,6 +815,7 @@
                                   type="number"
                                   [min]="0"
                                   [value]="ftMaxRatioPct()"
+                                  [disabled]="readOnly()"
                                   (valueChange)="setFtMaxRatio($event)"
                                 />
                                 <span class="t-note">% de la suma</span>
@@ -770,6 +829,7 @@
                             <app-switch
                               [checked]="d.fastTrack.requiresUpToDatePolicy"
                               ariaLabel="Exige póliza al día"
+                              [disabled]="readOnly()"
                               (checkedChange)="toggleFtRequiresUpToDate()"
                             />
                             <div class="rule-text">
@@ -792,13 +852,14 @@
                               <app-checkbox
                                 [class.stale]="doc.outsideSchedule"
                                 [checked]="isFtDoc(doc.code)"
+                                [disabled]="readOnly()"
                                 (checkedChange)="toggleFtDoc(doc.code)"
                               >
                                 {{ doc.label }}
                               </app-checkbox>
                             }
                           </div>
-                          @if (ftHasStaleDocs()) {
+                          @if (ftHasStaleDocs() && !readOnly()) {
                             <span class="field-error" role="alert">
                               Quitá los documentos que ya no están en la agenda.
                             </span>
@@ -810,6 +871,7 @@
                         <span class="t-section-label">Criterios descriptivos</span>
                         <app-string-list-editor
                           [items]="d.fastTrack.criteria"
+                          [readOnly]="readOnly()"
                           (itemsChange)="setFtCriteria($event)"
                           placeholder="Criterio de Fast Track…"
                           addLabel="+ Agregar criterio"
@@ -818,14 +880,18 @@
                       </div>
                     </div>
 
-                    <app-save-bar
-                      [dirty]="ftDirty()"
-                      [canSave]="!ftHasStaleDocs()"
-                      [saving]="ftSaving()"
-                      [error]="ftError()"
-                      (save)="saveFastTrack()"
-                      (discard)="discardFastTrack()"
-                    />
+                    @if (!readOnly()) {
+                      <app-save-bar
+                        [dirty]="ftDirty()"
+                        [canSave]="!ftHasStaleDocs()"
+                        [saving]="ftSaving()"
+                        [error]="ftError()"
+                        (save)="saveFastTrack()"
+                        (discard)="discardFastTrack()"
+                      />
+                    } @else if (ftError(); as message) {
+                      <p class="load-error t-note" role="alert">{{ message }}</p>
+                    }
                   }
                 </app-card>
               </div>
@@ -847,8 +913,11 @@
                   appOnboardingTarget="DOCUMENTS"
                 >
                   <app-info-tip cardTip>
-                    {{ stepLine.DOCUMENTS }} Si falta un documento marcado, el expediente queda en
-                    Falta documentación.
+                    @if (!readOnly()) {
+                      {{ stepLine.DOCUMENTS }}
+                    }
+                    Si falta un documento marcado, el analista elige cuáles le pide al asegurado.
+                    Con una banda de riesgo, el documento se sugiere desde ese nivel en adelante.
                   </app-info-tip>
                   @if (claimCauses().length === 0) {
                     <p class="section-hint">
@@ -877,6 +946,7 @@
                               <td class="doc-cell">
                                 <app-checkbox
                                   [checked]="isDocRequiredFor(cause.id, doc.code)"
+                                  [disabled]="readOnly()"
                                   (checkedChange)="toggleDocFor(cause.id, doc.code)"
                                 >
                                   <!-- Names the cell for screen readers. -->
@@ -884,6 +954,14 @@
                                     {{ doc.label }} obligatorio para {{ cause.name }}
                                   </span>
                                 </app-checkbox>
+                                @if (isDocRequiredFor(cause.id, doc.code)) {
+                                  <app-select
+                                    class="doc-band"
+                                    [options]="documentBandOptions"
+                                    [value]="docBandFor(cause.id, doc.code)"
+                                    (valueChange)="setDocBand(cause.id, doc.code, $event)"
+                                  />
+                                }
                               </td>
                             }
                           </tr>
@@ -901,13 +979,15 @@
                     </p>
                   }
 
-                  <app-save-bar
-                    [dirty]="docDirty()"
-                    [saving]="docSaving()"
-                    [error]="docError()"
-                    (save)="saveDocuments()"
-                    (discard)="discardDocuments()"
-                  />
+                  @if (!readOnly()) {
+                    <app-save-bar
+                      [dirty]="docDirty()"
+                      [saving]="docSaving()"
+                      [error]="docError()"
+                      (save)="saveDocuments()"
+                      (discard)="discardDocuments()"
+                    />
+                  }
                 </app-card>
               </div>
             }
@@ -929,13 +1009,18 @@
                   headingSize="md"
                   appOnboardingTarget="BUSINESS_RULES"
                 >
-                  <app-info-tip cardTip>{{ stepLine.BUSINESS_RULES }}</app-info-tip>
+                  @if (!readOnly()) {
+                    <app-info-tip cardTip>{{ stepLine.BUSINESS_RULES }}</app-info-tip>
+                  }
                   <app-string-list-editor
                     [items]="d.businessRules"
+                    [readOnly]="readOnly()"
                     (itemsChange)="setBusinessRules($event)"
                     placeholder="Descripción de la regla…"
                     addLabel="+ Agregar regla"
-                    emptyTitle="Todavía no cargaste reglas de negocio"
+                    [emptyTitle]="
+                      readOnly() ? 'Sin reglas de negocio' : 'Todavía no cargaste reglas de negocio'
+                    "
                     emptyCta="+ Agregar primera regla"
                   >
                     <svg
@@ -953,20 +1038,24 @@
                     </svg>
                   </app-string-list-editor>
 
-                  <app-save-bar
-                    [dirty]="rulesDirty()"
-                    [saving]="rulesSaving()"
-                    [error]="rulesError()"
-                    (save)="saveBusinessRules()"
-                    (discard)="discardBusinessRules()"
-                  />
+                  @if (!readOnly()) {
+                    <app-save-bar
+                      [dirty]="rulesDirty()"
+                      [saving]="rulesSaving()"
+                      [error]="rulesError()"
+                      (save)="saveBusinessRules()"
+                      (discard)="discardBusinessRules()"
+                    />
+                  }
                 </app-card>
               </div>
             }
           }
         }
       } @else {
-        <app-empty-state message="Elegí un ramo para configurarlo" />
+        <app-empty-state
+          [message]="readOnly() ? 'Elegí un ramo' : 'Elegí un ramo para configurarlo'"
+        />
       }
     </div>
   </div>

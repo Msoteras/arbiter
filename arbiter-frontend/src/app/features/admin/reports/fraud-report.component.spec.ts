@@ -270,7 +270,7 @@ describe('FraudReportComponent', () => {
 
     determinedTile.querySelector<HTMLElement>('app-info-tip button')!.click();
     fixture.detectChanges();
-    expect(determinedTile.textContent).toContain('El sistema no determina fraude');
+    expect(determinedTile.textContent).toContain('Arbiter no determina fraude');
   });
 
   it('paints the determination as an alert once there is one', () => {

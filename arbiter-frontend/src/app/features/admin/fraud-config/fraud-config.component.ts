@@ -1,5 +1,5 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input, signal } from '@angular/core';
 
 import {
   FraudRecordRule,
@@ -38,6 +38,8 @@ import { MonthsInputComponent } from '../rules/months-input.component';
   styleUrl: './fraud-config.component.scss',
 })
 export class FraudConfigComponent {
+  readonly readOnly = input(false);
+
   protected readonly stepLine = ONBOARDING_STEP_LINE;
 
   private readonly service = inject(FraudRuleService);

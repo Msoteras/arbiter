@@ -7,7 +7,9 @@
     @fadeInUp
     appOnboardingTarget="AUTHORITIES"
   >
-    <app-info-tip cardTip>{{ stepLine.AUTHORITIES }}</app-info-tip>
+    @if (!readOnly()) {
+      <app-info-tip cardTip>{{ stepLine.AUTHORITIES }}</app-info-tip>
+    }
 
     <div class="at-section-head">
       <span class="t-section-label">Tope por ramo</span>
@@ -27,6 +29,7 @@
             inputmode="numeric"
             placeholder="Sin tope"
             [value]="draftLabel(a.branchId)"
+            [disabled]="readOnly()"
             (valueChange)="setDraft(a.branchId, $event)"
             (enter)="!saving() && save()"
           />
@@ -36,12 +39,16 @@
       }
     </ul>
 
-    <app-save-bar
-      [dirty]="dirty()"
-      [saving]="saving()"
-      [error]="error()"
-      (save)="save()"
-      (discard)="discard()"
-    />
+    @if (!readOnly()) {
+      <app-save-bar
+        [dirty]="dirty()"
+        [saving]="saving()"
+        [error]="error()"
+        (save)="save()"
+        (discard)="discard()"
+      />
+    } @else if (error(); as message) {
+      <p class="t-note" role="alert">{{ message }}</p>
+    }
   </app-card>
 }

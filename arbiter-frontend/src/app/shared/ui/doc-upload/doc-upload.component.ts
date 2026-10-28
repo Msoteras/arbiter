@@ -9,26 +9,29 @@ import {
   signal,
 } from '@angular/core';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
-import { catchError, map, of, startWith, switchMap } from 'rxjs';
+import { catchError, map, startWith, switchMap } from 'rxjs';
 
 import { CaseService } from '../../../features/cases/case.service';
 import { DocumentAgendaService } from '../../../features/cases/document-agenda.service';
-import { CaseDocumentType } from '../../../core/models/case-document';
+import { DocumentTypeService } from '../../../core/services/document-type.service';
+import { PendingDocument } from '../../../core/models/case-document';
 import { ButtonComponent } from '../button/button.component';
 import { FilePreviewComponent } from '../file-preview/file-preview.component';
 import { InlineLoadingComponent } from '../inline-loading/inline-loading.component';
 
 interface DocUploadSlot {
   type: string;
-  label: string;
+  /** What the analyst wrote, for a document the catalog doesn't name; otherwise the catalog names it. */
+  description: string | null;
   file: File | null;
 }
 
 /**
- * Neither source has a sensible placeholder while in flight: showing the full catalog would ask
- * again for documents already uploaded, so no rows are rendered until both resolve.
+ * `requireAll` is false only on the fallback: with no pending list the whole catalog is offered,
+ * and asking for all of it would leave the insured unable to send anything.
  */
-type FetchState<T> = { status: 'loading' } | { status: 'ok'; value: T };
+type SlotsState =
+  { status: 'loading' } | { status: 'ok'; slots: readonly PendingDocument[]; requireAll: boolean };
 
 /** Uploading documents via POST /cases/{id}/documents re-triggers classification on the backend. */
 @Component({
@@ -40,8 +43,11 @@ type FetchState<T> = { status: 'loading' } | { status: 'ok'; value: T };
       <app-inline-loading message="Revisando qué documentación falta…" />
     } @else {
       <p class="muted">
-        La evaluación indica que faltan documentos requeridos. Subí la documentación faltante para
-        que el caso se vuelva a evaluar.
+        @if (requireAll()) {
+          Subí todos los documentos para que el caso se vuelva a evaluar.
+        } @else {
+          Subí la documentación faltante para que el caso se vuelva a evaluar.
+        }
       </p>
       <p class="hint">JPG, PNG o PDF · hasta 10 MB por archivo</p>
 
@@ -53,7 +59,7 @@ type FetchState<T> = { status: 'loading' } | { status: 'ok'; value: T };
           (dragleave)="onDragLeave()"
           (drop)="onDrop($event, i)"
         >
-          <span class="doc-row-label">{{ slot.label }}</span>
+          <span class="doc-row-label">{{ slotLabel(slot) }}</span>
           @if (slot.file) {
             <div class="doc-row-file">
               <app-file-preview [file]="slot.file" />
@@ -72,11 +78,7 @@ type FetchState<T> = { status: 'loading' } | { status: 'ok'; value: T };
         <p class="upload-error">{{ error() }}</p>
       }
 
-      <app-button
-        class="submit-btn"
-        [disabled]="selectedCount() === 0 || uploading()"
-        (click)="submit()"
-      >
+      <app-button class="submit-btn" [disabled]="!canSubmit()" (click)="submit()">
         {{ uploading() ? 'Enviando…' : 'Enviar documentación' }}
       </app-button>
     }
@@ -184,6 +186,7 @@ type FetchState<T> = { status: 'loading' } | { status: 'ok'; value: T };
 export class DocUploadComponent {
   private readonly service = inject(CaseService);
   private readonly agenda = inject(DocumentAgendaService);
+  private readonly documentTypes = inject(DocumentTypeService);
 
   readonly caseId = input.required<number>();
   /**
@@ -191,65 +194,66 @@ export class DocUploadComponent {
    * default tenant (see `CaseService.getById`). Null for analysts and referents.
    */
   readonly insurerSlug = input<string | null>(null);
-  /** With branch and claim cause, slots come from the document agenda; otherwise, the full catalog. */
-  readonly branch = input<string | null>(null);
-  readonly claimCause = input<string | null>(null);
   readonly uploaded = output<void>();
 
   protected readonly slots = signal<DocUploadSlot[]>([]);
 
-  private readonly requiredTypes = toSignal(
-    toObservable(computed(() => ({ branch: this.branch(), claimCause: this.claimCause() }))).pipe(
-      switchMap(({ branch, claimCause }) =>
-        this.agenda.slotsFor(branch, claimCause).pipe(
-          map((value): FetchState<readonly CaseDocumentType[]> => ({ status: 'ok', value })),
-          startWith<FetchState<readonly CaseDocumentType[]>>({ status: 'loading' }),
-        ),
-      ),
-    ),
-    { initialValue: { status: 'loading' } },
-  );
-
-  /** The agenda lists everything required, not what is still missing, so uploaded types are subtracted. */
-  private readonly uploadedTypes = toSignal(
+  /**
+   * The backend says what is pending: the analyst's request, or what the schedule still misses. An
+   * `other_<n>` document is named by what the analyst wrote.
+   */
+  private readonly pending = toSignal(
     toObservable(computed(() => ({ caseId: this.caseId(), insurerSlug: this.insurerSlug() }))).pipe(
       switchMap(({ caseId, insurerSlug }) =>
-        this.service.listDocuments(caseId, insurerSlug).pipe(
-          map((docs): FetchState<Set<string>> => ({
-            status: 'ok',
-            value: new Set(docs.map((d) => d.type)),
-          })),
-          catchError(() => of<FetchState<Set<string>>>({ status: 'ok', value: new Set() })),
-          startWith<FetchState<Set<string>>>({ status: 'loading' }),
+        this.service.pendingDocuments(caseId, insurerSlug).pipe(
+          map((docs): SlotsState => ({ status: 'ok', slots: docs, requireAll: true })),
+          catchError(() =>
+            this.agenda.catalogSlots().pipe(
+              map((catalog): SlotsState => ({
+                status: 'ok',
+                slots: catalog.map(({ type }) => ({ type, description: null })),
+                requireAll: false,
+              })),
+            ),
+          ),
+          startWith<SlotsState>({ status: 'loading' }),
         ),
       ),
     ),
-    { initialValue: { status: 'loading' } },
+    { initialValue: { status: 'loading' } as SlotsState },
   );
 
-  protected readonly loadingSlots = computed(
-    () => this.requiredTypes().status === 'loading' || this.uploadedTypes().status === 'loading',
-  );
+  protected readonly loadingSlots = computed(() => this.pending().status === 'loading');
 
-  private readonly pendingTypes = computed<readonly CaseDocumentType[]>(() => {
-    const required = this.requiredTypes();
-    const uploaded = this.uploadedTypes();
-    if (required.status === 'loading' || uploaded.status === 'loading') return [];
-    return required.value.filter(({ type }) => !uploaded.value.has(type));
+  protected readonly requireAll = computed(() => {
+    const state = this.pending();
+    return state.status === 'ok' && state.requireAll;
   });
 
   constructor() {
     // Rebuilding the slots discards files picked but not yet sent.
     effect(() => {
-      const types = this.pendingTypes();
-      this.slots.set(types.map(({ type, label }) => ({ type, label, file: null })));
+      const state = this.pending();
+      const types = state.status === 'ok' ? state.slots : [];
+      this.slots.set(types.map(({ type, description }) => ({ type, description, file: null })));
     });
+  }
+
+  /** In the template, not in the pipe: the catalog may arrive after the pending list. */
+  protected slotLabel(slot: DocUploadSlot): string {
+    return slot.description ?? this.documentTypes.label(slot.type);
   }
 
   protected readonly uploading = signal(false);
   protected readonly error = signal<string | null>(null);
   protected readonly dragOverIndex = signal<number | null>(null);
   protected readonly selectedCount = computed(() => this.slots().filter((s) => s.file).length);
+
+  /** What was asked is the minimum, so it goes whole: every slot, unless on the catalog fallback. */
+  protected readonly canSubmit = computed(() => {
+    if (this.uploading() || this.selectedCount() === 0) return false;
+    return !this.requireAll() || this.selectedCount() === this.slots().length;
+  });
 
   private static readonly MAX_SIZE_BYTES = 10 * 1024 * 1024;
   private static readonly ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'application/pdf'];
@@ -313,13 +317,12 @@ export class DocUploadComponent {
   }
 
   protected submit(): void {
-    if (this.uploading()) return;
+    if (!this.canSubmit()) return;
 
     const docs = new Map<string, File>();
     for (const slot of this.slots()) {
       if (slot.file) docs.set(slot.type, slot.file);
     }
-    if (docs.size === 0) return;
 
     this.uploading.set(true);
     this.error.set(null);

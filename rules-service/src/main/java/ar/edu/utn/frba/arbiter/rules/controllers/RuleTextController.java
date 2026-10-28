@@ -49,7 +49,7 @@ public class RuleTextController {
     }
 
     @GetMapping("/exclusions")
-    @PreAuthorize("hasRole('REFERENTE_ASEGURADORA')")
+    @PreAuthorize("hasAnyRole('REFERENTE_ASEGURADORA', 'ANALISTA_SINIESTROS')")
     @Operation(summary = "Exclusiones comunes de un ramo")
     public List<String> getExclusions(@RequestParam Long branchId) {
         return commonExclusions.get(branchId);
@@ -64,7 +64,7 @@ public class RuleTextController {
     }
 
     @GetMapping("/business-rules")
-    @PreAuthorize("hasRole('REFERENTE_ASEGURADORA')")
+    @PreAuthorize("hasAnyRole('REFERENTE_ASEGURADORA', 'ANALISTA_SINIESTROS')")
     @Operation(summary = "Reglas de negocio (texto libre) de un ramo")
     public List<String> getBusinessRules(@RequestParam Long branchId) {
         return businessRules.get(branchId);
