@@ -1,5 +1,5 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input, signal } from '@angular/core';
 
 import { CardComponent } from '../../../shared/ui/card/card.component';
 import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
@@ -44,9 +44,15 @@ import { OnboardingTargetDirective } from '../../../core/onboarding/onboarding-t
         @fadeInUp
         appOnboardingTarget="TARGET"
       >
-        <app-info-tip cardTip>{{ stepLine.TARGET }}</app-info-tip>
-        <label class="row">
-          <app-switch [(checked)]="enabled" ariaLabel="Fijar un objetivo de resolución" />
+        @if (!readOnly()) {
+          <app-info-tip cardTip>{{ stepLine.TARGET }}</app-info-tip>
+        }
+        <label class="row" [class.read-only]="readOnly()">
+          <app-switch
+            [(checked)]="enabled"
+            ariaLabel="Fijar un objetivo de resolución"
+            [disabled]="readOnly()"
+          />
           <span class="row-text">
             <span class="row-label">Medir contra un objetivo</span>
             <span class="t-note">
@@ -64,21 +70,26 @@ import { OnboardingTargetDirective } from '../../../core/onboarding/onboarding-t
               [(value)]="days"
               [min]="MIN"
               [max]="MAX_ATTR"
+              [disabled]="readOnly()"
             />
-            @if (invalid()) {
+            @if (invalid() && !readOnly()) {
               <p class="error t-note">Tiene que ser un número entre {{ MIN }} y {{ MAX }}.</p>
             }
           </div>
         }
 
-        <app-save-bar
-          [dirty]="dirty()"
-          [saving]="saving()"
-          [error]="error()"
-          [canSave]="!invalid()"
-          (save)="save()"
-          (discard)="discard()"
-        />
+        @if (!readOnly()) {
+          <app-save-bar
+            [dirty]="dirty()"
+            [saving]="saving()"
+            [error]="error()"
+            [canSave]="!invalid()"
+            (save)="save()"
+            (discard)="discard()"
+          />
+        } @else if (error(); as message) {
+          <p class="error t-note" role="alert">{{ message }}</p>
+        }
       </app-card>
     }
   `,
@@ -91,6 +102,9 @@ import { OnboardingTargetDirective } from '../../../core/onboarding/onboarding-t
       align-items: flex-start;
       gap: var(--space-3);
       cursor: pointer;
+    }
+    .row.read-only {
+      cursor: default;
     }
     .row-text {
       display: flex;
@@ -114,6 +128,8 @@ import { OnboardingTargetDirective } from '../../../core/onboarding/onboarding-t
   `,
 })
 export class ResolutionTargetConfigComponent {
+  readonly readOnly = input(false);
+
   protected readonly stepLine = ONBOARDING_STEP_LINE;
 
   private readonly service = inject(ResolutionTargetService);

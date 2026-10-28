@@ -11,6 +11,12 @@
   gap: var(--space-5);
 }
 
+.rules-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
 .rules-head .t-page-title {
   margin: 0;
 }

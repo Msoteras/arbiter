@@ -421,10 +421,6 @@ app-textarea {
   font-weight: var(--font-weight-bold);
 }
 
-.settlement-line.total .settlement-amount {
-  font-weight: var(--font-weight-bold);
-}
-
 /* Calculation notes, not case status: neutral on purpose, status colors are reserved for status. */
 .settlement-notes {
   list-style: none;

@@ -1,5 +1,5 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input, signal } from '@angular/core';
 import { forkJoin } from 'rxjs';
 
 import {
@@ -35,6 +35,8 @@ import { OnboardingTargetDirective } from '../../../core/onboarding/onboarding-t
   styleUrl: './settlement-authorities-config.component.scss',
 })
 export class SettlementAuthoritiesConfigComponent {
+  readonly readOnly = input(false);
+
   protected readonly stepLine = ONBOARDING_STEP_LINE;
 
   private readonly service = inject(SettlementAuthoritiesService);

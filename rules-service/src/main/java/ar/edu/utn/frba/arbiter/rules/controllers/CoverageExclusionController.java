@@ -32,7 +32,7 @@ public class CoverageExclusionController {
     private final CoverageExclusionRuleService service;
 
     @GetMapping("/claim-causes")
-    @PreAuthorize("hasRole('REFERENTE_ASEGURADORA')")
+    @PreAuthorize("hasAnyRole('REFERENTE_ASEGURADORA', 'ANALISTA_SINIESTROS')")
     @Operation(summary = "Hechos generadores de un ramo",
             description = "id + nombre de los hechos generadores del ramo, para el selector de exclusiones.")
     public List<CatalogOption> claimCauses(@RequestParam Long branchId) {
@@ -40,7 +40,7 @@ public class CoverageExclusionController {
     }
 
     @GetMapping("/coverage-exclusions")
-    @PreAuthorize("hasRole('REFERENTE_ASEGURADORA')")
+    @PreAuthorize("hasAnyRole('REFERENTE_ASEGURADORA', 'ANALISTA_SINIESTROS')")
     @Operation(summary = "Exclusiones duras de una cobertura",
             description = "Ids de los hechos generadores que la cobertura NO cubre. Sin regla ⇒ lista vacía.")
     public CoverageExclusionConfig get(@RequestParam Long coverageId) {

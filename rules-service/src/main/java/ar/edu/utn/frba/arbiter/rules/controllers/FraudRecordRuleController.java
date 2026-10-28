@@ -28,7 +28,7 @@ public class FraudRecordRuleController {
     private final FraudRecordRuleService service;
 
     @GetMapping("/fraud-record-rule")
-    @PreAuthorize("hasRole('REFERENTE_ASEGURADORA')")
+    @PreAuthorize("hasAnyRole('REFERENTE_ASEGURADORA', 'ANALISTA_SINIESTROS')")
     @Operation(summary = "Política de antecedentes de fraude",
             description = "Ventana de vigencia y veto de Fast Track. Si el antecedente puntúa, y "
                     + "cuánto, se configura en el scoring junto al resto de los factores. La "
