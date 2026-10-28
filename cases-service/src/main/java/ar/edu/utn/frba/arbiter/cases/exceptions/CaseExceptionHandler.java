@@ -66,9 +66,15 @@ public class CaseExceptionHandler extends ResponseEntityExceptionHandler {
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(422), ex.getMessage());
     }
 
+    /**
+     * Almost always a stale screen: someone (or a sweep) moved the case after the analyst loaded it.
+     * The enum names stay in the log; the analyst gets what to do.
+     */
     @ExceptionHandler(InvalidStatusTransitionException.class)
     public ProblemDetail handleInvalidTransition(InvalidStatusTransitionException ex) {
-        return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(409), ex.getMessage());
+        log.info("Rejected status change: {}", ex.getMessage());
+        return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(409),
+                "El expediente cambió de estado. Recargá la página.");
     }
 
     @ExceptionHandler(UnresolvedCaseReferenceException.class)

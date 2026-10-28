@@ -53,7 +53,12 @@ afuera; ahora son requisitos de diseño:
 
 **Qué se sabe.** El score sale solo de factores de datos: monto sobre suma asegurada, frecuencia de
 siniestros, estado de la póliza, inconsistencias entre documentos y similares. Lo que el LLM
-encuentra al leer el caso no entra en el cálculo.
+encuentra al leer el caso no entra en el cálculo: ningún evaluador de `services/risk/` lee su salida.
+
+El factor de inconsistencias entre documentos (`DocumentInconsistencyEvaluator`) está prendido, pero
+compara campos tipados contra el siniestro: marca, modelo e IMEI, la fecha de cada documento contra
+la del hecho (±7 días), los montos (±10%) y la fecha declarada de la denuncia policial. Una antena o
+un lugar no son campos que compare, así que una contradicción de ubicación no le suma nada.
 
 Caso que lo muestra: el expediente #64 (Valentín Aguirre, hurto en un bar de San Telmo). La
 constancia de última conexión ubica el celular, después del hurto, bajo la antena del domicilio del

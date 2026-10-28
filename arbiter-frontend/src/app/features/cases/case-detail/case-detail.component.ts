@@ -2141,6 +2141,12 @@ export class CaseDetailComponent {
       },
       error: (err: HttpErrorResponse) => {
         this.retrying.set(false);
+        // 409: the case already left the failed state (an automatic requeue or another click).
+        // Reloading shows where it is now, which is the only thing left to do.
+        if (err.status === 409) {
+          this.reloadTrigger.update((v) => v + 1);
+          return;
+        }
         this.retryError.set(err.error?.detail || 'No se pudo reintentar la clasificación');
       },
     });

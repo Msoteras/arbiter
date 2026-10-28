@@ -468,7 +468,9 @@ class CaseControllerTest {
         mockMvc.perform(post("/api/v1/cases/1/reopen")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"reason\":\"motivo\"}"))
-                .andExpect(status().isConflict());
+                .andExpect(status().isConflict())
+                // The analyst reads it: Spanish, and no enum names.
+                .andExpect(jsonPath("$.detail").value("El expediente cambió de estado. Recargá la página."));
     }
 
     // The frontend and the settlement panel read these bodies by field name.
