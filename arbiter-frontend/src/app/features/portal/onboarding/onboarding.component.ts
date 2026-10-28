@@ -15,7 +15,6 @@ import { AuthSessionService } from '../../../core/auth/auth-session.service';
 import { ProfileService } from '../../../core/auth/profile.service';
 import { Policy } from '../../../core/models/policy';
 import {
-  IMAGE_CONSENT_DETAIL,
   IMAGE_CONSENT_SUMMARY,
   IMAGE_CONSENT_VERSION,
   InsuredProfile,
@@ -61,7 +60,6 @@ export class OnboardingComponent {
   private readonly router = inject(Router);
 
   protected readonly consentSummary = IMAGE_CONSENT_SUMMARY;
-  protected readonly consentDetail = IMAGE_CONSENT_DETAIL;
 
   protected readonly firstName = computed(() => this.session.session()?.nombre ?? '');
 

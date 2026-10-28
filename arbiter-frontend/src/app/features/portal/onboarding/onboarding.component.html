@@ -126,10 +126,6 @@
     <section class="section">
       <div class="consent">
         <app-checkbox [(checked)]="imageConsent">{{ consentSummary }}</app-checkbox>
-        <!-- Beside the checkbox, not inside its label: a click on the tip would toggle consent. -->
-        <app-info-tip>
-          {{ consentDetail }} Podés cambiarlo cuando quieras desde tu perfil.
-        </app-info-tip>
       </div>
 
       <!-- Disabled: the insurer reports it, the insured only sees it. -->

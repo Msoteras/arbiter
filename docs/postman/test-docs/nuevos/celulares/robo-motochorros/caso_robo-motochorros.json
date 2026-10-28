@@ -1,0 +1,19 @@
+{
+  "branch": "Celulares",
+  "product": "Celular Protegido Premium",
+  "claimCause": "Robo en vía pública",
+  "insuredItem": "SAMSUNG Galaxy A56 5G 256 GB",
+  "insuredId": "38.614.270",
+  "policyNumber": "POL-CEL-2026-777",
+  "description": "Esperaba el colectivo en Av. Córdoba al 4800 con el celular en la mano. Dos personas en moto frenaron en la parada. El acompañante se bajó, me dijo que le diera el teléfono y me lo sacó de la mano. Se fueron por Av. Córdoba hacia Juan B. Justo. Pedí el bloqueo del IMEI por teléfono y después hice la denuncia en la comisaría.",
+  "eventDate": "2026-10-26T21:50:00",
+  "eventLocation": "Av. Córdoba 4850, parada de colectivo",
+  "locality": "Palermo",
+  "province": "Ciudad Autónoma de Buenos Aires",
+  "policeReportAt": "2026-10-26T23:05:00",
+  "claimedAmount": 589999,
+  "pep": false,
+  "imageConsent": true,
+  "contactEmail": "valentin.aguirre@example.com",
+  "contactPhone": "11-5555-0077"
+}

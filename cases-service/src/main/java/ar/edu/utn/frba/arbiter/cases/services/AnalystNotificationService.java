@@ -27,6 +27,8 @@ public class AnalystNotificationService {
 
     private static final String CHANNEL = "EMAIL";
 
+    static final String DOCUMENTATION_TO_CONFIRM = "DOCUMENTATION_TO_CONFIRM";
+
     private final NotificationRepository notificationRepository;
     private final ClaimsAnalystRepository claimsAnalystRepository;
     private final SendGridAdapter sendGridAdapter;
@@ -60,6 +62,30 @@ public class AnalystNotificationService {
                 // failure must not stop the rest, nor the sweep.
                 log.error("Could not notify analyst {} about case {} ({})",
                         analyst.getId(), caseRecord.getId(), type, e);
+            }
+        }
+    }
+
+    /**
+     * The classification found documents missing and the analyst has to choose which ones the insured
+     * is asked for. Without an assigned analyst, every analyst of the insurer is told. Idempotent per
+     * case and recipient, like the deadline ones.
+     */
+    public void notifyDocumentationToConfirm(Case caseRecord) {
+        List<ClaimsAnalyst> recipients = resolveRecipients(caseRecord);
+        long id = caseRecord.getId();
+        Message message = new Message(
+                "Expediente #" + id + ": falta documentación",
+                "Al expediente #" + id + " (" + caseRecord.getClaimCause().getName() + " · "
+                        + caseRecord.getInsured().fullName() + ") le falta documentación. "
+                        + "Elegí qué documentos le pedís al asegurado.",
+                id);
+        for (ClaimsAnalyst analyst : recipients) {
+            try {
+                notifyOne(caseRecord, analyst, DOCUMENTATION_TO_CONFIRM, message);
+            } catch (Exception | LinkageError e) {
+                log.error("Could not notify analyst {} about case {} ({})",
+                        analyst.getId(), caseRecord.getId(), DOCUMENTATION_TO_CONFIRM, e);
             }
         }
     }

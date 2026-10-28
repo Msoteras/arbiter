@@ -4,12 +4,15 @@ import {
   DestroyRef,
   computed,
   effect,
+  ElementRef,
   inject,
   input,
   signal,
+  viewChild,
 } from '@angular/core';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 
+import { ButtonComponent } from '../button/button.component';
 import { ModalComponent } from '../modal/modal.component';
 import {
   formatFileSize,
@@ -24,7 +27,7 @@ import {
 @Component({
   selector: 'app-file-preview',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ModalComponent],
+  imports: [ButtonComponent, ModalComponent],
   template: `
     <div class="preview">
       <button
@@ -55,14 +58,19 @@ import {
       [open]="expanded() && !!url()"
       [heading]="file().name"
       size="lg"
-      [hideActions]="true"
+      [hideActions]="!fullscreenEnabled"
       (close)="expanded.set(false)"
     >
       @if (isImage()) {
-        <div class="expanded image"><img [src]="url()!" [alt]="file().name" /></div>
+        <div #viewer class="expanded image"><img [src]="url()!" [alt]="file().name" /></div>
       } @else if (isPdf() && safeUrl()) {
-        <iframe class="expanded pdf" [src]="safeUrl()!" [title]="file().name"></iframe>
+        <iframe #viewer class="expanded pdf" [src]="safeUrl()!" [title]="file().name"></iframe>
       }
+      <ng-container modalActions>
+        <app-button variant="secondary" size="sm" (click)="fullscreen()"
+          >Pantalla completa</app-button
+        >
+      </ng-container>
     </app-modal>
   `,
   styles: `
@@ -170,6 +178,14 @@ import {
     .expanded.pdf {
       height: 70dvh;
     }
+    .expanded:fullscreen {
+      border: none;
+      border-radius: 0;
+    }
+    .expanded.image:fullscreen img {
+      max-height: 100%;
+      outline: none;
+    }
   `,
 })
 export class FilePreviewComponent {
@@ -181,6 +197,10 @@ export class FilePreviewComponent {
   protected readonly url = signal<string | null>(null);
   protected readonly safeUrl = signal<SafeResourceUrl | null>(null);
   protected readonly expanded = signal(false);
+
+  /** False on iPhone Safari, which only takes video full screen: the button stays hidden there. */
+  protected readonly fullscreenEnabled = document.fullscreenEnabled;
+  private readonly viewer = viewChild<ElementRef<HTMLElement>>('viewer');
 
   protected readonly isImage = computed(() => isPreviewableImage(this.file().type));
   protected readonly isPdf = computed(() => isPreviewablePdf(this.file().type));
@@ -202,6 +222,10 @@ export class FilePreviewComponent {
       const current = this.url();
       if (current) URL.revokeObjectURL(current);
     });
+  }
+
+  protected fullscreen(): void {
+    void this.viewer()?.nativeElement.requestFullscreen();
   }
 
   protected toggle(): void {

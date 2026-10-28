@@ -57,12 +57,41 @@ class CasesServiceNotifierTest {
     }
 
     @Test
-    void casesServiceAnsweringAnError_isLoggedNotThrown() throws IOException {
+    void casesServiceAnsweringAServerError_isSentAgainThenLoggedNotThrown() throws IOException {
         server = startServer(0, 500);
 
         assertThatCode(() -> notifierPointingAt(baseUrl()).classificationFinished(42L, Outcome.FAILED))
                 .doesNotThrowAnyException();
+        assertThat(received).hasSize(3);
+    }
+
+    /** A 4xx would answer the same every time. */
+    @Test
+    void casesServiceRejectingTheNotice_isNotSentAgain() throws IOException {
+        server = startServer(0, 404);
+
+        notifierPointingAt(baseUrl()).classificationFinished(42L, Outcome.FAILED);
+
         assertThat(received).hasSize(1);
+    }
+
+    @Test
+    void aNoticeThatFailsOnce_arrivesOnTheNextAttempt() throws IOException {
+        AtomicInteger calls = new AtomicInteger();
+        server = HttpServer.create(new InetSocketAddress("localhost", 0), 0);
+        server.createContext("/", exchange -> {
+            try {
+                record(exchange);
+                exchange.sendResponseHeaders(calls.incrementAndGet() == 1 ? 503 : 204, -1);
+            } finally {
+                exchange.close();
+            }
+        });
+        server.start();
+
+        notifierPointingAt(baseUrl()).classificationFinished(42L, Outcome.FAILED);
+
+        assertThat(received).hasSize(2);
     }
 
     @Test
@@ -76,7 +105,8 @@ class CasesServiceNotifierTest {
     void casesServiceStillBooting_isWaitedFor() throws Exception {
         int port = closedPort();
         CasesServiceNotifier notifier = new CasesServiceNotifier("http://localhost:" + port, JWT_SECRET,
-                new ConnectionRetryInterceptor(10, Duration.ofMillis(100), Duration.ofMillis(100)));
+                new ConnectionRetryInterceptor(10, Duration.ofMillis(100), Duration.ofMillis(100)),
+                Duration.ofMillis(1), Duration.ofSeconds(5));
         AtomicInteger bootFailures = new AtomicInteger();
         Thread booting = new Thread(() -> {
             try {
@@ -97,7 +127,8 @@ class CasesServiceNotifierTest {
 
     private CasesServiceNotifier notifierPointingAt(String url) {
         return new CasesServiceNotifier(url, JWT_SECRET,
-                new ConnectionRetryInterceptor(2, Duration.ofMillis(1), Duration.ofMillis(1)));
+                new ConnectionRetryInterceptor(2, Duration.ofMillis(1), Duration.ofMillis(1)),
+                Duration.ofMillis(1), Duration.ofSeconds(5));
     }
 
     private String baseUrl() {

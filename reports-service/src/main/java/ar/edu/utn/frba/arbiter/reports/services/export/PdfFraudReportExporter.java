@@ -43,7 +43,7 @@ public class PdfFraudReportExporter implements FraudReportExporter {
     private static final String TITLE = "Reporte de detección de fraude";
     private static final String KIND = "FRD";
 
-    private static final String SCOPE = "El sistema no determina fraude: señala indicios para "
+    private static final String SCOPE = "Arbiter no determina fraude: señala indicios para "
             + "revisión humana. El score de riesgo es una sugerencia del motor de scoring, no una "
             + "conclusión. «Fraude determinado» solo se marca cuando existe resolución del analista "
             + "con respaldo pericial.";

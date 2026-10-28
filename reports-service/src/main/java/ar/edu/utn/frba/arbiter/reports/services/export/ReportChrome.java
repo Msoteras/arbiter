@@ -40,7 +40,7 @@ final class ReportChrome {
     static MetaStripBlock provenance(String code, Instant generatedAt, ZoneId zone) {
         RequesterContext.Requester requester = RequesterContext.get();
         return new MetaStripBlock(List.of(
-                MetaStripBlock.Cell.of("Sistema de origen", "Arbiter · Reportes"),
+                MetaStripBlock.Cell.of("Origen", "Arbiter · Reportes"),
                 MetaStripBlock.Cell.of("Emitido por",
                         requester == null || requester.name() == null ? "—" : requester.name()),
                 MetaStripBlock.Cell.of("Generado",

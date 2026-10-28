@@ -141,6 +141,20 @@ class ClassificationRefreshSchedulerTest {
         verify(caseRepository, never()).save(any());
     }
 
+    /** The FAILED notice may never arrive; the reason classification-service wrote is enough. */
+    @Test
+    void failureRecordedByClassificationService_marksClassificationFailedWithoutWaiting() {
+        Case entity = pendingCase(0);
+        entity.setClassificationFailureReason(ClassificationFailureReason.INFRASTRUCTURE);
+        when(caseRepository.findByStatus(CaseStatus.PENDING_CLASSIFICATION)).thenReturn(List.of(entity));
+
+        scheduler.refreshPendingCases();
+
+        verify(classificationOutcomeService).markFailed(entity, "clasificación fallida");
+        verify(claimsAnalysisClient, never()).refreshClassification(any());
+        verify(caseRepository, never()).advanceClassificationAttempts(anyLong(), anyInt(), anyInt());
+    }
+
     @Test
     void manyAttemptsWithinTheWindow_keepWaiting() {
         Case entity = pendingCase(539);
@@ -297,7 +311,8 @@ class ClassificationRefreshSchedulerTest {
         verify(caseStatusService).transition(eq(entity), eq(CaseStatus.PENDING_CLASSIFICATION),
                 eq(StatusChangeActor.SYSTEM), any());
         assertThat(entity.getClassificationAttempts()).isEqualTo(0);
-        assertThat(entity.getRiskScore()).isNull();
+        // The risk stays: a reclassification never lowers it.
+        assertThat(entity.getRiskScore()).isEqualTo(0.8);
         assertThat(entity.getRulesClassification()).isNull();
         verify(claimsAnalysisClient).analyzeAndPersistAsSystem(entity, List.of());
     }

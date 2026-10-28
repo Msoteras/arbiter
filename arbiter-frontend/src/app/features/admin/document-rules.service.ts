@@ -3,11 +3,20 @@ import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 
 import { environment } from '../../../environments/environment';
+import { RiskBand } from '../../core/models/risk-band';
+
+/** Mirrors common-lib's DocumentRequirementItem. */
+export interface DocumentRequirementItem {
+  documentType: string;
+  /** Null: every case needs it. Otherwise, only cases from that band up. */
+  minRiskBand: RiskBand | null;
+}
 
 export interface DocumentRequirementDto {
   id: number;
   documentType: string;
   claimCauseId: number;
+  minRiskBand: RiskBand | null;
 }
 
 /** Required documents (agenda documental) for a branch + claim cause pair. */
@@ -16,8 +25,8 @@ export class DocumentRulesService {
   private readonly http = inject(HttpClient);
   private readonly base = `${environment.apiBaseUrl}/rules/document-requirements`;
 
-  get(branchId: number, claimCauseId: number): Observable<string[]> {
-    return this.http.get<string[]>(this.base, {
+  get(branchId: number, claimCauseId: number): Observable<DocumentRequirementItem[]> {
+    return this.http.get<DocumentRequirementItem[]>(this.base, {
       params: { branchId: String(branchId), claimCauseId: String(claimCauseId) },
     });
   }
@@ -25,9 +34,9 @@ export class DocumentRulesService {
   save(
     branchId: number,
     claimCauseId: number,
-    documentTypes: string[],
+    documents: DocumentRequirementItem[],
   ): Observable<DocumentRequirementDto[]> {
-    return this.http.put<DocumentRequirementDto[]>(this.base, documentTypes, {
+    return this.http.put<DocumentRequirementDto[]>(this.base, documents, {
       params: { branchId: String(branchId), claimCauseId: String(claimCauseId) },
     });
   }

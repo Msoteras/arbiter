@@ -144,6 +144,18 @@ export interface CaseResponse {
   policySnapshot: PolicySnapshot | null;
   /** Only in GET /{id} while under repair. The one referral the insured gets to see. */
   repairProvider: RepairProvider | null;
+  /** What the analyst asked for outside the schedule. The insured gets it without `reason`. */
+  requestedDocuments: RequestedDocument[];
+}
+
+/** Mirrors RequestedDocumentResponse. `type` is a catalog code or `other_<n>`. */
+export interface RequestedDocument {
+  type: string;
+  /** Only for `other_<n>`: what the insured is asked for. */
+  description: string | null;
+  /** Internal: why the analyst asked for it. Null for the insured. */
+  reason: string | null;
+  fulfilled: boolean;
 }
 
 export interface RepairProvider {

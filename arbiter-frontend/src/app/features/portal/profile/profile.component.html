@@ -119,7 +119,6 @@
 
       <div class="consent">
         <app-checkbox [(checked)]="imageConsent">{{ consentSummary }}</app-checkbox>
-        <p class="consent-detail">{{ consentDetail }}</p>
 
         @if (consentAt()) {
           <!-- imageConsentVersion is persisted for traceability but deliberately not shown. -->

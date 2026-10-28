@@ -64,7 +64,7 @@ class PdfFraudReportExporterTest {
 
         assertThat(pdf.text()).contains(
                 "ALCANCE DE ESTE INFORME",
-                "El sistema no determina fraude: señala indicios para revisión humana.");
+                "Arbiter no determina fraude: señala indicios para revisión humana.");
     }
 
     @Test

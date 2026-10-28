@@ -102,12 +102,12 @@ describe('TimePickerComponent', () => {
     fixture.detectChanges();
   });
 
-  it('a slot writes its representative hour and closes the panel', () => {
+  it('a slot suggests its representative hour and keeps the panel open', () => {
     click(fixture, '.trigger');
     chip(fixture, 'Tarde').click();
     fixture.detectChanges();
     expect(fixture.componentInstance.time()).toBe('15:00');
-    expect(fixture.nativeElement.querySelector('.panel')).toBeNull();
+    expect(fixture.nativeElement.querySelector('.panel')).not.toBeNull();
   });
 
   it('an exact time shows the slot it falls in', () => {

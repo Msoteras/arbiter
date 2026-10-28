@@ -34,10 +34,15 @@ public record ClaimReport(
         Boolean imageConsent,
         List<String> attachmentsOcr,
         // Claims filed through Arbiter: the insurer's history never receives them.
-        List<PriorClaim> priorClaims
+        List<PriorClaim> priorClaims,
+        // The analyst's words on the attachments the catalog doesn't name (other_<n>).
+        List<AnalystDocumentNote> analystDocumentNotes,
+        // The analyst already chose what to ask for: the schedule isn't demanded again. Boxed: null is no.
+        Boolean documentationRequestedByAnalyst
 ) {
 
     public ClaimReport {
         priorClaims = priorClaims == null ? List.of() : List.copyOf(priorClaims);
+        analystDocumentNotes = analystDocumentNotes == null ? List.of() : List.copyOf(analystDocumentNotes);
     }
 }

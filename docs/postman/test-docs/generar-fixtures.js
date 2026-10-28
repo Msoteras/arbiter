@@ -13,10 +13,11 @@
 // Todos los documentos de un caso salen de un único objeto de escenario, así que no pueden
 // contradecirse entre sí. El motor PDF vive en lib-pdf.js; quién firma, en perfiles.js.
 //
-// Uso: node generar-fixtures.js [directorio-destino] [--sin-marca | --camila | --mutaciones]
+// Uso: node generar-fixtures.js [directorio-destino] [--sin-marca | --camila | --mutaciones | --nuevos]
 //      Sin argumentos escribe en docs/postman/test-docs/conMarcaDePrueba/celulares/<hecho>/
 //      Con --mutaciones escribe solo las mutaciones, en docs/postman/test-docs/mutaciones/celulares/
 //      Con --camila escribe robo y hurto más la secuencia de historial, en .../camila/celulares/
+//      Con --nuevos escribe los dos casos de Valentín, en .../nuevos/celulares/
 
 const fs = require('fs');
 const os = require('os');
@@ -27,6 +28,7 @@ const {
 const { PROFILES, variantFromArgv, outDirFromArgv } = require('./perfiles');
 const { buildMutations } = require('./mutaciones-celulares');
 const { buildHistory } = require('./historial-celulares');
+const { buildNuevos } = require('./casos-nuevos-celulares');
 
 const VARIANT = variantFromArgv();
 const PROFILE = PROFILES[VARIANT];
@@ -395,7 +397,9 @@ function policeReport(sc) {
   p.section('CONSTANCIAS');
   p.text(`•  Se dio intervención a la Fiscalía Penal, Contravencional y de Faltas ${police.fiscalia} del`, { size: 9 });
   p.text('   Poder Judicial de la C.A.B.A.', { size: 9 });
-  if (police.camaras) {
+  if (police.evidence) {
+    police.evidence.forEach((l) => p.text(l, { size: 9 }));
+  } else if (police.camaras) {
     p.text('•  Se solicitó el resguardo de las imágenes de las cámaras del Sistema de Monitoreo', { size: 9 });
     p.text('   Público correspondientes a la fecha y franja horaria del hecho.', { size: 9 });
   } else {
@@ -772,11 +776,12 @@ const mutations = VARIANT === 'mutaciones'
   ? buildMutations({ base: ROBO, G, INSURED, spouse: PROFILE.spouse, policyImei: DEVICE.imei, NOW })
   : [];
 // A profile whose policy doesn't cover every claim cause lists the ones it can file.
-const scenarios = VARIANT === 'mutaciones'
+const scenarios = VARIANT === 'mutaciones' || VARIANT === 'nuevos'
   ? []
   : SCENARIOS.filter((sc) => !PROFILE.scenarios || PROFILE.scenarios.includes(sc.folder));
 // History: claims filed in order WITHOUT resetting in between, to watch prior claims kick in.
 const history = VARIANT === 'camila' ? buildHistory({ robo: ROBO, hurto: HURTO }) : [];
+const nuevos = VARIANT === 'nuevos' ? buildNuevos({ G, ayerA, NOW }) : [];
 
 for (const sc of scenarios) {
   console.log(`${sc.folder}/  (${sc.claimCause})`);
@@ -784,7 +789,7 @@ for (const sc of scenarios) {
   console.log();
 }
 
-for (const m of [...mutations, ...history]) {
+for (const m of [...mutations, ...history, ...nuevos]) {
   const dir = path.join(root, m.folder);
   console.log(`${m.folder}/  (${m.expected.cambia})`);
   writeCase(dir, m);
@@ -799,6 +804,8 @@ if (history.length) {
 `);
 }
 
-const expira = plus(ROBO.event, 72 * 60);
+// The earliest event of what was written is the first to fall out of D11's window.
+const firstEvent = nuevos.length ? Math.min(...nuevos.map((n) => n.event.getTime())) : ROBO.event;
+const expira = plus(new Date(firstEvent), 72 * 60);
 console.log(`Los sets con denuncia vencen el ${d(expira)} ${hm(expira)} — después D11 (plazo de`);
 console.log('denuncia, 72 hs) bloquea el Fast Track. Volvé a correr este script para renovarlos.');

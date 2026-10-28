@@ -57,7 +57,9 @@
         <h2 class="strip-label">
           <span class="ai-mark" aria-hidden="true">✦</span>
           {{
-            isDeterministicOutcome() ? 'Resultado del motor de reglas' : 'Recomendación de Arbiter'
+            isDeterministicOutcome()
+              ? 'Resultado del motor de reglas de Arbiter'
+              : 'Recomendación de Arbiter'
           }}
         </h2>
         @if (classificationLabel()) {
@@ -77,7 +79,7 @@
               </p>
             }
           } @else if (needsDocs()) {
-            <p class="note">Falta documentación obligatoria de la agenda del ramo.</p>
+            <p class="note">Falta documentación para su nivel de riesgo.</p>
           } @else if (!isFastTrack()) {
             <!-- Coverage exclusion or prescription: the model never ran. -->
             <p class="note">El detalle está en «Evaluación de reglas».</p>
@@ -86,18 +88,14 @@
               Cumplió los criterios objetivos de Fast Track.
               <app-info-tip>
                 Fast Track es la vía express para un siniestro que cumple ciertos criterios
-                objetivos. No es una recomendación de aprobar: la decisión sigue siendo del
-                analista.
-                @if (fastTrackCriteria().length > 0) {
-                  Qué se verificó está en «Evaluación de reglas».
-                }
+                objetivos.
               </app-info-tip>
             </p>
           }
         } @else if (d.status === 'PENDING_CLASSIFICATION') {
           <app-classification-progress [since]="classificationSince()" />
         } @else {
-          <p class="nodata">El modelo todavía no generó una recomendación.</p>
+          <p class="nodata">Arbiter todavía no generó una recomendación.</p>
         }
       </div>
 
@@ -262,47 +260,63 @@
               <div class="decision-row">
                 @if (canDecide()) {
                   <div class="decision-side">
-                    @if (recommendedVerdict(); as rec) {
-                      <app-button
-                        class="verdict-main"
-                        [tone]="rec === 'reject' ? 'danger' : 'ok'"
-                        [block]="true"
-                        [disabled]="decisionSaving()"
-                        (click)="askDecision(rec)"
-                        >{{
-                          rec === 'reject' ? 'Rechazar siniestro' : 'Aprobar siniestro'
-                        }}</app-button
-                      >
+                    <!-- Missing documentation: nothing to decide on until the analyst asks for it. -->
+                    @if (!needsDocs()) {
+                      @if (recommendedVerdict(); as rec) {
+                        <app-button
+                          class="verdict-main"
+                          [tone]="rec === 'reject' ? 'danger' : 'ok'"
+                          [block]="true"
+                          [disabled]="decisionSaving()"
+                          (click)="askDecision(rec)"
+                          >{{
+                            rec === 'reject' ? 'Rechazar siniestro' : 'Aprobar siniestro'
+                          }}</app-button
+                        >
+                        <app-button
+                          class="span-all"
+                          variant="secondary"
+                          [block]="true"
+                          [disabled]="decisionSaving()"
+                          (click)="askDecision(rec === 'reject' ? 'approve' : 'reject')"
+                          >{{ rec === 'reject' ? 'Aprobar' : 'Rechazar' }}</app-button
+                        >
+                      } @else {
+                        <app-button
+                          variant="secondary"
+                          tone="ok"
+                          [block]="true"
+                          [disabled]="decisionSaving()"
+                          (click)="askDecision('approve')"
+                          >✓ Aprobar</app-button
+                        >
+                        <app-button
+                          variant="secondary"
+                          tone="danger"
+                          [block]="true"
+                          [disabled]="decisionSaving()"
+                          (click)="askDecision('reject')"
+                          >✕ Rechazar</app-button
+                        >
+                      }
+                    }
+                    <!-- Suspends the case until the insured uploads, like a referral: no tone.
+                         Never on Fast Track: what it has is enough to decide. Above the
+                         referral and closing row so those two can share it. -->
+                    @if (!isFastTrack()) {
                       <app-button
                         class="span-all"
-                        variant="secondary"
+                        [variant]="needsDocs() ? 'primary' : 'secondary'"
                         [block]="true"
                         [disabled]="decisionSaving()"
-                        (click)="askDecision(rec === 'reject' ? 'approve' : 'reject')"
-                        >{{ rec === 'reject' ? 'Aprobar' : 'Rechazar' }}</app-button
-                      >
-                    } @else {
-                      <app-button
-                        variant="secondary"
-                        tone="ok"
-                        [block]="true"
-                        [disabled]="decisionSaving()"
-                        (click)="askDecision('approve')"
-                        >✓ Aprobar</app-button
-                      >
-                      <app-button
-                        variant="secondary"
-                        tone="danger"
-                        [block]="true"
-                        [disabled]="decisionSaving()"
-                        (click)="askDecision('reject')"
-                        >✕ Rechazar</app-button
+                        (click)="showDocumentRequest.set(true)"
+                        >Pedir documentación</app-button
                       >
                     }
                     <!-- Referral is not a third decision (it suspends to gather evidence), hence
                          no tone. Always a menu: the full target name doesn't fit this column.
                          Referral and closing share a row; whichever is alone spans it. -->
-                    @if (derivationChoices().length > 0) {
+                    @if (derivationChoices().length > 0 && !needsDocs()) {
                       <app-menu-button
                         [class.span-all]="!canClose()"
                         [block]="true"
@@ -316,7 +330,7 @@
                     <!-- Not a verdict, hence no tone and last in the column. -->
                     @if (canClose()) {
                       <app-menu-button
-                        [class.span-all]="derivationChoices().length === 0"
+                        [class.span-all]="derivationChoices().length === 0 || needsDocs()"
                         [block]="true"
                         [items]="closeMenuItems"
                         [disabled]="decisionSaving()"
@@ -354,12 +368,12 @@
               </div>
               <!-- Why a referral isn't offered: a fact about this claim, not an alert, so the
                    reason waits behind the tip. -->
-              @if (canDerive() && notDerivableReason(); as blockReason) {
+              @if (canDerive() && !needsDocs() && notDerivableReason(); as blockReason) {
                 <p class="rcard-note">
                   Peritaje no disponible <app-info-tip>{{ blockReason }}</app-info-tip>
                 </p>
               }
-              @if (noRepairShopReason(); as blockReason) {
+              @if (!needsDocs() && noRepairShopReason(); as blockReason) {
                 <p class="rcard-note">
                   Servicio técnico no disponible <app-info-tip>{{ blockReason }}</app-info-tip>
                 </p>
@@ -403,7 +417,7 @@
                   <p class="rcard-note error">{{ retryError() }}</p>
                 }
               }
-            } @else if (needsDocs()) {
+            } @else if (awaitingInsuredDocs()) {
               <p class="registered">Esperando al asegurado</p>
               <p class="rcard-note">
                 Cuando cargue la documentación faltante, el expediente se reclasifica y pasa a tu
@@ -755,7 +769,8 @@
         }
 
         @case ('analysis') {
-          <div class="analysis-grid">
+          <!-- Without reasons (a rules outcome) the score takes the whole row. -->
+          <div class="analysis-grid" [class.single]="analysisReasons().length === 0">
             <app-card heading="Score de fraude">
               @if (riskScorePct() !== null) {
                 <div class="risk-head">
@@ -825,14 +840,12 @@
                 <app-empty-state message="Este expediente todavía no tiene score de fraude" />
               }
             </app-card>
-            <app-card heading="Razones del modelo">
-              @if (analysisReasons().length > 0) {
+            @if (analysisReasons().length > 0) {
+              <app-card heading="Razones">
                 <span cardAside class="t-note"
                   >{{ analysisReasons().length }}
                   {{ analysisReasons().length === 1 ? 'motivo' : 'motivos' }}</span
                 >
-              }
-              @if (analysisReasons().length > 0) {
                 <ol class="reason-list">
                   @for (reason of analysisReasons(); track $index) {
                     <li class="reason-item">
@@ -843,19 +856,11 @@
                     </li>
                   }
                 </ol>
-              } @else {
-                <app-empty-state
-                  message="El modelo no dejó razones"
-                  sub="Cuando decide una regla no se consulta al modelo; el score sale de los datos."
-                />
-              }
-              @if (classificationLabel() && !isDeterministicOutcome()) {
-                <p class="t-note">
-                  Confianza del modelo: {{ confidencePercent() }}% · Estimación del propio modelo,
-                  no una probabilidad de acierto.
-                </p>
-              }
-            </app-card>
+                @if (classificationLabel() && !isDeterministicOutcome()) {
+                  <p class="t-note">Confianza de Arbiter: {{ confidencePercent() }}%</p>
+                }
+              </app-card>
+            }
           </div>
         }
 
@@ -1589,6 +1594,15 @@
   </ng-container>
 </app-modal>
 
+@if (data(); as d) {
+  <app-document-request-modal
+    [open]="showDocumentRequest()"
+    [caseId]="d.id"
+    (closed)="showDocumentRequest.set(false)"
+    (requested)="onDocumentsRequested()"
+  />
+}
+
 <!-- The reason is mandatory: it is the audit trail for why a closed case was reopened. -->
 <app-modal [open]="showReopen()" heading="¿Reabrir el expediente?" (close)="cancelReopen()">
   <p class="t-body">Vuelve a revisión y el plazo legal de respuesta arranca de cero.</p>
@@ -1763,7 +1777,7 @@
 >
   <p class="t-note">
     El expediente vuelve a tu revisión con
-    {{ reportIsRepair() ? 'la respuesta' : 'el informe' }} al lado de la recomendación del modelo.
+    {{ reportIsRepair() ? 'la respuesta' : 'el informe' }}.
   </p>
   <app-select
     [options]="reportIsRepair() ? repairOutcomeOptions : verdictOptions"

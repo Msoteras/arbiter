@@ -3,6 +3,8 @@ package ar.edu.utn.frba.arbiter.cases.services;
 import ar.edu.utn.frba.arbiter.cases.config.tenant.TenantContext;
 import ar.edu.utn.frba.arbiter.cases.exceptions.RulesMisconfiguredException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.RulesUnavailableException;
+import ar.edu.utn.frba.arbiter.common.dto.DocumentRequirementItem;
+import ar.edu.utn.frba.arbiter.common.dto.DocumentTypeResponse;
 import ar.edu.utn.frba.arbiter.common.dto.OnboardingTouch;
 import ar.edu.utn.frba.arbiter.common.enums.OnboardingStep;
 import ar.edu.utn.frba.arbiter.common.security.JwtSupport;
@@ -167,6 +169,47 @@ public class RulesServiceClient {
                     : config.requiredDocumentTypes();
         } catch (Exception e) {
             log.error("Could not read the Fast Track document list for coverage {}", coverageId, e);
+            return null;
+        }
+    }
+
+    /**
+     * The documents a branch may ask for, named. Errors propagate as {@link RulesUnavailableException}:
+     * an empty list would tell the analyst there is nothing to ask for.
+     */
+    public List<DocumentTypeResponse> branchDocumentTypes(Long branchId) {
+        try {
+            String serviceToken = JwtSupport.issueServiceToken(jwtKey, "cases-service-documents", TenantContext.get());
+            List<DocumentTypeResponse> types = restClient.get()
+                    .uri(uri -> uri.path("/api/v1/rules/document-types")
+                            .queryParam("branchId", branchId).build())
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + serviceToken)
+                    .retrieve()
+                    .body(new ParameterizedTypeReference<List<DocumentTypeResponse>>() {});
+            return types == null ? List.of() : types;
+        } catch (Exception e) {
+            throw new RulesUnavailableException(e);
+        }
+    }
+
+    /**
+     * The whole schedule with the band each document is asked from. {@code null} when it couldn't be
+     * read: the caller then suggests nothing rather than failing.
+     */
+    public List<DocumentRequirementItem> scheduleWithBands(String branch, String claimCause) {
+        try {
+            String serviceToken = JwtSupport.issueServiceToken(jwtKey, "cases-service-documents", TenantContext.get());
+            return restClient.get()
+                    .uri(uri -> uri.path("/api/v1/rules/document-requirements/for-branch/with-bands")
+                            .queryParam("branch", branch)
+                            .queryParam("claimCause", claimCause)
+                            .build())
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + serviceToken)
+                    .retrieve()
+                    .body(new ParameterizedTypeReference<List<DocumentRequirementItem>>() {});
+        } catch (Exception e) {
+            log.error("Could not read the document schedule with bands for branch '{}' / claim cause '{}'",
+                    branch, claimCause, e);
             return null;
         }
     }
