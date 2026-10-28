@@ -71,6 +71,8 @@ class ClassificationOrchestratorDocumentGateTest {
     @Mock private DocumentAnalysisRepository documentAnalysisRepository;
     @Spy private ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
 
+    @Mock private ClassificationProgress progress;
+
     @InjectMocks private ClassificationOrchestrator orchestrator;
 
     @BeforeEach

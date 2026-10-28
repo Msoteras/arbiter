@@ -155,6 +155,8 @@ services:
       DB_PASSWORD: ${DB_PASSWORD:-arbiter}
       JWT_SECRET: ${JWT_SECRET:-+CV3wiE5lScQGEx1PvKLNuWmaqxixDsm8EIFifgfq8thgguF84p+GI10Rs/1wSTl}
       RULES_SERVICE_URL: http://rules-service:8081
+      # The yml default is localhost, which inside a container is the container itself.
+      CASES_SERVICE_URL: http://cases-service:8083
     depends_on:
       ollama-init:
         condition: service_completed_successfully

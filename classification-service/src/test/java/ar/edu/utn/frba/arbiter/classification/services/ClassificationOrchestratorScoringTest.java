@@ -59,6 +59,8 @@ class ClassificationOrchestratorScoringTest {
     @Mock private ClaimCauseRepository claimCauseRepository;
     @Spy private ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
 
+    @Mock private ClassificationProgress progress;
+
     @InjectMocks private ClassificationOrchestrator orchestrator;
 
     private final RiskScore knownScore = new RiskScore(true, 0.42, RiskBand.MEDIUM,

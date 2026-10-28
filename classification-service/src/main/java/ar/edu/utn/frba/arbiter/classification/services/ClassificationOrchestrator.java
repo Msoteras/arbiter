@@ -8,6 +8,8 @@ import ar.edu.utn.frba.arbiter.classification.adapters.DocumentAnalyzer;
 import ar.edu.utn.frba.arbiter.classification.adapters.RulesAdapter;
 import ar.edu.utn.frba.arbiter.classification.adapters.ClaimClassifier;
 import ar.edu.utn.frba.arbiter.common.dto.ClaimReport;
+import ar.edu.utn.frba.arbiter.common.dto.ClassificationStep;
+import ar.edu.utn.frba.arbiter.common.enums.ClassificationStage;
 import ar.edu.utn.frba.arbiter.common.dto.ImageForensicReport;
 import ar.edu.utn.frba.arbiter.classification.dto.*;
 import ar.edu.utn.frba.arbiter.classification.models.entities.DocumentAnalysis;
@@ -68,6 +70,7 @@ public class ClassificationOrchestrator {
     private final DocumentAnalysisRepository documentAnalysisRepository;
     private final ClaimCauseRepository claimCauseRepository;
     private final ObjectMapper objectMapper;
+    private final ClassificationProgress progress;
 
     public ClassificationResponse classify(ClaimReport claim) {
         log.info("[Orchestrator] Starting classification — policy='{}' insuredId='{}' branch='{}' claimCause='{}'",
@@ -268,6 +271,7 @@ public class ClassificationOrchestrator {
         if (caseId == null) {
             return null;
         }
+        progress.report(ClassificationStep.of(ClassificationStage.IMAGES));
         ImageForensicReport report = imageFraudAnalysisService.analyze(caseId, documents, imageConsent);
         return report.imagesAnalyzed() == 0 ? null : report;
     }
@@ -279,6 +283,7 @@ public class ClassificationOrchestrator {
             Map<String, DocumentExtraction> extractions) {}
 
     private Resolution resolveClassification(ClaimReport claim, List<AttachmentDocument> documents, Context ctx) {
+        progress.report(ClassificationStep.of(ClassificationStage.EXCLUSION));
         // A time-barred claim makes every other rule moot; no documents are analyzed.
         if (isPrescribed(claim)) {
             return new Resolution(prescriptionResponse(claim), false, Map.of());
@@ -304,6 +309,7 @@ public class ClassificationOrchestrator {
         Map<String, DocumentExtraction> gateExtractions =
                 extractRequiredDocuments(documents, requiredForGate, causeNames, itemAttributes);
 
+        progress.report(ClassificationStep.of(ClassificationStage.RULE_EVALUATION));
         TemporalRuleEvaluator.Result temporal =
                 temporalRuleEvaluator.evaluate(claim, ctx.policy(), ctx.history(), ctx.rules());
         FraudRecordRuleEvaluator.Result fraud =
@@ -313,6 +319,7 @@ public class ClassificationOrchestrator {
         CoverageScopeEvaluator.Result scope =
                 coverageScopeEvaluator.evaluate(claim, ctx.policy(), ctx.history(), gateExtractions);
 
+        progress.report(ClassificationStep.of(ClassificationStage.FAST_TRACK));
         FastTrackValidator.Result fastTrack =
                 fastTrackValidator.evaluate(claim, ctx.policy(), ctx.history(), ctx.rules(), gateExtractions);
 
@@ -343,6 +350,7 @@ public class ClassificationOrchestrator {
                     fullAnalysis || !gateExtractions.isEmpty(), fastTrackExtractions);
         }
 
+        progress.report(ClassificationStep.of(ClassificationStage.DOCUMENT_SCHEDULE));
         // The full document schedule is only demanded once Fast Track is off the table: a claim
         // filed with just the gate's short list must still be able to Fast Track.
         List<String> missingDocs = checkRequiredDocuments(
@@ -394,6 +402,7 @@ public class ClassificationOrchestrator {
                 .forensicReport(forensic)
                 .factors(foldForensicTraces(classification.factors(), forensic))
                 .build();
+        progress.report(ClassificationStep.of(ClassificationStage.RISK));
         try {
             RiskScore riskScore = riskScoringService.score(new RiskContext(
                     claim, ctx.policy(), ctx.history(), ctx.rules(), forensic, extractions, ctx.fraudRecords()));
@@ -457,6 +466,7 @@ public class ClassificationOrchestrator {
 
     private Context fetchContext(ClaimReport claim) {
         log.debug("[Orchestrator] Fetching policy '{}'...", claim.policyNumber());
+        progress.report(ClassificationStep.of(ClassificationStage.POLICY));
         // Narrowed to the claim's coverage: everything downstream reads the top-level sum insured.
         InsuredPolicy policy = insurerAdapter.getPolicy(claim.policyNumber())
                 .forCoverage(claim.coverageName());
@@ -464,10 +474,12 @@ public class ClassificationOrchestrator {
                 policy.insuredName(), policy.upToDate(), claim.coverageName(), policy.insuredAmount());
 
         log.debug("[Orchestrator] Fetching history for insuredId '{}'...", claim.insuredId());
+        progress.report(ClassificationStep.of(ClassificationStage.HISTORY));
         InsuredHistory history = withArbiterAntecedents(insurerAdapter.getHistory(claim.insuredId()), claim);
         log.info("[Orchestrator] History OK — previous_claims={} total_amount_claimed={}",
                 history.previousClaimsCount(), history.totalAmountClaimed());
 
+        progress.report(ClassificationStep.of(ClassificationStage.RULES));
         log.debug("[Orchestrator] Fetching rules — branch='{}' coverageId={} claimCause='{}'...",
                 claim.branch(), claim.coverageId(), claim.claimCause());
         BusinessRules rules = rulesAdapter.getRules(claim.branch(), claim.coverageId(), claim.claimCause());
@@ -488,6 +500,7 @@ public class ClassificationOrchestrator {
                                                    List<ClassificationRequest.ClaimCauseOption> catalog) {
         ClassificationRequest request =
                 buildRequest(claim, ctx.policy(), ctx.history(), ctx.rules(), engineFindings, catalog);
+        progress.report(ClassificationStep.of(ClassificationStage.MODEL));
         ClassificationResponse response =
                 applyCauseConsistency(classifier.classify(request), claim, ctx, catalog);
 
@@ -718,6 +731,7 @@ public class ClassificationOrchestrator {
         for (int i = 0; i < toExtract.size(); i++) {
             AttachmentDocument doc = toExtract.get(i);
             log.info("[Orchestrator] Reading document {}/{} with Ollama: '{}'...", i + 1, toExtract.size(), doc.type());
+            progress.report(ClassificationStep.document(doc.type(), i + 1, toExtract.size()));
             extractions.put(doc.type(),
                     documentAnalyzer.extract(doc.content(), doc.contentType(), causeNames, itemAttributes));
         }
@@ -732,6 +746,9 @@ public class ClassificationOrchestrator {
         log.info("[Orchestrator] Reading {} attachment(s) with Ollama: {}",
                 documents.size(), documents.stream().map(AttachmentDocument::type).toList());
         Map<String, DocumentExtraction> extractions = new LinkedHashMap<>();
+        // Numbered among the ones still to read, which is what the board counts.
+        int toRead = (int) documents.stream().filter(doc -> !alreadyExtracted.containsKey(doc.type())).count();
+        int read = 0;
         for (int i = 0; i < documents.size(); i++) {
             AttachmentDocument doc = documents.get(i);
             if (alreadyExtracted.containsKey(doc.type())) {
@@ -741,6 +758,7 @@ public class ClassificationOrchestrator {
             } else {
                 log.info("[Orchestrator] Reading attachment {}/{} with Ollama: '{}'...",
                         i + 1, documents.size(), doc.type());
+                progress.report(ClassificationStep.document(doc.type(), ++read, toRead));
                 extractions.put(doc.type(),
                         documentAnalyzer.extract(doc.content(), doc.contentType(), causeNames, itemAttributes));
             }
