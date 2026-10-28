@@ -190,7 +190,7 @@ export const routes: Routes = [
   {
     path: 'insurer/rules',
     canActivate: [roleGuard],
-    data: { roles: ['REFERENTE_ASEGURADORA'] },
+    data: { roles: ['REFERENTE_ASEGURADORA', 'ANALISTA_SINIESTROS'] },
     loadComponent: () =>
       import('./features/admin/rules/rules.component').then((m) => m.RulesComponent),
   },

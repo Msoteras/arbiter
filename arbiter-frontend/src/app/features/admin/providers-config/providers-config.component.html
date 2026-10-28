@@ -1,6 +1,8 @@
 <app-card heading="Proveedores externos" headingSize="lg">
-  <app-info-tip cardTip>{{ stepLine.PROVIDERS }}</app-info-tip>
-  @if (!draft()) {
+  @if (!readOnly()) {
+    <app-info-tip cardTip>{{ stepLine.PROVIDERS }}</app-info-tip>
+  }
+  @if (!draft() && !readOnly()) {
     <app-button
       cardAside
       variant="secondary"
@@ -38,10 +40,12 @@
               }
             </span>
           </div>
-          <div class="provider-actions">
-            <app-icon-button icon="edit" [label]="'Editar ' + p.name" (click)="edit(p)" />
-            <app-icon-button icon="delete" [label]="'Borrar ' + p.name" (click)="remove(p)" />
-          </div>
+          @if (!readOnly()) {
+            <div class="provider-actions">
+              <app-icon-button icon="edit" [label]="'Editar ' + p.name" (click)="edit(p)" />
+              <app-icon-button icon="delete" [label]="'Borrar ' + p.name" (click)="remove(p)" />
+            </div>
+          }
         </li>
       }
     </ul>

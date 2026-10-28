@@ -25,7 +25,7 @@ public class ScoringConfigurationController {
     private final ScoringConfigurationService scoringConfigurationService;
 
     @GetMapping
-    @PreAuthorize("hasRole('REFERENTE_ASEGURADORA')")
+    @PreAuthorize("hasAnyRole('REFERENTE_ASEGURADORA', 'ANALISTA_SINIESTROS')")
     @Operation(summary = "Scoring de la aseguradora",
             description = "Si todavía no hay config, devuelve una vacía (enabled=false, sin factores ni bandas).")
     public ScoringConfigDto get() {

@@ -51,7 +51,7 @@ public class DocumentRequirementController {
     }
 
     @GetMapping
-    @PreAuthorize("hasRole('REFERENTE_ASEGURADORA')")
+    @PreAuthorize("hasAnyRole('REFERENTE_ASEGURADORA', 'ANALISTA_SINIESTROS')")
     @Operation(summary = "Agenda documental de un hecho generador del ramo")
     public List<String> get(@RequestParam Long branchId, @RequestParam Long claimCauseId) {
         return documentRequirementService.get(branchId, claimCauseId);

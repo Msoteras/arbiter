@@ -29,6 +29,7 @@ public class InsuredProfileService {
     private final UserRepository userRepository;
     private final JwtService jwtService;
     private final TenantResolver tenantResolver;
+    private final InsurerLogoService insurerLogoService;
 
     @Transactional(readOnly = true)
     public ProfileResponse getProfile(String email) {
@@ -102,6 +103,8 @@ public class InsuredProfileService {
         Optional<Insurer> primaryInsurer = tenantResolver.primaryInsurerFor(user.getId());
         String tenantSchema = primaryInsurer.map(Insurer::getSchemaName).orElse(null);
 
+        boolean brand = AuthService.showsBrand(UserRole.ASEGURADO, insurerIds);
+
         JwtService.IssuedToken token = jwtService.issue(
                 user, UserRole.ASEGURADO,
                 insured.getName(), insured.getSurname(), insured.getDni(),
@@ -111,7 +114,10 @@ public class InsuredProfileService {
                 token.token(), token.expiresAt(),
                 user.getId(), user.getEmail(), UserRole.ASEGURADO,
                 insured.getName(), insured.getSurname(), insured.getDni(),
-                insured.isOnboardingComplete(), null, null);
+                insured.isOnboardingComplete(),
+                brand ? primaryInsurer.map(Insurer::getName).orElse(null) : null,
+                brand ? primaryInsurer.flatMap(i -> insurerLogoService.version(i.getId())).orElse(null)
+                        : null);
     }
 
     private ProfileResponse toProfileResponse(Insured insured) {

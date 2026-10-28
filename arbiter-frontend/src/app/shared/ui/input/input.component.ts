@@ -31,6 +31,7 @@ import {
         [attr.max]="max()"
         [attr.autocomplete]="autocomplete()"
         [readOnly]="readonly()"
+        [disabled]="disabled()"
         (keydown)="onKeydown($event)"
         (input)="onInput($event)"
       />
@@ -125,8 +126,12 @@ import {
         min-height: var(--touch-target);
       }
     }
-    .field:hover:not(:focus):not([readonly]) {
+    .field:hover:not(:focus):not([readonly]):not(:disabled) {
       border-color: var(--border-strong);
+    }
+    .field:disabled {
+      cursor: default;
+      opacity: 0.55;
     }
     .field:focus {
       outline: none;
@@ -191,6 +196,7 @@ export class InputComponent {
   readonly max = input<string | null>(null);
   readonly autocomplete = input<string | null>(null);
   readonly readonly = input(false);
+  readonly disabled = input(false);
   readonly revealable = input(false);
   readonly prefix = input<string | null>(null);
   readonly align = input<'start' | 'end'>('start');

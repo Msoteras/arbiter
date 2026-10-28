@@ -138,9 +138,6 @@
   font-weight: var(--font-weight-medium);
   color: var(--accent-fg);
 }
-.registered.rejected {
-  color: var(--status-danger);
-}
 /* The analyst's own words: body color, so it doesn't read as one more muted note. */
 .decision-reason {
   margin: var(--space-1) 0 0;

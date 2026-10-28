@@ -79,6 +79,7 @@ import { ONBOARDING_STEP_LINE, onboardingStepArea } from '../../../core/onboardi
 import { OnboardingService } from '../../../core/onboarding/onboarding.service';
 import { accordion, fadeInUp, listStagger, staggerReveal } from '../../../shared/animations';
 import { OnboardingTargetDirective } from '../../../core/onboarding/onboarding-target.directive';
+import { AuthSessionService } from '../../../core/auth/auth-session.service';
 
 type TabId = 'coverages' | 'exclusions' | 'fastTrack' | 'documents' | 'derivations' | 'rules';
 
@@ -147,6 +148,10 @@ export class RulesComponent {
   private readonly toastService = inject(ToastService);
   private readonly route = inject(ActivatedRoute);
   private readonly onboarding = inject(OnboardingService);
+  private readonly session = inject(AuthSessionService);
+  protected readonly readOnly = computed(
+    () => this.session.session()?.rol !== 'REFERENTE_ASEGURADORA',
+  );
   /** A request older than this screen was already handled by the address it opened with. */
   private reopenedFocusId = this.onboarding.focusRequest()?.id ?? null;
 
@@ -359,7 +364,7 @@ export class RulesComponent {
    */
   private openLinkedView(params: ParamMap): boolean {
     const section = params.get('seccion');
-    if (section && this.generalSections.some((g) => g.id === section)) {
+    if (section && this.visibleGeneralSections().some((g) => g.id === section)) {
       this.selectGeneral(section as GeneralView);
       return true;
     }
@@ -520,7 +525,7 @@ export class RulesComponent {
     return this.view() === 'branch' && this.selectedId() === r.id;
   }
 
-  protected readonly generalSections: { id: GeneralView; label: string }[] = [
+  private readonly generalSections: { id: GeneralView; label: string; referentOnly?: boolean }[] = [
     { id: 'hardStop', label: 'Hard Stop' },
     { id: 'scoring', label: 'Puntaje de riesgo' },
     { id: 'fraud', label: 'Gestión de fraude' },
@@ -529,9 +534,13 @@ export class RulesComponent {
     // Caps are per branch but listed together so they can be compared at a glance.
     { id: 'authorities', label: 'Atribuciones de liquidación' },
     { id: 'target', label: 'Objetivo de resolución' },
-    { id: 'brand', label: 'Marca' },
+    { id: 'brand', label: 'Marca', referentOnly: true },
     // 'history' is deliberately not here: it configures nothing and has its own Audit block.
   ];
+
+  protected readonly visibleGeneralSections = computed(() =>
+    this.generalSections.filter((s) => !s.referentOnly || !this.readOnly()),
+  );
 
   protected selectGeneral(section: GeneralView): void {
     this.view.set(section);

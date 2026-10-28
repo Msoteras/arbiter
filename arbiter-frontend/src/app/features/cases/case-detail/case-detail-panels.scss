@@ -123,6 +123,16 @@
   color: var(--text-primary);
   overflow-wrap: anywhere;
 }
+.fact-link {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: var(--border-strong);
+  text-underline-offset: 0.2em;
+}
+.fact-link:hover {
+  color: var(--accent-fg);
+  text-decoration-color: currentColor;
+}
 
 /* Risk factors: each one's points over a track, the biggest filling it. */
 .factor-bars {
@@ -408,10 +418,6 @@ app-textarea {
 
 .settlement-line.total {
   border-top: 1px solid var(--border-strong);
-  font-weight: var(--font-weight-bold);
-}
-
-.settlement-line.total .settlement-amount {
   font-weight: var(--font-weight-bold);
 }
 

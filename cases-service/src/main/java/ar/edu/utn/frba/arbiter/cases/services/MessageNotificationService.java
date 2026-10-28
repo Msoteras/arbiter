@@ -41,6 +41,7 @@ public class MessageNotificationService {
     private final NotificationRepository notificationRepository;
     private final CaseNotificationService caseNotificationService;
     private final SendGridAdapter sendGridAdapter;
+    private final InsuredMailBranding mailBranding;
 
     /**
      * @param senderRole who wrote the message; the recipient is the other side
@@ -116,7 +117,6 @@ public class MessageNotificationService {
                 <p>Hola,</p>
                 <p>%s</p>
                 <p>Siniestro <strong>#%d</strong>.</p>
-                <p>Arbiter</p>
-                """.formatted(TO_INSURED, notification.getCaseEntity().getId());
+                %s""".formatted(TO_INSURED, notification.getCaseEntity().getId(), mailBranding.signature());
     }
 }

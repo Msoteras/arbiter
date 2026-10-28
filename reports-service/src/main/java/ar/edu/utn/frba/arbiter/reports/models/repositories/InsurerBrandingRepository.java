@@ -18,9 +18,10 @@ public class InsurerBrandingRepository {
     private static final Logger log = LoggerFactory.getLogger(InsurerBrandingRepository.class);
 
     private static final String BY_SCHEMA = """
-            SELECT name, legal_name
-              FROM arbiter_common.insurer
-             WHERE schema_name = :schemaName
+            SELECT i.name, i.legal_name, l.content AS logo
+              FROM arbiter_common.insurer i
+              LEFT JOIN arbiter_common.insurer_logo l ON l.insurer_id = i.id
+             WHERE i.schema_name = :schemaName
             """;
 
     private final NamedParameterJdbcTemplate jdbcTemplate;
@@ -37,7 +38,8 @@ public class InsurerBrandingRepository {
                     BY_SCHEMA,
                     new MapSqlParameterSource("schemaName", schemaName),
                     rs -> rs.next()
-                            ? new ReportBranding(rs.getString("name"), rs.getString("legal_name"))
+                            ? new ReportBranding(rs.getString("name"), rs.getString("legal_name"),
+                                    rs.getBytes("logo"))
                             : null));
         } catch (DataAccessException unavailable) {
             log.warn("[Reports] could not read the insurer of schema {}, the export goes with the "

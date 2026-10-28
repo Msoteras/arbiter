@@ -7,7 +7,9 @@
   </app-card>
 } @else {
   <app-card heading="Puntaje de riesgo" headingSize="lg" @fadeInUp appOnboardingTarget="SCORING">
-    <app-info-tip cardTip>{{ stepLine.SCORING }}</app-info-tip>
+    @if (!readOnly()) {
+      <app-info-tip cardTip>{{ stepLine.SCORING }}</app-info-tip>
+    }
     <div class="sc-section">
       <div class="sc-section-head">
         <span class="t-section-label">
@@ -18,7 +20,7 @@
           <span class="sc-total" [class.invalid]="totalOff()"> Total: {{ totalLabel() }} </span>
         }
       </div>
-      @if (weightsInvalidReason(); as reason) {
+      @if (!readOnly() && weightsInvalidReason(); as reason) {
         <p class="sc-total-note" role="alert">{{ reason }}</p>
       }
 
@@ -33,6 +35,7 @@
             <app-switch
               [checked]="fullAnalysisOnFastTrack()"
               ariaLabel="Evaluar estos factores también en Fast Track"
+              [disabled]="readOnly()"
               (checkedChange)="toggleFullAnalysisOnFastTrack()"
             />
             <div class="rule-text">
@@ -46,6 +49,7 @@
               <app-switch
                 [checked]="isFactorActive(f.id)"
                 [ariaLabel]="f.label"
+                [disabled]="readOnly()"
                 (checkedChange)="toggleFactor(f.id)"
               />
               <div class="rule-text">
@@ -61,6 +65,7 @@
                     max="100"
                     inputmode="numeric"
                     [value]="factorWeightPct(f.id)"
+                    [disabled]="readOnly()"
                     (valueChange)="setFactorWeight(f.id, $event)"
                   />
                   <span class="t-note" aria-hidden="true">%</span>
@@ -99,6 +104,7 @@
                 type="number"
                 [min]="0"
                 [readonly]="band === 'LOW'"
+                [disabled]="readOnly()"
                 [value]="band === 'LOW' ? '0' : bandCutPct(band)"
                 (valueChange)="setBandCut(band, $event)"
               />
@@ -108,13 +114,15 @@
       </ul>
     </div>
 
-    <app-save-bar
-      [dirty]="dirty()"
-      [saving]="saving()"
-      [error]="error()"
-      [canSave]="!weightsInvalidReason()"
-      (save)="saveScoring()"
-      (discard)="discard()"
-    />
+    @if (!readOnly()) {
+      <app-save-bar
+        [dirty]="dirty()"
+        [saving]="saving()"
+        [error]="error()"
+        [canSave]="!weightsInvalidReason()"
+        (save)="saveScoring()"
+        (discard)="discard()"
+      />
+    }
   </app-card>
 }

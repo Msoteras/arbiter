@@ -37,15 +37,15 @@ public class CoverageController {
     private final CoverageService coverageService;
 
     @GetMapping
-    @PreAuthorize("hasRole('REFERENTE_ASEGURADORA')")
+    @PreAuthorize("hasAnyRole('REFERENTE_ASEGURADORA', 'ANALISTA_SINIESTROS')")
     @Operation(summary = "Coberturas de un ramo",
-            description = "Lista las coberturas de la aseguradora del referente para el ramo dado.")
+            description = "Lista las coberturas de la aseguradora del usuario para el ramo dado.")
     public List<CoverageOption> listByBranch(@RequestParam Long branchId) {
         return coverageService.listByBranch(branchId);
     }
 
     @GetMapping("/insurer-names")
-    @PreAuthorize("hasRole('REFERENTE_ASEGURADORA')")
+    @PreAuthorize("hasAnyRole('REFERENTE_ASEGURADORA', 'ANALISTA_SINIESTROS')")
     @Operation(summary = "Nombres de cobertura de las pólizas de un ramo",
             description = "Los nombres distintos de cobertura que aparecen en las pólizas del ramo en la "
                     + "BD de la aseguradora. Una cobertura con otro nombre no se empareja con ninguna póliza.")
@@ -54,7 +54,7 @@ public class CoverageController {
     }
 
     @GetMapping("/detailed")
-    @PreAuthorize("hasRole('REFERENTE_ASEGURADORA')")
+    @PreAuthorize("hasAnyRole('REFERENTE_ASEGURADORA', 'ANALISTA_SINIESTROS')")
     @Operation(summary = "Coberturas de un ramo, con detalle",
             description = "Igual que el listado simple, pero con los campos que edita la solapa Coberturas.")
     public List<CoverageDetailResponse> listDetailedByBranch(@RequestParam Long branchId) {
@@ -62,7 +62,7 @@ public class CoverageController {
     }
 
     @GetMapping("/summary")
-    @PreAuthorize("hasRole('REFERENTE_ASEGURADORA')")
+    @PreAuthorize("hasAnyRole('REFERENTE_ASEGURADORA', 'ANALISTA_SINIESTROS')")
     @Operation(summary = "Cantidad de coberturas por ramo",
             description = "Un conteo por cada ramo con al menos una cobertura, para la lista de ramos "
                     + "del panel de reglas — evita mostrar \"0 coberturas\" en un ramo que el referente "

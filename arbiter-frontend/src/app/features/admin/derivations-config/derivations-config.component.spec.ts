@@ -78,6 +78,17 @@ describe('DerivationsConfigComponent', () => {
     expect(saveButton().disabled).toBeTrue();
   });
 
+  it('shows the rule to an analyst with nothing to change or save', async () => {
+    await mount();
+    fixture.componentRef.setInput('readOnly', true);
+    fixture.detectChanges();
+
+    expect(amountField()?.value).toBe('500.000');
+    expect(amountField()?.disabled).toBeTrue();
+    expect(el().querySelector<HTMLButtonElement>('[role="switch"]')?.disabled).toBeTrue();
+    expect(el().querySelector('app-save-bar')).toBeNull();
+  });
+
   it('asks for an amount before letting an enabled rule be saved', async () => {
     await mount();
 

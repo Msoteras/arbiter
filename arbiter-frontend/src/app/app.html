@@ -142,7 +142,7 @@
       <header class="appbar">
         <button
           type="button"
-          class="appbar-burger"
+          class="appbar-icon-btn appbar-burger"
           [attr.aria-expanded]="navOpen()"
           aria-controls="app-nav"
           [attr.aria-label]="navOpen() ? 'Ocultar navegación' : 'Mostrar navegación'"
@@ -309,6 +309,9 @@
             >
             <a routerLink="/engine" routerLinkActive="active"
               ><span class="nav-dot"></span>Arbiter</a
+            >
+            <a routerLink="/insurer/rules" routerLinkActive="active"
+              ><span class="nav-dot"></span>Reglas</a
             >
           }
           @if (showAdminNav()) {

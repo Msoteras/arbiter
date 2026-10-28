@@ -1087,6 +1087,8 @@ public class CaseServiceImpl implements CaseService {
                 entity.getInsured().getDni(),
                 entity.getInsured().fullName(),
                 entity.getInsured().isPep(),
+                entity.getInsured().getEmail(),
+                entity.getInsured().getPhone(),
                 entity.getPolicy().getExternalPolicyNumber(),
                 entity.getDescription(),
                 entity.getOccurredAt(),
