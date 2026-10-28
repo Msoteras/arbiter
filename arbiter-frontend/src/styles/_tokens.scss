@@ -121,6 +121,24 @@
   /* Numbered circle of a stepper; the connectors between steps are sized from it. */
   --step-dot: 28px;
 
+  /* Engine board: the 3D scene's depth, a card on the ring and the small ones of the queue and
+     the pool. The ring cards' size and place are animated from the component every frame. */
+  --engine-perspective: 2000px;
+  --engine-card-h: 136px;
+  --engine-case-col: 118px;
+  --engine-mini-h: 104px;
+  --engine-mini-case-col: 84px;
+  --engine-queue-col: 300px;
+  --engine-pool-col: 236px;
+  --engine-slot-h: 58px;
+  --engine-slot-h-mini: 48px;
+  --engine-slot-h-tall: 74px;
+  --engine-track-h: 9px;
+  --engine-track-base-w: 3200px; /* long enough to cross the widest card from any point */
+  --engine-track-glow-w: 160px;
+  --engine-icon-box: 22px;
+  --engine-shimmer: 1.9s;
+
   /* ===== Radii ===== */
   --radius-ctl: 8px; /* controls: buttons, inputs */
   --radius-card: 12px;

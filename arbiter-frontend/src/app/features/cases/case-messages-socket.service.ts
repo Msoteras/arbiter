@@ -7,7 +7,7 @@ import { AuthSessionService } from '../../core/auth/auth-session.service';
 import { CaseMessageEvent } from '../../core/models/case-message';
 
 /**
- * Live delivery of a case thread over STOMP. Receive-only: writing stays on REST.
+ * Live delivery over STOMP: a case thread, and the engine board. Receive-only: writing stays on REST.
  *
  * The token goes in the CONNECT frame, not the URL — a query string would end up in nginx's and
  * the platform's access logs.
@@ -21,8 +21,8 @@ export class CaseMessagesSocketService {
   readonly live = computed(() => this.connections() > 0);
 
   /** Errors stay quiet: the caller still polls, and a socket that cannot connect is not a broken thread. */
-  watch(topic: string): Observable<CaseMessageEvent> {
-    return new Observable<CaseMessageEvent>((subscriber) => {
+  watch<T = CaseMessageEvent>(topic: string): Observable<T> {
+    return new Observable<T>((subscriber) => {
       const token = this.session.token();
       if (!token) {
         return;
@@ -45,7 +45,7 @@ export class CaseMessagesSocketService {
         onConnect: () => {
           setCounted(true);
           subscription = client.subscribe(topic, (frame: IMessage) => {
-            subscriber.next(JSON.parse(frame.body) as CaseMessageEvent);
+            subscriber.next(JSON.parse(frame.body) as T);
           });
         },
         onWebSocketClose: () => setCounted(false),
