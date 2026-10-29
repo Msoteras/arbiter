@@ -63,6 +63,8 @@ class ClassificationOrchestratorSnapshotTest {
     @Mock private ClaimCauseRepository claimCauseRepository;
     @Spy private ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
 
+    @Mock private ClassificationProgress progress;
+
     @InjectMocks private ClassificationOrchestrator orchestrator;
 
     /** Even the shortest path (Fast Track, no documents) records the snapshot. */

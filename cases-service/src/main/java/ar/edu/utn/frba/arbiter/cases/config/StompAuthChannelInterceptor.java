@@ -5,6 +5,8 @@ import ar.edu.utn.frba.arbiter.cases.config.tenant.TenantContext;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseRepository;
 import ar.edu.utn.frba.arbiter.cases.services.CaseAccessPolicy;
 import ar.edu.utn.frba.arbiter.cases.services.CaseTopic;
+import ar.edu.utn.frba.arbiter.cases.services.EngineTopic;
+import ar.edu.utn.frba.arbiter.cases.services.InsurerSlug;
 import ar.edu.utn.frba.arbiter.cases.services.InsurerTenantScope;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
@@ -24,6 +26,8 @@ import org.springframework.stereotype.Component;
 import javax.crypto.SecretKey;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 
 /**
  * After the handshake frames travel outside the servlet filter chain, so identity and tenant are
@@ -39,6 +43,7 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
     private static final String TENANT = "arbiter.tenant";
     private static final String PRINCIPAL = "arbiter.principal";
     private static final String AUTHORITIES = "arbiter.authorities";
+    private static final Set<String> ENGINE_ROLES = Set.of("ANALISTA_SINIESTROS", "REFERENTE_ASEGURADORA");
 
     private final SecretKey jwtKey;
     private final CaseRepository caseRepository;
@@ -97,13 +102,19 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
 
     /** Without this, any authenticated session could walk the case ids and read every thread. */
     private void authorizeSubscription(StompHeaderAccessor accessor) {
-        CaseTopic.Ref ref = CaseTopic.parse(accessor.getDestination())
-                .orElseThrow(() -> new StompAccessDeniedException("Destination not allowed."));
-
         Map<String, Object> session = accessor.getSessionAttributes();
         if (session == null || session.get(PRINCIPAL) == null) {
             throw new StompAccessDeniedException("Unidentified session.");
         }
+
+        Optional<String> engineSlug = EngineTopic.parse(accessor.getDestination());
+        if (engineSlug.isPresent()) {
+            authorizeEngine(session, engineSlug.get());
+            return;
+        }
+
+        CaseTopic.Ref ref = CaseTopic.parse(accessor.getDestination())
+                .orElseThrow(() -> new StompAccessDeniedException("Destination not allowed."));
 
         restore(session);
         try {
@@ -118,6 +129,15 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
             throw new StompAccessDeniedException("Not allowed to follow this conversation.");
         } finally {
             clear();
+        }
+    }
+
+    /** Only the insurer's own staff, and only the board of the insurer the session is signed into. */
+    private void authorizeEngine(Map<String, Object> session, String slug) {
+        String tenant = (String) session.get(TENANT);
+        if (!ENGINE_ROLES.contains((String) session.get(AUTHORITIES))
+                || tenant == null || !InsurerSlug.fromSchema(tenant).equalsIgnoreCase(slug)) {
+            throw new StompAccessDeniedException("Not allowed to follow this board.");
         }
     }
 

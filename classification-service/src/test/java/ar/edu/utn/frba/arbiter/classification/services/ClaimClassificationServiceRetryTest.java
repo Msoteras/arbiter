@@ -72,6 +72,9 @@ class ClaimClassificationServiceRetryTest {
     @MockitoBean
     private CaseOutcomeRepository caseOutcomeRepository;
 
+    @MockitoBean
+    private ClassificationProgress progress;
+
     @Autowired
     private ClaimClassificationService service;
 
