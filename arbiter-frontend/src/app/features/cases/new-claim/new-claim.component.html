@@ -302,7 +302,12 @@
       }
 
       @if (step() === 3) {
-        <section class="step-content">
+        <!-- A file dropped beside a slot would make the browser open it and leave the wizard. -->
+        <section
+          class="step-content"
+          (dragover)="$event.preventDefault()"
+          (drop)="$event.preventDefault()"
+        >
           <h2 class="step-title">Adjuntá documentación</h2>
           @if (docsLoading()) {
             <app-inline-loading [size]="20" message="Verificando qué documentación necesitás…" />
@@ -310,8 +315,7 @@
             <p class="step-hint">
               Esta documentación es obligatoria para poder evaluar tu caso.
               @if (docsFirstRound()) {
-                Es lo mínimo para empezar: si hace falta algo más, te lo vamos a pedir desde el
-                seguimiento.
+                Si hace falta algo más, te lo vamos a pedir desde el seguimiento.
               }
             </p>
           } @else if (docsUnavailable()) {
@@ -328,7 +332,14 @@
           }
 
           @for (slot of docSlots(); track slot.type; let i = $index) {
-            <div class="doc-slot" [class.filled]="!!slot.file">
+            <div
+              class="doc-slot"
+              [class.filled]="!!slot.file"
+              [class.dragover]="dragOverIndex() === i"
+              (dragover)="onDragOver($event, i)"
+              (dragleave)="onDragLeave($event)"
+              (drop)="onDrop($event, i)"
+            >
               <span class="doc-status" aria-hidden="true">
                 @if (slot.file) {
                   <span class="doc-check">✓</span>

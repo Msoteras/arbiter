@@ -9,12 +9,15 @@ import ar.edu.utn.frba.arbiter.cases.support.CaseFixtures;
 import ar.edu.utn.frba.arbiter.cases.support.CaseStates;
 import ar.edu.utn.frba.arbiter.common.dto.FraudRecordRequest;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
+import ar.edu.utn.frba.arbiter.common.enums.RiskBand;
 import ar.edu.utn.frba.arbiter.common.enums.Classification;
 import ar.edu.utn.frba.arbiter.common.enums.ClassificationFailureReason;
 import ar.edu.utn.frba.arbiter.common.enums.FraudRecordSource;
 import ar.edu.utn.frba.arbiter.common.http.ConnectionRetryInterceptor;
 import ar.edu.utn.frba.arbiter.common.security.JwtSupport;
 import org.junit.jupiter.api.BeforeEach;
+import org.springframework.mock.http.client.MockClientHttpRequest;
+import ar.edu.utn.frba.arbiter.cases.models.entities.RequestedDocument;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -69,6 +72,9 @@ class ClassificationServiceClientTest {
     @Mock
     private CaseRepository caseRepository;
 
+    @Mock
+    private AnalystNotificationService analystNotificationService;
+
     private MockRestServiceServer server;
     private ClassificationServiceClient client;
 
@@ -78,7 +84,7 @@ class ClassificationServiceClientTest {
         server = MockRestServiceServer.bindTo(builder).build();
         client = new ClassificationServiceClient(builder,
                 new ConnectionRetryInterceptor(1, Duration.ofMillis(1), Duration.ofMillis(1)), caseStatusService, caseRepository,
-                BASE_URL, JWT_SECRET);
+                analystNotificationService, BASE_URL, JWT_SECRET);
     }
 
     /**
@@ -91,20 +97,48 @@ class ClassificationServiceClientTest {
                 .thenReturn(Optional.of(entity));
     }
 
+    /** The analyst chooses what the insured is asked for: the case waits for them, not for the insured. */
     @Test
-    void missingDocumentation_transitionsToAwaitingDocumentation() {
+    void missingDocumentation_goesToTheAnalystAndTellsThem() {
         Case entity = pendingCase(3L);
-        winsTheTurn(entity, CaseStatus.AWAITING_DOCUMENTATION);
+        winsTheTurn(entity, CaseStatus.PENDING_ANALYST_REVIEW);
         expectPoll(3L, "FALTA_DOCUMENTACION", "1.0",
                 "[\"Falta documento requerido: police_report\"]", false);
 
         boolean resolved = client.refreshClassification(entity);
 
-        // The recommendation lives in llm_analysis, not on the case: what's observable here is the
-        // target status.
         assertThat(resolved).isTrue();
         verify(caseStatusService).transitionIfStillIn(eq(entity), eq(CaseStatus.PENDING_CLASSIFICATION),
-                eq(CaseStatus.AWAITING_DOCUMENTATION), eq(StatusChangeActor.SYSTEM), any());
+                eq(CaseStatus.PENDING_ANALYST_REVIEW), eq(StatusChangeActor.SYSTEM), any());
+        verify(analystNotificationService).notifyDocumentationToConfirm(entity);
+    }
+
+    /** Documents were asked for because the risk was high: a new one doesn't make it low. */
+    @Test
+    void aLowerScoreOnReclassification_keepsTheHigherBand() {
+        Case entity = pendingCase(4L);
+        entity.setRiskScore(0.85);
+        entity.setRiskBand(RiskBand.CRITICAL);
+        winsTheTurn(entity, CaseStatus.PENDING_ANALYST_REVIEW);
+        server.expect(requestTo(BASE_URL + "/api/v1/claims/4"))
+                .andExpect(method(GET))
+                .andRespond(withSuccess("""
+                        {
+                          "caseId": 4,
+                          "classification": "LLM_RECOMIENDA_APROBAR",
+                          "confidence": 0.8,
+                          "factors": [],
+                          "resolvedByRules": false,
+                          "riskScore": 0.4,
+                          "riskBand": "MEDIUM"
+                        }
+                        """, MediaType.APPLICATION_JSON));
+
+        client.refreshClassification(entity);
+
+        assertThat(entity.getRiskScore()).isEqualTo(0.85);
+        assertThat(entity.getRiskBand()).isEqualTo(RiskBand.CRITICAL);
+        verify(analystNotificationService, never()).notifyDocumentationToConfirm(any());
     }
 
     @Test
@@ -321,6 +355,26 @@ class ClassificationServiceClientTest {
         server.expect(requestTo(BASE_URL + "/api/v1/claims"))
                 .andExpect(method(POST))
                 .andExpect(request -> assertServiceToken(request, "cases-service-alta"))
+                .andRespond(withSuccess());
+
+        client.analyzeAndPersist(entity, List.<CaseDocument>of());
+
+        server.verify();
+    }
+
+    /** The model reads what the analyst wrote, and the schedule isn't demanded again after a request. */
+    @Test
+    void analyzeAndPersist_sendsTheAnalystsNotesAndThatTheyAskedForDocuments() {
+        Case entity = pendingCase(11L);
+        entity.setRequestedDocuments(List.of(new RequestedDocument(
+                "other_1", "Resumen de la tarjeta", "Confirmar la fecha de compra", true, null)));
+        server.expect(requestTo(BASE_URL + "/api/v1/claims"))
+                .andExpect(method(POST))
+                .andExpect(request -> assertThat(((MockClientHttpRequest) request).getBodyAsString())
+                        .contains("\"analystDocumentNotes\":[{\"type\":\"other_1\"",
+                                "\"description\":\"Resumen de la tarjeta\"",
+                                "\"reason\":\"Confirmar la fecha de compra\"",
+                                "\"documentationRequestedByAnalyst\":true"))
                 .andRespond(withSuccess());
 
         client.analyzeAndPersist(entity, List.<CaseDocument>of());

@@ -30,4 +30,9 @@ $env:COMPOSE_PROFILES = 'ollama'
 $composeFiles = @('-f', 'docker-compose.railway.yml', '-f', 'docker-compose.ollama.yml')
 
 Write-Host "Levantando Arbiter con Ollama local, contra la BD de Railway..." -ForegroundColor Cyan
+# Compose writes build progress to stderr. Under 'Stop', Windows PowerShell 5.1 turns that into
+# a terminating error as soon as the output is redirected, and aborts a build that is fine. The exit
+# code is what says whether it worked.
+$ErrorActionPreference = 'Continue'
 docker compose @composeFiles up @args
+exit $LASTEXITCODE

@@ -6,6 +6,7 @@ import ar.edu.utn.frba.arbiter.classification.dto.ClassificationRequest;
 import ar.edu.utn.frba.arbiter.classification.dto.DocumentExtraction;
 import ar.edu.utn.frba.arbiter.classification.dto.InsuredHistory;
 import ar.edu.utn.frba.arbiter.classification.dto.InsuredPolicy;
+import ar.edu.utn.frba.arbiter.common.dto.AnalystDocumentNote;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.ResourceLoader;
 import org.springframework.stereotype.Component;
@@ -18,6 +19,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Component
 public class PromptBuilder {
@@ -91,7 +93,9 @@ public class PromptBuilder {
                 ? "No declarado"
                 : formatAmount(request.claimedAmount());
 
+        // First: the analyst's text is trusted, and nothing replaced later may forge it.
         return promptTemplate
+                .replace("{{analystDocumentNotes}}", renderAnalystDocumentNotes(request))
                 .replace("{{branch}}", request.branch())
                 .replace("{{product}}", request.product())
                 .replace("{{claimCause}}", request.claimCause())
@@ -121,6 +125,17 @@ public class PromptBuilder {
                         option.covered() ? "CUBIERTO" : "NO CUBIERTO POR ESTA PÓLIZA"))
                 .reduce((a, b) -> a + "\n" + b)
                 .orElse("");
+    }
+
+    private static String renderAnalystDocumentNotes(ClassificationRequest request) {
+        List<AnalystDocumentNote> notes = request.analystDocumentNotes();
+        if (notes == null || notes.isEmpty()) {
+            return "El analista no pidió documentos fuera del catálogo.";
+        }
+        return notes.stream()
+                .map(note -> "- %s: %s. Motivo del pedido: %s".formatted(
+                        note.type(), note.description(), note.reason()))
+                .collect(Collectors.joining("\n"));
     }
 
     private static String formatAmount(BigDecimal amount) {

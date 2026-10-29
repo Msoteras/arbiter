@@ -131,6 +131,7 @@ import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline
 import { SkeletonComponent } from '../../../shared/ui/skeleton/skeleton.component';
 import { TabOption, TabsComponent } from '../../../shared/ui/tabs/tabs.component';
 import { accordion, fadeInUp, staggerReveal, tabSwitch } from '../../../shared/animations';
+import { DocumentRequestModalComponent } from '../document-request/document-request-modal.component';
 
 /** Classification lands within minutes; a quarter minute keeps the wait from feeling stuck. */
 const CLASSIFICATION_POLL_MS = 15_000;
@@ -210,6 +211,7 @@ interface BriefAlert {
     InlineLoadingComponent,
     SkeletonComponent,
     TabsComponent,
+    DocumentRequestModalComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   animations: [accordion, fadeInUp, staggerReveal, tabSwitch],
@@ -1439,6 +1441,14 @@ export class CaseDetailComponent {
 
   // Shared with the supervisor, like assigning: reopening resolves nothing.
   protected readonly showReopen = signal(false);
+
+  /** Asking for documents moves the case, so the detail reloads behind the modal. */
+  protected readonly showDocumentRequest = signal(false);
+
+  protected onDocumentsRequested(): void {
+    this.showDocumentRequest.set(false);
+    this.reloadTrigger.update((v) => v + 1);
+  }
   protected readonly reopenReason = signal('');
   protected readonly reopening = signal(false);
   protected readonly reopenError = signal<string | null>(null);
@@ -2131,6 +2141,12 @@ export class CaseDetailComponent {
       },
       error: (err: HttpErrorResponse) => {
         this.retrying.set(false);
+        // 409: the case already left the failed state (an automatic requeue or another click).
+        // Reloading shows where it is now, which is the only thing left to do.
+        if (err.status === 409) {
+          this.reloadTrigger.update((v) => v + 1);
+          return;
+        }
         this.retryError.set(err.error?.detail || 'No se pudo reintentar la clasificación');
       },
     });
@@ -2307,9 +2323,14 @@ export class CaseDetailComponent {
     () => this.data()?.analysisClassification === 'FALTA_DOCUMENTACION',
   );
 
+  /** By status: the analyst can ask for documents on a case the model already classified. */
+  protected readonly awaitingInsuredDocs = computed(
+    () => this.data()?.status === 'AWAITING_DOCUMENTATION',
+  );
+
   /** "Resolución" only applies when there is or was something to decide. */
   protected readonly decisionCardHeading = computed(() =>
-    this.decisionState() === 'not-ready' && this.needsDocs() && !this.derived() && !this.isFailed()
+    this.decisionState() === 'not-ready' && this.awaitingInsuredDocs()
       ? 'Estado del expediente'
       : 'Resolución',
   );

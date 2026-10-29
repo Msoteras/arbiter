@@ -65,6 +65,7 @@ class ClassificationOrchestratorCauseConsistencyTest {
     @Mock private PolicySnapshotRepository policySnapshotRepository;
     @Mock private InsuredFraudRecordRepository fraudRecordRepository;
     @Mock private DocumentAnalysisRepository documentAnalysisRepository;
+    @Mock private RecordedExtractionService recordedExtractionService;
     @Mock private ClaimCauseRepository claimCauseRepository;
     @Spy private ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
 

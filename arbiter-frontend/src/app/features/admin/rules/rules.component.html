@@ -916,7 +916,8 @@
                     @if (!readOnly()) {
                       {{ stepLine.DOCUMENTS }}
                     }
-                    Si falta un documento marcado, el expediente queda en Falta documentación.
+                    Si falta un documento marcado, el analista elige cuáles le pide al asegurado.
+                    Con una banda de riesgo, el documento se sugiere desde ese nivel en adelante.
                   </app-info-tip>
                   @if (claimCauses().length === 0) {
                     <p class="section-hint">
@@ -953,6 +954,14 @@
                                     {{ doc.label }} obligatorio para {{ cause.name }}
                                   </span>
                                 </app-checkbox>
+                                @if (isDocRequiredFor(cause.id, doc.code)) {
+                                  <app-select
+                                    class="doc-band"
+                                    [options]="documentBandOptions"
+                                    [value]="docBandFor(cause.id, doc.code)"
+                                    (valueChange)="setDocBand(cause.id, doc.code, $event)"
+                                  />
+                                }
                               </td>
                             }
                           </tr>

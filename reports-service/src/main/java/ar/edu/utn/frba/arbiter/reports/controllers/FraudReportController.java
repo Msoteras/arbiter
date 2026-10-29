@@ -48,7 +48,7 @@ public class FraudReportController {
                     + "riesgo; sin ellos, todos. Período máximo: 366 días. "
                     + "compare elige contra qué período se comparan los totales: PREVIOUS_PERIOD (default), "
                     + "SAME_PERIOD_LAST_YEAR o CUSTOM con compareFrom y compareTo. "
-                    + "El sistema no determina fraude: señala indicios para revisión humana.")
+                    + "Arbiter no determina fraude: señala indicios para revisión humana.")
     public FraudReport report(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,

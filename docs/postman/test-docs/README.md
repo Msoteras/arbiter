@@ -428,3 +428,31 @@ El orden que importa es el de **carga**, no el de los hechos: el paso 3 ocurrió
 
 Los tres hechos son del mismo día a propósito: lo que vence la secuencia es el plazo de denuncia del
 primer paso (72 hs), y el generador imprime cuándo.
+
+## 11 · Valentín: dos casos nuevos
+
+Dos casos de Celulares con historias, lugares y números propios: ninguna línea repite a los sets de
+arriba. Los firma Valentín Aguirre (`POL-CEL-2026-777`, Samsung Galaxy A56), el mismo asegurado de
+las mutaciones. Salen de [`casos-nuevos-celulares.js`](casos-nuevos-celulares.js):
+
+```bash
+node docs/postman/test-docs/generar-fixtures.js --nuevos   # → nuevos/celulares/*
+```
+
+| Carpeta | Qué pasó | Qué se espera |
+|---|---|---|
+| `hurto-bar/` | hurto en un bar de San Telmo, anoche 23:10 | no entra en Fast Track (589.999 sobre 650.000 de hurto); la clasifica el LLM |
+| `robo-motochorros/` | robo en una parada de colectivo de Palermo, anoche 21:50 | `FAST_TRACK` cargado solo; cargado después del hurto, va al LLM |
+
+El hurto tiene **una sola señal**, en la constancia de último registro: después del hurto, el
+celular pasa la noche bajo la antena del domicilio del asegurado. Ninguna regla cruza una antena con
+una dirección, así que solo la puede ver el LLM. El resto de los documentos es coherente.
+
+**Cargalos desde el portal, como Valentín.** Su cuenta no sale de la migración: en una base nueva,
+el referente de BBVA aprieta **"Dar de alta asegurados"** en el panel de usuarios, y Valentín acepta
+la invitación que llega a su mail. Después entra al portal y hace el alta con el wizard, adjuntando
+los PDFs de la carpeta.
+
+Cargá **el hurto primero**: cada caso cuenta como siniestro previo del siguiente. Para volver a
+empezar, `scripts/reset-asegurados-de-prueba.sql` borra los expedientes de Valentín y de nadie más
+fuera de Camila (ver §9).

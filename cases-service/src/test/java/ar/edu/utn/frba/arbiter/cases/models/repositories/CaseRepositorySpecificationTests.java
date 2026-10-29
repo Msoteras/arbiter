@@ -13,6 +13,7 @@ import ar.edu.utn.frba.arbiter.cases.models.entities.Policy;
 import ar.edu.utn.frba.arbiter.cases.support.AbstractPersistenceIT;
 import ar.edu.utn.frba.arbiter.cases.support.CaseFixtures;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
+import ar.edu.utn.frba.arbiter.common.enums.Classification;
 import ar.edu.utn.frba.arbiter.common.enums.InsuredStatus;
 import ar.edu.utn.frba.arbiter.common.enums.RiskBand;
 import ar.edu.utn.frba.arbiter.common.enums.SettlementBasis;
@@ -519,6 +520,30 @@ class CaseRepositorySpecificationTests extends AbstractPersistenceIT {
         assertThat(caseRepository.findAll(CaseSpecifications.followUp(CaseFollowUp.PROVIDER_REPORT_RECEIVED),
                 FIRST_PAGE).getContent()).extracting(Case::getId)
                 .containsExactlyInAnyOrder(fromExpert.getId(), fromRepairShop.getId());
+    }
+
+    /** Only what is still waiting on the analyst's choice: in review and classified as missing documents. */
+    @Test
+    void followUp_findsTheDocumentationTheAnalystStillHasToConfirm() {
+        Case toConfirm = caseOf(CaseStatus.PENDING_ANALYST_REVIEW, "Hurto",
+                "POL-CEL-2024-040", "40.123.490", "Ana", "Sosa", LocalDate.of(2026, 9, 1), null);
+        toConfirm.setRulesClassification(Classification.FALTA_DOCUMENTACION);
+        toConfirm = caseRepository.save(toConfirm);
+        Case alreadyAsked = caseOf(CaseStatus.AWAITING_DOCUMENTATION, "Hurto",
+                "POL-CEL-2024-041", "40.123.491", "Beto", "Luna", LocalDate.of(2026, 9, 1), null);
+        alreadyAsked.setRulesClassification(Classification.FALTA_DOCUMENTACION);
+        caseRepository.save(alreadyAsked);
+        Case classifiedByTheModel = caseRepository.save(caseOf(CaseStatus.PENDING_ANALYST_REVIEW, "Hurto",
+                "POL-CEL-2024-042", "40.123.492", "Ciro", "Vera", LocalDate.of(2026, 9, 1), null));
+        Case fastTrack = caseOf(CaseStatus.PENDING_ANALYST_REVIEW, "Hurto",
+                "POL-CEL-2024-043", "40.123.493", "Dora", "Mena", LocalDate.of(2026, 9, 1), null);
+        fastTrack.setRulesClassification(Classification.FAST_TRACK);
+        caseRepository.save(fastTrack);
+
+        assertThat(caseRepository.findAll(CaseSpecifications.followUp(CaseFollowUp.DOCUMENTATION_TO_CONFIRM),
+                FIRST_PAGE).getContent()).extracting(Case::getId)
+                .containsExactly(toConfirm.getId())
+                .doesNotContain(classifiedByTheModel.getId());
     }
 
     @Test

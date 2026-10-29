@@ -43,7 +43,8 @@ import static org.mockito.Mockito.when;
         "arbiter.classification.retry.initial-delay-ms=1",
         "arbiter.classification.retry.multiplier=1.0",
         "arbiter.classification.retry.max-delay-ms=1",
-        "arbiter.auth.jwt.secret=test-secret-at-least-32-bytes-long-for-hs256"
+        "arbiter.auth.jwt.secret=test-secret-at-least-32-bytes-long-for-hs256",
+        "arbiter.cases-service.notice-retry-delay-ms=1"
 })
 class ClaimClassificationServiceRetryTest {
 
@@ -134,7 +135,8 @@ class ClaimClassificationServiceRetryTest {
 
         verify(classificationOrchestrator, times(1)).classify(eq(7L), eq(claim), anyList());
         verify(resultsService, times(1)).saveResult(eq(7L), any(), any(), anyLong());
-        assertThat(notices).hasSize(1);
+        // The notice is sent again; the classification is not.
+        assertThat(notices).hasSize(3);
     }
 
     private ClassificationResponse fastTrack() {

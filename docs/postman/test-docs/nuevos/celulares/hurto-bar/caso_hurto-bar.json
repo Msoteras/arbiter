@@ -1,0 +1,19 @@
+{
+  "branch": "Celulares",
+  "product": "Celular Protegido Premium",
+  "claimCause": "Hurto",
+  "insuredItem": "SAMSUNG Galaxy A56 5G 256 GB",
+  "insuredId": "38.614.270",
+  "policyNumber": "POL-CEL-2026-777",
+  "description": "Estaba en un bar de Defensa al 900 con amigos. Dejé el celular sobre la mesa y fui al baño. Cuando volví ya no estaba y nadie vio quién lo agarró. Lo buscamos con el mozo y no apareció. Volví a mi casa en taxi. A la mañana pedí el bloqueo a la compañía e hice la denuncia en la comisaría.",
+  "eventDate": "2026-10-26T23:10:00",
+  "eventLocation": "Defensa 990, interior de un bar",
+  "locality": "San Telmo",
+  "province": "Ciudad Autónoma de Buenos Aires",
+  "policeReportAt": "2026-10-27T10:35:00",
+  "claimedAmount": 589999,
+  "pep": false,
+  "imageConsent": true,
+  "contactEmail": "valentin.aguirre@example.com",
+  "contactPhone": "11-5555-0077"
+}

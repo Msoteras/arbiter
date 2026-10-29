@@ -21,6 +21,7 @@ describe('CaseDocumentsComponent · provider reports', () => {
     contentType: 'application/pdf',
     sizeBytes: 1024,
     uploadedAt: '2026-10-09T12:00:00Z',
+    description: null,
   });
 
   async function mount(showMissing: boolean): Promise<string> {

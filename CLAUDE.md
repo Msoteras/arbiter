@@ -135,7 +135,7 @@ Estos términos vienen del relevamiento de una aseguradora real (BBVA Seguros, A
 
 2. **El LLM clasifica mejor con campos estructurados.** El prompt no recibe solo texto libre de la denuncia: recibe los campos de `ClaimReport` (`branch`, `product`, `claimCause`, `insuredItem`, `description`, `attachmentsOcr`) más la imagen. Los campos estructurados son contexto duro que ancla la inferencia.
 
-3. **La AgendaDocumental es el contrato de "expediente completo".** Antes de pasar el expediente al analista, `cases-service` valida contra la agenda que todos los documentos obligatorios estén subidos. Si faltan, el estado es `AWAITING_DOCUMENTATION`, no `PENDING_ANALYST_REVIEW` (los valores del enum `CaseStatus` van en inglés; el label en español es cosa del frontend).
+3. **La AgendaDocumental es el contrato de "expediente completo", pero lo que se le pide al asegurado lo decide el analista.** Cada documento de la agenda se pide siempre o desde una banda de riesgo en adelante (`document_requirement.risk_band`). Si la clasificación encuentra que faltan documentos, da `FALTA_DOCUMENTACION` y el expediente queda en `PENDING_ANALYST_REVIEW` con los faltantes sugeridos para su banda: el analista elige cuáles se piden, y recién ahí pasa a `AWAITING_DOCUMENTATION` (los valores del enum `CaseStatus` van en inglés; el label en español es cosa del frontend). Después de un pedido, la reclasificación no vuelve a exigir la agenda, y la banda del expediente nunca baja. En Fast Track no se pide documentación.
    - **Los documentos que se pueden pedir están en la base, no en el código.** El catálogo (código + nombre) es `arbiter_common.document_type`, igual para todas las aseguradoras; qué documentos admite cada ramo es `branch_document_type`, por aseguradora. Los dos se cargan por script, sin pantalla: sumar un documento a un ramo es cargar filas, no desplegar. La agenda y la lista de Fast Track rechazan un documento que no sea del ramo, y el nombre que ven el asegurado, el analista y el reporte de fraude sale de ese catálogo (`GET /api/v1/rules/document-types`). El informe pericial y la respuesta del servicio técnico quedan afuera: no los pide ninguna agenda.
 
 4. **El plazo del art. 56 se congela en ciertos estados, y eso lo decide `CaseStatus.pausingTheTerm()`.** Hoy son `AWAITING_DOCUMENTATION`, `PENDING_EXPERT_REPORT` y `PENDING_REPAIR`: el expediente está esperando a alguien de **afuera** de la aseguradora (el asegurado por documentación, el perito por su informe, el servicio técnico por el equipo), y el procedimiento de la compañía dice que eso "interrumpe el plazo para que la Aseguradora se expida". Ese tiempo corre para el asegurado pero no se le imputa a la gestión.
@@ -409,8 +409,8 @@ Asegurado registra denuncia (frontend, wizard con catálogos en cascada)
   ├─> LlmClient (Ollama por default, Gemini opt-in) → valida la salida contra el JSON schema
   ├─> persiste llm_analysis / rule_result / case_classification (inmutables)
   └─> POST /api/v1/cases/{caseId}/classification-finished (cases-service, token de servicio)
-        ├─> si terminó bien: lee GET /api/v1/claims/{caseId} y pasa a PENDING_ANALYST_REVIEW,
-        │   o a AWAITING_DOCUMENTATION si falta algo de la agenda documental
+        ├─> si terminó bien: lee GET /api/v1/claims/{caseId} y pasa a PENDING_ANALYST_REVIEW;
+        │   si falta documentación, avisa al analista, que elige qué se pide (→ AWAITING_DOCUMENTATION)
         └─> si falló: CLASSIFICATION_FAILED en el momento
 
 cases-service (ClassificationRefreshScheduler): red de seguridad para avisos perdidos, consulta
@@ -426,7 +426,7 @@ Analista revisa y decide (frontend)
 ### Dónde está cada cosa
 
 - **Prompts versionados** en `classification-service/src/main/resources/prompts/`. La versión vigente la fija
-  `arbiter.llm.prompt-version` (hoy `classification-v7`; el de OCR es `extraccion-documento-v8`) y se
+  `arbiter.llm.prompt-version` (hoy `classification-v9`; el de OCR es `extraccion-documento-v9`) y se
   persiste en `llm_analysis.prompt_version`. Las versiones anteriores se conservan para poder auditar
   análisis viejos. Plantilla (markdown) separada de la inyección de datos: nada de concatenar strings.
 - **Variables de entorno**: la lista completa y comentada está en `.env.example`. Nunca en un yml versionado.

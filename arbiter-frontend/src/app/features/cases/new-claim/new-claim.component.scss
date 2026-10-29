@@ -204,6 +204,12 @@ app-textarea {
   gap: var(--space-3);
   padding: var(--space-3) 0;
   border-bottom: 1px solid var(--border-subtle);
+  border-radius: var(--radius-ctl);
+  transition: background-color var(--dur-1) ease;
+}
+.doc-slot.dragover {
+  background: var(--selected-bg);
+  box-shadow: inset 0 0 0 1px var(--selected-border);
 }
 // flex-basis 100% forces the error onto its own line in the flex row.
 .doc-error {

@@ -15,6 +15,10 @@ import ar.edu.utn.frba.arbiter.cases.dto.CaseScope;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.DocumentAnalysisSummary;
+import ar.edu.utn.frba.arbiter.cases.dto.DocumentRequestRequest;
+import ar.edu.utn.frba.arbiter.cases.dto.PendingDocumentResponse;
+import ar.edu.utn.frba.arbiter.cases.dto.RequestableDocumentResponse;
+import ar.edu.utn.frba.arbiter.cases.dto.RequestedDocumentResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.EligibilityCheckRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.InsuredStatusResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.IntakeDocumentsResponse;
@@ -41,11 +45,13 @@ import ar.edu.utn.frba.arbiter.cases.exceptions.ClosedCaseAssignmentException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CoverageNotConfiguredException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.DocumentNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.DocumentTypeNotAllowedException;
+import ar.edu.utn.frba.arbiter.cases.exceptions.DocumentationPendingException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.DocumentReadException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.InsuredIdentityMismatchException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.RulesMisconfiguredException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.RulesUnavailableException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidAnalystDecisionException;
+import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidDocumentRequestException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidSettlementException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidStatusTransitionException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.MissingRequiredDocumentsException;
@@ -58,6 +64,7 @@ import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Insured;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Policy;
 import ar.edu.utn.frba.arbiter.cases.models.entities.PolicyCoverage;
 import ar.edu.utn.frba.arbiter.cases.models.entities.PolicySnapshot;
+import ar.edu.utn.frba.arbiter.cases.models.entities.RequestedDocument;
 import ar.edu.utn.frba.arbiter.cases.models.entities.StatusChangeActor;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseAnalysisRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseAnalysisRepository.CaseAnalysis;
@@ -70,6 +77,8 @@ import ar.edu.utn.frba.arbiter.cases.models.repositories.ClaimsAnalystRepository
 import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseReferralRepository;
 import ar.edu.utn.frba.arbiter.cases.models.repositories.UserRepository;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.ClaimsAnalyst;
+import ar.edu.utn.frba.arbiter.common.dto.DocumentRequirementItem;
+import ar.edu.utn.frba.arbiter.common.dto.DocumentTypeResponse;
 import ar.edu.utn.frba.arbiter.common.dto.RuleResultResponse;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 import ar.edu.utn.frba.arbiter.common.enums.InsuredStatus;
@@ -188,7 +197,7 @@ public class CaseServiceImpl implements CaseService {
     private CaseResponse createCaseInIssuingTenant(CaseRequest request, Map<String, MultipartFile> documents) {
         // Validated rather than silently overwritten: a mismatch means the client sent something wrong.
         assertFilingOwnClaim(request.insuredId());
-        assertUploadableByTheInsured(documents);
+        assertUploadableByTheInsured(documents, Set.of());
 
         // The insured resolves first: an unsynced policy imported from the insurer DB needs a holder.
         Insured insured = referenceResolver.applyDeclaredDetails(
@@ -382,13 +391,13 @@ public class CaseServiceImpl implements CaseService {
         return tenantScope.forCase(caseId, insurerSlug, () -> {
             // An insured may only add documents to their own case.
             Case entity = readableCase(caseId);
-            assertUploadableByTheInsured(documents);
+            assertUploadableByTheInsured(documents, openRequestTypes(entity));
+            assertCompletesWhatIsPending(entity, documents);
 
             storeDocuments(caseId, documents);
+            entity.setRequestedDocuments(withFulfilled(entity.getRequestedDocuments(), uploadedKeys(documents)));
 
-            // Clear the cached risk so the recalculation window never shows a stale band.
-            entity.setRiskScore(null);
-            entity.setRiskBand(null);
+            // The risk stays: a reclassification never lowers it (see refreshClassification).
             entity.setRulesClassification(null);
             // Fresh cycle: earlier attempts would otherwise fail the case prematurely.
             entity.setClassificationAttempts(0);
@@ -407,8 +416,6 @@ public class CaseServiceImpl implements CaseService {
         policyCoverageResolver.reverifiedCoverage(entity).ifPresent(entity::setCoverage);
 
         // Same reset as addDocumentsAndReclassify: attempts are already at the maximum.
-        entity.setRiskScore(null);
-        entity.setRiskBand(null);
         entity.setRulesClassification(null);
         entity.setClassificationAttempts(0);
         // A stale INFRASTRUCTURE reason would make the recovery sweep requeue a later, unrelated failure.
@@ -433,19 +440,244 @@ public class CaseServiceImpl implements CaseService {
     }
 
     /**
-     * Documents are upserted by type, so a part keyed as a provider's report would replace it.
-     * Checked before anything is stored, so a rejected upload leaves no document behind.
+     * Documents are upserted by type, so a part keyed as a provider's report would replace it. An
+     * {@code other_<n>} key only exists while the analyst's request asks for it. Checked before
+     * anything is stored, so a rejected upload leaves no document behind.
      */
-    private static void assertUploadableByTheInsured(Map<String, MultipartFile> documents) {
+    private static void assertUploadableByTheInsured(Map<String, MultipartFile> documents, Set<String> openRequest) {
         if (documents == null) {
             return;
         }
         documents.keySet().stream()
-                .filter(ProviderReport::isProviderReport)
+                .filter(type -> ProviderReport.isProviderReport(type)
+                        || (RequestedDocument.isOther(type) && !openRequest.contains(type)))
                 .findFirst()
                 .ifPresent(type -> {
                     throw new DocumentTypeNotAllowedException(type);
                 });
+    }
+
+    /**
+     * What was asked is the minimum, so it arrives whole: a partial upload would reclassify the case
+     * for each document. An unreadable schedule doesn't block the upload; the classification checks it
+     * again.
+     */
+    private void assertCompletesWhatIsPending(Case entity, Map<String, MultipartFile> documents) {
+        if (entity.getStatus() != CaseStatus.AWAITING_DOCUMENTATION) {
+            return;
+        }
+        List<String> pending = pendingTypes(entity);
+        if (pending == null) {
+            return;
+        }
+        Set<String> attached = uploadedKeys(documents);
+        List<String> missing = pending.stream().filter(type -> !attached.contains(type)).toList();
+        if (!missing.isEmpty()) {
+            throw new MissingRequiredDocumentsException(missing);
+        }
+    }
+
+    private static Set<String> uploadedKeys(Map<String, MultipartFile> documents) {
+        if (documents == null) {
+            return Set.of();
+        }
+        return documents.entrySet().stream()
+                .filter(entry -> !CASE_PAYLOAD_KEY.equals(entry.getKey()))
+                .filter(entry -> entry.getValue() != null && !entry.getValue().isEmpty())
+                .map(Map.Entry::getKey)
+                .collect(Collectors.toSet());
+    }
+
+    private static List<RequestedDocument> openRequest(Case entity) {
+        return entity.getRequestedDocuments().stream().filter(document -> !document.fulfilled()).toList();
+    }
+
+    private static Set<String> openRequestTypes(Case entity) {
+        return openRequest(entity).stream().map(RequestedDocument::type).collect(Collectors.toSet());
+    }
+
+    private static List<RequestedDocument> withFulfilled(List<RequestedDocument> requested, Set<String> uploaded) {
+        return requested.stream()
+                .map(document -> !document.fulfilled() && uploaded.contains(document.type())
+                        ? document.markFulfilled()
+                        : document)
+                .toList();
+    }
+
+    /**
+     * The analyst's open request if there is one: it is what moved the case here. Otherwise the
+     * classification did, over what is missing from the schedule.
+     *
+     * @return {@code null} when the schedule couldn't be read
+     */
+    private List<String> pendingTypes(Case entity) {
+        List<RequestedDocument> open = openRequest(entity);
+        if (!open.isEmpty()) {
+            return open.stream().map(RequestedDocument::type).toList();
+        }
+        ClaimCause claimCause = entity.getClaimCause();
+        List<String> schedule = rulesServiceClient.requiredDocumentTypes(
+                claimCause.getBranch().getName(), claimCause.getName());
+        if (schedule == null) {
+            return null;
+        }
+        Set<String> uploaded = uploadedTypes(entity.getId());
+        return schedule.stream().filter(type -> !uploaded.contains(type)).distinct().toList();
+    }
+
+    private Set<String> uploadedTypes(Long caseId) {
+        return caseDocumentRepository.findByCaseId(caseId).stream()
+                .map(CaseDocument::getType)
+                .collect(Collectors.toSet());
+    }
+
+    @Override
+    public List<PendingDocumentResponse> pendingDocuments(Long caseId, String insurerSlug) {
+        return tenantScope.forCase(caseId, insurerSlug, () -> {
+            Case entity = readableCase(caseId);
+            if (entity.getStatus() != CaseStatus.AWAITING_DOCUMENTATION) {
+                return List.of();
+            }
+            List<String> pending = pendingTypes(entity);
+            if (pending == null) {
+                throw new RulesUnavailableException(new IllegalStateException(
+                        "Could not read the document schedule"));
+            }
+            Map<String, String> descriptions = requestedDescriptions(entity);
+            return pending.stream()
+                    .map(type -> new PendingDocumentResponse(type, descriptions.get(type)))
+                    .toList();
+        });
+    }
+
+    /** Only {@code other_<n>} documents have one: the catalog names the rest. */
+    private static Map<String, String> requestedDescriptions(Case entity) {
+        return entity.getRequestedDocuments().stream()
+                .filter(document -> document.description() != null)
+                .collect(Collectors.toMap(RequestedDocument::type, RequestedDocument::description,
+                        (first, second) -> first));
+    }
+
+    @Override
+    public List<RequestableDocumentResponse> requestableDocuments(Long caseId) {
+        Case entity = caseRepository.findById(caseId)
+                .orElseThrow(() -> new CaseNotFoundException(caseId));
+        accessPolicy.assertCanRead(entity);
+        Set<String> taken = takenDocumentTypes(entity);
+        Map<String, RequestableDocumentResponse.Suggestion> suggestions = suggestionsFor(entity, taken);
+        return requestableDocumentTypes(entity, taken).stream()
+                .map(type -> new RequestableDocumentResponse(type.code(), type.name(), suggestions.get(type.code())))
+                .toList();
+    }
+
+    /** Uploaded or still asked for: neither is offered again. */
+    private Set<String> takenDocumentTypes(Case entity) {
+        Set<String> taken = new HashSet<>(uploadedTypes(entity.getId()));
+        taken.addAll(openRequestTypes(entity));
+        return taken;
+    }
+
+    private List<DocumentTypeResponse> requestableDocumentTypes(Case entity, Set<String> taken) {
+        return rulesServiceClient.branchDocumentTypes(entity.getClaimCause().getBranch().getId()).stream()
+                .filter(type -> !taken.contains(type.code()))
+                .toList();
+    }
+
+    /**
+     * What the schedule asks of a case of this band and the case doesn't have. Once the analyst asked
+     * for something, only what a higher band needs: the rest of the schedule was already their call.
+     * An unreadable schedule suggests nothing; the analyst can still pick by hand.
+     */
+    private Map<String, RequestableDocumentResponse.Suggestion> suggestionsFor(Case entity, Set<String> taken) {
+        if (isFastTrack(entity)) {
+            return Map.of();
+        }
+        ClaimCause claimCause = entity.getClaimCause();
+        List<DocumentRequirementItem> schedule = rulesServiceClient.scheduleWithBands(
+                claimCause.getBranch().getName(), claimCause.getName());
+        if (schedule == null) {
+            return Map.of();
+        }
+        boolean requestedBefore = !entity.getRequestedDocuments().isEmpty();
+        RiskBand requestedAt = entity.getRequestedDocuments().stream()
+                .map(RequestedDocument::riskBand)
+                .filter(Objects::nonNull)
+                .max(Comparator.naturalOrder())
+                .orElse(null);
+        Map<String, RequestableDocumentResponse.Suggestion> suggestions = new HashMap<>();
+        for (DocumentRequirementItem item : schedule) {
+            if (taken.contains(item.documentType()) || !item.appliesTo(entity.getRiskBand())) {
+                continue;
+            }
+            boolean higherBand = item.minRiskBand() != null
+                    && (requestedAt == null || item.minRiskBand().compareTo(requestedAt) > 0);
+            if (requestedBefore && !higherBand) {
+                continue;
+            }
+            suggestions.put(item.documentType(), item.minRiskBand() == null
+                    ? RequestableDocumentResponse.Suggestion.SCHEDULE
+                    : RequestableDocumentResponse.Suggestion.RISK);
+        }
+        return suggestions;
+    }
+
+    /** Fast Track is enough to decide on: nothing more is asked for. */
+    private static boolean isFastTrack(Case entity) {
+        return entity.getRulesClassification() == Classification.FAST_TRACK;
+    }
+
+    @Override
+    @Transactional
+    public CaseResponse requestDocuments(Long caseId, DocumentRequestRequest request) {
+        Case entity = caseRepository.findById(caseId)
+                .orElseThrow(() -> new CaseNotFoundException(caseId));
+        caseStatusService.assertCanMove(entity.getStatus(), CaseStatus.AWAITING_DOCUMENTATION);
+        if (isFastTrack(entity)) {
+            throw InvalidDocumentRequestException.fastTrack();
+        }
+        requireAssignedAnalyst(entity);
+        assertNotAwaitingReferent(entity);
+
+        Map<String, String> requestable = requestableDocumentTypes(entity, takenDocumentTypes(entity)).stream()
+                .collect(Collectors.toMap(DocumentTypeResponse::code, DocumentTypeResponse::name,
+                        (first, second) -> first, HashMap::new));
+        // Numbered across the case, so a later request never reuses the key of an earlier upload.
+        int nextOther = (int) entity.getRequestedDocuments().stream()
+                .filter(document -> RequestedDocument.isOther(document.type()))
+                .count() + 1;
+
+        List<RequestedDocument> added = new ArrayList<>();
+        List<String> observation = new ArrayList<>();
+        for (DocumentRequestRequest.Item item : request.documents()) {
+            String type = item.type().trim();
+            if (DocumentRequestRequest.OTHER.equals(type)) {
+                String description = blankToNull(item.description());
+                String reason = blankToNull(item.reason());
+                if (description == null || reason == null) {
+                    throw InvalidDocumentRequestException.otherWithoutDetails();
+                }
+                added.add(new RequestedDocument(RequestedDocument.OTHER_PREFIX + nextOther++,
+                        description, reason, false, entity.getRiskBand()));
+                observation.add("%s (motivo: %s)".formatted(description, reason));
+            } else {
+                // Removed once taken, so the same document twice in one request is refused too.
+                String name = requestable.remove(type);
+                if (name == null) {
+                    throw InvalidDocumentRequestException.notRequestable(type);
+                }
+                added.add(new RequestedDocument(type, null, null, false, entity.getRiskBand()));
+                observation.add(name);
+            }
+        }
+
+        List<RequestedDocument> requested = new ArrayList<>(entity.getRequestedDocuments());
+        requested.addAll(added);
+        entity.setRequestedDocuments(List.copyOf(requested));
+        // The observation names the documents and the reasons; the insured's history shows neither.
+        caseStatusService.transition(entity, CaseStatus.AWAITING_DOCUMENTATION, StatusChangeActor.ANALYST,
+                "documentación pedida por el analista", String.join("; ", observation));
+
+        return loadCase(caseId);
     }
 
     /** Replaces any prior document of the same type. */
@@ -806,10 +1038,10 @@ public class CaseServiceImpl implements CaseService {
     @Override
     public List<CaseDocumentResponse> getDocuments(Long caseId, String insurerSlug) {
         return tenantScope.forCase(caseId, insurerSlug, () -> {
-            readableCase(caseId);
+            Map<String, String> descriptions = requestedDescriptions(readableCase(caseId));
             return caseDocumentRepository.findByCaseId(caseId).stream()
                     .filter(doc -> !hiddenFromCaller(doc))
-                    .map(CaseDocumentResponse::from)
+                    .map(doc -> CaseDocumentResponse.from(doc, descriptions.get(doc.getType())))
                     .toList();
         });
     }
@@ -872,6 +1104,9 @@ public class CaseServiceImpl implements CaseService {
 
         ClaimsAnalyst analyst = requireAssignedAnalyst(entity);
         assertNotAwaitingReferent(entity);
+        if (entity.hasDocumentationPending()) {
+            throw new DocumentationPendingException(entity.getId());
+        }
 
         // Approving includes the amount. Validated before forwarding anything, so a decision that
         // is going to fail never reaches the audit log.
@@ -1117,7 +1352,8 @@ public class CaseServiceImpl implements CaseService {
                 documentAnalyses,
                 traceability.ruleResults(),
                 traceability.policySnapshot(),
-                repairProvider
+                repairProvider,
+                entity.getRequestedDocuments().stream().map(RequestedDocumentResponse::from).toList()
         );
         // Trimmed here, where every case response is built, so no endpoint can skip it.
         return accessPolicy.currentUserIsInsured() ? response.forInsured() : response;

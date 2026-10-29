@@ -116,6 +116,11 @@ import {
     .field.has-reveal::-ms-clear {
       display: none;
     }
+    /* Chrome's time dropdown opens outside app-time-picker's panel and ignores the theme: the
+       time is typed instead. Touch devices still open their own wheel on tap. */
+    .field[type='time']::-webkit-calendar-picker-indicator {
+      display: none;
+    }
     @include media.desktop {
       .field {
         font-size: var(--font-size-body);

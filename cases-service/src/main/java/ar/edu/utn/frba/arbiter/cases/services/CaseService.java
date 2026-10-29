@@ -9,6 +9,9 @@ import ar.edu.utn.frba.arbiter.cases.dto.CaseDocumentResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseDeadline;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseFollowUp;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseScope;
+import ar.edu.utn.frba.arbiter.cases.dto.DocumentRequestRequest;
+import ar.edu.utn.frba.arbiter.cases.dto.PendingDocumentResponse;
+import ar.edu.utn.frba.arbiter.cases.dto.RequestableDocumentResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.EligibilityCheckRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.InsuredStatusResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.IntakeDocumentsResponse;
@@ -57,6 +60,26 @@ public interface CaseService {
     List<CaseDocumentResponse> getDocuments(Long caseId, String insurerSlug);
 
     CaseDocument getDocument(Long caseId, Long documentId);
+
+    /**
+     * What the insured still has to upload: the analyst's open request if there is one, otherwise
+     * what is missing from the schedule. Empty unless the case is waiting on documentation.
+     *
+     * @param insurerSlug see {@link #getCase(Long, String)}
+     */
+    List<PendingDocumentResponse> pendingDocuments(Long caseId, String insurerSlug);
+
+    /**
+     * The branch's documents the analyst can still ask for: not uploaded and not already asked for,
+     * each with whether the system suggests it. Nothing is suggested on a Fast Track case.
+     */
+    List<RequestableDocumentResponse> requestableDocuments(Long caseId);
+
+    /**
+     * The assigned analyst asks the insured for documents. The case moves to
+     * {@code AWAITING_DOCUMENTATION}, which stops the art. 56 term and emails the insured.
+     */
+    CaseResponse requestDocuments(Long caseId, DocumentRequestRequest request);
 
     CaseDocument getDocument(Long caseId, Long documentId, String insurerSlug);
 

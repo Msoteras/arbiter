@@ -36,6 +36,8 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.Objects;
 
 @Service
 @RequiredArgsConstructor
@@ -68,6 +70,7 @@ public class ClassificationOrchestrator {
     private final PolicySnapshotRepository policySnapshotRepository;
     private final InsuredFraudRecordRepository fraudRecordRepository;
     private final DocumentAnalysisRepository documentAnalysisRepository;
+    private final RecordedExtractionService recordedExtractionService;
     private final ClaimCauseRepository claimCauseRepository;
     private final ObjectMapper objectMapper;
     private final ClassificationProgress progress;
@@ -141,7 +144,7 @@ public class ClassificationOrchestrator {
                 claim.policyNumber(), claim.insuredId(), claim.branch(), claim.claimCause(), documents.size());
 
         Context ctx = fetchContext(claim);
-        Resolution resolution = withVisualWarnings(resolveClassification(claim, documents, ctx));
+        Resolution resolution = withVisualWarnings(resolveClassification(claim, documents, ctx, Map.of()));
         return withRiskScore(resolution.response(), claim, ctx, null, resolution.extractions());
     }
 
@@ -152,8 +155,9 @@ public class ClassificationOrchestrator {
     public ClassificationResponse classify(Long caseId, ClaimReport claim, List<AttachmentDocument> documents) {
         Context ctx = fetchContext(claim);
         recordPolicySnapshot(caseId, claim, ctx);
-        Resolution resolution = withVisualWarnings(resolveClassification(claim, documents, ctx));
-        recordDocumentExtractions(documents, resolution.extractions());
+        Map<Long, DocumentExtraction> recorded = recordedReadsOf(documents);
+        Resolution resolution = withVisualWarnings(resolveClassification(claim, documents, ctx, recorded));
+        recordDocumentExtractions(documents, resolution.extractions(), recorded.keySet());
         ImageForensicReport forensic = resolution.documentationAnalyzed()
                 ? runImageFraudAnalysis(caseId, documents, Boolean.TRUE.equals(claim.imageConsent()))
                 : null;
@@ -161,18 +165,34 @@ public class ClassificationOrchestrator {
     }
 
     /**
+     * What an earlier run already read, so a reclassification only sends the new documents to the
+     * model. Best-effort: without it every document is read again, as before.
+     */
+    private Map<Long, DocumentExtraction> recordedReadsOf(List<AttachmentDocument> documents) {
+        List<Long> ids = documents.stream().map(AttachmentDocument::documentId).filter(Objects::nonNull).toList();
+        try {
+            return recordedExtractionService.completeReadsOf(ids);
+        } catch (Exception e) {
+            log.warn("[Orchestrator] Could not read the earlier document extractions, reading them all again: {}",
+                    e.getMessage());
+            return Map.of();
+        }
+    }
+
+    /**
      * Joins extractions (by type) to attachments (by {@code documentId}): a type is unique within a case.
-     * Best-effort: failing to write must not sink the classification.
+     * A reused read is left as it is. Best-effort: failing to write must not sink the classification.
      */
     private void recordDocumentExtractions(
-            List<AttachmentDocument> documents, Map<String, DocumentExtraction> extractions) {
+            List<AttachmentDocument> documents, Map<String, DocumentExtraction> extractions,
+            Set<Long> reusedDocumentIds) {
         if (extractions.isEmpty()) {
             return;
         }
         try {
             Map<String, Long> documentIdByType = new LinkedHashMap<>();
             for (AttachmentDocument document : documents) {
-                if (document.documentId() != null) {
+                if (document.documentId() != null && !reusedDocumentIds.contains(document.documentId())) {
                     documentIdByType.put(document.type(), document.documentId());
                 }
             }
@@ -282,7 +302,9 @@ public class ClassificationOrchestrator {
             boolean documentationAnalyzed,
             Map<String, DocumentExtraction> extractions) {}
 
-    private Resolution resolveClassification(ClaimReport claim, List<AttachmentDocument> documents, Context ctx) {
+    /** @param recorded earlier complete reads, by {@code case_documents} id: those documents aren't read again */
+    private Resolution resolveClassification(ClaimReport claim, List<AttachmentDocument> documents, Context ctx,
+                                             Map<Long, DocumentExtraction> recorded) {
         progress.report(ClassificationStep.of(ClassificationStage.EXCLUSION));
         // A time-barred claim makes every other rule moot; no documents are analyzed.
         if (isPrescribed(claim)) {
@@ -307,7 +329,7 @@ public class ClassificationOrchestrator {
 
         List<String> requiredForGate = requiredDocumentTypes(ctx.rules());
         Map<String, DocumentExtraction> gateExtractions =
-                extractRequiredDocuments(documents, requiredForGate, causeNames, itemAttributes);
+                extractRequiredDocuments(documents, requiredForGate, causeNames, itemAttributes, recorded);
 
         progress.report(ClassificationStep.of(ClassificationStage.RULE_EVALUATION));
         TemporalRuleEvaluator.Result temporal =
@@ -334,7 +356,7 @@ public class ClassificationOrchestrator {
             // Per-insurer: read everything and run the image cascade even on Fast Track, for a complete score.
             boolean fullAnalysis = fullAnalysisOnFastTrack(ctx.rules());
             Map<String, DocumentExtraction> fastTrackExtractions = fullAnalysis
-                    ? extractAllAttachments(documents, gateExtractions, causeNames, itemAttributes)
+                    ? extractAllAttachments(documents, gateExtractions, causeNames, itemAttributes, recorded)
                     : gateExtractions;
             // With the full analysis on, every attachment was read: compare against all of them.
             ClaimCauseConsistencyEvaluator.Result fastTrackCauseMatch = fullAnalysis
@@ -353,8 +375,11 @@ public class ClassificationOrchestrator {
         progress.report(ClassificationStep.of(ClassificationStage.DOCUMENT_SCHEDULE));
         // The full document schedule is only demanded once Fast Track is off the table: a claim
         // filed with just the gate's short list must still be able to Fast Track.
-        List<String> missingDocs = checkRequiredDocuments(
-                ctx.rules(), documents.stream().map(AttachmentDocument::type).toList());
+        // Once the analyst chose what to ask for, the schedule isn't demanded again: what they left
+        // out isn't missing.
+        List<String> missingDocs = Boolean.TRUE.equals(claim.documentationRequestedByAnalyst())
+                ? List.of()
+                : checkRequiredDocuments(ctx.rules(), documents.stream().map(AttachmentDocument::type).toList());
         if (!missingDocs.isEmpty()) {
             log.info("[Orchestrator] Not Fast Track and missing required documents: {}", missingDocs);
             // With the gate's findings too: the analyst needs to know why it missed the fast lane.
@@ -368,7 +393,7 @@ public class ClassificationOrchestrator {
                         + "Extracting remaining document(s)...",
                 fastTrack.reasons(), temporal.reasons(), scope.reasons(), fraud.blocksFastTrack());
         Map<String, DocumentExtraction> extractions =
-                extractAllAttachments(documents, gateExtractions, causeNames, itemAttributes);
+                extractAllAttachments(documents, gateExtractions, causeNames, itemAttributes, recorded);
         ClaimReport claimWithOcr = withAttachmentsOcr(claim, renderAttachments(documents, extractions));
 
         // Re-evaluated with every document read: the affected party can be in any of them.
@@ -718,7 +743,7 @@ public class ClassificationOrchestrator {
 
     private Map<String, DocumentExtraction> extractRequiredDocuments(
             List<AttachmentDocument> documents, List<String> requiredTypes, List<String> causeNames,
-            List<String> itemAttributes) {
+            List<String> itemAttributes, Map<Long, DocumentExtraction> recorded) {
         if (requiredTypes.isEmpty()) {
             return Map.of();
         }
@@ -730,10 +755,9 @@ public class ClassificationOrchestrator {
         Map<String, DocumentExtraction> extractions = new LinkedHashMap<>();
         for (int i = 0; i < toExtract.size(); i++) {
             AttachmentDocument doc = toExtract.get(i);
-            log.info("[Orchestrator] Reading document {}/{} with Ollama: '{}'...", i + 1, toExtract.size(), doc.type());
+            log.info("[Orchestrator] Reading document {}/{}: '{}'...", i + 1, toExtract.size(), doc.type());
             progress.report(ClassificationStep.document(doc.type(), i + 1, toExtract.size()));
-            extractions.put(doc.type(),
-                    documentAnalyzer.extract(doc.content(), doc.contentType(), causeNames, itemAttributes));
+            extractions.put(doc.type(), read(doc, causeNames, itemAttributes, recorded));
         }
         log.info("[Orchestrator] Done reading the required document(s)");
         return extractions;
@@ -742,13 +766,13 @@ public class ClassificationOrchestrator {
     /** Reuses the gate's extractions. Keyed by type: the flow assumes one document per type. */
     private Map<String, DocumentExtraction> extractAllAttachments(
             List<AttachmentDocument> documents, Map<String, DocumentExtraction> alreadyExtracted,
-            List<String> causeNames, List<String> itemAttributes) {
+            List<String> causeNames, List<String> itemAttributes, Map<Long, DocumentExtraction> recorded) {
         log.info("[Orchestrator] Reading {} attachment(s) with Ollama: {}",
                 documents.size(), documents.stream().map(AttachmentDocument::type).toList());
         Map<String, DocumentExtraction> extractions = new LinkedHashMap<>();
         // Numbered among the ones still to read, which is what the board counts.
         int toRead = (int) documents.stream().filter(doc -> !alreadyExtracted.containsKey(doc.type())).count();
-        int read = 0;
+        int reading = 0;
         for (int i = 0; i < documents.size(); i++) {
             AttachmentDocument doc = documents.get(i);
             if (alreadyExtracted.containsKey(doc.type())) {
@@ -756,15 +780,24 @@ public class ClassificationOrchestrator {
                         doc.type(), i + 1, documents.size());
                 extractions.put(doc.type(), alreadyExtracted.get(doc.type()));
             } else {
-                log.info("[Orchestrator] Reading attachment {}/{} with Ollama: '{}'...",
-                        i + 1, documents.size(), doc.type());
-                progress.report(ClassificationStep.document(doc.type(), ++read, toRead));
-                extractions.put(doc.type(),
-                        documentAnalyzer.extract(doc.content(), doc.contentType(), causeNames, itemAttributes));
+                log.info("[Orchestrator] Reading attachment {}/{}: '{}'...", i + 1, documents.size(), doc.type());
+                progress.report(ClassificationStep.document(doc.type(), ++reading, toRead));
+                extractions.put(doc.type(), read(doc, causeNames, itemAttributes, recorded));
             }
         }
         log.info("[Orchestrator] Done reading the attachment(s)");
         return extractions;
+    }
+
+    /** The earlier run's read when there is one: the document hasn't changed since. */
+    private DocumentExtraction read(AttachmentDocument doc, List<String> causeNames, List<String> itemAttributes,
+                                    Map<Long, DocumentExtraction> recorded) {
+        DocumentExtraction earlier = doc.documentId() == null ? null : recorded.get(doc.documentId());
+        if (earlier != null) {
+            log.info("[Orchestrator] '{}' already read in an earlier run, reusing it", doc.type());
+            return earlier;
+        }
+        return documentAnalyzer.extract(doc.content(), doc.contentType(), causeNames, itemAttributes);
     }
 
     private List<String> renderAttachments(
@@ -792,6 +825,8 @@ public class ClassificationOrchestrator {
                 .policeReportAt(claim.policeReportAt())
                 .imageConsent(claim.imageConsent())
                 .attachmentsOcr(attachmentsOcr)
+                .analystDocumentNotes(claim.analystDocumentNotes())
+                .documentationRequestedByAnalyst(claim.documentationRequestedByAnalyst())
                 .build();
     }
 
@@ -817,6 +852,7 @@ public class ClassificationOrchestrator {
                 .insuredHistory(promptBuilder.renderHistory(history))
                 .engineEvaluation(engineFindings)
                 .claimCauseCatalog(claimCauseCatalog)
+                .analystDocumentNotes(claim.analystDocumentNotes())
                 .build();
     }
 

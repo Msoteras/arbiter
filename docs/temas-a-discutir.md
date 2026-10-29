@@ -49,7 +49,37 @@ afuera; ahora son requisitos de diseño:
 
 ---
 
-## El ramo Tecnología Portátil de Provincia cubre un solo hecho generador
+## El score de riesgo no suma lo que encuentra el LLM — abierto (27/10/2026)
+
+**Qué se sabe.** El score sale solo de factores de datos: monto sobre suma asegurada, frecuencia de
+siniestros, estado de la póliza, inconsistencias entre documentos y similares. Lo que el LLM
+encuentra al leer el caso no entra en el cálculo: ningún evaluador de `services/risk/` lee su salida.
+
+El factor de inconsistencias entre documentos (`DocumentInconsistencyEvaluator`) está prendido, pero
+compara campos tipados contra el siniestro: marca, modelo e IMEI, la fecha de cada documento contra
+la del hecho (±7 días), los montos (±10%) y la fecha declarada de la denuncia policial. Una antena o
+un lugar no son campos que compare, así que una contradicción de ubicación no le suma nada.
+
+Caso que lo muestra: el expediente #64 (Valentín Aguirre, hurto en un bar de San Telmo). La
+constancia de última conexión ubica el celular, después del hurto, bajo la antena del domicilio del
+asegurado. El LLM lo detecta y lo pone en sus tres razones, y recomienda revisión manual. El score
+queda en 20/100, banda baja. El analista ve un riesgo bajo al lado de una contradicción grave.
+
+**Qué falta decidir.**
+
+- Si el score tiene que reflejar la lectura del LLM, o si se mantiene como medida de datos objetivos
+  y la recomendación del LLM va aparte. La separación sigue la implicancia de diseño 5 de
+  `CLAUDE.md`: las reglas evalúan condiciones objetivas y el LLM aporta la lectura interpretativa.
+- Si entra, cómo: un factor más en `scoring_configuration`, con un peso que configure cada
+  aseguradora, alimentado por la recomendación o por las inconsistencias que marque el LLM.
+- Si no entra, cómo se muestra en la UI para que un score bajo no se lea como "caso limpio".
+
+**Qué bloquea:** nada. El analista ve las razones del LLM en la solapa Análisis, pero el score y la
+banda que encabezan el expediente pueden contradecirlas.
+
+---
+
+## ~~El ramo Tecnología Portátil de Provincia cubre un solo hecho generador~~ — ✅ cerrado (23/10/2026)
 
 **Encontrado:** 05/09/2026, corriendo `init-multitenant.sql` + `seed-demo.sql` sobre un Postgres
 limpio para verificar el seed de los criterios de Fast Track (H0038).
@@ -111,6 +141,11 @@ cada ramo las contrata (`POL-TEC-2026-311` suma Hurto, `POL-CEL-2026-777` suma D
 
 **Falta en Railway.** El seed solo corre sobre una base vacía: en la base desplegada las tres
 coberturas siguen sin existir hasta que se creen desde el panel o se haga `reset → init → seed`.
+
+**Actualización 23/10/2026.** En Railway, Celulares ya tiene "Daño accidental de celular", creada
+desde el panel con sus reglas. Faltan Robo y Hurto en Tecnología Portátil: los carga
+`2026-10-23-coberturas-de-robo-y-hurto-en-tecnologia-provincia.sql`, con sus exclusiones, reglas
+duras y Fast Track. Aplicada en Railway el 23/10 (coberturas 9 y 10).
 
 **En Railway se va a ver todas las noches hasta que se creen.** La BD Aseguradora de Provincia sí tiene una
 cobertura de robo en dos pólizas de Tecnología (bajo el nombre "Robo de celular", que es el único
@@ -226,6 +261,95 @@ la regla `CLAIM_EXHAUSTS_COVERAGE` del motor. La migración
 `2026-10-14-borrar-un-siniestro-agota-la-cobertura.sql` le pone tope 1 a toda cobertura que tenía la
 marca prendida, y le prende la regla `MAX_EVENTS_YEAR` si no la tenía. Las filas viejas de
 `rule_result` se siguen leyendo en la trazabilidad.
+
+---
+
+## ~~¿El analista puede pedir un documento sin que lo sugiera la banda?~~ — ✅ decidido (23/10/2026)
+
+**Qué se decidió:** sí, el analista puede pedir documentación por su cuenta, porque no sabemos todos
+los documentos que se pueden llegar a necesitar. Son dos pasos separados:
+
+1. El analista pasa el expediente a "Falta documentación" y marca los documentos que faltan. Si el
+   documento no está en el catálogo, elige el tipo genérico "Otro documento".
+2. El analista le explica al asegurado por el chat qué documento concreto necesita.
+
+Desde que el expediente pasa a "Falta documentación", el plazo del art. 56 se congela, igual que con
+un documento de la agenda: ese tiempo corre por cuenta del asegurado. Cuando el asegurado sube lo que
+falta, el expediente se reclasifica. El pedido queda en el historial del expediente.
+
+**Implementado (23/10/2026), sin commitear:**
+
+- Acción "Pedir documentación" en el detalle del expediente, con un paso de confirmación antes de
+  enviar. El chat sigue sin mover el expediente (`CaseMessageService`).
+- Lo pedido queda en `cases.requested_documents`
+  (`2026-10-23-documentos-pedidos-por-el-analista.sql`). El historial guarda el analista, los
+  documentos y los motivos; el asegurado no ve ni los motivos ni la observación.
+- "Otro documento" **no** se sumó a `document_type`: si estuviera en el catálogo, el referente lo
+  podría poner en la agenda de un ramo. Cada uno viaja como `other_1`, `other_2`…, nombrado por la
+  descripción del analista.
+- El asegurado tiene que subir todo lo pendiente para enviar, sea el pedido del analista o lo que
+  falta de la agenda.
+- El modelo lee la descripción y el motivo en una sección propia del prompt (`classification-v8`),
+  fuera del bloque que el prompt marca como texto del asegurado.
+- Propuesta de Mar (24/10/2026): la reclasificación ya no vuelve a leer con el modelo los
+  documentos que tienen una lectura completa guardada en `document_analysis`. Solo se leen los
+  nuevos. Las reglas, el puntaje y la clasificación se rehacen siempre con todo junto.
+
+Lo que sigue queda como registro.
+
+**Encontrado:** 23/10/2026, armando la historia "Documentación extra según el riesgo del
+expediente". En esa historia el sistema sugiere los documentos que exige la banda y el analista
+confirma el pedido. Quedaba afuera el caso de un documento que la banda no exige. La postura de Mar
+(23/10/2026) fue que el analista tiene que poder pedirlo, y que si el documento es muy distinto a
+los del catálogo, alcanza con que quede registrado que se pidió.
+
+---
+
+## ~~¿El puntaje de riesgo puede bajar en una reclasificación?~~ — ✅ decidido: no baja (24/10/2026)
+
+**Qué se decidió:** la opción 1. El expediente conserva la banda y el puntaje más altos que tuvo:
+una reclasificación los puede subir, nunca bajar. Si se piden documentos de más es porque el riesgo
+es alto, y un documento nuevo no lo vuelve bajo. `risk_analysis` sigue guardando lo que calculó cada
+corrida; lo que no baja es lo que el expediente muestra y lo que decide qué documentos se sugieren.
+
+**Flujo que se decidió junto con esto (24/10/2026):** cuando la clasificación detecta que falta
+documentación, el pedido ya no sale solo. El expediente queda en revisión del analista con los
+documentos sugeridos (los que faltan de la agenda para su banda) y el analista elige cuáles se piden.
+Recién al confirmar pasa a "Falta documentación". Después de un pedido, la reclasificación no vuelve a
+exigir la agenda; si la banda sube, se sugieren solo los documentos de la banda nueva. En Fast Track
+no se pide documentación.
+
+Lo que sigue queda como registro.
+
+
+**Encontrado:** 23/10/2026, armando la historia "Documentación extra según el riesgo del
+expediente".
+
+**Qué se sabe:** `RiskScoringService` recalcula el puntaje desde cero en cada clasificación. En la
+historia de la banda, el expediente se reclasifica cuando el asegurado sube el documento pedido.
+Ejemplo:
+
+1. Primera clasificación: puntaje 82, banda Alto. Se pide la factura extra.
+2. El asegurado la sube y el expediente se reclasifica: puntaje 55, banda Medio.
+3. El detalle muestra "Riesgo medio" con un documento pedido por riesgo alto.
+
+**Opciones:**
+
+1. **El puntaje no baja** (la postura inicial). Si el cálculo nuevo da menos, se conserva el
+   anterior. Puede subir, y si la banda nueva exige otros documentos, se genera una sugerencia
+   nueva. La banda del detalle y la del pedido siempre coinciden. En contra: si un documento nuevo
+   aclara una sospecha (por ejemplo, el IMEI de la factura coincide con la póliza), el puntaje no
+   lo refleja.
+2. **El puntaje es el último cálculo.** El detalle muestra la banda actual y el historial registra
+   la banda que originó cada pedido. Solo la agenda queda congelada: un documento pedido no deja de
+   exigirse aunque la banda baje. En contra: el analista ve una banda menor que la del pedido.
+
+**Qué cambia con la opción 1:** hay que guardar el puntaje más alto y que la reclasificación lo tome
+como mínimo. El reporte de fraude y el tablero agrupan por banda, así que cuentan el puntaje
+conservado y no el último cálculo.
+
+**Qué bloquea:** el criterio de la historia de la banda sobre qué pasa con lo exigido cuando la
+reclasificación da un puntaje menor.
 
 ---
 

@@ -14,8 +14,9 @@ export interface TimeSlot {
 }
 
 /**
- * Time field whose panel offers parts of the day next to the exact time. The slot only writes a
- * representative hour: the value is always an `HH:mm`, and the slot shown is derived from it.
+ * Time field whose panel offers parts of the day next to the exact time. The slot only suggests a
+ * representative hour and leaves the panel open to adjust it: the value is always an `HH:mm`, and
+ * the slot shown is derived from it.
  */
 @Component({
   selector: 'app-time-picker',
@@ -85,8 +86,9 @@ export interface TimeSlot {
   `,
   styleUrl: './picker-field.scss',
   styles: `
+    /* Wide enough for the four slots of a day on one row. */
     .panel {
-      width: 20rem;
+      width: 22rem;
       max-width: calc(100vw - 2 * var(--space-2));
     }
   `,
@@ -96,7 +98,7 @@ export class TimePickerComponent extends PopoverField {
   readonly placeholder = input('Elegí la hora');
   readonly slots = input<readonly TimeSlot[]>([]);
 
-  protected readonly panelWidth = 320;
+  protected readonly panelWidth = 352;
   protected readonly panelHeight = 200;
 
   /** Keyed by the hour each slot writes: chip-group selects by value. */
@@ -119,8 +121,6 @@ export class TimePickerComponent extends PopoverField {
   });
 
   protected chooseSlot(time: string): void {
-    if (!time) return;
-    this.value.set(time);
-    this.closePanel();
+    if (time) this.value.set(time);
   }
 }
