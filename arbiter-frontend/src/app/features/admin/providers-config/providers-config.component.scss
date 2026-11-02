@@ -49,20 +49,7 @@
 
 .provider-form {
   display: grid;
-  gap: var(--space-3);
-}
-
-.fieldset {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-}
-
-.branch-picker {
-  margin: 0;
-  padding: 0;
-  border: 0;
-  min-width: 0;
+  gap: var(--space-4);
 }
 
 .error {

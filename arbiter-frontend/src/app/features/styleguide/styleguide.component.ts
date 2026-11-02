@@ -6,6 +6,7 @@ import { BadgeComponent } from '../../shared/ui/badge/badge.component';
 import { RatePipe } from '../../shared/pipes/rate.pipe';
 import { InfoTipComponent } from '../../shared/ui/info-tip/info-tip.component';
 import { CardComponent } from '../../shared/ui/card/card.component';
+import { FieldComponent } from '../../shared/ui/field/field.component';
 import { InputComponent } from '../../shared/ui/input/input.component';
 import { TextareaComponent } from '../../shared/ui/textarea/textarea.component';
 import { ModalComponent } from '../../shared/ui/modal/modal.component';
@@ -82,6 +83,7 @@ interface Swatch {
     BadgeComponent,
     InfoTipComponent,
     CardComponent,
+    FieldComponent,
     InputComponent,
     TextareaComponent,
     ModalComponent,
@@ -502,6 +504,32 @@ interface Swatch {
             [rows]="2"
             [disabled]="true"
           />
+        </div>
+      </section>
+
+      <section class="sg-block">
+        <h3 class="sg-h3">Field</h3>
+        <p class="sg-p">
+          Etiqueta, control y error con el mismo espaciado en todos los forms. Con
+          <span class="mono">layout="inline"</span> la etiqueta va a la izquierda y un valor corto a
+          la derecha, para paneles de configuración.
+        </p>
+        <div class="col narrow">
+          <app-field label="Correo" for="sg-field-email">
+            <a fieldAside href="#">Olvidé mi contraseña</a>
+            <app-input id="sg-field-email" type="email" placeholder="analista@aseguradora.com" />
+          </app-field>
+          <app-field
+            label="Teléfono"
+            for="sg-field-phone"
+            error="Revisá el teléfono: parece incompleto."
+          >
+            <app-input id="sg-field-phone" type="tel" value="11 5555" />
+          </app-field>
+          <app-field label="Plazo de resolución" for="sg-field-days" layout="inline">
+            <app-info-tip fieldTip>Días corridos desde la denuncia.</app-info-tip>
+            <app-input class="sg-number" id="sg-field-days" type="number" align="end" value="30" />
+          </app-field>
         </div>
       </section>
 
@@ -1462,6 +1490,9 @@ interface Swatch {
       display: flex;
       gap: var(--space-4);
       flex-wrap: wrap;
+    }
+    .sg-number {
+      width: var(--control-w-number);
     }
     .radius-item {
       display: flex;

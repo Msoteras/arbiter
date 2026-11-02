@@ -2,16 +2,21 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  inject,
   input,
   model,
   output,
   signal,
 } from '@angular/core';
 
+import { FIELD_CONTEXT } from '../field/field.component';
+
 /** Deliberately not a ControlValueAccessor: the app does not use Angular Forms. */
 @Component({
   selector: 'app-input',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  // The id goes on the inner control: left on the host too, a label's `for` would find the host first.
+  host: { '[attr.id]': 'null' },
   template: `
     <div class="input-wrap">
       @if (prefix()) {
@@ -24,6 +29,8 @@ import {
         [class.align-end]="align() === 'end'"
         [attr.inputmode]="inputmode()"
         [id]="resolvedId()"
+        [attr.aria-invalid]="field?.errorId() ? 'true' : null"
+        [attr.aria-describedby]="field?.errorId()"
         [type]="effectiveType()"
         [placeholder]="placeholder()"
         [value]="value()"
@@ -138,6 +145,9 @@ import {
       cursor: default;
       opacity: 0.55;
     }
+    .field[aria-invalid='true'] {
+      border-color: var(--status-danger);
+    }
     .field:focus {
       outline: none;
       border-color: var(--border-focus);
@@ -220,6 +230,7 @@ export class InputComponent {
     () => this.type() === 'number' && this.min() !== null && Number(this.min()) >= 0,
   );
 
+  protected readonly field = inject(FIELD_CONTEXT, { optional: true });
   protected readonly resolvedId = computed(() => this.id() ?? this.autoId);
   protected readonly revealed = signal(false);
   protected readonly showReveal = computed(() => this.revealable() && this.type() === 'password');

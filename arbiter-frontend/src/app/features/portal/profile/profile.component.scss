@@ -109,20 +109,9 @@
   .fields {
     flex-direction: row;
   }
-  .field {
+  app-field {
     flex: 1;
   }
-}
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  min-width: 0;
-}
-.field-error {
-  margin: 0;
-  font-size: var(--font-size-2xs);
-  color: var(--status-danger);
 }
 
 .consent {

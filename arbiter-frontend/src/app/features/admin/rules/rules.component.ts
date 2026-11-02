@@ -51,6 +51,7 @@ import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { IconButtonComponent } from '../../../shared/ui/icon-button/icon-button.component';
 import { CardComponent } from '../../../shared/ui/card/card.component';
 import { EmptyStateComponent } from '../../../shared/ui/empty-state/empty-state.component';
+import { FieldComponent } from '../../../shared/ui/field/field.component';
 import { InputComponent } from '../../../shared/ui/input/input.component';
 import { TextareaComponent } from '../../../shared/ui/textarea/textarea.component';
 import { ModalComponent } from '../../../shared/ui/modal/modal.component';
@@ -106,6 +107,7 @@ type GeneralView =
     IconButtonComponent,
     CardComponent,
     EmptyStateComponent,
+    FieldComponent,
     InputComponent,
     TextareaComponent,
     ModalComponent,
