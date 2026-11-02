@@ -23,7 +23,7 @@
     <ul class="rule-rows">
       <li class="rule-row">
         <div class="rule-text">
-          <label class="t-field-label" for="ant-ventana">¿Cuánto tiempo sigue pesando?</label>
+          <label class="rule-label" for="ant-ventana">¿Cuánto tiempo sigue pesando?</label>
         </div>
         <div class="rule-value">
           <app-months-input
@@ -50,9 +50,7 @@
           (checkedChange)="setBlocksFastTrack($event)"
         />
         <div class="rule-text">
-          <span class="t-field-label" id="ant-ft"
-            >¿Le quita el Fast Track a la denuncia nueva?</span
-          >
+          <span class="rule-label" id="ant-ft">¿Le quita el Fast Track a la denuncia nueva?</span>
         </div>
         @if (!r.blocksFastTrack) {
           <span class="rule-off-note t-note">No lo quita</span>

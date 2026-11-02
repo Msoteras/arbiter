@@ -34,6 +34,12 @@
   flex: 1 1 auto;
   min-width: 0;
 }
+/* Same as an app-field label, as on the rules screen. */
+.rule-label {
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-tertiary);
+}
 .rule-hint {
   margin: var(--space-1) 0 0;
   color: var(--text-secondary);
