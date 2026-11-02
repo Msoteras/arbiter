@@ -177,6 +177,12 @@
   flex: 1 1 auto;
   min-width: 0;
 }
+/* Same as an app-field label: a row reads as one more field of the form, not as a section title. */
+.rule-label {
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-tertiary);
+}
 .rule-value {
   display: flex;
   align-items: center;

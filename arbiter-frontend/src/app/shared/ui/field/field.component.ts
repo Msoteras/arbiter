@@ -21,8 +21,8 @@ export const FIELD_CONTEXT = new InjectionToken<FieldContext>('FIELD_CONTEXT');
  * While `error` is set, an `app-input` or `app-textarea` inside is marked invalid and announces
  * the message.
  *
- * `layout="inline"` puts the label on the left and a short control on the right (an amount, a
- * number of days), so a settings panel stays compact. An `app-info-tip` marked `fieldTip` goes
+ * `layout="inline"` puts a short control (an amount, a number of days) right after its label, on
+ * the same line, so a settings panel stays compact. An `app-info-tip` marked `fieldTip` goes
  * right after the label; an element marked `fieldAside` (e.g. "Olvidé mi contraseña") goes at the
  * right end of the label row. `required` adds the asterisk after the label.
  */
@@ -100,7 +100,8 @@ export const FIELD_CONTEXT = new InjectionToken<FieldContext>('FIELD_CONTEXT');
       color: var(--status-danger);
     }
     .field.inline {
-      grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-columns: auto auto;
+      justify-content: start;
       align-items: center;
       column-gap: var(--space-3);
     }

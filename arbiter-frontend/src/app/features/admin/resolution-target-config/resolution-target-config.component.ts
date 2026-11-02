@@ -126,7 +126,6 @@ import { OnboardingTargetDirective } from '../../../core/onboarding/onboarding-t
     }
     .days {
       margin-top: var(--space-4);
-      max-width: var(--control-w-choice);
     }
     .days app-input {
       width: var(--control-w-number);

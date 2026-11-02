@@ -511,8 +511,8 @@ interface Swatch {
         <h3 class="sg-h3">Field</h3>
         <p class="sg-p">
           Etiqueta, control y error con el mismo espaciado en todos los forms. Con
-          <span class="mono">layout="inline"</span> la etiqueta va a la izquierda y un valor corto a
-          la derecha, para paneles de configuración.
+          <span class="mono">layout="inline"</span> un valor corto va al lado de su etiqueta, en la
+          misma línea, para paneles de configuración.
         </p>
         <div class="col narrow">
           <app-field label="Correo" for="sg-field-email">

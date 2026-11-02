@@ -39,7 +39,7 @@
               (checkedChange)="toggleFullAnalysisOnFastTrack()"
             />
             <div class="rule-text">
-              <span class="t-field-label">Evaluar estos factores también en Fast Track</span>
+              <span class="rule-label">Evaluar estos factores también en Fast Track</span>
             </div>
           </div>
         }
@@ -53,7 +53,7 @@
                 (checkedChange)="toggleFactor(f.id)"
               />
               <div class="rule-text">
-                <span class="t-field-label">{{ f.label }}</span>
+                <span class="rule-label">{{ f.label }}</span>
               </div>
               @if (isFactorActive(f.id)) {
                 <label class="rule-value">

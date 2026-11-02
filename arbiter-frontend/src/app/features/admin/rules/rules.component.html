@@ -129,7 +129,7 @@
                   (checkedChange)="toggleInsurerHardRule('POLICY_IN_FORCE')"
                 />
                 <div class="rule-text">
-                  <span class="t-field-label">Vigencia de la póliza</span>
+                  <span class="rule-label">Vigencia de la póliza</span>
                 </div>
                 @if (!policyInForceRule()?.enabled) {
                   <span class="rule-off-note t-note">No bloquea</span>
@@ -146,7 +146,7 @@
                   (checkedChange)="toggleInsurerHardRule('POLICY_STANDING')"
                 />
                 <div class="rule-text">
-                  <span class="t-field-label">Mora de la póliza</span>
+                  <span class="rule-label">Mora de la póliza</span>
                 </div>
                 @if (policyStandingRule()?.enabled) {
                   <div class="rule-value choice">
@@ -392,7 +392,7 @@
                                       (checkedChange)="toggleHardRule(c.id, rule.ruleType)"
                                     />
                                     <div class="rule-text">
-                                      <span class="t-field-label"
+                                      <span class="rule-label"
                                         >{{ hardRuleLabel(rule.ruleType) }}
                                         @if (rule.ruleType === 'MAX_EVENTS_YEAR') {
                                           <app-info-tip>
@@ -504,7 +504,7 @@
                                     (checkedChange)="toggleDeductPendingInstallments(c)"
                                   />
                                   <div class="rule-text">
-                                    <span class="t-field-label">Descontar las cuotas a vencer</span>
+                                    <span class="rule-label">Descontar las cuotas a vencer</span>
                                   </div>
                                 </li>
                               }
@@ -516,7 +516,7 @@
                                   (checkedChange)="toggleDeductOverdueBalance(c)"
                                 />
                                 <div class="rule-text">
-                                  <span class="t-field-label">Descontar la deuda vencida</span>
+                                  <span class="rule-label">Descontar la deuda vencida</span>
                                 </div>
                               </li>
                             </ul>
@@ -748,7 +748,7 @@
                               (checkedChange)="toggleFtThreshold('minPolicyAgeMonths')"
                             />
                             <div class="rule-text">
-                              <span class="t-field-label">Antigüedad mínima de la póliza</span>
+                              <span class="rule-label">Antigüedad mínima de la póliza</span>
                             </div>
                             @if (ftActive('minPolicyAgeMonths')) {
                               <div class="rule-value">
@@ -771,7 +771,7 @@
                               (checkedChange)="toggleFtThreshold('maxPriorClaims')"
                             />
                             <div class="rule-text">
-                              <span class="t-field-label">Siniestros previos máximos</span>
+                              <span class="rule-label">Siniestros previos máximos</span>
                             </div>
                             @if (ftActive('maxPriorClaims')) {
                               <div class="rule-value">
@@ -794,7 +794,7 @@
                           @if (ftActive('maxPriorClaims')) {
                             <li class="rule-row nested" @accordion>
                               <div class="rule-text">
-                                <span class="t-field-label">Ventana de siniestros previos</span>
+                                <span class="rule-label">Ventana de siniestros previos</span>
                               </div>
                               <div class="rule-value">
                                 <app-months-input
@@ -815,7 +815,7 @@
                               (checkedChange)="toggleFtThreshold('maxClaimedAmountRatio')"
                             />
                             <div class="rule-text">
-                              <span class="t-field-label">Monto reclamado máximo</span>
+                              <span class="rule-label">Monto reclamado máximo</span>
                             </div>
                             @if (ftActive('maxClaimedAmountRatio')) {
                               <div class="rule-value">
@@ -841,7 +841,7 @@
                               (checkedChange)="toggleFtRequiresUpToDate()"
                             />
                             <div class="rule-text">
-                              <span class="t-field-label">Exige póliza al día</span>
+                              <span class="rule-label">Exige póliza al día</span>
                             </div>
                             <span class="rule-off-note t-note">
                               {{ d.fastTrack.requiresUpToDatePolicy ? 'Sí' : 'No se exige' }}
