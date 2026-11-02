@@ -66,7 +66,7 @@ type Variant = 'default' | 'soft' | 'ai';
     }
     .card {
       border: 1px solid var(--border-default);
-      border-radius: var(--radius-card);
+      border-radius: var(--radius-box);
       background: var(--surface);
       padding: var(--space-4);
       box-shadow: var(--shadow-card);
@@ -104,6 +104,9 @@ type Variant = 'default' | 'soft' | 'ai';
       background: transparent;
       padding: 0;
       min-height: 0;
+    }
+    .card:not(.bare) > .card-body {
+      --radius-box: var(--radius-inner);
     }
     .card.flush {
       padding: 0;

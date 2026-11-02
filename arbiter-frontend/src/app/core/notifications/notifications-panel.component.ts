@@ -139,7 +139,7 @@ const NOTIFICATION_TITLES: Record<string, string> = {
     .notif-item {
       padding: var(--space-3);
       border: 1px solid var(--border-subtle);
-      border-radius: var(--radius-card);
+      border-radius: var(--radius-ctl);
       background: var(--surface);
     }
 

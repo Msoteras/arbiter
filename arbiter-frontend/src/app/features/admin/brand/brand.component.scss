@@ -18,7 +18,7 @@
 .preview {
   overflow: hidden;
   border: 1px solid var(--border-default);
-  border-radius: var(--radius-card);
+  border-radius: var(--radius-box);
   background: var(--surface-sunken);
   box-shadow: var(--shadow-card);
 }
@@ -133,7 +133,7 @@
   gap: var(--space-3);
   padding: var(--space-3);
   border: 1px solid var(--border-default);
-  border-radius: var(--radius-card);
+  border-radius: var(--radius-box);
   background: var(--surface);
   transition:
     border-color var(--dur-1) ease,
@@ -200,7 +200,7 @@
   gap: var(--space-1);
   padding: var(--space-5) var(--space-4);
   border: 1px dashed var(--border-strong);
-  border-radius: var(--radius-card);
+  border-radius: var(--radius-box);
   background: var(--surface-sunken);
   font: inherit;
   color: inherit;

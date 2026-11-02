@@ -1934,6 +1934,7 @@ export class StyleguideComponent {
   ];
 
   protected readonly radii: Token[] = [
+    { name: 'inner', v: '--radius-inner' },
     { name: 'ctl', v: '--radius-ctl' },
     { name: 'card', v: '--radius-card' },
     { name: 'modal', v: '--radius-modal' },

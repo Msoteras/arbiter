@@ -144,6 +144,13 @@
   --radius-card: 12px;
   --radius-modal: 14px;
   --radius-pill: 999px;
+  /* A box nested in another one follows its corner: inner radius = outer radius − padding
+     (corner-radii.xyz). A card's padding is larger than its radius, so the rule gives 0;
+     --radius-inner is the floor that keeps the corner soft. */
+  --radius-inner: 4px;
+  /* The radius of a box that can stand alone or nested (stat tile, empty state, a framed
+     section). Cards and modals set it to --radius-inner for their content. */
+  --radius-box: var(--radius-card);
 
   /* ===== Shadows / overlay ===== */
   /* Every card: a contact shadow plus a soft drop, and a light edge on top for the volume. */

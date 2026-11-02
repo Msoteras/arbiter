@@ -42,7 +42,7 @@
   gap: var(--space-1);
   min-width: 0;
   padding: var(--space-4);
-  border-radius: var(--radius-card);
+  border-radius: var(--radius-box);
   background: var(--surface-soft);
 }
 .key-label {
@@ -381,7 +381,7 @@ app-textarea {
   margin: 0;
   padding: 0;
   border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-card);
+  border-radius: var(--radius-box);
   background: var(--surface-soft);
 }
 
