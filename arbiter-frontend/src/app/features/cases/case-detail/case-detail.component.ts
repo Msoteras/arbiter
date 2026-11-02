@@ -121,6 +121,7 @@ import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
 import { ModalComponent } from '../../../shared/ui/modal/modal.component';
 import { SelectComponent, SelectOption } from '../../../shared/ui/select/select.component';
+import { FieldComponent } from '../../../shared/ui/field/field.component';
 import { InputComponent } from '../../../shared/ui/input/input.component';
 import { TextareaComponent } from '../../../shared/ui/textarea/textarea.component';
 import {
@@ -205,6 +206,7 @@ interface BriefAlert {
     BadgeComponent,
     ModalComponent,
     SelectComponent,
+    FieldComponent,
     InputComponent,
     TextareaComponent,
     MenuButtonComponent,

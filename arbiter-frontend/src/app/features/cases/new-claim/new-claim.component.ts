@@ -41,6 +41,7 @@ import { InsuredSessionService } from '../../../core/auth/insured-session.servic
 import { ArgentinaLocationsService } from '../../../core/services/argentina-locations.service';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { CardComponent } from '../../../shared/ui/card/card.component';
+import { FieldComponent } from '../../../shared/ui/field/field.component';
 import { InputComponent } from '../../../shared/ui/input/input.component';
 import { TextareaComponent } from '../../../shared/ui/textarea/textarea.component';
 import { SelectComponent, SelectOption } from '../../../shared/ui/select/select.component';
@@ -139,6 +140,7 @@ type EligibilityState =
     RouterLink,
     ButtonComponent,
     CardComponent,
+    FieldComponent,
     InputComponent,
     TextareaComponent,
     SelectComponent,

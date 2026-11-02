@@ -143,7 +143,7 @@ import { InputComponent } from '../../../shared/ui/input/input.component';
       gap: var(--space-2);
       padding: var(--space-6) var(--space-4);
       border: 1px dashed var(--border-strong);
-      border-radius: var(--radius-card);
+      border-radius: var(--radius-box);
       background: var(--surface-soft);
       text-align: center;
     }

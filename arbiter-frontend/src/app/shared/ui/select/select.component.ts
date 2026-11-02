@@ -48,6 +48,8 @@ function normalize(text: string): string {
 @Component({
   selector: 'app-select',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  // The id goes on the inner control: left on the host too, a label's `for` would find the host first.
+  host: { '[attr.id]': 'null' },
   template: `
     <div class="select" [class.open]="open()">
       @if (searchable()) {
@@ -266,7 +268,7 @@ function normalize(text: string): string {
     }
     .option {
       padding: var(--space-2) var(--space-3);
-      border-radius: var(--radius-ctl);
+      border-radius: var(--radius-inner);
       font-size: var(--font-size-md);
       color: var(--text-secondary);
       cursor: pointer;

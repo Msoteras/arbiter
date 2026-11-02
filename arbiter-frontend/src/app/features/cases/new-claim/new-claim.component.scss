@@ -133,12 +133,7 @@
   color: var(--accent-fg);
 }
 
-.field-label {
-  display: block;
-  font-size: var(--font-size-body);
-  font-weight: var(--font-weight-medium);
-  color: var(--text-tertiary);
-  margin-bottom: var(--space-1);
+app-field {
   margin-top: var(--space-4);
 }
 

@@ -129,7 +129,7 @@
                   (checkedChange)="toggleInsurerHardRule('POLICY_IN_FORCE')"
                 />
                 <div class="rule-text">
-                  <span class="t-field-label">Vigencia de la póliza</span>
+                  <span class="rule-label">Vigencia de la póliza</span>
                 </div>
                 @if (!policyInForceRule()?.enabled) {
                   <span class="rule-off-note t-note">No bloquea</span>
@@ -146,7 +146,7 @@
                   (checkedChange)="toggleInsurerHardRule('POLICY_STANDING')"
                 />
                 <div class="rule-text">
-                  <span class="t-field-label">Mora de la póliza</span>
+                  <span class="rule-label">Mora de la póliza</span>
                 </div>
                 @if (policyStandingRule()?.enabled) {
                   <div class="rule-value choice">
@@ -306,10 +306,18 @@
                         <div class="cov-body" @accordion>
                           <span class="t-section-label">Datos de la cobertura</span>
                           <div class="cov-fields">
-                            <label class="fieldset grow">
-                              <span class="t-field-label">Nombre</span>
+                            <app-field
+                              label="Nombre"
+                              [for]="'cov-' + c.id + '-name'"
+                              [error]="
+                                coverageNameUnmatched(c)
+                                  ? 'Ninguna póliza de este ramo tiene esta cobertura.'
+                                  : null
+                              "
+                            >
                               <!-- Picked from the insurer's policies: a typed name rarely matches one. -->
                               <app-select
+                                [id]="'cov-' + c.id + '-name'"
                                 [options]="coverageNameOptions(c)"
                                 [value]="c.name"
                                 [disabled]="
@@ -325,30 +333,23 @@
                                 "
                                 (valueChange)="setCoverageField(c.id, { name: $event })"
                               />
-                              @if (coverageNameUnmatched(c)) {
-                                <span class="field-error" role="alert">
-                                  Ninguna póliza de este ramo tiene esta cobertura.
-                                </span>
-                              }
-                            </label>
-                            <label class="fieldset">
-                              <span class="t-field-label">Cláusula</span>
+                            </app-field>
+                            <app-field label="Cláusula" [for]="'cov-' + c.id + '-clause'">
                               <app-input
+                                [id]="'cov-' + c.id + '-clause'"
                                 [value]="c.clause"
                                 [disabled]="readOnly()"
                                 (valueChange)="setCoverageField(c.id, { clause: $event })"
                                 [placeholder]="readOnly() ? '' : 'ej. 340'"
                               />
-                            </label>
-                            <label class="fieldset">
-                              <span class="t-field-label">
-                                Franquicia
-                                <app-info-tip>
-                                  Si la póliza trae su propia franquicia, se liquida con esa.
-                                </app-info-tip>
-                              </span>
+                            </app-field>
+                            <app-field label="Franquicia" [for]="'cov-' + c.id + '-deductible'">
+                              <app-info-tip fieldTip>
+                                Si la póliza trae su propia franquicia, se liquida con esa.
+                              </app-info-tip>
                               <span class="with-unit">
                                 <app-input
+                                  [id]="'cov-' + c.id + '-deductible'"
                                   type="number"
                                   [min]="0"
                                   [value]="coverageDeductiblePct(c)"
@@ -357,18 +358,18 @@
                                 />
                                 <span class="t-note">%</span>
                               </span>
-                            </label>
+                            </app-field>
                           </div>
-                          <label class="fieldset">
-                            <span class="t-field-label">Descripción</span>
+                          <app-field label="Descripción" [for]="'cov-' + c.id + '-description'">
                             <app-textarea
+                              [id]="'cov-' + c.id + '-description'"
                               [rows]="2"
                               [value]="c.description"
                               [disabled]="readOnly()"
                               (valueChange)="setCoverageField(c.id, { description: $event })"
                               [placeholder]="readOnly() ? '' : 'Qué cubre, en una o dos frases'"
                             />
-                          </label>
+                          </app-field>
 
                           <div class="cov-section">
                             <span class="t-section-label">Reglas que evalúa el motor</span>
@@ -391,7 +392,7 @@
                                       (checkedChange)="toggleHardRule(c.id, rule.ruleType)"
                                     />
                                     <div class="rule-text">
-                                      <span class="t-field-label"
+                                      <span class="rule-label"
                                         >{{ hardRuleLabel(rule.ruleType) }}
                                         @if (rule.ruleType === 'MAX_EVENTS_YEAR') {
                                           <app-info-tip>
@@ -434,46 +435,53 @@
                           <div class="cov-section">
                             <span class="t-section-label">Determinación del monto a pagar</span>
                             <div class="cov-fields wide">
-                              <label class="fieldset grow">
-                                <span class="t-field-label">Cómo se liquida</span>
+                              <app-field label="Cómo se liquida" [for]="'cov-' + c.id + '-formula'">
                                 <app-select
+                                  [id]="'cov-' + c.id + '-formula'"
                                   [options]="settlementFormulaOptions"
                                   [value]="c.settlementFormula"
                                   [disabled]="readOnly()"
                                   (valueChange)="setCoverageSettlementFormula(c.id, $event)"
                                 />
-                              </label>
+                              </app-field>
                               <!-- For repairs the ceiling is the quote: no basis to pick. -->
                               @if (showsSettlementBasis(c)) {
-                                <label class="fieldset grow">
-                                  <span class="t-field-label">Techo indemnizable</span>
+                                <app-field
+                                  label="Techo indemnizable"
+                                  [for]="'cov-' + c.id + '-basis'"
+                                >
                                   <app-select
+                                    [id]="'cov-' + c.id + '-basis'"
                                     [options]="settlementBasisOptions"
                                     [value]="c.settlementBasis"
                                     [disabled]="readOnly()"
                                     (valueChange)="setCoverageSettlementBasis(c.id, $event)"
                                   />
-                                </label>
+                                </app-field>
                               }
-                              <label class="fieldset grow">
-                                <span class="t-field-label">Franquicia sobre</span>
+                              <app-field
+                                label="Franquicia sobre"
+                                [for]="'cov-' + c.id + '-deductible-basis'"
+                              >
                                 <app-select
+                                  [id]="'cov-' + c.id + '-deductible-basis'"
                                   [options]="deductibleBasisOptions"
                                   [value]="c.deductibleBasis"
                                   [disabled]="readOnly()"
                                   (valueChange)="setCoverageDeductibleBasis(c.id, $event)"
                                 />
-                              </label>
-                              <label class="fieldset">
-                                <span class="t-field-label"
-                                  >Pago desde el 2.º siniestro del año
-                                  <app-info-tip>
-                                    Cuenta los siniestros liquidados en esta póliza, en el año de
-                                    vigencia.
-                                  </app-info-tip>
-                                </span>
+                              </app-field>
+                              <app-field
+                                label="Pago desde el 2.º siniestro del año"
+                                [for]="'cov-' + c.id + '-second-event'"
+                              >
+                                <app-info-tip fieldTip>
+                                  Cuenta los siniestros liquidados en esta póliza, en el año de
+                                  vigencia.
+                                </app-info-tip>
                                 <span class="with-unit">
                                   <app-input
+                                    [id]="'cov-' + c.id + '-second-event'"
                                     type="number"
                                     [min]="0"
                                     max="100"
@@ -484,7 +492,7 @@
                                   />
                                   <span class="t-note">%</span>
                                 </span>
-                              </label>
+                              </app-field>
                             </div>
                             <ul class="rule-rows">
                               @if (showsSettlementBasis(c)) {
@@ -496,7 +504,7 @@
                                     (checkedChange)="toggleDeductPendingInstallments(c)"
                                   />
                                   <div class="rule-text">
-                                    <span class="t-field-label">Descontar las cuotas a vencer</span>
+                                    <span class="rule-label">Descontar las cuotas a vencer</span>
                                   </div>
                                 </li>
                               }
@@ -508,7 +516,7 @@
                                   (checkedChange)="toggleDeductOverdueBalance(c)"
                                 />
                                 <div class="rule-text">
-                                  <span class="t-field-label">Descontar la deuda vencida</span>
+                                  <span class="rule-label">Descontar la deuda vencida</span>
                                 </div>
                               </li>
                             </ul>
@@ -684,15 +692,15 @@
                      switching would drop them, or worse, carry them over to another coverage. -->
                   @if (ftCoverages().length > 0) {
                     <div class="ft-coverage">
-                      <label class="fieldset">
-                        <span class="t-field-label">Cobertura</span>
+                      <app-field label="Cobertura" for="ft-coverage">
                         <app-select
+                          id="ft-coverage"
                           [options]="ftCoverageOptions()"
                           [value]="ftCoverageValue()"
                           [disabled]="ftDirty() || ftSaving() || ftLoading()"
                           (valueChange)="selectFtCoverage($event)"
                         />
-                      </label>
+                      </app-field>
                       @if (ftDirty()) {
                         <p class="section-hint">
                           Guardá o descartá los cambios para pasar a otra cobertura.
@@ -740,7 +748,7 @@
                               (checkedChange)="toggleFtThreshold('minPolicyAgeMonths')"
                             />
                             <div class="rule-text">
-                              <span class="t-field-label">Antigüedad mínima de la póliza</span>
+                              <span class="rule-label">Antigüedad mínima de la póliza</span>
                             </div>
                             @if (ftActive('minPolicyAgeMonths')) {
                               <div class="rule-value">
@@ -763,7 +771,7 @@
                               (checkedChange)="toggleFtThreshold('maxPriorClaims')"
                             />
                             <div class="rule-text">
-                              <span class="t-field-label">Siniestros previos máximos</span>
+                              <span class="rule-label">Siniestros previos máximos</span>
                             </div>
                             @if (ftActive('maxPriorClaims')) {
                               <div class="rule-value">
@@ -786,7 +794,7 @@
                           @if (ftActive('maxPriorClaims')) {
                             <li class="rule-row nested" @accordion>
                               <div class="rule-text">
-                                <span class="t-field-label">Ventana de siniestros previos</span>
+                                <span class="rule-label">Ventana de siniestros previos</span>
                               </div>
                               <div class="rule-value">
                                 <app-months-input
@@ -807,7 +815,7 @@
                               (checkedChange)="toggleFtThreshold('maxClaimedAmountRatio')"
                             />
                             <div class="rule-text">
-                              <span class="t-field-label">Monto reclamado máximo</span>
+                              <span class="rule-label">Monto reclamado máximo</span>
                             </div>
                             @if (ftActive('maxClaimedAmountRatio')) {
                               <div class="rule-value">
@@ -833,7 +841,7 @@
                               (checkedChange)="toggleFtRequiresUpToDate()"
                             />
                             <div class="rule-text">
-                              <span class="t-field-label">Exige póliza al día</span>
+                              <span class="rule-label">Exige póliza al día</span>
                             </div>
                             <span class="rule-off-note t-note">
                               {{ d.fastTrack.requiresUpToDatePolicy ? 'Sí' : 'No se exige' }}

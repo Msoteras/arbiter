@@ -214,14 +214,6 @@
 }
 
 /* ───────── Coverages ───────── */
-.fieldset {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-}
-.fieldset.grow {
-  flex: 1 1 auto;
-}
 /* ───────── Coverages: accordion ───────── */
 .cov-card {
   margin-bottom: var(--space-3);

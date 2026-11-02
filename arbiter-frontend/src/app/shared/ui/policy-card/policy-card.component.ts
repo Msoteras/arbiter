@@ -108,7 +108,7 @@ import { BadgeComponent } from '../badge/badge.component';
       padding: var(--space-3) var(--space-4);
       border: 1px solid var(--border-default);
       border-left: 3px solid var(--accent);
-      border-radius: var(--radius-card);
+      border-radius: var(--radius-box);
       background: var(--surface);
     }
 

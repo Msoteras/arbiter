@@ -21,6 +21,7 @@ import {
 } from '../../../core/models/profile';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { CheckboxComponent } from '../../../shared/ui/checkbox/checkbox.component';
+import { FieldComponent } from '../../../shared/ui/field/field.component';
 import { InputComponent } from '../../../shared/ui/input/input.component';
 import { InfoTipComponent } from '../../../shared/ui/info-tip/info-tip.component';
 import { LoadingComponent } from '../../../shared/ui/loading/loading.component';
@@ -44,6 +45,7 @@ type PoliciesState =
     ButtonComponent,
     CheckboxComponent,
     InfoTipComponent,
+    FieldComponent,
     InputComponent,
     LoadingComponent,
     LogoComponent,

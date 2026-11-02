@@ -7,12 +7,13 @@ import { AuthService } from '../../../core/auth/auth.service';
 import { homeRouteFor } from '../../../core/models/user-role';
 import { formatTime } from '../../../core/util/datetime';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
+import { FieldComponent } from '../../../shared/ui/field/field.component';
 import { InputComponent } from '../../../shared/ui/input/input.component';
 import { LogoComponent } from '../../../shared/ui/logo/logo.component';
 
 @Component({
   selector: 'app-login',
-  imports: [ButtonComponent, InputComponent, LogoComponent, RouterLink],
+  imports: [ButtonComponent, FieldComponent, InputComponent, LogoComponent, RouterLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './login.component.html',
   styleUrl: './login.component.scss',
