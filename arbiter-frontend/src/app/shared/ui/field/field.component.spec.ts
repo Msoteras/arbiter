@@ -51,6 +51,6 @@ describe('FieldComponent', () => {
   it('names a field without a control id as a group', () => {
     const group = el().querySelector('[role="group"]') as HTMLElement;
     const name = el().querySelector('#' + group.getAttribute('aria-labelledby'));
-    expect(name?.textContent).toBe('Ramos');
+    expect(name?.textContent?.trim()).toBe('Ramos');
   });
 });

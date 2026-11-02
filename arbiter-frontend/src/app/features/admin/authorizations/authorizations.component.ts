@@ -16,6 +16,7 @@ import { EmptyStateComponent } from '../../../shared/ui/empty-state/empty-state.
 import { SkeletonComponent } from '../../../shared/ui/skeleton/skeleton.component';
 import { ModalComponent } from '../../../shared/ui/modal/modal.component';
 import { TableComponent } from '../../../shared/ui/table/table.component';
+import { FieldComponent } from '../../../shared/ui/field/field.component';
 import { TextareaComponent } from '../../../shared/ui/textarea/textarea.component';
 import { fadeStagger, staggerReveal } from '../../../shared/animations';
 import { StatusTone } from '../../../core/models/status-tone';
@@ -40,6 +41,7 @@ type Tab = 'pending' | 'authorized';
     SkeletonComponent,
     ModalComponent,
     TableComponent,
+    FieldComponent,
     TextareaComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,

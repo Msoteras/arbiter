@@ -107,7 +107,7 @@
             }
           }
 
-          <app-field label="¿Qué te pasó? *">
+          <app-field label="¿Qué te pasó?" [required]="true">
             <!-- Fixed slot: the loader takes the row the chips will fill, so nothing below moves. -->
             <div class="claim-types-slot">
               @if (claimTypesLoading()) {
@@ -149,7 +149,7 @@
         <section class="step-content">
           <h2 class="step-title">Contanos los detalles</h2>
 
-          <app-field label="Bien asegurado *" for="claim-item">
+          <app-field label="Bien asegurado" [required]="true" for="claim-item">
             <app-input
               id="claim-item"
               placeholder="Indicá el bien afectado"
@@ -159,7 +159,7 @@
             />
           </app-field>
 
-          <app-field label="¿Cuándo pasó? *">
+          <app-field label="¿Cuándo pasó?" [required]="true">
             <div class="datetime-grid">
               <app-date-picker
                 ariaLabel="Fecha del hecho"
@@ -216,7 +216,7 @@
           }
 
           @if (requiresPoliceReport() && !policyBlocked() && policeReportFiled()) {
-            <app-field label="¿Cuándo la hiciste? *">
+            <app-field label="¿Cuándo la hiciste?" [required]="true">
               <div class="datetime-grid">
                 <app-date-picker
                   ariaLabel="Fecha de la denuncia policial"
@@ -238,7 +238,7 @@
           <!-- Hidden on a hard policy block. Deliberately `policyBlocked()`, not `eligibilityError()`:
                a date inconsistency is fixed in the fields above and must not collapse the form. -->
           @if (!policyBlocked()) {
-            <app-field label="¿Dónde pasó? *">
+            <app-field label="¿Dónde pasó?" [required]="true">
               <div class="location-fields">
                 <!-- Closed cascading catalog, not free text: province and locality are stored in
                      their own columns for grouping. -->
@@ -287,7 +287,7 @@
               />
             </app-field>
 
-            <app-field label="Descripción del hecho *" for="claim-description">
+            <app-field label="Descripción del hecho" [required]="true" for="claim-description">
               <app-textarea
                 id="claim-description"
                 [rows]="5"
@@ -296,7 +296,7 @@
               />
             </app-field>
 
-            <app-field label="Datos de contacto *">
+            <app-field label="Datos de contacto" [required]="true">
               <div class="location-grid">
                 <app-input
                   type="email"

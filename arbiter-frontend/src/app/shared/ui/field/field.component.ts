@@ -24,7 +24,7 @@ export const FIELD_CONTEXT = new InjectionToken<FieldContext>('FIELD_CONTEXT');
  * `layout="inline"` puts the label on the left and a short control on the right (an amount, a
  * number of days), so a settings panel stays compact. An `app-info-tip` marked `fieldTip` goes
  * right after the label; an element marked `fieldAside` (e.g. "Olvidé mi contraseña") goes at the
- * right end of the label row.
+ * right end of the label row. `required` adds the asterisk after the label.
  */
 @Component({
   selector: 'app-field',
@@ -40,9 +40,19 @@ export const FIELD_CONTEXT = new InjectionToken<FieldContext>('FIELD_CONTEXT');
     >
       <div class="label-row">
         @if (for()) {
-          <label class="label" [for]="for()">{{ label() }}</label>
+          <label class="label" [for]="for()"
+            >{{ label() }}
+            @if (required()) {
+              <span class="required" aria-hidden="true">*</span>
+            }
+          </label>
         } @else {
-          <span class="label" [id]="labelId">{{ label() }}</span>
+          <span class="label" [id]="labelId"
+            >{{ label() }}
+            @if (required()) {
+              <span class="required" aria-hidden="true">*</span>
+            }
+          </span>
         }
         <ng-content select="[fieldTip]" />
         <span class="aside"><ng-content select="[fieldAside]" /></span>
@@ -73,6 +83,9 @@ export const FIELD_CONTEXT = new InjectionToken<FieldContext>('FIELD_CONTEXT');
       font-size: var(--font-size-body);
       font-weight: var(--font-weight-medium);
       color: var(--text-tertiary);
+    }
+    .required {
+      color: var(--status-danger);
     }
     .aside {
       margin-left: auto;
@@ -106,6 +119,8 @@ export class FieldComponent implements FieldContext {
   readonly for = input<string | null>(null);
   readonly error = input<string | null>(null);
   readonly layout = input<'stacked' | 'inline'>('stacked');
+  /** Only the asterisk: the control itself says whether it may be left empty. */
+  readonly required = input(false);
 
   readonly errorId = computed(() => (this.error() ? (this.for() ?? this.autoId) + '-error' : null));
 

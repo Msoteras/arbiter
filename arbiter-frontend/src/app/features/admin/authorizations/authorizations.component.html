@@ -211,11 +211,14 @@
     El expediente no se mueve —nunca salió de la revisión del analista— y no queda ninguna decisión
     registrada. Va a poder determinar el monto otra vez.
   </p>
-  <label class="return-field">
-    <span class="t-field-label">Motivo <span class="required" aria-hidden="true">*</span></span>
-    <app-textarea [rows]="3" placeholder="Qué tiene que corregir…" [(value)]="returnReason" />
-    <span class="return-hint">Obligatorio</span>
-  </label>
+  <app-field class="return-field" label="Motivo" for="return-reason" [required]="true">
+    <app-textarea
+      id="return-reason"
+      [rows]="3"
+      placeholder="Qué tiene que corregir…"
+      [(value)]="returnReason"
+    />
+  </app-field>
   <ng-container modalActions>
     <app-button variant="secondary" (click)="cancelReturn()">Cancelar</app-button>
     <app-button
