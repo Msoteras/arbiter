@@ -44,17 +44,17 @@ export interface ChipOption {
     .chip {
       font: inherit;
       font-size: var(--font-size-md);
-      padding: var(--space-2) var(--space-5);
+      padding: var(--space-2) var(--chip-pad-x);
       border: 1px solid var(--border-control);
-      border-radius: var(--radius-pill);
+      border-radius: var(--chip-radius);
       background: var(--surface);
-      color: var(--text-secondary);
+      color: var(--chip-fg);
       cursor: pointer;
       transition: all 0.15s;
     }
     .chip.sm {
       font-size: var(--font-size-sm);
-      padding: var(--space-2) var(--space-3);
+      padding: var(--space-2) var(--chip-pad-x-sm);
     }
     @include media.touch {
       .chip,
@@ -66,13 +66,14 @@ export interface ChipOption {
       border-color: var(--action-secondary-border-hover);
     }
     .chip:focus-visible {
-      outline: 2px solid var(--focus-ring);
-      outline-offset: 2px;
+      outline: none;
+      border-color: var(--border-focus);
+      box-shadow: var(--focus-ring);
     }
     .chip.active {
-      background: var(--selected-bg);
-      border-color: var(--selected-border);
-      color: var(--accent-fg);
+      background: var(--chip-active-bg);
+      border-color: var(--chip-active-border);
+      color: var(--chip-active-fg);
       font-weight: var(--font-weight-medium);
     }
     .chip:disabled {

@@ -179,8 +179,8 @@ type Variant = 'default' | 'soft' | 'ai';
       margin: 0;
       font-size: var(--font-size-xs);
       font-weight: var(--font-weight-medium);
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
+      text-transform: var(--label-case);
+      letter-spacing: calc(0.05em * var(--label-tracking));
       color: var(--text-tertiary);
     }
     .card-title.md,

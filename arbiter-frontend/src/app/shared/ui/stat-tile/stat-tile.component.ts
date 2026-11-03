@@ -63,8 +63,8 @@ type Tone = 'default' | 'accent' | 'danger';
       gap: var(--space-1);
       font-size: var(--font-size-2xs);
       font-weight: var(--font-weight-medium);
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
+      text-transform: var(--label-case);
+      letter-spacing: calc(0.08em * var(--label-tracking));
       color: var(--text-muted);
     }
     .stat-value {

@@ -151,8 +151,8 @@ type RangeEnd = 'from' | 'to';
     .end-label {
       font-size: var(--font-size-2xs);
       font-weight: var(--font-weight-medium);
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
+      text-transform: var(--label-case);
+      letter-spacing: calc(0.06em * var(--label-tracking));
       color: var(--text-muted);
     }
     .end.active .end-label {

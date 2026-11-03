@@ -55,6 +55,7 @@
   --c-bg-head: #faf9f6;
 
   /* ===== Spacing (4px base) ===== */
+  --space-0-5: 2px; /* compact chips only */
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -67,6 +68,12 @@
      Arimo is self-hosted in styles.scss; Helvetica/Arial are metric-compatible fallbacks. */
   --font-sans: 'Arimo', 'Helvetica Neue', Helvetica, Arial, sans-serif;
   --font-mono: 'Roboto Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+
+  /* ===== Typography: labels =====
+     Uppercase labels (section labels, table heads). The tracking multiplies each label's own
+     letter-spacing, so a theme without uppercase drops it too. */
+  --label-case: uppercase;
+  --label-tracking: 1;
 
   /* ===== Typography: scale ===== */
   --font-size-2xs: 10px; /* uppercase labels */
@@ -140,6 +147,7 @@
   --engine-shimmer: 1.9s;
 
   /* ===== Radii ===== */
+  --radius-chip: 6px; /* square-ish badges */
   --radius-ctl: 8px; /* controls: buttons, inputs */
   --radius-card: 12px;
   --radius-modal: 14px;
@@ -183,4 +191,49 @@
   --dur-3: 340ms; /* surface entrance (card/modal) */
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* Neutral palette in the style of shadcn/ui (zinc): cool greys, high text contrast and flat
+   shadows. Only the styleguide carries `.theme-zinc`; the app keeps the warm "paper" palette.
+   _semantic.scss maps its roles again under the same class, so they resolve against these. */
+.theme-zinc {
+  --c-ink: #09090b;
+  --c-ink-strong: #000000;
+  --c-ink-2: #27272a;
+  --c-ink-3: #3f3f46;
+  --c-ink-4: #52525b;
+  --c-ink-raised: #27272a;
+  --c-ink-raised-2: #3f3f46;
+  --c-ink-hair: #27272a;
+  --c-muted: #52525b; /* 7.7:1 on white */
+  --c-muted-2: #a1a1aa;
+  --c-muted-3: #d4d4d8;
+
+  --c-divider: #f4f4f5;
+  --c-border: #e4e4e7;
+  --c-border-2: #e4e4e7;
+  --c-border-3: #d4d4d8;
+  --c-border-strong: #a1a1aa;
+
+  --c-bg: #ffffff;
+  --c-bg-soft: #fafafa;
+  --c-bg-soft-2: #f4f4f5;
+  --c-bg-head: #fafafa;
+
+  --shadow-card: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-card-hover: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
+  --shadow-pop: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+  --shadow-modal: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+  --gloss: none;
+  --shadow-btn: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-btn-hover: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-btn-solid: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-btn-solid-hover: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-pressed: none;
+  --shadow-field: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-knob: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
+  --overlay-backdrop: rgba(0, 0, 0, 0.5);
+
+  --label-case: none;
+  --label-tracking: 0;
 }

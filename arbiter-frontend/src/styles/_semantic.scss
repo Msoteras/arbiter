@@ -1,6 +1,9 @@
 /* Layer 2: semantic roles mapped onto the primitives. Components consume only these, so theming
-   (dark mode, per-insurer branding) happens here without touching components. */
-:root {
+   (dark mode, per-insurer branding) happens here without touching components.
+   Repeated under `.theme-zinc`: a role is resolved where it is declared, so a scope that redefines
+   the primitives has to map the roles again to pick them up. */
+:root,
+.theme-zinc {
   /* ===== Text ===== */
   --text-primary: var(--c-ink);
   --text-secondary: var(--c-ink-2);
@@ -99,4 +102,50 @@
   /* Tinted surface + border pair for cards that communicate risk. */
   --surface-danger-soft: var(--accent-red-soft);
   --border-danger-soft: var(--accent-red-soft-border);
+
+  /* ===== Badge ===== */
+  --badge-radius: var(--radius-pill);
+  --badge-pad-y: var(--space-1);
+  --badge-pad-x: var(--space-3);
+  --badge-pad-x-dot: var(--space-3);
+  --badge-weight: var(--font-weight-regular);
+  --badge-bg: var(--surface-head);
+  --badge-border: var(--border-control);
+  --badge-fg: var(--text-secondary);
+  --badge-strong-bg: var(--surface-head);
+  --badge-strong-border: var(--text-tertiary);
+
+  /* ===== Chip group ===== */
+  --chip-radius: var(--radius-pill);
+  --chip-pad-x: var(--space-5);
+  --chip-pad-x-sm: var(--space-3);
+  --chip-fg: var(--text-secondary);
+  --chip-active-bg: var(--selected-bg);
+  --chip-active-border: var(--selected-border);
+  --chip-active-fg: var(--accent-fg);
+}
+
+/* Badges in the style of shadcn/ui: square-ish, compact, medium weight. `solid` is its outline
+   badge and `strong` its secondary one, filled without a visible border. */
+.theme-zinc {
+  --badge-radius: var(--radius-chip);
+  --badge-pad-y: var(--space-1);
+  --badge-pad-x: calc(var(--space-2) + var(--space-0-5));
+  --badge-pad-x-dot: calc(var(--space-1) + var(--space-0-5));
+  --badge-weight: var(--font-weight-medium);
+  --badge-bg: var(--surface);
+  --badge-border: var(--border-default);
+  --badge-fg: var(--text-primary);
+  --badge-strong-bg: var(--surface-sunken);
+  --badge-strong-border: var(--surface-sunken);
+
+  /* Chip group as shadcn's outline toggle group: square-ish, compact, and the active option
+     filled in grey with a darker border instead of the brand tint. */
+  --chip-radius: var(--radius-chip);
+  --chip-pad-x: var(--space-3);
+  --chip-pad-x-sm: var(--space-2);
+  --chip-fg: var(--text-secondary);
+  --chip-active-bg: var(--surface-sunken);
+  --chip-active-border: var(--border-strong);
+  --chip-active-fg: var(--text-primary);
 }

@@ -81,8 +81,8 @@ import {
     }
     :host ::ng-deep .table thead th {
       font-size: var(--font-size-xs);
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
+      text-transform: var(--label-case);
+      letter-spacing: calc(0.04em * var(--label-tracking));
       color: var(--text-muted);
       background: var(--surface-head);
       border-bottom: 1px solid var(--border-default);
