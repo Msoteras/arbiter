@@ -4,6 +4,8 @@ import { Observable, of } from 'rxjs';
 import {
   DocumentTypeDef,
   NON_AGENDA_DOCUMENT_TYPES,
+  ReasonSegment,
+  documentMentions,
   withDocumentLabels,
 } from '../models/business-rules';
 import { DocumentTypeService } from '../services/document-type.service';
@@ -27,7 +29,7 @@ export const NAMED_DOCUMENT_TYPES_FIXTURE: readonly DocumentTypeDef[] = [
 /** Answers from the fixture without HTTP; `forBranch` gives every branch the whole catalog. */
 export class DocumentTypeServiceStub implements Pick<
   DocumentTypeService,
-  'all' | 'forBranch' | 'label' | 'withLabels' | 'definitions'
+  'all' | 'forBranch' | 'label' | 'withLabels' | 'mentions' | 'definitions'
 > {
   all(): Observable<readonly DocumentTypeDef[]> {
     return of(DOCUMENT_TYPES_FIXTURE);
@@ -43,6 +45,10 @@ export class DocumentTypeServiceStub implements Pick<
 
   withLabels(text: string): string {
     return withDocumentLabels(text, NAMED_DOCUMENT_TYPES_FIXTURE);
+  }
+
+  mentions(text: string, available: ReadonlySet<string>): ReasonSegment[] {
+    return documentMentions(text, NAMED_DOCUMENT_TYPES_FIXTURE, available);
   }
 
   definitions(): readonly DocumentTypeDef[] {

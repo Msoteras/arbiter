@@ -24,7 +24,7 @@ describe('CaseDocumentsComponent · provider reports', () => {
     description: null,
   });
 
-  async function mount(showMissing: boolean): Promise<string> {
+  async function mount(showMissing: boolean, focusType: string | null = null): Promise<string> {
     await TestBed.configureTestingModule({
       imports: [CaseDocumentsComponent],
       providers: [
@@ -51,6 +51,7 @@ describe('CaseDocumentsComponent · provider reports', () => {
     fixture = TestBed.createComponent(CaseDocumentsComponent);
     fixture.componentRef.setInput('caseId', 37);
     fixture.componentRef.setInput('showMissing', showMissing);
+    fixture.componentRef.setInput('focusType', focusType);
     fixture.detectChanges();
     await fixture.whenStable();
     fixture.detectChanges();
@@ -74,5 +75,21 @@ describe('CaseDocumentsComponent · provider reports', () => {
     expect(text).toContain('Otros documentos del expediente');
     expect(text).toContain('Informe pericial');
     expect(text).toContain('Respuesta del servicio técnico');
+  });
+
+  /** A link in the model's reasons opens that document, not the first one. */
+  const selectedId = (): number | null =>
+    (fixture.componentInstance as unknown as { selectedId: () => number | null }).selectedId();
+
+  it('opens the focused document', async () => {
+    await mount(true, 'expert_report');
+
+    expect(selectedId()).toBe(2);
+  });
+
+  it('opens the first document when none is focused', async () => {
+    await mount(true);
+
+    expect(selectedId()).toBe(1);
   });
 });

@@ -97,6 +97,8 @@ export class CaseDocumentsComponent {
   /** With both branch and claim cause the checklist uses the configured agenda; otherwise the full catalog. */
   readonly branch = input<string | null>(null);
   readonly claimCause = input<string | null>(null);
+  /** Document type to open instead of the first one (a link from the model's reasons). */
+  readonly focusType = input<string | null>(null);
 
   private readonly requiredTypes = toSignal(
     toObservable(computed(() => ({ branch: this.branch(), claimCause: this.claimCause() }))).pipe(
@@ -219,16 +221,19 @@ export class CaseDocumentsComponent {
   });
 
   constructor() {
-    // Opens the first document, also when the selected one disappeared after a re-upload.
+    // Opens the focused document or the first one, also when the selected one disappeared after a
+    // re-upload.
     effect(() => {
       const docs = this.documents();
+      const focused = docs.find((d) => d.type === this.focusType());
       const current = untracked(() => this.preview());
       if (docs.length === 0) {
         if (current.status !== 'empty') this.clearPreview();
         return;
       }
       const stillThere = current.status !== 'empty' && docs.some((d) => d.id === current.doc.id);
-      if (!stillThere) this.select(docs[0]);
+      if (focused) this.select(focused);
+      else if (!stillThere) this.select(docs[0]);
     });
 
     this.destroyRef.onDestroy(() => this.revokeCurrent());

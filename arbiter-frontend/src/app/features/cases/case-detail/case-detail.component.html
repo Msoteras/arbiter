@@ -771,6 +771,43 @@
         @case ('analysis') {
           <!-- Without reasons (a rules outcome) the score takes the whole row. -->
           <div class="analysis-grid" [class.single]="analysisReasons().length === 0">
+            @if (analysisReasons().length > 0) {
+              <app-card heading="Razones">
+                <span cardAside class="t-note"
+                  >{{ analysisReasons().length }}
+                  {{ analysisReasons().length === 1 ? 'motivo' : 'motivos' }}</span
+                >
+                <ol class="reason-list">
+                  @for (segments of reasonSegments(); track $index) {
+                    <li class="reason-item">
+                      <span class="reason-num mono" aria-hidden="true">{{
+                        ($index + 1).toString().padStart(2, '0')
+                      }}</span>
+                      <!-- A document the model names opens in «Documentación», to check it there. -->
+                      <span class="t-body">
+                        @for (s of segments; track $index) {
+                          @if (s.code) {
+                            <button
+                              type="button"
+                              class="brief-link"
+                              [attr.aria-label]="'Ver ' + s.text"
+                              (click)="openDocument(s.code)"
+                            >
+                              {{ s.text }}
+                            </button>
+                          } @else {
+                            <span>{{ s.text }}</span>
+                          }
+                        }
+                      </span>
+                    </li>
+                  }
+                </ol>
+                @if (classificationLabel() && !isDeterministicOutcome()) {
+                  <p class="t-note">Confianza de Arbiter: {{ confidencePercent() }}%</p>
+                }
+              </app-card>
+            }
             <app-card heading="Score de fraude">
               @if (riskScorePct() !== null) {
                 <div class="risk-head">
@@ -840,27 +877,6 @@
                 <app-empty-state message="Este expediente todavía no tiene score de fraude" />
               }
             </app-card>
-            @if (analysisReasons().length > 0) {
-              <app-card heading="Razones">
-                <span cardAside class="t-note"
-                  >{{ analysisReasons().length }}
-                  {{ analysisReasons().length === 1 ? 'motivo' : 'motivos' }}</span
-                >
-                <ol class="reason-list">
-                  @for (reason of analysisReasons(); track $index) {
-                    <li class="reason-item">
-                      <span class="reason-num mono" aria-hidden="true">{{
-                        ($index + 1).toString().padStart(2, '0')
-                      }}</span>
-                      <span class="t-body">{{ reason }}</span>
-                    </li>
-                  }
-                </ol>
-                @if (classificationLabel() && !isDeterministicOutcome()) {
-                  <p class="t-note">Confianza de Arbiter: {{ confidencePercent() }}%</p>
-                }
-              </app-card>
-            }
           </div>
         }
 
@@ -1149,6 +1165,7 @@
             [branch]="d.branch"
             [claimCause]="d.claimCause"
             [extractions]="documentAnalyses()"
+            [focusType]="focusedDocType()"
             [showMissingReadings]="d.status !== 'PENDING_CLASSIFICATION'"
           />
         }
