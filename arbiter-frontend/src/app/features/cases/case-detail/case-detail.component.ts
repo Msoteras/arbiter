@@ -47,7 +47,7 @@ import {
   RiskBreakdownItem,
   StatusTransition,
 } from '../../../core/models/case';
-import { riskFactorLabel } from '../../../core/models/business-rules';
+import { ReasonSegment, riskFactorLabel } from '../../../core/models/business-rules';
 import { DocumentTypeService } from '../../../core/services/document-type.service';
 import { Policy } from '../../../core/models/policy';
 import {
@@ -469,6 +469,23 @@ export class CaseDetailComponent {
     (this.data()?.analysisReasons ?? []).map((reason) => this.documentTypes.withLabels(reason)),
   );
 
+  /** The reasons with the documents they name linked, when the case has that document. */
+  protected readonly reasonSegments = computed<ReasonSegment[][]>(() => {
+    const available = new Set(this.documents().map((d) => d.type));
+    return (this.data()?.analysisReasons ?? []).map((reason) =>
+      this.documentTypes.mentions(reason, available),
+    );
+  });
+
+  /** Read by the documents tab to open this document instead of the first one. */
+  protected readonly focusedDocType = signal<string | null>(null);
+
+  protected openDocument(type: string): void {
+    this.setTab('documents');
+    this.focusedDocType.set(type);
+    this.tabsNav().nativeElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
   /** Empty until classified, or when no document was read. */
   protected readonly documentAnalyses = computed<DocumentAnalysis[]>(
     () => this.data()?.documentAnalyses ?? [],
@@ -845,6 +862,7 @@ export class CaseDetailComponent {
 
   setTab(t: TabId): void {
     this.selectedTab.set(t);
+    this.focusedDocType.set(null);
   }
 
   protected onAlert(briefAlert: BriefAlert): void {

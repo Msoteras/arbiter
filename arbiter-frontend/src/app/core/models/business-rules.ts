@@ -136,3 +136,57 @@ export function withDocumentLabels(reason: string, types: readonly DocumentTypeD
     reason,
   );
 }
+
+/** A piece of a reason; `code` is set when it names a document the case carries. */
+export interface ReasonSegment {
+  text: string;
+  code: string | null;
+}
+
+const escapeRegExp = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/**
+ * Splits a reason around the documents it names, by code ("police_report", from the engine and the
+ * prompt) or by name ("la denuncia policial", in the model's own words). A code becomes its name; a
+ * name keeps the model's wording. Only documents in `available` get a `code`, so a link never
+ * points to a file the case doesn't have.
+ */
+export function documentMentions(
+  reason: string,
+  types: readonly DocumentTypeDef[],
+  available: ReadonlySet<string>,
+): ReasonSegment[] {
+  const byKey = new Map<string, DocumentTypeDef>();
+  for (const d of types) {
+    byKey.set(d.code.toLowerCase(), d);
+    byKey.set(d.label.toLowerCase(), d);
+  }
+  if (byKey.size === 0) return [{ text: reason, code: null }];
+
+  // Longest first, so a name that contains another one wins. Letters on either side
+  // mean the match is part of a longer word; `\b` doesn't know accented letters.
+  const alternatives = [...byKey.keys()].sort((a, b) => b.length - a.length).map(escapeRegExp);
+  const pattern = new RegExp(
+    String.raw`(?<![\p{L}\p{N}_])(?:${alternatives.join('|')})(?![\p{L}\p{N}_])`,
+    'giu',
+  );
+
+  const segments: ReasonSegment[] = [];
+  const pushText = (text: string): void => {
+    const last = segments.at(-1);
+    if (last && last.code === null) last.text += text;
+    else if (text) segments.push({ text, code: null });
+  };
+  let cursor = 0;
+  for (const match of reason.matchAll(pattern)) {
+    const type = byKey.get(match[0].toLowerCase());
+    if (!type) continue;
+    pushText(reason.slice(cursor, match.index));
+    const text = match[0].toLowerCase() === type.code.toLowerCase() ? type.label : match[0];
+    if (available.has(type.code)) segments.push({ text, code: type.code });
+    else pushText(text);
+    cursor = match.index + match[0].length;
+  }
+  pushText(reason.slice(cursor));
+  return segments;
+}

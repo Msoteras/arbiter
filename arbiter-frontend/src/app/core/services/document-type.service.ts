@@ -7,6 +7,8 @@ import { environment } from '../../../environments/environment';
 import {
   DocumentTypeDef,
   NON_AGENDA_DOCUMENT_TYPES,
+  ReasonSegment,
+  documentMentions,
   withDocumentLabels,
 } from '../models/business-rules';
 
@@ -69,6 +71,11 @@ export class DocumentTypeService {
   /** Backend reasons embed document codes ("…: police_report"); swaps them for their names. */
   withLabels(text: string): string {
     return withDocumentLabels(text, this.named());
+  }
+
+  /** Like `withLabels`, split around the documents it names; see `documentMentions`. */
+  mentions(text: string, available: ReadonlySet<string>): ReasonSegment[] {
+    return documentMentions(text, this.named(), available);
   }
 
   /** For pure functions that take the names as an argument. */
