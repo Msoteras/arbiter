@@ -34,8 +34,7 @@ const TICK_MS = 30_000;
         <span class="label">
           Análisis en curso
           <app-info-tip>
-            Arbiter evalúa las reglas de la aseguradora, lee los documentos, compara las imágenes y
-            consulta al modelo.
+            Arbiter evalúa las reglas de la aseguradora, lee los documentos y compara las imágenes.
           </app-info-tip>
         </span>
         <span class="meta" [class.late]="late()">{{ elapsed() }}</span>

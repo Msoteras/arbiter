@@ -6,6 +6,7 @@ import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
 import org.apache.pdfbox.pdmodel.common.PDRectangle;
+import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -24,6 +25,8 @@ public final class PdfDocumentWriter {
     private static final float HEADER_GAP = 9;
     private static final float MARK_SIZE = 15;
     private static final float MONOGRAM_SIZE = 8.5f;
+    /** A wide logo fits the header's height and at most this many times its height in width. */
+    private static final float LOGO_MAX_RATIO = 5;
 
     private static final float FOOTER_RULE_Y = 64;
     private static final float CONTENT_BOTTOM = FOOTER_RULE_Y + 16;
@@ -36,9 +39,10 @@ public final class PdfDocumentWriter {
 
     public static byte[] render(ReportDocument document) {
         try (PDDocument pdf = new PDDocument(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
-            Page page = newPage(pdf, document, true);
+            PDImageXObject logo = loadLogo(pdf, document.branding());
+            Page page = newPage(pdf, document, logo, true);
             for (Block block : document.blocks()) {
-                page = place(pdf, document, page, block);
+                page = place(pdf, document, logo, page, block);
             }
             page.content.close();
 
@@ -50,8 +54,8 @@ public final class PdfDocumentWriter {
         }
     }
 
-    private static Page place(PDDocument pdf, ReportDocument document, Page page, Block block)
-            throws IOException {
+    private static Page place(PDDocument pdf, ReportDocument document, PDImageXObject logo, Page page,
+                              Block block) throws IOException {
         Block pending = block;
         while (true) {
             float available = page.y - CONTENT_BOTTOM;
@@ -63,7 +67,7 @@ public final class PdfDocumentWriter {
             Block.Split split = pending.split(CONTENT_WIDTH, available);
             if (split != null) {
                 split.head().draw(page.canvas, MARGIN, page.y, CONTENT_WIDTH);
-                page = nextPage(pdf, document, page);
+                page = nextPage(pdf, document, logo, page);
                 pending = split.tail();
                 continue;
             }
@@ -73,44 +77,47 @@ public final class PdfDocumentWriter {
                 page.y -= pending.height(CONTENT_WIDTH) + pending.spacingAfter();
                 return page;
             }
-            page = nextPage(pdf, document, page);
+            page = nextPage(pdf, document, logo, page);
         }
     }
 
-    private static Page nextPage(PDDocument pdf, ReportDocument document, Page current)
-            throws IOException {
+    private static Page nextPage(PDDocument pdf, ReportDocument document, PDImageXObject logo,
+                                 Page current) throws IOException {
         current.content.close();
-        return newPage(pdf, document, false);
+        return newPage(pdf, document, logo, false);
     }
 
-    private static Page newPage(PDDocument pdf, ReportDocument document, boolean first)
-            throws IOException {
+    private static Page newPage(PDDocument pdf, ReportDocument document, PDImageXObject logo,
+                                boolean first) throws IOException {
         PDPage pdPage = new PDPage(PAGE);
         pdf.addPage(pdPage);
         PDPageContentStream content = new PDPageContentStream(pdf, pdPage);
         PdfCanvas canvas = new PdfCanvas(content);
 
         canvas.fillRect(0, PAGE.getHeight() - TOP_RULE, PAGE.getWidth(), TOP_RULE, ReportTheme.INK);
-        float top = first ? drawBrandHeader(canvas, document) : drawRunningHeader(canvas, document);
+        float top = first
+                ? drawBrandHeader(canvas, document, logo)
+                : drawRunningHeader(canvas, document, logo);
         return new Page(content, canvas, top);
     }
 
-    private static float drawBrandHeader(PdfCanvas canvas, ReportDocument document)
-            throws IOException {
+    private static float drawBrandHeader(PdfCanvas canvas, ReportDocument document,
+                                         PDImageXObject logo) throws IOException {
         ReportBranding branding = document.branding();
         float top = PAGE.getHeight() - MARGIN;
         float boxBottom = top - BRAND_ROW;
         float baseline = boxBottom + (BRAND_ROW - ReportTheme.LEAD) / 2 + 1.5f;
         float right = MARGIN + CONTENT_WIDTH;
 
-        drawMonogram(canvas, branding, MARGIN, boxBottom, BRAND_ROW, MONOGRAM_SIZE);
+        float mark = drawInsurerMark(canvas, branding, logo, MARGIN, boxBottom, BRAND_ROW,
+                MONOGRAM_SIZE);
 
         float wordmark = PdfCanvas.width(WORDMARK, PdfCanvas.Weight.BOLD, ReportTheme.LEAD);
         float label = PdfCanvas.width(GENERATED_WITH, PdfCanvas.Weight.REGULAR, ReportTheme.NOTE);
         float markLeft = right - wordmark - 3 - MARK_SIZE;
-        float nameWidth = markLeft - label - ReportTheme.SPACE_3 - MARGIN - BRAND_ROW
+        float nameWidth = markLeft - label - ReportTheme.SPACE_3 - MARGIN - mark
                 - ReportTheme.SPACE_2;
-        canvas.text(MARGIN + BRAND_ROW + ReportTheme.SPACE_2, baseline,
+        canvas.text(MARGIN + mark + ReportTheme.SPACE_2, baseline,
                 PdfCanvas.fit(branding.insurerLegalName(), PdfCanvas.Weight.BOLD, ReportTheme.LEAD,
                         nameWidth),
                 PdfCanvas.Weight.BOLD, ReportTheme.LEAD, ReportTheme.INK);
@@ -127,16 +134,17 @@ public final class PdfDocumentWriter {
         return ruleY - ReportTheme.SPACE_5;
     }
 
-    private static float drawRunningHeader(PdfCanvas canvas, ReportDocument document)
-            throws IOException {
+    private static float drawRunningHeader(PdfCanvas canvas, ReportDocument document,
+                                           PDImageXObject logo) throws IOException {
         float top = PAGE.getHeight() - MARGIN;
         float boxBottom = top - RUNNING_ROW;
         float baseline = boxBottom + (RUNNING_ROW - ReportTheme.NOTE) / 2 + 1;
         float right = MARGIN + CONTENT_WIDTH;
 
-        drawMonogram(canvas, document.branding(), MARGIN, boxBottom, RUNNING_ROW, ReportTheme.NOTE - 1);
+        float mark = drawInsurerMark(canvas, document.branding(), logo, MARGIN, boxBottom,
+                RUNNING_ROW, ReportTheme.NOTE - 1);
 
-        float x = MARGIN + RUNNING_ROW + ReportTheme.SPACE_2;
+        float x = MARGIN + mark + ReportTheme.SPACE_2;
         float codeWidth = PdfCanvas.width(document.code(), PdfCanvas.Weight.REGULAR, ReportTheme.NOTE);
         float periodWidth =
                 PdfCanvas.width(document.periodLabel(), PdfCanvas.Weight.REGULAR, ReportTheme.NOTE);
@@ -154,6 +162,35 @@ public final class PdfDocumentWriter {
         float ruleY = boxBottom - HEADER_GAP;
         canvas.line(MARGIN, ruleY, right, ruleY, ReportTheme.BORDER, ReportTheme.HAIRLINE);
         return ruleY - ReportTheme.SPACE_5;
+    }
+
+    /**
+     * PDFBox reads PNG and JPG. Anything else (an older WebP or SVG upload) or a damaged file falls
+     * back to the monogram: a logo that can't be drawn must not cost the referent the export.
+     */
+    private static PDImageXObject loadLogo(PDDocument pdf, ReportBranding branding) {
+        if (branding.logo() == null) {
+            return null;
+        }
+        try {
+            return PDImageXObject.createFromByteArray(pdf, branding.logo(), "logo");
+        } catch (IOException | IllegalArgumentException unreadable) {
+            return null;
+        }
+    }
+
+    /** The insurer's logo, or its monogram without one; returns the width it took. */
+    private static float drawInsurerMark(PdfCanvas canvas, ReportBranding branding,
+                                         PDImageXObject logo, float x, float y, float box,
+                                         float monogramSize) throws IOException {
+        if (logo == null) {
+            drawMonogram(canvas, branding, x, y, box, monogramSize);
+            return box;
+        }
+        float width = Math.min(box * LOGO_MAX_RATIO, logo.getWidth() * box / logo.getHeight());
+        float height = logo.getHeight() * width / logo.getWidth();
+        canvas.stream().drawImage(logo, x, y + (box - height) / 2, width, height);
+        return width;
     }
 
     private static void drawMonogram(PdfCanvas canvas, ReportBranding branding, float x, float y,

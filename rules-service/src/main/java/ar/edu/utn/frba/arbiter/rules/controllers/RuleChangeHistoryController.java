@@ -34,7 +34,7 @@ public class RuleChangeHistoryController {
     private final RuleChangeHistoryService service;
 
     @GetMapping
-    @PreAuthorize("hasRole('REFERENTE_ASEGURADORA')")
+    @PreAuthorize("hasAnyRole('REFERENTE_ASEGURADORA', 'ANALISTA_SINIESTROS')")
     @Operation(summary = "Historial de cambios de reglas",
             description = "Feed cronológico (más reciente primero) de cada cambio de configuración, con el "
                     + "detalle campo por campo de qué pasó de qué valor a cuál. Une las dos tablas de "
@@ -50,7 +50,7 @@ public class RuleChangeHistoryController {
     }
 
     @GetMapping("/rule-types")
-    @PreAuthorize("hasRole('REFERENTE_ASEGURADORA')")
+    @PreAuthorize("hasAnyRole('REFERENTE_ASEGURADORA', 'ANALISTA_SINIESTROS')")
     @Operation(summary = "Tipos de regla presentes en el historial",
             description = "Solo los que la aseguradora efectivamente editó alguna vez — el filtro no ofrece "
                     + "opciones que devolverían una página vacía.")

@@ -38,6 +38,9 @@ public record CaseResponse(
         String insuredName,
         /** Politically exposed person: a due-diligence fact, deliberately kept out of scoring and the prompt. */
         boolean pep,
+        /** Contact data the insured keeps in their profile; null until they load it. */
+        String insuredEmail,
+        String insuredPhone,
         String policyNumber,
         String description,
         LocalDateTime eventDate,
@@ -83,7 +86,9 @@ public record CaseResponse(
         /** What the insurer DB answered at classification time, not today. */
         PolicySnapshotResponse policySnapshot,
         /** Only on GET /{id}, once referred to a repair service: the one derivation detail the insured sees. */
-        RepairProviderResponse repairProvider
+        RepairProviderResponse repairProvider,
+        /** What the analyst asked for outside the schedule. The insured gets it without the reasons. */
+        List<RequestedDocumentResponse> requestedDocuments
 ) {
 
     /**
@@ -94,7 +99,7 @@ public record CaseResponse(
     public CaseResponse forInsured() {
         return new CaseResponse(
                 id, insurerSlug, insurerName, null, insuredStatus, branch, product, claimCause, coverage,
-                insuredItem, insuredId, insuredName, pep, policyNumber, description, eventDate,
+                insuredItem, insuredId, insuredName, pep, insuredEmail, insuredPhone, policyNumber, description, eventDate,
                 policeReportAt, eventLocation, claimedAmount,
                 null, false, 0.0, List.of(), null, null, null,
                 null, null, List.of(), null,
@@ -107,6 +112,8 @@ public record CaseResponse(
                                 .map(StatusTransitionResponse::forInsured)
                                 .toList(),
                 List.of(), List.of(), null,
-                repairProvider);
+                repairProvider,
+                requestedDocuments == null ? List.of()
+                        : requestedDocuments.stream().map(RequestedDocumentResponse::forInsured).toList());
     }
 }

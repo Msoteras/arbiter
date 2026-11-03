@@ -119,7 +119,7 @@
 
       <!-- An empty field is "No aplica", never a mismatch: a document omitting something doesn't contradict it. -->
       @if (selectedExtraction(); as extraction) {
-        <app-card class="docs-extraction" heading="Lo que el modelo leyó" [collapsible]="true">
+        <app-card class="docs-extraction" heading="Lo que leyó Arbiter" [collapsible]="true">
           <!-- A broken read leaves every field empty, which would render as a column of "No aplica"
                — the same as a document that states nothing. Say what happened instead. -->
           @if (extraction.extractionStatus === 'FAILED') {
@@ -154,7 +154,7 @@
                   <li>{{ finding }}</li>
                 }
               </ul>
-              <p class="t-note">Observaciones del modelo, no contenido del documento.</p>
+              <p class="t-note">Observaciones de Arbiter, no contenido del documento.</p>
             </div>
           }
 
@@ -168,9 +168,9 @@
           }
         </app-card>
       } @else if (selectedNotAnalyzed()) {
-        <app-card class="docs-extraction" heading="Lo que el modelo leyó">
+        <app-card class="docs-extraction" heading="Lo que leyó Arbiter">
           <div class="read-issue" role="status">
-            <p class="t-body">Sin lectura del modelo: revisalo en la vista previa.</p>
+            <p class="t-body">Arbiter no leyó este documento: revisalo en la vista previa.</p>
           </div>
         </app-card>
       }

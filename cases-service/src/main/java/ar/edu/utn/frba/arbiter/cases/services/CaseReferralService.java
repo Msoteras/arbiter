@@ -6,6 +6,7 @@ import ar.edu.utn.frba.arbiter.cases.dto.RepairOutcome;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseReferralRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseReferralResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.ServiceProviderResponse;
+import ar.edu.utn.frba.arbiter.cases.exceptions.DocumentationPendingException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidRepairReportException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.AnalystProfileNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CaseAssignedToAnotherAnalystException;
@@ -112,6 +113,9 @@ public class CaseReferralService {
                                            ProviderType providerType) {
         Case caseRecord = findCase(caseId);
         ClaimsAnalyst caller = assertCallerOwns(caseRecord);
+        if (caseRecord.hasDocumentationPending()) {
+            throw new DocumentationPendingException(caseRecord.getId());
+        }
         // Each kind has its own gate: peritaje the amount threshold, repair the claim cause.
         if (providerType == ProviderType.ESTUDIO_LIQUIDADOR) {
             assertInsurerDerivesThisCase(caseRecord);

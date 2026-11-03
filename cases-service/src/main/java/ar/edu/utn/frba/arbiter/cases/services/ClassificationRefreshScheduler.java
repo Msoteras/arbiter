@@ -30,7 +30,8 @@ import java.util.Optional;
  * Two cross-tenant background sweeps over cases waiting on classification:
  * <ul>
  *   <li>{@link #refreshPendingCases()} is the safety net for notices from classification-service that
- *       never arrived: it polls for {@code PENDING_CLASSIFICATION} results and gives up to
+ *       never arrived: it polls for {@code PENDING_CLASSIFICATION} results, fails at once a case whose
+ *       run classification-service already recorded as failed, and gives up to
  *       {@code CLASSIFICATION_FAILED} once a case has waited {@code give-up-after}.</li>
  *   <li>{@link #recoverInfrastructureFailures()} requeues {@code CLASSIFICATION_FAILED} cases whose
  *       recorded reason is {@link ClassificationFailureReason#INFRASTRUCTURE}; polling alone never
@@ -91,6 +92,12 @@ public class ClassificationRefreshScheduler {
         }
         log.debug("Refreshing {} pending case(s) in {}", pending.size(), TenantContext.get());
         for (Case caseRecord : pending) {
+            // classification-service writes the reason on the case row when a run fails. Every move
+            // into PENDING_CLASSIFICATION clears it, so one set here belongs to the current run.
+            if (caseRecord.getClassificationFailureReason() != null) {
+                classificationOutcomeService.markFailed(caseRecord, "clasificación fallida");
+                continue;
+            }
             try {
                 boolean resolved = claimsAnalysisClient.refreshClassification(caseRecord);
                 if (!resolved) {
@@ -209,8 +216,6 @@ public class ClassificationRefreshScheduler {
     /** Same reset + retrigger as the analyst's manual retry-classification button, actor SYSTEM. */
     private void doRequeueAfterInfrastructureFailure(Case caseRecord, Optional<Coverage> verifiedCoverage) {
         verifiedCoverage.ifPresent(caseRecord::setCoverage);
-        caseRecord.setRiskScore(null);
-        caseRecord.setRiskBand(null);
         caseRecord.setRulesClassification(null);
         caseRecord.setClassificationAttempts(0);
         caseStatusService.transition(caseRecord, CaseStatus.PENDING_CLASSIFICATION,

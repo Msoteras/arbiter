@@ -93,6 +93,20 @@
   letter-spacing: -0.03em;
   line-height: 1.05;
 }
+/* A resolved case's verdict, at the same size as the recommendation beside it. */
+.verdict {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+}
+.verdict + .note {
+  margin: 0;
+}
 .risk-head {
   display: flex;
   align-items: baseline;
@@ -234,7 +248,7 @@
   flex-direction: column;
   gap: var(--space-2);
 }
-/* Approve and reject side by side; referral and closing below, full width: they aren't verdicts. */
+/* Approve and reject side by side; referral and closing below, paired: they aren't verdicts. */
 .decision-side {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

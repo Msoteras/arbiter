@@ -5,8 +5,10 @@ import ar.edu.utn.frba.arbiter.auth.exceptions.LogoNotFoundException;
 import ar.edu.utn.frba.arbiter.auth.config.tenant.TenantContext;
 import ar.edu.utn.frba.arbiter.auth.models.repositories.InsurerLogoRepository;
 import ar.edu.utn.frba.arbiter.auth.models.repositories.InsurerRepository;
+import ar.edu.utn.frba.arbiter.auth.models.repositories.UserRepository;
 import ar.edu.utn.frba.arbiter.common.models.entities.Insurer;
 import ar.edu.utn.frba.arbiter.common.models.entities.InsurerLogo;
+import ar.edu.utn.frba.arbiter.common.models.entities.User;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -17,6 +19,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -39,6 +43,12 @@ class InsurerLogoServiceTest {
 
     @Mock
     private InsurerRepository insurers;
+
+    @Mock
+    private UserRepository users;
+
+    @Mock
+    private TenantResolver tenantResolver;
 
     @InjectMocks
     private InsurerLogoService service;
@@ -67,13 +77,14 @@ class InsurerLogoServiceTest {
     }
 
     @Test
-    void acceptsAnSvg() {
+    void rejectsAnSvg() {
         byte[] svg = "<?xml version=\"1.0\"?><svg xmlns=\"http://www.w3.org/2000/svg\"/>"
                 .getBytes(StandardCharsets.UTF_8);
 
-        service.replace(svg, "image/svg+xml");
-
-        verify(repository).save(any());
+        assertThatThrownBy(() -> service.replace(svg, "image/svg+xml"))
+                .isInstanceOf(InvalidLogoException.class)
+                .hasMessageContaining("PNG o JPG");
+        verify(repository, never()).save(any());
     }
 
     @Test
@@ -89,7 +100,7 @@ class InsurerLogoServiceTest {
     void rejectsAnUnsupportedType() {
         assertThatThrownBy(() -> service.replace(PNG, "image/gif"))
                 .isInstanceOf(InvalidLogoException.class)
-                .hasMessageContaining("PNG, JPG, WebP o SVG");
+                .hasMessageContaining("PNG o JPG");
     }
 
     @Test
@@ -107,5 +118,50 @@ class InsurerLogoServiceTest {
         when(repository.findById(BBVA)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.get()).isInstanceOf(LogoNotFoundException.class);
+    }
+
+    @Test
+    void anInsuredReadsTheLogoOfAnInsurerTheyBelongTo() {
+        InsurerLogo logo = new InsurerLogo(BBVA, PNG, "image/png", Instant.now());
+        when(users.findByEmail("ana@mail.com")).thenReturn(Optional.of(User.builder().id(3L).build()));
+        when(tenantResolver.insurerIdsFor(3L)).thenReturn(List.of(BBVA));
+        when(insurers.findAllById(List.of(BBVA))).thenReturn(List.of(bbva()));
+        when(repository.findById(BBVA)).thenReturn(Optional.of(logo));
+
+        assertThat(service.forInsurer("bbva", "ana@mail.com")).isSameAs(logo);
+    }
+
+    @Test
+    void theLogoOfAnotherInsurerIsNotFound() {
+        when(users.findByEmail("ana@mail.com")).thenReturn(Optional.of(User.builder().id(3L).build()));
+        when(tenantResolver.insurerIdsFor(3L)).thenReturn(List.of(99L));
+        when(insurers.findAllById(List.of(99L))).thenReturn(
+                List.of(Insurer.builder().id(99L).schemaName("arbiter_provincia").build()));
+
+        assertThatThrownBy(() -> service.forInsurer("bbva", "ana@mail.com"))
+                .isInstanceOf(LogoNotFoundException.class);
+        verify(repository, never()).findById(any());
+    }
+
+    @Test
+    void thePublicReadFindsTheInsurerBySlug() {
+        InsurerLogo logo = new InsurerLogo(BBVA, PNG, "image/png", Instant.now());
+        when(insurers.findAll()).thenReturn(List.of(bbva()));
+        when(repository.findById(BBVA)).thenReturn(Optional.of(logo));
+
+        assertThat(service.publicLogo("bbva")).isSameAs(logo);
+    }
+
+    @Test
+    void thePublicReadLeavesOutAnOlderSvg() {
+        when(insurers.findAll()).thenReturn(List.of(bbva()));
+        when(repository.findById(BBVA))
+                .thenReturn(Optional.of(new InsurerLogo(BBVA, PNG, "image/svg+xml", Instant.now())));
+
+        assertThatThrownBy(() -> service.publicLogo("bbva")).isInstanceOf(LogoNotFoundException.class);
+    }
+
+    private static Insurer bbva() {
+        return Insurer.builder().id(BBVA).schemaName("arbiter_bbva").build();
     }
 }

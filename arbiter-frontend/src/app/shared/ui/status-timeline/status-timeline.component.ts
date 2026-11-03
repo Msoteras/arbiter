@@ -13,7 +13,7 @@ import { formatDateTime } from '../../../core/util/datetime';
 import { BadgeComponent } from '../badge/badge.component';
 
 const ACTOR_LABELS: Record<StatusTransition['actor'], string> = {
-  SYSTEM: 'Sistema',
+  SYSTEM: 'Arbiter',
   INSURED: 'Asegurado',
   ANALYST: 'Analista',
   REFERENT: 'Referente',
@@ -24,7 +24,7 @@ const ACTOR_LABELS: Record<StatusTransition['actor'], string> = {
  * has its own timeline.
  */
 const ANALYST_NEXT_STEP: Partial<Record<CaseStatus, string>> = {
-  PENDING_CLASSIFICATION: 'El motor de reglas y el modelo todavía están evaluando el caso.',
+  PENDING_CLASSIFICATION: 'Arbiter todavía está evaluando el caso.',
   AWAITING_DOCUMENTATION: 'Esperando que el asegurado suba la documentación que falta.',
   CLASSIFICATION_FAILED: 'Podés reintentar la clasificación desde la card de arriba.',
   PENDING_EXPERT_REPORT: 'Esperando el informe del perito para volver a revisión.',

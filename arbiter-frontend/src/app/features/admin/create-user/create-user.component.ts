@@ -14,6 +14,7 @@ import {
   UserResponse,
 } from '../../../core/auth/user-admin.service';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
+import { FieldComponent } from '../../../shared/ui/field/field.component';
 import { InputComponent } from '../../../shared/ui/input/input.component';
 
 /**
@@ -23,7 +24,7 @@ import { InputComponent } from '../../../shared/ui/input/input.component';
  */
 @Component({
   selector: 'app-create-user',
-  imports: [ButtonComponent, InputComponent],
+  imports: [ButtonComponent, FieldComponent, InputComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './create-user.component.html',
   styleUrl: './create-user.component.scss',

@@ -38,11 +38,20 @@ export class NotificationsService {
   readonly loading = this._loading.asReadonly();
   readonly hasUnread = computed(() => this._unread() > 0);
 
+  /**
+   * Bumped when the notifications are marked read. A count requested before that answers with the
+   * old number, and without this check a poll landing after the click would bring the badge back.
+   */
+  private readEpoch = 0;
+
   refreshUnreadCount(context?: HttpContext): void {
+    const epoch = this.readEpoch;
     this.http
       .get<number>(`${this.baseUrl}/unread-count`, { context })
       .pipe(catchError(() => of(0)))
-      .subscribe((count) => this._unread.set(Math.max(0, count)));
+      .subscribe((count) => {
+        if (epoch === this.readEpoch) this._unread.set(Math.max(0, count));
+      });
   }
 
   /**
@@ -59,18 +68,21 @@ export class NotificationsService {
       )
       .subscribe((items) => {
         this._items.set(items);
-        if (items.some((item) => !item.read)) {
+        // The badge counts unread notices the list may not show (it lists only the newest), so the
+        // count decides too, not only the items.
+        if (this._unread() > 0 || items.some((item) => !item.read)) {
           this.markAllRead();
         }
       });
   }
 
   private markAllRead(): void {
+    this.readEpoch++;
     this._unread.set(0);
     this.http
       .post<void>(`${this.baseUrl}/read-all`, {})
       .pipe(catchError(() => of(undefined)))
-      .subscribe();
+      .subscribe(() => this.refreshUnreadCount());
   }
 
   /** On logout: the next account must not inherit the previous one's badge. */

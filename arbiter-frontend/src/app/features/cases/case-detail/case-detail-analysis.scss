@@ -52,6 +52,9 @@
   align-items: start;
   gap: var(--space-4);
 }
+.analysis-grid.single {
+  grid-template-columns: minmax(0, 1fr);
+}
 
 .reason-list {
   list-style: none;

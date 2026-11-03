@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
-import { toSignal } from '@angular/core/rxjs-interop';
+import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import { catchError, combineLatest, map, of, startWith, switchMap } from 'rxjs';
@@ -21,6 +21,7 @@ import { CardComponent } from '../../../shared/ui/card/card.component';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { CaseDocumentsComponent } from '../../cases/case-documents/case-documents.component';
 import { CaseMessagesService } from '../../cases/case-messages.service';
+import { InsurerLogoService } from '../../../core/services/insurer-logo.service';
 import { SkeletonComponent } from '../../../shared/ui/skeleton/skeleton.component';
 import {
   InsuredChatComponent,
@@ -60,6 +61,7 @@ export class CaseTrackingComponent {
   private readonly service = inject(CaseService);
   private readonly session = inject(InsuredSessionService);
   private readonly messages = inject(CaseMessagesService);
+  private readonly logos = inject(InsurerLogoService);
 
   protected readonly chatOpen = signal(false);
 
@@ -98,6 +100,14 @@ export class CaseTrackingComponent {
     }
     return s.data;
   });
+
+  /** The logo of the insurer this claim belongs to; the insured may have several. */
+  protected readonly insurerLogo = toSignal(
+    toObservable(computed(() => this.data()?.insurerSlug ?? null)).pipe(
+      switchMap((slug) => (slug ? this.logos.forInsurer(slug) : of(null))),
+    ),
+    { initialValue: null },
+  );
 
   protected readonly notFound = computed(() => {
     const s = this.state();

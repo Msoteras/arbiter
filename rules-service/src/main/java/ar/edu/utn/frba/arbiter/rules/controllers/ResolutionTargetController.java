@@ -28,7 +28,7 @@ public class ResolutionTargetController {
     private final ResolutionTargetService service;
 
     @GetMapping("/resolution-target")
-    @PreAuthorize("hasRole('REFERENTE_ASEGURADORA')")
+    @PreAuthorize("hasAnyRole('REFERENTE_ASEGURADORA', 'ANALISTA_SINIESTROS')")
     @Operation(summary = "Objetivo de resolución de la aseguradora",
             description = "La aseguradora que nunca lo configuró vuelve con enabled=false y sin días.")
     public ResolutionTargetDto get() {

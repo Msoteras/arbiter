@@ -53,7 +53,7 @@ export const ONBOARDING_STEP_LINE: Record<OnboardingStepId, string> = {
     'Definí por cuántos meses un antecedente de fraude afecta las denuncias nuevas del asegurado.',
   TARGET: 'Definí el plazo de resolución de los expedientes.',
   COMMON_EXCLUSIONS: 'Escribí las situaciones no contempladas en ninguna cobertura del ramo.',
-  BUSINESS_RULES: 'Agregá los criterios de evaluación para el analista y la IA.',
+  BUSINESS_RULES: 'Agregá los criterios de evaluación para el analista y para Arbiter.',
 };
 
 export function onboardingStepTitle(s: Pick<OnboardingStep, 'step' | 'branchName'>): string {

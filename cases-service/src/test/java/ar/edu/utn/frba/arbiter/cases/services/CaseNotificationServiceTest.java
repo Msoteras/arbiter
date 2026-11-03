@@ -15,6 +15,7 @@ import ar.edu.utn.frba.arbiter.common.models.entities.Insurer;
 import ar.edu.utn.frba.arbiter.common.models.entities.User;
 import ar.edu.utn.frba.arbiter.common.models.entities.tenant.Insured;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -30,6 +31,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.IntStream;
 
+import static org.mockito.Mockito.lenient;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -63,8 +65,16 @@ class CaseNotificationServiceTest {
     @Mock
     private SendGridAdapter sendGridAdapter;
 
+    @Mock
+    private InsuredMailBranding mailBranding;
+
     @InjectMocks
     private CaseNotificationService service;
+
+    @BeforeEach
+    void signsAsArbiter() {
+        lenient().when(mailBranding.signature()).thenReturn("<p>Arbiter</p>");
+    }
 
     @AfterEach
     void clearRequestState() {

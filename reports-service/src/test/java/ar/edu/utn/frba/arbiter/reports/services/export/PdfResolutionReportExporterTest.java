@@ -143,7 +143,7 @@ class PdfResolutionReportExporterTest {
                 "SIGUIÓ LA RECOMENDACIÓN",
                 "1 de 2",
                 "2 de 2 con recomendación · 1 desvío",
-                "El expediente #7 se aprobó pese a que el sistema recomendaba lo contrario.");
+                "El expediente #7 se aprobó pese a que Arbiter recomendaba lo contrario.");
     }
 
     @Test
@@ -166,7 +166,7 @@ class PdfResolutionReportExporterTest {
         Rendered pdf = render(List.of(approvedRow(1), fastTrackRow(2), lapsedRow(3)));
 
         assertThat(pdf.text()).contains(
-                "Sistema y analista, cruzados", "APROBÓ", "RECHAZÓ", "SIN DECISIÓN",
+                "Arbiter y analista, cruzados", "APROBÓ", "RECHAZÓ", "SIN DECISIÓN",
                 "Recomienda aprobar", "Fast Track", "Sin clasificación");
     }
 

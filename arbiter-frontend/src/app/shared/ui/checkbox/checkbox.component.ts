@@ -49,6 +49,27 @@ import { ChangeDetectionStrategy, Component, input, model } from '@angular/core'
       cursor: inherit;
     }
 
+    input[type='checkbox']:disabled {
+      appearance: none;
+      position: relative;
+      border: 1px solid var(--border-control);
+      border-radius: calc(var(--radius-ctl) / 2);
+      background: var(--surface);
+    }
+
+    input[type='checkbox']:disabled:checked {
+      border-color: var(--accent-strong);
+      background: var(--accent-strong);
+    }
+
+    input[type='checkbox']:disabled:checked::after {
+      content: '';
+      position: absolute;
+      inset: 20%;
+      background: var(--text-on-emphasis);
+      clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%);
+    }
+
     .cb-label {
       text-wrap: pretty;
     }

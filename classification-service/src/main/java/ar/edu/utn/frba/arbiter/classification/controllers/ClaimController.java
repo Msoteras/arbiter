@@ -8,6 +8,9 @@ import ar.edu.utn.frba.arbiter.classification.dto.AnalystDecisionRequest;
 import ar.edu.utn.frba.arbiter.classification.dto.ClassificationAcceptedResponse;
 import ar.edu.utn.frba.arbiter.classification.dto.DecisionRecordedResponse;
 import ar.edu.utn.frba.arbiter.classification.services.ClaimClassificationService;
+import ar.edu.utn.frba.arbiter.classification.services.ClassificationProgress;
+import ar.edu.utn.frba.arbiter.common.dto.ClassificationStep;
+import ar.edu.utn.frba.arbiter.common.enums.ClassificationStage;
 import ar.edu.utn.frba.arbiter.classification.services.MultipartDocumentMapper;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -38,6 +41,7 @@ public class ClaimController {
     private final ClaimClassificationService claimClassificationService;
     private final ClassificationResultsService resultsService;
     private final MultipartDocumentMapper documentMapper;
+    private final ClassificationProgress progress;
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("authentication.authorities.isEmpty()")
@@ -65,6 +69,8 @@ public class ClaimController {
             @RequestParam(required = false) Map<String, MultipartFile> documents,
             @RequestPart(value = "documentIds", required = false) Map<String, Long> documentIds
     ) {
+        // Before handing it to the pool: the board shows the case waiting until a thread takes it.
+        progress.report(caseId, ClassificationStep.of(ClassificationStage.QUEUED));
         claimClassificationService.processClaimClassification(
                 caseId, claim, documentMapper.toAttachmentDocuments(documents, documentIds));
 

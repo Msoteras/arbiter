@@ -8,7 +8,9 @@
     @fadeInUp
     appOnboardingTarget="FRAUD"
   >
-    <app-info-tip cardTip>{{ stepLine.FRAUD }}</app-info-tip>
+    @if (!readOnly()) {
+      <app-info-tip cardTip>{{ stepLine.FRAUD }}</app-info-tip>
+    }
     <div class="sc-section-head">
       <span class="t-section-label">
         Antecedente de reincidencia
@@ -27,11 +29,12 @@
           <app-months-input
             id="ant-ventana"
             [months]="r.windowMonths"
+            [disabled]="readOnly()"
             (monthsChange)="setWindow($event)"
           />
         </div>
       </li>
-      @if (windowInvalid()) {
+      @if (windowInvalid() && !readOnly()) {
         <li class="rule-row">
           <p class="warn-note">
             Tiene que ser un número entero, de 1 mes a {{ windowMax / 12 }} años.
@@ -43,6 +46,7 @@
         <app-switch
           [checked]="r.blocksFastTrack"
           ariaLabel="¿Le quita el Fast Track a la denuncia nueva?"
+          [disabled]="readOnly()"
           (checkedChange)="setBlocksFastTrack($event)"
         />
         <div class="rule-text">
@@ -56,13 +60,15 @@
       </li>
     </ul>
 
-    <app-save-bar
-      [dirty]="dirty()"
-      [saving]="saving()"
-      [error]="error()"
-      [canSave]="!windowInvalid()"
-      (save)="save()"
-      (discard)="discard()"
-    />
+    @if (!readOnly()) {
+      <app-save-bar
+        [dirty]="dirty()"
+        [saving]="saving()"
+        [error]="error()"
+        [canSave]="!windowInvalid()"
+        (save)="save()"
+        (discard)="discard()"
+      />
+    }
   </app-card>
 }

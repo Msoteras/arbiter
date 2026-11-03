@@ -9,6 +9,7 @@ import ar.edu.utn.frba.arbiter.cases.models.repositories.CaseStatusHistoryReposi
 import ar.edu.utn.frba.arbiter.cases.models.repositories.UserRepository;
 import ar.edu.utn.frba.arbiter.cases.support.CaseStates;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
+import ar.edu.utn.frba.arbiter.common.enums.ClassificationFailureReason;
 import ar.edu.utn.frba.arbiter.common.models.entities.CaseState;
 import ar.edu.utn.frba.arbiter.common.models.entities.User;
 import org.junit.jupiter.api.AfterEach;
@@ -143,6 +144,23 @@ class CaseStatusServiceTest {
 
         assertThat(entity.getStatus()).isEqualTo(CaseStatus.AWAITING_DOCUMENTATION);
         verify(caseRepository).save(entity);
+    }
+
+    /** The polling fails a pending case that carries a reason: an earlier run's must not survive. */
+    @Test
+    void transitionToPendingClassification_clearsTheFailureOfTheEarlierRun() {
+        Case entity = caseRecord(1L, CaseStatus.CLASSIFICATION_FAILED);
+        entity.setClassificationFailureReason(ClassificationFailureReason.INFRASTRUCTURE);
+        entity.setClassificationFailureMessage("Gemini did not answer");
+        when(caseStateCatalog.resolve(CaseStatus.PENDING_CLASSIFICATION))
+                .thenReturn(CaseStates.of(CaseStatus.PENDING_CLASSIFICATION));
+        when(caseRepository.save(any(Case.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        caseStatusService.transition(entity, CaseStatus.PENDING_CLASSIFICATION,
+                StatusChangeActor.ANALYST, "reintento manual de clasificación");
+
+        assertThat(entity.getClassificationFailureReason()).isNull();
+        assertThat(entity.getClassificationFailureMessage()).isNull();
     }
 
     @Test

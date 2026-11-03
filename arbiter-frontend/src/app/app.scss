@@ -33,22 +33,7 @@
 }
 
 .appbar-burger {
-  flex: none;
-  display: flex;
-  padding: var(--space-2);
   margin-left: calc(-1 * var(--space-2));
-  border: none;
-  background: none;
-  border-radius: var(--radius-ctl);
-  color: var(--chrome-muted);
-  cursor: pointer;
-  transition:
-    color var(--dur-1) ease,
-    background var(--dur-1) ease;
-}
-.appbar-burger:hover {
-  color: var(--chrome-fg);
-  background: var(--chrome-item-active);
 }
 
 .appbar-brand {
@@ -169,6 +154,7 @@
 
 .appbar-actions {
   margin-left: auto;
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: var(--space-2);
@@ -460,11 +446,13 @@
   .topbar-notifs {
     position: static;
   }
+  .appbar:has(.appbar-search:focus-within) .appbar-tenant {
+    display: none;
+  }
 }
 
 /* ===== Touch targets ===== */
 @include media.touch {
-  .appbar-burger,
   .appbar-icon-btn,
   .appbar-avatar-btn,
   .profile-item {
@@ -473,7 +461,6 @@
     justify-content: center;
     min-height: var(--touch-target);
   }
-  .appbar-burger,
   .appbar-icon-btn {
     min-width: var(--touch-target);
   }

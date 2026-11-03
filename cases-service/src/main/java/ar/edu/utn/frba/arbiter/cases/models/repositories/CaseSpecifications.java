@@ -8,6 +8,7 @@ import ar.edu.utn.frba.arbiter.cases.models.entities.CaseSettlement;
 import ar.edu.utn.frba.arbiter.cases.models.entities.CaseReferral;
 import ar.edu.utn.frba.arbiter.cases.services.CaseStatusService;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
+import ar.edu.utn.frba.arbiter.common.enums.Classification;
 import ar.edu.utn.frba.arbiter.common.enums.InsuredStatus;
 import ar.edu.utn.frba.arbiter.common.enums.RiskBand;
 import ar.edu.utn.frba.arbiter.common.enums.SettlementStatus;
@@ -140,6 +141,9 @@ public final class CaseSpecifications {
             case RETURNED_BY_REFERENT -> withSettlement(SettlementStatus.RETURNED);
             case AWAITING_REFERENT -> withSettlement(SettlementStatus.PENDING_AUTHORIZATION);
             case AWAITING_ANALYST -> awaitingAnalyst();
+            case DOCUMENTATION_TO_CONFIRM -> (root, query, cb) -> cb.and(
+                    cb.equal(root.get("currentStatus").get("name"), CaseStatus.PENDING_ANALYST_REVIEW.name()),
+                    cb.equal(root.get("rulesClassification"), Classification.FALTA_DOCUMENTACION));
         };
     }
 

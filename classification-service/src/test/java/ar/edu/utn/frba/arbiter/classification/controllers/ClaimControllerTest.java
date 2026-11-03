@@ -3,6 +3,7 @@ package ar.edu.utn.frba.arbiter.classification.controllers;
 import ar.edu.utn.frba.arbiter.classification.exceptions.GlobalExceptionHandler;
 import ar.edu.utn.frba.arbiter.classification.services.ClaimClassificationService;
 import ar.edu.utn.frba.arbiter.classification.services.ClassificationResultsService;
+import ar.edu.utn.frba.arbiter.classification.services.ClassificationProgress;
 import ar.edu.utn.frba.arbiter.classification.services.MultipartDocumentMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -40,6 +41,9 @@ class ClaimControllerTest {
 
     @MockitoBean
     private MultipartDocumentMapper documentMapper;
+
+    @MockitoBean
+    private ClassificationProgress progress;
 
     @Test
     void classify_returns202WithPollingHints() throws Exception {

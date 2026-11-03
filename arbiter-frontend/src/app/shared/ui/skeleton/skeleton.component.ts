@@ -99,11 +99,11 @@ type Shape = 'text' | 'block' | 'table' | 'card';
     .block {
       flex: 1 1 auto;
       min-height: var(--space-7);
-      border-radius: var(--skeleton-radius, var(--radius-card));
+      border-radius: var(--skeleton-radius, var(--radius-box));
     }
     .table {
       border: 1px solid var(--border-default);
-      border-radius: var(--radius-card);
+      border-radius: var(--radius-box);
       background: var(--surface);
       box-shadow: var(--shadow-card);
       overflow: hidden;
@@ -114,7 +114,7 @@ type Shape = 'text' | 'block' | 'table' | 'card';
       gap: var(--space-3);
       padding: var(--space-5);
       border: 1px solid var(--border-default);
-      border-radius: var(--radius-card);
+      border-radius: var(--radius-box);
       background: var(--surface);
       box-shadow: var(--shadow-card);
     }

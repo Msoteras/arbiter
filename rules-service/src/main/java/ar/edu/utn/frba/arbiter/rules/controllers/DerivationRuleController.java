@@ -32,7 +32,7 @@ public class DerivationRuleController {
     private final RepairDerivationService repairDerivation;
 
     @GetMapping("/expert-derivation")
-    @PreAuthorize("hasRole('REFERENTE_ASEGURADORA')")
+    @PreAuthorize("hasAnyRole('REFERENTE_ASEGURADORA', 'ANALISTA_SINIESTROS')")
     @Operation(summary = "Derivación a peritaje del ramo",
             description = "Si el ramo deriva a un perito externo y desde qué monto reclamado. El "
                     + "monto viaja aunque la regla esté apagada. Sin regla ⇒ enabled=false y sin monto.")
@@ -53,7 +53,7 @@ public class DerivationRuleController {
     }
 
     @GetMapping("/repair-derivation")
-    @PreAuthorize("hasRole('REFERENTE_ASEGURADORA')")
+    @PreAuthorize("hasAnyRole('REFERENTE_ASEGURADORA', 'ANALISTA_SINIESTROS')")
     @Operation(summary = "Derivación a reparación del ramo",
             description = "Si el ramo deriva a un servicio técnico y para qué hechos generadores. "
                     + "Los hechos viajan aunque la regla esté apagada. Sin regla ⇒ enabled=false y "

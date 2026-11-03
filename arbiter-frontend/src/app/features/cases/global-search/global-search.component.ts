@@ -48,20 +48,23 @@ const IDLE: SearchState = { items: [], loading: false, failed: false };
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="gsearch" role="search">
-      <svg class="gsearch-icon" width="15" height="15" viewBox="0 0 16 16" aria-hidden="true">
-        <circle cx="7" cy="7" r="5" fill="none" stroke="currentColor" stroke-width="1.6" />
-        <line
-          x1="10.6"
-          y1="10.6"
-          x2="14"
-          y2="14"
-          stroke="currentColor"
-          stroke-width="1.6"
-          stroke-linecap="round"
-        />
-      </svg>
+      <label class="gsearch-icon-label" for="gsearch-field">
+        <svg class="gsearch-icon" width="15" height="15" viewBox="0 0 16 16" aria-hidden="true">
+          <circle cx="7" cy="7" r="5" fill="none" stroke="currentColor" stroke-width="1.6" />
+          <line
+            x1="10.6"
+            y1="10.6"
+            x2="14"
+            y2="14"
+            stroke="currentColor"
+            stroke-width="1.6"
+            stroke-linecap="round"
+          />
+        </svg>
+      </label>
 
       <input
+        id="gsearch-field"
         class="gsearch-field"
         type="search"
         role="combobox"
@@ -119,6 +122,8 @@ const IDLE: SearchState = { items: [], loading: false, failed: false };
     </div>
   `,
   styles: `
+    @use 'media';
+
     :host {
       display: block;
       min-width: 0;
@@ -142,6 +147,15 @@ const IDLE: SearchState = { items: [], loading: false, failed: false };
     }
     .gsearch-icon {
       flex: none;
+    }
+    .gsearch-icon-label {
+      flex: none;
+      align-self: stretch;
+      display: flex;
+      align-items: center;
+      margin: 0 calc(-1 * var(--space-2)) 0 calc(-1 * var(--space-3));
+      padding: 0 var(--space-2) 0 var(--space-3);
+      cursor: text;
     }
     .gsearch-field {
       flex: 1 1 auto;
@@ -196,6 +210,25 @@ const IDLE: SearchState = { items: [], loading: false, failed: false };
       border: 1px solid var(--border-control);
       border-radius: var(--radius-card);
       box-shadow: var(--shadow-modal);
+    }
+    @include media.phone {
+      .gsearch {
+        position: static;
+        padding-right: 0;
+      }
+      .gsearch-field {
+        padding-right: var(--space-3);
+      }
+      .gsearch-clear {
+        padding-right: var(--space-3);
+      }
+      .gsearch-panel {
+        top: 100%;
+        left: var(--space-2);
+        right: var(--space-2);
+        width: auto;
+        max-width: none;
+      }
     }
     .gsearch-note {
       margin: 0;

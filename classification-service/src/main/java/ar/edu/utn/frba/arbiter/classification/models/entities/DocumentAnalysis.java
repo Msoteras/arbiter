@@ -23,8 +23,9 @@ import java.util.List;
 
 /**
  * The persisted {@link DocumentExtraction} of one attachment. Null fields mean "the document doesn't
- * say", never "doesn't match". One row per document, replaced on each run (unlike the append-only
- * {@link LlmAnalysis}): it supports the analyst's reading, it isn't the audited recommendation.
+ * say", never "doesn't match". One row per document (unlike the append-only {@link LlmAnalysis}): it
+ * supports the analyst's reading, it isn't the audited recommendation. A complete read is reused by
+ * later runs, since the document doesn't change; a partial or failed one is replaced.
  */
 @Entity
 @Table(name = "document_analysis")

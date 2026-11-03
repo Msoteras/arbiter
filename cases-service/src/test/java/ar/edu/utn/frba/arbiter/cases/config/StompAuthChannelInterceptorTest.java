@@ -157,6 +157,33 @@ class StompAuthChannelInterceptorTest {
     }
 
     @Test
+    void staffSubscribingToTheirInsurersEngineBoard_passes() {
+        assertThatCode(() -> send(subscribe("/topic/engine.bbva", sessionOf("ANALISTA_SINIESTROS", null))))
+                .doesNotThrowAnyException();
+        assertThatCode(() -> send(subscribe("/topic/engine.bbva", sessionOf("REFERENTE_ASEGURADORA", null))))
+                .doesNotThrowAnyException();
+    }
+
+    /** The classification pool is shared, so another insurer's board would show this one's load. */
+    @Test
+    void subscribingToAnotherInsurersEngineBoard_isRejected() {
+        Map<String, Object> session = sessionOf("ANALISTA_SINIESTROS", null);
+
+        assertThatThrownBy(() -> send(subscribe("/topic/engine.provincia", session)))
+                .isInstanceOf(StompAccessDeniedException.class);
+        assertThatThrownBy(() -> send(subscribe("/topic/engine.#", session)))
+                .isInstanceOf(StompAccessDeniedException.class);
+    }
+
+    @Test
+    void insuredSubscribingToTheEngineBoard_isRejected() {
+        Map<String, Object> session = sessionOf("ASEGURADO", OWNER_DNI);
+
+        assertThatThrownBy(() -> send(subscribe("/topic/engine.bbva", session)))
+                .isInstanceOf(StompAccessDeniedException.class);
+    }
+
+    @Test
     void theToken_isNotForwardedToTheBroker() {
         Message<byte[]> connect = connect("Bearer " + tokenFor("ASEGURADO", OWNER_DNI));
 

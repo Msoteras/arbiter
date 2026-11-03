@@ -5,6 +5,8 @@ import ar.edu.utn.frba.arbiter.classification.dto.ClassificationResponse;
 import ar.edu.utn.frba.arbiter.classification.models.repositories.CaseOutcomeRepository;
 import ar.edu.utn.frba.arbiter.common.dto.ClaimReport;
 import ar.edu.utn.frba.arbiter.common.dto.ClassificationFinished.Outcome;
+import ar.edu.utn.frba.arbiter.common.dto.ClassificationStep;
+import ar.edu.utn.frba.arbiter.common.enums.ClassificationStage;
 import ar.edu.utn.frba.arbiter.common.enums.Classification;
 import ar.edu.utn.frba.arbiter.common.enums.ClassificationFailureReason;
 import org.junit.jupiter.api.BeforeEach;
@@ -24,6 +26,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
@@ -50,6 +53,9 @@ class ClaimClassificationServiceTest {
     @Mock
     private CasesServiceNotifier casesServiceNotifier;
 
+    @Mock
+    private ClassificationProgress progress;
+
     private ClaimClassificationService service;
 
     private final ClaimReport claim = ClaimReport.builder()
@@ -60,7 +66,7 @@ class ClaimClassificationServiceTest {
     @BeforeEach
     void setUp() {
         service = new ClaimClassificationService(
-                classificationOrchestrator, resultsService, caseOutcomeRepository, casesServiceNotifier);
+                classificationOrchestrator, resultsService, caseOutcomeRepository, casesServiceNotifier, progress);
     }
 
     @Test
@@ -148,5 +154,42 @@ class ClaimClassificationServiceTest {
         service.notifyFailure(new RuntimeException("Classification failed"), 7L, claim, List.of());
 
         verify(casesServiceNotifier).classificationFinished(7L, Outcome.FAILED);
+    }
+
+    @Test
+    void success_reportsTheResultToTheBoard_andReleasesTheThread() {
+        when(classificationOrchestrator.classify(eq(7L), eq(claim), anyList()))
+                .thenReturn(ClassificationResponse.builder()
+                        .classification(Classification.LLM_RECOMIENDA_APROBAR)
+                        .factors(List.of("ok"))
+                        .confidence(0.9)
+                        .build());
+
+        service.processClaimClassification(7L, claim, List.of());
+
+        InOrder inOrder = inOrder(progress);
+        inOrder.verify(progress).bind(7L);
+        inOrder.verify(progress).report(argThat((ClassificationStep step) ->
+                step.stage() == ClassificationStage.FINISHED
+                        && step.result() == Classification.LLM_RECOMIENDA_APROBAR));
+        inOrder.verify(progress).unbind();
+    }
+
+    @Test
+    void failedAttempt_stillReleasesTheThread() {
+        when(classificationOrchestrator.classify(eq(7L), eq(claim), anyList()))
+                .thenThrow(new ResourceAccessException("Connection refused"));
+
+        assertThatThrownBy(() -> service.processClaimClassification(7L, claim, List.of()))
+                .isInstanceOf(RuntimeException.class);
+
+        verify(progress).unbind();
+    }
+
+    @Test
+    void recovery_reportsTheFailureToTheBoard() {
+        service.notifyFailure(new RuntimeException("Classification failed"), 7L, claim, List.of());
+
+        verify(progress).report(eq(7L), argThat((ClassificationStep step) -> step.stage() == ClassificationStage.FAILED));
     }
 }

@@ -55,6 +55,8 @@
   background: var(--surface);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-modal);
+  /* What sits inside follows the card's corner (see --radius-box). */
+  --radius-box: var(--radius-inner);
   box-shadow: var(--shadow-card);
   overflow: hidden;
   transition:
@@ -187,7 +189,7 @@
   padding: var(--space-4);
   background: var(--surface-sunken);
   border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-card);
+  border-radius: var(--radius-box);
 }
 .info-icon {
   flex: none;
@@ -220,7 +222,7 @@
   padding: var(--space-3) var(--space-4);
   background: var(--selected-bg);
   border: 1px solid var(--selected-border);
-  border-radius: var(--radius-card);
+  border-radius: var(--radius-box);
 }
 .nm-avatar {
   display: inline-flex;

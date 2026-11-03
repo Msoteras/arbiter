@@ -1,5 +1,5 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input, signal } from '@angular/core';
 import { finalize } from 'rxjs';
 
 import { RISK_FACTORS, ScoringConfig } from '../../../core/models/business-rules';
@@ -39,6 +39,8 @@ import { OnboardingTargetDirective } from '../../../core/onboarding/onboarding-t
   styleUrl: './scoring-config.component.scss',
 })
 export class ScoringConfigComponent {
+  readonly readOnly = input(false);
+
   protected readonly stepLine = ONBOARDING_STEP_LINE;
 
   private readonly scoringService = inject(ScoringRulesService);

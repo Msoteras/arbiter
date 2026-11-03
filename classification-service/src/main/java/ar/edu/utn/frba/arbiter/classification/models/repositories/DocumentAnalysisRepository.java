@@ -5,8 +5,11 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Collection;
+import java.util.List;
 
 public interface DocumentAnalysisRepository extends JpaRepository<DocumentAnalysis, Long> {
+
+    List<DocumentAnalysis> findByCaseDocumentIdIn(Collection<Long> caseDocumentIds);
 
     /**
      * The table is unique per document, so a reclassification clears the previous run first.

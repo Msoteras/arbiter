@@ -2,16 +2,21 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  inject,
   input,
   model,
   output,
   signal,
 } from '@angular/core';
 
+import { FIELD_CONTEXT } from '../field/field.component';
+
 /** Deliberately not a ControlValueAccessor: the app does not use Angular Forms. */
 @Component({
   selector: 'app-input',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  // The id goes on the inner control: left on the host too, a label's `for` would find the host first.
+  host: { '[attr.id]': 'null' },
   template: `
     <div class="input-wrap">
       @if (prefix()) {
@@ -24,6 +29,8 @@ import {
         [class.align-end]="align() === 'end'"
         [attr.inputmode]="inputmode()"
         [id]="resolvedId()"
+        [attr.aria-invalid]="field?.errorId() ? 'true' : null"
+        [attr.aria-describedby]="field?.errorId()"
         [type]="effectiveType()"
         [placeholder]="placeholder()"
         [value]="value()"
@@ -31,6 +38,7 @@ import {
         [attr.max]="max()"
         [attr.autocomplete]="autocomplete()"
         [readOnly]="readonly()"
+        [disabled]="disabled()"
         (keydown)="onKeydown($event)"
         (input)="onInput($event)"
       />
@@ -115,6 +123,11 @@ import {
     .field.has-reveal::-ms-clear {
       display: none;
     }
+    /* Chrome's time dropdown opens outside app-time-picker's panel and ignores the theme: the
+       time is typed instead. Touch devices still open their own wheel on tap. */
+    .field[type='time']::-webkit-calendar-picker-indicator {
+      display: none;
+    }
     @include media.desktop {
       .field {
         font-size: var(--font-size-body);
@@ -125,8 +138,15 @@ import {
         min-height: var(--touch-target);
       }
     }
-    .field:hover:not(:focus):not([readonly]) {
+    .field:hover:not(:focus):not([readonly]):not(:disabled) {
       border-color: var(--border-strong);
+    }
+    .field:disabled {
+      cursor: default;
+      opacity: 0.55;
+    }
+    .field[aria-invalid='true'] {
+      border-color: var(--status-danger);
     }
     .field:focus {
       outline: none;
@@ -191,6 +211,7 @@ export class InputComponent {
   readonly max = input<string | null>(null);
   readonly autocomplete = input<string | null>(null);
   readonly readonly = input(false);
+  readonly disabled = input(false);
   readonly revealable = input(false);
   readonly prefix = input<string | null>(null);
   readonly align = input<'start' | 'end'>('start');
@@ -209,6 +230,7 @@ export class InputComponent {
     () => this.type() === 'number' && this.min() !== null && Number(this.min()) >= 0,
   );
 
+  protected readonly field = inject(FIELD_CONTEXT, { optional: true });
   protected readonly resolvedId = computed(() => this.id() ?? this.autoId);
   protected readonly revealed = signal(false);
   protected readonly showReveal = computed(() => this.revealable() && this.type() === 'password');

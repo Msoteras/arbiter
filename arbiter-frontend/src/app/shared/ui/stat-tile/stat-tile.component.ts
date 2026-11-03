@@ -38,7 +38,7 @@ type Tone = 'default' | 'accent' | 'danger';
       height: 100%;
       padding: var(--space-4);
       border: 1px solid var(--border-default);
-      border-radius: var(--radius-card);
+      border-radius: var(--radius-box);
       background: var(--surface);
       box-shadow: var(--shadow-card);
       transition:

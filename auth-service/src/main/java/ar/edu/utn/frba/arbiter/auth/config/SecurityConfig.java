@@ -41,6 +41,9 @@ public class SecurityConfig {
                         "/api/v1/auth/forgot-password",
                         "/api/v1/auth/reset-password",
                         "/api/v1/auth/invite-tokens/**",
+                        // The insurer's logo, for the <img> of the mails to the insured: a mail
+                        // client fetches it without a session.
+                        "/api/v1/auth/public/insurers/*/logo",
                         "/v3/api-docs/**",
                         "/swagger-ui/**",
                         // Liveness probe has no JWT; only `health` is exposed by actuator.

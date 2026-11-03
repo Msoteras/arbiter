@@ -11,14 +11,13 @@ import { LogoComponent } from '../../../shared/ui/logo/logo.component';
 import { ToastService } from '../../../shared/ui/toast/toast.service';
 
 /** Mirrors InsurerLogoService (auth-service): checked here too so a wrong file fails at once. */
-const ACCEPTED_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml'];
+// No SVG: the PDF reports can't draw it and many mail clients don't show it.
+const ACCEPTED_TYPES = ['image/png', 'image/jpeg'];
 const MAX_BYTES = 256 * 1024;
 
 const TYPE_LABELS: Record<string, string> = {
   'image/png': 'PNG',
   'image/jpeg': 'JPG',
-  'image/webp': 'WebP',
-  'image/svg+xml': 'SVG',
 };
 
 /**
@@ -51,7 +50,7 @@ export class BrandComponent {
   protected readonly dragging = signal(false);
   protected readonly error = signal<string | null>(null);
 
-  /** "SVG · 12 KB · subido el 14/10/2026". */
+  /** "PNG · 12 KB · subido el 14/10/2026". */
   protected details(logo: InsurerLogo): string {
     const type = TYPE_LABELS[logo.type] ?? logo.type;
     return `${type} · ${fileSize(logo.bytes)} · subido el ${formatDate(logo.uploadedAt)}`;
@@ -95,7 +94,7 @@ export class BrandComponent {
   private upload(file: File): void {
     this.error.set(null);
     if (!ACCEPTED_TYPES.includes(file.type)) {
-      this.error.set('El logo tiene que ser PNG, JPG, WebP o SVG.');
+      this.error.set('El logo tiene que ser PNG o JPG.');
       return;
     }
     if (file.size > MAX_BYTES) {

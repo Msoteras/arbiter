@@ -150,8 +150,10 @@ export class TabsComponent {
     const ink = this.ink().nativeElement;
     const list = ink.parentElement as HTMLElement;
     const active = list.querySelector<HTMLElement>('.tab.active');
-    // A tab on a second row would put the line under the first: let its own border show instead.
-    if (!active || active.offsetTop !== (list.querySelector<HTMLElement>('.tab')?.offsetTop ?? 0)) {
+    const tabs = list.querySelectorAll<HTMLElement>('.tab');
+    const wrapped = tabs.length > 0 && tabs[tabs.length - 1].offsetTop !== tabs[0].offsetTop;
+    // A wrapped strip would put the line under its last row: let the active tab's own border show.
+    if (!active || wrapped) {
       ink.classList.remove('placed');
       list.classList.remove('has-ink');
       return;

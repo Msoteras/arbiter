@@ -30,7 +30,7 @@ public class InsurerHardRuleController {
     private final InsurerHardRuleService service;
 
     @GetMapping("/insurer-hard-rules")
-    @PreAuthorize("hasRole('REFERENTE_ASEGURADORA')")
+    @PreAuthorize("hasAnyRole('REFERENTE_ASEGURADORA', 'ANALISTA_SINIESTROS')")
     @Operation(summary = "Reglas duras de toda la aseguradora",
             description = "Siempre devuelve las dos: la que la aseguradora nunca configuró viene apagada "
                     + "(enabled=false) y, si es la de mora, con onArrears=STANDBY (el comportamiento previo "

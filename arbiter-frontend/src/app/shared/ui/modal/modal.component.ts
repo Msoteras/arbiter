@@ -113,6 +113,7 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
       overscroll-behavior: contain;
       /* The top padding leaves room for the focus ring of a field at the very top. */
       padding: var(--space-1) var(--modal-pad) 0;
+      --radius-box: var(--radius-inner);
     }
     /* A spacer, not padding: padding would leave a gap under a sticky footer in the body. */
     .modal.no-actions .modal-body::after {

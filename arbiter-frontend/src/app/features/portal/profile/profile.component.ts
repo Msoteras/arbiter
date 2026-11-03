@@ -12,7 +12,6 @@ import { catchError, map, of, scan, startWith, switchMap } from 'rxjs';
 
 import { ProfileService } from '../../../core/auth/profile.service';
 import {
-  IMAGE_CONSENT_DETAIL,
   IMAGE_CONSENT_SUMMARY,
   IMAGE_CONSENT_VERSION,
   InsuredProfile,
@@ -20,6 +19,7 @@ import {
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { CheckboxComponent } from '../../../shared/ui/checkbox/checkbox.component';
 import { SkeletonComponent } from '../../../shared/ui/skeleton/skeleton.component';
+import { FieldComponent } from '../../../shared/ui/field/field.component';
 import { InputComponent } from '../../../shared/ui/input/input.component';
 
 type ProfileState =
@@ -31,7 +31,7 @@ type ProfileState =
  */
 @Component({
   selector: 'app-profile',
-  imports: [ButtonComponent, CheckboxComponent, SkeletonComponent, InputComponent],
+  imports: [ButtonComponent, CheckboxComponent, SkeletonComponent, FieldComponent, InputComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './profile.component.html',
   styleUrl: './profile.component.scss',
@@ -40,7 +40,6 @@ export class ProfileComponent {
   private readonly profileService = inject(ProfileService);
 
   protected readonly consentSummary = IMAGE_CONSENT_SUMMARY;
-  protected readonly consentDetail = IMAGE_CONSENT_DETAIL;
 
   // Bumped after saving: the PATCH returns a new token, not the profile, so it must be re-fetched.
   private readonly reload = signal(0);

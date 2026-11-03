@@ -6,6 +6,8 @@ import ar.edu.utn.frba.arbiter.classification.dto.ClassificationResponse;
 import ar.edu.utn.frba.arbiter.classification.models.repositories.CaseOutcomeRepository;
 import ar.edu.utn.frba.arbiter.common.dto.ClaimReport;
 import ar.edu.utn.frba.arbiter.common.dto.ClassificationFinished;
+import ar.edu.utn.frba.arbiter.common.dto.ClassificationStep;
+import ar.edu.utn.frba.arbiter.common.enums.ClassificationStage;
 import ar.edu.utn.frba.arbiter.common.enums.ClassificationFailureReason;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
@@ -30,6 +32,7 @@ public class ClaimClassificationService {
     private final ClassificationResultsService resultsService;
     private final CaseOutcomeRepository caseOutcomeRepository;
     private final CasesServiceNotifier casesServiceNotifier;
+    private final ClassificationProgress progress;
 
     /**
      * The retry window is deliberately wide (minutes, not seconds) so a dependency that is restarting
@@ -49,6 +52,7 @@ public class ClaimClassificationService {
         log.info("[ClaimClassificationService] ▶ Starting async classification — caseId={} policy='{}' insuredId='{}'",
                 caseId, claim.policyNumber(), claim.insuredId());
 
+        progress.bind(caseId);
         try {
             long start = System.currentTimeMillis();
 
@@ -60,12 +64,15 @@ public class ClaimClassificationService {
                     caseId, response.classification(), response.confidence(), latencyMs);
 
             resultsService.saveResult(caseId, response, response.forensicReport(), latencyMs);
+            progress.report(ClassificationStep.finished(response.classification()));
 
         } catch (Exception e) {
             log.error("[ClaimClassificationService] ✗ Error processing caseId={} after retries — {}",
                     caseId, e.getMessage(), e);
             caseOutcomeRepository.recordClassificationFailure(caseId, classifyFailure(e), e.getMessage());
             throw new RuntimeException("Classification failed for case " + caseId + " after retries", e);
+        } finally {
+            progress.unbind();
         }
 
         casesServiceNotifier.classificationFinished(caseId, ClassificationFinished.Outcome.COMPLETED);
@@ -73,6 +80,7 @@ public class ClaimClassificationService {
 
     @Recover
     public void notifyFailure(RuntimeException e, Long caseId, ClaimReport claim, List<AttachmentDocument> documents) {
+        progress.report(caseId, ClassificationStep.of(ClassificationStage.FAILED));
         casesServiceNotifier.classificationFinished(caseId, ClassificationFinished.Outcome.FAILED);
     }
 

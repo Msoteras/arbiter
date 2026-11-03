@@ -1,5 +1,6 @@
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
+import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { provideRouter } from '@angular/router';
@@ -12,9 +13,15 @@ import { CoverageExclusionsService } from '../coverage-exclusions.service';
 import { CoverageDetail, CoveragesRulesService } from '../coverages-rules.service';
 import { DerivationRulesService } from '../derivation-rules.service';
 import { DocumentRulesService } from '../document-rules.service';
-import { FastTrackRulesService } from '../fast-track-rules.service';
-import { HardRule, HardRulesService } from '../hard-rules.service';
+import {
+  CoverageOption,
+  FastTrackConfigDto,
+  FastTrackRulesService,
+} from '../fast-track-rules.service';
+import { HardRule, HardRulesService, InsurerHardRule } from '../hard-rules.service';
+import { AuthSessionService } from '../../../core/auth/auth-session.service';
 import { DocumentTypeDef } from '../../../core/models/business-rules';
+import { UserRole } from '../../../core/models/user-role';
 import { DocumentTypeService } from '../../../core/services/document-type.service';
 import {
   DOCUMENT_TYPES_FIXTURE,
@@ -51,6 +58,10 @@ describe('RulesComponent', () => {
   let branchList: () => Observable<BranchOption[]>;
   let claimCauses: () => Observable<{ id: number; name: string }[]>;
   let hardRules: HardRule[];
+  let ftCoverages: CoverageOption[];
+  let ftConfig: FastTrackConfigDto | null;
+  let textRules: string[];
+  let insurerRules: InsurerHardRule[];
 
   beforeEach(() => {
     branchDocuments = { 1: DOCUMENT_TYPES_FIXTURE, 2: DOCUMENT_TYPES_FIXTURE };
@@ -62,12 +73,20 @@ describe('RulesComponent', () => {
       ]);
     claimCauses = () => of([{ id: 4, name: 'Caída' }]);
     hardRules = [];
+    ftCoverages = [];
+    ftConfig = null;
+    textRules = [];
+    insurerRules = [];
   });
 
-  async function mount(coverages: CoverageDetail[] = []): Promise<void> {
+  async function mount(
+    coverages: CoverageDetail[] = [],
+    rol: UserRole = 'REFERENTE_ASEGURADORA',
+  ): Promise<void> {
     await TestBed.configureTestingModule({
       imports: [RulesComponent],
       providers: [
+        { provide: AuthSessionService, useValue: { session: signal({ rol }) } },
         {
           provide: DocumentTypeService,
           useValue: Object.assign(new DocumentTypeServiceStub(), {
@@ -97,15 +116,15 @@ describe('RulesComponent', () => {
         },
         {
           provide: FastTrackRulesService,
-          useValue: { listCoverages: () => of([]), getFastTrack: () => of(null) },
+          useValue: { listCoverages: () => of(ftCoverages), getFastTrack: () => of(ftConfig) },
         },
         {
           provide: BusinessRulesTextService,
-          useValue: { getExclusions: () => of([]), getBusinessRules: () => of([]) },
+          useValue: { getExclusions: () => of(textRules), getBusinessRules: () => of(textRules) },
         },
         {
           provide: HardRulesService,
-          useValue: { getInsurerWide: () => of([]), get: () => of(hardRules) },
+          useValue: { getInsurerWide: () => of(insurerRules), get: () => of(hardRules) },
         },
         { provide: DocumentRulesService, useValue: { get: () => agenda() } },
         {
@@ -400,5 +419,148 @@ describe('RulesComponent', () => {
     expect(el().querySelector('.tab-panel app-save-bar')?.textContent).toContain(
       'Cambios sin guardar',
     );
+  });
+
+  function generalSection(label: string): HTMLButtonElement {
+    return [...el().querySelectorAll<HTMLButtonElement>('.branch-item.general')].find(
+      (b) => b.textContent?.trim() === label,
+    )!;
+  }
+
+  function generalSectionLabels(): (string | undefined)[] {
+    return [...el().querySelectorAll('.branch-item.general')].map((b) => b.textContent?.trim());
+  }
+
+  it('lets the referente edit the branch and open Marca', async () => {
+    localStorage.removeItem(LAST_TAB_KEY);
+    await mount([coverage()]);
+
+    expect(el().querySelector('.rules-head app-badge')).toBeNull();
+    expect(el().querySelector('[aria-label="Renombrar el ramo"]')).not.toBeNull();
+    expect(el().querySelector('.editor app-save-bar')).not.toBeNull();
+    expect(generalSectionLabels()).toContain('Marca');
+  });
+
+  describe('for the analyst', () => {
+    beforeEach(() => {
+      hardRules = [
+        { ruleType: 'WAITING_PERIOD', enabled: true, deadlineHours: null },
+        { ruleType: 'REPORT_DEADLINE', enabled: true, deadlineHours: null },
+        { ruleType: 'MAX_EVENTS_YEAR', enabled: true, deadlineHours: null },
+      ];
+      ftCoverages = [{ id: 3, name: 'Daño accidental' }];
+      ftConfig = {
+        maxClaimedAmountRatio: 0.5,
+        maxPriorClaims: 1,
+        priorClaimsWindowMonths: 12,
+        minPolicyAgeMonths: 3,
+        requiresUpToDatePolicy: true,
+        requiredDocumentTypes: ['police_report'],
+        criteria: ['Sin siniestros previos'],
+      };
+      textRules = ['Uso indebido del equipo'];
+      agenda = () => of(['police_report']);
+      insurerRules = [
+        { ruleType: 'POLICY_IN_FORCE', enabled: true, onArrears: null },
+        { ruleType: 'POLICY_STANDING', enabled: true, onArrears: 'REJECT' },
+      ];
+    });
+
+    function editableControls(): HTMLElement[] {
+      return [
+        ...el().querySelectorAll<HTMLInputElement | HTMLTextAreaElement | HTMLButtonElement>(
+          '.editor input, .editor textarea, .editor [role="switch"], .editor [role="combobox"]',
+        ),
+      ].filter((control) => !control.disabled && !control.closest('.ft-coverage'));
+    }
+
+    function editActions(): string[] {
+      return [...el().querySelectorAll<HTMLButtonElement>('.editor button')]
+        .map((b) => (b.getAttribute('aria-label') ?? b.textContent ?? '').trim())
+        .filter((label) => /Agregar|Quitar|Editar|Renombrar|Guardar|Descartar/.test(label));
+    }
+
+    for (const tabId of [
+      'coverages',
+      'exclusions',
+      'fastTrack',
+      'documents',
+      'derivations',
+      'rules',
+    ]) {
+      it(`shows the ${tabId} tab with nothing to change or save`, async () => {
+        localStorage.setItem(LAST_TAB_KEY, tabId);
+        await mount([coverage()], 'ANALISTA_SINIESTROS');
+        if (tabId === 'coverages') {
+          click(el().querySelector<HTMLElement>('.cov-toggle'));
+        }
+
+        expect(el().querySelector('.editor app-save-bar')).toBeNull();
+        expect(editableControls()).toEqual([]);
+        expect(editActions()).toEqual([]);
+      });
+    }
+
+    it('still shows the values on screen', async () => {
+      localStorage.removeItem(LAST_TAB_KEY);
+      await mount([coverage()], 'ANALISTA_SINIESTROS');
+      click(el().querySelector<HTMLElement>('.cov-toggle'));
+
+      expect(
+        el().querySelector<HTMLTextAreaElement>('.cov-body app-textarea textarea')?.value,
+      ).toBe('Cobertura por rotura o caída accidental del equipo');
+    });
+
+    it('drops the example placeholders, which read as instructions', async () => {
+      localStorage.removeItem(LAST_TAB_KEY);
+      await mount([coverage()], 'ANALISTA_SINIESTROS');
+      click(el().querySelector<HTMLElement>('.cov-toggle'));
+
+      const hints = [
+        ...el().querySelectorAll<HTMLInputElement | HTMLTextAreaElement>(
+          '.cov-body input, .cov-body textarea',
+        ),
+      ].map((f) => f.placeholder);
+      expect(hints).not.toContain('ej. 340');
+      expect(hints).not.toContain('Qué cubre, en una o dos frases');
+    });
+
+    it('lets the analyst switch the Fast Track coverage to read each one', async () => {
+      localStorage.setItem(LAST_TAB_KEY, 'fastTrack');
+      await mount([coverage()], 'ANALISTA_SINIESTROS');
+
+      const picker = el().querySelector<HTMLButtonElement>('.ft-coverage [role="combobox"]');
+      expect(picker?.disabled).toBeFalse();
+    });
+
+    it('labels the screen as read-only and hides the rename pencil', async () => {
+      localStorage.removeItem(LAST_TAB_KEY);
+      await mount([coverage()], 'ANALISTA_SINIESTROS');
+
+      expect(el().querySelector('.rules-head app-badge')?.textContent?.trim()).toBe('Solo lectura');
+      expect(el().querySelector('[aria-label="Renombrar el ramo"]')).toBeNull();
+    });
+
+    it('lists every other setting except Marca', async () => {
+      await mount([], 'ANALISTA_SINIESTROS');
+
+      expect(generalSectionLabels()).toEqual([
+        'Hard Stop',
+        'Puntaje de riesgo',
+        'Gestión de fraude',
+        'Proveedores externos',
+        'Atribuciones de liquidación',
+        'Objetivo de resolución',
+      ]);
+    });
+
+    it('shows Hard Stop with nothing to change or save', async () => {
+      await mount([], 'ANALISTA_SINIESTROS');
+      click(generalSection('Hard Stop'));
+
+      expect(el().querySelectorAll('.editor [role="switch"]').length).toBe(2);
+      expect(el().querySelector('.editor app-save-bar')).toBeNull();
+      expect(editableControls()).toEqual([]);
+    });
   });
 });

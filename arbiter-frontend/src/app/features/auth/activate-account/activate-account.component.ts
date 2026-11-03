@@ -15,6 +15,7 @@ import { AuthService } from '../../../core/auth/auth.service';
 import { homeRouteFor } from '../../../core/models/user-role';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { CardComponent } from '../../../shared/ui/card/card.component';
+import { FieldComponent } from '../../../shared/ui/field/field.component';
 import { InputComponent } from '../../../shared/ui/input/input.component';
 import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
 import { LogoComponent } from '../../../shared/ui/logo/logo.component';
@@ -28,7 +29,14 @@ type Mode = 'activate' | 'reset';
  */
 @Component({
   selector: 'app-activate-account',
-  imports: [ButtonComponent, CardComponent, InputComponent, InlineLoadingComponent, LogoComponent],
+  imports: [
+    ButtonComponent,
+    CardComponent,
+    FieldComponent,
+    InputComponent,
+    InlineLoadingComponent,
+    LogoComponent,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './activate-account.component.html',
   styleUrl: './activate-account.component.scss',

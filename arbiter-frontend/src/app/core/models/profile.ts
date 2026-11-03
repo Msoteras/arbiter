@@ -3,16 +3,18 @@
 /**
  * Image forensics consent. The persisted `imageConsentVersion` must resolve to the exact text
  * the person read: when the text changes, add a NEW version, never edit an accepted one.
+ * 1.0 also showed a help text on what the provider checks; 1.1 drops it, since telling the
+ * insured how the images are verified helps whoever wants to get around it.
  */
-export const IMAGE_CONSENT_VERSION = '1.0';
+const IMAGE_CONSENT_TEXTS = {
+  '1.0': 'Acepto que mis imágenes se envíen a un proveedor externo de verificación antifraude',
+  '1.1':
+    'Acepto que las imágenes de una denuncia se envíen a un proveedor externo de verificación antifraude',
+} as const;
 
-export const IMAGE_CONSENT_SUMMARY =
-  'Acepto que mis imágenes se envíen a un proveedor externo de verificación antifraude';
+export const IMAGE_CONSENT_VERSION = '1.1';
 
-// Informed consent needs: images leave Arbiter, what for, and that declining costs nothing.
-export const IMAGE_CONSENT_DETAIL =
-  'Tus imágenes pueden compartirse con un servicio externo (fuera de Arbiter) para verificar ' +
-  'que no estén publicadas en otro lado. Es opcional: tu denuncia se procesa igual.';
+export const IMAGE_CONSENT_SUMMARY = IMAGE_CONSENT_TEXTS[IMAGE_CONSENT_VERSION];
 
 /** GET /api/v1/auth/profile */
 export interface InsuredProfile {

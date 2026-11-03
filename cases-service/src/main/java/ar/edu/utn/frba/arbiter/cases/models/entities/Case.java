@@ -38,6 +38,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Entity
 @Table(name = "cases", indexes = {
@@ -156,6 +157,21 @@ public class Case {
     /** The analyst's adjustment note, kept apart so the computed score is never overwritten. */
     @Column(name = "manual_adjustment_note", columnDefinition = "TEXT")
     private String manualAdjustmentNote;
+
+    /**
+     * The classification found documents missing and the analyst hasn't asked for them yet: the model
+     * didn't run, so there is nothing to decide or refer on. Asking for them reclassifies the case.
+     */
+    public boolean hasDocumentationPending() {
+        return rulesClassification == Classification.FALTA_DOCUMENTACION;
+    }
+
+    /** Everything the analyst asked for; the open request is what isn't fulfilled. */
+    @Builder.Default
+    @Convert(converter = RequestedDocumentsJsonConverter.class)
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "requested_documents", nullable = false, columnDefinition = "jsonb")
+    private List<RequestedDocument> requestedDocuments = List.of();
 
     /**
      * A real FK within the tenant schema, which bounds assignment to the insurer's own analysts. EAGER:

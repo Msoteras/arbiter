@@ -15,13 +15,13 @@ import { AuthSessionService } from '../../../core/auth/auth-session.service';
 import { ProfileService } from '../../../core/auth/profile.service';
 import { Policy } from '../../../core/models/policy';
 import {
-  IMAGE_CONSENT_DETAIL,
   IMAGE_CONSENT_SUMMARY,
   IMAGE_CONSENT_VERSION,
   InsuredProfile,
 } from '../../../core/models/profile';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { CheckboxComponent } from '../../../shared/ui/checkbox/checkbox.component';
+import { FieldComponent } from '../../../shared/ui/field/field.component';
 import { InputComponent } from '../../../shared/ui/input/input.component';
 import { InfoTipComponent } from '../../../shared/ui/info-tip/info-tip.component';
 import { LoadingComponent } from '../../../shared/ui/loading/loading.component';
@@ -45,6 +45,7 @@ type PoliciesState =
     ButtonComponent,
     CheckboxComponent,
     InfoTipComponent,
+    FieldComponent,
     InputComponent,
     LoadingComponent,
     LogoComponent,
@@ -61,7 +62,6 @@ export class OnboardingComponent {
   private readonly router = inject(Router);
 
   protected readonly consentSummary = IMAGE_CONSENT_SUMMARY;
-  protected readonly consentDetail = IMAGE_CONSENT_DETAIL;
 
   protected readonly firstName = computed(() => this.session.session()?.nombre ?? '');
 

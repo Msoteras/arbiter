@@ -87,7 +87,18 @@ lectura). Se cargaron las columnas de las tres `metrica_diaria_*`, se dibujaron 
 
 ## Para editar en el `.mdj`
 
-Nada: el `.mdj` del 24/10 coincide con el esquema.
+El `.mdj` del 24/10 coincide con el esquema, salvo la columna que suma esta rama:
+
+### 40 · `expediente.documentos_pedidos` — columna nueva (23/10)
+
+Los documentos que el analista le pide al asegurado
+(`2026-10-23-documentos-pedidos-por-el-analista.sql`).
+
+| Columna | Tipo de dato | Nulo | Restricciones |
+|---|---|---|---|
+| `documentos_pedidos` (`requested_documents`) | JSONB | no | default `'[]'` |
+
+**Acción:** agregar la columna a `expediente`.
 
 ---
 

@@ -24,6 +24,24 @@ const MASCULINO = { el: 'el', El: 'El', del: 'del', al: 'al', por: 'por el', DEL
 // and model on each document against it.
 const SAMSUNG_A56 = { brand: 'SAMSUNG', model: 'Galaxy A56 5G', color: 'Gris (Awesome Graphite)', storage: '256 GB' };
 
+// Valentín signs the mutations and the new cases: one insured, one policy (POL-CEL-2026-777).
+const VALENTIN = {
+  insured: {
+    formal: 'AGUIRRE, Valentín',
+    display: 'Valentín Aguirre',
+    dni: '38.614.270',
+    cuil: '20-38614270-0',
+    birth: '27/05/1994',
+    address: 'Av. Scalabrini Ortiz 1920, piso 3° "C", C.A.B.A.',
+    phone: '11-5555-0077',
+    email: 'valentin.aguirre@example.com',
+  },
+  // db/migrations/2026-09-22-asegurado-mutaciones.sql
+  policies: {
+    celulares: { number: 'POL-CEL-2026-777', imei: '357000000000777', serial: 'RZ8W60K7TQA', device: SAMSUNG_A56 },
+  },
+};
+
 const PROFILES = {
   conMarca: {
     folder: 'conMarcaDePrueba',
@@ -83,22 +101,17 @@ const PROFILES = {
     folder: 'mutaciones',
     disclaimer: false,
     g: MASCULINO,
-    insured: {
-      formal: 'AGUIRRE, Valentín',
-      display: 'Valentín Aguirre',
-      dni: '38.614.270',
-      cuil: '20-38614270-0',
-      birth: '27/05/1994',
-      address: 'Av. Scalabrini Ortiz 1920, piso 3° "C", C.A.B.A.',
-      phone: '11-5555-0077',
-      email: 'valentin.aguirre@example.com',
-    },
+    ...VALENTIN,
     // Who had the phone on them in the bien-de-familiar mutation.
     spouse: { name: 'Julieta Sosa', dni: '39.208.114', g: FEMENINO },
-    // db/migrations/2026-09-22-asegurado-mutaciones.sql
-    policies: {
-      celulares: { number: 'POL-CEL-2026-777', imei: '357000000000777', serial: 'RZ8W60K7TQA', device: SAMSUNG_A56 },
-    },
+  },
+  // New stories for the same insured (casos-nuevos-celulares.js). Without the disclaimer, like the
+  // mutations: the vision model reads the page as an insured would send it.
+  nuevos: {
+    folder: 'nuevos',
+    disclaimer: false,
+    g: MASCULINO,
+    ...VALENTIN,
   },
   // A clean insured for the regular sets and for the history sequence (historial-celulares.js),
   // which files three claims in a row on purpose to watch prior claims kick in. Wiped before each
@@ -133,8 +146,9 @@ const PROFILES = {
   },
 };
 
-/** `--sin-marca`, `--camila` o `--mutaciones` en la línea de comandos; sin flag, el juego con leyenda. */
+/** `--sin-marca`, `--camila`, `--mutaciones` o `--nuevos` en la línea de comandos; sin flag, el juego con leyenda. */
 function variantFromArgv(argv = process.argv) {
+  if (argv.includes('--nuevos')) return 'nuevos';
   if (argv.includes('--mutaciones')) return 'mutaciones';
   if (argv.includes('--camila')) return 'camila';
   return argv.includes('--sin-marca') ? 'sinMarca' : 'conMarca';

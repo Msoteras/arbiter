@@ -135,6 +135,7 @@ services:
       GOOGLE_CLOUD_LOCATION: ${GOOGLE_CLOUD_LOCATION:-global}
       GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.5-flash}
       GEMINI_TIMEOUT: ${GEMINI_TIMEOUT:-90s}
+      GEMINI_MAX_OUTPUT_TOKENS: ${GEMINI_MAX_OUTPUT_TOKENS:-4096}
       GOOGLE_APPLICATION_CREDENTIALS: ${GOOGLE_APPLICATION_CREDENTIALS:-}
       # Mount the credential from your gitignored docker-compose.override.yml. Service account:
       #   services:
@@ -155,6 +156,8 @@ services:
       DB_PASSWORD: ${DB_PASSWORD:-arbiter}
       JWT_SECRET: ${JWT_SECRET:-+CV3wiE5lScQGEx1PvKLNuWmaqxixDsm8EIFifgfq8thgguF84p+GI10Rs/1wSTl}
       RULES_SERVICE_URL: http://rules-service:8081
+      # The yml default is localhost, which inside a container is the container itself.
+      CASES_SERVICE_URL: http://cases-service:8083
     depends_on:
       ollama-init:
         condition: service_completed_successfully

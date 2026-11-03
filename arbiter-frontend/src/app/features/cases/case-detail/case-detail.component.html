@@ -57,7 +57,9 @@
         <h2 class="strip-label">
           <span class="ai-mark" aria-hidden="true">✦</span>
           {{
-            isDeterministicOutcome() ? 'Resultado del motor de reglas' : 'Recomendación de Arbiter'
+            isDeterministicOutcome()
+              ? 'Resultado del motor de reglas de Arbiter'
+              : 'Recomendación de Arbiter'
           }}
         </h2>
         @if (classificationLabel()) {
@@ -77,7 +79,7 @@
               </p>
             }
           } @else if (needsDocs()) {
-            <p class="note">Falta documentación obligatoria de la agenda del ramo.</p>
+            <p class="note">Falta documentación para su nivel de riesgo.</p>
           } @else if (!isFastTrack()) {
             <!-- Coverage exclusion or prescription: the model never ran. -->
             <p class="note">El detalle está en «Evaluación de reglas».</p>
@@ -86,18 +88,14 @@
               Cumplió los criterios objetivos de Fast Track.
               <app-info-tip>
                 Fast Track es la vía express para un siniestro que cumple ciertos criterios
-                objetivos. No es una recomendación de aprobar: la decisión sigue siendo del
-                analista.
-                @if (fastTrackCriteria().length > 0) {
-                  Qué se verificó está en «Evaluación de reglas».
-                }
+                objetivos.
               </app-info-tip>
             </p>
           }
         } @else if (d.status === 'PENDING_CLASSIFICATION') {
           <app-classification-progress [since]="classificationSince()" />
         } @else {
-          <p class="nodata">El modelo todavía no generó una recomendación.</p>
+          <p class="nodata">Arbiter todavía no generó una recomendación.</p>
         }
       </div>
 
@@ -159,10 +157,20 @@
       }
 
       <div class="strip-col strip-actions">
-        <h2 class="strip-label">{{ decisionCardHeading() }}</h2>
+        <!-- With only the action buttons below, the label says nothing they don't: screen readers only. -->
+        <h2
+          class="strip-label"
+          [class.sr-only]="decisionState() === 'pending' && canAct() && !awaitingAuthorization()"
+        >
+          {{ decisionCardHeading() }}
+        </h2>
         @switch (decisionState()) {
+          <!-- Resolved: the verdict is the column's headline, like the recommendation and the score. -->
           @case ('approved') {
-            <p class="registered">Aprobado{{ resolution() ? ' el ' + resolution()?.at : '' }}</p>
+            <p class="verdict"><span class="weigh-dot" data-tone="ok"></span>Aprobado</p>
+            @if (resolution(); as r) {
+              <p class="note">{{ r.at }}</p>
+            }
             @if (resolution()?.justification; as why) {
               <p class="decision-reason">{{ why }}</p>
             }
@@ -179,35 +187,38 @@
             }
           }
           @case ('rejected') {
-            <p class="registered rejected">
-              Rechazado{{ resolution() ? ' el ' + resolution()?.at : '' }}
-            </p>
+            <p class="verdict"><span class="weigh-dot" data-tone="danger"></span>Rechazado</p>
+            @if (resolution(); as r) {
+              <p class="note">{{ r.at }}</p>
+            }
             @if (resolution()?.justification; as why) {
               <p class="decision-reason">{{ why }}</p>
             }
           }
           @case ('prescribed') {
-            <p class="registered rejected">
-              Rechazado por prescripción{{ resolution() ? ' el ' + resolution()?.at : '' }}
-            </p>
+            <p class="verdict"><span class="weigh-dot" data-tone="danger"></span>Rechazado</p>
+            <p class="note">Por prescripción{{ resolution() ? ' · ' + resolution()?.at : '' }}</p>
             @if (resolution()?.justification; as why) {
               <p class="decision-reason">{{ why }}</p>
             }
           }
           @case ('withdrawn') {
-            <p class="registered">Cerrado por desistimiento</p>
+            <p class="verdict"><span class="weigh-dot" data-tone="neutral"></span>Cerrado</p>
+            <p class="note">Por desistimiento</p>
             @if (closureNote(); as why) {
               <p class="decision-reason">{{ why }}</p>
             }
           }
           @case ('voided') {
-            <p class="registered">Dado de baja por error de carga</p>
+            <p class="verdict"><span class="weigh-dot" data-tone="neutral"></span>Dado de baja</p>
+            <p class="note">Por error de carga</p>
             @if (closureNote(); as why) {
               <p class="decision-reason">{{ why }}</p>
             }
           }
           @case ('lapsed') {
-            <p class="registered">Cerrado por caducidad</p>
+            <p class="verdict"><span class="weigh-dot" data-tone="neutral"></span>Cerrado</p>
+            <p class="note">Por caducidad</p>
             <p class="rcard-note">
               Pasaron 18 meses desde la denuncia sin que el asegurado trajera la documentación
               pedida.
@@ -249,47 +260,65 @@
               <div class="decision-row">
                 @if (canDecide()) {
                   <div class="decision-side">
-                    @if (recommendedVerdict(); as rec) {
+                    <!-- Missing documentation: nothing to decide on until the analyst asks for it. -->
+                    @if (!needsDocs()) {
+                      @if (recommendedVerdict(); as rec) {
+                        <app-button
+                          class="verdict-main"
+                          [tone]="rec === 'reject' ? 'danger' : 'ok'"
+                          [block]="true"
+                          [disabled]="decisionSaving()"
+                          (click)="askDecision(rec)"
+                          >{{
+                            rec === 'reject' ? 'Rechazar siniestro' : 'Aprobar siniestro'
+                          }}</app-button
+                        >
+                        <app-button
+                          class="span-all"
+                          variant="secondary"
+                          [block]="true"
+                          [disabled]="decisionSaving()"
+                          (click)="askDecision(rec === 'reject' ? 'approve' : 'reject')"
+                          >{{ rec === 'reject' ? 'Aprobar' : 'Rechazar' }}</app-button
+                        >
+                      } @else {
+                        <app-button
+                          variant="secondary"
+                          tone="ok"
+                          [block]="true"
+                          [disabled]="decisionSaving()"
+                          (click)="askDecision('approve')"
+                          >✓ Aprobar</app-button
+                        >
+                        <app-button
+                          variant="secondary"
+                          tone="danger"
+                          [block]="true"
+                          [disabled]="decisionSaving()"
+                          (click)="askDecision('reject')"
+                          >✕ Rechazar</app-button
+                        >
+                      }
+                    }
+                    <!-- Suspends the case until the insured uploads, like a referral: no tone.
+                         Never on Fast Track: what it has is enough to decide. Above the
+                         referral and closing row so those two can share it. -->
+                    @if (!isFastTrack()) {
                       <app-button
-                        class="verdict-main"
-                        [tone]="rec === 'reject' ? 'danger' : 'ok'"
+                        class="span-all"
+                        [variant]="needsDocs() ? 'primary' : 'secondary'"
                         [block]="true"
                         [disabled]="decisionSaving()"
-                        (click)="askDecision(rec)"
-                        >{{
-                          rec === 'reject' ? 'Rechazar siniestro' : 'Aprobar siniestro'
-                        }}</app-button
-                      >
-                      <app-button
-                        variant="secondary"
-                        [block]="true"
-                        [disabled]="decisionSaving()"
-                        (click)="askDecision(rec === 'reject' ? 'approve' : 'reject')"
-                        >{{ rec === 'reject' ? 'Aprobar' : 'Rechazar' }}</app-button
-                      >
-                    } @else {
-                      <app-button
-                        variant="secondary"
-                        tone="ok"
-                        [block]="true"
-                        [disabled]="decisionSaving()"
-                        (click)="askDecision('approve')"
-                        >✓ Aprobar</app-button
-                      >
-                      <app-button
-                        variant="secondary"
-                        tone="danger"
-                        [block]="true"
-                        [disabled]="decisionSaving()"
-                        (click)="askDecision('reject')"
-                        >✕ Rechazar</app-button
+                        (click)="showDocumentRequest.set(true)"
+                        >Pedir documentación</app-button
                       >
                     }
                     <!-- Referral is not a third decision (it suspends to gather evidence), hence
-                         no tone. Always a menu: the full target name doesn't fit this column. -->
-                    @if (derivationChoices().length > 0) {
+                         no tone. Always a menu: the full target name doesn't fit this column.
+                         Referral and closing share a row; whichever is alone spans it. -->
+                    @if (derivationChoices().length > 0 && !needsDocs()) {
                       <app-menu-button
-                        class="span-all"
+                        [class.span-all]="!canClose()"
                         [block]="true"
                         [items]="deriveMenuItems()"
                         [disabled]="decisionSaving()"
@@ -301,6 +330,7 @@
                     <!-- Not a verdict, hence no tone and last in the column. -->
                     @if (canClose()) {
                       <app-menu-button
+                        [class.span-all]="derivationChoices().length === 0 || needsDocs()"
                         [block]="true"
                         [items]="closeMenuItems"
                         [disabled]="decisionSaving()"
@@ -338,12 +368,12 @@
               </div>
               <!-- Why a referral isn't offered: a fact about this claim, not an alert, so the
                    reason waits behind the tip. -->
-              @if (canDerive() && notDerivableReason(); as blockReason) {
+              @if (canDerive() && !needsDocs() && notDerivableReason(); as blockReason) {
                 <p class="rcard-note">
                   Peritaje no disponible <app-info-tip>{{ blockReason }}</app-info-tip>
                 </p>
               }
-              @if (noRepairShopReason(); as blockReason) {
+              @if (!needsDocs() && noRepairShopReason(); as blockReason) {
                 <p class="rcard-note">
                   Servicio técnico no disponible <app-info-tip>{{ blockReason }}</app-info-tip>
                 </p>
@@ -387,7 +417,7 @@
                   <p class="rcard-note error">{{ retryError() }}</p>
                 }
               }
-            } @else if (needsDocs()) {
+            } @else if (awaitingInsuredDocs()) {
               <p class="registered">Esperando al asegurado</p>
               <p class="rcard-note">
                 Cuando cargue la documentación faltante, el expediente se reclasifica y pasa a tu
@@ -551,7 +581,13 @@
                     @for (f of insuredFacts(); track f.label) {
                       <div class="fact">
                         <dt>{{ f.label }}</dt>
-                        <dd [class.mono]="f.mono">{{ f.value ?? 'Sin datos' }}</dd>
+                        <dd [class.mono]="f.mono">
+                          @if (f.href) {
+                            <a class="fact-link" [href]="f.href">{{ f.value }}</a>
+                          } @else {
+                            {{ f.value ?? 'Sin datos' }}
+                          }
+                        </dd>
                       </div>
                     }
                   </dl>
@@ -733,15 +769,14 @@
         }
 
         @case ('analysis') {
-          <div class="analysis-grid">
-            <app-card heading="Razones del modelo">
-              @if (analysisReasons().length > 0) {
+          <!-- Without reasons (a rules outcome) the score takes the whole row. -->
+          <div class="analysis-grid" [class.single]="analysisReasons().length === 0">
+            @if (analysisReasons().length > 0) {
+              <app-card heading="Razones">
                 <span cardAside class="t-note"
                   >{{ analysisReasons().length }}
                   {{ analysisReasons().length === 1 ? 'motivo' : 'motivos' }}</span
                 >
-              }
-              @if (analysisReasons().length > 0) {
                 <ol class="reason-list">
                   @for (segments of reasonSegments(); track $index) {
                     <li class="reason-item">
@@ -768,19 +803,11 @@
                     </li>
                   }
                 </ol>
-              } @else {
-                <app-empty-state
-                  message="El modelo no dejó razones"
-                  sub="Cuando decide una regla no se consulta al modelo; el score sale de los datos."
-                />
-              }
-              @if (classificationLabel() && !isDeterministicOutcome()) {
-                <p class="t-note">
-                  Confianza del modelo: {{ confidencePercent() }}% · Estimación del propio modelo,
-                  no una probabilidad de acierto.
-                </p>
-              }
-            </app-card>
+                @if (classificationLabel() && !isDeterministicOutcome()) {
+                  <p class="t-note">Confianza de Arbiter: {{ confidencePercent() }}%</p>
+                }
+              </app-card>
+            }
             <app-card heading="Score de fraude">
               @if (riskScorePct() !== null) {
                 <div class="risk-head">
@@ -1384,16 +1411,17 @@
         <div class="settlement-money">
           <!-- Only where it changes the result; for REPAIR it is the base amount itself. -->
           @if (needsAccreditedAmount()) {
-            <label class="fieldset">
-              <span class="t-field-label">
-                {{
-                  s.formula === 'REPAIR'
-                    ? 'Presupuesto de reparación'
-                    : 'Cuánto cuesta reponer el bien'
-                }}
-                <span class="required" aria-hidden="true">*</span>
-              </span>
+            <app-field
+              [label]="
+                s.formula === 'REPAIR'
+                  ? 'Presupuesto de reparación'
+                  : 'Cuánto cuesta reponer el bien'
+              "
+              for="settlement-base"
+              [required]="true"
+            >
               <app-input
+                id="settlement-base"
                 prefix="$"
                 align="end"
                 inputmode="decimal"
@@ -1431,12 +1459,12 @@
                   <app-button variant="secondary" (click)="takeSuggestion()">Usar</app-button>
                 </p>
               }
-            </label>
+            </app-field>
           }
 
-          <label class="fieldset">
-            <span class="t-field-label">Monto a pagar</span>
+          <app-field label="Monto a pagar" for="settlement-amount">
             <app-input
+              id="settlement-amount"
               prefix="$"
               align="end"
               inputmode="decimal"
@@ -1456,7 +1484,7 @@
                 <app-button variant="secondary" (click)="takeAmountSuggestion()">Usar</app-button>
               </p>
             }
-          </label>
+          </app-field>
         </div>
 
         @if (needsReferent() && settlement(); as s) {
@@ -1466,15 +1494,15 @@
           </p>
         }
 
-        @if (settlementAdjusted()) {
-          <label class="fieldset">
-            <span class="t-field-label">Justificación del ajuste</span>
+        @if (adjustmentFieldShown()) {
+          <app-field label="Justificación del ajuste" for="settlement-adjustment">
             <app-textarea
+              id="settlement-adjustment"
               [rows]="2"
               placeholder="Por qué el monto difiere del calculado…"
               [(value)]="adjustmentReason"
             />
-          </label>
+          </app-field>
         }
       </div>
     } @else {
@@ -1483,27 +1511,27 @@
   }
 
   @if (pendingDecision() === 'reject') {
-    <div class="reject-ground">
-      <span class="t-field-label" id="reject-ground-label">Rechazo por</span>
+    <app-field class="reject-ground" label="Rechazo por">
       <app-chip-group
         ariaLabel="Rechazo por"
         [options]="rejectGroundOptions"
         [value]="rejectGround()"
         (valueChange)="setRejectGround($event)"
       />
-    </div>
+    </app-field>
   }
-  <label class="justification">
-    <span class="t-field-label"
-      >Justificación <span class="required" aria-hidden="true">*</span></span
-    >
+  <app-field label="Justificación" for="decision-justification" [required]="true">
     <app-textarea
+      id="decision-justification"
       [rows]="3"
       placeholder="Por qué se toma esta decisión…"
       [(value)]="justification"
     />
-  </label>
-  @if (pendingDecision() === 'approve' && approvalBlockedReason(); as blockReason) {
+  </app-field>
+  @if (
+    pendingDecision() === 'approve' && !settledAmountTyping() && approvalBlockedReason();
+    as blockReason
+  ) {
     <p class="rcard-note error">{{ blockReason }}</p>
   }
   <ng-container modalActions>
@@ -1540,11 +1568,14 @@
     El expediente no se mueve —nunca salió de la revisión del analista— y no queda ninguna decisión
     registrada. Va a poder determinar el monto otra vez.
   </p>
-  <app-textarea
-    [rows]="3"
-    placeholder="Qué tiene que corregir (obligatorio)…"
-    [(value)]="returnReason"
-  />
+  <app-field class="modal-field" label="Motivo" for="return-reason" [required]="true">
+    <app-textarea
+      id="return-reason"
+      [rows]="3"
+      placeholder="Qué tiene que corregir…"
+      [(value)]="returnReason"
+    />
+  </app-field>
   <ng-container modalActions>
     <app-button variant="secondary" (click)="cancelSign()">Cancelar</app-button>
     <app-button [disabled]="!returnReason().trim() || signing()" (click)="confirmReturn()">
@@ -1559,10 +1590,14 @@
   [heading]="closureHeading()"
   (close)="cancelClosure()"
 >
-  <label class="justification">
-    <span class="t-field-label">Motivo <span class="required" aria-hidden="true">*</span></span>
-    <app-textarea [rows]="3" placeholder="Por qué se cierra…" [(value)]="closureReason" />
-  </label>
+  <app-field label="Motivo" for="closure-reason" [required]="true">
+    <app-textarea
+      id="closure-reason"
+      [rows]="3"
+      placeholder="Por qué se cierra…"
+      [(value)]="closureReason"
+    />
+  </app-field>
   <p class="t-note">El asegurado ve el expediente como Cerrado.</p>
   @if (closureError()) {
     <p class="rcard-note error">{{ closureError() }}</p>
@@ -1581,13 +1616,26 @@
   </ng-container>
 </app-modal>
 
+@if (data(); as d) {
+  <app-document-request-modal
+    [open]="showDocumentRequest()"
+    [caseId]="d.id"
+    (closed)="showDocumentRequest.set(false)"
+    (requested)="onDocumentsRequested()"
+  />
+}
+
 <!-- The reason is mandatory: it is the audit trail for why a closed case was reopened. -->
 <app-modal [open]="showReopen()" heading="¿Reabrir el expediente?" (close)="cancelReopen()">
   <p class="t-body">Vuelve a revisión y el plazo legal de respuesta arranca de cero.</p>
-  <label class="justification">
-    <span class="t-field-label">Motivo <span class="required" aria-hidden="true">*</span></span>
-    <app-textarea [rows]="3" placeholder="Por qué se reabre…" [(value)]="reopenReason" />
-  </label>
+  <app-field label="Motivo" for="reopen-reason" [required]="true">
+    <app-textarea
+      id="reopen-reason"
+      [rows]="3"
+      placeholder="Por qué se reabre…"
+      [(value)]="reopenReason"
+    />
+  </app-field>
   <ng-container modalActions>
     <app-button variant="secondary" (click)="cancelReopen()">Cancelar</app-button>
     <app-button [disabled]="!reopenReason().trim() || reopening()" (click)="confirmReopen()">
@@ -1610,16 +1658,27 @@
       clasificación ni el nivel de riesgo: se le pide verificar hechos.
     }
   </p>
-  <app-select
-    [options]="providerOptions()"
-    [placeholder]="isRepairReferral() ? 'Elegí un servicio técnico…' : 'Elegí un perito…'"
-    [(value)]="chosenProvider"
-  />
-  <app-textarea
-    [rows]="3"
-    placeholder="Motivo de la derivación (obligatorio)…"
-    [(value)]="derivationReason"
-  />
+  <app-field
+    class="modal-field"
+    [label]="isRepairReferral() ? 'Servicio técnico' : 'Perito'"
+    for="derive-provider"
+    [required]="true"
+  >
+    <app-select
+      id="derive-provider"
+      [options]="providerOptions()"
+      [placeholder]="isRepairReferral() ? 'Elegí un servicio técnico…' : 'Elegí un perito…'"
+      [(value)]="chosenProvider"
+    />
+  </app-field>
+  <app-field class="modal-field" label="Motivo" for="derive-reason" [required]="true">
+    <app-textarea
+      id="derive-reason"
+      [rows]="3"
+      placeholder="Por qué lo derivás…"
+      [(value)]="derivationReason"
+    />
+  </app-field>
   @if (deriveError()) {
     <p class="rcard-note error">{{ deriveError() }}</p>
   }
@@ -1649,17 +1708,23 @@
   } @else if (causeOptions()!.length === 0 && !correctError()) {
     <p class="t-note">Ninguna otra cobertura de la póliza cubre otro hecho de este ramo.</p>
   } @else {
-    <app-select
-      [options]="causeSelectOptions()"
-      placeholder="Elegí el hecho generador…"
-      [(value)]="chosenCause"
-    />
+    <app-field class="modal-field" label="Hecho generador" for="correct-cause" [required]="true">
+      <app-select
+        id="correct-cause"
+        [options]="causeSelectOptions()"
+        placeholder="Elegí el hecho generador…"
+        [(value)]="chosenCause"
+      />
+    </app-field>
   }
-  <app-textarea
-    [rows]="3"
-    placeholder="Por qué lo corregís (obligatorio)…"
-    [(value)]="correctionReason"
-  />
+  <app-field class="modal-field" label="Motivo" for="correct-reason" [required]="true">
+    <app-textarea
+      id="correct-reason"
+      [rows]="3"
+      placeholder="Por qué lo corregís…"
+      [(value)]="correctionReason"
+    />
+  </app-field>
   @if (correctError()) {
     <p class="rcard-note error">{{ correctError() }}</p>
   }
@@ -1710,8 +1775,9 @@
     siguientes mientras esté dentro de la ventana de vigencia que configuró la aseguradora.
   </p>
 
-  <label class="t-field-label" for="ant-origen">Respaldo</label>
-  <app-select id="ant-origen" [options]="originOptions()" [(value)]="chosenOrigin" />
+  <app-field class="modal-field" label="Respaldo" for="ant-origen">
+    <app-select id="ant-origen" [options]="originOptions()" [(value)]="chosenOrigin" />
+  </app-field>
   <p class="rcard-note">{{ chosenOriginEffect() }}</p>
   @if (originOptions().length === 1) {
     <p class="rcard-note">
@@ -1720,13 +1786,14 @@
     </p>
   }
 
-  <label class="t-field-label" for="ant-motivo">Motivo</label>
-  <app-textarea
-    id="ant-motivo"
-    [rows]="3"
-    placeholder="Qué se determinó y con qué evidencia…"
-    [(value)]="fraudRecordReason"
-  />
+  <app-field class="modal-field" label="Motivo" for="ant-motivo">
+    <app-textarea
+      id="ant-motivo"
+      [rows]="3"
+      placeholder="Qué se determinó y con qué evidencia…"
+      [(value)]="fraudRecordReason"
+    />
+  </app-field>
   @if (fraudRecordReasonTooShort()) {
     <p class="rcard-note">Contá qué se determinó (mínimo {{ fraudRecordReasonMin }} caracteres).</p>
   }
@@ -1755,13 +1822,23 @@
 >
   <p class="t-note">
     El expediente vuelve a tu revisión con
-    {{ reportIsRepair() ? 'la respuesta' : 'el informe' }} al lado de la recomendación del modelo.
+    {{ reportIsRepair() ? 'la respuesta' : 'el informe' }}.
   </p>
-  <app-select
-    [options]="reportIsRepair() ? repairOutcomeOptions : verdictOptions"
-    [placeholder]="reportIsRepair() ? 'Resultado del servicio técnico…' : 'Conclusión del perito…'"
-    [(value)]="verdictInput"
-  />
+  <app-field
+    class="modal-field"
+    [label]="reportIsRepair() ? 'Resultado' : 'Conclusión'"
+    for="report-verdict"
+    [required]="true"
+  >
+    <app-select
+      id="report-verdict"
+      [options]="reportIsRepair() ? repairOutcomeOptions : verdictOptions"
+      [placeholder]="
+        reportIsRepair() ? 'Resultado del servicio técnico…' : 'Conclusión del perito…'
+      "
+      [(value)]="verdictInput"
+    />
+  </app-field>
   <!-- Opened by reference from the button, not by wrapping it in a <label>: the browser skips
        label activation when the click lands on a nested <button>. -->
   <div class="report-file">
@@ -1769,23 +1846,27 @@
     <span class="t-field-label">{{ reportFile()?.name || 'Ningún archivo elegido' }}</span>
     <app-button variant="secondary" (click)="reportInput.click()">Elegir archivo</app-button>
   </div>
-  <app-textarea [rows]="3" placeholder="Nota (opcional)…" [(value)]="verdictNoteInput" />
+  <app-field class="modal-field" label="Nota (opcional)" for="report-note">
+    <app-textarea id="report-note" [rows]="3" [(value)]="verdictNoteInput" />
+  </app-field>
 
   <!-- The expert reports the indemnifiable amount; the repair shop, the repair cost. Different
        questions, so label, requiredness and target column differ. -->
   @if (needsReportAmount()) {
-    <label class="assessment-amount">
-      <span class="t-field-label">
-        @if (reportIsInvoice()) {
-          Importe que facturó el taller
-        } @else if (reportIsRepair()) {
-          Presupuesto de reparación que informó el taller
-          <span class="required" aria-hidden="true">*</span>
-        } @else {
-          Monto indemnizable que determinó el perito
-        }
-      </span>
+    <app-field
+      class="modal-field"
+      [label]="
+        reportIsInvoice()
+          ? 'Importe que facturó el taller'
+          : reportIsRepair()
+            ? 'Presupuesto de reparación que informó el taller'
+            : 'Monto indemnizable que determinó el perito'
+      "
+      for="report-amount"
+      [required]="reportIsRepair() && !reportIsInvoice()"
+    >
       <app-input
+        id="report-amount"
         prefix="$"
         align="end"
         inputmode="decimal"
@@ -1803,7 +1884,7 @@
           >Opcional: dejalo vacío si el informe no puso un número.</span
         >
       }
-    </label>
+    </app-field>
   }
 
   <!-- Saving records a fraud mark on the person, which cannot be removed from the app. -->

@@ -21,8 +21,8 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 
 /**
- * Referente-only. Analysts read the catalog filtered for their case through
- * {@code GET /cases/{id}/expert-assessment/options}.
+ * Only the referente writes. Analysts also read the whole catalog here, and the one filtered for
+ * their case through {@code GET /cases/{id}/expert-assessment/options}.
  */
 @RestController
 @RequestMapping("/api/v1/expert-firms")
@@ -33,7 +33,7 @@ public class ServiceProviderController {
     private final ServiceProviderService serviceProviderService;
 
     @GetMapping
-    @PreAuthorize("hasRole('REFERENTE_ASEGURADORA')")
+    @PreAuthorize("hasAnyRole('REFERENTE_ASEGURADORA', 'ANALISTA_SINIESTROS')")
     @Operation(summary = "Listar el catálogo completo",
             description = "Activos e inactivos: el referente administra el catálogo entero.")
     public ResponseEntity<List<ServiceProviderResponse>> list() {

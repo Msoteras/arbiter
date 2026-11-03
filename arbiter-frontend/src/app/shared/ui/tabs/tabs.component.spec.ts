@@ -49,6 +49,23 @@ describe('TabsComponent', () => {
     expect(tabs()[1].classList).toContain('active');
   });
 
+  it('drops the sliding underline once the tabs wrap to a second row', async () => {
+    const host = fixture.nativeElement as HTMLElement;
+    const ink = (): HTMLElement => host.querySelector('.ink') as HTMLElement;
+    await fixture.whenStable();
+
+    expect(ink().classList).toContain('placed');
+
+    host.style.display = 'block';
+    host.style.width = '120px';
+    for (let frame = 0; frame < 2; frame++) {
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+    }
+
+    expect(ink().classList).not.toContain('placed');
+    expect(tabs()[0].classList).toContain('active');
+  });
+
   it('leaves only the selected tab in the tab order', () => {
     expect(tabs().map((t) => t.tabIndex)).toEqual([0, -1, -1]);
   });

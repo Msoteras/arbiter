@@ -2,6 +2,9 @@
   <a class="breadcrumb" routerLink="/portal">‹ Mis siniestros</a>
 
   <header class="hero">
+    @if (insurerLogo(); as logo) {
+      <img class="hero-insurer-logo" [src]="logo" [alt]="d.insurerName ?? 'Aseguradora'" />
+    }
     <span class="eyebrow">Siniestro #{{ d.id }} · {{ d.claimCause }}</span>
     <h1 class="t-hero-title">{{ heroTitle() }}</h1>
     <p class="hero-sub measure">{{ statusDescription() }}</p>

@@ -56,6 +56,7 @@ export class DerivationsConfigComponent {
   readonly branchId = input.required<number>();
   /** The branch's claim causes, already loaded by the rules screen. */
   readonly claimCauses = input<ClaimCauseOption[]>([]);
+  readonly readOnly = input(false);
 
   protected readonly draft = signal<DerivationsDraft | null>(null);
   /** Last state confirmed by the backend; unsaved changes are measured against it. */

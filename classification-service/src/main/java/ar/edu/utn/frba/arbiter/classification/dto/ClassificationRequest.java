@@ -1,5 +1,6 @@
 package ar.edu.utn.frba.arbiter.classification.dto;
 
+import ar.edu.utn.frba.arbiter.common.dto.AnalystDocumentNote;
 import lombok.Builder;
 
 import java.math.BigDecimal;
@@ -25,7 +26,9 @@ public record ClassificationRequest(
          * Lets the model tell whether the account matches the declared cause; also the enum that
          * restricts {@code suggestedClaimCause} in the output schema.
          */
-        List<ClaimCauseOption> claimCauseCatalog
+        List<ClaimCauseOption> claimCauseCatalog,
+        // Written by the analyst, so rendered outside the blocks the prompt marks as the insured's.
+        List<AnalystDocumentNote> analystDocumentNotes
 ) {
 
     /** {@code covered} comes from the coverage's {@code COVERAGE_EXCLUSION} rule, not from the model. */

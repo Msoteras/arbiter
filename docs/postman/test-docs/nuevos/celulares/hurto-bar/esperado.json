@@ -1,0 +1,14 @@
+{
+  "perfil": "nuevos",
+  "cambia": "hurto en un bar de San Telmo, anoche — el equipo pasa la noche bajo la antena del domicilio del asegurado",
+  "antes": "correr scripts/reset-asegurados-de-prueba.sql si Valentín ya tiene expedientes: este caso va primero",
+  "seDetectaEn": [
+    "rule_result: Fast Track en FAIL por el ratio (589.999 sobre 650.000, 0,91; máximo 0,5)",
+    "factores del LLM: el último registro de red está en Av. Scalabrini Ortiz 1900, el domicilio declarado, horas después del hurto",
+    "factores del LLM: ninguno dice \"el modelo\", \"la IA\" ni \"el sistema\" (classification-v9)"
+  ],
+  "resultadoEsperado": "LLM_NO_RECOMIENDA_APROBAR o LLM_SOLICITA_REVISION_MANUAL",
+  "notas": [
+    "La factura, la denuncia y la baja de IMEI son coherentes entre sí: la única señal está en la constancia de último registro."
+  ]
+}

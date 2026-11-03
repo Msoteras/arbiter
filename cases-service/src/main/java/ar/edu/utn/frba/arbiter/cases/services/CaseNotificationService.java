@@ -117,6 +117,7 @@ public class CaseNotificationService {
     private final InsurerRepository insurerRepository;
     private final SendGridAdapter sendGridAdapter;
     private final CaseSettlementRepository settlementRepository;
+    private final InsuredMailBranding mailBranding;
 
     /** Best-effort by contract: a delivery failure must never break the case transition. */
     public void notifyStatusChange(Case caseRecord, CaseStatus newStatus) {
@@ -336,8 +337,8 @@ public class CaseNotificationService {
                 <p>Hola,</p>
                 <p>%s</p>%s
                 <p>Siniestro <strong>#%d</strong>.</p>
-                <p>Arbiter</p>
-                """.formatted(message.body(), approvedAmountLine(caseRecord, type), caseRecord.getId());
+                %s""".formatted(message.body(), approvedAmountLine(caseRecord, type), caseRecord.getId(),
+                mailBranding.signature());
     }
 
     /** Empty without a settlement; best-effort, so a failed read never stops the approval email. */

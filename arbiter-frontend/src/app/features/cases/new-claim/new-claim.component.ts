@@ -41,6 +41,7 @@ import { InsuredSessionService } from '../../../core/auth/insured-session.servic
 import { ArgentinaLocationsService } from '../../../core/services/argentina-locations.service';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { CardComponent } from '../../../shared/ui/card/card.component';
+import { FieldComponent } from '../../../shared/ui/field/field.component';
 import { InputComponent } from '../../../shared/ui/input/input.component';
 import { TextareaComponent } from '../../../shared/ui/textarea/textarea.component';
 import { SelectComponent, SelectOption } from '../../../shared/ui/select/select.component';
@@ -139,6 +140,7 @@ type EligibilityState =
     RouterLink,
     ButtonComponent,
     CardComponent,
+    FieldComponent,
     InputComponent,
     TextareaComponent,
     SelectComponent,
@@ -734,15 +736,38 @@ export class NewClaimComponent {
 
   onFileChange(index: number, event: Event): void {
     const input = event.target as HTMLInputElement;
-    const file = input.files?.[0] ?? null;
+    this.setFile(index, input.files?.[0] ?? null);
+    // Otherwise picking the same file twice doesn't fire (change).
+    input.value = '';
+  }
+
+  protected readonly dragOverIndex = signal<number | null>(null);
+
+  onDragOver(event: DragEvent, index: number): void {
+    event.preventDefault();
+    this.dragOverIndex.set(index);
+  }
+
+  /** Moving over the slot's own children also fires dragleave: only leaving the slot counts. */
+  onDragLeave(event: DragEvent): void {
+    const slot = event.currentTarget as HTMLElement;
+    if (!slot.contains(event.relatedTarget as Node | null)) this.dragOverIndex.set(null);
+  }
+
+  onDrop(event: DragEvent, index: number): void {
+    event.preventDefault();
+    this.dragOverIndex.set(null);
+    const file = event.dataTransfer?.files?.[0];
+    if (file) this.setFile(index, file);
+  }
+
+  private setFile(index: number, file: File | null): void {
     const error = file ? fileTypeError(file) : null;
     this.docSlots.update((slots) => {
       const updated = [...slots];
       updated[index] = { ...updated[index], file: error ? null : file, error };
       return updated;
     });
-    // Otherwise picking the same file twice doesn't fire (change).
-    input.value = '';
   }
 
   removeFile(index: number): void {

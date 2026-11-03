@@ -1,0 +1,235 @@
+<div
+  #root
+  class="board"
+  tabindex="0"
+  aria-label="Motor de análisis. Flechas: moverse entre la cola, el motor y los clasificados. Mayúscula y flechas: girar los expedientes en análisis."
+  (wheel)="onWheel($event)"
+  (pointerdown)="onPointerDown($event)"
+  (pointermove)="onPointerMove($event)"
+  (pointerup)="onPointerUp()"
+  (pointercancel)="onPointerUp()"
+  (keydown)="onKey($event)"
+>
+  <header class="top">
+    <div class="brand">
+      <app-logo variant="symbol" />
+      <div>
+        <h1>Arbiter</h1>
+        <span>Motor de análisis</span>
+      </div>
+    </div>
+    <dl class="stats">
+      <div class="stat live">
+        <dt>En análisis</dt>
+        <dd>{{ busy() }}</dd>
+      </div>
+      <div class="stat">
+        <dt>En cola</dt>
+        <dd>{{ queued() }}</dd>
+      </div>
+      <div class="stat">
+        <dt>Clasificados hoy</dt>
+        <dd>{{ doneCount() }}</dd>
+      </div>
+    </dl>
+  </header>
+
+  @if (failed()) {
+    <div class="center">
+      <app-empty-state message="No se pudo cargar el motor de análisis.">
+        <app-button variant="secondary" (click)="load()">Reintentar</app-button>
+      </app-empty-state>
+    </div>
+  } @else if (phone()) {
+    <div class="flat">
+      <section aria-labelledby="flat-run">
+        <h2 id="flat-run" class="t-section-label">
+          En análisis <span class="n">{{ busy() }}</span>
+        </h2>
+        @for (c of ring(); track c.caseId) {
+          <article class="card flat-slot" [class.running]="c.running" [class.focus]="c.focus">
+            <ng-container *ngTemplateOutlet="ringBody; context: { $implicit: c }" />
+          </article>
+        } @empty {
+          <p class="t-note">El motor está libre.</p>
+        }
+      </section>
+      <section aria-labelledby="flat-queue">
+        <h2 id="flat-queue" class="t-section-label">
+          En cola <span class="n">{{ queued() }}</span>
+        </h2>
+        @for (q of queueCards(); track q.caseId) {
+          <ng-container *ngTemplateOutlet="mini; context: { $implicit: q, queued: true }" />
+        } @empty {
+          <p class="t-note">No hay expedientes en espera.</p>
+        }
+      </section>
+      <section aria-labelledby="flat-done">
+        <h2 id="flat-done" class="t-section-label">
+          Clasificados hoy <span class="n">{{ doneCount() }}</span>
+        </h2>
+        @for (d of poolCards(); track d.caseId) {
+          <ng-container *ngTemplateOutlet="mini; context: { $implicit: d, queued: false }" />
+        } @empty {
+          <p class="t-note">Todavía no se clasificó ningún expediente hoy.</p>
+        }
+      </section>
+    </div>
+  } @else {
+    <div class="stage">
+      <div #world class="world">
+        <section class="zone queue" aria-labelledby="zone-queue">
+          <div class="zwrap">
+            <h2 class="zone-title" id="zone-queue">
+              En cola <span class="n">{{ queued() }}</span>
+            </h2>
+            <div class="grid-queue">
+              @for (q of queueCards(); track q.caseId) {
+                <ng-container *ngTemplateOutlet="mini; context: { $implicit: q, queued: true }" />
+              } @empty {
+                <p class="t-note zone-empty">No hay expedientes en espera.</p>
+              }
+            </div>
+          </div>
+        </section>
+
+        <section class="zone engine" aria-label="Expedientes en análisis">
+          <div #fanPlane class="fan" aria-hidden="true"><canvas #fanCanvas></canvas></div>
+          <div class="ring">
+            @for (c of ring(); track c.caseId) {
+              <article
+                class="card slot"
+                data-ring
+                [class.running]="c.running"
+                [class.focus]="c.focus"
+              >
+                <ng-container *ngTemplateOutlet="ringBody; context: { $implicit: c }" />
+              </article>
+            }
+          </div>
+          @if (loaded() && !ring().length) {
+            <p class="idle">El motor está libre.</p>
+          }
+        </section>
+
+        <section class="zone pool" aria-labelledby="zone-pool">
+          <div class="zwrap">
+            <h2 class="zone-title" id="zone-pool">
+              Clasificados hoy <span class="n">{{ doneCount() }}</span>
+            </h2>
+            <div class="grid-pool">
+              @for (d of poolCards(); track d.caseId) {
+                <ng-container *ngTemplateOutlet="mini; context: { $implicit: d, queued: false }" />
+              } @empty {
+                <p class="t-note zone-empty">Todavía no se clasificó ningún expediente hoy.</p>
+              }
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <nav class="zones" aria-label="Moverse por el tablero">
+      <button type="button" [attr.aria-pressed]="zoneIndex() === 0" (click)="goTo('queue')">
+        <span class="arr" aria-hidden="true">‹</span>En cola <span class="n">{{ queued() }}</span>
+      </button>
+      <button type="button" [attr.aria-pressed]="zoneIndex() === 1" (click)="goTo('engine')">
+        Motor <span class="n">{{ busy() }}</span>
+      </button>
+      <button type="button" [attr.aria-pressed]="zoneIndex() === 2" (click)="goTo('pool')">
+        Clasificados <span class="arr" aria-hidden="true">›</span>
+      </button>
+    </nav>
+  }
+</div>
+
+<ng-template #ringBody let-c>
+  <div class="card-body">
+    <div class="h">
+      <span class="label">{{ c.actor }}</span>
+      <span class="meta tabular" [class.clock]="c.running">{{ c.clock }}</span>
+    </div>
+    <div class="b">
+      <div class="case">
+        <a class="num" [routerLink]="['/cases', c.caseId]">#{{ c.caseId }}</a>
+        <span>{{ c.who }}</span>
+      </div>
+      <div class="slot-content">
+        @if (c.running) {
+          <div class="now" [attr.data-actor]="c.actorClass">
+            <span class="ico" aria-hidden="true">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.6"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path [attr.d]="c.icon" />
+              </svg>
+            </span>
+            <span>
+              <span class="now-t">{{ c.now }}</span>
+              <span class="now-s tabular">{{ c.sub }}</span>
+            </span>
+          </div>
+        } @else {
+          <div class="end">
+            <p>Terminó · {{ c.total }}</p>
+            <app-badge variant="solid" [tone]="c.tone">{{ c.result }}</app-badge>
+          </div>
+        }
+      </div>
+    </div>
+    <span class="track" aria-hidden="true">
+      <span class="clip">
+        <svg class="base" viewBox="-1600 0 3200 9" [style.left.%]="c.progress">
+          <path
+            d="M-1600 4L-26 4C-13 4-6 3.6-2.4 1.95L2.4 1.95C6 3.6 13 4 26 4L1600 4L1600 5L26 5C13 5 6 5.4 2.4 7.05L-2.4 7.05C-6 5.4-13 5-26 5L-1600 5Z"
+            fill="currentColor"
+          />
+        </svg>
+        <svg class="glow" viewBox="-80 0 160 9" [style.left.%]="c.progress">
+          <path
+            d="M-80 4L-26 4C-13 4-6 3.6-2.4 1.95L2.4 1.95C6 3.6 13 4 26 4L80 4L80 5L26 5C13 5 6 5.4 2.4 7.05L-2.4 7.05C-6 5.4-13 5-26 5L-80 5Z"
+            fill="currentColor"
+          />
+        </svg>
+      </span>
+      <svg class="ball" viewBox="-5 0 10 9" [style.left.%]="c.progress">
+        <circle cx="0" cy="4.5" r="3.5" fill="currentColor" />
+      </svg>
+    </span>
+  </div>
+</ng-template>
+
+<ng-template #mini let-m let-queued="queued">
+  <article
+    class="card mini"
+    [class.q]="queued"
+    [class.d]="!queued"
+    [class.new]="m.isNew"
+    [style.transform]="m.depth"
+  >
+    <div class="h">
+      <span class="label">{{ m.label }}</span>
+      <span class="meta tabular">{{ queued ? m.clock : '✓' }}</span>
+    </div>
+    <div class="b">
+      <div class="case">
+        <a class="num" [routerLink]="['/cases', m.caseId]">#{{ m.caseId }}</a>
+        <span>{{ m.who }}</span>
+      </div>
+      <div class="slot-content">
+        @if (queued) {
+          <div class="wait">En espera</div>
+        } @else {
+          <div class="res">
+            <app-badge variant="solid" [tone]="m.tone">{{ m.result }}</app-badge>
+          </div>
+        }
+      </div>
+    </div>
+  </article>
+</ng-template>

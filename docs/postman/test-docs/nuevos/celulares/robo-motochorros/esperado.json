@@ -1,0 +1,11 @@
+{
+  "perfil": "nuevos",
+  "cambia": "robo en una parada de colectivo de Palermo, anoche — caso limpio",
+  "antes": "cargado solo (historial en cero) da Fast Track; cargado después del hurto, va al LLM",
+  "seDetectaEn": [
+    "rule_result: criterios de FAST_TRACK en PASS (ratio 0,45; 0 siniestros previos)",
+    "si va después del hurto: maxPriorClaims en FAIL (1 previo) y factores del LLM sin \"el modelo\""
+  ],
+  "resultadoEsperado": "FAST_TRACK, o LLM_RECOMIENDA_APROBAR si se carga después del hurto",
+  "notas": []
+}

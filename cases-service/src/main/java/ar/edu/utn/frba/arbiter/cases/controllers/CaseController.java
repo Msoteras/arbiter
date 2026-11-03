@@ -18,6 +18,9 @@ import ar.edu.utn.frba.arbiter.cases.dto.CaseScope;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CloseCaseRequest;
+import ar.edu.utn.frba.arbiter.cases.dto.DocumentRequestRequest;
+import ar.edu.utn.frba.arbiter.cases.dto.PendingDocumentResponse;
+import ar.edu.utn.frba.arbiter.cases.dto.RequestableDocumentResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.PendingSettlementResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.AuthorizedSettlementResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.PolicyResponse;
@@ -455,6 +458,56 @@ public class CaseController {
     ) {
         CaseResponse response = caseService.addDocumentsAndReclassify(caseId, documents, insurer);
         return ResponseEntity.accepted().body(response);
+    }
+
+    @GetMapping("/{caseId}/pending-documents")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Documentos que faltan subir",
+            description = """
+                    Lo que el asegurado tiene que subir para que el expediente se vuelva a evaluar: lo
+                    que pidió el analista, o si no pidió nada, lo que falta de la agenda documental.
+                    `description` viene solo en un documento que el catálogo no nombra (`other_<n>`).
+                    Vacío si el expediente no está esperando documentación. 503 si no se pudo leer la
+                    agenda.
+                    """)
+    public ResponseEntity<List<PendingDocumentResponse>> pendingDocuments(
+            @PathVariable Long caseId,
+            @RequestParam(required = false) String insurer
+    ) {
+        return ResponseEntity.ok(caseService.pendingDocuments(caseId, insurer));
+    }
+
+    @GetMapping("/{caseId}/document-requests/options")
+    @PreAuthorize("hasAnyRole('ANALISTA_SINIESTROS', 'REFERENTE_ASEGURADORA')")
+    @Operation(summary = "Documentos que se pueden pedir",
+            description = """
+                    Los documentos del ramo que todavía no se subieron ni se pidieron. `suggestion` dice por
+                    qué los sugiere el sistema: `SCHEDULE` si los pide la agenda para todo expediente, `RISK`
+                    si los pide desde la banda de riesgo del expediente; nulo si no los sugiere. Después de
+                    un pedido, solo sugiere lo que pide una banda más alta que la de ese pedido. En Fast
+                    Track no sugiere nada.
+                    """)
+    public ResponseEntity<List<RequestableDocumentResponse>> requestableDocuments(@PathVariable Long caseId) {
+        return ResponseEntity.ok(caseService.requestableDocuments(caseId));
+    }
+
+    // @PreAuthorize only filters by role; the service also checks the caller is the assigned analyst.
+    @PostMapping("/{caseId}/document-requests")
+    @PreAuthorize("hasRole('ANALISTA_SINIESTROS')")
+    @Operation(summary = "Pedir documentación al asegurado",
+            description = """
+                    Solo el analista asignado, solo desde PENDING_ANALYST_REVIEW y nunca en Fast Track
+                    (400). El expediente pasa a
+                    AWAITING_DOCUMENTATION: el plazo se congela y el asegurado recibe un mail. Cada
+                    documento es un código del ramo, o `other` con `description` (lo que ve el
+                    asegurado) y `reason` (por qué se pide; lo lee el modelo, nunca el asegurado).
+                    Cuando el asegurado sube todo lo pedido, el expediente se vuelve a clasificar.
+                    """)
+    public ResponseEntity<CaseResponse> requestDocuments(
+            @PathVariable Long caseId,
+            @RequestBody @Valid DocumentRequestRequest request
+    ) {
+        return ResponseEntity.ok(caseService.requestDocuments(caseId, request));
     }
 
     @GetMapping("/{caseId}/claim-cause/options")

@@ -3,6 +3,7 @@ import { RouterLink } from '@angular/router';
 
 import { AuthService } from '../../../core/auth/auth.service';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
+import { FieldComponent } from '../../../shared/ui/field/field.component';
 import { InputComponent } from '../../../shared/ui/input/input.component';
 import { LogoComponent } from '../../../shared/ui/logo/logo.component';
 
@@ -12,7 +13,7 @@ import { LogoComponent } from '../../../shared/ui/logo/logo.component';
  */
 @Component({
   selector: 'app-forgot-password',
-  imports: [ButtonComponent, InputComponent, LogoComponent, RouterLink],
+  imports: [ButtonComponent, FieldComponent, InputComponent, LogoComponent, RouterLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './forgot-password.component.html',
   styleUrl: './forgot-password.component.scss',

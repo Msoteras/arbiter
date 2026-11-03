@@ -107,21 +107,22 @@
             }
           }
 
-          <p class="field-label">¿Qué te pasó? *</p>
-          <!-- Fixed slot: the loader takes the row the chips will fill, so nothing below moves. -->
-          <div class="claim-types-slot">
-            @if (claimTypesLoading()) {
-              <app-inline-loading [size]="20" message="Cargando hechos generadores…" />
-            } @else {
-              <app-chip-group
-                [options]="claimTypeOptions()"
-                [value]="selectedType()?.key ?? ''"
-                [disabled]="eligibilityError() !== null"
-                (valueChange)="selectClaimType($event)"
-                ariaLabel="Hecho generador"
-              />
-            }
-          </div>
+          <app-field label="¿Qué te pasó?" [required]="true">
+            <!-- Fixed slot: the loader takes the row the chips will fill, so nothing below moves. -->
+            <div class="claim-types-slot">
+              @if (claimTypesLoading()) {
+                <app-inline-loading [size]="20" message="Cargando hechos generadores…" />
+              } @else {
+                <app-chip-group
+                  [options]="claimTypeOptions()"
+                  [value]="selectedType()?.key ?? ''"
+                  [disabled]="eligibilityError() !== null"
+                  (valueChange)="selectClaimType($event)"
+                  ariaLabel="Hecho generador"
+                />
+              }
+            </div>
+          </app-field>
 
           <!-- POLICY_STANDING doesn't need the event date, so the precheck can already tell here
                whether the policy blocks the claim. Reserved while a policy is selected: the loader,
@@ -148,25 +149,31 @@
         <section class="step-content">
           <h2 class="step-title">Contanos los detalles</h2>
 
-          <label class="field-label" for="claim-item">Bien asegurado *</label>
-          <app-input
-            id="claim-item"
-            placeholder="Indicá el bien afectado"
-            [(value)]="insuredItem"
-            [readonly]="lockInsuredItem()"
-            (enter)="next()"
-          />
-
-          <p class="field-label">¿Cuándo pasó? *</p>
-          <div class="datetime-grid">
-            <app-date-picker
-              ariaLabel="Fecha del hecho"
-              [max]="today"
-              [shortcuts]="eventDateShortcuts"
-              [(value)]="eventDate"
+          <app-field label="Bien asegurado" [required]="true" for="claim-item">
+            <app-input
+              id="claim-item"
+              placeholder="Indicá el bien afectado"
+              [(value)]="insuredItem"
+              [readonly]="lockInsuredItem()"
+              (enter)="next()"
             />
-            <app-time-picker ariaLabel="Hora del hecho" [slots]="timeSlots" [(value)]="eventTime" />
-          </div>
+          </app-field>
+
+          <app-field label="¿Cuándo pasó?" [required]="true">
+            <div class="datetime-grid">
+              <app-date-picker
+                ariaLabel="Fecha del hecho"
+                [max]="today"
+                [shortcuts]="eventDateShortcuts"
+                [(value)]="eventDate"
+              />
+              <app-time-picker
+                ariaLabel="Hora del hecho"
+                [slots]="timeSlots"
+                [(value)]="eventTime"
+              />
+            </div>
+          </app-field>
 
           <!-- Right under the date it validates, so the insured learns before filling in the rest. -->
           @if (eligibilityError(); as reason) {
@@ -182,17 +189,18 @@
 
           <!-- Hidden only on a real policy block; a date-consistency error must keep this field editable. -->
           @if (requiresPoliceReport() && !policyBlocked()) {
-            <p class="field-label">¿Ya hiciste la denuncia policial?</p>
-            <div class="toggle-row">
-              <app-switch
-                [checked]="policeReportFiled()"
-                (checkedChange)="setPoliceReportFiled($event)"
-                ariaLabel="¿Ya hiciste la denuncia policial?"
-              />
-              <span class="t-note">{{
-                policeReportFiled() ? 'Sí, ya la hice' : 'Todavía no'
-              }}</span>
-            </div>
+            <app-field label="¿Ya hiciste la denuncia policial?">
+              <div class="toggle-row">
+                <app-switch
+                  [checked]="policeReportFiled()"
+                  (checkedChange)="setPoliceReportFiled($event)"
+                  ariaLabel="¿Ya hiciste la denuncia policial?"
+                />
+                <span class="t-note">{{
+                  policeReportFiled() ? 'Sí, ya la hice' : 'Todavía no'
+                }}</span>
+              </div>
+            </app-field>
             @if (policeReportMissingBlocks()) {
               <!-- Every agenda item is mandatory, so warn here rather than at step 3. -->
               <p class="t-note">
@@ -208,101 +216,115 @@
           }
 
           @if (requiresPoliceReport() && !policyBlocked() && policeReportFiled()) {
-            <p class="field-label">¿Cuándo la hiciste? *</p>
-            <div class="datetime-grid">
-              <app-date-picker
-                ariaLabel="Fecha de la denuncia policial"
-                [min]="eventDate() || null"
-                [max]="today"
-                [shortcuts]="policeDateShortcuts()"
-                [(value)]="policeReportDate"
-              />
-              <app-time-picker
-                ariaLabel="Hora de la denuncia policial"
-                [slots]="timeSlots"
-                [(value)]="policeReportTime"
-              />
-            </div>
+            <app-field label="¿Cuándo la hiciste?" [required]="true">
+              <div class="datetime-grid">
+                <app-date-picker
+                  ariaLabel="Fecha de la denuncia policial"
+                  [min]="eventDate() || null"
+                  [max]="today"
+                  [shortcuts]="policeDateShortcuts()"
+                  [(value)]="policeReportDate"
+                />
+                <app-time-picker
+                  ariaLabel="Hora de la denuncia policial"
+                  [slots]="timeSlots"
+                  [(value)]="policeReportTime"
+                />
+              </div>
+            </app-field>
             <p class="t-note">La constancia se adjunta en el paso siguiente.</p>
           }
 
           <!-- Hidden on a hard policy block. Deliberately `policyBlocked()`, not `eligibilityError()`:
                a date inconsistency is fixed in the fields above and must not collapse the form. -->
           @if (!policyBlocked()) {
-            <p class="field-label">¿Dónde pasó? *</p>
-            <div class="location-fields">
-              <!-- Closed cascading catalog, not free text: province and locality are stored in
-                   their own columns for grouping. -->
-              <div class="location-grid">
-                <app-select
-                  [(value)]="selectedProvince"
-                  [options]="provinceOptions()"
-                  placeholder="Provincia"
-                  [searchable]="true"
-                  [required]="true"
-                  requiredMessage="Elegí la provincia donde pasó."
+            <app-field label="¿Dónde pasó?" [required]="true">
+              <div class="location-fields">
+                <!-- Closed cascading catalog, not free text: province and locality are stored in
+                     their own columns for grouping. -->
+                <div class="location-grid">
+                  <app-select
+                    [(value)]="selectedProvince"
+                    [options]="provinceOptions()"
+                    placeholder="Provincia"
+                    [searchable]="true"
+                    [required]="true"
+                    requiredMessage="Elegí la provincia donde pasó."
+                  />
+                  <app-select
+                    [(value)]="selectedLocality"
+                    [options]="localityOptions()"
+                    [placeholder]="localityDisabled() ? 'Elegí primero la provincia' : 'Localidad'"
+                    [disabled]="localityDisabled()"
+                    [searchable]="true"
+                    [required]="true"
+                    requiredMessage="Elegí la localidad donde pasó."
+                  />
+                </div>
+                <app-input
+                  placeholder="Calle y número"
+                  [(value)]="streetAddress"
+                  (enter)="next()"
                 />
-                <app-select
-                  [(value)]="selectedLocality"
-                  [options]="localityOptions()"
-                  [placeholder]="localityDisabled() ? 'Elegí primero la provincia' : 'Localidad'"
-                  [disabled]="localityDisabled()"
-                  [searchable]="true"
-                  [required]="true"
-                  requiredMessage="Elegí la localidad donde pasó."
+                <app-input
+                  placeholder="Entre calles (opcional)"
+                  [(value)]="crossStreets"
+                  (enter)="next()"
                 />
               </div>
-              <app-input placeholder="Calle y número" [(value)]="streetAddress" (enter)="next()" />
+            </app-field>
+
+            <app-field label="Monto reclamado (opcional)" for="claim-amount">
               <app-input
-                placeholder="Entre calles (opcional)"
-                [(value)]="crossStreets"
+                id="claim-amount"
+                prefix="$"
+                align="end"
+                inputmode="decimal"
+                [normalize]="amountInputDisplay"
+                [value]="amountInputLabel(claimedAmount())"
+                (valueChange)="claimedAmount.set(amountInputValue($event))"
                 (enter)="next()"
               />
-            </div>
+            </app-field>
 
-            <label class="field-label" for="claim-amount">Monto reclamado (opcional)</label>
-            <app-input
-              id="claim-amount"
-              prefix="$"
-              align="end"
-              inputmode="decimal"
-              [normalize]="amountInputDisplay"
-              [value]="amountInputLabel(claimedAmount())"
-              (valueChange)="claimedAmount.set(amountInputValue($event))"
-              (enter)="next()"
-            />
-
-            <label class="field-label" for="claim-description">Descripción del hecho *</label>
-            <app-textarea
-              id="claim-description"
-              [rows]="5"
-              placeholder="Describí lo que pasó con el mayor detalle posible"
-              [(value)]="description"
-            />
-
-            <p class="field-label">Datos de contacto *</p>
-            <div class="location-grid">
-              <app-input
-                type="email"
-                placeholder="Email"
-                [(value)]="contactEmail"
-                [readonly]="!!selectedPolicy()?.contactEmail"
-                (enter)="next()"
+            <app-field label="Descripción del hecho" [required]="true" for="claim-description">
+              <app-textarea
+                id="claim-description"
+                [rows]="5"
+                placeholder="Describí lo que pasó con el mayor detalle posible"
+                [(value)]="description"
               />
-              <app-input
-                type="tel"
-                placeholder="Teléfono"
-                [(value)]="contactPhone"
-                [readonly]="!!selectedPolicy()?.contactPhone"
-                (enter)="next()"
-              />
-            </div>
+            </app-field>
+
+            <app-field label="Datos de contacto" [required]="true">
+              <div class="location-grid">
+                <app-input
+                  type="email"
+                  placeholder="Email"
+                  [(value)]="contactEmail"
+                  [readonly]="!!selectedPolicy()?.contactEmail"
+                  (enter)="next()"
+                />
+                <app-input
+                  type="tel"
+                  placeholder="Teléfono"
+                  [(value)]="contactPhone"
+                  [readonly]="!!selectedPolicy()?.contactPhone"
+                  (enter)="next()"
+                />
+              </div>
+            </app-field>
           }
         </section>
       }
 
       @if (step() === 3) {
-        <section class="step-content">
+        <!-- A file dropped beside a slot would make the browser open it and leave the wizard. -->
+        <section
+          class="step-content"
+          (dragover)="$event.preventDefault()"
+          (drop)="$event.preventDefault()"
+        >
           <h2 class="step-title">Adjuntá documentación</h2>
           @if (docsLoading()) {
             <app-inline-loading [size]="20" message="Verificando qué documentación necesitás…" />
@@ -310,8 +332,7 @@
             <p class="step-hint">
               Esta documentación es obligatoria para poder evaluar tu caso.
               @if (docsFirstRound()) {
-                Es lo mínimo para empezar: si hace falta algo más, te lo vamos a pedir desde el
-                seguimiento.
+                Si hace falta algo más, te lo vamos a pedir desde el seguimiento.
               }
             </p>
           } @else if (docsUnavailable()) {
@@ -328,7 +349,14 @@
           }
 
           @for (slot of docSlots(); track slot.type; let i = $index) {
-            <div class="doc-slot" [class.filled]="!!slot.file">
+            <div
+              class="doc-slot"
+              [class.filled]="!!slot.file"
+              [class.dragover]="dragOverIndex() === i"
+              (dragover)="onDragOver($event, i)"
+              (dragleave)="onDragLeave($event)"
+              (drop)="onDrop($event, i)"
+            >
               <span class="doc-status" aria-hidden="true">
                 @if (slot.file) {
                   <span class="doc-check">✓</span>

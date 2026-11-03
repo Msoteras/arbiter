@@ -51,4 +51,9 @@ $composeFiles = @('-f', 'docker-compose.railway.yml', '-f', 'docker-compose.gemi
 
 Write-Host "Levantando Arbiter con Gemini (Vertex), contra la BD de Railway..." -ForegroundColor Cyan
 Write-Host "Credencial: $adcPath" -ForegroundColor DarkGray
+# Compose writes build progress to stderr. Under 'Stop', Windows PowerShell 5.1 turns that into
+# a terminating error as soon as the output is redirected, and aborts a build that is fine. The exit
+# code is what says whether it worked.
+$ErrorActionPreference = 'Continue'
 docker compose @composeFiles up @args
+exit $LASTEXITCODE

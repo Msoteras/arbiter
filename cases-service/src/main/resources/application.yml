@@ -83,6 +83,9 @@ arbiter:
     sendgrid-api-key: ${SENDGRID_API_KEY:}
     from-address: ${SENDGRID_FROM_ADDRESS:no-reply@arbiter.test}
     from-name: ${SENDGRID_FROM_NAME:Arbiter}
+    # Where the mail's <img> fetches the insurer's logo: the public URL of the front, whose nginx
+    # forwards /api to the backends. A mail client can't reach localhost, hence its own variable.
+    public-base-url: ${MAIL_PUBLIC_BASE_URL:${FRONTEND_BASE_URL:http://localhost:4200}}
   auth:
     jwt:
       secret: ${JWT_SECRET:}

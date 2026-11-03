@@ -1,5 +1,6 @@
 package ar.edu.utn.frba.arbiter.rules.services;
 
+import ar.edu.utn.frba.arbiter.common.dto.DocumentRequirementItem;
 import ar.edu.utn.frba.arbiter.common.enums.OnboardingStep;
 import ar.edu.utn.frba.arbiter.rules.dto.FastTrackConfigDto;
 import ar.edu.utn.frba.arbiter.rules.dto.FraudRecordRuleDto;
@@ -53,7 +54,8 @@ class OnboardingTrackingTest {
                 mock(DocumentRequirementRepository.class), mock(ClaimCauseRepository.class), branchRepository,
                 mock(DocumentTypeService.class), tracker);
 
-        runIgnoringMockGaps(() -> service.upsert(1L, 2L, List.of("police_report")));
+        runIgnoringMockGaps(() -> service.upsert(1L, 2L,
+                List.of(new DocumentRequirementItem("police_report", null))));
 
         verify(tracker).touch(OnboardingStep.DOCUMENTS, null);
     }

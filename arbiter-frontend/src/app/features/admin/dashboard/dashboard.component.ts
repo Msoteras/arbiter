@@ -387,7 +387,7 @@ export class DashboardComponent {
         tone: 'neutral',
       },
       {
-        label: 'Analizados por el modelo',
+        label: 'Analizados por Arbiter',
         value: funnel.analyzed,
         // Smaller than intake by design: the LLM never runs on an outcome the rules settled.
         note: share(funnel.analyzed),
@@ -450,7 +450,7 @@ export class DashboardComponent {
         tone: legalTone(metrics.legalDeadline.rate),
       },
       {
-        label: 'Coincidencia con el modelo',
+        label: 'Coincidencia con Arbiter',
         value: this.percent(agreement.rate),
         sub:
           agreement.decided === 0

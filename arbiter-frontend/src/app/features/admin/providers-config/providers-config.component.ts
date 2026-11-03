@@ -1,5 +1,5 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input, signal } from '@angular/core';
 
 import { BranchOption, BranchesService } from '../branches.service';
 import { ProviderAdmin, ProviderRequest, ProvidersService } from '../providers.service';
@@ -13,6 +13,7 @@ import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { IconButtonComponent } from '../../../shared/ui/icon-button/icon-button.component';
 import { CardComponent } from '../../../shared/ui/card/card.component';
 import { CheckboxComponent } from '../../../shared/ui/checkbox/checkbox.component';
+import { FieldComponent } from '../../../shared/ui/field/field.component';
 import { InputComponent } from '../../../shared/ui/input/input.component';
 import { SelectComponent, SelectOption } from '../../../shared/ui/select/select.component';
 import { EmptyStateComponent } from '../../../shared/ui/empty-state/empty-state.component';
@@ -42,6 +43,7 @@ interface ProviderDraft extends ProviderRequest {
     IconButtonComponent,
     CardComponent,
     CheckboxComponent,
+    FieldComponent,
     InputComponent,
     SelectComponent,
     EmptyStateComponent,
@@ -55,6 +57,8 @@ interface ProviderDraft extends ProviderRequest {
   styleUrl: './providers-config.component.scss',
 })
 export class ProvidersConfigComponent {
+  readonly readOnly = input(false);
+
   protected readonly stepLine = ONBOARDING_STEP_LINE;
 
   private readonly providersService = inject(ProvidersService);

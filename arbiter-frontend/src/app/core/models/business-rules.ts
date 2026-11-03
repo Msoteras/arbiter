@@ -88,6 +88,8 @@ export interface BranchRules {
   coverageCount: number;
   commonExclusions: string[];
   requiredDocumentsByClaimCause: Record<number, string[]>;
+  /** Per claim cause, the band each document is asked from; a document missing here is asked always. */
+  documentBandsByClaimCause: Record<number, Record<string, RiskBand>>;
   businessRules: string[];
   fastTrack: FastTrackConfig;
 }

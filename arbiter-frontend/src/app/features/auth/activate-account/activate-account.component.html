@@ -17,14 +17,15 @@
         <form (submit)="$event.preventDefault(); submit()">
           <h2 class="t-page-title">{{ copy.formTitle }}</h2>
 
-          <label class="field-label" for="activate-password">Contraseña</label>
-          <app-input
-            id="activate-password"
-            type="password"
-            autocomplete="new-password"
-            [value]="password()"
-            (valueChange)="password.set($event)"
-          />
+          <app-field label="Contraseña" for="activate-password">
+            <app-input
+              id="activate-password"
+              type="password"
+              autocomplete="new-password"
+              [value]="password()"
+              (valueChange)="password.set($event)"
+            />
+          </app-field>
           <!-- One list instead of a rules note plus errors: each item ticks as it's met. -->
           <ul class="password-reqs" aria-live="polite">
             @for (req of passwordChecklist(); track req.label) {
@@ -38,17 +39,23 @@
             }
           </ul>
 
-          <label class="field-label" for="activate-confirm-password">Repetí la contraseña</label>
-          <app-input
-            id="activate-confirm-password"
-            type="password"
-            autocomplete="new-password"
-            [value]="confirmPassword()"
-            (valueChange)="confirmPassword.set($event)"
-          />
-          @if (confirmPassword().length > 0 && !passwordsMatch()) {
-            <p class="error">Las contraseñas no coinciden.</p>
-          }
+          <app-field
+            label="Repetí la contraseña"
+            for="activate-confirm-password"
+            [error]="
+              confirmPassword().length > 0 && !passwordsMatch()
+                ? 'Las contraseñas no coinciden.'
+                : null
+            "
+          >
+            <app-input
+              id="activate-confirm-password"
+              type="password"
+              autocomplete="new-password"
+              [value]="confirmPassword()"
+              (valueChange)="confirmPassword.set($event)"
+            />
+          </app-field>
 
           @if (errorMessage()) {
             <p class="error">{{ errorMessage() }}</p>
