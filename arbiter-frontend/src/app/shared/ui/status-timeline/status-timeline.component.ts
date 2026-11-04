@@ -178,8 +178,8 @@ const ANALYST_NEXT_STEP: Partial<Record<CaseStatus, string>> = {
     .actor {
       font-size: var(--font-size-2xs);
       font-weight: var(--font-weight-medium);
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
+      text-transform: var(--label-case);
+      letter-spacing: calc(0.04em * var(--label-tracking));
       color: var(--text-tertiary);
     }
     .sep {
@@ -199,8 +199,8 @@ const ANALYST_NEXT_STEP: Partial<Record<CaseStatus, string>> = {
       font-style: italic;
     }
     .step.next .when {
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
+      text-transform: var(--label-case);
+      letter-spacing: calc(0.04em * var(--label-tracking));
       font-size: var(--font-size-2xs);
     }
     .next-text {

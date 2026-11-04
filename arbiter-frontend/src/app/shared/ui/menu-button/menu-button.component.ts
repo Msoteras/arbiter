@@ -205,8 +205,8 @@ export class MenuButtonRegistry {
     .heading {
       padding: var(--space-1) var(--space-3) var(--space-2);
       font-size: var(--font-size-2xs);
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
+      text-transform: var(--label-case);
+      letter-spacing: calc(0.04em * var(--label-tracking));
       color: var(--text-muted);
     }
     .danger-sep {

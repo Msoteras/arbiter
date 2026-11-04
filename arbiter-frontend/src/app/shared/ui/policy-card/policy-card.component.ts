@@ -107,13 +107,11 @@ import { BadgeComponent } from '../badge/badge.component';
     .policy {
       padding: var(--space-3) var(--space-4);
       border: 1px solid var(--border-default);
-      border-left: 3px solid var(--accent);
       border-radius: var(--radius-box);
       background: var(--surface);
     }
 
     .policy[data-validity='EXPIRED'] {
-      border-left-color: var(--border-strong);
       background: var(--surface-sunken);
     }
     .policy[data-validity='EXPIRED'] .policy-insurer,
@@ -130,8 +128,8 @@ import { BadgeComponent } from '../badge/badge.component';
     .policy-insurer {
       font-size: var(--font-size-2xs);
       font-weight: var(--font-weight-medium);
-      text-transform: uppercase;
-      letter-spacing: 0.1em;
+      text-transform: var(--label-case);
+      letter-spacing: calc(0.1em * var(--label-tracking));
       color: var(--accent-fg);
     }
     .policy-number {

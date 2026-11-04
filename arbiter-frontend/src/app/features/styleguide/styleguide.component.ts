@@ -1,5 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
-import { DOCUMENT } from '@angular/common';
+import { ChangeDetectionStrategy, Component, ElementRef, inject, signal } from '@angular/core';
 
 import { ButtonComponent } from '../../shared/ui/button/button.component';
 import { BadgeComponent } from '../../shared/ui/badge/badge.component';
@@ -49,6 +48,7 @@ import { StatTileComponent } from '../../shared/ui/stat-tile/stat-tile.component
 import { ToastService } from '../../shared/ui/toast/toast.service';
 import { StatusTransition } from '../../core/models/case';
 import { Policy } from '../../core/models/policy';
+import { StyleguideStatesComponent } from './states/styleguide-states.component';
 
 interface Token {
   name: string;
@@ -73,6 +73,7 @@ interface Swatch {
 @Component({
   selector: 'app-styleguide',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  host: { class: 'theme-zinc' },
   imports: [
     RatePipe,
     ChipGroupComponent,
@@ -111,6 +112,7 @@ interface Swatch {
     DateRangePickerComponent,
     SkeletonComponent,
     ActivityBarComponent,
+    StyleguideStatesComponent,
   ],
   template: `
     <div class="sg">
@@ -1225,11 +1227,22 @@ interface Swatch {
           <app-distribution shape="ring" centerLabel="expedientes" [items]="causeDistribution" />
         </div>
       </section>
+
+      <!-- ================= STATES ================= -->
+      <h2 class="sg-h2">Estados</h2>
+      <p class="sg-p">
+        Cada estado de cada máquina, con los componentes y los labels reales. Borde punteado: el
+        estado no tiene literal y el código lo deriva de otros campos.
+      </p>
+      <app-styleguide-states />
     </div>
   `,
   styles: `
     :host {
       display: block;
+      min-height: 100%;
+      background: var(--surface);
+      color: var(--text-primary);
     }
     .sg {
       padding: var(--space-5) var(--space-5) var(--space-7);
@@ -1267,8 +1280,8 @@ interface Swatch {
     .sg-h3 {
       margin: 0 0 var(--space-3);
       font-size: var(--font-size-2xs);
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
+      text-transform: var(--label-case);
+      letter-spacing: calc(0.05em * var(--label-tracking));
       color: var(--text-tertiary);
       font-weight: var(--font-weight-medium);
     }
@@ -1649,7 +1662,7 @@ export class StyleguideComponent {
   ];
   protected readonly claimTypeDemoValue = signal('theft');
 
-  private readonly doc = inject(DOCUMENT);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   protected readonly toastService = inject(ToastService);
 
   protected showToastWithAction(): void {
@@ -1862,10 +1875,10 @@ export class StyleguideComponent {
   /** Live theme knobs: they write to :root, re-theming the whole app. */
   protected readonly brandKnobs: Knob[] = [
     { name: 'Acento (estados activos)', v: '--accent', default: '#00a99d' },
-    { name: 'Texto (ink)', v: '--c-ink', default: '#191c1f' },
+    { name: 'Texto (ink)', v: '--c-ink', default: '#09090b' },
     { name: 'Fondo', v: '--c-bg', default: '#ffffff' },
-    { name: 'Fondo tenue', v: '--c-bg-soft', default: '#fbfaf7' },
-    { name: 'Borde', v: '--c-border', default: '#e5e4dd' },
+    { name: 'Fondo tenue', v: '--c-bg-soft', default: '#fafafa' },
+    { name: 'Borde', v: '--c-border', default: '#e4e4e7' },
   ];
 
   protected readonly colors = signal<Record<string, string>>(
@@ -1873,13 +1886,13 @@ export class StyleguideComponent {
   );
 
   protected setColor(v: string, value: string): void {
-    this.doc.documentElement.style.setProperty(v, value);
+    this.host.nativeElement.style.setProperty(v, value);
     this.colors.update((c) => ({ ...c, [v]: value }));
   }
 
   protected resetColors(): void {
     for (const k of this.brandKnobs) {
-      this.doc.documentElement.style.removeProperty(k.v);
+      this.host.nativeElement.style.removeProperty(k.v);
     }
     this.colors.set(Object.fromEntries(this.brandKnobs.map((k) => [k.v, k.default])));
   }
