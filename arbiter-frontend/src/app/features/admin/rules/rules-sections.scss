@@ -62,74 +62,17 @@
   color: var(--text-primary);
   white-space: normal !important;
 }
-.doc-cell {
-  text-align: center !important;
-}
-/* Only the box, centered: the kit checkbox's height and label aren't needed (name is .sr-only). */
-.doc-cell app-checkbox {
-  display: inline-block;
-}
-/* No width: with width:100% the box centered on the cell but not the header (asymmetric padding). */
-.doc-cell ::ng-deep .cb {
-  min-height: 0;
-  justify-content: center;
-  gap: 0;
-}
-/* Under the box, only while the document is in the schedule. */
-.doc-band {
+.doc-cell app-select {
   display: block;
-  margin-top: var(--space-1);
-  text-align: start;
 }
-
-@include media.phone {
-  .doc-col,
-  .doc-cell {
-    padding-inline: var(--space-1) !important;
-  }
-  .doc-col-name,
-  .doc-col-count {
-    display: inline-block;
-    margin: 0;
-    writing-mode: vertical-rl;
-    transform: rotate(180deg);
-  }
+/* "No se pide" recedes, so the cells that ask for something stand out. */
+.doc-cell.is-off ::ng-deep .trigger:not(:disabled) {
+  border-style: dashed;
+  background: transparent;
+  box-shadow: none;
 }
-
-.doc-legend {
-  display: flex;
-  gap: var(--space-4);
-  margin: var(--space-3) 0 0;
-  font-size: var(--font-size-xs);
-  color: var(--text-secondary);
-}
-.doc-legend-item {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-.doc-legend-box {
-  width: var(--icon-sm);
-  height: var(--icon-sm);
-  border: 1px solid var(--border-control);
-  border-radius: 3px;
-  background: var(--surface);
-}
-.doc-legend-box.on {
-  background: var(--accent-strong);
-  border-color: var(--accent-strong);
-  position: relative;
-}
-.doc-legend-box.on::after {
-  content: '';
-  position: absolute;
-  left: 4px;
-  top: 1px;
-  width: 4px;
-  height: 8px;
-  border: solid var(--text-on-emphasis);
-  border-width: 0 2px 2px 0;
-  transform: rotate(45deg);
+.doc-cell.is-off ::ng-deep .trigger-label {
+  color: var(--text-muted);
 }
 
 /* ───────── Fast Track ───────── */
@@ -137,13 +80,6 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-5);
-}
-/* Picker of the coverage being edited, separated from the sections below. */
-.ft-coverage {
-  margin-bottom: var(--space-4);
-}
-.ft-coverage .section-hint {
-  margin: var(--space-1) 0 0;
 }
 
 /* Replaces the threshold when the condition is off, instead of an empty-looking field. */
@@ -199,7 +135,7 @@
 .rule-value.choice app-select {
   width: var(--control-w-choice);
 }
-/* A field with its unit beside it, inside a labelled fieldset. */
+/* A field with its unit beside it, inside an app-field. */
 .with-unit {
   display: flex;
   align-items: center;
@@ -226,13 +162,6 @@
   }
 }
 
-.remove-cov {
-  display: flex;
-  justify-content: flex-end;
-  padding-top: var(--space-3);
-  border-top: 1px solid var(--border-subtle);
-}
-
 .cov-fields {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -248,27 +177,6 @@
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2) var(--space-5);
-}
-
-// Mirrors string-list-editor's empty box, so every tab of a branch starts the same way.
-.cov-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-6) var(--space-4);
-  border: 1px dashed var(--border-strong);
-  border-radius: var(--radius-box);
-  background: var(--surface-soft);
-  text-align: center;
-}
-.cov-empty-icon {
-  color: var(--text-tertiary);
-}
-.cov-empty-title {
-  margin: 0;
-  font-weight: var(--font-weight-medium);
-  color: var(--text-primary);
 }
 
 // An active rule with no value: the engine skips it, so it can't be saved that way.

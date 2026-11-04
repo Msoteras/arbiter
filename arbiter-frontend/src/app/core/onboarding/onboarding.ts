@@ -127,7 +127,10 @@ export function onboardingStepSummary(s: OnboardingStep): string {
   }
 }
 
-/** Where each step is configured: a Reglas section (with branch and tab) or Usuarios. */
+/**
+ * Where each step is configured: an insurer section of Reglas, a branch tab (with branch), or
+ * Usuarios. `solapa=fastTrack` is a coverage tab: Reglas opens it on a coverage of the branch.
+ */
 export interface OnboardingRoute {
   path: string;
   queryParams?: Record<string, string>;
@@ -150,7 +153,7 @@ export function onboardingStepRoute(
   });
   switch (s.step) {
     case 'COVERAGES':
-      return branch('coverages');
+      return branch('summary');
     case 'ANALYSTS':
     case 'INSURED':
       return { path: '/insurer/users' };
@@ -167,7 +170,7 @@ export function onboardingStepRoute(
     case 'PROVIDERS':
       return section('providers');
     case 'AUTHORITIES':
-      return section('authorities');
+      return branch('authorities');
     case 'HARD_STOP':
       return section('hardStop');
     case 'FRAUD':

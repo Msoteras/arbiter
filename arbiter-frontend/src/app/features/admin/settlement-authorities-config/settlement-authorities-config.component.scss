@@ -4,55 +4,18 @@
   gap: var(--space-4);
 }
 
-.at-section-head {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-
-.rows {
-  list-style: none;
-  margin: var(--space-3) 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
-.row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-4);
-  padding: var(--space-3) var(--space-4);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-ctl);
-  background: var(--surface-soft);
-}
-
-.row-text {
+.field {
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
-  min-width: 0;
-}
-.row-name {
-  font-weight: var(--font-weight-medium);
-  color: var(--text-primary);
+  max-width: var(--control-w-choice);
 }
 
-/* The input doesn't compete with the branch name for width. */
-.row app-input {
-  flex: 0 0 var(--control-w-value);
+.field-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
 }
-
-/* Stacked on mobile: beside the input, the branch name wrapped onto two lines. */
-@media (max-width: 640px) {
-  .row {
-    flex-direction: column;
-    align-items: stretch;
-  }
-  .row app-input {
-    flex: 1 1 auto;
-  }
+:host([hidden]) {
+  display: none;
 }

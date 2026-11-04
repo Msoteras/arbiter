@@ -8,6 +8,7 @@ import {
   inject,
   signal,
   untracked,
+  viewChild,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, ParamMap } from '@angular/router';
@@ -23,11 +24,7 @@ import {
   SettlementFormula,
 } from '../../../core/models/business-rules';
 import { BranchOption, BranchesService } from '../branches.service';
-import {
-  CoverageOption,
-  FastTrackConfigDto,
-  FastTrackRulesService,
-} from '../fast-track-rules.service';
+import { FastTrackConfigDto, FastTrackRulesService } from '../fast-track-rules.service';
 import {
   CoverageDetail,
   CoverageUpsertRequest,
@@ -77,13 +74,32 @@ import { CheckboxComponent } from '../../../shared/ui/checkbox/checkbox.componen
 import { SelectComponent, SelectOption } from '../../../shared/ui/select/select.component';
 import { RiskBand } from '../../../core/models/risk-band';
 import { ToastService } from '../../../shared/ui/toast/toast.service';
-import { ONBOARDING_STEP_LINE, onboardingStepArea } from '../../../core/onboarding/onboarding';
+import {
+  ONBOARDING_STEP_LINE,
+  OnboardingStepId,
+  onboardingStepArea,
+} from '../../../core/onboarding/onboarding';
 import { OnboardingService } from '../../../core/onboarding/onboarding.service';
-import { accordion, fadeInUp, listStagger, staggerReveal } from '../../../shared/animations';
+import { accordion, fadeInUp, staggerReveal } from '../../../shared/animations';
 import { OnboardingTargetDirective } from '../../../core/onboarding/onboarding-target.directive';
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
+import {
+  RulesTreeBranch,
+  RulesTreeComponent,
+  RulesTreeCoverage,
+  RulesTreeSection,
+  RulesTreeSelection,
+  RulesTreeStatus,
+} from './rules-tree.component';
 
-type TabId = 'coverages' | 'exclusions' | 'fastTrack' | 'documents' | 'derivations' | 'rules';
+type BranchTabId = 'summary' | 'exclusions' | 'documents' | 'derivations' | 'rules' | 'authorities';
+type CoverageTabId = 'data' | 'causes' | 'terms' | 'settlement' | 'fastTrack';
+
+/**
+ * The draft a tab edits. Moving to a tab of another slice with unsaved changes asks first, the
+ * same as leaving the branch. Derivations and authorities keep their own drafts: no slice here.
+ */
+type Slice = 'coverages' | 'commonExclusions' | 'documents' | 'fastTrack' | 'businessRules' | null;
 
 /** The backend stores whole months; a typed fraction (1,5 años is fine, 1,5 meses isn't) is rounded. */
 function wholeMonths(months: number | null): number | null {
@@ -91,13 +107,16 @@ function wholeMonths(months: number | null): number | null {
 }
 
 /** Right-panel views that don't depend on the selected branch. */
-type GeneralView =
-  'hardStop' | 'scoring' | 'fraud' | 'providers' | 'authorities' | 'target' | 'brand' | 'history';
+type GeneralView = 'hardStop' | 'scoring' | 'fraud' | 'providers' | 'target' | 'brand' | 'history';
+
+/** A tree item and the content beside it: three configuration levels, plus the audit history. */
+type Level = 'insurer' | 'branch' | 'coverage' | 'audit';
 
 /**
- * Branch master-detail with per-tab drafts, each saved by its own button. Branches belong
- * to the insurer; insurer-wide config lives outside the master-detail on purpose. The UI shows percentages
- * (0..100); the backend uses fractions (0..1).
+ * Three configuration levels: the insurer (its own sections), each branch and each coverage of a
+ * branch, picked from a tree. A branch is loaded whole; its coverages are views over that same
+ * draft, with per-slice drafts each saved by its own button. The UI shows percentages (0..100);
+ * the backend uses fractions (0..1).
  */
 @Component({
   selector: 'app-rules',
@@ -119,6 +138,7 @@ type GeneralView =
     ResolutionTargetConfigComponent,
     BrandComponent,
     RuleHistoryComponent,
+    RulesTreeComponent,
     SaveBarComponent,
     StringListEditorComponent,
     MonthsInputComponent,
@@ -134,10 +154,10 @@ type GeneralView =
     SelectComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  animations: [staggerReveal, listStagger, fadeInUp, accordion],
+  animations: [staggerReveal, fadeInUp, accordion],
   templateUrl: './rules.component.html',
   // Order matters: the files are concatenated as listed; swapping them changes the cascade.
-  styleUrls: ['./rules.component.scss', './rules-sections.scss'],
+  styleUrls: ['./rules.component.scss', './rules-sections.scss', './rules-levels.scss'],
 })
 export class RulesComponent {
   private readonly branchesService = inject(BranchesService);
@@ -160,20 +180,18 @@ export class RulesComponent {
 
   protected readonly ftSaving = signal(false);
   protected readonly ftError = signal<string | null>(null);
-  // Fast Track is configured per coverage (insurer_rule.coverage_id): the tab edits one coverage of
-  // the branch at a time, and `draft.fastTrack` holds the config of the one picked here.
-  protected readonly ftCoverages = signal<CoverageOption[]>([]);
+  // Fast Track is configured per coverage (insurer_rule.coverage_id): `draft.fastTrack` holds the
+  // config of the selected coverage, `ftConfigs` every coverage of the branch as stored.
   protected readonly ftCoverageId = signal<number | null>(null);
-  /** Loading a coverage picked from the selector (the branch's first load goes through detailLoading). */
-  protected readonly ftLoading = signal(false);
-  /** The coverage list itself failed: not the same as a branch that has no coverages. */
-  protected readonly ftCoveragesFailed = signal(false);
-  protected readonly ftCoverageOptions = computed<SelectOption[]>(() =>
-    this.ftCoverages().map((c) => ({ value: String(c.id), label: c.name })),
-  );
-  protected readonly ftCoverageValue = computed(() => {
+  private readonly ftConfigs = signal<Record<string, FastTrackConfigDto | 'failed'>>({});
+  /** The selected coverage's stored config hasn't arrived yet. */
+  protected readonly ftLoading = computed(() => {
     const id = this.ftCoverageId();
-    return id == null ? '' : String(id);
+    return id != null && this.ftConfigs()[String(id)] === undefined;
+  });
+  protected readonly ftLoadFailed = computed(() => {
+    const id = this.ftCoverageId();
+    return id != null && this.ftConfigs()[String(id)] === 'failed';
   });
 
   protected readonly covSaving = signal(false);
@@ -205,16 +223,27 @@ export class RulesComponent {
   /** Section tooltips: the same line the setup checklist shows for each step. */
   protected readonly stepLine = ONBOARDING_STEP_LINE;
 
-  protected readonly tabs: (TabOption & { id: TabId })[] = [
-    { id: 'coverages', label: 'Coberturas' },
+  protected readonly branchTabs: (TabOption & { id: BranchTabId })[] = [
+    { id: 'summary', label: 'Resumen' },
     { id: 'exclusions', label: 'Exclusiones comunes' },
-    { id: 'fastTrack', label: 'Fast Track' },
-    { id: 'documents', label: 'Documentación' },
+    { id: 'documents', label: 'Agenda documental' },
     { id: 'derivations', label: 'Derivaciones' },
     { id: 'rules', label: 'Reglas de negocio' },
+    { id: 'authorities', label: 'Atribuciones' },
   ];
-  private static readonly LAST_TAB_KEY = 'arbiter.reglas.lastTab';
-  protected readonly activeTab = signal<TabId>(this.loadLastTab());
+  protected readonly coverageTabs: (TabOption & { id: CoverageTabId })[] = [
+    { id: 'data', label: 'Datos' },
+    { id: 'causes', label: 'Hechos generadores' },
+    { id: 'terms', label: 'Plazos y topes' },
+    { id: 'settlement', label: 'Liquidación' },
+    { id: 'fastTrack', label: 'Fast Track' },
+  ];
+  protected readonly branchTab = signal<BranchTabId>('summary');
+  /** Kept when another coverage is picked, so going through coverages compares the same tab. */
+  protected readonly coverageTab = signal<CoverageTabId>('data');
+  /** Null at branch level. A coverage is a view over the open branch's draft, not a load of its own. */
+  protected readonly selectedCoverageId = signal<string | null>(null);
+  private readonly tabStrip = viewChild(TabsComponent);
 
   protected readonly branches = signal<BranchRules[]>([]);
   protected readonly branchesLoading = signal(true);
@@ -224,6 +253,8 @@ export class RulesComponent {
   /** Branch whose detail is loading, so responses for a branch left behind are ignored. */
   private detailToken: string | null = null;
   private pendingDetail = 0;
+  /** Runs once the open branch finished loading, e.g. opening a coverage a link points at. */
+  private afterDetailLoad: (() => void) | null = null;
   protected readonly selectedId = signal<string | null>(null);
   protected readonly view = signal<'branch' | GeneralView>('branch');
   protected readonly draft = signal<BranchRules | null>(null);
@@ -285,6 +316,13 @@ export class RulesComponent {
   protected discardCoverages(): void {
     this.restoreSlice('coverages');
     this.covError.set(null);
+    // A coverage added and never saved is gone after this: its branch takes its place.
+    const id = this.selectedCoverageId();
+    if (id != null && !this.draft()?.coverages.some((c) => c.id === id)) {
+      this.selectedCoverageId.set(null);
+      this.ftCoverageId.set(null);
+      this.showBranchTab('summary');
+    }
   }
 
   protected discardCommonExclusions(): void {
@@ -311,7 +349,7 @@ export class RulesComponent {
   // order; both callbacks reapply it, so whichever arrives last wins.
   private coverageCounts = new Map<string, number>();
   /** Until the summary answers, a branch's count is unknown, not zero. */
-  private coverageSummaryLoaded = false;
+  private readonly coverageSummaryLoaded = signal(false);
 
   constructor() {
     // Only the first list picks a branch: a refresh, e.g. one another referent created, updates the
@@ -363,9 +401,9 @@ export class RulesComponent {
   }
 
   /**
-   * Opens what a setup checklist link points at: `?seccion=` for a general section, or
-   * `?ramo=` and `?solapa=` for a branch tab. Without `ramo`, the first branch. False when the
-   * link names nothing, so the caller falls back to its default.
+   * Opens what a setup checklist link points at: `?seccion=` for an insurer section, or `?ramo=`,
+   * `?cobertura=` and `?solapa=` for a branch or coverage tab. Without `ramo`, the first branch.
+   * False when the link names nothing, so the caller falls back to its default.
    */
   private openLinkedView(params: ParamMap): boolean {
     const section = params.get('seccion');
@@ -374,22 +412,50 @@ export class RulesComponent {
       return true;
     }
     const branchId = params.get('ramo');
+    const coverageId = params.get('cobertura');
     const tab = params.get('solapa');
-    if (!branchId && !tab) {
+    if (!branchId && !coverageId && !tab) {
       return false;
     }
     const branch = this.branches().find((b) => b.id === branchId) ?? this.branches()[0];
     if (!branch) {
       return false;
     }
-    // Already open: only the tab changes, without reloading the branch.
-    if (this.view() !== 'branch' || this.selectedId() !== branch.id) {
+    const coverageTab = this.coverageTabs.find((t) => t.id === tab)?.id;
+    if (coverageId || coverageTab) {
+      this.openLinkedCoverage(branch, coverageId, coverageTab ?? 'data');
+      return true;
+    }
+    this.openBranch(branch, this.branchTabs.find((t) => t.id === tab)?.id ?? 'summary');
+    return true;
+  }
+
+  /**
+   * A coverage tab named without a coverage, e.g. Fast Track from the checklist, opens the first
+   * coverage still missing it. A branch without coverages opens on its summary.
+   */
+  private openLinkedCoverage(
+    branch: BranchRules,
+    coverageId: string | null,
+    tab: CoverageTabId,
+  ): void {
+    if (!this.isBranchOpen(branch.id)) {
       this.select(branch);
     }
-    if (tab && this.tabs.some((t) => t.id === tab)) {
-      this.setTab(tab as TabId);
-    }
-    return true;
+    this.whenDetailLoaded(() => {
+      const coverages = this.draft()?.coverages ?? [];
+      const target =
+        coverages.find((c) => c.id === coverageId) ??
+        (tab === 'fastTrack'
+          ? coverages.find((c) => this.coverageMissingFastTrack(c))
+          : undefined) ??
+        coverages[0];
+      if (target) {
+        this.openCoverage(branch, target.id, tab);
+      } else {
+        this.openBranch(branch, 'summary');
+      }
+    });
   }
 
   /** Also called after saving coverages, since adding or removing one changes the count. */
@@ -397,7 +463,7 @@ export class RulesComponent {
     this.coveragesService.summary().subscribe({
       next: (counts) => {
         this.coverageCounts = new Map(counts.map((c) => [String(c.branchId), c.coverageCount]));
-        this.coverageSummaryLoaded = true;
+        this.coverageSummaryLoaded.set(true);
         this.applyCoverageCounts();
       },
       error: () => {
@@ -408,7 +474,7 @@ export class RulesComponent {
 
   /** A branch missing from the summary has no coverages: the summary only lists the others. */
   private applyCoverageCounts(): void {
-    if (!this.coverageSummaryLoaded) {
+    if (!this.coverageSummaryLoaded()) {
       return;
     }
     this.branches.update((list) =>
@@ -428,14 +494,14 @@ export class RulesComponent {
    * The only setting a branch can't work without: no coverage, no policy matches and no claim
    * can be filed. Everything else is optional and only flagged when left empty.
    */
-  protected tabStatus(tab: TabId): 'required' | 'pending' | null {
+  private branchTabStatus(tab: BranchTabId): RulesTreeStatus {
     const d = this.draft();
     // Mid-load the branch looks empty: flagging it would show a marker that then disappears.
     if (!d || this.detailLoading() || this.detailFailed()) {
       return null;
     }
     switch (tab) {
-      case 'coverages':
+      case 'summary':
         return d.coverages.length === 0 ? 'required' : null;
       case 'documents':
         // An agenda that never arrived is unknown, not empty.
@@ -449,21 +515,74 @@ export class RulesComponent {
     }
   }
 
-  protected readonly tabOptions = computed(() =>
-    this.tabs.map((tab) => ({ ...tab, status: this.tabStatus(tab.id) })),
+  /** A row of the summary's map that no coverage of the branch covers. */
+  protected causeHasCoverage(causeId: number): boolean {
+    return this.coveredClaimCauses().some((cause) => cause.id === causeId);
+  }
+
+  /** Branch tabs whose component renders itself, loading included. */
+  protected readonly ownPanelTab = computed(
+    () =>
+      this.level() === 'branch' &&
+      (this.branchTab() === 'derivations' || this.branchTab() === 'authorities'),
   );
+
+  protected readonly branchTabOptions = computed(() =>
+    this.branchTabs.map((tab) => ({ ...tab, status: this.branchTabStatus(tab.id) })),
+  );
+
+  protected readonly coverageTabOptions = computed(() => {
+    const c = this.selectedCoverage();
+    const missingFt = c != null && this.coverageMissingFastTrack(c);
+    return this.coverageTabs.map((tab) => ({
+      ...tab,
+      status: tab.id === 'fastTrack' && missingFt ? ('required' as const) : null,
+    }));
+  });
+
+  /** Known only once its stored config arrived; the backend answers an empty one when there is none. */
+  protected coverageMissingFastTrack(c: Coverage): boolean {
+    const stored = this.ftConfigs()[c.id];
+    return stored != null && stored !== 'failed' && stored.requiresUpToDatePolicy == null;
+  }
 
   private beginDetailLoad(rulesId: string): void {
     this.detailToken = rulesId;
-    this.pendingDetail = 0;
+    // Held until settleDetailLoad: a request answering at once would otherwise end the load
+    // before the next one starts.
+    this.pendingDetail = 1;
+    this.afterDetailLoad = null;
     this.detailFailed.set(false);
     this.detailLoading.set(true);
   }
 
+  private finishDetailLoad(): void {
+    this.detailLoading.set(false);
+    const next = this.afterDetailLoad;
+    this.afterDetailLoad = null;
+    if (next && !this.detailFailed()) {
+      next();
+    }
+  }
+
+  /** Right away when the open branch is loaded; otherwise once it is. */
+  private whenDetailLoaded(next: () => void): void {
+    if (this.detailLoading()) {
+      this.afterDetailLoad = next;
+    } else if (!this.detailFailed()) {
+      next();
+    }
+  }
+
   protected retryDetailLoad(): void {
     const branch = this.branches().find((b) => b.id === this.selectedId());
-    if (branch) {
-      this.select(branch);
+    if (!branch) {
+      return;
+    }
+    const coverageId = this.selectedCoverageId();
+    this.select(branch);
+    if (coverageId != null) {
+      this.openLinkedCoverage(branch, coverageId, this.coverageTab());
     }
   }
 
@@ -490,16 +609,17 @@ export class RulesComponent {
         }
         this.pendingDetail -= 1;
         if (this.pendingDetail === 0) {
-          this.detailLoading.set(false);
+          this.finishDetailLoad();
         }
       }),
     );
   }
 
-  /** Turns the loader off when nothing was requested. */
+  /** Releases the hold of beginDetailLoad: the load ends here when every request already answered. */
   private settleDetailLoad(): void {
+    this.pendingDetail -= 1;
     if (this.pendingDetail === 0) {
-      this.detailLoading.set(false);
+      this.finishDetailLoad();
     }
   }
 
@@ -527,18 +647,12 @@ export class RulesComponent {
     };
   }
 
-  protected isSelected(r: BranchRules): boolean {
-    return this.view() === 'branch' && this.selectedId() === r.id;
-  }
-
   private readonly generalSections: { id: GeneralView; label: string; referentOnly?: boolean }[] = [
     { id: 'hardStop', label: 'Hard Stop' },
     { id: 'scoring', label: 'Puntaje de riesgo' },
     { id: 'fraud', label: 'Gestión de fraude' },
     // Its own entry: a repair shop has nothing to do with fraud.
     { id: 'providers', label: 'Proveedores externos' },
-    // Caps are per branch but listed together so they can be compared at a glance.
-    { id: 'authorities', label: 'Atribuciones de liquidación' },
     { id: 'target', label: 'Objetivo de resolución' },
     { id: 'brand', label: 'Marca', referentOnly: true },
     // 'history' is deliberately not here: it configures nothing and has its own Audit block.
@@ -548,9 +662,197 @@ export class RulesComponent {
     this.generalSections.filter((s) => !s.referentOnly || !this.readOnly()),
   );
 
+  /** The setup checklist step each insurer section completes, for its dot in the tree. */
+  private static readonly SECTION_STEPS: Partial<Record<GeneralView, OnboardingStepId>> = {
+    hardStop: 'HARD_STOP',
+    scoring: 'SCORING',
+    fraud: 'FRAUD',
+    providers: 'PROVIDERS',
+    target: 'TARGET',
+  };
+
+  /** Only the referent has a checklist; an optional step left pending isn't flagged. */
+  private sectionStatus(id: GeneralView): RulesTreeStatus {
+    const step = RulesComponent.SECTION_STEPS[id];
+    const pending = (this.onboarding.steps() ?? []).some(
+      (s) => s.step === step && s.status === 'PENDING' && s.level !== 'OPTIONAL',
+    );
+    return step != null && pending ? 'required' : null;
+  }
+
   protected selectGeneral(section: GeneralView): void {
     this.view.set(section);
   }
+
+  protected readonly level = computed<Level>(() => {
+    const view = this.view();
+    if (view === 'history') {
+      return 'audit';
+    }
+    if (view !== 'branch') {
+      return 'insurer';
+    }
+    return this.selectedCoverageId() == null ? 'branch' : 'coverage';
+  });
+
+  protected readonly selectedCoverage = computed(() => {
+    const id = this.selectedCoverageId();
+    return id == null ? undefined : this.draft()?.coverages.find((c) => c.id === id);
+  });
+
+  // ───────── Tree ─────────
+
+  /** Open branches in the tree. The open branch is added when picked, never removed by itself. */
+  private readonly expandedBranches = signal<ReadonlySet<string>>(new Set());
+  /** Coverages of branches other than the open one, read when the tree expands them. */
+  private readonly treeCoverages = signal<Record<string, RulesTreeCoverage[]>>({});
+
+  protected readonly treeSections = computed<RulesTreeSection[]>(() =>
+    this.visibleGeneralSections().map((s) => ({
+      id: s.id,
+      label: s.label,
+      status: this.sectionStatus(s.id),
+    })),
+  );
+
+  protected readonly treeBranches = computed<RulesTreeBranch[]>(() => {
+    const d = this.draft();
+    const expanded = this.expandedBranches();
+    return this.branches().map((b) => {
+      const open = d?.id === b.id;
+      return {
+        id: b.id,
+        name: b.name,
+        count: this.coverageSummaryLoaded() ? b.coverageCount : null,
+        status: this.branchStatus(b),
+        expanded: expanded.has(b.id),
+        coverages: open
+          ? this.detailLoading()
+            ? null
+            : d.coverages.map((c) => ({
+                id: c.id,
+                name: c.name,
+                status: this.coverageMissingFastTrack(c) ? ('required' as const) : null,
+              }))
+          : (this.treeCoverages()[b.id] ?? null),
+      };
+    });
+  });
+
+  /** No coverage is the one thing missing; anything else is only known for the open branch. */
+  private branchStatus(b: BranchRules): RulesTreeStatus {
+    if (this.coverageSummaryLoaded() && b.coverageCount === 0) {
+      return 'required';
+    }
+    const d = this.draft();
+    if (d?.id !== b.id || this.detailLoading() || this.detailFailed()) {
+      return null;
+    }
+    if (d.coverages.some((c) => this.coverageMissingFastTrack(c))) {
+      return 'required';
+    }
+    return this.branchTabStatus('documents');
+  }
+
+  protected readonly treeSelection = computed<RulesTreeSelection>(() => {
+    const view = this.view();
+    if (view === 'history') {
+      return { kind: 'none' };
+    }
+    if (view !== 'branch') {
+      return { kind: 'section', id: view };
+    }
+    const branchId = this.selectedId();
+    const coverageId = this.selectedCoverageId();
+    if (branchId == null) {
+      return { kind: 'none' };
+    }
+    return coverageId == null
+      ? { kind: 'branch', branchId }
+      : { kind: 'coverage', branchId, coverageId };
+  });
+
+  protected toggleBranch(id: string): void {
+    const open = new Set(this.expandedBranches());
+    if (open.has(id)) {
+      open.delete(id);
+    } else {
+      open.add(id);
+      this.loadTreeCoverages(id);
+    }
+    this.expandedBranches.set(open);
+  }
+
+  private expandBranch(id: string): void {
+    if (!this.expandedBranches().has(id)) {
+      this.expandedBranches.set(new Set([...this.expandedBranches(), id]));
+    }
+  }
+
+  /** Names only, for the tree: the branch's detail loads when it is picked. */
+  private loadTreeCoverages(id: string): void {
+    const branchId = Number(id);
+    if (this.draft()?.id === id || this.treeCoverages()[id] || !Number.isInteger(branchId)) {
+      return;
+    }
+    this.ftService.listCoverages(branchId).subscribe({
+      next: (list) =>
+        this.treeCoverages.update((all) => ({
+          ...all,
+          [id]: list.map((c) => ({ id: String(c.id), name: c.name, status: null })),
+        })),
+      error: () => this.treeCoverages.update((all) => ({ ...all, [id]: [] })),
+    });
+  }
+
+  /** The branch being left keeps its coverages in the tree, as last stored. */
+  private keepTreeCoverages(): void {
+    const left = this.persisted();
+    if (left) {
+      this.treeCoverages.update((all) => ({
+        ...all,
+        [left.id]: left.coverages.map((c) => ({ id: c.id, name: c.name, status: null })),
+      }));
+    }
+  }
+
+  // ───────── Header ─────────
+
+  protected readonly heading = computed<{
+    crumbs: { label: string; branchId?: string }[];
+    title: string;
+    level: string | null;
+  }>(() => {
+    switch (this.level()) {
+      case 'audit':
+        return { crumbs: [{ label: 'Auditoría' }], title: 'Historial de cambios', level: null };
+      case 'insurer': {
+        const section = this.generalSections.find((s) => s.id === this.view());
+        return {
+          crumbs: [{ label: 'Aseguradora' }],
+          title: section?.label ?? '',
+          level: 'Aseguradora',
+        };
+      }
+      case 'branch':
+        return { crumbs: [{ label: 'Ramos' }], title: this.renameFrom(), level: 'Ramo' };
+      case 'coverage': {
+        const branchId = this.selectedId() ?? '';
+        const id = this.selectedCoverageId();
+        const name =
+          this.selectedCoverage()?.name ??
+          this.treeCoverages()[branchId]?.find((c) => c.id === id)?.name ??
+          '';
+        return {
+          crumbs: [{ label: 'Ramos' }, { label: this.renameFrom(), branchId }],
+          title: name || 'Cobertura sin nombre',
+          level: 'Cobertura',
+        };
+      }
+    }
+  });
+
+  // ───────── Navigation ─────────
 
   /** Unsaved edits in the open view; leaving it would drop them without a word. */
   private readonly hasUnsavedChanges = computed(() => {
@@ -573,26 +875,139 @@ export class RulesComponent {
   /** Where the user wanted to go when the discard confirmation opened. */
   protected readonly pendingNavigation = signal<(() => void) | null>(null);
 
-  protected goToBranch(r: BranchRules, menu: HTMLElement, editor: HTMLElement): void {
+  protected goToSection(id: string, menu: HTMLElement, editor: HTMLElement): void {
+    const section = this.visibleGeneralSections().find((s) => s.id === id);
+    if (!section) {
+      return;
+    }
     this.leaveCurrentView(() => {
-      this.select(r);
+      this.selectGeneral(section.id);
       this.revealEditor(menu, editor);
     });
   }
 
-  protected goToGeneral(section: GeneralView, menu: HTMLElement, editor: HTMLElement): void {
+  protected goToHistory(menu: HTMLElement, editor: HTMLElement): void {
     this.leaveCurrentView(() => {
-      this.selectGeneral(section);
+      this.selectGeneral('history');
       this.revealEditor(menu, editor);
     });
   }
 
+  protected goToBranch(
+    id: string,
+    tab: BranchTabId = 'summary',
+    menu?: HTMLElement,
+    editor?: HTMLElement,
+  ): void {
+    const branch = this.branches().find((b) => b.id === id);
+    if (!branch) {
+      return;
+    }
+    this.leaveCurrentView(() => {
+      this.openBranch(branch, tab);
+      if (menu && editor) {
+        this.revealEditor(menu, editor);
+      }
+    });
+  }
+
+  protected goToCoverage(
+    branchId: string,
+    coverageId: string,
+    menu?: HTMLElement,
+    editor?: HTMLElement,
+  ): void {
+    const branch = this.branches().find((b) => b.id === branchId);
+    if (!branch) {
+      return;
+    }
+    this.leaveCurrentView(() => {
+      const tab = this.selectedCoverageId() == null ? 'data' : this.coverageTab();
+      this.openCoverage(branch, coverageId, tab);
+      if (menu && editor) {
+        this.revealEditor(menu, editor);
+      }
+    });
+  }
+
+  /** A new coverage opens on its data, in the branch it belongs to. */
+  protected addCoverageTo(branchId: string): void {
+    const branch = this.branches().find((b) => b.id === branchId);
+    if (!branch || this.readOnly()) {
+      return;
+    }
+    this.leaveCurrentView(() => {
+      const add = () => {
+        const id = this.addCoverage();
+        this.selectedCoverageId.set(id);
+        this.showCoverageTab('data');
+        this.applyFastTrackOf(id);
+      };
+      if (this.isBranchOpen(branchId)) {
+        add();
+        return;
+      }
+      this.select(branch);
+      this.whenDetailLoaded(add);
+    });
+  }
+
+  /** Loaded and shown: moving inside it needs no reload. */
+  private isBranchOpen(id: string): boolean {
+    return (
+      this.view() === 'branch' &&
+      this.selectedId() === id &&
+      this.draft()?.id === id &&
+      !this.detailFailed()
+    );
+  }
+
+  private openBranch(branch: BranchRules, tab: BranchTabId): void {
+    if (!this.isBranchOpen(branch.id)) {
+      this.select(branch);
+    }
+    this.selectedCoverageId.set(null);
+    this.ftCoverageId.set(null);
+    this.showBranchTab(tab);
+  }
+
+  private openCoverage(branch: BranchRules, coverageId: string, tab: CoverageTabId): void {
+    const wasOpen = this.isBranchOpen(branch.id);
+    if (!wasOpen) {
+      this.select(branch);
+    }
+    this.selectedCoverageId.set(coverageId);
+    this.showCoverageTab(tab);
+    this.applyFastTrackOf(coverageId);
+    if (!wasOpen) {
+      // Picked from a list read earlier: it may be gone by now.
+      this.whenDetailLoaded(() => {
+        if (!this.selectedCoverage()) {
+          this.openBranch(branch, 'summary');
+        }
+      });
+    }
+  }
+
+  /** With unsaved edits it asks first; "Descartar cambios" drops them and then moves. */
   private leaveCurrentView(navigate: () => void): void {
     if (this.hasUnsavedChanges()) {
-      this.pendingNavigation.set(navigate);
+      this.pendingNavigation.set(() => {
+        this.discardAll();
+        navigate();
+      });
       return;
     }
     navigate();
+  }
+
+  private discardAll(): void {
+    this.discardCommonExclusions();
+    this.discardFastTrack();
+    this.discardDocuments();
+    this.discardBusinessRules();
+    this.discardHardStop();
+    this.discardCoverages();
   }
 
   protected discardAndLeave(): void {
@@ -601,8 +1016,13 @@ export class RulesComponent {
     navigate?.();
   }
 
+  /** The tab strip already moved to the tab clicked: it goes back to the one still open. */
   protected keepEditing(): void {
     this.pendingNavigation.set(null);
+    const strip = this.tabStrip();
+    if (strip) {
+      strip.value.set(this.level() === 'coverage' ? this.coverageTab() : this.branchTab());
+    }
   }
 
   protected revealEditor(menu: HTMLElement, editor: HTMLElement): void {
@@ -611,17 +1031,123 @@ export class RulesComponent {
     }
   }
 
+  // ───────── Tabs ─────────
+
+  private currentSlice(): Slice {
+    switch (this.level()) {
+      case 'branch':
+        return this.branchTabSlice(this.branchTab());
+      case 'coverage':
+        return this.coverageTab() === 'fastTrack' ? 'fastTrack' : 'coverages';
+      default:
+        return null;
+    }
+  }
+
+  private branchTabSlice(tab: BranchTabId): Slice {
+    switch (tab) {
+      // Where a removed coverage waits to be saved.
+      case 'summary':
+        return 'coverages';
+      case 'exclusions':
+        return 'commonExclusions';
+      case 'documents':
+        return 'documents';
+      case 'rules':
+        return 'businessRules';
+      default:
+        return null;
+    }
+  }
+
+  private sliceDirty(slice: Slice): boolean {
+    switch (slice) {
+      case 'coverages':
+        return this.covDirty();
+      case 'commonExclusions':
+        return this.exclDirty();
+      case 'documents':
+        return this.docDirty();
+      case 'fastTrack':
+        return this.ftDirty();
+      case 'businessRules':
+        return this.rulesDirty();
+      default:
+        return false;
+    }
+  }
+
+  /** Tabs of one slice (the four of a coverage's own data) share its save bar: no question. */
+  private leaveSlice(target: Slice, navigate: () => void): void {
+    const current = this.currentSlice();
+    if (current !== target && this.sliceDirty(current)) {
+      this.pendingNavigation.set(() => {
+        this.discardAll();
+        navigate();
+      });
+      return;
+    }
+    navigate();
+  }
+
+  protected setBranchTab(id: string): void {
+    const tab = this.branchTabs.find((t) => t.id === id);
+    if (!tab || tab.id === this.branchTab()) {
+      return;
+    }
+    this.leaveSlice(this.branchTabSlice(tab.id), () => this.showBranchTab(tab.id));
+  }
+
+  protected setCoverageTab(id: string): void {
+    const tab = this.coverageTabs.find((t) => t.id === id);
+    if (!tab || tab.id === this.coverageTab()) {
+      return;
+    }
+    const target: Slice = tab.id === 'fastTrack' ? 'fastTrack' : 'coverages';
+    this.leaveSlice(target, () => this.showCoverageTab(tab.id));
+  }
+
+  /**
+   * A tab's first render is heavy enough to block the page, and until it ends the previous tab
+   * stays painted. Showing the loader first, and rendering the tab after that frame is painted,
+   * makes the switch visible at once.
+   */
+  protected readonly tabRendering = signal(false);
+  private readonly renderedTabs = new Set<string>(['branch:summary', 'coverage:data']);
+
+  private markRendering(key: string): void {
+    if (!this.renderedTabs.has(key)) {
+      this.renderedTabs.add(key);
+      this.tabRendering.set(true);
+      requestAnimationFrame(() => setTimeout(() => this.tabRendering.set(false)));
+    }
+  }
+
+  private showBranchTab(id: BranchTabId): void {
+    if (id !== this.branchTab()) {
+      this.markRendering(`branch:${id}`);
+    }
+    this.branchTab.set(id);
+  }
+
+  private showCoverageTab(id: CoverageTabId): void {
+    if (id !== this.coverageTab()) {
+      this.markRendering(`coverage:${id}`);
+    }
+    this.coverageTab.set(id);
+  }
+
   protected select(r: BranchRules): void {
+    this.keepTreeCoverages();
     this.view.set('branch');
     this.selectedId.set(r.id);
+    this.selectedCoverageId.set(null);
+    this.expandBranch(r.id);
     this.draft.set(structuredClone(r));
     this.persisted.set(structuredClone(r));
-    this.expandedCoverageId.set(null);
     this.ftError.set(null);
-    this.ftCoverages.set([]);
     this.ftCoverageId.set(null);
-    this.ftLoading.set(false);
-    this.ftCoveragesFailed.set(false);
+    this.ftConfigs.set({});
     this.covError.set(null);
     this.exclError.set(null);
     this.docError.set(null);
@@ -631,7 +1157,6 @@ export class RulesComponent {
     this.beginDetailLoad(r.id);
     this.loadClaimCauses(r);
     this.loadDocumentTypes(r);
-    this.loadFastTrackFromBackend(r);
     this.loadCoveragesFromBackend(r);
     this.loadBusinessRulesFromBackend(r);
     this.settleDetailLoad();
@@ -669,78 +1194,41 @@ export class RulesComponent {
     });
   }
 
-  /** The branch's coverages for the selector, plus the first one's stored config. Best-effort. */
-  private loadFastTrackFromBackend(r: BranchRules): void {
-    const branchId = this.branchIdOf(r);
-    if (branchId == null) {
-      return;
-    }
-    this.trackDetail(r.id, this.ftService.listCoverages(branchId)).subscribe({
-      next: (coverages) => {
-        if (this.draft()?.id !== r.id) {
-          return;
-        }
-        this.ftCoverages.set(coverages);
-        const first = coverages[0]?.id ?? null;
-        this.ftCoverageId.set(first);
-        if (first != null) {
-          this.loadFastTrackForCoverage(r.id, branchId, first, true);
-        }
-      },
-      error: () => {
-        if (this.draft()?.id === r.id) {
-          this.ftCoveragesFailed.set(true);
-        }
-      },
-    });
-  }
-
-  /** Replaces the whole tab; with unsaved changes the selector is disabled, so no edit drops silently. */
-  protected selectFtCoverage(value: string): void {
-    const d = this.draft();
-    const branchId = d ? this.branchIdOf(d) : null;
-    const coverageId = Number(value);
-    if (!d || branchId == null || !Number.isInteger(coverageId) || this.ftDirty()) {
-      return;
-    }
-    if (coverageId === this.ftCoverageId()) {
-      return;
-    }
-    this.ftError.set(null);
-    this.ftCoverageId.set(coverageId);
-    this.loadFastTrackForCoverage(d.id, branchId, coverageId, false);
-  }
-
-  private loadFastTrackForCoverage(
+  /**
+   * One coverage's stored Fast Track. Reaches the screen only if that coverage is the one open
+   * and its Fast Track has no unsaved edits: a late answer never lands on another coverage.
+   */
+  private loadFastTrackConfig(
     rulesId: string,
     branchId: number,
     coverageId: number,
-    initial: boolean,
+    tracked: boolean,
   ): void {
     const source = this.ftService.getFastTrack(branchId, coverageId);
-    if (!initial) {
-      this.ftLoading.set(true);
-    }
-    (initial ? this.trackDetail(rulesId, source) : source).subscribe({
+    (tracked ? this.trackDetail(rulesId, source) : source).subscribe({
       next: (dto) => {
-        // A late answer for a coverage (or branch) the referente already left must not land on
-        // the one on screen: that's exactly how one coverage's config ends up saved on another.
-        if (this.draft()?.id !== rulesId || this.ftCoverageId() !== coverageId) {
+        if (this.draft()?.id !== rulesId) {
           return;
         }
-        this.overlayFastTrack(dto);
-        this.ftLoading.set(false);
+        this.ftConfigs.update((all) => ({ ...all, [String(coverageId)]: dto }));
+        if (this.ftCoverageId() === coverageId && !this.ftDirty()) {
+          this.overlayFastTrack(dto);
+        }
       },
-      error: (e: unknown) => {
-        if (this.ftCoverageId() !== coverageId) {
-          return;
-        }
-        this.ftLoading.set(false);
-        if (!initial) {
-          this.ftError.set(this.backendErrorMessage(e));
+      error: () => {
+        if (this.draft()?.id === rulesId) {
+          this.ftConfigs.update((all) => ({ ...all, [String(coverageId)]: 'failed' }));
         }
       },
     });
+  }
+
+  /** Shows the coverage's Fast Track; a coverage not yet saved starts empty. */
+  private applyFastTrackOf(coverageId: string): void {
+    this.ftError.set(null);
+    this.ftCoverageId.set(this.isPersistedId(coverageId) ? Number(coverageId) : null);
+    const stored = this.ftConfigs()[coverageId];
+    this.overlayFastTrack(stored === undefined || stored === 'failed' ? null : stored);
   }
 
   private overlayFastTrack(dto: FastTrackConfigDto | null): void {
@@ -756,11 +1244,9 @@ export class RulesComponent {
               maxPriorClaims: dto?.maxPriorClaims ?? null,
               priorClaimsWindowMonths: dto?.priorClaimsWindowMonths ?? null,
               minPolicyAgeMonths: dto?.minPolicyAgeMonths ?? null,
-              requiresUpToDatePolicy:
-                dto?.requiresUpToDatePolicy ?? d.fastTrack.requiresUpToDatePolicy,
+              requiresUpToDatePolicy: dto?.requiresUpToDatePolicy ?? true,
               requiredDocumentTypes: dto?.requiredDocumentTypes ?? [],
-              // With a stored config its criteria win even when empty: empty is a decision.
-              criteria: dto ? (dto.criteria ?? []) : d.fastTrack.criteria,
+              criteria: dto?.criteria ?? [],
             },
           }
         : d,
@@ -785,6 +1271,7 @@ export class RulesComponent {
         this.overlayCoverages(rulesId, list);
         this.loadCoverageExclusions(rulesId, list);
         this.loadCoverageHardRules(rulesId, list);
+        list.forEach((c) => this.loadFastTrackConfig(rulesId, branchId, c.id, true));
       },
       error: () => {
         /* best-effort */
@@ -961,34 +1448,6 @@ export class RulesComponent {
     return Number.isInteger(n) && n > 0 ? n : null;
   }
 
-  /**
-   * A tab's first render is heavy enough to block the page, and until it ends the previous tab
-   * stays painted. Showing the loader first, and rendering the tab after that frame is painted,
-   * makes the switch visible at once.
-   */
-  protected readonly tabRendering = signal(false);
-  private readonly renderedTabs = new Set<TabId>([this.activeTab()]);
-
-  protected setTab(id: string): void {
-    const tab = this.tabs.find((t) => t.id === id);
-    if (!tab || tab.id === this.activeTab()) {
-      return;
-    }
-    localStorage.setItem(RulesComponent.LAST_TAB_KEY, tab.id);
-    if (!this.renderedTabs.has(tab.id)) {
-      this.renderedTabs.add(tab.id);
-      this.tabRendering.set(true);
-      requestAnimationFrame(() => setTimeout(() => this.tabRendering.set(false)));
-    }
-    this.activeTab.set(tab.id);
-  }
-
-  /** Falls back to Coberturas when nothing valid is stored. */
-  private loadLastTab(): TabId {
-    const saved = localStorage.getItem(RulesComponent.LAST_TAB_KEY);
-    return this.tabs.some((t) => t.id === saved) ? (saved as TabId) : 'coverages';
-  }
-
   protected setName(name: string): void {
     this.draft.update((d) => (d ? { ...d, name } : d));
   }
@@ -1066,7 +1525,8 @@ export class RulesComponent {
     });
   }
 
-  protected addCoverage(): void {
+  /** Adds it to the open branch's draft and returns its temporary id. */
+  private addCoverage(): string {
     const coverage: Coverage = {
       id: `cov-${Date.now()}`,
       name: '',
@@ -1095,8 +1555,7 @@ export class RulesComponent {
       })),
     };
     this.draft.update((d) => (d ? { ...d, coverages: [...d.coverages, coverage] } : d));
-    // Opened right away, or adding a collapsed row at the bottom looks like nothing happened.
-    this.expandedCoverageId.set(coverage.id);
+    return coverage.id;
   }
 
   /** Empty while loading, or for a coverage not yet saved. */
@@ -1288,10 +1747,13 @@ export class RulesComponent {
     }
   }
 
+  /** The branch summary takes its place; the removal waits there for the save. */
   private removeCoverage(id: string): void {
     this.draft.update((d) => (d ? { ...d, coverages: d.coverages.filter((c) => c.id !== id) } : d));
-    if (this.expandedCoverageId() === id) {
-      this.expandedCoverageId.set(null);
+    if (this.selectedCoverageId() === id) {
+      this.selectedCoverageId.set(null);
+      this.ftCoverageId.set(null);
+      this.showBranchTab('summary');
     }
   }
 
@@ -1351,18 +1813,7 @@ export class RulesComponent {
     return this.intStr(c.waitingPeriodDays);
   }
 
-  /** One coverage open at a time. */
-  protected readonly expandedCoverageId = signal<string | null>(null);
-
-  protected isCoverageOpen(c: Coverage): boolean {
-    return this.expandedCoverageId() === c.id;
-  }
-
-  protected toggleCoverage(c: Coverage): void {
-    this.expandedCoverageId.update((open) => (open === c.id ? null : c.id));
-  }
-
-  /** Summary shown while collapsed; unset values are omitted rather than shown as "—". */
+  /** Summary on the branch's coverage cards; unset values are omitted rather than shown as "—". */
   protected coverageSummary(c: Coverage): string[] {
     const chips: string[] = [];
     if (c.deductibleRatio != null) {
@@ -1671,7 +2122,7 @@ export class RulesComponent {
     this.patch({ businessRules: items });
   }
 
-  /** Only the coverage picked in the selector: each has its own FAST_TRACK rule. */
+  /** Only the open coverage: each has its own FAST_TRACK rule. */
   protected saveFastTrack(): void {
     const d = this.draft();
     if (!d || this.ftSaving() || this.ftHasStaleDocs()) {
@@ -1685,7 +2136,7 @@ export class RulesComponent {
     }
     const coverageId = this.ftCoverageId();
     if (coverageId == null) {
-      this.ftError.set('Elegí una cobertura para guardar su Fast Track.');
+      this.ftError.set('Guardá la cobertura antes de configurar su Fast Track.');
       return;
     }
     const ft = d.fastTrack;
@@ -1705,7 +2156,7 @@ export class RulesComponent {
         this.ftSaving.set(false);
         this.markPersisted('fastTrack');
         // Reload from the backend to show exactly what was persisted.
-        this.loadFastTrackForCoverage(d.id, branchId, coverageId, false);
+        this.loadFastTrackConfig(d.id, branchId, coverageId, false);
       },
       error: (e: unknown) => {
         this.ftSaving.set(false);
@@ -1816,8 +2267,9 @@ export class RulesComponent {
     if (created) {
       this.loadedCoverages = [...this.loadedCoverages, structuredClone(created)];
     }
-    if (this.expandedCoverageId() === tempId) {
-      this.expandedCoverageId.set(id);
+    if (this.selectedCoverageId() === tempId) {
+      this.selectedCoverageId.set(id);
+      this.ftCoverageId.set(storedId);
     }
   }
 
@@ -1890,53 +2342,50 @@ export class RulesComponent {
     return this.draft()?.requiredDocumentsByClaimCause[claimCauseId]?.includes(code) ?? false;
   }
 
-  protected toggleDocFor(claimCauseId: number, code: string): void {
+  /**
+   * One choice per cell: whether the document is asked for and from which risk band. `NONE` is no
+   * row and `ALWAYS` a row without band. LOW is left out: from Bajo up reads the same as "always".
+   */
+  protected readonly docRequirementOptions: SelectOption[] = [
+    { value: 'NONE', label: 'No se pide' },
+    { value: 'ALWAYS', label: 'Siempre' },
+    { value: 'MEDIUM', label: 'Riesgo medio o más' },
+    { value: 'HIGH', label: 'Riesgo alto o más' },
+    { value: 'CRITICAL', label: 'Solo riesgo crítico' },
+  ];
+
+  protected docRequirement(claimCauseId: number, code: string): string {
+    if (!this.isDocRequiredFor(claimCauseId, code)) {
+      return 'NONE';
+    }
+    return this.draft()?.documentBandsByClaimCause[claimCauseId]?.[code] ?? 'ALWAYS';
+  }
+
+  protected setDocRequirement(claimCauseId: number, code: string, value: string): void {
     this.draft.update((d) => {
       if (!d) {
         return d;
       }
       const current = d.requiredDocumentsByClaimCause[claimCauseId] ?? [];
-      const removing = current.includes(code);
-      const next = removing ? current.filter((c) => c !== code) : [...current, code];
-      // A document taken out of the schedule loses its band: added back, it starts as "always".
+      const asked = value !== 'NONE';
+      // Kept in place when only the band changes, so the stored order doesn't read as a change.
+      const required = asked
+        ? current.includes(code)
+          ? current
+          : [...current, code]
+        : current.filter((c) => c !== code);
       const bands = { ...(d.documentBandsByClaimCause[claimCauseId] ?? {}) };
-      if (removing) delete bands[code];
-      return {
-        ...d,
-        requiredDocumentsByClaimCause: { ...d.requiredDocumentsByClaimCause, [claimCauseId]: next },
-        documentBandsByClaimCause: { ...d.documentBandsByClaimCause, [claimCauseId]: bands },
-      };
-    });
-  }
-
-  /**
-   * LOW is left out: from Bajo up is every scored case, which reads the same as "always". The band
-   * alone, without "Desde": the columns are narrow, and the card's tip says it is a lower bound.
-   */
-  protected readonly documentBandOptions: SelectOption[] = [
-    { value: '', label: 'Siempre' },
-    { value: 'MEDIUM', label: 'Medio' },
-    { value: 'HIGH', label: 'Alto' },
-    { value: 'CRITICAL', label: 'Crítico' },
-  ];
-
-  protected docBandFor(claimCauseId: number, code: string): string {
-    return this.draft()?.documentBandsByClaimCause[claimCauseId]?.[code] ?? '';
-  }
-
-  protected setDocBand(claimCauseId: number, code: string, value: string): void {
-    this.draft.update((d) => {
-      if (!d) {
-        return d;
-      }
-      const bands = { ...(d.documentBandsByClaimCause[claimCauseId] ?? {}) };
-      if (value) {
+      if (asked && value !== 'ALWAYS') {
         bands[code] = value as RiskBand;
       } else {
         delete bands[code];
       }
       return {
         ...d,
+        requiredDocumentsByClaimCause: {
+          ...d.requiredDocumentsByClaimCause,
+          [claimCauseId]: required,
+        },
         documentBandsByClaimCause: { ...d.documentBandsByClaimCause, [claimCauseId]: bands },
       };
     });
@@ -1945,9 +2394,9 @@ export class RulesComponent {
   protected requiredCountLabel(claimCauseId: number): string {
     const count = this.draft()?.requiredDocumentsByClaimCause[claimCauseId]?.length ?? 0;
     if (count === 0) {
-      return 'sin obligatorios';
+      return 'Sin documentos';
     }
-    return count === 1 ? '1 obligatorio' : `${count} obligatorios`;
+    return count === 1 ? '1 documento' : `${count} documentos`;
   }
 
   /** Only changed agendas are saved: resending all would overwrite others' concurrent edits. */

@@ -140,7 +140,6 @@ export class EngineBoardComponent {
   private readonly fanPlane = viewChild<ElementRef<HTMLElement>>('fanPlane');
   private readonly fanCanvas = viewChild<ElementRef<HTMLCanvasElement>>('fanCanvas');
 
-  protected readonly loaded = signal(false);
   protected readonly failed = signal(false);
   private readonly state = signal<EngineState>(EMPTY_STATE);
   /** Server time minus browser time, so clocks don't depend on the analyst's machine. */
@@ -286,7 +285,6 @@ export class EngineBoardComponent {
         board.classifiedToday.forEach((c) => this.seenInPool.add(c.caseId));
         board.active.forEach((c) => this.trackGate(c));
         this.state.set(fromBoard(board.active, board.classifiedToday));
-        this.loaded.set(true);
         this.listen(board.topic);
       },
       error: () => this.failed.set(true),
