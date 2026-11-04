@@ -1,6 +1,5 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { ChangeDetectionStrategy, Component, computed, inject, input, signal } from '@angular/core';
-import { forkJoin } from 'rxjs';
 
 import {
   SettlementAuthoritiesService,
@@ -16,7 +15,7 @@ import { ONBOARDING_STEP_LINE } from '../../../core/onboarding/onboarding';
 import { OnboardingTargetDirective } from '../../../core/onboarding/onboarding-target.directive';
 
 /**
- * How much an analyst may authorize alone per branch; above it the settlement waits for the
+ * How much an analyst may authorize alone in one branch; above it the settlement waits for the
  * referente. A branch without a cap means any amount is allowed, hence "Sin tope" rather than 0.
  */
 @Component({
@@ -35,6 +34,7 @@ import { OnboardingTargetDirective } from '../../../core/onboarding/onboarding-t
   styleUrl: './settlement-authorities-config.component.scss',
 })
 export class SettlementAuthoritiesConfigComponent {
+  readonly branchId = input.required<number>();
   readonly readOnly = input(false);
 
   protected readonly stepLine = ONBOARDING_STEP_LINE;
@@ -50,11 +50,15 @@ export class SettlementAuthoritiesConfigComponent {
   /** Digits typed per branch: empty means "no cap", which is not the same as 0. */
   protected readonly drafts = signal<Record<number, string>>({});
 
-  /** Branches whose cap differs from the saved one; a single save sends them all. */
-  private readonly changed = computed(() =>
-    this.authorities().filter((a) => (this.drafts()[a.branchId] ?? '') !== stored(a)),
+  /** The list comes for every branch at once (and is cached that way); this shows one. */
+  protected readonly authority = computed(() =>
+    this.authorities().find((a) => a.branchId === this.branchId()),
   );
-  protected readonly dirty = computed(() => this.changed().length > 0);
+
+  protected readonly dirty = computed(() => {
+    const a = this.authority();
+    return a != null && (this.drafts()[a.branchId] ?? '') !== stored(a);
+  });
 
   constructor() {
     this.load();
@@ -100,18 +104,14 @@ export class SettlementAuthoritiesConfigComponent {
   }
 
   protected save(): void {
-    const changed = this.changed();
-    if (changed.length === 0) {
+    const a = this.authority();
+    if (!a || !this.dirty()) {
       return;
     }
     this.saving.set(true);
     this.error.set(null);
-    forkJoin(
-      changed.map((a) => {
-        const digits = this.drafts()[a.branchId] ?? '';
-        return this.service.set(a.branchId, digits === '' ? null : Number(digits));
-      }),
-    ).subscribe({
+    const digits = this.drafts()[a.branchId] ?? '';
+    this.service.set(a.branchId, digits === '' ? null : Number(digits)).subscribe({
       next: () => {
         this.saving.set(false);
         this.load();
@@ -119,7 +119,7 @@ export class SettlementAuthoritiesConfigComponent {
       error: (e: HttpErrorResponse) => {
         this.saving.set(false);
         // No reload: the typed values stay on screen so the user can retry.
-        this.error.set(e.error?.detail ?? 'No se pudieron guardar los topes.');
+        this.error.set(e.error?.detail ?? 'No se pudo guardar el tope.');
       },
     });
   }

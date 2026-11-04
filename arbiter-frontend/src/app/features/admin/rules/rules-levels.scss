@@ -1,0 +1,137 @@
+/* Third part of the rules screen styles: the header of each level, what a coverage inherits from
+   its branch, and the branch summary. Concatenated after the other two (see rules-sections.scss). */
+
+@use 'media';
+
+/* ───────── Level header: breadcrumb, title and level ───────── */
+.level-head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.crumbs ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+}
+.crumbs li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.crumb-sep {
+  color: var(--text-muted);
+}
+.crumb-current {
+  color: var(--text-primary);
+  font-weight: var(--font-weight-medium);
+}
+.crumb-link,
+.inherited-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+.crumb-link {
+  color: var(--text-secondary);
+  text-decoration-color: var(--border-strong);
+}
+.crumb-link:hover {
+  color: var(--text-primary);
+}
+.crumb-link:focus-visible,
+.inherited-link:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: var(--radius-ctl);
+}
+.level-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  min-width: 0;
+}
+
+/* ───────── Coverage: what applies from its branch ───────── */
+.inherited {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  padding: var(--space-3);
+  border-radius: var(--radius-ctl);
+  background: var(--surface-sunken);
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+}
+.inherited-label {
+  color: var(--text-primary);
+  font-weight: var(--font-weight-medium);
+}
+.inherited-link {
+  color: var(--accent-fg);
+}
+.inherited-link:hover {
+  color: var(--text-primary);
+}
+@include media.touch {
+  .inherited-link {
+    min-height: var(--touch-target);
+  }
+}
+
+/* ───────── Branch summary ───────── */
+.cov-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(calc(var(--control-w-value) * 1.25), 1fr));
+  gap: var(--space-3);
+}
+.cov-aside {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.cov-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+
+/* Claim cause × coverage map. */
+.map-col,
+.map-cell {
+  text-align: center !important;
+}
+.map-row-name {
+  font-weight: var(--font-weight-regular);
+  color: var(--text-primary);
+  white-space: normal !important;
+}
+.map-cause {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+.map-off {
+  color: var(--text-muted);
+}
+
+/* The claim causes a coverage attends, one switch each. */
+.cause-rows {
+  margin-bottom: var(--space-4);
+}
