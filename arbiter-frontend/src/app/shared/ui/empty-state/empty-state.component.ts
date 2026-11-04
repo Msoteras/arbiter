@@ -41,7 +41,7 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
       flex-direction: column;
       align-items: center;
       border: 1px dashed var(--border-strong);
-      border-radius: var(--radius-card);
+      border-radius: var(--radius-box);
       background: var(--surface-sunken);
       padding: var(--space-5) var(--space-4);
       text-align: center;

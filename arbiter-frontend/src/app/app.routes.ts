@@ -95,6 +95,13 @@ export const routes: Routes = [
     children: [{ path: ':caseId', children: [] }],
   },
   {
+    path: 'engine',
+    canActivate: [roleGuard],
+    data: { roles: ['ANALISTA_SINIESTROS', 'REFERENTE_ASEGURADORA'] },
+    loadComponent: () =>
+      import('./features/engine/engine-board.component').then((m) => m.EngineBoardComponent),
+  },
+  {
     // No roles in data: any authenticated session gets in, but it is not public in production.
     path: 'styleguide',
     canActivate: [roleGuard],

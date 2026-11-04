@@ -191,7 +191,7 @@ export class MenuButtonRegistry {
       text-align: left;
       padding: var(--space-2) var(--space-3);
       border: none;
-      border-radius: var(--radius-ctl);
+      border-radius: var(--radius-inner);
       background: none;
       color: var(--text-secondary);
       cursor: pointer;

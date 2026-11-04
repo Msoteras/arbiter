@@ -19,6 +19,7 @@ import {
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { CheckboxComponent } from '../../../shared/ui/checkbox/checkbox.component';
 import { SkeletonComponent } from '../../../shared/ui/skeleton/skeleton.component';
+import { FieldComponent } from '../../../shared/ui/field/field.component';
 import { InputComponent } from '../../../shared/ui/input/input.component';
 
 type ProfileState =
@@ -30,7 +31,7 @@ type ProfileState =
  */
 @Component({
   selector: 'app-profile',
-  imports: [ButtonComponent, CheckboxComponent, SkeletonComponent, InputComponent],
+  imports: [ButtonComponent, CheckboxComponent, SkeletonComponent, FieldComponent, InputComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './profile.component.html',
   styleUrl: './profile.component.scss',

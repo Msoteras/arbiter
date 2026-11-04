@@ -1,17 +1,21 @@
 <p class="t-note">Le va a llegar un mail para elegir su contraseña.</p>
 
 <form class="form-card" (submit)="$event.preventDefault(); submit()">
-  <label class="field-label" for="first-name">Nombre</label>
-  <app-input id="first-name" [value]="firstName()" (valueChange)="firstName.set($event)" />
+  <app-field label="Nombre" for="first-name">
+    <app-input id="first-name" [value]="firstName()" (valueChange)="firstName.set($event)" />
+  </app-field>
 
-  <label class="field-label" for="last-name">Apellido</label>
-  <app-input id="last-name" [value]="lastName()" (valueChange)="lastName.set($event)" />
+  <app-field label="Apellido" for="last-name">
+    <app-input id="last-name" [value]="lastName()" (valueChange)="lastName.set($event)" />
+  </app-field>
 
-  <label class="field-label" for="email">Email</label>
-  <app-input id="email" type="email" [value]="email()" (valueChange)="email.set($event)" />
+  <app-field label="Email" for="email">
+    <app-input id="email" type="email" [value]="email()" (valueChange)="email.set($event)" />
+  </app-field>
 
-  <span class="field-label">Rol</span>
-  <p class="t-body mono role-display">Analista de siniestros</p>
+  <app-field label="Rol">
+    <p class="t-body mono role-display">Analista de siniestros</p>
+  </app-field>
 
   @if (errorMessage()) {
     <p class="error">{{ errorMessage() }}</p>

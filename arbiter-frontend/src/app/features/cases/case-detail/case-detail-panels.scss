@@ -42,7 +42,7 @@
   gap: var(--space-1);
   min-width: 0;
   padding: var(--space-4);
-  border-radius: var(--radius-card);
+  border-radius: var(--radius-box);
   background: var(--surface-soft);
 }
 .key-label {
@@ -369,19 +369,12 @@ app-textarea {
   gap: var(--space-3);
 }
 
-/* Redeclared here: `.fieldset` belongs to the rules screen and component styles aren't shared. */
-.settlement .fieldset {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-}
-
 .settlement-sheet {
   list-style: none;
   margin: 0;
   padding: 0;
   border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-card);
+  border-radius: var(--radius-box);
   background: var(--surface-soft);
 }
 
@@ -458,29 +451,12 @@ app-textarea {
   margin: var(--space-2) 0 0;
 }
 
-.assessment-amount {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
+/* A field stacked in a modal, apart from the note or field above. */
+.modal-field {
   margin-top: var(--space-3);
 }
 
-/* Spans instead of <p>: the default paragraph margin left the hint floating away from the field. */
-.justification {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-}
-
-.required {
-  color: var(--status-danger);
-}
-
-/* Explicit color so it doesn't inherit from the block above. */
 .reject-ground {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
   margin-bottom: var(--space-4);
 }
 
@@ -496,7 +472,7 @@ app-textarea {
   align-items: flex-start;
 }
 
-.settlement-money .fieldset {
+.settlement-money app-field {
   flex: 1 1 0;
   min-width: 0;
 }

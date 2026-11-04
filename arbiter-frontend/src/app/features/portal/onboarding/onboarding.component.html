@@ -91,35 +91,41 @@
       </h2>
 
       <div class="fields">
-        <div class="field">
-          <label class="sr-only" for="onboarding-email">Email</label>
+        <app-field
+          label="Email"
+          for="onboarding-email"
+          [error]="
+            email().length > 0 && !emailValid()
+              ? 'Revisá el email: no parece una dirección válida.'
+              : null
+          "
+        >
           <app-input
             id="onboarding-email"
             type="email"
             autocomplete="email"
-            placeholder="Email"
+            placeholder="tunombre@email.com"
             [(value)]="email"
             (enter)="submit()"
           />
-          @if (email().length > 0 && !emailValid()) {
-            <p class="field-error">Revisá el email: no parece una dirección válida.</p>
-          }
-        </div>
+        </app-field>
 
-        <div class="field">
-          <label class="sr-only" for="onboarding-phone">Teléfono</label>
+        <app-field
+          label="Teléfono"
+          for="onboarding-phone"
+          [error]="
+            phone().length > 0 && !phoneValid() ? 'Revisá el teléfono: parece incompleto.' : null
+          "
+        >
           <app-input
             id="onboarding-phone"
             type="tel"
             autocomplete="tel"
-            placeholder="Teléfono"
+            placeholder="11 5555-0000"
             [(value)]="phone"
             (enter)="submit()"
           />
-          @if (phone().length > 0 && !phoneValid()) {
-            <p class="field-error">Revisá el teléfono: parece incompleto.</p>
-          }
-        </div>
+        </app-field>
       </div>
     </section>
 

@@ -3,6 +3,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, input, signal } f
 
 import { CardComponent } from '../../../shared/ui/card/card.component';
 import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
+import { FieldComponent } from '../../../shared/ui/field/field.component';
 import { InputComponent } from '../../../shared/ui/input/input.component';
 import { SaveBarComponent } from '../../../shared/ui/save-bar/save-bar.component';
 import { SwitchComponent } from '../../../shared/ui/switch/switch.component';
@@ -28,6 +29,7 @@ import { OnboardingTargetDirective } from '../../../core/onboarding/onboarding-t
     InfoTipComponent,
     CardComponent,
     InlineLoadingComponent,
+    FieldComponent,
     InputComponent,
     SaveBarComponent,
     SwitchComponent,
@@ -62,20 +64,27 @@ import { OnboardingTargetDirective } from '../../../core/onboarding/onboarding-t
         </label>
 
         @if (enabled()) {
-          <div class="field">
-            <label class="t-field-label" for="objetivo-dias">Días</label>
+          <app-field
+            class="days"
+            label="Días"
+            for="objetivo-dias"
+            layout="inline"
+            [error]="
+              invalid() && !readOnly()
+                ? 'Tiene que ser un número entre ' + MIN + ' y ' + MAX + '.'
+                : null
+            "
+          >
             <app-input
               id="objetivo-dias"
               type="number"
+              align="end"
               [(value)]="days"
               [min]="MIN"
               [max]="MAX_ATTR"
               [disabled]="readOnly()"
             />
-            @if (invalid() && !readOnly()) {
-              <p class="error t-note">Tiene que ser un número entre {{ MIN }} y {{ MAX }}.</p>
-            }
-          </div>
+          </app-field>
         }
 
         @if (!readOnly()) {
@@ -115,12 +124,11 @@ import { OnboardingTargetDirective } from '../../../core/onboarding/onboarding-t
       font-size: var(--font-size-body);
       color: var(--text-primary);
     }
-    .field {
-      display: flex;
-      flex-direction: column;
-      gap: var(--space-2);
+    .days {
       margin-top: var(--space-4);
-      max-width: 160px;
+    }
+    .days app-input {
+      width: var(--control-w-number);
     }
     .error {
       color: var(--status-danger);

@@ -64,7 +64,7 @@ describe('App', () => {
     it('gives the analyst a Reglas entry and no referente management', () => {
       const links = menuFor('ANALISTA_SINIESTROS');
 
-      expect(links).toEqual(['Bandeja', 'Mensajes', 'Dashboard', 'Reportes', 'Reglas']);
+      expect(links).toEqual(['Bandeja', 'Mensajes', 'Dashboard', 'Reportes', 'Arbiter', 'Reglas']);
     });
 
     it('keeps Reglas among the referente management entries', () => {

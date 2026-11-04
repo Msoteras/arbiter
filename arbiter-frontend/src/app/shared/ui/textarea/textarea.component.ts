@@ -1,12 +1,26 @@
-import { ChangeDetectionStrategy, Component, computed, input, model, output } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  inject,
+  input,
+  model,
+  output,
+} from '@angular/core';
+
+import { FIELD_CONTEXT } from '../field/field.component';
 
 @Component({
   selector: 'app-textarea',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  // The id goes on the inner control: left on the host too, a label's `for` would find the host first.
+  host: { '[attr.id]': 'null' },
   template: `
     <textarea
       class="field"
       [id]="resolvedId()"
+      [attr.aria-invalid]="field?.errorId() ? 'true' : null"
+      [attr.aria-describedby]="field?.errorId()"
       [rows]="rows()"
       [placeholder]="placeholder()"
       [disabled]="disabled()"
@@ -45,6 +59,9 @@ import { ChangeDetectionStrategy, Component, computed, input, model, output } fr
     .field:hover:not(:focus):not([readonly]):not(:disabled) {
       border-color: var(--border-strong);
     }
+    .field[aria-invalid='true'] {
+      border-color: var(--status-danger);
+    }
     .field:focus {
       outline: none;
       border-color: var(--border-focus);
@@ -73,6 +90,7 @@ export class TextareaComponent {
   readonly submitOnEnter = input(false);
   readonly enter = output<void>();
 
+  protected readonly field = inject(FIELD_CONTEXT, { optional: true });
   protected readonly resolvedId = computed(() => this.id() ?? this.autoId);
 
   protected onEnter(event: Event): void {

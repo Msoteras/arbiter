@@ -43,7 +43,7 @@ app-card {
   list-style: none;
   max-height: 420px;
   overflow-y: auto;
-  border-radius: var(--radius-card);
+  border-radius: var(--radius-box);
   background: var(--chat-thread-bg);
 }
 
@@ -183,7 +183,7 @@ app-card {
   gap: var(--space-2);
   padding: var(--space-1) var(--space-1) var(--space-1) var(--space-3);
   border: 1px solid var(--border-control);
-  border-radius: var(--radius-card);
+  border-radius: var(--radius-box);
   background: var(--surface);
 }
 .composer-box:focus-within {
