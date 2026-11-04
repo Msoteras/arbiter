@@ -2,7 +2,7 @@
   #root
   class="board"
   tabindex="0"
-  aria-label="Motor de análisis. Flechas: moverse entre la cola, el motor y los clasificados. Mayúscula y flechas: girar los expedientes en análisis."
+  aria-label="Arbiter. Flechas: moverse entre la cola, Arbiter y los clasificados. Mayúscula y flechas: girar los expedientes en análisis."
   (wheel)="onWheel($event)"
   (pointerdown)="onPointerDown($event)"
   (pointermove)="onPointerMove($event)"
@@ -13,10 +13,7 @@
   <header class="top">
     <div class="brand">
       <app-logo variant="symbol" />
-      <div>
-        <h1>Arbiter</h1>
-        <span>Motor de análisis</span>
-      </div>
+      <h1>Arbiter</h1>
     </div>
     <dl class="stats">
       <div class="stat live">
@@ -36,7 +33,7 @@
 
   @if (failed()) {
     <div class="center">
-      <app-empty-state message="No se pudo cargar el motor de análisis.">
+      <app-empty-state message="No se pudo cargar el tablero.">
         <app-button variant="secondary" (click)="load()">Reintentar</app-button>
       </app-empty-state>
     </div>
@@ -50,8 +47,6 @@
           <article class="card flat-slot" [class.running]="c.running" [class.focus]="c.focus">
             <ng-container *ngTemplateOutlet="ringBody; context: { $implicit: c }" />
           </article>
-        } @empty {
-          <p class="t-note">El motor está libre.</p>
         }
       </section>
       <section aria-labelledby="flat-queue">
@@ -107,9 +102,6 @@
               </article>
             }
           </div>
-          @if (loaded() && !ring().length) {
-            <p class="idle">El motor está libre.</p>
-          }
         </section>
 
         <section class="zone pool" aria-labelledby="zone-pool">
@@ -134,7 +126,7 @@
         <span class="arr" aria-hidden="true">‹</span>En cola <span class="n">{{ queued() }}</span>
       </button>
       <button type="button" [attr.aria-pressed]="zoneIndex() === 1" (click)="goTo('engine')">
-        Motor <span class="n">{{ busy() }}</span>
+        Arbiter <span class="n">{{ busy() }}</span>
       </button>
       <button type="button" [attr.aria-pressed]="zoneIndex() === 2" (click)="goTo('pool')">
         Clasificados <span class="arr" aria-hidden="true">›</span>
