@@ -1,9 +1,9 @@
 @if (loading()) {
-  <app-skeleton shape="card" [rows]="4" note="Cargando atribuciones…" />
+  <app-skeleton shape="card" [rows]="2" note="Cargando atribuciones…" />
 } @else {
   <app-card
     heading="Atribuciones de liquidación"
-    headingSize="lg"
+    headingSize="md"
     @fadeInUp
     appOnboardingTarget="AUTHORITIES"
   >
@@ -11,33 +11,32 @@
       <app-info-tip cardTip>{{ stepLine.AUTHORITIES }}</app-info-tip>
     }
 
-    <div class="at-section-head">
-      <span class="t-section-label">Tope por ramo</span>
-      <app-info-tip>Sin tope, el analista autoriza cualquier monto.</app-info-tip>
-    </div>
-
-    <ul class="rows">
-      @for (a of authorities(); track a.branchId) {
-        <li class="row">
-          <div class="row-text">
-            <label class="row-name" [for]="'tope-' + a.branchId">{{ a.branchName }}</label>
-          </div>
-          <app-input
-            [id]="'tope-' + a.branchId"
-            prefix="$"
-            align="end"
-            inputmode="numeric"
-            placeholder="Sin tope"
-            [value]="draftLabel(a.branchId)"
-            [disabled]="readOnly()"
-            (valueChange)="setDraft(a.branchId, $event)"
-            (enter)="!saving() && save()"
-          />
-        </li>
-      } @empty {
-        <li class="row"><p class="t-note">No hay ramos configurados.</p></li>
-      }
-    </ul>
+    @if (authority(); as a) {
+      <div class="field">
+        <div class="field-head">
+          <label class="t-field-label" [for]="'tope-' + a.branchId"
+            >Tope que autoriza el analista</label
+          >
+          <app-info-tip>
+            Sin tope, el analista autoriza cualquier monto. Por encima del tope, la liquidación
+            espera al referente.
+          </app-info-tip>
+        </div>
+        <app-input
+          [id]="'tope-' + a.branchId"
+          prefix="$"
+          align="end"
+          inputmode="numeric"
+          placeholder="Sin tope"
+          [value]="draftLabel(a.branchId)"
+          [disabled]="readOnly()"
+          (valueChange)="setDraft(a.branchId, $event)"
+          (enter)="!saving() && save()"
+        />
+      </div>
+    } @else if (!error()) {
+      <p class="t-note">No se encontró el tope de este ramo.</p>
+    }
 
     @if (!readOnly()) {
       <app-save-bar
