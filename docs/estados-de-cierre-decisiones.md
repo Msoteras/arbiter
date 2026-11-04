@@ -17,7 +17,7 @@ se pueda cambiar alguna sin rearmar el resto.
   "Por vencer", la alerta de vencimiento (`DeadlineSweepScheduler` vía `isDeadlineRunning`) y la carga
   por analista. Sumar un estado ahí lo saca de todos esos lugares.
 - `reports-service` usa `case_status.is_final` de la base, no el enum. Las métricas diarias guardan una
-  fila por estado final (`metrics_daily_resolution.final_status`): un estado nuevo entra sin cambiar el
+  fila por estado final (`metrics_daily_value.segment`): un estado nuevo entra sin cambiar el
   esquema.
 - La prescripción la decide el motor (`ClassificationOrchestrator.isPrescribed`, art. 58): devuelve
   `LLM_NO_RECOMIENDA_APROBAR` con un `RuleFinding` de tipo `PRESCRIPTION`. El analista rechaza y el
