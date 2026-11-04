@@ -19,19 +19,27 @@ import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Locale;
 import java.util.function.Function;
+import java.util.stream.Collectors;
+
+import static ar.edu.utn.frba.arbiter.reports.models.repositories.DailyMetric.*;
 
 /**
- * The stored figures of closed days ({@code metrics_day} and {@code metrics_daily_*}), the only tables
- * this module owns and writes.
+ * The stored figures of closed days ({@code metrics_day} and {@code metrics_daily_value}), the only
+ * tables this module owns and writes.
  *
- * <p>One row per day holding sums and counts, never a rate or an average: an average can't be combined
- * with another day's, its numerator and denominator can.
+ * <p>One row per day, metric, claim cause and analyst, holding a sum or a count, never a rate or an
+ * average: an average can't be combined with another day's, its numerator and denominator can. The
+ * catalog of metrics is {@link DailyMetric}; adding one needs no DDL.
  */
 @Repository
 @RequiredArgsConstructor
@@ -39,6 +47,17 @@ public class DailyMetricsRepository {
 
     private static final RowMapper<MetricCount> COUNT_ROW =
             (rs, rowNum) -> new MetricCount(rs.getString("label"), rs.getLong("total"));
+
+    private static final List<DailyMetric> INTAKE = List.of(REPORTED, REPORTED_FAST_TRACK);
+
+    private static final List<DailyMetric> RESOLUTION = List.of(
+            RESOLVED, TOTAL_SECONDS, WAITING_SECONDS, RESOLVED_FAST_TRACK, FAST_TRACK_SECONDS, ON_TIME,
+            REOPENED, AGREEMENT_ELIGIBLE, AGREEMENT_AGREED, FRAUD_DETERMINED, FRAUD_BACKED_BY_EXPERT,
+            FRAUD_CLAIMED_AMOUNT);
+
+    private static final List<DailyMetric> SETTLEMENT = List.of(
+            SETTLEMENTS, SETTLED_AMOUNT, CLAIMED_AMOUNT, CLAIMED_CASES, DEDUCTIBLE_AMOUNT,
+            INSTALLMENTS_AMOUNT, OVERDUE_AMOUNT);
 
     private final EntityManager entityManager;
 
@@ -71,14 +90,15 @@ public class DailyMetricsRepository {
     ) {}
 
     /**
-     * Stores the days of the period not stored yet. A day with work in flight (a claim awaiting
+     * Stores the days of the period not stored yet, and stores again the ones stored with an older
+     * {@link DailyMetric#DEFINITIONS_VERSION}. A day with work in flight (a claim awaiting
      * classification, a settlement awaiting the referent) is skipped: storing it would freeze a number
      * about to change.
      *
      * <p>The day is claimed in {@code metrics_day} first, so a concurrent request blocks on the primary
      * key instead of storing it twice.
      *
-     * @return whether every day of the period is stored once this returns
+     * @return whether every day of the period is stored, at the current version, once this returns
      */
     @Transactional
     public boolean store(ReportPeriod period, ZoneId zone) {
@@ -87,11 +107,12 @@ public class DailyMetricsRepository {
             return true;
         }
         MapSqlParameterSource params = window(period, zone)
+                .addValue("version", DEFINITIONS_VERSION)
                 .addValue("unclassified", List.of(CaseStatus.PENDING_CLASSIFICATION.name(), CaseStatus.CLASSIFICATION_FAILED.name()))
                 .addValue("pendingAuthorization", SettlementStatus.PENDING_AUTHORIZATION.name());
         List<LocalDate> claimed = query(template -> template.queryForList("""
-                INSERT INTO metrics_day (day)
-                SELECT d::date
+                INSERT INTO metrics_day (day, definitions_version)
+                SELECT d::date, :version
                   FROM generate_series(CAST(:fromDay AS date), CAST(:toDay AS date),
                                        INTERVAL '1 day') AS d
                  WHERE d::date NOT IN (
@@ -105,7 +126,9 @@ public class DailyMetricsRepository {
                              FROM case_settlement st
                             WHERE st.status = :pendingAuthorization
                               AND st.confirmed_at >= :from AND st.confirmed_at < :to)
-                ON CONFLICT (day) DO NOTHING
+                ON CONFLICT (day) DO UPDATE
+                   SET definitions_version = EXCLUDED.definitions_version, computed_at = NOW()
+                 WHERE metrics_day.definitions_version < EXCLUDED.definitions_version
                 RETURNING day""", params, LocalDate.class));
         if (!claimed.isEmpty()) {
             fill(window(period, zone).addValue("days", claimed));
@@ -113,11 +136,13 @@ public class DailyMetricsRepository {
         return storedDays(period) == period.days();
     }
 
+    /** A day stored with an older version doesn't count: the next {@link #store} redoes it. */
     @Transactional(readOnly = true)
     public int storedDays(ReportPeriod period) {
-        Integer days = query(template -> template.queryForObject(
-                "SELECT count(*) FROM metrics_day WHERE day >= :fromDay AND day <= :toDay",
-                days(period), Integer.class));
+        Integer days = query(template -> template.queryForObject("""
+                SELECT count(*) FROM metrics_day
+                 WHERE day >= :fromDay AND day <= :toDay AND definitions_version >= :version""",
+                days(period).addValue("version", DEFINITIONS_VERSION), Integer.class));
         return days == null ? 0 : days;
     }
 
@@ -130,86 +155,71 @@ public class DailyMetricsRepository {
 
     @Transactional(readOnly = true)
     public List<DailyIntake> intake(ReportPeriod period, Cut cut) {
-        String sql = "SELECT m.day, sum(m.reported) AS reported, sum(m.fast_track) AS fast_track"
-                + from("metrics_daily_intake", "", cut) + " GROUP BY m.day ORDER BY m.day";
+        String sql = "SELECT m.day, " + totals(INTAKE)
+                + from("", cut) + among(INTAKE) + " GROUP BY m.day ORDER BY m.day";
         return query(template -> template.query(sql, cut(period, cut), (rs, rowNum) -> new DailyIntake(
-                rs.getObject("day", LocalDate.class), rs.getLong("reported"), rs.getLong("fast_track"))));
+                rs.getObject("day", LocalDate.class),
+                rs.getLong(column(REPORTED)),
+                rs.getLong(column(REPORTED_FAST_TRACK)))));
     }
 
     @Transactional(readOnly = true)
     public List<MetricCount> reportedByBranch(ReportPeriod period, Cut cut) {
-        String sql = "SELECT b.name AS label, sum(m.reported) AS total"
-                + from("metrics_daily_intake", "\n  JOIN branch b ON b.id = cc.branch_id", cut)
+        String sql = "SELECT b.name AS label, sum(m.value) AS total"
+                + from("\n  JOIN branch b ON b.id = cc.branch_id", cut) + among(List.of(REPORTED))
                 + " GROUP BY b.name ORDER BY total DESC, label";
         return query(template -> template.query(sql, cut(period, cut), COUNT_ROW));
     }
 
     @Transactional(readOnly = true)
     public List<DailyResolution> resolution(ReportPeriod period, Cut cut) {
-        String sql = """
-                SELECT m.day, m.final_status,
-                       sum(m.resolved) AS resolved,
-                       sum(m.total_seconds) AS total_seconds,
-                       sum(m.waiting_seconds) AS waiting_seconds,
-                       sum(m.fast_track) AS fast_track,
-                       sum(m.fast_track_seconds) AS fast_track_seconds,
-                       sum(m.on_time) AS on_time,
-                       sum(m.reopened) AS reopened,
-                       sum(m.agreement_eligible) AS agreement_eligible,
-                       sum(m.agreement_agreed) AS agreement_agreed,
-                       sum(m.fraud_determined) AS fraud_determined,
-                       sum(m.fraud_backed_by_expert) AS fraud_backed_by_expert,
-                       sum(m.fraud_claimed_amount) AS fraud_claimed_amount"""
-                + from("metrics_daily_resolution", "", cut)
-                + " GROUP BY m.day, m.final_status ORDER BY m.day, m.final_status";
+        String sql = "SELECT m.day, m.segment AS final_status, " + totals(RESOLUTION)
+                + from("", cut) + among(RESOLUTION)
+                + " GROUP BY m.day, m.segment ORDER BY m.day, m.segment";
         return query(template -> template.query(sql, cut(period, cut), (rs, rowNum) -> new DailyResolution(
                 rs.getObject("day", LocalDate.class),
                 rs.getString("final_status"),
-                rs.getLong("resolved"),
-                rs.getDouble("total_seconds"),
-                rs.getDouble("waiting_seconds"),
-                rs.getLong("fast_track"),
-                rs.getDouble("fast_track_seconds"),
-                rs.getLong("on_time"),
-                rs.getLong("reopened"),
-                rs.getLong("agreement_eligible"),
-                rs.getLong("agreement_agreed"),
-                rs.getLong("fraud_determined"),
-                rs.getLong("fraud_backed_by_expert"),
-                rs.getBigDecimal("fraud_claimed_amount"))));
+                rs.getLong(column(RESOLVED)),
+                rs.getDouble(column(TOTAL_SECONDS)),
+                rs.getDouble(column(WAITING_SECONDS)),
+                rs.getLong(column(RESOLVED_FAST_TRACK)),
+                rs.getDouble(column(FAST_TRACK_SECONDS)),
+                rs.getLong(column(ON_TIME)),
+                rs.getLong(column(REOPENED)),
+                rs.getLong(column(AGREEMENT_ELIGIBLE)),
+                rs.getLong(column(AGREEMENT_AGREED)),
+                rs.getLong(column(FRAUD_DETERMINED)),
+                rs.getLong(column(FRAUD_BACKED_BY_EXPERT)),
+                amount(rs, FRAUD_CLAIMED_AMOUNT))));
     }
 
     @Transactional(readOnly = true)
     public List<MetricCount> resolvedByClaimCause(ReportPeriod period, Cut cut) {
-        String sql = "SELECT cc.name AS label, sum(m.resolved) AS total"
-                + from("metrics_daily_resolution", "", cut)
+        String sql = "SELECT cc.name AS label, sum(m.value) AS total"
+                + from("", cut) + among(List.of(RESOLVED))
                 + " GROUP BY cc.name ORDER BY total DESC, label";
         return query(template -> template.query(sql, cut(period, cut), COUNT_ROW));
     }
 
     @Transactional(readOnly = true)
     public SettledAmounts settled(ReportPeriod period, Cut cut) {
-        String sql = """
-                SELECT COALESCE(sum(m.settlements), 0) AS settlements,
-                       COALESCE(sum(m.settled_amount), 0) AS settled,
-                       COALESCE(sum(m.claimed_amount), 0) AS claimed,
-                       COALESCE(sum(m.claimed_cases), 0) AS claimed_cases,
-                       COALESCE(sum(m.deductible_amount), 0) AS deductible,
-                       COALESCE(sum(m.installments_amount), 0) AS installments,
-                       COALESCE(sum(m.overdue_amount), 0) AS overdue"""
-                + from("metrics_daily_settlement", "", cut);
+        String sql = "SELECT " + totals(SETTLEMENT) + from("", cut) + among(SETTLEMENT);
         return query(template -> template.queryForObject(sql, cut(period, cut), (rs, rowNum) ->
                 SettledAmounts.of(
-                        rs.getLong("settlements"),
-                        rs.getBigDecimal("settled"),
-                        rs.getBigDecimal("claimed"),
-                        rs.getLong("claimed_cases"),
-                        rs.getBigDecimal("deductible"),
-                        rs.getBigDecimal("installments"),
-                        rs.getBigDecimal("overdue"))));
+                        rs.getLong(column(SETTLEMENTS)),
+                        amount(rs, SETTLED_AMOUNT),
+                        amount(rs, CLAIMED_AMOUNT),
+                        rs.getLong(column(CLAIMED_CASES)),
+                        amount(rs, DEDUCTIBLE_AMOUNT),
+                        amount(rs, INSTALLMENTS_AMOUNT),
+                        amount(rs, OVERDUE_AMOUNT))));
     }
 
-    /** The same definitions as {@link ClaimMetricsRepository}'s live queries, grouped by day. */
+    /**
+     * The same definitions as {@link ClaimMetricsRepository}'s live queries, grouped by day. Each source
+     * computes its figures as columns and turns them into one row per metric with the LATERAL VALUES:
+     * a new metric is a column and a line there.
+     */
     private void fill(MapSqlParameterSource params) {
         params.addValue("authorized", SettlementStatus.AUTHORIZED.name())
                 .addValue("pausing", CaseStatus.pausingTheTerm().stream().map(Enum::name).toList())
@@ -219,83 +229,146 @@ public class DailyMetricsRepository {
                 .addValue("rejected", CaseStatus.REJECTED.name())
                 .addValue("fraudConfirmed", ExpertVerdict.FRAUD_CONFIRMED.name());
 
-        query(template -> template.update("""
-                INSERT INTO metrics_daily_intake (day, claim_cause_id, analyst_id, reported, fast_track)
-                SELECT (c.reported_at AT TIME ZONE :zone)::date, c.claim_cause_id, c.analyst_id,
-                       count(*),
-                       count(*) FILTER (WHERE c.rules_classification = 'FAST_TRACK')
-                  FROM cases c
-                 WHERE c.reported_at >= :from AND c.reported_at < :to
-                   AND (c.reported_at AT TIME ZONE :zone)::date IN (:days)
-                 GROUP BY 1, 2, 3""", params));
+        // A day stored with an older version is being stored again.
+        query(template -> template.update("DELETE FROM metrics_daily_value WHERE day IN (:days)", params));
 
+        query(template -> template.update("""
+                INSERT INTO metrics_daily_value (day, metric, claim_cause_id, analyst_id, segment, value)
+                SELECT g.day, v.metric, g.claim_cause_id, g.analyst_id, '', v.value
+                  FROM (SELECT (c.reported_at AT TIME ZONE :zone)::date AS day, c.claim_cause_id,
+                               c.analyst_id,
+                               count(*) AS reported,
+                               count(*) FILTER (WHERE c.rules_classification = 'FAST_TRACK') AS fast_track
+                          FROM cases c
+                         WHERE c.reported_at >= :from AND c.reported_at < :to
+                           AND (c.reported_at AT TIME ZONE :zone)::date IN (:days)
+                         GROUP BY 1, 2, 3) g
+                 CROSS JOIN LATERAL (VALUES
+                       ('REPORTED',            g.reported),
+                       ('REPORTED_FAST_TRACK', g.fast_track)
+                 ) AS v(metric, value)""", params));
+
+        // The seconds are cast because EXTRACT returns double precision before Postgres 14, and a
+        // double in the VALUES would turn every amount into one.
         query(template -> template.update(CaseResolutionSql.RESOLUTION_CTE + ",\n"
                 + CaseResolutionSql.WAITING_CTE + ",\n" + ClaimMetricsRepository.LATEST_LLM_CTE + """
 
-                INSERT INTO metrics_daily_resolution (
-                       day, claim_cause_id, analyst_id, final_status, resolved, total_seconds,
-                       waiting_seconds, fast_track, fast_track_seconds, on_time, reopened,
-                       agreement_eligible, agreement_agreed, fraud_determined,
-                       fraud_backed_by_expert, fraud_claimed_amount)
-                SELECT (r.resolved_at AT TIME ZONE :zone)::date, c.claim_cause_id, c.analyst_id, s.name,
-                       count(*),
-                       sum(EXTRACT(EPOCH FROM (r.resolved_at - c.reported_at))),
-                       sum(COALESCE(wt.waiting_seconds, 0)),
-                       count(*) FILTER (WHERE c.rules_classification = 'FAST_TRACK'),
-                       COALESCE(sum(EXTRACT(EPOCH FROM (r.resolved_at - c.reported_at)))
-                           FILTER (WHERE c.rules_classification = 'FAST_TRACK'), 0),
-                       count(*) FILTER (
-                           WHERE (r.resolved_at AT TIME ZONE :zone)::date <= c.response_deadline),
-                       count(*) FILTER (WHERE EXISTS (
-                           SELECT 1
-                             FROM case_status_history h
-                             JOIN case_status hs ON hs.id = h.initial_status_id AND hs.is_final
-                             JOIN case_status hf ON hf.id = h.final_status_id AND NOT hf.is_final
-                            WHERE h.case_id = c.id)),
-                       count(*) FILTER (
-                           WHERE c.rules_classification IS NULL
-                             AND l.recommendation IN (:recommendApprove, :recommendReject)),
-                       count(*) FILTER (
-                           WHERE c.rules_classification IS NULL
-                             AND ((l.recommendation = :recommendApprove AND s.name = :approved)
-                               OR (l.recommendation = :recommendReject  AND s.name = :rejected))),
-                       count(*) FILTER (WHERE c.fraud_determined),
-                       count(*) FILTER (WHERE c.fraud_determined AND EXISTS (
-                           SELECT 1 FROM case_referral ea
-                            WHERE ea.case_id = c.id AND ea.verdict = :fraudConfirmed)),
-                       COALESCE(sum(c.claimed_amount) FILTER (WHERE c.fraud_determined), 0)
-                  FROM cases c
-                  JOIN case_status s ON s.id = c.current_status_id AND s.is_final
-                  JOIN resolution r  ON r.case_id = c.id
-                  LEFT JOIN waiting wt   ON wt.case_id = c.id
-                  LEFT JOIN latest_llm l ON l.case_id = c.id
-                 WHERE r.resolved_at >= :from AND r.resolved_at < :to
-                   AND (r.resolved_at AT TIME ZONE :zone)::date IN (:days)
-                 GROUP BY 1, 2, 3, 4""", params));
+                INSERT INTO metrics_daily_value (day, metric, claim_cause_id, analyst_id, segment, value)
+                SELECT g.day, v.metric, g.claim_cause_id, g.analyst_id, g.final_status, v.value
+                  FROM (SELECT (r.resolved_at AT TIME ZONE :zone)::date AS day, c.claim_cause_id,
+                               c.analyst_id, s.name AS final_status,
+                               count(*) AS resolved,
+                               CAST(sum(EXTRACT(EPOCH FROM (r.resolved_at - c.reported_at))) AS numeric)
+                                   AS total_seconds,
+                               CAST(sum(COALESCE(wt.waiting_seconds, 0)) AS numeric) AS waiting_seconds,
+                               count(*) FILTER (WHERE c.rules_classification = 'FAST_TRACK') AS fast_track,
+                               CAST(COALESCE(sum(EXTRACT(EPOCH FROM (r.resolved_at - c.reported_at)))
+                                   FILTER (WHERE c.rules_classification = 'FAST_TRACK'), 0) AS numeric)
+                                   AS fast_track_seconds,
+                               count(*) FILTER (
+                                   WHERE (r.resolved_at AT TIME ZONE :zone)::date <= c.response_deadline)
+                                   AS on_time,
+                               count(*) FILTER (WHERE EXISTS (
+                                   SELECT 1
+                                     FROM case_status_history h
+                                     JOIN case_status hs ON hs.id = h.initial_status_id AND hs.is_final
+                                     JOIN case_status hf ON hf.id = h.final_status_id AND NOT hf.is_final
+                                    WHERE h.case_id = c.id)) AS reopened,
+                               count(*) FILTER (
+                                   WHERE c.rules_classification IS NULL
+                                     AND l.recommendation IN (:recommendApprove, :recommendReject))
+                                   AS agreement_eligible,
+                               count(*) FILTER (
+                                   WHERE c.rules_classification IS NULL
+                                     AND ((l.recommendation = :recommendApprove AND s.name = :approved)
+                                       OR (l.recommendation = :recommendReject  AND s.name = :rejected)))
+                                   AS agreement_agreed,
+                               count(*) FILTER (WHERE c.fraud_determined) AS fraud_determined,
+                               count(*) FILTER (WHERE c.fraud_determined AND EXISTS (
+                                   SELECT 1 FROM case_referral ea
+                                    WHERE ea.case_id = c.id AND ea.verdict = :fraudConfirmed))
+                                   AS fraud_backed_by_expert,
+                               COALESCE(sum(c.claimed_amount) FILTER (WHERE c.fraud_determined), 0)
+                                   AS fraud_claimed_amount
+                          FROM cases c
+                          JOIN case_status s ON s.id = c.current_status_id AND s.is_final
+                          JOIN resolution r  ON r.case_id = c.id
+                          LEFT JOIN waiting wt   ON wt.case_id = c.id
+                          LEFT JOIN latest_llm l ON l.case_id = c.id
+                         WHERE r.resolved_at >= :from AND r.resolved_at < :to
+                           AND (r.resolved_at AT TIME ZONE :zone)::date IN (:days)
+                         GROUP BY 1, 2, 3, 4) g
+                 CROSS JOIN LATERAL (VALUES
+                       ('RESOLVED',               g.resolved),
+                       ('TOTAL_SECONDS',          g.total_seconds),
+                       ('WAITING_SECONDS',        g.waiting_seconds),
+                       ('RESOLVED_FAST_TRACK',    g.fast_track),
+                       ('FAST_TRACK_SECONDS',     g.fast_track_seconds),
+                       ('ON_TIME',                g.on_time),
+                       ('REOPENED',               g.reopened),
+                       ('AGREEMENT_ELIGIBLE',     g.agreement_eligible),
+                       ('AGREEMENT_AGREED',       g.agreement_agreed),
+                       ('FRAUD_DETERMINED',       g.fraud_determined),
+                       ('FRAUD_BACKED_BY_EXPERT', g.fraud_backed_by_expert),
+                       ('FRAUD_CLAIMED_AMOUNT',   g.fraud_claimed_amount)
+                 ) AS v(metric, value)""", params));
 
         query(template -> template.update("""
-                INSERT INTO metrics_daily_settlement (
-                       day, claim_cause_id, analyst_id, settlements, settled_amount, claimed_amount,
-                       claimed_cases, deductible_amount, installments_amount, overdue_amount)
-                SELECT (st.confirmed_at AT TIME ZONE :zone)::date, c.claim_cause_id, c.analyst_id,
-                       count(*),
-                       COALESCE(sum(st.settled_amount), 0),
-                       COALESCE(sum(c.claimed_amount), 0),
-                       count(c.claimed_amount),
-                       COALESCE(sum(st.deductible_amount), 0),
-                       COALESCE(sum(st.pending_installments_amount), 0),
-                       COALESCE(sum(st.overdue_balance_amount), 0)
-                  FROM cases c
-                  JOIN case_settlement st ON st.case_id = c.id
-                 WHERE st.confirmed_at >= :from AND st.confirmed_at < :to
-                   AND st.status = :authorized
-                   AND (st.confirmed_at AT TIME ZONE :zone)::date IN (:days)
-                 GROUP BY 1, 2, 3""", params));
+                INSERT INTO metrics_daily_value (day, metric, claim_cause_id, analyst_id, segment, value)
+                SELECT g.day, v.metric, g.claim_cause_id, g.analyst_id, '', v.value
+                  FROM (SELECT (st.confirmed_at AT TIME ZONE :zone)::date AS day, c.claim_cause_id,
+                               c.analyst_id,
+                               count(*) AS settlements,
+                               COALESCE(sum(st.settled_amount), 0) AS settled_amount,
+                               COALESCE(sum(c.claimed_amount), 0) AS claimed_amount,
+                               count(c.claimed_amount) AS claimed_cases,
+                               COALESCE(sum(st.deductible_amount), 0) AS deductible_amount,
+                               COALESCE(sum(st.pending_installments_amount), 0) AS installments_amount,
+                               COALESCE(sum(st.overdue_balance_amount), 0) AS overdue_amount
+                          FROM cases c
+                          JOIN case_settlement st ON st.case_id = c.id
+                         WHERE st.confirmed_at >= :from AND st.confirmed_at < :to
+                           AND st.status = :authorized
+                           AND (st.confirmed_at AT TIME ZONE :zone)::date IN (:days)
+                         GROUP BY 1, 2, 3) g
+                 CROSS JOIN LATERAL (VALUES
+                       ('SETTLEMENTS',         g.settlements),
+                       ('SETTLED_AMOUNT',      g.settled_amount),
+                       ('CLAIMED_AMOUNT',      g.claimed_amount),
+                       ('CLAIMED_CASES',       g.claimed_cases),
+                       ('DEDUCTIBLE_AMOUNT',   g.deductible_amount),
+                       ('INSTALLMENTS_AMOUNT', g.installments_amount),
+                       ('OVERDUE_AMOUNT',      g.overdue_amount)
+                 ) AS v(metric, value)""", params));
+    }
+
+    /** One column per metric, named after it; 0 where the cut has no row for it. */
+    private static String totals(List<DailyMetric> metrics) {
+        return metrics.stream()
+                .map(metric -> "COALESCE(sum(m.value) FILTER (WHERE m.metric = '" + metric.name() + "'), 0) AS "
+                        + column(metric))
+                .collect(Collectors.joining(",\n       "));
+    }
+
+    /** Keeps a source's days to its own rows, so a day with only another source's rows isn't listed. */
+    private static String among(List<DailyMetric> metrics) {
+        return metrics.stream()
+                .map(metric -> "'" + metric.name() + "'")
+                .collect(Collectors.joining(", ", "\n   AND m.metric IN (", ")"));
+    }
+
+    private static String column(DailyMetric metric) {
+        return metric.name().toLowerCase(Locale.ROOT);
+    }
+
+    /** value carries four decimals for the seconds; money goes back to the cents it was stored with. */
+    private static BigDecimal amount(ResultSet rs, DailyMetric metric) throws SQLException {
+        return rs.getBigDecimal(column(metric)).setScale(2, RoundingMode.HALF_UP);
     }
 
     /** The branch hangs off the claim cause, so every read joins it. */
-    private static String from(String table, String joins, Cut cut) {
-        StringBuilder sql = new StringBuilder("\n  FROM ").append(table).append(" m")
+    private static String from(String joins, Cut cut) {
+        StringBuilder sql = new StringBuilder("\n  FROM metrics_daily_value m")
                 .append("\n  JOIN claim_cause cc ON cc.id = m.claim_cause_id")
                 .append(joins)
                 .append("\n WHERE m.day >= :fromDay AND m.day <= :toDay");
