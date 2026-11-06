@@ -45,7 +45,7 @@ describe('onboarding routes', () => {
   it('opens a branch tab with the step branch', () => {
     expect(onboardingStepRoute(step({ branchId: 4 }), 1)).toEqual({
       path: '/insurer/rules',
-      queryParams: { ramo: '4', solapa: 'coverages' },
+      queryParams: { ramo: '4', solapa: 'summary' },
     });
   });
 

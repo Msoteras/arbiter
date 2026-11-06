@@ -3,7 +3,7 @@ import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
-import { provideRouter } from '@angular/router';
+import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
 import { BehaviorSubject, Observable, Subject, of, throwError } from 'rxjs';
 
 import { RulesComponent } from './rules.component';
@@ -13,12 +13,9 @@ import { CoverageExclusionsService } from '../coverage-exclusions.service';
 import { CoverageDetail, CoveragesRulesService } from '../coverages-rules.service';
 import { DerivationRulesService } from '../derivation-rules.service';
 import { DocumentRulesService } from '../document-rules.service';
-import {
-  CoverageOption,
-  FastTrackConfigDto,
-  FastTrackRulesService,
-} from '../fast-track-rules.service';
+import { FastTrackConfigDto, FastTrackRulesService } from '../fast-track-rules.service';
 import { HardRule, HardRulesService, InsurerHardRule } from '../hard-rules.service';
+import { SettlementAuthoritiesService } from '../settlement-authorities.service';
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
 import { DocumentTypeDef } from '../../../core/models/business-rules';
 import { UserRole } from '../../../core/models/user-role';
@@ -28,9 +25,18 @@ import {
   DocumentTypeServiceStub,
 } from '../../../core/testing/document-types';
 
-const LAST_TAB_KEY = 'arbiter.reglas.lastTab';
+/** The backend answers this when a coverage has no Fast Track stored. */
+const NO_FAST_TRACK: FastTrackConfigDto = {
+  maxClaimedAmountRatio: null,
+  maxPriorClaims: null,
+  priorClaimsWindowMonths: null,
+  minPolicyAgeMonths: null,
+  requiresUpToDatePolicy: null,
+  requiredDocumentTypes: [],
+  criteria: [],
+};
 
-/** Covers the screen's own behaviour around tabs and the coverage editor, with every backend mocked. */
+/** Covers the screen's levels, tabs and editors, with every backend mocked. */
 describe('RulesComponent', () => {
   let fixture: ComponentFixture<RulesComponent>;
 
@@ -54,14 +60,15 @@ describe('RulesComponent', () => {
   });
 
   let branchDocuments: Record<number, readonly DocumentTypeDef[]>;
-  let agenda: () => Observable<string[]>;
+  let agenda: () => Observable<{ documentType: string; minRiskBand: string | null }[]>;
   let branchList: () => Observable<BranchOption[]>;
   let claimCauses: () => Observable<{ id: number; name: string }[]>;
+  let excluded: Record<number, number[]>;
   let hardRules: HardRule[];
-  let ftCoverages: CoverageOption[];
   let ftConfig: FastTrackConfigDto | null;
   let textRules: string[];
   let insurerRules: InsurerHardRule[];
+  let queryParams: Record<string, string>;
 
   beforeEach(() => {
     branchDocuments = { 1: DOCUMENT_TYPES_FIXTURE, 2: DOCUMENT_TYPES_FIXTURE };
@@ -72,11 +79,12 @@ describe('RulesComponent', () => {
         { id: 2, name: 'Tecnología Portátil' },
       ]);
     claimCauses = () => of([{ id: 4, name: 'Caída' }]);
+    excluded = {};
     hardRules = [];
-    ftCoverages = [];
     ftConfig = null;
     textRules = [];
     insurerRules = [];
+    queryParams = {};
   });
 
   async function mount(
@@ -96,6 +104,13 @@ describe('RulesComponent', () => {
         provideNoopAnimations(),
         // The first-setup guide reads the route and asks the backend for its progress.
         provideRouter([]),
+        {
+          provide: ActivatedRoute,
+          useFactory: () => ({
+            snapshot: { queryParamMap: convertToParamMap(queryParams) },
+            queryParamMap: of(convertToParamMap(queryParams)),
+          }),
+        },
         provideHttpClient(),
         provideHttpClientTesting(),
         {
@@ -112,11 +127,17 @@ describe('RulesComponent', () => {
         },
         {
           provide: CoverageExclusionsService,
-          useValue: { listClaimCauses: () => claimCauses(), get: () => of([]) },
+          useValue: {
+            listClaimCauses: () => claimCauses(),
+            get: (coverageId: number) => of(excluded[coverageId] ?? []),
+          },
         },
         {
           provide: FastTrackRulesService,
-          useValue: { listCoverages: () => of(ftCoverages), getFastTrack: () => of(ftConfig) },
+          useValue: {
+            listCoverages: () => of(coverages.map((c) => ({ id: c.id, name: c.name }))),
+            getFastTrack: () => of(ftConfig),
+          },
         },
         {
           provide: BusinessRulesTextService,
@@ -134,14 +155,27 @@ describe('RulesComponent', () => {
             getRepair: () => of({ enabled: false, claimCauseIds: [] }),
           },
         },
+        {
+          provide: SettlementAuthoritiesService,
+          useValue: {
+            list: () =>
+              of([
+                { branchId: 1, branchName: 'Celulares', maxAmount: 600000, updatedAt: null },
+                {
+                  branchId: 2,
+                  branchName: 'Tecnología Portátil',
+                  maxAmount: null,
+                  updatedAt: null,
+                },
+              ]),
+          },
+        },
       ],
     }).compileComponents();
 
     fixture = TestBed.createComponent(RulesComponent);
     fixture.detectChanges();
   }
-
-  afterEach(() => localStorage.removeItem(LAST_TAB_KEY));
 
   function el(): HTMLElement {
     return fixture.nativeElement as HTMLElement;
@@ -152,9 +186,13 @@ describe('RulesComponent', () => {
     fixture.detectChanges();
   }
 
+  function text(node: Element | null | undefined): string {
+    return node?.textContent?.replace(/\s+/g, ' ').trim() ?? '';
+  }
+
   /** The label alone: a tab with a status also carries "(falta configurar)" for screen readers. */
-  function labelOf(tab: Element | null | undefined): string | undefined {
-    return tab?.textContent?.replace(/\s*\([^)]*\)\s*$/, '').trim();
+  function labelOf(node: Element | null | undefined): string {
+    return text(node).replace(/\s*\([^)]*\)\s*$/, '');
   }
 
   function tab(label: string): HTMLButtonElement {
@@ -163,84 +201,264 @@ describe('RulesComponent', () => {
     )!;
   }
 
-  function activeTab(): string | undefined {
+  function tabLabels(): string[] {
+    return [...el().querySelectorAll('app-tabs [role="tab"]')].map((t) => labelOf(t));
+  }
+
+  function activeTab(): string {
     return labelOf(el().querySelector('app-tabs .tab.active'));
   }
 
-  function branch(name: string): HTMLButtonElement {
-    return [...el().querySelectorAll<HTMLButtonElement>('.branch-item:not(.general)')].find((b) =>
-      b.textContent?.includes(name),
+  /** A tree item by its label: an insurer section, a branch or a coverage. */
+  function treeItem(label: string): HTMLButtonElement {
+    return [...el().querySelectorAll<HTMLButtonElement>('app-rules-tree .item')].find(
+      (b) => labelOf(b.querySelector('.label')) === label,
     )!;
   }
 
-  it('opens the first branch on Coberturas when nothing was stored', async () => {
-    localStorage.removeItem(LAST_TAB_KEY);
-    await mount();
+  function sectionLabels(): string[] {
+    const group = el().querySelector('app-rules-tree .group')!;
+    return [...group.querySelectorAll('.item .label')].map((l) => text(l));
+  }
 
-    expect(el().querySelector('.branch-title')?.textContent).toContain('Celulares');
-    expect(activeTab()).toBe('Coberturas');
+  function title(): string {
+    return text(el().querySelector('.level-title .branch-title'));
+  }
+
+  function levelBadge(): string {
+    return text(el().querySelector('.level-title app-badge'));
+  }
+
+  function button(label: string): HTMLButtonElement {
+    return [...el().querySelectorAll<HTMLButtonElement>('button')].find((b) => text(b) === label)!;
+  }
+
+  function iconButton(label: string): HTMLButtonElement {
+    return el().querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`)!;
+  }
+
+  /** A tab's first render waits a painted frame (see `tabRendering`). */
+  async function settle(): Promise<void> {
+    await new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve)));
+    fixture.detectChanges();
+  }
+
+  async function openTab(label: string): Promise<void> {
+    click(tab(label));
+    await settle();
+  }
+
+  function openCoverage(name = 'Daño accidental'): void {
+    click(treeItem(name));
+  }
+
+  it('opens the first branch on its summary', async () => {
+    await mount([coverage()]);
+
+    expect(title()).toBe('Celulares');
+    expect(levelBadge()).toBe('Ramo');
+    expect(activeTab()).toBe('Resumen');
+    expect(tabLabels()).toEqual([
+      'Resumen',
+      'Exclusiones comunes',
+      'Agenda documental',
+      'Derivaciones',
+      'Reglas de negocio',
+      'Atribuciones',
+    ]);
   });
 
-  it('opens on the tab left open in the last visit', async () => {
-    localStorage.setItem(LAST_TAB_KEY, 'documents');
-    await mount();
+  it('lists the coverages of the open branch in the tree', async () => {
+    await mount([coverage()]);
 
-    expect(activeTab()).toBe('Documentación');
+    const branch = treeItem('Celulares').closest('li')!;
+    expect(branch.querySelector('.caret')?.getAttribute('aria-expanded')).toBe('true');
+    expect(treeItem('Daño accidental')).toBeTruthy();
+    expect(treeItem('Celulares').getAttribute('aria-current')).toBe('page');
   });
 
-  it('ignores a stored tab that no longer exists', async () => {
-    localStorage.setItem(LAST_TAB_KEY, 'gone');
-    await mount();
+  it('opens a coverage on its own tabs, with the path back to its branch', async () => {
+    await mount([coverage()]);
 
-    expect(activeTab()).toBe('Coberturas');
+    openCoverage();
+
+    expect(title()).toBe('Daño accidental');
+    expect(levelBadge()).toBe('Cobertura');
+    expect(tabLabels()).toEqual([
+      'Datos',
+      'Hechos generadores',
+      'Plazos y topes',
+      'Liquidación',
+      'Fast Track',
+    ]);
+    expect(
+      [...el().querySelectorAll('.crumbs li')].map((li) => text(li).replace(/\s*›$/, '')),
+    ).toEqual(['Ramos', 'Celulares', 'Daño accidental']);
+    expect(text(el().querySelector('.inherited'))).toContain('También aplica, del ramo Celulares:');
+
+    click(el().querySelector<HTMLElement>('.crumb-link'));
+
+    expect(title()).toBe('Celulares');
+    expect(activeTab()).toBe('Resumen');
   });
 
-  it('remembers the tab the referente picks', async () => {
-    await mount();
+  it('opens the branch tab a link of the inherited strip names', async () => {
+    await mount([coverage()]);
+    openCoverage();
 
-    click(tab('Fast Track'));
+    click(button('Agenda documental'));
 
-    expect(localStorage.getItem(LAST_TAB_KEY)).toBe('fastTrack');
+    expect(levelBadge()).toBe('Ramo');
+    expect(activeTab()).toBe('Agenda documental');
   });
 
-  it('lists in the agenda only the documents the branch may ask for', async () => {
-    branchDocuments[2] = [
-      { code: 'purchase_proof', label: 'Comprobante de compra' },
-      { code: 'item_photo', label: 'Foto del bien' },
-    ];
-    localStorage.setItem(LAST_TAB_KEY, 'documents');
-    await mount();
+  it('keeps the coverage tab when another coverage is picked', async () => {
+    await mount([coverage(), coverage({ id: 5, name: 'Robo' })]);
+    openCoverage();
+    await openTab('Liquidación');
 
-    click(branch('Tecnología Portátil'));
+    openCoverage('Robo');
 
-    const rows = [...el().querySelectorAll('.doc-row-name')].map((r) => r.textContent?.trim());
-    expect(rows).toEqual(['Comprobante de compra', 'Foto del bien']);
+    expect(title()).toBe('Robo');
+    expect(activeTab()).toBe('Liquidación');
   });
 
-  it('says so when the branch has no documents enabled', async () => {
-    branchDocuments[1] = [];
-    localStorage.setItem(LAST_TAB_KEY, 'documents');
-    await mount();
+  it('opens a coverage from the summary card', async () => {
+    await mount([coverage()]);
 
-    expect(el().textContent).toContain('Este ramo todavía no tiene documentos habilitados.');
-    expect(el().querySelector('.doc-row-name')).toBeNull();
+    click(iconButton('Configurar la cobertura'));
+
+    expect(title()).toBe('Daño accidental');
+    expect(activeTab()).toBe('Datos');
   });
 
-  it('shows the report deadline in hours, as stored', async () => {
+  describe('the summary map', () => {
+    beforeEach(() => {
+      claimCauses = () =>
+        of([
+          { id: 4, name: 'Caída' },
+          { id: 6, name: 'Robo' },
+          { id: 7, name: 'Incendio' },
+        ]);
+      // Two coverages that both attend Caída; nothing attends Incendio.
+      excluded = { 3: [6, 7], 5: [7] };
+    });
+
+    function row(cause: string): HTMLTableRowElement {
+      return [...el().querySelectorAll<HTMLTableRowElement>('tbody tr')].find((r) =>
+        text(r.querySelector('th')).startsWith(cause),
+      )!;
+    }
+
+    function cells(cause: string): string[] {
+      return [...row(cause).querySelectorAll('td')].map((td) =>
+        text(td.querySelector('app-badge, .sr-only')),
+      );
+    }
+
+    it('marks every coverage that covers a claim cause', async () => {
+      await mount([coverage(), coverage({ id: 5, name: 'Robo y daño' })]);
+
+      expect(cells('Caída')).toEqual(['Cubierto', 'Cubierto']);
+      expect(cells('Robo')).toEqual(['No cubierto', 'Cubierto']);
+    });
+
+    it('flags a claim cause no coverage covers', async () => {
+      await mount([coverage(), coverage({ id: 5, name: 'Robo y daño' })]);
+
+      expect(text(row('Incendio').querySelector('th'))).toContain('Sin cobertura');
+      expect(text(row('Caída').querySelector('th'))).not.toContain('Sin cobertura');
+    });
+  });
+
+  it('offers the first coverage of an empty branch as its one action', async () => {
+    await mount([]);
+
+    expect(text(el().querySelector('.editor app-empty-state'))).toContain(
+      'Este ramo no tiene coberturas',
+    );
+
+    click(button('Agregar la primera cobertura'));
+
+    expect(levelBadge()).toBe('Cobertura');
+    expect(activeTab()).toBe('Datos');
+    expect(el().querySelector('.tab-panel app-save-bar')?.textContent).toContain(
+      'Cambios sin guardar',
+    );
+  });
+
+  describe('the document agenda', () => {
+    function cellValue(): string {
+      return text(el().querySelector('.doc-cell .trigger-label'));
+    }
+
+    it('lists only the documents the branch may ask for', async () => {
+      branchDocuments[2] = [
+        { code: 'purchase_proof', label: 'Comprobante de compra' },
+        { code: 'item_photo', label: 'Foto del bien' },
+      ];
+      await mount();
+
+      click(treeItem('Tecnología Portátil'));
+      await openTab('Agenda documental');
+
+      const rows = [...el().querySelectorAll('.doc-row-name')].map((r) => text(r));
+      expect(rows).toEqual(['Comprobante de compra', 'Foto del bien']);
+    });
+
+    it('says so when the branch has no documents enabled', async () => {
+      branchDocuments[1] = [];
+      await mount();
+      await openTab('Agenda documental');
+
+      expect(el().textContent).toContain('Este ramo todavía no tiene documentos habilitados.');
+      expect(el().querySelector('.doc-row-name')).toBeNull();
+    });
+
+    it('reads a document without band as asked always', async () => {
+      branchDocuments[1] = [{ code: 'police_report', label: 'Denuncia policial' }];
+      agenda = () => of([{ documentType: 'police_report', minRiskBand: null }]);
+      await mount();
+      await openTab('Agenda documental');
+
+      expect(cellValue()).toBe('Siempre');
+      expect(el().querySelector('.doc-cell.is-off')).toBeNull();
+    });
+
+    it('reads a band as the risk the document is asked from', async () => {
+      branchDocuments[1] = [{ code: 'police_report', label: 'Denuncia policial' }];
+      agenda = () => of([{ documentType: 'police_report', minRiskBand: 'HIGH' }]);
+      await mount();
+      await openTab('Agenda documental');
+
+      expect(cellValue()).toBe('Riesgo alto o más');
+    });
+
+    it('mutes a document that is not asked for', async () => {
+      branchDocuments[1] = [{ code: 'police_report', label: 'Denuncia policial' }];
+      await mount();
+      await openTab('Agenda documental');
+
+      expect(cellValue()).toBe('No se pide');
+      expect(el().querySelector('.doc-cell.is-off')).not.toBeNull();
+      expect(text(el().querySelector('.doc-col-count'))).toBe('Sin documentos');
+    });
+  });
+
+  it('shows the report deadline in hours on the summary', async () => {
     await mount([coverage({ reportDeadlineHours: 36 })]);
 
-    expect(el().textContent).toContain('Denuncia 36 h');
+    expect(text(el().querySelector('.cov-chips'))).toContain('Denuncia 36 h');
   });
 
   describe('a hard rule of the coverage', () => {
     function ruleRow(label: string): HTMLElement {
-      return [...el().querySelectorAll<HTMLElement>('.cov-body .rule-row')].find((row) =>
+      return [...el().querySelectorAll<HTMLElement>('.rule-row')].find((row) =>
         row.querySelector('.rule-text')?.textContent?.includes(label),
       )!;
     }
 
     beforeEach(() => {
-      localStorage.removeItem(LAST_TAB_KEY);
       hardRules = [
         { ruleType: 'WAITING_PERIOD', enabled: false, deadlineHours: null },
         { ruleType: 'REPORT_DEADLINE', enabled: true, deadlineHours: null },
@@ -248,9 +466,14 @@ describe('RulesComponent', () => {
       ];
     });
 
-    it('shows its value only while it is on', async () => {
+    async function openTerms(): Promise<void> {
       await mount([coverage()]);
-      click(el().querySelector<HTMLElement>('.cov-toggle'));
+      openCoverage();
+      await openTab('Plazos y topes');
+    }
+
+    it('shows its value only while it is on', async () => {
+      await openTerms();
 
       expect(ruleRow('Plazo de denuncia').querySelector('input')?.value).toBe('72');
       expect(ruleRow('Carencia').querySelector('input')).toBeNull();
@@ -259,18 +482,17 @@ describe('RulesComponent', () => {
     });
 
     it('shows the value again when it is switched on', async () => {
-      await mount([coverage()]);
-      click(el().querySelector<HTMLElement>('.cov-toggle'));
+      await openTerms();
 
       click(ruleRow('Carencia').querySelector<HTMLElement>('app-switch button'));
 
       expect(ruleRow('Carencia').querySelector('input')?.value).toBe('30');
     });
 
-    it('leaves the switched off ones out of the collapsed summary', async () => {
+    it('leaves the switched off ones out of the summary', async () => {
       await mount([coverage()]);
 
-      const summary = el().querySelector('.cov-chips')?.textContent;
+      const summary = text(el().querySelector('.cov-chips'));
       expect(summary).toContain('Denuncia 72 h');
       expect(summary).not.toContain('Carencia');
       expect(summary).not.toContain('Máx.');
@@ -286,22 +508,17 @@ describe('RulesComponent', () => {
       await mount([coverage()]);
 
       expect(el().textContent).toContain('No se pudo cargar el ramo.');
-      expect(el().querySelector('.cov-card')).toBeNull();
-      expect(el().textContent).not.toContain('Agregar cobertura');
+      expect(el().querySelector('.cov-grid')).toBeNull();
     });
 
     it('loads the branch again on Reintentar', async () => {
       await mount([coverage()]);
       claimCauses = () => of([{ id: 4, name: 'Caída' }]);
 
-      click(
-        [...el().querySelectorAll<HTMLButtonElement>('button')].find(
-          (b) => b.textContent?.trim() === 'Reintentar',
-        ),
-      );
+      click(button('Reintentar'));
 
       expect(el().textContent).not.toContain('No se pudo cargar el ramo.');
-      expect(el().querySelector('.cov-card')).not.toBeNull();
+      expect(el().querySelector('.cov-grid')).not.toBeNull();
     });
   });
 
@@ -313,7 +530,7 @@ describe('RulesComponent', () => {
     ]);
     branchList = () => lists;
     await mount();
-    click(branch('Tecnología Portátil'));
+    click(treeItem('Tecnología Portátil'));
 
     lists.next([
       { id: 1, name: 'Celulares' },
@@ -322,27 +539,25 @@ describe('RulesComponent', () => {
     ]);
     fixture.detectChanges();
 
-    expect(branch('Hogar')).toBeTruthy();
-    expect(el().querySelector('.branch-title')?.textContent).toContain('Tecnología Portátil');
+    expect(treeItem('Hogar')).toBeTruthy();
+    expect(title()).toBe('Tecnología Portátil');
   });
 
-  describe('the Documentación marker', () => {
-    function documentsTab(): string | undefined {
-      return [...el().querySelectorAll('app-tabs [role="tab"]')]
-        .find((t) => labelOf(t) === 'Documentación')
-        ?.textContent?.trim();
+  describe('the Agenda documental marker', () => {
+    function documentsTab(): string {
+      return text(tab('Agenda documental'));
     }
 
     /** It used to flash "(incompleto)" for a couple of seconds on every branch. */
     it('stays off while the agenda is still loading', async () => {
-      agenda = () => new Subject<string[]>();
+      agenda = () => new Subject();
       await mount([coverage()]);
 
-      expect(documentsTab()).toBe('Documentación');
+      expect(documentsTab()).toBe('Agenda documental');
     });
 
     it('turns on once a covered claim cause turns out to require nothing', async () => {
-      const arriving = new Subject<string[]>();
+      const arriving = new Subject<{ documentType: string; minRiskBand: string | null }[]>();
       agenda = () => arriving;
       await mount([coverage()]);
 
@@ -354,91 +569,167 @@ describe('RulesComponent', () => {
     });
 
     it('stays off when every covered claim cause asks for something', async () => {
-      agenda = () => of(['purchase_proof']);
+      agenda = () => of([{ documentType: 'purchase_proof', minRiskBand: null }]);
       await mount([coverage()]);
 
-      expect(documentsTab()).toBe('Documentación');
+      expect(documentsTab()).toBe('Agenda documental');
     });
   });
 
-  /** It used to jump back to Coberturas on every branch, which made the stored tab useless. */
-  it('keeps the tab when another branch is opened', async () => {
-    await mount();
-    click(tab('Fast Track'));
+  describe('a coverage without Fast Track', () => {
+    beforeEach(() => {
+      ftConfig = NO_FAST_TRACK;
+    });
 
-    click(branch('Tecnología Portátil'));
+    it('is flagged in the tree, on its card and on its tab', async () => {
+      await mount([coverage()]);
 
-    expect(el().querySelector('.branch-title')?.textContent).toContain('Tecnología Portátil');
-    expect(activeTab()).toBe('Fast Track');
+      expect(text(treeItem('Daño accidental'))).toContain('(falta configurar)');
+      expect(text(el().querySelector('.cov-grid app-card'))).toContain('Incompleta');
+
+      openCoverage();
+
+      expect(text(tab('Fast Track'))).toContain('(falta configurar)');
+    });
+
+    it('is the one a Fast Track link from the checklist opens', async () => {
+      queryParams = { ramo: '1', solapa: 'fastTrack' };
+      await mount([coverage()]);
+      await settle();
+
+      expect(title()).toBe('Daño accidental');
+      expect(activeTab()).toBe('Fast Track');
+      expect(el().querySelector('app-card[appOnboardingTarget="FAST_TRACK"]')).not.toBeNull();
+    });
   });
 
-  it('keeps the derivations tab mounted but hidden while another tab shows', async () => {
+  it('is not flagged once the coverage has its Fast Track', async () => {
+    ftConfig = { ...NO_FAST_TRACK, requiresUpToDatePolicy: true };
+    await mount([coverage()]);
+
+    expect(text(treeItem('Daño accidental'))).not.toContain('(falta configurar)');
+  });
+
+  it('keeps the derivations and authorities mounted but hidden while another tab shows', async () => {
     await mount();
 
     const derivations = el().querySelector<HTMLElement>('app-derivations-config')!;
+    const authorities = el().querySelector<HTMLElement>('app-settlement-authorities-config')!;
     expect(derivations.hidden).toBeTrue();
+    expect(authorities.hidden).toBeTrue();
 
-    click(tab('Derivaciones'));
-
+    await openTab('Derivaciones');
     expect(derivations.hidden).toBeFalse();
+
+    await openTab('Atribuciones');
+    expect(authorities.hidden).toBeFalse();
+    expect(derivations.hidden).toBeTrue();
   });
 
-  it('shows the description of a coverage when it is expanded', async () => {
-    localStorage.removeItem(LAST_TAB_KEY);
+  it('shows the description of the coverage in Datos', async () => {
     await mount([coverage()]);
+    openCoverage();
 
-    click(el().querySelector<HTMLElement>('.cov-toggle'));
-
-    expect(el().querySelector<HTMLTextAreaElement>('.cov-body app-textarea textarea')?.value).toBe(
+    expect(el().querySelector<HTMLTextAreaElement>('app-textarea textarea')?.value).toBe(
       'Cobertura por rotura o caída accidental del equipo',
     );
   });
 
-  it('offers only the covered claim causes as checkboxes', async () => {
-    localStorage.removeItem(LAST_TAB_KEY);
+  it('offers the claim causes of the branch as switches, on when covered', async () => {
+    claimCauses = () =>
+      of([
+        { id: 4, name: 'Caída' },
+        { id: 6, name: 'Robo' },
+      ]);
+    excluded = { 3: [6] };
     await mount([coverage()]);
+    openCoverage();
+    await openTab('Hechos generadores');
 
-    click(el().querySelector<HTMLElement>('.cov-toggle'));
-
-    const labels = [...el().querySelectorAll('.cov-body .check-list app-checkbox')].map((c) =>
-      c.textContent?.trim(),
-    );
-    expect(labels).toEqual(['Caída']);
+    const rows = [...el().querySelectorAll('.cause-rows .rule-row')].map((r) => ({
+      name: text(r.querySelector('.rule-text')),
+      on: r.querySelector('[role="switch"]')?.getAttribute('aria-checked'),
+    }));
+    expect(rows).toEqual([
+      { name: 'Caída', on: 'true' },
+      { name: 'Robo', on: 'false' },
+    ]);
   });
 
-  it('marks the coverages as changed once the description is edited', async () => {
-    localStorage.removeItem(LAST_TAB_KEY);
-    await mount([coverage()]);
-    click(el().querySelector<HTMLElement>('.cov-toggle'));
+  describe('with unsaved changes', () => {
+    function editDescription(): void {
+      const field = el().querySelector<HTMLTextAreaElement>('app-textarea textarea')!;
+      field.value = 'Rotura de pantalla';
+      field.dispatchEvent(new Event('input'));
+      fixture.detectChanges();
+    }
 
-    const field = el().querySelector<HTMLTextAreaElement>('.cov-body app-textarea textarea')!;
-    field.value = 'Rotura de pantalla';
-    field.dispatchEvent(new Event('input'));
-    fixture.detectChanges();
+    function discardModalOpen(): boolean {
+      return text(el().ownerDocument.body).includes('¿Descartar los cambios sin guardar?');
+    }
 
-    expect(el().querySelector('.tab-panel app-save-bar')?.textContent).toContain(
-      'Cambios sin guardar',
-    );
+    it('marks the coverage as changed once the description is edited', async () => {
+      await mount([coverage()]);
+      openCoverage();
+
+      editDescription();
+
+      expect(el().querySelector('.tab-panel app-save-bar')?.textContent).toContain(
+        'Cambios sin guardar',
+      );
+    });
+
+    it('keeps the edit between tabs of the same coverage', async () => {
+      await mount([coverage()]);
+      openCoverage();
+      editDescription();
+
+      await openTab('Plazos y topes');
+
+      expect(discardModalOpen()).toBeFalse();
+      expect(activeTab()).toBe('Plazos y topes');
+    });
+
+    it('asks before leaving for the branch', async () => {
+      await mount([coverage()]);
+      openCoverage();
+      editDescription();
+
+      click(treeItem('Celulares'));
+
+      expect(discardModalOpen()).toBeTrue();
+      expect(levelBadge()).toBe('Cobertura');
+
+      click(button('Descartar cambios'));
+
+      expect(levelBadge()).toBe('Ramo');
+      expect(el().querySelector('app-save-bar')?.textContent ?? '').not.toContain(
+        'Cambios sin guardar',
+      );
+    });
+
+    it('asks before leaving for the Fast Track tab', async () => {
+      await mount([coverage()]);
+      openCoverage();
+      editDescription();
+
+      await openTab('Fast Track');
+
+      expect(discardModalOpen()).toBeTrue();
+
+      click(button('Seguir editando'));
+
+      expect(activeTab()).toBe('Datos');
+    });
   });
 
-  function generalSection(label: string): HTMLButtonElement {
-    return [...el().querySelectorAll<HTMLButtonElement>('.branch-item.general')].find(
-      (b) => b.textContent?.trim() === label,
-    )!;
-  }
-
-  function generalSectionLabels(): (string | undefined)[] {
-    return [...el().querySelectorAll('.branch-item.general')].map((b) => b.textContent?.trim());
-  }
-
-  it('lets the referente edit the branch and open Marca', async () => {
-    localStorage.removeItem(LAST_TAB_KEY);
+  it('lets the referente rename the branch and open Marca', async () => {
     await mount([coverage()]);
 
     expect(el().querySelector('.rules-head app-badge')).toBeNull();
     expect(el().querySelector('[aria-label="Renombrar el ramo"]')).not.toBeNull();
-    expect(el().querySelector('.editor app-save-bar')).not.toBeNull();
-    expect(generalSectionLabels()).toContain('Marca');
+    expect(sectionLabels()).toContain('Marca');
+    expect(treeItem('Celulares').closest('li')?.textContent).toContain('+ Agregar cobertura');
   });
 
   describe('for the analyst', () => {
@@ -448,7 +739,6 @@ describe('RulesComponent', () => {
         { ruleType: 'REPORT_DEADLINE', enabled: true, deadlineHours: null },
         { ruleType: 'MAX_EVENTS_YEAR', enabled: true, deadlineHours: null },
       ];
-      ftCoverages = [{ id: 3, name: 'Daño accidental' }];
       ftConfig = {
         maxClaimedAmountRatio: 0.5,
         maxPriorClaims: 1,
@@ -459,7 +749,7 @@ describe('RulesComponent', () => {
         criteria: ['Sin siniestros previos'],
       };
       textRules = ['Uso indebido del equipo'];
-      agenda = () => of(['police_report']);
+      agenda = () => of([{ documentType: 'police_report', minRiskBand: null }]);
       insurerRules = [
         { ruleType: 'POLICY_IN_FORCE', enabled: true, onArrears: null },
         { ruleType: 'POLICY_STANDING', enabled: true, onArrears: 'REJECT' },
@@ -471,29 +761,45 @@ describe('RulesComponent', () => {
         ...el().querySelectorAll<HTMLInputElement | HTMLTextAreaElement | HTMLButtonElement>(
           '.editor input, .editor textarea, .editor [role="switch"], .editor [role="combobox"]',
         ),
-      ].filter((control) => !control.disabled && !control.closest('.ft-coverage'));
+      ].filter((control) => !control.disabled && !control.closest('[hidden]'));
     }
 
     function editActions(): string[] {
-      return [...el().querySelectorAll<HTMLButtonElement>('.editor button')]
+      return [...el().querySelectorAll<HTMLButtonElement>('.editor button, app-rules-tree button')]
+        .filter((b) => !b.closest('[hidden]'))
         .map((b) => (b.getAttribute('aria-label') ?? b.textContent ?? '').trim())
         .filter((label) => /Agregar|Quitar|Editar|Renombrar|Guardar|Descartar/.test(label));
     }
 
-    for (const tabId of [
-      'coverages',
-      'exclusions',
-      'fastTrack',
-      'documents',
-      'derivations',
-      'rules',
+    for (const label of [
+      'Resumen',
+      'Exclusiones comunes',
+      'Agenda documental',
+      'Derivaciones',
+      'Reglas de negocio',
+      'Atribuciones',
     ]) {
-      it(`shows the ${tabId} tab with nothing to change or save`, async () => {
-        localStorage.setItem(LAST_TAB_KEY, tabId);
+      it(`shows the branch tab ${label} with nothing to change or save`, async () => {
         await mount([coverage()], 'ANALISTA_SINIESTROS');
-        if (tabId === 'coverages') {
-          click(el().querySelector<HTMLElement>('.cov-toggle'));
-        }
+        await openTab(label);
+
+        expect(el().querySelector('.editor app-save-bar')).toBeNull();
+        expect(editableControls()).toEqual([]);
+        expect(editActions()).toEqual([]);
+      });
+    }
+
+    for (const label of [
+      'Datos',
+      'Hechos generadores',
+      'Plazos y topes',
+      'Liquidación',
+      'Fast Track',
+    ]) {
+      it(`shows the coverage tab ${label} with nothing to change or save`, async () => {
+        await mount([coverage()], 'ANALISTA_SINIESTROS');
+        openCoverage();
+        await openTab(label);
 
         expect(el().querySelector('.editor app-save-bar')).toBeNull();
         expect(editableControls()).toEqual([]);
@@ -502,62 +808,59 @@ describe('RulesComponent', () => {
     }
 
     it('still shows the values on screen', async () => {
-      localStorage.removeItem(LAST_TAB_KEY);
       await mount([coverage()], 'ANALISTA_SINIESTROS');
-      click(el().querySelector<HTMLElement>('.cov-toggle'));
+      openCoverage();
 
-      expect(
-        el().querySelector<HTMLTextAreaElement>('.cov-body app-textarea textarea')?.value,
-      ).toBe('Cobertura por rotura o caída accidental del equipo');
+      expect(el().querySelector<HTMLTextAreaElement>('app-textarea textarea')?.value).toBe(
+        'Cobertura por rotura o caída accidental del equipo',
+      );
     });
 
     it('drops the example placeholders, which read as instructions', async () => {
-      localStorage.removeItem(LAST_TAB_KEY);
       await mount([coverage()], 'ANALISTA_SINIESTROS');
-      click(el().querySelector<HTMLElement>('.cov-toggle'));
+      openCoverage();
 
       const hints = [
         ...el().querySelectorAll<HTMLInputElement | HTMLTextAreaElement>(
-          '.cov-body input, .cov-body textarea',
+          '.editor input, .editor textarea',
         ),
       ].map((f) => f.placeholder);
       expect(hints).not.toContain('ej. 340');
       expect(hints).not.toContain('Qué cubre, en una o dos frases');
     });
 
-    it('lets the analyst switch the Fast Track coverage to read each one', async () => {
-      localStorage.setItem(LAST_TAB_KEY, 'fastTrack');
+    it('lets the analyst read each coverage from the summary', async () => {
       await mount([coverage()], 'ANALISTA_SINIESTROS');
 
-      const picker = el().querySelector<HTMLButtonElement>('.ft-coverage [role="combobox"]');
-      expect(picker?.disabled).toBeFalse();
+      click(iconButton('Ver la cobertura'));
+
+      expect(title()).toBe('Daño accidental');
     });
 
     it('labels the screen as read-only and hides the rename pencil', async () => {
-      localStorage.removeItem(LAST_TAB_KEY);
       await mount([coverage()], 'ANALISTA_SINIESTROS');
 
-      expect(el().querySelector('.rules-head app-badge')?.textContent?.trim()).toBe('Solo lectura');
+      expect(text(el().querySelector('.rules-head app-badge'))).toBe('Solo lectura');
       expect(el().querySelector('[aria-label="Renombrar el ramo"]')).toBeNull();
     });
 
-    it('lists every other setting except Marca', async () => {
+    it('lists every insurer section except Marca', async () => {
       await mount([], 'ANALISTA_SINIESTROS');
 
-      expect(generalSectionLabels()).toEqual([
+      expect(sectionLabels()).toEqual([
         'Hard Stop',
         'Puntaje de riesgo',
         'Gestión de fraude',
         'Proveedores externos',
-        'Atribuciones de liquidación',
         'Objetivo de resolución',
       ]);
     });
 
     it('shows Hard Stop with nothing to change or save', async () => {
       await mount([], 'ANALISTA_SINIESTROS');
-      click(generalSection('Hard Stop'));
+      click(treeItem('Hard Stop'));
 
+      expect(levelBadge()).toBe('Aseguradora');
       expect(el().querySelectorAll('.editor [role="switch"]').length).toBe(2);
       expect(el().querySelector('.editor app-save-bar')).toBeNull();
       expect(editableControls()).toEqual([]);

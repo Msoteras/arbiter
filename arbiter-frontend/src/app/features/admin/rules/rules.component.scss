@@ -1,4 +1,7 @@
-/* First half of the rules screen styles; continues in rules-sections.scss (see why there). */
+/* First part of the rules screen styles; continues in rules-sections.scss and rules-levels.scss
+   (see why in rules-sections.scss). */
+
+@use 'media';
 
 :host {
   display: block;
@@ -38,7 +41,7 @@
 
 /* After .master-col on purpose: same specificity, so the later rule wins. Stacked, a sticky
    column slides over the editor below it. */
-@media (max-width: 900px) {
+@include media.phone {
   .rules-layout {
     grid-template-columns: 1fr;
   }
@@ -50,54 +53,8 @@
   }
 }
 
-/* ───────── Master: branches and general rules ───────── */
-.branch-item.general {
-  flex-direction: row;
-  align-items: center;
-}
-.branch-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-}
-.branch-item {
-  width: 100%;
-  text-align: left;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  padding: var(--space-3);
-  border: 1px solid transparent;
-  border-radius: var(--radius-ctl);
-  background: none;
-  color: var(--text-secondary);
-  cursor: pointer;
-}
-.branch-item:hover {
-  background: var(--surface-sunken);
-}
-.branch-item.active {
-  background: var(--surface-soft);
-  border-color: transparent;
-  border-left: 3px solid var(--accent-fg);
-  padding-left: calc(var(--space-3) - 2px);
-  color: var(--text-primary);
-}
-.branch-item.active .branch-name {
-  color: var(--accent-fg);
-}
 .branch-name {
   font-weight: var(--font-weight-medium);
-}
-.branch-meta {
-  font-size: var(--font-size-xs);
-  color: var(--text-tertiary);
-}
-.branch-empty {
-  padding: var(--space-2) var(--space-3);
 }
 
 /* ───────── Audit ─────────
@@ -182,12 +139,6 @@
 .branch-name-field {
   width: min(360px, 100%);
 }
-.branch-heading {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  min-width: 0;
-}
 .branch-title {
   margin: 0;
   font-size: var(--font-size-title);
@@ -214,67 +165,6 @@
 }
 
 /* ───────── Coverages ───────── */
-/* ───────── Coverages: accordion ───────── */
-.cov-card {
-  margin-bottom: var(--space-3);
-}
-/* Full-width clickable header: when closed, the whole card is the toggle. */
-.cov-summary {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-}
-.cov-toggle {
-  flex: 1 1 auto;
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  padding: 0;
-  border: 0;
-  background: none;
-  text-align: left;
-  cursor: pointer;
-  color: inherit;
-}
-.cov-toggle:focus-visible {
-  outline: none;
-  box-shadow: var(--focus-ring);
-  border-radius: var(--radius-ctl);
-}
-.cov-caret {
-  color: var(--text-tertiary);
-  font-size: var(--font-size-xs);
-  display: inline-block;
-  transition: transform var(--dur-1) ease;
-}
-.cov-caret.open {
-  transform: rotate(90deg);
-}
-@media (prefers-reduced-motion: reduce) {
-  .cov-caret {
-    transition: none;
-  }
-}
-.cov-title {
-  font-weight: var(--font-weight-medium);
-  color: var(--text-primary);
-}
-/* Chips wrap rather than push the title out of the card. */
-.cov-chips {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2);
-  min-width: 0;
-}
-
-.cov-body {
-  margin-top: var(--space-4);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-}
 .cov-section {
   display: flex;
   flex-direction: column;
@@ -282,23 +172,6 @@
 }
 .cov-section .section-hint {
   margin: 0;
-}
-
-// ─── First-setup cues ─────────────────────────────────────────────────────────
-// A branch with no coverage can't take claims: the one required setting, so it carries the
-// warning tone. Optional tabs left empty get a neutral dot.
-.branch-meta.is-required {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-  color: var(--status-warning);
-}
-.status-dot {
-  display: inline-block;
-  width: var(--space-2);
-  height: var(--space-2);
-  border-radius: var(--radius-pill);
-  background: currentColor;
 }
 
 // Loading frame of a tab (see #tabSkeleton).

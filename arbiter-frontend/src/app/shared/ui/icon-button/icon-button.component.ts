@@ -1,11 +1,11 @@
 import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 
-export type IconButtonIcon = 'edit' | 'delete' | 'confirm';
+export type IconButtonIcon = 'edit' | 'delete' | 'confirm' | 'settings';
 
 /**
  * Square button that shows only an icon, for a row's own actions (edit, remove) where a text button
- * per row would crowd the list. `label` is required: it is the accessible name and the tooltip,
- * the only words the action has. The icons are a closed set on purpose, so the same action always
+ * per row would crowd the list, or for a card's way into its own settings (`settings`). `label` is
+ * required: it is the accessible name and the tooltip, the only words the action has. The icons are a closed set on purpose, so the same action always
  * looks the same. `size="sm"` sits next to a line of text, like the role in a table cell; on touch
  * layouts both sizes keep the full touch target.
  */
@@ -45,6 +45,15 @@ export type IconButtonIcon = 'edit' | 'delete' | 'confirm';
               stroke-linecap="round"
               stroke-linejoin="round"
             />
+          }
+          @case ('settings') {
+            <path
+              d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"
+              stroke-width="1.6"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+            <circle cx="12" cy="12" r="3" stroke-width="1.6" />
           }
         }
       </svg>
