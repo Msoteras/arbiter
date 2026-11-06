@@ -1,7 +1,7 @@
 -- =============================================================================
 -- Arbiter — DB initialization script (multi-tenant by schema)
 --
--- 60 tables: 10 shared + 44 per tenant + 6 per simulated insurer DB. Risk factors are
+-- 59 tables: 10 shared + 43 per tenant + 6 per simulated insurer DB. Risk factors are
 -- not a table: their codes live in classification-service's RiskFactorIds.
 --
 -- One schema per insurer, with NO tenant discriminator column anywhere in a tenant
@@ -237,7 +237,7 @@ SELECT setval(pg_get_serial_sequence('arbiter_common.document_type', 'id'),
               (SELECT MAX(id) FROM arbiter_common.document_type));
 
 -- =============================================================================
--- TENANT SCHEMA TEMPLATE — 44 tables, created once per insurer
+-- TENANT SCHEMA TEMPLATE — 43 tables, created once per insurer
 -- =============================================================================
 
 -- The schema itself identifies the insurer.
@@ -1103,69 +1103,35 @@ BEGIN
     EXECUTE format('CREATE INDEX idx_classification_step_occurred ON %I.classification_step (occurred_at)',
                    p_schema);
 
-    -- ─── metrics_day + metrics_daily_* ───────────────────────────────────────────
+    -- ─── metrics_day + metrics_daily_value ───────────────────────────────────────
     -- reports-service's own tables: the figures of closed days, so a past period is answered
-    -- by adding days up. Sums and counts only, never a rate or an average. One row per day,
-    -- claim cause (which carries the branch) and assigned analyst. metrics_day marks a day
-    -- as stored even when nothing happened on it; deleting its row drops the day's figures.
+    -- by adding days up. Sums and counts only, never a rate or an average. metrics_day marks a
+    -- day as stored even when nothing happened on it; deleting its row drops the day's figures.
+    -- A day stored with an older definitions_version is stored again the next time a report
+    -- asks for it.
     EXECUTE format($ddl$
         CREATE TABLE %I.metrics_day (
-            day          DATE        PRIMARY KEY,
-            computed_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            day                  DATE        PRIMARY KEY,
+            computed_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            -- DailyMetric.DEFINITIONS_VERSION of the code that stored it.
+            definitions_version  INTEGER     NOT NULL
         )$ddl$, p_schema);
 
+    -- One row per day, metric, claim cause (which carries the branch) and assigned analyst. The
+    -- metrics are the literals of reports-service's DailyMetric enum: adding one needs no DDL.
     EXECUTE format($ddl$
-        CREATE TABLE %I.metrics_daily_intake (
-            day             DATE   NOT NULL REFERENCES %I.metrics_day(day) ON DELETE CASCADE,
-            claim_cause_id  BIGINT NOT NULL REFERENCES %I.claim_cause(id),
+        CREATE TABLE %I.metrics_daily_value (
+            day             DATE          NOT NULL REFERENCES %I.metrics_day(day) ON DELETE CASCADE,
+            metric          VARCHAR(60)   NOT NULL,
+            claim_cause_id  BIGINT        NOT NULL REFERENCES %I.claim_cause(id),
             -- No FK: a frozen figure must not stop an analyst from being removed.
             analyst_id      BIGINT,
-            reported        BIGINT NOT NULL,
-            fast_track      BIGINT NOT NULL
+            -- A metric's own cut: the final status for the resolution metrics, '' for the rest.
+            segment         VARCHAR(60)   NOT NULL,
+            value           NUMERIC(38,4) NOT NULL
         )$ddl$, p_schema, p_schema, p_schema);
 
-    -- Claims that reached a final status on the day, one row per status.
-    EXECUTE format($ddl$
-        CREATE TABLE %I.metrics_daily_resolution (
-            day                     DATE             NOT NULL REFERENCES %I.metrics_day(day) ON DELETE CASCADE,
-            claim_cause_id          BIGINT           NOT NULL REFERENCES %I.claim_cause(id),
-            analyst_id              BIGINT,
-            final_status            VARCHAR(60)      NOT NULL,
-            resolved                BIGINT           NOT NULL,
-            total_seconds           DOUBLE PRECISION NOT NULL,
-            -- Spent waiting on third parties, which pauses the art. 56 term.
-            waiting_seconds         DOUBLE PRECISION NOT NULL,
-            fast_track              BIGINT           NOT NULL,
-            fast_track_seconds      DOUBLE PRECISION NOT NULL,
-            -- Resolved within the case's art. 56 deadline.
-            on_time                 BIGINT           NOT NULL,
-            reopened                BIGINT           NOT NULL,
-            -- With an actionable model recommendation, and those the analyst followed.
-            agreement_eligible      BIGINT           NOT NULL,
-            agreement_agreed        BIGINT           NOT NULL,
-            fraud_determined        BIGINT           NOT NULL,
-            fraud_backed_by_expert  BIGINT           NOT NULL,
-            fraud_claimed_amount    NUMERIC(38,2)    NOT NULL
-        )$ddl$, p_schema, p_schema, p_schema);
-
-    EXECUTE format($ddl$
-        CREATE TABLE %I.metrics_daily_settlement (
-            day                  DATE          NOT NULL REFERENCES %I.metrics_day(day) ON DELETE CASCADE,
-            claim_cause_id       BIGINT        NOT NULL REFERENCES %I.claim_cause(id),
-            analyst_id           BIGINT,
-            settlements          BIGINT        NOT NULL,
-            settled_amount       NUMERIC(38,2) NOT NULL,
-            claimed_amount       NUMERIC(38,2) NOT NULL,
-            -- Settlements whose claim carries a claimed amount (it is optional).
-            claimed_cases        BIGINT        NOT NULL,
-            deductible_amount    NUMERIC(38,2) NOT NULL,
-            installments_amount  NUMERIC(38,2) NOT NULL,
-            overdue_amount       NUMERIC(38,2) NOT NULL
-        )$ddl$, p_schema, p_schema, p_schema);
-
-    EXECUTE format('CREATE INDEX idx_metrics_daily_intake_day ON %I.metrics_daily_intake (day)', p_schema);
-    EXECUTE format('CREATE INDEX idx_metrics_daily_resolution_day ON %I.metrics_daily_resolution (day)', p_schema);
-    EXECUTE format('CREATE INDEX idx_metrics_daily_settlement_day ON %I.metrics_daily_settlement (day)', p_schema);
+    EXECUTE format('CREATE INDEX idx_metrics_daily_value_day_metric ON %I.metrics_daily_value (day, metric)', p_schema);
 
     -- ─── Per-tenant seed: the platform catalog only ─────────────────────────────
     -- A new insurer starts with no coverages, rules, document schedule, scoring or settlement
