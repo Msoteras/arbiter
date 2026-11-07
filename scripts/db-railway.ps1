@@ -172,7 +172,7 @@ SELECT count(*) FROM information_schema.tables WHERE table_schema='arbiter_commo
     foreach ($tenant in @('arbiter_bbva', 'arbiter_provincia')) {
         Assert-Count "tablas en $tenant" @"
 SELECT count(*) FROM information_schema.tables WHERE table_schema='$tenant';
-"@ 44
+"@ 43
     }
 
     # 2. Columns that only a current init script creates.

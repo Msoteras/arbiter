@@ -65,6 +65,12 @@ lectura). Se cargaron las columnas de las tres `metrica_diaria_*`, se dibujaron 
 `hecho_generador` 1—0..* contra cada una (con una segunda vista de `hecho_generador` al lado), y
 `metrica` salió del modelo.
 
+El 03/11 llegó la simplificación de las métricas (`2026-11-03-metricas-diarias-en-una-tabla.sql`).
+Salieron las tres `metrica_diaria_*` y entró `metrica_diaria_valor`, una fila por métrica: `dia`,
+`metrica`, `hecho_generador_id`, `analista_id`, `segmento` y `valor` NUMERIC(38,4). `metrica_dia`
+suma `version_definiciones`. Las líneas `metrica_dia` y `hecho_generador` 1—0..* quedaron contra
+`metrica_diaria_valor`, y se borraron las de las tablas que salieron.
+
 **Criterios que valen para todas las entradas:**
 
 - **Cada línea se compara dibujo contra modelo.** Una línea que se ve entre dos entidades pero cuya
@@ -87,7 +93,7 @@ lectura). Se cargaron las columnas de las tres `metrica_diaria_*`, se dibujaron 
 
 ## Para editar en el `.mdj`
 
-El `.mdj` del 24/10 coincide con el esquema, salvo la columna que suma esta rama:
+El `.mdj` del 03/11 coincide con el esquema, salvo esta columna:
 
 ### 40 · `expediente.documentos_pedidos` — columna nueva (23/10)
 
