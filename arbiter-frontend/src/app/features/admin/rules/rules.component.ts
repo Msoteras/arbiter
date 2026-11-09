@@ -83,6 +83,7 @@ import { OnboardingService } from '../../../core/onboarding/onboarding.service';
 import { accordion, fadeInUp, staggerReveal } from '../../../shared/animations';
 import { OnboardingTargetDirective } from '../../../core/onboarding/onboarding-target.directive';
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
+import { CaseLifecycleReferenceComponent } from '../case-lifecycle-reference/case-lifecycle-reference.component';
 import {
   RulesTreeBranch,
   RulesTreeComponent,
@@ -107,7 +108,8 @@ function wholeMonths(months: number | null): number | null {
 }
 
 /** Right-panel views that don't depend on the selected branch. */
-type GeneralView = 'hardStop' | 'scoring' | 'fraud' | 'providers' | 'target' | 'brand' | 'history';
+type GeneralView =
+  'hardStop' | 'scoring' | 'fraud' | 'providers' | 'target' | 'lifecycle' | 'brand' | 'history';
 
 /** A tree item and the content beside it: three configuration levels, plus the audit history. */
 type Level = 'insurer' | 'branch' | 'coverage' | 'audit';
@@ -121,6 +123,7 @@ type Level = 'insurer' | 'branch' | 'coverage' | 'audit';
 @Component({
   selector: 'app-rules',
   imports: [
+    CaseLifecycleReferenceComponent,
     OnboardingTargetDirective,
     ButtonComponent,
     IconButtonComponent,
@@ -654,6 +657,8 @@ export class RulesComponent {
     // Its own entry: a repair shop has nothing to do with fraud.
     { id: 'providers', label: 'Proveedores externos' },
     { id: 'target', label: 'Objetivo de resolución' },
+    // Configures nothing: the state machine to look up, for analyst and referent alike.
+    { id: 'lifecycle', label: 'Ciclo del expediente' },
     { id: 'brand', label: 'Marca', referentOnly: true },
     // 'history' is deliberately not here: it configures nothing and has its own Audit block.
   ];

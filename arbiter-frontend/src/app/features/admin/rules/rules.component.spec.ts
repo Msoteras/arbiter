@@ -853,6 +853,7 @@ describe('RulesComponent', () => {
         'Gestión de fraude',
         'Proveedores externos',
         'Objetivo de resolución',
+        'Ciclo del expediente',
       ]);
     });
 

@@ -2,6 +2,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  DestroyRef,
   effect,
   ElementRef,
   inject,
@@ -36,6 +37,7 @@ import {
 } from '../case.service';
 import { DocumentAgendaService } from '../document-agenda.service';
 import { ChipGroupComponent, ChipOption } from '../../../shared/ui/chip-group/chip-group.component';
+import { CaseLifecycleComponent } from '../../../shared/ui/case-lifecycle/case-lifecycle.component';
 import { CaseNavigationService } from '../case-navigation.service';
 import { CaseMessagesService } from '../case-messages.service';
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
@@ -92,6 +94,7 @@ import {
   fraudRecordOriginLabel,
 } from '../../../core/models/fraud-record';
 import {
+  StatusMoves,
   workStatusLabel,
   caseStatusTone,
   isFinalStatus,
@@ -197,6 +200,7 @@ interface BriefAlert {
     InfoTipComponent,
     EmptyStateComponent,
     StatusTimelineComponent,
+    CaseLifecycleComponent,
     ForensicAnalysisComponent,
     ClassificationProgressComponent,
     CaseDocumentsComponent,
@@ -801,6 +805,31 @@ export class CaseDetailComponent {
   }
 
   protected readonly history = computed<StatusTransition[]>(() => this.data()?.statusHistory ?? []);
+
+  protected readonly historyViewOptions: ChipOption[] = [
+    { value: 'timeline', label: 'Línea de tiempo' },
+    { value: 'diagram', label: 'Diagrama' },
+  ];
+  protected readonly historyView = signal('timeline');
+  /** Read the first time the diagram is shown; the cache keeps it for the session. */
+  protected readonly statusMoves = signal<StatusMoves[] | null>(null);
+  protected readonly statusMovesFailed = signal(false);
+  private readonly destroyRef = inject(DestroyRef);
+
+  protected showHistoryView(view: string): void {
+    this.historyView.set(view);
+    if (view !== 'diagram' || this.statusMoves()) {
+      return;
+    }
+    this.statusMovesFailed.set(false);
+    this.service
+      .statusMoves()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (moves) => this.statusMoves.set(moves),
+        error: () => this.statusMovesFailed.set(true),
+      });
+  }
 
   protected readonly hasImageAnalysis = computed(
     () => (this.data()?.forensicReport?.findings?.length ?? 0) > 0,

@@ -1259,7 +1259,29 @@
         @case ('history') {
           @if (history().length > 0) {
             <app-card heading="Historial de estados">
-              <app-status-timeline [history]="history()" [currentStatus]="d.status" />
+              <app-chip-group
+                cardAside
+                size="sm"
+                ariaLabel="Vista del historial"
+                [options]="historyViewOptions"
+                [value]="historyView()"
+                (valueChange)="showHistoryView($event)"
+              />
+              @if (historyView() === 'diagram') {
+                @if (statusMoves(); as moves) {
+                  <app-case-lifecycle
+                    [transitions]="moves"
+                    [history]="history()"
+                    [currentStatus]="d.status"
+                  />
+                } @else if (statusMovesFailed()) {
+                  <app-empty-state message="No pudimos cargar el diagrama." />
+                } @else {
+                  <app-inline-loading [size]="26" message="Cargando el diagrama…" />
+                }
+              } @else {
+                <app-status-timeline [history]="history()" [currentStatus]="d.status" />
+              }
             </app-card>
           } @else {
             <app-empty-state message="Historial / auditoría del expediente" />

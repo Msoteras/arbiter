@@ -126,6 +126,8 @@
         <app-providers-config [readOnly]="readOnly()" />
       } @else if (view() === 'target') {
         <app-resolution-target-config [readOnly]="readOnly()" />
+      } @else if (view() === 'lifecycle') {
+        <app-case-lifecycle-reference />
       } @else if (view() === 'brand') {
         <app-brand />
       } @else if (view() === 'history') {
