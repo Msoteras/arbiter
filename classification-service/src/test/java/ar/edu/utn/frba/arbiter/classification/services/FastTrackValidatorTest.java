@@ -43,6 +43,22 @@ class FastTrackValidatorTest {
     }
 
     @Test
+    void upToDatePolicySwitchedOffAndNothingElse_neverFastTracks() {
+        // The panel saves requiresUpToDatePolicy=false when every condition is switched off.
+        BusinessRules rules = baseRules()
+                .fastTrackThresholds(BusinessRules.FastTrackThresholds.builder()
+                        .requiresUpToDatePolicy(false)
+                        .requiredDocumentTypes(List.of())
+                        .build())
+                .build();
+
+        FastTrackValidator.Result result = validator.evaluate(claim(new BigDecimal("1000")), policy(), history(0), rules, Map.of());
+
+        assertThat(result.fastTrack()).isFalse();
+        assertThat(result.reasons()).anyMatch(r -> r.contains("sin criterios activos"));
+    }
+
+    @Test
     void allThresholdsMet_fastTracks() {
         BusinessRules rules = baseRules()
                 .fastTrackThresholds(BusinessRules.FastTrackThresholds.builder()
