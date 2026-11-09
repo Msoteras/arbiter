@@ -29,6 +29,8 @@ import { InlineLoadingComponent } from '../../shared/ui/inline-loading/inline-lo
 import { SkeletonComponent } from '../../shared/ui/skeleton/skeleton.component';
 import { ActivityBarComponent } from '../../shared/ui/activity-bar/activity-bar.component';
 import { SaveBarComponent } from '../../shared/ui/save-bar/save-bar.component';
+import { RuleBlockComponent } from '../../shared/ui/rule-block/rule-block.component';
+import { RuleGroupComponent } from '../../shared/ui/rule-group/rule-group.component';
 import { ChipGroupComponent, ChipOption } from '../../shared/ui/chip-group/chip-group.component';
 import { TabOption, TabsComponent } from '../../shared/ui/tabs/tabs.component';
 import { TabLink, TabNavComponent } from '../../shared/ui/tabs/tab-nav.component';
@@ -103,6 +105,8 @@ interface Swatch {
     SpinnerComponent,
     InlineLoadingComponent,
     SaveBarComponent,
+    RuleBlockComponent,
+    RuleGroupComponent,
     SwitchComponent,
     DistributionComponent,
     StatTileComponent,
@@ -1070,6 +1074,40 @@ interface Swatch {
       </section>
 
       <section class="sg-block">
+        <h3 class="sg-h3">Rule block y rule group</h3>
+        <p class="sg-p">
+          Una regla escrita como frase: palabras y campos juntos, dentro de un bloque. El
+          <span class="mono">app-rule-group</span> dice el efecto común en su título, así cada
+          bloque dice solo su condición. Entre bloques no va "Y": el título ya dice si hay que
+          cumplir todas.
+        </p>
+        <p class="sg-p">
+          <span class="mono">removable</span> es para una lista donde el usuario elige qué reglas
+          aplican; un catálogo fijo no lo usa. <span class="mono">locked</span> es una regla que
+          aplica pero se edita en otra pantalla: va con candado y un enlace en
+          <span class="mono">[blockAside]</span>. <span class="mono">missing</span> marca una regla
+          activa sin valor, con su aviso en <span class="mono">[blockError]</span>.
+        </p>
+        <app-rule-group heading="Es Fast Track si cumple todas las condiciones">
+          <app-rule-block [removable]="true" (remove)="noop()">
+            <span>Monto reclamado de hasta el</span>
+            <app-input class="sg-number" type="number" value="50" />
+            <span>% de la suma asegurada</span>
+          </app-rule-block>
+          <app-rule-block [removable]="true" [missing]="true" (remove)="noop()">
+            <span>Hasta</span>
+            <app-input class="sg-number" type="number" />
+            <span>siniestros previos</span>
+            <p blockError>Escribí un valor o quitá la condición.</p>
+          </app-rule-block>
+          <app-rule-block [locked]="true">
+            <span>Cumple los plazos y topes de la cobertura</span>
+            <span blockAside class="t-note">Plazos y topes</span>
+          </app-rule-block>
+        </app-rule-group>
+      </section>
+
+      <section class="sg-block">
         <h3 class="sg-h3">Inline loading</h3>
         <p class="sg-p">
           Carga "en el lugar": spinner + mensaje opcional, dentro de una pantalla que ya tiene su
@@ -1663,7 +1701,7 @@ export class StyleguideComponent {
 
   protected showToastWithDescription(): void {
     this.toastService.show('Configurá el Fast Track', 'info', 8000, {
-      description: 'Definí las condiciones para que una denuncia entre en Fast Track.',
+      description: 'Definí las condiciones para que una denuncia sea Fast Track.',
     });
   }
 
