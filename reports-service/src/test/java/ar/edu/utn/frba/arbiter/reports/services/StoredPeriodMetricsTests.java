@@ -6,6 +6,7 @@ import ar.edu.utn.frba.arbiter.reports.dto.MetricsRecalculation;
 import ar.edu.utn.frba.arbiter.reports.dto.ReportPeriod;
 import ar.edu.utn.frba.arbiter.reports.dto.ResolutionSummary;
 import ar.edu.utn.frba.arbiter.reports.dto.TimelineGranularity;
+import ar.edu.utn.frba.arbiter.reports.models.repositories.DailyMetric;
 import ar.edu.utn.frba.arbiter.reports.models.repositories.ResolvedCaseRepository;
 import ar.edu.utn.frba.arbiter.reports.support.AbstractPersistenceIT;
 import ar.edu.utn.frba.arbiter.reports.support.CaseTables;
@@ -160,6 +161,26 @@ class StoredPeriodMetricsTests extends AbstractPersistenceIT {
 
         assertThat(recalculation.days()).isEqualTo(1);
         assertThat(stored.summary(AUGUST, MetricsFilter.NONE).reportedCases()).isEqualTo(2);
+    }
+
+    /** Stored by code that didn't have a metric yet, the day would read 0 for it. */
+    @Test
+    void aDayStoredWithAnOlderDefinitionsVersion_isStoredAgainTheNextTimeItIsAsked() {
+        tables.insertCase(1, "2026-08-04T15:00:00Z", PENDING_REVIEW, PHONES_ROBBERY, true, LAURA, null);
+        dailyMetricsService.covers(AUGUST);
+
+        // As if REPORTED_FAST_TRACK had been added after the day was stored.
+        jdbcTemplate.update("DELETE FROM metrics_daily_value WHERE metric = 'REPORTED_FAST_TRACK'");
+        jdbcTemplate.update("UPDATE metrics_day SET definitions_version = ? WHERE day = '2026-08-04'",
+                DailyMetric.DEFINITIONS_VERSION - 1);
+        assertThat(stored.summary(AUGUST, MetricsFilter.NONE).fastTrackCases()).isZero();
+
+        assertThat(dailyMetricsService.covers(AUGUST)).isTrue();
+        assertThat(stored.summary(AUGUST, MetricsFilter.NONE).fastTrackCases()).isEqualTo(1);
+        assertThat(stored.summary(AUGUST, MetricsFilter.NONE).reportedCases()).isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT definitions_version FROM metrics_day WHERE day = '2026-08-04'", Integer.class))
+                .isEqualTo(DailyMetric.DEFINITIONS_VERSION);
     }
 
     /** The second request for a closed period must not go back to the cases; here it couldn't. */
