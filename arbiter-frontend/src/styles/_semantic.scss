@@ -115,6 +115,12 @@
   --badge-strong-bg: var(--surface-head);
   --badge-strong-border: var(--text-tertiary);
 
+  /* ===== Diagrams (case lifecycle) ===== */
+  --diagram-canvas: var(--surface-soft);
+  --diagram-grid-dot: var(--c-grid-dot);
+  --diagram-edge: var(--c-border-3);
+  --diagram-edge-active: var(--accent-line);
+
   /* ===== Chip group ===== */
   --chip-radius: var(--radius-pill);
   --chip-pad-x: var(--space-5);

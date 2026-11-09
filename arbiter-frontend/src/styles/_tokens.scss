@@ -11,6 +11,7 @@
   --accent-soft-border: #b9e3de;
   --accent-wash: #f0faf8; /* top of the AI card gradient */
   --accent-veil: rgba(0, 169, 157, 0.15); /* focus ring */
+  --accent-line: #6cc8bf; /* lines of a diagram: lighter than --accent so the arrowheads stand out */
 
   /* ===== Technicolor palette =====
      Reserved for status signals: green=ok, yellow=warning, orange=risk, red=danger, blue=info. */
@@ -53,6 +54,7 @@
   --c-bg-soft: #fbfaf7;
   --c-bg-soft-2: #f4f3ee; /* app canvas */
   --c-bg-head: #faf9f6;
+  --c-grid-dot: #d6d4cc; /* dotted background of a diagram */
 
   /* ===== Spacing (4px base) ===== */
   --space-0-5: 2px; /* compact chips only */

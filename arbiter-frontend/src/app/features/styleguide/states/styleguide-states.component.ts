@@ -3,6 +3,8 @@ import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
 import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { StatusTimelineComponent } from '../../../shared/ui/status-timeline/status-timeline.component';
+import { CaseLifecycleComponent } from '../../../shared/ui/case-lifecycle/case-lifecycle.component';
+import { SAMPLE_STATUS_MOVES } from '../../../shared/ui/case-lifecycle/case-lifecycle.sample';
 import { TabOption, TabsComponent } from '../../../shared/ui/tabs/tabs.component';
 import {
   CaseStatus,
@@ -27,7 +29,7 @@ import {
 import { StatusTransition } from '../../../core/models/case';
 import { StatusTone } from '../../../core/models/status-tone';
 
-type MachineId = 'case' | 'insured' | 'settlement' | 'user' | 'engine' | 'other';
+type MachineId = 'case' | 'lifecycle' | 'insured' | 'settlement' | 'user' | 'engine' | 'other';
 
 interface StateSample {
   label: string;
@@ -107,7 +109,13 @@ function move(
 @Component({
   selector: 'app-styleguide-states',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [BadgeComponent, ButtonComponent, StatusTimelineComponent, TabsComponent],
+  imports: [
+    BadgeComponent,
+    ButtonComponent,
+    CaseLifecycleComponent,
+    StatusTimelineComponent,
+    TabsComponent,
+  ],
   template: `
     <app-tabs
       [tabs]="machines"
@@ -140,6 +148,19 @@ function move(
               </section>
             }
           </div>
+        }
+
+        @case ('lifecycle') {
+          <h4 class="t-section-label sub">Consulta</h4>
+          <app-case-lifecycle [transitions]="statusMoves" />
+          <h4 class="t-section-label sub">En el Tablero</h4>
+          <app-case-lifecycle [transitions]="statusMoves" [counts]="sampleCounts" />
+          <h4 class="t-section-label sub">En el historial del expediente</h4>
+          <app-case-lifecycle
+            [transitions]="statusMoves"
+            [history]="timelines[timelines.length - 1].history"
+            [currentStatus]="timelines[timelines.length - 1].current"
+          />
         }
 
         @case ('insured') {
@@ -352,6 +373,7 @@ function move(
 export class StyleguideStatesComponent {
   protected readonly machines: TabOption[] = [
     { id: 'case', label: 'Expediente' },
+    { id: 'lifecycle', label: 'Ciclo del expediente' },
     { id: 'insured', label: 'Vista del asegurado' },
     { id: 'settlement', label: 'Liquidación y derivación' },
     { id: 'user', label: 'Usuario' },
@@ -359,6 +381,17 @@ export class StyleguideStatesComponent {
     { id: 'other', label: 'Otros' },
   ];
   protected readonly machine = signal<MachineId>('case');
+  protected readonly statusMoves = SAMPLE_STATUS_MOVES;
+  protected readonly sampleCounts: Record<string, number> = {
+    PENDING_CLASSIFICATION: 3,
+    PENDING_ANALYST_REVIEW: 14,
+    AWAITING_DOCUMENTATION: 6,
+    PENDING_EXPERT_REPORT: 2,
+    APPROVED: 41,
+    REJECTED: 9,
+    PRESCRIBED: 1,
+    WITHDRAWN: 2,
+  };
 
   protected readonly caseSamples: StateSample[] = [
     ...CASE_STATUSES.map((status) => ({

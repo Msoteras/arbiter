@@ -6,6 +6,7 @@ import { environment } from '../../../environments/environment';
 import { CacheReadOptions, QueryCache, paramsKey } from '../../core/cache/query-cache';
 import { InsuredStatus, InsuredStatusCode } from '../../core/models/insured-status';
 import { CaseResponse } from '../../core/models/case';
+import { StatusMoves } from '../../core/models/case-status';
 import {
   CaseDocument,
   DocumentRequestItem,
@@ -260,6 +261,8 @@ export class CaseService {
   private readonly cache = inject(QueryCache);
   private readonly fetchClaimCauseNames = (context: HttpContext) =>
     this.http.get<string[]>(`${environment.apiBaseUrl}/claim-causes/all`, { context });
+  private readonly fetchStatusMoves = (context: HttpContext) =>
+    this.http.get<StatusMoves[]>(`${this.baseUrl}/status-transitions`, { context });
   private readonly fetchWorkload = (context: HttpContext) =>
     this.http.get<AnalystWorkload[]>(`${this.baseUrl}/analysts/workload`, { context });
 
@@ -345,6 +348,11 @@ export class CaseService {
     if (params.deadline) query['deadline'] = params.deadline;
     if (params.insurerId != null) query['insurerId'] = String(params.insurerId);
     return query;
+  }
+
+  /** The state machine cases-service enforces. Same for every insurer, so one key for the session. */
+  statusMoves(): Observable<StatusMoves[]> {
+    return this.cache.read('cases:status-transitions', this.fetchStatusMoves);
   }
 
   /** Every status an insured can be told, with its label, for their filter. */
