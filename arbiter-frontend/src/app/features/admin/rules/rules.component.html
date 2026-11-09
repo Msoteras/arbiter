@@ -140,53 +140,27 @@
             @if (!readOnly()) {
               <app-info-tip cardTip>{{ stepLine.HARD_STOP }}</app-info-tip>
             }
-            <p class="hs-banner">
-              <span class="hs-banner-icon" aria-hidden="true">!</span>
-              <span>Si no se cumple una regla, no se puede crear la denuncia.</span>
-            </p>
-
-            <ul class="rule-rows">
-              <li class="rule-row" [class.off]="!policyInForceRule()?.enabled">
-                <app-switch
-                  [checked]="policyInForceRule()?.enabled ?? false"
-                  ariaLabel="Vigencia de la póliza"
+            <app-rule-group heading="Cuando el asegurado hace la denuncia">
+              <!-- Fixed effect: intake rejects an event outside the policy term whatever the rule
+                   says (PolicyEligibilityValidator), so there is nothing to choose. -->
+              <app-rule-block>
+                <span>Póliza no vigente</span>
+                <span blockAside class="effect stop">No deja denunciar</span>
+              </app-rule-block>
+              <!-- "No controlar" is the rule switched off; the other two are its onArrears. -->
+              <app-rule-block [off]="policyStandingChoice() === 'OFF'">
+                <span>Póliza en mora</span>
+                <app-select
+                  blockAside
+                  class="effect-select"
+                  [class.stop]="policyStandingChoice() === 'REJECT'"
+                  [options]="onArrearsOptions"
+                  [value]="policyStandingChoice()"
                   [disabled]="readOnly()"
-                  (checkedChange)="toggleInsurerHardRule('POLICY_IN_FORCE')"
+                  (valueChange)="setOnArrears($event)"
                 />
-                <div class="rule-text">
-                  <span class="rule-label">Vigencia de la póliza</span>
-                </div>
-                @if (!policyInForceRule()?.enabled) {
-                  <span class="rule-off-note t-note">No bloquea</span>
-                }
-              </li>
-
-              <!-- Enabled doesn't always block: with STANDBY the claim is created and arrears are
-                   evaluated later, so the choice sits where the other rules show their value. -->
-              <li class="rule-row" [class.off]="!policyStandingRule()?.enabled">
-                <app-switch
-                  [checked]="policyStandingRule()?.enabled ?? false"
-                  ariaLabel="Mora de la póliza"
-                  [disabled]="readOnly()"
-                  (checkedChange)="toggleInsurerHardRule('POLICY_STANDING')"
-                />
-                <div class="rule-text">
-                  <span class="rule-label">Mora de la póliza</span>
-                </div>
-                @if (policyStandingRule()?.enabled) {
-                  <div class="rule-value choice">
-                    <app-select
-                      [options]="onArrearsOptions"
-                      [value]="policyStandingRule()?.onArrears ?? 'STANDBY'"
-                      [disabled]="readOnly()"
-                      (valueChange)="setOnArrears($event)"
-                    />
-                  </div>
-                } @else {
-                  <span class="rule-off-note t-note">No bloquea</span>
-                }
-              </li>
-            </ul>
+              </app-rule-block>
+            </app-rule-group>
 
             @if (!readOnly()) {
               <app-save-bar
@@ -390,59 +364,33 @@
               <!-- ============ COVERAGE · TERMS AND CAPS ============ -->
               @case ('terms') {
                 <div class="tab-panel" @fadeInUp>
-                  <app-card heading="Reglas que evalúa el motor" headingSize="md">
+                  <app-card heading="Plazos y topes" headingSize="md">
                     @if (orderedHardRules(c).length === 0) {
                       <p class="t-note">No se pudieron cargar las reglas de esta cobertura.</p>
                     } @else {
-                      <ul class="rule-rows">
-                        @for (rule of orderedHardRules(c); track rule.ruleType) {
-                          <li
-                            class="rule-row"
-                            [class.off]="!rule.enabled"
-                            [class.missing]="ruleMissingValue(c, rule)"
-                          >
-                            <app-switch
-                              [checked]="rule.enabled"
-                              [ariaLabel]="hardRuleLabel(rule.ruleType)"
-                              [disabled]="readOnly()"
-                              (checkedChange)="toggleHardRule(c.id, rule.ruleType)"
+                      <!-- Two effects on one screen, so each group says its own: only the waiting
+                           period stops the claim at intake (PolicyEligibilityValidator); the rest
+                           take Fast Track away and add a reason (TemporalRuleEvaluator). -->
+                      <div class="ft-sections">
+                        <app-rule-group
+                          heading="Si no se cumple, el asegurado no puede hacer la denuncia"
+                        >
+                          @for (rule of rejectingHardRules(c); track rule.ruleType) {
+                            <ng-container
+                              *ngTemplateOutlet="hardRuleBlock; context: { $implicit: rule, c: c }"
                             />
-                            <div class="rule-text">
-                              <span class="rule-label"
-                                >{{ hardRuleLabel(rule.ruleType) }}
-                                @if (rule.ruleType === 'MAX_EVENTS_YEAR') {
-                                  <app-info-tip>
-                                    Cuenta los siniestros liquidados en esta póliza, de todas sus
-                                    coberturas, en el año de vigencia.
-                                  </app-info-tip>
-                                }
-                              </span>
-                            </div>
-                            @if (rule.enabled) {
-                              <div class="rule-value">
-                                <app-input
-                                  type="number"
-                                  [min]="0"
-                                  [value]="hardRuleValue(c, rule.ruleType)"
-                                  [disabled]="readOnly()"
-                                  (valueChange)="setHardRuleValue(c, rule.ruleType, $event)"
-                                  placeholder="—"
-                                />
-                                <span class="t-note">{{ hardRuleUnit(rule.ruleType) }}</span>
-                              </div>
-                            } @else {
-                              <span class="rule-off-note t-note">{{
-                                hardRuleOffNote(rule.ruleType)
-                              }}</span>
-                            }
-                            @if (ruleMissingValue(c, rule) && !readOnly()) {
-                              <p class="rule-missing" role="alert">
-                                Escribí un valor o apagá la regla.
-                              </p>
-                            }
-                          </li>
-                        }
-                      </ul>
+                          }
+                        </app-rule-group>
+                        <app-rule-group
+                          heading="Si no se cumple, la denuncia no es Fast Track y el analista ve el motivo"
+                        >
+                          @for (rule of fastTrackHardRules(c); track rule.ruleType) {
+                            <ng-container
+                              *ngTemplateOutlet="hardRuleBlock; context: { $implicit: rule, c: c }"
+                            />
+                          }
+                        </app-rule-group>
+                      </div>
                     }
                     <ng-container *ngTemplateOutlet="covSaveBar" />
                   </app-card>
@@ -582,146 +530,197 @@
                       />
                     } @else {
                       <div class="ft-sections">
-                        <div class="cov-section">
-                          <span class="t-section-label">
-                            Condiciones para habilitar el Fast Track
-                          </span>
-
-                          <ul class="rule-rows">
-                            <li class="rule-row" [class.off]="!ftActive('minPolicyAgeMonths')">
-                              <app-switch
-                                [checked]="ftActive('minPolicyAgeMonths')"
-                                ariaLabel="Antigüedad mínima de la póliza"
+                        <!-- One list, as the engine sees it: the claim is Fast Track only if every
+                             block holds (ClassificationOrchestrator). Locked blocks are set on
+                             other screens; there is no "or", so no connector between blocks. -->
+                        <app-rule-group heading="Es Fast Track si cumple todas las condiciones">
+                          @if (ftShown('age')) {
+                            <app-rule-block
+                              [removable]="!readOnly()"
+                              [disabled]="readOnly()"
+                              [missing]="ftMissing('age')"
+                              (remove)="removeFtCondition('age')"
+                            >
+                              <span>Póliza con una antigüedad de al menos</span>
+                              <app-months-input
+                                [months]="d.fastTrack.minPolicyAgeMonths"
                                 [disabled]="readOnly()"
-                                (checkedChange)="toggleFtThreshold('minPolicyAgeMonths')"
+                                (monthsChange)="setMinPolicyAge($event)"
                               />
-                              <div class="rule-text">
-                                <span class="rule-label">Antigüedad mínima de la póliza</span>
-                              </div>
-                              @if (ftActive('minPolicyAgeMonths')) {
-                                <div class="rule-value">
-                                  <app-months-input
-                                    [months]="d.fastTrack.minPolicyAgeMonths"
-                                    [disabled]="readOnly()"
-                                    (monthsChange)="setMinPolicyAge($event)"
-                                  />
-                                </div>
-                              } @else {
-                                <span class="rule-off-note t-note">Sin mínimo</span>
+                              @if (ftMissing('age') && !readOnly()) {
+                                <p blockError role="alert">
+                                  Escribí un valor o quitá la condición.
+                                </p>
                               }
-                            </li>
-
-                            <li class="rule-row" [class.off]="!ftActive('maxPriorClaims')">
-                              <app-switch
-                                [checked]="ftActive('maxPriorClaims')"
-                                ariaLabel="Siniestros previos máximos"
-                                [disabled]="readOnly()"
-                                (checkedChange)="toggleFtThreshold('maxPriorClaims')"
-                              />
-                              <div class="rule-text">
-                                <span class="rule-label">Siniestros previos máximos</span>
-                              </div>
-                              @if (ftActive('maxPriorClaims')) {
-                                <div class="rule-value">
-                                  <app-input
-                                    type="number"
-                                    [min]="0"
-                                    [value]="ftMaxPriorStr()"
-                                    [disabled]="readOnly()"
-                                    (valueChange)="setMaxPriorClaims($event)"
-                                  />
-                                  <span class="t-note">previos</span>
-                                </div>
-                              } @else {
-                                <span class="rule-off-note t-note">Sin límite</span>
-                              }
-                            </li>
-
-                            <!-- Only with the threshold above enabled: the window just bounds which
-                               prior claims are counted. -->
-                            @if (ftActive('maxPriorClaims')) {
-                              <li class="rule-row nested" @accordion>
-                                <div class="rule-text">
-                                  <span class="rule-label">Ventana de siniestros previos</span>
-                                </div>
-                                <div class="rule-value">
-                                  <app-months-input
-                                    [months]="d.fastTrack.priorClaimsWindowMonths"
-                                    [disabled]="readOnly()"
-                                    (monthsChange)="setPriorClaimsWindow($event)"
-                                    placeholder="Sin límite"
-                                  />
-                                </div>
-                              </li>
-                            }
-
-                            <li class="rule-row" [class.off]="!ftActive('maxClaimedAmountRatio')">
-                              <app-switch
-                                [checked]="ftActive('maxClaimedAmountRatio')"
-                                ariaLabel="Monto reclamado máximo"
-                                [disabled]="readOnly()"
-                                (checkedChange)="toggleFtThreshold('maxClaimedAmountRatio')"
-                              />
-                              <div class="rule-text">
-                                <span class="rule-label">Monto reclamado máximo</span>
-                              </div>
-                              @if (ftActive('maxClaimedAmountRatio')) {
-                                <div class="rule-value">
-                                  <app-input
-                                    type="number"
-                                    [min]="0"
-                                    [value]="ftMaxRatioPct()"
-                                    [disabled]="readOnly()"
-                                    (valueChange)="setFtMaxRatio($event)"
-                                  />
-                                  <span class="t-note">% de la suma</span>
-                                </div>
-                              } @else {
-                                <span class="rule-off-note t-note">Sin límite</span>
-                              }
-                            </li>
-
-                            <li class="rule-row" [class.off]="!d.fastTrack.requiresUpToDatePolicy">
-                              <app-switch
-                                [checked]="d.fastTrack.requiresUpToDatePolicy"
-                                ariaLabel="Exige póliza al día"
-                                [disabled]="readOnly()"
-                                (checkedChange)="toggleFtRequiresUpToDate()"
-                              />
-                              <div class="rule-text">
-                                <span class="rule-label">Exige póliza al día</span>
-                              </div>
-                              <span class="rule-off-note t-note">
-                                {{ d.fastTrack.requiresUpToDatePolicy ? 'Sí' : 'No se exige' }}
-                              </span>
-                            </li>
-                          </ul>
-                        </div>
-
-                        <div class="cov-section">
-                          <span class="t-section-label">Documentos que exige el Fast Track</span>
-                          @if (ftDocOptions().length === 0) {
-                            <p class="t-note">Esta cobertura no tiene documentos en la agenda.</p>
-                          } @else {
-                            <div class="check-list">
-                              @for (doc of ftDocOptions(); track doc.code) {
-                                <app-checkbox
-                                  [class.stale]="doc.outsideSchedule"
-                                  [checked]="isFtDoc(doc.code)"
-                                  [disabled]="readOnly()"
-                                  (checkedChange)="toggleFtDoc(doc.code)"
-                                >
-                                  {{ doc.label }}
-                                </app-checkbox>
-                              }
-                            </div>
-                            @if (ftHasStaleDocs() && !readOnly()) {
-                              <span class="field-error" role="alert">
-                                Quitá los documentos que ya no están en la agenda.
-                              </span>
-                            }
+                            </app-rule-block>
                           }
-                        </div>
+
+                          @if (ftShown('prior')) {
+                            <app-rule-block
+                              [removable]="!readOnly()"
+                              [disabled]="readOnly()"
+                              [missing]="ftMissing('prior')"
+                              (remove)="removeFtCondition('prior')"
+                            >
+                              <span>Hasta</span>
+                              <app-input
+                                class="ft-number"
+                                type="number"
+                                [min]="0"
+                                [value]="ftMaxPriorStr()"
+                                [disabled]="readOnly()"
+                                (valueChange)="setMaxPriorClaims($event)"
+                              />
+                              <span>siniestros previos en los últimos</span>
+                              <!-- The window only bounds which prior claims count. -->
+                              <app-months-input
+                                [months]="d.fastTrack.priorClaimsWindowMonths"
+                                [disabled]="readOnly()"
+                                (monthsChange)="setPriorClaimsWindow($event)"
+                                placeholder="Sin límite"
+                              />
+                              @if (ftMissing('prior') && !readOnly()) {
+                                <p blockError role="alert">
+                                  Escribí un valor o quitá la condición.
+                                </p>
+                              }
+                            </app-rule-block>
+                          }
+
+                          @if (ftShown('amount')) {
+                            <app-rule-block
+                              [removable]="!readOnly()"
+                              [disabled]="readOnly()"
+                              [missing]="ftMissing('amount')"
+                              (remove)="removeFtCondition('amount')"
+                            >
+                              <span>Monto reclamado de hasta el</span>
+                              <app-input
+                                class="ft-number"
+                                type="number"
+                                [min]="0"
+                                [value]="ftMaxRatioPct()"
+                                [disabled]="readOnly()"
+                                (valueChange)="setFtMaxRatio($event)"
+                              />
+                              <span>% de la suma asegurada</span>
+                              @if (ftMissing('amount') && !readOnly()) {
+                                <p blockError role="alert">
+                                  Escribí un valor o quitá la condición.
+                                </p>
+                              }
+                            </app-rule-block>
+                          }
+
+                          @if (ftShown('upToDate')) {
+                            <app-rule-block
+                              [removable]="!readOnly()"
+                              [disabled]="readOnly()"
+                              (remove)="removeFtCondition('upToDate')"
+                            >
+                              <span>Póliza al día con sus pagos</span>
+                            </app-rule-block>
+                          }
+
+                          @if (ftShown('docs')) {
+                            <app-rule-block
+                              [removable]="!readOnly()"
+                              [disabled]="readOnly()"
+                              [missing]="ftMissing('docs') || ftHasStaleDocs()"
+                              (remove)="removeFtCondition('docs')"
+                            >
+                              <span>Adjuntó</span>
+                              @if (ftDocOptions().length === 0) {
+                                <span class="t-note">
+                                  Esta cobertura no tiene documentos en la agenda.
+                                </span>
+                              } @else {
+                                <div class="check-list">
+                                  @for (doc of ftDocOptions(); track doc.code) {
+                                    <app-checkbox
+                                      [class.stale]="doc.outsideSchedule"
+                                      [checked]="isFtDoc(doc.code)"
+                                      [disabled]="readOnly()"
+                                      (checkedChange)="toggleFtDoc(doc.code)"
+                                    >
+                                      {{ doc.label }}
+                                    </app-checkbox>
+                                  }
+                                </div>
+                              }
+                              @if (ftHasStaleDocs() && !readOnly()) {
+                                <p blockError role="alert">
+                                  Quitá los documentos que ya no están en la agenda.
+                                </p>
+                              } @else if (ftMissing('docs') && !readOnly()) {
+                                <p blockError role="alert">
+                                  Marcá al menos un documento o quitá la condición.
+                                </p>
+                              }
+                            </app-rule-block>
+                          }
+
+                          @if (ftTermsApply()) {
+                            <app-rule-block [locked]="true">
+                              <span>Cumple los plazos y topes de la cobertura</span>
+                              <button
+                                blockAside
+                                type="button"
+                                class="block-link"
+                                (click)="setCoverageTab('terms')"
+                              >
+                                Plazos y topes
+                              </button>
+                            </app-rule-block>
+                          }
+                          @if (ftArrearsApplies()) {
+                            <app-rule-block [locked]="true">
+                              <span>La póliza no está en mora</span>
+                              <button
+                                blockAside
+                                type="button"
+                                class="block-link"
+                                (click)="openGeneralView('hardStop')"
+                              >
+                                Hard Stop
+                              </button>
+                            </app-rule-block>
+                          }
+                          <app-rule-block [locked]="true">
+                            <span
+                              >La póliza alcanza al damnificado y tiene suma asegurada
+                              disponible</span
+                            >
+                          </app-rule-block>
+                          @if (fraudBlocksFastTrack()) {
+                            <app-rule-block [locked]="true">
+                              <span>El asegurado no tiene un antecedente de fraude vigente</span>
+                              <button
+                                blockAside
+                                type="button"
+                                class="block-link"
+                                (click)="openGeneralView('fraud')"
+                              >
+                                Gestión de fraude
+                              </button>
+                            </app-rule-block>
+                          }
+
+                          <div groupFooter class="ft-footer">
+                            @if (ftEmpty() && !readOnly()) {
+                              <p class="field-error" role="alert">Agregá al menos una condición.</p>
+                            }
+                            @if (!readOnly() && ftAddOptions().length > 0) {
+                              <app-menu-button
+                                size="sm"
+                                [items]="ftAddOptions()"
+                                (itemSelected)="addFtCondition($event)"
+                              >
+                                + Agregar condición
+                              </app-menu-button>
+                            }
+                          </div>
+                        </app-rule-group>
 
                         <div class="cov-section">
                           <span class="t-section-label">Criterios descriptivos</span>
@@ -739,7 +738,7 @@
                       @if (!readOnly()) {
                         <app-save-bar
                           [dirty]="ftDirty()"
-                          [canSave]="!ftHasStaleDocs()"
+                          [canSave]="ftCanSave()"
                           [saving]="ftSaving()"
                           [error]="ftError()"
                           (save)="saveFastTrack()"
@@ -1052,6 +1051,45 @@
 </div>
 
 <!-- The coverage's own data, spread over four tabs, saves as one. -->
+<!-- A fixed catalog: the switch turns a rule off, there is no "remove". -->
+<ng-template #hardRuleBlock let-rule let-c="c">
+  <app-rule-block [off]="!rule.enabled" [missing]="ruleMissingValue(c, rule)">
+    <app-switch
+      [checked]="rule.enabled"
+      [ariaLabel]="hardRuleLabel(rule.ruleType)"
+      [disabled]="readOnly()"
+      (checkedChange)="toggleHardRule(c.id, rule.ruleType)"
+    />
+    <span
+      >{{ hardRuleLabel(rule.ruleType) }}
+      @if (rule.ruleType === 'MAX_EVENTS_YEAR') {
+        <app-info-tip>
+          Cuenta los siniestros liquidados en esta póliza, de todas sus coberturas, en el año de
+          vigencia.
+        </app-info-tip>
+      }
+    </span>
+    @if (rule.enabled) {
+      <span blockAside class="rule-value">
+        <app-input
+          type="number"
+          [min]="0"
+          [value]="hardRuleValue(c, rule.ruleType)"
+          [disabled]="readOnly()"
+          (valueChange)="setHardRuleValue(c, rule.ruleType, $event)"
+          placeholder="—"
+        />
+        <span class="t-note">{{ hardRuleUnit(rule.ruleType) }}</span>
+      </span>
+    } @else {
+      <span blockAside class="rule-off-note t-note">{{ hardRuleOffNote(rule.ruleType) }}</span>
+    }
+    @if (ruleMissingValue(c, rule) && !readOnly()) {
+      <p blockError role="alert">Escribí un valor o apagá la regla.</p>
+    }
+  </app-rule-block>
+</ng-template>
+
 <ng-template #covSaveBar>
   @if (!readOnly()) {
     <app-save-bar

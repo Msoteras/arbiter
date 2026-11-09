@@ -101,7 +101,7 @@ export const RULE_FIELD_LABELS: Record<string, string> = {
   maxPriorClaims: 'Máximo de siniestros previos',
   priorClaimsWindowMonths: 'Ventana de siniestros previos (meses)',
   minPolicyAgeMonths: 'Antigüedad mínima de la póliza (meses)',
-  requiresUpToDatePolicy: 'Exige póliza al día',
+  requiresUpToDatePolicy: 'Póliza al día',
   requiredDocumentTypes: 'Documentación exigida',
   criteria: 'Criterios',
   exclusions: 'Exclusiones',
@@ -125,8 +125,8 @@ export const RULE_FIELD_LABELS_BY_TYPE: Record<string, Record<string, string>> =
 /** Enum values of a configuration field, as the rule screen shows them. */
 export const RULE_VALUE_LABELS: Record<string, Record<string, string>> = {
   onArrears: {
-    REJECT: 'Rechazar en el alta',
-    STANDBY: 'Permitir el alta y evaluar después',
+    REJECT: 'No dejar denunciar',
+    STANDBY: 'Dejar denunciar',
   },
 };
 
