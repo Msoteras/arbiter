@@ -93,29 +93,40 @@ public class RulesServiceClient {
      * has no {@code COVERAGE_EXCLUSION} rule.
      */
     public List<Long> excludedClaimCauseIds(Long coverageId) {
+        return activeRules(coverageId, "cases-service-claim-causes").stream()
+                .filter(r -> "COVERAGE_EXCLUSION".equals(r.ruleType()) && r.excludedClaimCauseIds() != null)
+                .flatMap(r -> r.excludedClaimCauseIds().stream())
+                .toList();
+    }
+
+    /**
+     * Whether the coverage's {@code WAITING_PERIOD} rule is on. The days live on the coverage, but
+     * the referent turns the check off with the rule, so the days alone don't say it applies.
+     */
+    public boolean waitingPeriodActive(Long coverageId) {
+        return activeRules(coverageId, "cases-service-intake").stream()
+                .anyMatch(r -> "WAITING_PERIOD".equals(r.ruleType()));
+    }
+
+    /** rules-service only returns the active rows. */
+    private List<EvaluableRuleJson> activeRules(Long coverageId, String caller) {
         EvaluableRulesResponse resp;
         try {
-            String serviceToken = JwtSupport.issueServiceToken(jwtKey, "cases-service-claim-causes", TenantContext.get());
+            String serviceToken = JwtSupport.issueServiceToken(jwtKey, caller, TenantContext.get());
             resp = restClient.get()
                     .uri(uri -> uri.path("/api/v1/rules/internal/evaluable").queryParam("coverageId", coverageId).build())
                     .header(HttpHeaders.AUTHORIZATION, "Bearer " + serviceToken)
                     .retrieve()
                     .body(EvaluableRulesResponse.class);
         } catch (HttpClientErrorException e) {
-            log.error("rules-service refused the coverage exclusions for coverage {}: {}", coverageId,
+            log.error("rules-service refused the evaluable rules for coverage {}: {}", coverageId,
                     e.getResponseBodyAsString());
             throw new RulesMisconfiguredException(e);
         } catch (Exception e) {
-            log.error("Could not read the coverage exclusions for coverage {}", coverageId, e);
+            log.error("Could not read the evaluable rules for coverage {}", coverageId, e);
             throw new RulesUnavailableException(e);
         }
-        if (resp == null || resp.rules() == null) {
-            return List.of();
-        }
-        return resp.rules().stream()
-                .filter(r -> "COVERAGE_EXCLUSION".equals(r.ruleType()) && r.excludedClaimCauseIds() != null)
-                .flatMap(r -> r.excludedClaimCauseIds().stream())
-                .toList();
+        return resp == null || resp.rules() == null ? List.of() : resp.rules();
     }
 
     /** Mirrors rules-service's EvaluableRulesDto/EvaluableRuleDto (only the fields this client reads). */
