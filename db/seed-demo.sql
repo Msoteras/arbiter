@@ -254,19 +254,21 @@ BEGIN
 
     EXECUTE format($ddl$
         INSERT INTO %I.factor_weight (id, factor_code, weight, scoring_configuration_id) VALUES
-            (1, 'amount_ratio', 0.14, 1),
-            (2, 'claim_frequency', 0.11, 1),
-            (3, 'policy_standing', 0.06, 1),
-            (4, 'image_reuse', 0.16, 1),
-            (5, 'image_web_match', 0.13, 1),
+            (1, 'amount_ratio', 0.11, 1),
+            (2, 'claim_frequency', 0.09, 1),
+            (3, 'policy_standing', 0.05, 1),
+            (4, 'image_reuse', 0.13, 1),
+            (5, 'image_web_match', 0.11, 1),
             -- Heaviest factor, being the only one backed by a human-verified fact, but not
             -- enough alone to reach CRITICAL. Skipped without an active FRAUD_RECORD rule.
-            (6, 'fraud_history', 0.19, 1),
+            (6, 'fraud_history', 0.15, 1),
             -- Loaded from the referente panel on 25/09/2026 in both insurers, once its two false
             -- positives were fixed (amount vs. the wrong document, the purchase proof's date).
-            (7, 'document_inconsistency', 0.13, 1),
+            (7, 'document_inconsistency', 0.10, 1),
             -- Weak signal on its own: plenty of honest buyers insure at the point of sale.
-            (8, 'purchase_to_report_time', 0.08, 1)
+            (8, 'purchase_to_report_time', 0.06, 1),
+            -- Same weights as migration 2026-11-05: the model's reading is the heaviest single factor.
+            (9, 'llm_recommendation', 0.20, 1)
         $ddl$, p_schema);
 
     EXECUTE format($ddl$
