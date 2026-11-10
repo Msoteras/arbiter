@@ -19,18 +19,14 @@
 }
 
 .t-section-label {
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-medium);
-  text-transform: var(--label-case);
-  letter-spacing: calc(0.05em * var(--label-tracking));
-  color: var(--text-tertiary);
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-primary);
 }
 
 /* Field label in data sheets (the dt of a dl). */
 .t-field-label {
-  font-size: var(--font-size-2xs);
-  text-transform: var(--label-case);
-  letter-spacing: calc(0.04em * var(--label-tracking));
+  font-size: var(--font-size-sm);
   color: var(--text-muted);
 }
 

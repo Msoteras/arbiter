@@ -61,10 +61,8 @@ type Tone = 'default' | 'accent' | 'danger';
       min-height: calc(var(--stat-label-lines, 1) * 1.4em);
       line-height: 1.4;
       gap: var(--space-1);
-      font-size: var(--font-size-2xs);
+      font-size: var(--font-size-sm);
       font-weight: var(--font-weight-medium);
-      text-transform: var(--label-case);
-      letter-spacing: calc(0.08em * var(--label-tracking));
       color: var(--text-muted);
     }
     .stat-value {

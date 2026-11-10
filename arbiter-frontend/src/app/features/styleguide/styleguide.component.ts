@@ -1413,9 +1413,7 @@ interface Swatch {
     }
     .sg-h3 {
       margin: 0 0 var(--space-3);
-      font-size: var(--font-size-2xs);
-      text-transform: var(--label-case);
-      letter-spacing: calc(0.05em * var(--label-tracking));
+      font-size: var(--font-size-sm);
       color: var(--text-tertiary);
       font-weight: var(--font-weight-medium);
     }

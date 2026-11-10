@@ -147,10 +147,8 @@ export type DistributionShape = 'bar' | 'ring';
       color: var(--text-primary);
     }
     .ring-caption {
-      font-size: var(--font-size-2xs);
+      font-size: var(--font-size-sm);
       font-weight: var(--font-weight-medium);
-      text-transform: var(--label-case);
-      letter-spacing: calc(0.08em * var(--label-tracking));
       color: var(--text-muted);
     }
 

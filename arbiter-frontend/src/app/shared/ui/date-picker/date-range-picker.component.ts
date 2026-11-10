@@ -149,10 +149,8 @@ type RangeEnd = 'from' | 'to';
       box-shadow: var(--focus-ring);
     }
     .end-label {
-      font-size: var(--font-size-2xs);
+      font-size: var(--font-size-sm);
       font-weight: var(--font-weight-medium);
-      text-transform: var(--label-case);
-      letter-spacing: calc(0.06em * var(--label-tracking));
       color: var(--text-muted);
     }
     .end.active .end-label {

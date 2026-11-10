@@ -204,9 +204,7 @@ export class MenuButtonRegistry {
 
     .heading {
       padding: var(--space-1) var(--space-3) var(--space-2);
-      font-size: var(--font-size-2xs);
-      text-transform: var(--label-case);
-      letter-spacing: calc(0.04em * var(--label-tracking));
+      font-size: var(--font-size-sm);
       color: var(--text-muted);
     }
     .danger-sep {

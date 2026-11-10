@@ -80,14 +80,14 @@ import {
       white-space: nowrap;
     }
     :host ::ng-deep .table thead th {
-      font-size: var(--font-size-xs);
-      text-transform: var(--label-case);
-      letter-spacing: calc(0.04em * var(--label-tracking));
-      color: var(--text-muted);
+      font-size: var(--font-size-sm);
+      font-weight: var(--font-weight-medium);
+      color: var(--text-tertiary);
       background: var(--surface-head);
       border-bottom: 1px solid var(--border-default);
     }
-    :host ::ng-deep .table tbody tr:not(:last-child) td {
+    :host ::ng-deep .table tbody tr:not(:last-child) > td,
+    :host ::ng-deep .table tbody tr:not(:last-child) > th {
       border-bottom: 1px solid var(--border-subtle);
     }
 

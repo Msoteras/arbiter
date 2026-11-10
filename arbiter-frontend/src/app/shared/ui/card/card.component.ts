@@ -178,19 +178,11 @@ type Variant = 'default' | 'soft' | 'ai';
     .card-aside:empty {
       display: none;
     }
+    /* sm reads like .t-section-label. */
     .card-title {
       margin: 0;
-      font-size: var(--font-size-xs);
-      font-weight: var(--font-weight-medium);
-      text-transform: var(--label-case);
-      letter-spacing: calc(0.05em * var(--label-tracking));
-      color: var(--text-tertiary);
-    }
-    .card-title.md,
-    .card-title.lg {
+      font-size: var(--font-size-body);
       font-weight: var(--font-weight-bold);
-      text-transform: none;
-      letter-spacing: normal;
       color: var(--text-primary);
     }
     .card-title.md {

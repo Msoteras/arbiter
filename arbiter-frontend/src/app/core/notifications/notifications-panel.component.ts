@@ -113,10 +113,8 @@ const NOTIFICATION_TITLES: Record<string, string> = {
       margin-bottom: var(--space-1);
     }
     .notif-panel-title {
-      font-size: var(--font-size-2xs);
+      font-size: var(--font-size-sm);
       font-weight: var(--font-weight-medium);
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
       color: var(--text-muted);
     }
     .notif-panel-body {

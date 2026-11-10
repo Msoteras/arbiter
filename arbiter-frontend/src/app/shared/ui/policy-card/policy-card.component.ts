@@ -126,10 +126,8 @@ import { BadgeComponent } from '../badge/badge.component';
       gap: var(--space-3);
     }
     .policy-insurer {
-      font-size: var(--font-size-2xs);
+      font-size: var(--font-size-sm);
       font-weight: var(--font-weight-medium);
-      text-transform: var(--label-case);
-      letter-spacing: calc(0.1em * var(--label-tracking));
       color: var(--accent-fg);
     }
     .policy-number {
