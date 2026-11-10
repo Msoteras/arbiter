@@ -16,6 +16,7 @@
   --surface-soft: var(--c-bg-soft);
   --surface-sunken: var(--c-bg-soft-2);
   --surface-head: var(--c-bg-head);
+  --surface-canvas: var(--c-canvas);
 
   /* ===== Borders ===== */
   --border-subtle: var(--c-divider);
@@ -65,13 +66,27 @@
   );
   --brand-panel-fg: var(--c-on-ink);
 
-  /* ===== App chrome (fixed topbar + nav panel) ===== */
-  --chrome-bg: var(--c-ink);
-  --chrome-fg: var(--c-on-ink);
-  --chrome-muted: var(--c-muted-2);
-  --chrome-item-active: var(--c-ink-raised);
-  --chrome-hair: var(--c-ink-hair);
-  --chrome-avatar-bg: var(--c-ink-raised-2);
+  /* ===== App chrome: top bar =====
+     White over the canvas, split from the screen by a hairline (shadcn/ui blocks). */
+  --chrome-bg: var(--c-bg);
+  --chrome-fg: var(--c-ink);
+  --chrome-muted: var(--c-muted);
+  --chrome-item-active: var(--c-bg-soft-2);
+  --chrome-hair: var(--c-border);
+  --chrome-avatar-bg: var(--c-border);
+
+  /* ===== App chrome: sidebar =====
+     Dark, like the old nav panel: the navigation reads as a frame around the light screens. The
+     active icon takes the plain teal, which holds contrast on ink where --accent-fg would not. */
+  --sidebar-bg: var(--c-ink);
+  --sidebar-fg: var(--c-muted-3);
+  --sidebar-muted: var(--c-muted-2);
+  --sidebar-accent: var(--c-ink-raised);
+  --sidebar-accent-fg: var(--c-on-ink);
+  --sidebar-border: var(--c-ink-hair);
+  --sidebar-avatar-bg: var(--c-ink-raised-2);
+  --sidebar-active-icon: var(--accent);
+  --sidebar-focus-ring: 0 0 0 2px var(--accent);
 
   /* ===== Secondary action (outlined button) ===== */
   --action-secondary-bg: var(--c-bg);

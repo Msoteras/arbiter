@@ -34,6 +34,8 @@ import { ChipGroupComponent, ChipOption } from '../../shared/ui/chip-group/chip-
 import { TabOption, TabsComponent } from '../../shared/ui/tabs/tabs.component';
 import { TabLink, TabNavComponent } from '../../shared/ui/tabs/tab-nav.component';
 import { IconButtonComponent } from '../../shared/ui/icon-button/icon-button.component';
+import { IconComponent, IconName } from '../../shared/ui/icon/icon.component';
+import { SidebarTriggerComponent } from '../../shared/ui/sidebar/sidebar-trigger.component';
 import { SwitchComponent } from '../../shared/ui/switch/switch.component';
 import {
   DatePickerComponent,
@@ -82,6 +84,8 @@ interface Swatch {
     TabsComponent,
     TabNavComponent,
     IconButtonComponent,
+    IconComponent,
+    SidebarTriggerComponent,
     ButtonComponent,
     BadgeComponent,
     InfoTipComponent,
@@ -341,6 +345,36 @@ interface Swatch {
           <app-icon-button icon="settings" label="Configurar" />
           <app-icon-button icon="edit" label="Editar" [disabled]="true" />
           <app-icon-button icon="edit" label="Editar" size="sm" />
+        </div>
+      </section>
+
+      <section class="sg-block">
+        <h3 class="sg-h3">Icon</h3>
+        <p class="sg-p">
+          Íconos de Lucide, el set de shadcn/ui, copiados como markup. Conjunto cerrado: un ícono
+          nuevo es un caso nuevo en <span class="mono">app-icon</span>. Son decorativos; el nombre
+          accesible lo lleva el control que los contiene.
+        </p>
+        <div class="row">
+          @for (name of iconNames; track name) {
+            <span class="sg-icon" [title]="name"><app-icon [name]="name" /></span>
+          }
+        </div>
+      </section>
+
+      <section class="sg-block">
+        <h3 class="sg-h3">Sidebar</h3>
+        <p class="sg-p">
+          La barra lateral de los roles internos, como el bloque de shadcn/ui que colapsa a íconos:
+          <span class="mono">app-sidebar</span> con los slots
+          <span class="mono">[sidebarHeader]</span> y <span class="mono">[sidebarFooter]</span>,
+          <span class="mono">app-sidebar-group</span> y
+          <span class="mono">a[app-sidebar-link]</span>. Plegada, cada entrada muestra su nombre en
+          un tooltip. Se pliega con el disparador, con el borde o con Ctrl+B; en el teléfono se abre
+          sobre la pantalla.
+        </p>
+        <div class="row">
+          <app-sidebar-trigger />
         </div>
       </section>
 
@@ -1566,6 +1600,22 @@ interface Swatch {
   `,
 })
 export class StyleguideComponent {
+  protected readonly iconNames: IconName[] = [
+    'home',
+    'inbox',
+    'messages',
+    'dashboard',
+    'reports',
+    'rules',
+    'users',
+    'settlements',
+    'panel-left',
+    'chevrons-up-down',
+    'log-out',
+    'rotate-ccw',
+    'bell',
+    'arrow-left',
+  ];
   /** Status palette: a case status does communicate an outcome. */
   protected readonly statusDistribution: DistributionItem[] = [
     { label: 'Aprobado', count: 24, tone: 'ok' },

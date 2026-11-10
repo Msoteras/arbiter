@@ -52,8 +52,10 @@
   /* ===== Color: backgrounds ===== */
   --c-bg: #ffffff;
   --c-bg-soft: #fbfaf7;
-  --c-bg-soft-2: #f4f3ee; /* app canvas */
+  --c-bg-soft-2: #f4f3ee;
   --c-bg-head: #faf9f6;
+  /* The page behind the cards. .theme-zinc leaves it alone: the canvas stays "paper". */
+  --c-canvas: #f4f3ee;
   --c-grid-dot: #d6d4cc; /* dotted background of a diagram */
 
   /* ===== Spacing (4px base) ===== */
@@ -95,8 +97,23 @@
   --font-weight-bold: 700;
 
   /* ===== Chrome layout =====
-     Global because any sticky header on an internal screen must anchor below the fixed topbar. */
+     Global because any sticky header on an internal screen must anchor below the sticky top bar.
+     The internal roles' shell swaps --appbar-h for the compact height while the sidebar shows only
+     its icons, as in shadcn/ui's sidebar blocks. */
   --appbar-h: 56px;
+  --appbar-h-compact: 48px;
+  --sidebar-w: 16rem;
+  --sidebar-w-icon: 3rem;
+  --sidebar-w-mobile: 18rem;
+  --sidebar-item-h: 32px;
+  --sidebar-item-h-lg: 48px;
+  --sidebar-rail-w: 16px;
+  /* The spotlight strip: the frame's padding and gap, its action column, the narrowest its aside
+     gets and the hero's floor. */
+  --spotlight-gap: 6px;
+  --spotlight-actions-w: 280px;
+  --spotlight-aside-min-w: 200px;
+  --spotlight-min-h: 196px;
   /* Progress line pinned to the top of the viewport while a request is in flight. */
   --activity-bar-h: 2px;
   /* Toast width (same as Sonner's): fits a title, a description line and an action. */

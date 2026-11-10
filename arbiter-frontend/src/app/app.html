@@ -5,8 +5,7 @@
   [class.app-shell]="showShell()"
   [class.app-shell--top]="showShell() && showInsuredNav()"
   [class.app-shell--chrome]="showShell() && !showInsuredNav()"
-  [class.nav-open]="navOpen()"
-  [class.nav-overlay]="overlayNav()"
+  [class.sidebar-collapsed]="sidebar.collapsed()"
 >
   @if (showShell()) {
     @if (showInsuredNav()) {
@@ -139,24 +138,87 @@
         }
       </header>
     } @else {
+      <app-sidebar>
+        @for (group of navGroups(); track group.label) {
+          <app-sidebar-group [label]="group.label">
+            @for (item of group.items; track item.path) {
+              <a
+                app-sidebar-link
+                [icon]="item.icon"
+                [label]="item.label"
+                [routerLink]="item.path"
+                routerLinkActive="active"
+              >
+                @if (item.unread && messages.unreadChats() > 0) {
+                  <span class="nav-badge">{{ messages.unreadChats() }}</span>
+                  <span class="sr-only">sin leer</span>
+                }
+                @if (item.pending && onboarding.pendingAreas().has(item.pending)) {
+                  <span class="nav-pending" aria-hidden="true"></span>
+                  <span class="sr-only">(pasos pendientes)</span>
+                }
+              </a>
+            }
+          </app-sidebar-group>
+        }
+
+        @if (session.session(); as s) {
+          <div sidebarFooter class="sb-user">
+            <button
+              type="button"
+              class="sb-user-btn"
+              [attr.aria-expanded]="profileOpen()"
+              aria-haspopup="menu"
+              [attr.aria-label]="'Perfil de ' + s.nombre + ' ' + s.apellido"
+              (click)="toggleProfile($event)"
+            >
+              <span class="sb-avatar">{{ initials(s.nombre, s.apellido) }}</span>
+              <span class="sb-user-text">
+                <span class="sb-user-name">{{ s.nombre }} {{ s.apellido }}</span>
+                <span class="sb-user-role">{{ roleLabel(s.rol) }}</span>
+              </span>
+              <app-icon name="chevrons-up-down" class="sb-user-chevron" />
+            </button>
+
+            @if (profileOpen()) {
+              <!-- Item clicks bubble to document, where the @HostListener closes the menu. -->
+              <div class="profile-menu sb-user-menu" role="menu">
+                <div class="profile-head">
+                  <span class="sb-avatar">{{ initials(s.nombre, s.apellido) }}</span>
+                  <span class="sb-user-text">
+                    <span class="profile-name">{{ s.nombre }} {{ s.apellido }}</span>
+                    <span class="profile-role">{{ s.email }}</span>
+                  </span>
+                </div>
+                @if (showAdminNav()) {
+                  <button
+                    type="button"
+                    role="menuitem"
+                    class="profile-item"
+                    (click)="requestOnboardingReset()"
+                  >
+                    <app-icon name="rotate-ccw" />
+                    Reiniciar puesta en marcha
+                  </button>
+                }
+                <button
+                  type="button"
+                  role="menuitem"
+                  class="profile-item"
+                  (click)="requestLogout()"
+                >
+                  <app-icon name="log-out" />
+                  Cerrar sesión
+                </button>
+              </div>
+            }
+          </div>
+        }
+      </app-sidebar>
+
       <header class="appbar">
-        <button
-          type="button"
-          class="appbar-icon-btn appbar-burger"
-          [attr.aria-expanded]="navOpen()"
-          aria-controls="app-nav"
-          [attr.aria-label]="navOpen() ? 'Ocultar navegación' : 'Mostrar navegación'"
-          (click)="toggleNav()"
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
-            <path
-              d="M4 7h16M4 12h16M4 17h16"
-              stroke="currentColor"
-              stroke-width="1.7"
-              stroke-linecap="round"
-            />
-          </svg>
-        </button>
+        <app-sidebar-trigger class="appbar-trigger" />
+        <span class="appbar-sep" aria-hidden="true"></span>
 
         <a class="appbar-brand" [routerLink]="homeLink()">
           <app-logo variant="symbol" class="appbar-logo" />
@@ -166,8 +228,7 @@
         @if (session.session()?.insurerName; as insurer) {
           <span class="appbar-tenant" [title]="insurer">
             @if (insurerLogo.logoUrl(); as logo) {
-              <!-- The logo usually carries the name: it stands alone, on a light plate so a dark
-                   mark still reads on the dark bar. -->
+              <!-- The logo usually carries the name: it stands alone, on a plate. -->
               <span class="appbar-tenant-plate">
                 <img class="appbar-tenant-logo" [src]="logo" [alt]="insurer" />
               </span>
@@ -179,14 +240,12 @@
           </span>
         }
 
-        <nav class="appbar-nav">
-          <a [routerLink]="homeLink()" routerLinkActive="active">Inicio</a>
-          @if (showBack()) {
-            <button type="button" class="appbar-back" (click)="goBack()">
-              <span aria-hidden="true">‹</span> Volver a la bandeja
-            </button>
-          }
-        </nav>
+        @if (showBack()) {
+          <button type="button" class="appbar-back" (click)="goBack()">
+            <app-icon name="arrow-left" />
+            Volver a la bandeja
+          </button>
+        }
 
         <div class="appbar-actions">
           <app-global-search class="appbar-search" />
@@ -204,26 +263,7 @@
                     : 'Notificaciones'
                 "
               >
-                <svg
-                  width="18"
-                  height="18"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="1.6"
-                  aria-hidden="true"
-                >
-                  <path
-                    d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                  />
-                  <path
-                    d="M13.73 21a2 2 0 0 1-3.46 0"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                  />
-                </svg>
+                <app-icon name="bell" />
                 @if (notifications.hasUnread()) {
                   <span class="bell-count" aria-hidden="true">{{
                     notifications.unreadCount()
@@ -235,126 +275,8 @@
               }
             </div>
           }
-
-          @if (session.session(); as s) {
-            <div class="appbar-profile">
-              <button
-                type="button"
-                class="appbar-avatar-btn"
-                [attr.aria-expanded]="profileOpen()"
-                aria-haspopup="menu"
-                [attr.aria-label]="'Perfil de ' + s.nombre + ' ' + s.apellido"
-                (click)="toggleProfile($event)"
-              >
-                <span class="appbar-avatar">{{ initials(s.nombre, s.apellido) }}</span>
-                <span class="appbar-caret" aria-hidden="true">▾</span>
-              </button>
-
-              @if (profileOpen()) {
-                <div class="profile-menu" role="menu">
-                  <div class="profile-head">
-                    <span class="profile-name">{{ s.nombre }} {{ s.apellido }}</span>
-                    <span class="profile-role">{{ roleLabel(s.rol) }}</span>
-                    @if (s.insurerName) {
-                      <span class="profile-role">{{ s.insurerName }}</span>
-                    }
-                  </div>
-                  @if (showAdminNav()) {
-                    <button
-                      type="button"
-                      role="menuitem"
-                      class="profile-item"
-                      (click)="requestOnboardingReset()"
-                    >
-                      Reiniciar puesta en marcha
-                    </button>
-                  }
-                  <button
-                    type="button"
-                    role="menuitem"
-                    class="profile-item"
-                    (click)="requestLogout()"
-                  >
-                    Cerrar sesión
-                  </button>
-                </div>
-              }
-            </div>
-          }
         </div>
       </header>
-
-      @if (navOpen() && overlayNav()) {
-        <div class="nav-scrim" (click)="closeNav()" aria-hidden="true"></div>
-      }
-
-      <aside class="navpanel" id="app-nav" [attr.inert]="navOpen() ? null : ''">
-        <nav class="navpanel-nav">
-          <p class="navpanel-group">Operación</p>
-          @if (showAnalystNav()) {
-            <a routerLink="/inbox" routerLinkActive="active"
-              ><span class="nav-dot"></span>Bandeja</a
-            >
-            <a routerLink="/messages" routerLinkActive="active"
-              ><span class="nav-dot"></span>Mensajes
-              @if (messages.unreadChats() > 0) {
-                <span class="nav-badge">{{ messages.unreadChats() }}</span>
-              }
-            </a>
-            <a routerLink="/insurer/dashboard" routerLinkActive="active"
-              ><span class="nav-dot"></span>Dashboard</a
-            >
-            <a routerLink="/insurer/reports" routerLinkActive="active"
-              ><span class="nav-dot"></span>Reportes</a
-            >
-            <a routerLink="/engine" routerLinkActive="active"
-              ><span class="nav-dot"></span>Arbiter</a
-            >
-            <a routerLink="/insurer/rules" routerLinkActive="active"
-              ><span class="nav-dot"></span>Reglas</a
-            >
-          }
-          @if (showAdminNav()) {
-            <a routerLink="/inbox" routerLinkActive="active"
-              ><span class="nav-dot"></span>Expedientes</a
-            >
-            <a routerLink="/messages" routerLinkActive="active"
-              ><span class="nav-dot"></span>Mensajes
-              @if (messages.unreadChats() > 0) {
-                <span class="nav-badge">{{ messages.unreadChats() }}</span>
-              }
-            </a>
-            <a routerLink="/insurer/dashboard" routerLinkActive="active"
-              ><span class="nav-dot"></span>Dashboard</a
-            >
-            <a routerLink="/insurer/reports" routerLinkActive="active"
-              ><span class="nav-dot"></span>Reportes</a
-            >
-            <a routerLink="/engine" routerLinkActive="active"
-              ><span class="nav-dot"></span>Arbiter</a
-            >
-
-            <p class="navpanel-group">Gestión</p>
-            <a routerLink="/insurer/users" routerLinkActive="active"
-              ><span class="nav-dot"></span>Usuarios
-              @if (onboarding.pendingAreas().has('users')) {
-                <span class="nav-pending" aria-hidden="true"></span>
-                <span class="sr-only">(pasos pendientes)</span>
-              }
-            </a>
-            <a routerLink="/insurer/rules" routerLinkActive="active"
-              ><span class="nav-dot"></span>Reglas
-              @if (onboarding.pendingAreas().has('rules')) {
-                <span class="nav-pending" aria-hidden="true"></span>
-                <span class="sr-only">(pasos pendientes)</span>
-              }
-            </a>
-            <a routerLink="/insurer/settlements" routerLinkActive="active"
-              ><span class="nav-dot"></span>Autorizaciones</a
-            >
-          }
-        </nav>
-      </aside>
     }
   }
 
