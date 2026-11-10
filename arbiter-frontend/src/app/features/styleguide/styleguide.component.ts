@@ -1073,6 +1073,24 @@ interface Swatch {
             ariaLabel="Solapas con estado"
           />
         </div>
+        <p class="sg-p">
+          <span class="mono">variant="folder"</span> va arriba de una card: el título de la pantalla
+          a la izquierda (<span class="mono">[tabsLead]</span>) y las solapas como carpetas a la
+          derecha. Debajo de la activa no hay línea. Si el título y las solapas no entran en una
+          fila, las solapas bajan a una fila propia; si tampoco entran ahí, el final de la fila se
+          desvanece.
+        </p>
+        <div class="sg-folder">
+          <app-tabs
+            variant="folder"
+            [tabs]="tabsDemo"
+            [(value)]="tabsDemoValue"
+            ariaLabel="Solapas carpeta de ejemplo"
+          >
+            <h4 tabsLead class="sg-folder-title">Celulares</h4>
+          </app-tabs>
+          <div class="sg-folder-panel"><p class="sg-p">Contenido de la solapa.</p></div>
+        </div>
       </section>
 
       <section class="sg-block">
@@ -1434,6 +1452,32 @@ interface Swatch {
     }
     .sg-skeleton-block {
       height: calc(var(--space-7) * 2);
+    }
+    .sg-folder {
+      --folder-lead-inset: var(--folder-title-inset);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-card);
+      background: var(--surface);
+      box-shadow: var(--shadow-card);
+      margin-top: var(--space-3);
+      overflow: hidden;
+    }
+    .sg-folder-title {
+      margin: 0;
+      font-size: var(--font-size-title);
+      font-weight: var(--font-weight-bold);
+    }
+    .sg-folder-panel {
+      padding: var(--space-4);
+    }
+    .sg-icon {
+      display: grid;
+      place-items: center;
+      width: var(--icon-btn);
+      height: var(--icon-btn);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-ctl);
+      color: var(--text-secondary);
     }
     .row {
       display: flex;

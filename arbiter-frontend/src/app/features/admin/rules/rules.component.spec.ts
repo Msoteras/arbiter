@@ -221,12 +221,13 @@ describe('RulesComponent', () => {
     return [...group.querySelectorAll('.item .label')].map((l) => text(l));
   }
 
+  /** A branch or a coverage titles its folder card; an insurer section, the panel. */
   function title(): string {
-    return text(el().querySelector('.level-title .branch-title'));
+    return text(el().querySelector('.title-lead .folder-title, .level-title .branch-title'));
   }
 
   function levelBadge(): string {
-    return text(el().querySelector('.level-title app-badge'));
+    return text(el().querySelector('.title-lead app-badge, .level-title app-badge'));
   }
 
   function button(label: string): HTMLButtonElement {
@@ -256,7 +257,7 @@ describe('RulesComponent', () => {
     await mount([coverage()]);
 
     expect(title()).toBe('Celulares');
-    expect(levelBadge()).toBe('Ramo');
+    expect(levelBadge()).toBe('');
     expect(activeTab()).toBe('Resumen');
     expect(tabLabels()).toEqual([
       'Resumen',
@@ -277,7 +278,7 @@ describe('RulesComponent', () => {
     expect(treeItem('Celulares').getAttribute('aria-current')).toBe('page');
   });
 
-  it('opens a coverage on its own tabs, with the path back to its branch', async () => {
+  it('opens a coverage on its own tabs, with the way back to its branch', async () => {
     await mount([coverage()]);
 
     openCoverage();
@@ -291,12 +292,9 @@ describe('RulesComponent', () => {
       'Liquidación',
       'Fast Track',
     ]);
-    expect(
-      [...el().querySelectorAll('.crumbs li')].map((li) => text(li).replace(/\s*›$/, '')),
-    ).toEqual(['Ramos', 'Celulares', 'Daño accidental']);
     expect(text(el().querySelector('.inherited'))).toContain('También aplica, del ramo Celulares:');
 
-    click(el().querySelector<HTMLElement>('.crumb-link'));
+    click(treeItem('Celulares'));
 
     expect(title()).toBe('Celulares');
     expect(activeTab()).toBe('Resumen');
@@ -308,7 +306,8 @@ describe('RulesComponent', () => {
 
     click(button('Agenda documental'));
 
-    expect(levelBadge()).toBe('Ramo');
+    expect(title()).toBe('Celulares');
+    expect(levelBadge()).toBe('');
     expect(activeTab()).toBe('Agenda documental');
   });
 
@@ -820,7 +819,8 @@ describe('RulesComponent', () => {
 
       click(button('Descartar cambios'));
 
-      expect(levelBadge()).toBe('Ramo');
+      expect(title()).toBe('Celulares');
+      expect(levelBadge()).toBe('');
       expect(el().querySelector('app-save-bar')?.textContent ?? '').not.toContain(
         'Cambios sin guardar',
       );
@@ -844,8 +844,8 @@ describe('RulesComponent', () => {
   it('lets the referente rename the branch and open Marca', async () => {
     await mount([coverage()]);
 
-    expect(el().querySelector('.rules-head app-badge')).toBeNull();
-    expect(el().querySelector('[aria-label="Renombrar el ramo"]')).not.toBeNull();
+    expect(el().querySelector('.master-head app-badge')).toBeNull();
+    expect(el().querySelector('[aria-label="Editar el ramo Celulares"]')).not.toBeNull();
     expect(sectionLabels()).toContain('Marca');
     expect(treeItem('Celulares').closest('li')?.textContent).toContain('+ Agregar cobertura');
   });
@@ -958,8 +958,8 @@ describe('RulesComponent', () => {
     it('labels the screen as read-only and hides the rename pencil', async () => {
       await mount([coverage()], 'ANALISTA_SINIESTROS');
 
-      expect(text(el().querySelector('.rules-head app-badge'))).toBe('Solo lectura');
-      expect(el().querySelector('[aria-label="Renombrar el ramo"]')).toBeNull();
+      expect(text(el().querySelector('.master-head app-badge'))).toBe('Solo lectura');
+      expect(el().querySelector('[aria-label="Editar el ramo Celulares"]')).toBeNull();
     });
 
     it('lists every insurer section except Marca', async () => {

@@ -1,17 +1,42 @@
+/* Fills the main column, so the card reaches the bottom of the screen. */
 :host {
-  display: block;
-  padding: var(--space-6);
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-5);
 }
 
-.rep-head {
-  margin-bottom: var(--space-4);
+.rep-card {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+  /* The title starts where the text of the cards inside starts. */
+  --folder-lead-inset: var(--folder-title-inset);
 }
-.rep-head h1 {
+
+.rep-title {
   margin: 0;
+  padding-bottom: var(--space-2);
+  font-size: var(--font-size-title);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-primary);
 }
 
-.rep-tabs {
-  margin-bottom: var(--space-5);
+/* The cards inside are flat: the outer card already carries the shadow. The routed report is the
+   panel's flex child, so it can stretch its preview to the bottom. */
+.rep-panel {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: var(--space-4);
+  --card-shadow: none;
+  --card-shadow-hover: none;
 }
 
 @media (max-width: 820px) {

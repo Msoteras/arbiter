@@ -1860,26 +1860,29 @@ export class RulesComponent {
   }
 
   /** Summary on the branch's coverage cards; unset values are omitted rather than shown as "—". */
-  protected coverageSummary(c: Coverage): string[] {
-    const chips: string[] = [];
+  /** Each threshold as a label and its value, the value in bold on the card. */
+  protected coverageSummary(c: Coverage): { label: string; value: string }[] {
+    const chips: { label: string; value: string }[] = [];
     if (c.deductibleRatio != null) {
-      chips.push(
-        `Franquicia ${this.pctFromRatio(c.deductibleRatio)}%` +
+      chips.push({
+        label: 'Franquicia',
+        value:
+          `${this.pctFromRatio(c.deductibleRatio)}%` +
           (c.deductibleBasis === 'LOSS_AMOUNT' ? ' del monto a indemnizar' : ''),
-      );
+      });
     }
     if (c.waitingPeriodDays != null && !this.hardRuleOff(c, 'WAITING_PERIOD')) {
-      chips.push(`Carencia ${c.waitingPeriodDays} d`);
+      chips.push({ label: 'Carencia', value: `${c.waitingPeriodDays} d` });
     }
     if (c.reportDeadlineHours != null && !this.hardRuleOff(c, 'REPORT_DEADLINE')) {
-      chips.push(`Denuncia ${c.reportDeadlineHours} h`);
+      chips.push({ label: 'Denuncia', value: `${c.reportDeadlineHours} h` });
     }
     const police = this.hardRulesOf(c).find((r) => r.ruleType === 'POLICE_DEADLINE');
     if (police?.deadlineHours != null && police.enabled && this.coversACauseWithPoliceReport(c)) {
-      chips.push(`Policial ${police.deadlineHours} h`);
+      chips.push({ label: 'Policial', value: `${police.deadlineHours} h` });
     }
     if (c.maxAnnualClaims != null && !this.hardRuleOff(c, 'MAX_EVENTS_YEAR')) {
-      chips.push(`Máx. ${c.maxAnnualClaims}/año`);
+      chips.push({ label: 'Máx.', value: `${c.maxAnnualClaims}/año` });
     }
     // Covering everything already has its own badge; an unloaded catalog would read as "none".
     const causes = this.claimCauses();
@@ -1887,8 +1890,8 @@ export class RulesComponent {
       const covered = causes.filter((cause) => this.isCauseCovered(c, cause.id));
       chips.push(
         covered.length > 0
-          ? `Cubre ${covered.map((cause) => cause.name).join(', ')}`
-          : 'No cubre ningún hecho',
+          ? { label: 'Cubre', value: covered.map((cause) => cause.name).join(', ') }
+          : { label: 'No cubre', value: 'ningún hecho' },
       );
     }
     return chips;

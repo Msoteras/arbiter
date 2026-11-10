@@ -124,6 +124,28 @@
   /* Narrowest the referent home's setup checklist gets when it sits beside the main content. */
   --setup-column-min: 400px;
 
+  /* Folder tabs (app-tabs variant="folder"): the label sits nearer the divider than the top. */
+  --folder-tab-pad-top: 9px;
+  --folder-tab-pad-x: 14px;
+  /* A folder card's title lines up with the text of the cards inside its panel: card border +
+     panel padding + inner card border + inner card padding. */
+  --folder-title-inset: 33px;
+
+  /* Rules tree (Reglas sidebar): item padding, the coverages' indent under their branch and the
+     counter column, fixed so the counters line up whether a row has a status dot or not. */
+  --tree-item-pad-y: 6px;
+  --tree-indent: 14px;
+  --tree-count-w: 20px;
+  /* Reglas: the sidebar's and the content's base widths; the content grows, the sidebar wraps on
+     top once both no longer fit. */
+  --rules-sidebar-w: 248px;
+  --rules-content-w: 520px;
+  --cov-card-w: 240px;
+  /* app-empty-state fill: the least it shrinks to inside a short card. */
+  --empty-fill-min-h: 200px;
+  /* Reports: the narrowest a parameter field gets before the row wraps. */
+  --report-field-min-w: 180px;
+
   /* Minimum height of a tappable control on touch layouts (WCAG 2.5.5). */
   --touch-target: 44px;
   /* Inline icons and the square button that holds one. */

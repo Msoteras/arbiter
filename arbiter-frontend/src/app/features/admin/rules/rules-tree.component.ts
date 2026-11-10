@@ -64,7 +64,9 @@ const STATUS_LABELS: Record<NonNullable<RulesTreeStatus>, string> = {
                 (click)="pickSection.emit(s.id)"
               >
                 <span class="label">{{ s.label }}</span>
-                <ng-container *ngTemplateOutlet="dot; context: { $implicit: s.status }" />
+                <ng-container
+                  *ngTemplateOutlet="dot; context: { $implicit: s.status, title: null }"
+                />
               </button>
             </li>
           }
@@ -79,7 +81,7 @@ const STATUS_LABELS: Record<NonNullable<RulesTreeStatus>, string> = {
           <ul class="list">
             @for (b of branches(); track b.id) {
               <li>
-                <div class="row">
+                <div class="row" [class.active]="isBranch(b.id)">
                   <button
                     type="button"
                     class="caret"
@@ -102,15 +104,22 @@ const STATUS_LABELS: Record<NonNullable<RulesTreeStatus>, string> = {
                   <button
                     type="button"
                     class="item"
-                    [class.active]="isBranch(b.id)"
                     [attr.aria-current]="isBranch(b.id) ? 'page' : null"
                     (click)="pickBranch.emit(b.id)"
                   >
                     <span class="label">{{ b.name }}</span>
-                    @if (b.count != null) {
-                      <span class="count tabular">{{ b.count }}</span>
-                    }
-                    <ng-container *ngTemplateOutlet="dot; context: { $implicit: b.status }" />
+                    <span class="marks">
+                      <ng-container
+                        *ngTemplateOutlet="
+                          dot;
+                          context: {
+                            $implicit: b.status,
+                            title: b.count === 0 ? 'Sin coberturas configuradas' : null,
+                          }
+                        "
+                      />
+                      <span class="count tabular">{{ b.count ?? '' }}</span>
+                    </span>
                   </button>
                 </div>
                 @if (b.expanded) {
@@ -128,7 +137,9 @@ const STATUS_LABELS: Record<NonNullable<RulesTreeStatus>, string> = {
                           (click)="pickCoverage.emit({ branchId: b.id, coverageId: c.id })"
                         >
                           <span class="label">{{ c.name || 'Cobertura sin nombre' }}</span>
-                          <ng-container *ngTemplateOutlet="dot; context: { $implicit: c.status }" />
+                          <ng-container
+                            *ngTemplateOutlet="dot; context: { $implicit: c.status, title: null }"
+                          />
                         </button>
                       </li>
                     }
@@ -148,12 +159,50 @@ const STATUS_LABELS: Record<NonNullable<RulesTreeStatus>, string> = {
           </ul>
         }
       </section>
+
+      <!-- Apart from the levels: the history configures nothing. -->
+      <section class="group">
+        <h2 class="t-section-label heading">Auditoría</h2>
+        <ul class="list">
+          <li>
+            <button
+              type="button"
+              class="item history"
+              [class.active]="historyActive()"
+              [attr.aria-current]="historyActive() ? 'page' : null"
+              (click)="pickHistory.emit()"
+            >
+              <svg
+                class="history-icon"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <circle cx="12" cy="12" r="10" />
+                <path d="M12 6v6l4 2" />
+              </svg>
+              <span class="label">Historial de cambios</span>
+            </button>
+          </li>
+        </ul>
+      </section>
     </nav>
 
-    <ng-template #dot let-status>
+    <ng-template #dot let-status let-title="title">
       @if (status) {
-        <span class="dot" [class.is-required]="status === 'required'" aria-hidden="true"></span>
-        <span class="sr-only">({{ statusLabel(status) }})</span>
+        <span
+          class="dot"
+          [class.is-required]="status === 'required'"
+          [attr.title]="title ?? capitalized(statusLabel(status))"
+          aria-hidden="true"
+        ></span>
+        <span class="sr-only">({{ title ?? statusLabel(status) }})</span>
+      } @else {
+        <span class="dot-slot" aria-hidden="true"></span>
       }
     </ng-template>
   `,
@@ -166,20 +215,15 @@ const STATUS_LABELS: Record<NonNullable<RulesTreeStatus>, string> = {
     .tree {
       display: flex;
       flex-direction: column;
-      gap: var(--space-4);
-      padding: var(--space-3);
-      border: 1px solid var(--border-default);
-      border-radius: var(--radius-card);
-      background: var(--surface);
+      gap: var(--space-5);
     }
     .group {
       display: flex;
       flex-direction: column;
-      gap: var(--space-1);
     }
     .heading {
-      margin: 0 0 var(--space-1);
-      padding: 0 var(--space-2);
+      margin: 0;
+      padding: 0 var(--space-2) var(--space-2);
     }
     .list,
     .children {
@@ -188,17 +232,28 @@ const STATUS_LABELS: Record<NonNullable<RulesTreeStatus>, string> = {
       padding: 0;
       display: flex;
       flex-direction: column;
-      gap: var(--space-1);
+      gap: var(--space-0-5);
     }
     .children {
-      margin-left: var(--space-5);
+      margin: var(--space-0-5) 0 0 var(--tree-indent);
       padding-left: var(--space-2);
-      border-left: 1px solid var(--border-subtle);
+      border-left: 1px solid var(--border-default);
     }
+    /* The open branch is one highlighted row, chevron included. */
     .row {
       display: flex;
       align-items: center;
-      gap: var(--space-1);
+      border-radius: var(--radius-ctl);
+    }
+    .row:hover {
+      background: var(--surface-sunken);
+    }
+    .row.active {
+      background: var(--selected-bg);
+      color: var(--accent-fg);
+    }
+    .row .item:hover {
+      background: none;
     }
     .item {
       flex: 1 1 auto;
@@ -207,13 +262,12 @@ const STATUS_LABELS: Record<NonNullable<RulesTreeStatus>, string> = {
       display: flex;
       align-items: center;
       gap: var(--space-2);
-      min-height: var(--space-6);
-      padding: var(--space-1) var(--space-2);
+      padding: var(--tree-item-pad-y) var(--space-2);
       border: 0;
       border-radius: var(--radius-ctl);
       background: none;
       font: inherit;
-      font-size: var(--font-size-sm);
+      font-size: var(--font-size-body);
       color: var(--text-primary);
       text-align: left;
       cursor: pointer;
@@ -226,22 +280,41 @@ const STATUS_LABELS: Record<NonNullable<RulesTreeStatus>, string> = {
       outline: none;
       box-shadow: var(--focus-ring);
     }
-    .item.active {
-      background: var(--selected-bg);
+    .item.active,
+    .row.active .item {
       color: var(--accent-fg);
       font-weight: var(--font-weight-medium);
     }
+    .item.active {
+      background: var(--selected-bg);
+    }
     .item.add {
-      color: var(--text-secondary);
+      color: var(--accent-fg);
+    }
+    .row .item {
+      padding-left: var(--space-1);
     }
     .label {
       flex: 1 1 auto;
       min-width: 0;
       overflow-wrap: anywhere;
     }
+    /* Dot and counter in fixed slots, so the counters line up with or without a dot. */
+    .marks {
+      flex: none;
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-2);
+    }
     .count {
-      font-size: var(--font-size-xs);
+      width: var(--tree-count-w);
+      text-align: right;
+      font-size: var(--font-size-sm);
+      font-weight: var(--font-weight-regular);
       color: var(--text-tertiary);
+    }
+    .row.active .count {
+      color: var(--accent-fg);
     }
     .caret {
       flex: 0 0 auto;
@@ -249,12 +322,12 @@ const STATUS_LABELS: Record<NonNullable<RulesTreeStatus>, string> = {
       align-items: center;
       justify-content: center;
       width: var(--space-5);
-      height: var(--space-6);
+      align-self: stretch;
       padding: 0;
       border: 0;
       border-radius: var(--radius-ctl);
       background: none;
-      color: var(--text-tertiary);
+      color: inherit;
       cursor: pointer;
     }
     .caret svg {
@@ -279,17 +352,34 @@ const STATUS_LABELS: Record<NonNullable<RulesTreeStatus>, string> = {
     .note {
       padding: var(--space-1) var(--space-2);
     }
+    .history-icon {
+      flex: none;
+      width: var(--icon-md);
+      height: var(--icon-md);
+      color: var(--text-tertiary);
+    }
+    .item.history.active .history-icon {
+      color: var(--accent-fg);
+    }
     /* The dot of app-tabs: neutral when incomplete, warning when something is missing. */
-    .dot {
+    .dot,
+    .dot-slot {
       flex: 0 0 auto;
       display: inline-block;
       width: var(--space-2);
       height: var(--space-2);
       border-radius: var(--radius-pill);
+    }
+    .dot {
       background: var(--text-tertiary);
     }
     .dot.is-required {
       background: var(--status-warning);
+    }
+    /* Outside a branch row the empty slot would only push the label. */
+    .children .dot-slot,
+    .list > li > .item .dot-slot {
+      display: none;
     }
   `,
 })
@@ -300,12 +390,19 @@ export class RulesTreeComponent {
   readonly loading = input(false);
   /** Shows "+ Agregar cobertura" under each open branch. */
   readonly canAdd = input(false);
+  /** Marks "Historial de cambios" as the open view. */
+  readonly historyActive = input(false);
 
   readonly pickSection = output<string>();
   readonly pickBranch = output<string>();
   readonly toggleBranch = output<string>();
   readonly pickCoverage = output<{ branchId: string; coverageId: string }>();
   readonly addCoverage = output<string>();
+  readonly pickHistory = output<void>();
+
+  protected capitalized(text: string): string {
+    return text.charAt(0).toUpperCase() + text.slice(1);
+  }
 
   protected statusLabel(status: RulesTreeStatus): string {
     return status ? STATUS_LABELS[status] : '';

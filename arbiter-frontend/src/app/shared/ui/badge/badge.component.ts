@@ -2,11 +2,12 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 
 import { StatusTone } from '../../../core/models/status-tone';
 
-type Variant = 'solid' | 'strong' | 'dashed';
+type Variant = 'solid' | 'strong' | 'dashed' | 'selected';
 
 /**
  * `solid` for regular values, `strong` for a highlighted state (e.g. a final case status), `dashed`
- * for placeholders without data. `tone` adds a status dot; only the dot is colored, by design.
+ * for placeholders without data, `selected` for a yes in a grid of choices (a cause a coverage covers),
+ * in the brand's selection colors. `tone` adds a status dot; only the dot is colored, by design.
  * `busy` makes the dot pulse: the backend is working on that state right now (a classification).
  */
 @Component({
@@ -18,6 +19,7 @@ type Variant = 'solid' | 'strong' | 'dashed';
       [class.solid]="variant() === 'solid'"
       [class.strong]="variant() === 'strong'"
       [class.dashed]="variant() === 'dashed'"
+      [class.selected]="variant() === 'selected'"
       [attr.data-tone]="tone() !== 'neutral' ? tone() : null"
       [class.busy]="busy()"
       [class.wrap]="wrap()"
@@ -64,6 +66,12 @@ type Variant = 'solid' | 'strong' | 'dashed';
       border: 1px solid var(--badge-strong-border);
       background: var(--badge-strong-bg);
       color: var(--text-primary);
+      font-weight: var(--font-weight-medium);
+    }
+    .badge.selected {
+      border: 1px solid var(--selected-border);
+      background: var(--selected-bg);
+      color: var(--accent-fg);
       font-weight: var(--font-weight-medium);
     }
     .badge.dashed {
