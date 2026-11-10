@@ -24,6 +24,9 @@ import { AsciiFieldComponent } from '../ascii-field/ascii-field.component';
  * - default content: what goes below, inside the frame (`.spotlight-panels`, `.spotlight-cells`).
  *
  * The tone colors the headline word, the figure's label and the glyph field right of the figure.
+ * `brand` paints the hero with the drifting brand gradient (the welcome on each home) and turns its
+ * text, figure and glyphs light; the tone colors nothing there.
+ *
  * Encapsulation is off so those helper classes reach the projected content; every rule is scoped
  * to `app-spotlight`.
  */
@@ -32,13 +35,16 @@ import { AsciiFieldComponent } from '../ascii-field/ascii-field.component';
   imports: [AsciiFieldComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   encapsulation: ViewEncapsulation.None,
-  host: { '[style.--spotlight-tone]': 'toneColor()' },
+  host: {
+    '[style.--spotlight-tone]': 'toneColor()',
+    '[class.is-brand]': 'brand()',
+  },
   template: `
     <div class="sl-hero">
       <div class="sl-main">
         <div class="sl-grid">
           @if (field()) {
-            <app-ascii-field [tone]="tone()" />
+            <app-ascii-field [tone]="brand() ? 'neutral' : tone()" />
           }
           <div class="sl-label"><ng-content select="[spotlightLabel]" /></div>
           <div class="sl-title"><ng-content select="[spotlightTitle]" /></div>
@@ -53,6 +59,24 @@ import { AsciiFieldComponent } from '../ascii-field/ascii-field.component';
   `,
   styles: `
     @use 'media';
+
+    @mixin aside-beside {
+      grid-template-columns:
+        minmax(min-content, 1.2fr) minmax(var(--spotlight-aside-min-w), 1fr)
+        var(--spotlight-actions-w);
+      grid-template-areas: 'main aside actions';
+
+      & > .sl-aside {
+        border-top: 0;
+        border-left: 1px solid var(--border-subtle);
+      }
+      & > .sl-aside > * {
+        grid-template-columns: minmax(0, 1fr);
+      }
+      .sl-grid {
+        column-gap: var(--space-5);
+      }
+    }
 
     @mixin stacked {
       grid-template-columns: minmax(0, 1fr);
@@ -419,25 +443,73 @@ import { AsciiFieldComponent } from '../ascii-field/ascii-field.component';
       color: var(--spotlight-tone);
     }
 
+    /* Brand: the welcome. The gradient drifts and a soft light crosses it, slow enough to read as
+       ambient. Text roles are redefined inside so the field and every slot follow. */
+    app-spotlight.is-brand .sl-hero {
+      --text-primary: var(--brand-panel-fg);
+      --text-secondary: var(--brand-panel-fg);
+      --text-muted: color-mix(in srgb, var(--brand-panel-fg) 78%, transparent);
+      --spotlight-tone: var(--brand-panel-fg);
+      isolation: isolate;
+      border-color: transparent;
+      background: var(--brand-panel-bg);
+      background-size: 220% 220%;
+      color: var(--text-primary);
+      animation: spotlight-drift 22s ease-in-out infinite alternate;
+    }
+    app-spotlight.is-brand .sl-hero::before {
+      content: '';
+      position: absolute;
+      z-index: -1;
+      inset: -40% auto -40% -30%;
+      width: 60%;
+      background: radial-gradient(
+        closest-side,
+        color-mix(in srgb, var(--brand-panel-fg) 16%, transparent),
+        transparent
+      );
+      animation: spotlight-glow 16s ease-in-out infinite alternate;
+      pointer-events: none;
+    }
+    app-spotlight.is-brand .sl-actions,
+    app-spotlight.is-brand .sl-aside {
+      border-color: color-mix(in srgb, var(--brand-panel-fg) 22%, transparent);
+    }
+    @keyframes spotlight-drift {
+      from {
+        background-position: 0% 0%;
+      }
+      to {
+        background-position: 100% 100%;
+      }
+    }
+    @keyframes spotlight-glow {
+      from {
+        transform: translateX(0);
+      }
+      to {
+        transform: translateX(200%);
+      }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      app-spotlight.is-brand .sl-hero,
+      app-spotlight.is-brand .sl-hero::before {
+        animation: none;
+      }
+    }
+
     /* All breakpoints go by the strip's own width: it can sit in a modal or a narrow column. */
     /* Wide: the aside moves up between the figure and the actions, as tall as the hero. The hero
        never gets narrower than its title and figure: the title wraps first. */
     @container spotlight (min-width: 1080px) {
       app-spotlight .sl-hero:has(> .sl-aside:not(:empty)) {
-        grid-template-columns:
-          minmax(min-content, 1.2fr) minmax(var(--spotlight-aside-min-w), 1fr)
-          var(--spotlight-actions-w);
-        grid-template-areas: 'main aside actions';
+        @include aside-beside;
       }
-      app-spotlight .sl-hero:has(> .sl-aside:not(:empty)) .sl-aside {
-        border-top: 0;
-        border-left: 1px solid var(--border-subtle);
-      }
-      app-spotlight .sl-hero:has(> .sl-aside:not(:empty)) .sl-aside > * {
-        grid-template-columns: minmax(0, 1fr);
-      }
-      app-spotlight .sl-hero:has(> .sl-aside:not(:empty)) .sl-grid {
-        column-gap: var(--space-5);
+    }
+    /* Without a figure the hero needs less: the aside goes beside it on a narrower strip. */
+    @container spotlight (min-width: 860px) {
+      app-spotlight .sl-hero:has(> .sl-aside:not(:empty)):has(.sl-figure:empty) {
+        @include aside-beside;
       }
     }
     @container spotlight (max-width: 760px) {
@@ -485,6 +557,8 @@ export class SpotlightComponent {
   readonly tone = input<StatusTone>('neutral');
   /** The glyph field behind the figure; off for strips that repeat down a list. */
   readonly field = input(true);
+  /** The welcome look: the hero on the brand gradient. */
+  readonly brand = input(false);
 
   protected readonly toneColor = computed(() => {
     const tone = this.tone();

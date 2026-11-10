@@ -7,7 +7,11 @@
   <div class="home fit" @staggerReveal>
     <!-- How the day stands: what waits on your decision, then the counts that open the inbox filtered. -->
     @let waiting = pending();
-    <app-spotlight class="hero" [tone]="overdue() > 0 ? 'danger' : waiting ? 'ok' : 'neutral'">
+    <app-spotlight
+      class="hero"
+      [brand]="true"
+      [tone]="overdue() > 0 ? 'danger' : waiting ? 'ok' : 'neutral'"
+    >
       <span spotlightLabel
         ><app-logo /><span>· {{ today }}</span></span
       >

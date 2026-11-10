@@ -11,7 +11,7 @@
   <div class="home fit" @staggerReveal>
     <!-- The one thing only the referente can unblock leads: the settlements awaiting a signature. -->
     @let toSign = settlements();
-    <app-spotlight class="hero" [tone]="toSign?.length ? 'warning' : 'neutral'">
+    <app-spotlight class="hero" [brand]="true" [tone]="toSign?.length ? 'warning' : 'neutral'">
       <span spotlightLabel
         ><app-logo /><span>· {{ today }}</span></span
       >

@@ -133,6 +133,7 @@ import {
 } from '../../../shared/ui/menu-button/menu-button.component';
 import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
 import { SpotlightComponent } from '../../../shared/ui/spotlight/spotlight.component';
+import { RiskScaleComponent } from '../../../shared/ui/risk-scale/risk-scale.component';
 import { LogoComponent } from '../../../shared/ui/logo/logo.component';
 import { SkeletonComponent } from '../../../shared/ui/skeleton/skeleton.component';
 import { TabOption, TabsComponent } from '../../../shared/ui/tabs/tabs.component';
@@ -221,6 +222,7 @@ interface BriefAlert {
     TabsComponent,
     DocumentRequestModalComponent,
     SpotlightComponent,
+    RiskScaleComponent,
     LogoComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -379,7 +381,8 @@ export class CaseDetailComponent {
     return band ? riskBandLabel(band) : null;
   });
 
-  protected readonly riskTone = computed(() => riskBandTone(this.data()?.riskBand ?? null));
+  protected readonly riskBand = computed(() => this.data()?.riskBand ?? null);
+  protected readonly riskTone = computed(() => riskBandTone(this.riskBand()));
 
   /**
    * The verdict Arbiter points to, shown first and filled. Fast Track points to approving: the rules

@@ -66,78 +66,98 @@
         {{ verdict.lead }}<span class="spotlight-tone">{{ verdict.word }}</span
         >{{ verdict.end }}
       </h2>
-      @if (riskScorePct() !== null) {
-        <div
-          spotlightFigure
-          role="img"
-          [attr.aria-label]="
-            'Riesgo de fraude ' +
-            riskScorePct() +
-            ' de 100' +
-            (riskBandText() ? ', ' + riskBandText() : '')
-          "
-        >
-          <span class="spotlight-number">{{ riskScorePct() }}</span>
-          <span class="spotlight-unit">
-            <span>/ 100</span>
-            @if (riskBandText(); as band) {
-              <b [attr.data-tone]="riskTone()">riesgo {{ band.toLowerCase() }}</b>
-            }
-          </span>
-        </div>
-      } @else if (classificationLabel()) {
-        <div spotlightFigure>
-          <span class="spotlight-number is-empty">—</span>
-          <span class="spotlight-unit"
-            ><span>{{ riskGaugeEmptyLabel() }}</span></span
-          >
-        </div>
-      }
-      <!-- One line: how sure Arbiter is, then what to weigh before deciding, each pointing at its tab. -->
-      <div spotlightSummary class="strip-summary">
-        @if (classificationLabel()) {
-          @if (!isDeterministicOutcome()) {
-            <span
-              >Confianza <strong class="tabular">{{ confidencePercent() }}%</strong></span
-            >
-          } @else if (needsDocs()) {
-            <span>Falta documentación para su nivel de riesgo.</span>
-          } @else if (isFastTrack()) {
-            <span>Sin pedido de documentación</span>
-          } @else {
-            <button type="button" class="summary-link" (click)="setTab('rules')">
-              Ver la evaluación de reglas
-            </button>
-          }
-          @if (showBeforeDeciding()) {
-            @for (a of decisionAlerts(); track a.tab) {
-              <button
-                type="button"
-                class="summary-link"
-                [class.is-danger]="a.danger"
-                (click)="onAlert(a)"
+      <div spotlightSummary class="strip-below">
+        <!-- Why, under the verdict: the first reasons (or the Fast Track criteria); the rest are
+             one click away in their tab. -->
+        @if (isFastTrack() && fastTrackCriteria().length > 0) {
+          <section class="strip-why">
+            <div class="spotlight-aside-head">
+              <h3 class="spotlight-panel-label">Criterios de Fast Track</h3>
+              @if (fastTrackCriteria().length > asideRows) {
+                <button type="button" class="summary-link panel-more" (click)="setTab('rules')">
+                  Ver los {{ fastTrackCriteria().length }}
+                </button>
+              }
+            </div>
+            <ul class="spotlight-rows is-compact">
+              @for (c of fastTrackCriteria().slice(0, asideRows); track c.id) {
+                <li class="spotlight-row">
+                  <span class="row-icon" aria-hidden="true">{{
+                    c.result === 'PASS' ? '✓' : '·'
+                  }}</span>
+                  <span class="row-text">{{ ruleTypeLabel(c.ruleType) }}</span>
+                  <span></span>
+                </li>
+              }
+            </ul>
+          </section>
+        } @else if (spotlightReasons().length > 0) {
+          <section class="strip-why">
+            <div class="spotlight-aside-head">
+              <h3 class="spotlight-panel-label">Motivos</h3>
+              @if (analysisReasons().length > spotlightReasons().length) {
+                <button type="button" class="summary-link panel-more" (click)="viewAnalysis()">
+                  Ver los {{ analysisReasons().length }}
+                </button>
+              }
+            </div>
+            <ul class="spotlight-rows is-compact">
+              @for (r of spotlightReasons(); track $index) {
+                <li class="spotlight-row">
+                  <span class="row-icon" aria-hidden="true">→</span>
+                  <span class="row-text" [title]="r">{{ r }}</span>
+                  <span></span>
+                </li>
+              }
+            </ul>
+          </section>
+        }
+        <!-- One line: how sure Arbiter is, then what to weigh before deciding, each pointing at its tab. -->
+        <div class="strip-summary">
+          @if (classificationLabel()) {
+            @if (!isDeterministicOutcome()) {
+              <span
+                >Confianza <strong class="tabular">{{ confidencePercent() }}%</strong></span
               >
-                {{ a.label }}
+            } @else if (needsDocs()) {
+              <span>Falta documentación para su nivel de riesgo.</span>
+            } @else if (isFastTrack()) {
+              <span>Sin pedido de documentación</span>
+            } @else {
+              <button type="button" class="summary-link" (click)="setTab('rules')">
+                Ver la evaluación de reglas
               </button>
             }
-            @for (p of answeredDerivations(); track p.id) {
-              <span [attr.data-tone]="derivationResultTone(p)">{{ derivationResult(p) }}</span>
-            }
-            <!-- Hidden at zero: it means an input is missing, not that nothing is owed. -->
-            @if (displayedSettlement(); as s) {
-              @if (s.calculatedAmount > 0) {
-                <span>
-                  Monto a pagar
-                  <strong class="tabular">{{ exactAmount(s.calculatedAmount) }}</strong>
-                </span>
+            @if (showBeforeDeciding()) {
+              @for (a of decisionAlerts(); track a.tab) {
+                <button
+                  type="button"
+                  class="summary-link"
+                  [class.is-danger]="a.danger"
+                  (click)="onAlert(a)"
+                >
+                  {{ a.label }}
+                </button>
+              }
+              @for (p of answeredDerivations(); track p.id) {
+                <span [attr.data-tone]="derivationResultTone(p)">{{ derivationResult(p) }}</span>
+              }
+              <!-- Hidden at zero: it means an input is missing, not that nothing is owed. -->
+              @if (displayedSettlement(); as s) {
+                @if (s.calculatedAmount > 0) {
+                  <span>
+                    Monto a pagar
+                    <strong class="tabular">{{ exactAmount(s.calculatedAmount) }}</strong>
+                  </span>
+                }
               }
             }
+          } @else if (d.status === 'PENDING_CLASSIFICATION') {
+            <app-classification-progress [since]="classificationSince()" />
+          } @else {
+            <span>Arbiter todavía no generó una recomendación.</span>
           }
-        } @else if (d.status === 'PENDING_CLASSIFICATION') {
-          <app-classification-progress [since]="classificationSince()" />
-        } @else {
-          <span>Arbiter todavía no generó una recomendación.</span>
-        }
+        </div>
       </div>
 
       <div spotlightActions class="strip-actions">
@@ -250,6 +270,7 @@
                         <app-button
                           class="verdict-main"
                           [block]="true"
+                          [hoverTone]="rec === 'reject' ? 'danger' : 'ok'"
                           [disabled]="decisionSaving()"
                           (click)="askDecision(rec)"
                           >{{
@@ -260,6 +281,7 @@
                           class="span-all"
                           variant="secondary"
                           [block]="true"
+                          [hoverTone]="rec === 'reject' ? 'ok' : 'danger'"
                           [disabled]="decisionSaving()"
                           (click)="askDecision(rec === 'reject' ? 'approve' : 'reject')"
                           >{{ rec === 'reject' ? 'Aprobar' : 'Rechazar' }}</app-button
@@ -269,6 +291,7 @@
                         <app-button
                           variant="secondary"
                           [block]="true"
+                          hoverTone="ok"
                           [disabled]="decisionSaving()"
                           (click)="askDecision('approve')"
                           >Aprobar</app-button
@@ -276,6 +299,7 @@
                         <app-button
                           variant="secondary"
                           [block]="true"
+                          hoverTone="danger"
                           [disabled]="decisionSaving()"
                           (click)="askDecision('reject')"
                           >Rechazar</app-button
@@ -440,60 +464,42 @@
         }
       </div>
 
-      <!-- Why, in short and beside the verdict: the reasons (or the Fast Track criteria) and what
-           added to the score. The full lists are in their tabs. -->
-      @if (
-        spotlightReasons().length > 0 ||
-        (isFastTrack() && fastTrackCriteria().length > 0) ||
-        spotlightFactors().length > 0
-      ) {
+      <!-- The risk, beside the verdict: the score on its thermometer, over the factors that add
+           to it. The full breakdown is in Análisis. -->
+      @if (classificationLabel() || riskScorePct() !== null) {
         <div spotlightAside>
-          @if (isFastTrack() && fastTrackCriteria().length > 0) {
-            <section class="spotlight-aside-section">
-              <div class="spotlight-aside-head">
-                <h3 class="spotlight-panel-label">Criterios de Fast Track</h3>
-                @if (fastTrackCriteria().length > asideRows) {
-                  <button type="button" class="summary-link panel-more" (click)="setTab('rules')">
-                    Ver los {{ fastTrackCriteria().length }}
-                  </button>
-                }
-              </div>
-              <ul class="spotlight-rows is-compact">
-                @for (c of fastTrackCriteria().slice(0, asideRows); track c.id) {
-                  <li class="spotlight-row">
-                    <span class="row-icon" aria-hidden="true">{{
-                      c.result === 'PASS' ? '✓' : '·'
-                    }}</span>
-                    <span class="row-text">{{ ruleTypeLabel(c.ruleType) }}</span>
-                    <span></span>
-                  </li>
-                }
-              </ul>
-            </section>
-          } @else if (spotlightReasons().length > 0) {
-            <section class="spotlight-aside-section">
-              <div class="spotlight-aside-head">
-                <h3 class="spotlight-panel-label">Motivos</h3>
-                @if (analysisReasons().length > spotlightReasons().length) {
-                  <button type="button" class="summary-link panel-more" (click)="viewAnalysis()">
-                    Ver los {{ analysisReasons().length }}
-                  </button>
-                }
-              </div>
-              <ul class="spotlight-rows is-compact">
-                @for (r of spotlightReasons(); track $index) {
-                  <li class="spotlight-row">
-                    <span class="row-icon" aria-hidden="true">→</span>
-                    <span class="row-text" [title]="r">{{ r }}</span>
-                    <span></span>
-                  </li>
-                }
-              </ul>
-            </section>
-          }
-          @if (spotlightFactors().length > 0) {
-            <section class="spotlight-aside-section">
-              <h3 class="spotlight-panel-label">Factores de riesgo</h3>
+          <section class="spotlight-aside-section strip-risk">
+            <h3 class="spotlight-panel-label">Riesgo de fraude</h3>
+            @if (riskScorePct() !== null) {
+              @let score = riskScorePct()!;
+              <p
+                class="strip-risk-line"
+                role="img"
+                [attr.aria-label]="
+                  'Riesgo de fraude ' +
+                  score +
+                  ' de 100' +
+                  (riskBandText() ? ', ' + riskBandText() : '')
+                "
+              >
+                <span class="strip-risk-number">{{ score }}</span>
+                <span class="spotlight-unit">
+                  <span>/ 100</span>
+                  @if (riskBandText(); as band) {
+                    <b [attr.data-tone]="riskTone()">riesgo {{ band.toLowerCase() }}</b>
+                  }
+                </span>
+              </p>
+              <app-risk-scale [score]="score" [band]="riskBand()" [labels]="true" />
+            } @else {
+              <p class="strip-risk-line">
+                <span class="strip-risk-number is-empty">—</span>
+                <span class="spotlight-unit"
+                  ><span>{{ riskGaugeEmptyLabel() }}</span></span
+                >
+              </p>
+            }
+            @if (spotlightFactors().length > 0) {
               <ul class="spotlight-rows is-compact">
                 @for (f of spotlightFactors(); track f.label) {
                   <li class="spotlight-row">
@@ -505,8 +511,8 @@
                   </li>
                 }
               </ul>
-            </section>
-          }
+            }
+          </section>
         </div>
       }
     </app-spotlight>

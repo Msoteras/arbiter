@@ -50,6 +50,7 @@ import {
 } from '../../shared/ui/distribution/distribution.component';
 import { StatTileComponent } from '../../shared/ui/stat-tile/stat-tile.component';
 import { SpotlightComponent } from '../../shared/ui/spotlight/spotlight.component';
+import { RiskScaleComponent } from '../../shared/ui/risk-scale/risk-scale.component';
 import { ToastService } from '../../shared/ui/toast/toast.service';
 import { StatusTransition } from '../../core/models/case';
 import { Policy } from '../../core/models/policy';
@@ -117,6 +118,7 @@ interface Swatch {
     DistributionComponent,
     StatTileComponent,
     SpotlightComponent,
+    RiskScaleComponent,
     DatePickerComponent,
     TimePickerComponent,
     DateRangePickerComponent,
@@ -311,11 +313,17 @@ interface Swatch {
           <app-button variant="secondary">Secondary</app-button>
           <app-button variant="secondary" tone="danger">✕ Rechazar</app-button>
           <app-button variant="secondary" tone="ok">✓ Aprobar</app-button>
+          <app-button hoverTone="ok">Aprobar siniestro</app-button>
+          <app-button variant="secondary" hoverTone="danger">Rechazar</app-button>
           <app-button variant="accent">Accent</app-button>
           <app-button variant="primary" [disabled]="true">Disabled</app-button>
           <app-button variant="primary" [loading]="true">Loading</app-button>
           <app-button variant="secondary" [loading]="true">Loading</app-button>
         </div>
+        <p class="sg-p">
+          <span class="mono">hoverTone</span> deja el botón como está y lo pinta del color de estado
+          solo al pasar el mouse: es el de la decisión del expediente.
+        </p>
         <p class="sg-p">
           Botón de guardado (<span class="mono">saving</span>): Guardar → Guardando (se va pintando)
           → Guardado. Con <span class="mono">saveFailed</span> vuelve a Guardar sin pasar por
@@ -1279,6 +1287,19 @@ interface Swatch {
       </section>
 
       <section class="sg-block">
+        <h3 class="sg-h3">Risk scale</h3>
+        <p class="sg-p">
+          El termómetro del riesgo de fraude (<span class="mono">app-risk-scale</span>): de bajo a
+          crítico, con la marca en el puntaje. Con <span class="mono">labels</span> nombra las
+          cuatro bandas y resalta la del expediente. El puntaje y la banda van siempre escritos al
+          lado: el termómetro es solo visual.
+        </p>
+        <div class="sg-risk-scale">
+          <app-risk-scale [score]="64" band="HIGH" [labels]="true" />
+        </div>
+      </section>
+
+      <section class="sg-block">
         <h3 class="sg-h3">Spotlight</h3>
         <p class="sg-p">
           Una franja sobre una sola cosa: el titular, la cifra de la que trata y las acciones que
@@ -1289,7 +1310,8 @@ interface Swatch {
           (<span class="mono">app-ascii-field</span>), que se aquieta con movimiento reducido.
           <span class="mono">spotlightAside</span> es un resumen corto al costado, del mismo alto:
           en una franja ancha va entre la cifra y las acciones, y en una angosta, debajo de la
-          cifra.
+          cifra. <span class="mono">[brand]</span> pinta la franja con el degradé de la marca: es la
+          bienvenida de cada inicio.
         </p>
         <app-spotlight tone="ok">
           <span spotlightLabel><app-logo /><span>· Fast Track</span></span>
@@ -1395,6 +1417,9 @@ interface Swatch {
       min-height: 100%;
       background: var(--surface);
       color: var(--text-primary);
+    }
+    .sg-risk-scale {
+      max-width: calc(var(--spotlight-actions-w) + var(--space-7));
     }
     .sg {
       padding: var(--space-5) var(--space-5) var(--space-7);
