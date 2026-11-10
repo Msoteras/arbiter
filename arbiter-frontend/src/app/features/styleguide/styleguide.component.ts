@@ -49,6 +49,7 @@ import {
   DistributionItem,
 } from '../../shared/ui/distribution/distribution.component';
 import { StatTileComponent } from '../../shared/ui/stat-tile/stat-tile.component';
+import { SpotlightComponent } from '../../shared/ui/spotlight/spotlight.component';
 import { ToastService } from '../../shared/ui/toast/toast.service';
 import { StatusTransition } from '../../core/models/case';
 import { Policy } from '../../core/models/policy';
@@ -115,6 +116,7 @@ interface Swatch {
     SwitchComponent,
     DistributionComponent,
     StatTileComponent,
+    SpotlightComponent,
     DatePickerComponent,
     TimePickerComponent,
     DateRangePickerComponent,
@@ -1256,6 +1258,66 @@ interface Swatch {
             progressTone="ok"
           />
         </div>
+      </section>
+
+      <section class="sg-block">
+        <h3 class="sg-h3">Spotlight</h3>
+        <p class="sg-p">
+          Una franja sobre una sola cosa: el titular, la cifra de la que trata y las acciones que
+          pide (<span class="mono">app-spotlight</span>). La usan la decisión del expediente, la
+          liquidación, los inicios del analista y del referente, la derivación y el seguimiento del
+          asegurado. El <span class="mono">tone</span> colorea la palabra del titular marcada con
+          <span class="mono">.spotlight-tone</span>, la etiqueta de la cifra y el campo de glifos
+          (<span class="mono">app-ascii-field</span>), que se aquieta con movimiento reducido.
+          <span class="mono">spotlightAside</span> es un resumen corto al costado, del mismo alto:
+          en una franja ancha va entre la cifra y las acciones, y en una angosta, debajo de la
+          cifra.
+        </p>
+        <app-spotlight tone="ok">
+          <span spotlightLabel><app-logo /><span>· Fast Track</span></span>
+          <h4 spotlightTitle>Recomienda <span class="spotlight-tone">aprobar</span>.</h4>
+          <div spotlightFigure>
+            <span class="spotlight-number">29</span>
+            <span class="spotlight-unit"><span>/ 100</span><b>riesgo bajo</b></span>
+          </div>
+          <p spotlightSummary>Sin pedido de documentación</p>
+          <div spotlightActions>
+            <app-button [block]="true">Aprobar siniestro</app-button>
+            <app-button variant="secondary" [block]="true">Rechazar</app-button>
+          </div>
+          <div spotlightAside>
+            <section class="spotlight-aside-section">
+              <h5 class="spotlight-panel-label">Criterios de Fast Track</h5>
+              <ul class="spotlight-rows is-compact">
+                <li class="spotlight-row">
+                  <span class="row-icon" aria-hidden="true">✓</span>
+                  <span class="row-text">Póliza vigente y al día</span>
+                  <span></span>
+                </li>
+                <li class="spotlight-row">
+                  <span class="row-icon" aria-hidden="true">✓</span>
+                  <span class="row-text">Monto bajo el tope del ramo</span>
+                  <span></span>
+                </li>
+              </ul>
+            </section>
+            <section class="spotlight-aside-section">
+              <h5 class="spotlight-panel-label">Factores de riesgo</h5>
+              <ul class="spotlight-rows is-compact">
+                <li class="spotlight-row">
+                  <span class="row-icon" aria-hidden="true">+</span>
+                  <span class="row-text">Inconsistencias en la documentación</span>
+                  <span class="row-value">+20</span>
+                </li>
+                <li class="spotlight-row">
+                  <span class="row-icon" aria-hidden="true">+</span>
+                  <span class="row-text">Frecuencia de siniestros</span>
+                  <span class="row-value">+6</span>
+                </li>
+              </ul>
+            </section>
+          </div>
+        </app-spotlight>
       </section>
 
       <section class="sg-block">

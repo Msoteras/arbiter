@@ -9,52 +9,61 @@
   <app-home-skeleton />
 } @else {
   <div class="home fit" @staggerReveal>
-    <header class="hero">
-      <div class="hero-head">
-        <div class="hero-text">
-          <h1 class="t-hero-title">{{ greeting }}, {{ firstName() }}</h1>
-          <p class="hero-sub">
-            {{ today }}
-            @if (settlements(); as pending) {
-              ·
-              @if (pending.length > 0) {
-                <strong
-                  >{{ pending.length }}
-                  {{
-                    pending.length === 1 ? 'liquidación espera' : 'liquidaciones esperan'
-                  }}</strong
-                >
-                tu firma.
-              } @else {
-                no hay liquidaciones esperando tu firma.
-              }
-            }
-          </p>
-        </div>
+    <!-- The one thing only the referente can unblock leads: the settlements awaiting a signature. -->
+    @let toSign = settlements();
+    <app-spotlight class="hero" [tone]="toSign?.length ? 'warning' : 'neutral'">
+      <span spotlightLabel
+        ><app-logo /><span>· {{ today }}</span></span
+      >
+      <h1 spotlightTitle>{{ greeting }}, {{ firstName() }}.</h1>
+      <div spotlightFigure>
+        <span class="spotlight-number" [class.is-empty]="!toSign?.length">{{
+          toSign?.length ?? '—'
+        }}</span>
+        <span class="spotlight-unit">
+          <span>{{ toSign?.length === 1 ? 'liquidación espera' : 'liquidaciones esperan' }}</span>
+          <span>tu firma</span>
+        </span>
+      </div>
+      <p spotlightSummary>
+        @if (toSign?.length) {
+          <strong>{{ settlementsTotal() }}</strong> en total.
+        } @else if (toSign) {
+          No hay liquidaciones esperando tu firma.
+        }
+      </p>
+      <div spotlightActions>
+        @if (toSign?.length) {
+          <app-button [block]="true" routerLink="/insurer/settlements" tabindex="-1">
+            Revisar liquidaciones
+          </app-button>
+        }
         <app-button
-          class="hero-cta"
-          variant="secondary"
+          [variant]="toSign?.length ? 'secondary' : 'primary'"
+          [block]="true"
           routerLink="/insurer/dashboard"
           tabindex="-1"
         >
-          Ver dashboard completo ›
+          Ver dashboard completo
         </app-button>
       </div>
-
-      <nav class="shortcuts" aria-label="La operación hoy">
+      <nav class="spotlight-cells" aria-label="La operación hoy">
         @for (s of shortcuts(); track s.label) {
-          <a class="shortcut" [routerLink]="s.link" [queryParams]="s.query">
-            <span class="shortcut-top">
-              <span class="shortcut-value tabular">{{ s.value ?? '—' }}</span>
-              @if (s.flag) {
-                <span class="shortcut-flag">{{ s.flag }}</span>
-              }
-            </span>
-            <span class="shortcut-label">{{ s.label }}</span>
+          <a
+            class="spotlight-cell"
+            [class.is-zero]="s.value === 0"
+            [routerLink]="s.link"
+            [queryParams]="s.query"
+          >
+            <span class="cell-value">{{ s.value ?? '—' }}</span>
+            <span class="cell-label">{{ s.label }}</span>
+            @if (s.flag) {
+              <span class="cell-flag">{{ s.flag }}</span>
+            }
           </a>
         }
       </nav>
-    </header>
+    </app-spotlight>
 
     <div class="cols">
       <div class="col col-main" #mainCol>

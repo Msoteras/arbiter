@@ -113,6 +113,12 @@
   --status-risk-strong: var(--accent-orange-strong);
   --status-danger-strong: var(--accent-red-strong);
   --status-danger-strong-hover: var(--accent-red-deep);
+  /* Status as the color of text itself (a verdict word, a figure label). */
+  --status-ok-text: var(--accent-strong);
+  --status-warning-text: var(--accent-yellow-text);
+  --status-risk-text: var(--accent-orange-strong);
+  --status-danger-text: var(--accent-red-strong);
+  --status-info-text: var(--accent-blue);
 
   /* Tinted surface + border pair for cards that communicate risk. */
   --surface-danger-soft: var(--accent-red-soft);

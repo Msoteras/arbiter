@@ -26,6 +26,8 @@
   --accent-red-strong: #c4291f;
   --accent-red-deep: #a32119;
   --accent-orange-strong: #b4451a;
+  /* Yellow dark enough to read as text on white (5.3:1); the plain yellow only works as a fill. */
+  --accent-yellow-text: #8a6400;
   --accent-red-soft-border: #f4c9c5;
 
   /* ===== Color: text ===== */
@@ -90,6 +92,13 @@
   --font-size-xl: 22px; /* page titles */
   --font-size-2xl: 28px; /* hero titles (login, portal) */
   --font-size-display: 34px; /* a headline figure: the recommendation, the risk score */
+  /* The spotlight strip: its headline and the one figure it is about. */
+  --font-size-headline: 38px;
+  --font-size-figure: 88px;
+  --font-size-figure-money: 68px;
+  --font-size-figure-sm: 64px; /* the figure on a phone */
+  --font-size-figure-money-sm: 52px;
+  --font-size-count: 30px; /* a count in a cell under the strip */
 
   /* ===== Typography: weights ===== */
   --font-weight-regular: 400;
@@ -170,6 +179,9 @@
   --radius-ctl: 8px; /* controls: buttons, inputs */
   --radius-card: 12px;
   --radius-modal: 14px;
+  /* The spotlight strip: the frame and the panels nested in it (frame − 6px padding). */
+  --radius-frame: 22px;
+  --radius-panel: 16px;
   --radius-pill: 999px;
   /* A box nested in another one follows its corner: inner radius = outer radius − padding
      (corner-radii.xyz). A card's padding is larger than its radius, so the rule gives 0;

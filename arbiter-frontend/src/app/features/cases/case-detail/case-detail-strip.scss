@@ -1,3 +1,5 @@
+@use 'media';
+
 /* Header and decision band of the case detail. Split from case-detail.component.scss to stay under
    the `anyComponentStyle` budget, like case-detail-panels.scss. */
 
@@ -53,23 +55,66 @@
 }
 
 /* ===== Decision band ===== */
-/* The model's teal wash: the band is Arbiter's reading of the case plus the analyst's decision. */
+/* An app-spotlight: Arbiter's verdict and the risk score on the left, the decision on the right. */
 .decision-strip {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
-  gap: var(--space-5) var(--space-6);
-  align-items: start;
   margin: 0 0 var(--space-4);
-  padding: var(--space-5) var(--space-6);
-  border: 1px solid var(--border-ai);
-  border-radius: var(--radius-modal);
-  background: var(--surface-ai);
-  box-shadow: var(--shadow-card);
 }
-.strip-col {
+.strip-summary {
   display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-4);
+}
+.summary-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--text-secondary);
+  text-align: left;
+  text-decoration: underline;
+  text-decoration-color: var(--border-strong);
+  text-underline-offset: 0.2em;
+  cursor: pointer;
+}
+.summary-link:hover {
+  color: var(--text-primary);
+}
+.summary-link.is-danger {
+  color: var(--status-danger-text);
+}
+.summary-link:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: var(--radius-ctl);
+}
+.panel-more {
+  justify-self: start;
+  font-size: var(--font-size-body);
+}
+.strip-summary [data-tone='ok'] {
+  color: var(--status-ok-text);
+}
+.strip-summary [data-tone='danger'] {
+  color: var(--status-danger-text);
+}
+.strip-summary [data-tone='warning'] {
+  color: var(--status-warning-text);
+}
+/* The band word beside the score follows the band, not the recommendation. */
+.decision-strip .spotlight-unit b[data-tone='ok'] {
+  color: var(--status-ok-text);
+}
+.decision-strip .spotlight-unit b[data-tone='warning'] {
+  color: var(--status-warning-text);
+}
+.decision-strip .spotlight-unit b[data-tone='risk'] {
+  color: var(--status-risk-text);
+}
+.decision-strip .spotlight-unit b[data-tone='danger'] {
+  color: var(--status-danger-text);
+}
+.strip-actions {
   min-width: 0;
 }
 .strip-label {
@@ -81,17 +126,27 @@
   font-weight: var(--font-weight-regular);
   color: var(--text-secondary);
 }
-.ai-mark {
-  color: var(--accent-fg);
+/* Loading: the strip's two zones, before the case arrives. */
+.strip-skeleton {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--spotlight-actions-w);
+  gap: var(--space-6);
+  margin: 0 0 var(--space-4);
+  padding: var(--space-6);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-frame);
+  background: var(--surface);
 }
-/* Headline figures: the recommendation and the score are what the analyst reads first. */
-.decision-strip .reco-value {
-  padding: 0;
-  border: 0;
-  font-size: var(--font-size-2xl);
-  font-weight: var(--font-weight-bold);
-  letter-spacing: -0.03em;
-  line-height: 1.05;
+@include media.phone {
+  .strip-skeleton {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.strip-skeleton .strip-col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
 }
 /* A resolved case's verdict, at the same size as the recommendation beside it. */
 .verdict {
@@ -179,21 +234,6 @@
     animation: none;
   }
 }
-.weigh-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  font-size: var(--font-size-md);
-}
-.weigh-list li {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  min-width: 0;
-}
 .weigh-dot {
   flex: none;
   width: var(--space-2);
@@ -216,32 +256,6 @@
 }
 .weigh-dot[data-tone='neutral'] {
   background: var(--text-muted);
-}
-.weigh-link {
-  padding: 0;
-  border: 0;
-  background: none;
-  font: inherit;
-  color: var(--text-primary);
-  text-align: left;
-  cursor: pointer;
-}
-.weigh-link:hover {
-  color: var(--accent-fg);
-  text-decoration: underline;
-  text-underline-offset: 0.2em;
-}
-.weigh-link:focus-visible {
-  outline: none;
-  box-shadow: var(--focus-ring);
-  border-radius: var(--radius-ctl);
-}
-.weigh-amount {
-  color: var(--text-secondary);
-}
-.weigh-amount strong {
-  margin-left: var(--space-1);
-  color: var(--text-primary);
 }
 .decision-row {
   display: flex;
