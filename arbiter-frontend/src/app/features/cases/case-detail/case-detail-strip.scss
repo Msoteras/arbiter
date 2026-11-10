@@ -294,15 +294,21 @@
   flex-direction: column;
   gap: var(--space-2);
 }
-/* Approve and reject side by side; referral and closing below, paired: they aren't verdicts. */
+/* Approve and reject side by side; referral and closing below, paired: they aren't verdicts.
+   A pair whose labels don't fit in one row wraps, each button taking the whole width, rather
+   than cutting a label. */
 .decision-side {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  display: flex;
+  flex-wrap: wrap;
   gap: var(--space-2);
+}
+.decision-side > * {
+  flex: 1 1 0;
+  min-width: max-content;
 }
 .decision-side .verdict-main,
 .decision-side .span-all {
-  grid-column: 1 / -1;
+  flex-basis: 100%;
 }
 
 /* Unassigned case: the two ways to give it an owner, stacked across the column. */
