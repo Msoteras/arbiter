@@ -9,6 +9,7 @@ import ar.edu.utn.frba.arbiter.classification.models.repositories.ClaimCauseRepo
 import ar.edu.utn.frba.arbiter.classification.models.repositories.DocumentAnalysisRepository;
 import ar.edu.utn.frba.arbiter.classification.models.repositories.InsuredFraudRecordRepository;
 import ar.edu.utn.frba.arbiter.classification.models.repositories.PolicySnapshotRepository;
+import ar.edu.utn.frba.arbiter.classification.services.risk.RiskContext;
 import ar.edu.utn.frba.arbiter.classification.services.risk.RiskFixtures;
 import ar.edu.utn.frba.arbiter.classification.services.risk.RiskScore;
 import ar.edu.utn.frba.arbiter.classification.services.risk.RiskScoringService;
@@ -20,6 +21,7 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Spy;
@@ -30,6 +32,7 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -74,11 +77,12 @@ class ClassificationOrchestratorScoringTest {
         when(rulesAdapter.getRules(any(), any(), any())).thenReturn(RiskFixtures.rules(null));
         when(coverageRuleEvaluator.evaluate(any(), any()))
                 .thenReturn(new CoverageRuleEvaluator.Result(false, List.of()));
-        when(temporalRuleEvaluator.evaluate(any(), any(), any(), any()))
+        // Lenient: a coverage exclusion settles the path before these are consulted.
+        lenient().when(temporalRuleEvaluator.evaluate(any(), any(), any(), any()))
                 .thenReturn(TemporalRuleEvaluator.Result.empty());
-        when(fraudRecordRuleEvaluator.evaluate(any(), any()))
+        lenient().when(fraudRecordRuleEvaluator.evaluate(any(), any()))
                 .thenReturn(FraudRecordRuleEvaluator.Result.empty());
-        when(coverageScopeEvaluator.evaluate(any(), any(), any(), any()))
+        lenient().when(coverageScopeEvaluator.evaluate(any(), any(), any(), any()))
                 .thenReturn(CoverageScopeEvaluator.Result.none());
     }
 
@@ -90,10 +94,12 @@ class ClassificationOrchestratorScoringTest {
 
         ClassificationResponse response = orchestrator.classify(RiskFixtures.claim(new BigDecimal("100000")), List.of());
 
-        verify(riskScoringService, times(1)).score(any());
+        ArgumentCaptor<RiskContext> context = ArgumentCaptor.forClass(RiskContext.class);
+        verify(riskScoringService, times(1)).score(context.capture());
         verify(classifier, never()).classify(any());
         assertThat(response.classification()).isEqualTo(Classification.FAST_TRACK);
         assertThat(response.riskScore()).isEqualTo(knownScore);
+        assertThat(context.getValue().modelRecommendation()).isNull();
     }
 
     @Test
@@ -112,9 +118,26 @@ class ClassificationOrchestratorScoringTest {
 
         ClassificationResponse response = orchestrator.classify(RiskFixtures.claim(new BigDecimal("100000")), List.of());
 
-        verify(riskScoringService, times(1)).score(any());
+        ArgumentCaptor<RiskContext> context = ArgumentCaptor.forClass(RiskContext.class);
+        verify(riskScoringService, times(1)).score(context.capture());
         assertThat(response.classification()).isEqualTo(Classification.LLM_RECOMIENDA_APROBAR);
         assertThat(response.riskScore()).isEqualTo(knownScore);
+        assertThat(context.getValue().modelRecommendation()).isEqualTo(Classification.LLM_RECOMIENDA_APROBAR);
+    }
+
+    @Test
+    void ruleResolvedClaimWithAnLlmValue_isScoredWithoutAModelRecommendation() {
+        when(coverageRuleEvaluator.evaluate(any(), any()))
+                .thenReturn(new CoverageRuleEvaluator.Result(true, List.of()));
+        when(riskScoringService.score(any())).thenReturn(knownScore);
+
+        ClassificationResponse response = orchestrator.classify(RiskFixtures.claim(new BigDecimal("100000")), List.of());
+
+        ArgumentCaptor<RiskContext> context = ArgumentCaptor.forClass(RiskContext.class);
+        verify(riskScoringService, times(1)).score(context.capture());
+        verify(classifier, never()).classify(any());
+        assertThat(response.classification()).isEqualTo(Classification.LLM_SOLICITA_REVISION_MANUAL);
+        assertThat(context.getValue().modelRecommendation()).isNull();
     }
 
     @Test

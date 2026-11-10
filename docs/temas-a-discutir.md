@@ -49,9 +49,27 @@ afuera; ahora son requisitos de diseño:
 
 ---
 
-## El score de riesgo no suma lo que encuentra el LLM — abierto (27/10/2026)
+## El score de riesgo no suma lo que encuentra el LLM — decidido (05/11/2026)
 
-**Qué se sabe.** El score sale solo de factores de datos: monto sobre suma asegurada, frecuencia de
+**Qué se decidió.** La recomendación del modelo entra como un factor más (`llm_recommendation`), con
+un peso que configura cada aseguradora:
+
+| Recomendación | Riesgo que suma |
+|---|---|
+| Recomienda aprobar | Nada |
+| Revisión manual | La mitad del peso |
+| No recomienda aprobar | Todo el peso |
+
+El factor cuenta solo si el modelo corrió. En Fast Track, prescripción, exclusión y falta de
+documentación no se evalúa. La carga inicial es 20%, y los demás factores conservan su proporción en
+el 80% restante.
+
+**Límite conocido.** La recomendación no siempre habla de fraude, y el promedio diluye una señal
+fuerte. Con peso 20%, el expediente #64 pasa de 20 a 26 y sigue en banda baja.
+
+Lo que sigue queda como registro.
+
+**Qué se sabía.** El score sale solo de factores de datos: monto sobre suma asegurada, frecuencia de
 siniestros, estado de la póliza, inconsistencias entre documentos y similares. Lo que el LLM
 encuentra al leer el caso no entra en el cálculo: ningún evaluador de `services/risk/` lee su salida.
 
