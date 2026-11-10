@@ -409,7 +409,7 @@ export class CaseDetailComponent {
       const d = this.data();
       const past = this.decisionState() !== 'pending';
       const recommends = past ? 'Recomendó ' : 'Recomienda ';
-      const asks = past ? 'Pidió ' : 'Pide ';
+      const asks = past ? 'Solicitó ' : 'Solicita ';
       switch (d?.analysisClassification) {
         case 'LLM_RECOMIENDA_APROBAR':
         case 'FAST_TRACK':
