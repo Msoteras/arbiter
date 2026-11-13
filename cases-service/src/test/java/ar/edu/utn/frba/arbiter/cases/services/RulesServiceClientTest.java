@@ -48,6 +48,21 @@ class RulesServiceClientTest {
     }
 
     @Test
+    void waitingPeriodActive_isTrueOnlyWhenRulesServiceReturnsTheRule() {
+        server.expect(requestTo(BASE_URL + "/api/v1/rules/internal/evaluable?coverageId=1"))
+                .andRespond(withSuccess("""
+                        {"rules": [{"ruleType": "WAITING_PERIOD", "excludedClaimCauseIds": null}]}
+                        """, MediaType.APPLICATION_JSON));
+        server.expect(requestTo(BASE_URL + "/api/v1/rules/internal/evaluable?coverageId=2"))
+                .andRespond(withSuccess("""
+                        {"rules": [{"ruleType": "REPORT_DEADLINE", "excludedClaimCauseIds": null}]}
+                        """, MediaType.APPLICATION_JSON));
+
+        assertThat(client.waitingPeriodActive(1L)).isTrue();
+        assertThat(client.waitingPeriodActive(2L)).isFalse();
+    }
+
+    @Test
     void excludedClaimCauseIds_rulesUnreachable_isReportedAsUnavailable() {
         server.expect(requestTo(BASE_URL + "/api/v1/rules/internal/evaluable?coverageId=1"))
                 .andRespond(withException(new ConnectException("Connection refused")));

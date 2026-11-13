@@ -56,7 +56,7 @@ describe('App', () => {
       });
       const fixture = TestBed.createComponent(App);
       fixture.detectChanges();
-      return [...(fixture.nativeElement as HTMLElement).querySelectorAll('.navpanel-nav a')].map(
+      return [...(fixture.nativeElement as HTMLElement).querySelectorAll('a.sidebar-link')].map(
         (link) => link.textContent?.trim(),
       );
     }
@@ -64,7 +64,15 @@ describe('App', () => {
     it('gives the analyst a Reglas entry and no referente management', () => {
       const links = menuFor('ANALISTA_SINIESTROS');
 
-      expect(links).toEqual(['Bandeja', 'Mensajes', 'Dashboard', 'Reportes', 'Arbiter', 'Reglas']);
+      expect(links).toEqual([
+        'Inicio',
+        'Bandeja',
+        'Mensajes',
+        'Dashboard',
+        'Reportes',
+        'Arbiter',
+        'Reglas',
+      ]);
     });
 
     it('keeps Reglas among the referente management entries', () => {

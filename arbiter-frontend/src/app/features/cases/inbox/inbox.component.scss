@@ -339,9 +339,7 @@ td:nth-child(4) {
 }
 
 thead th {
-  font-size: var(--font-size-2xs);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
+  font-size: var(--font-size-sm);
   font-weight: var(--font-weight-medium);
   color: var(--text-muted);
   background: var(--surface-head);

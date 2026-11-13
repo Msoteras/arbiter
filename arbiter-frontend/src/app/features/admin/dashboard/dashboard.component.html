@@ -260,11 +260,15 @@
         </section>
 
         <!-- ─── Distributions ──────────────────────────────────────────────────── -->
-        <section class="panels">
-          <app-card [heading]="'Estado de los ' + m.funnel.reported + ' expedientes'">
+        <app-card [heading]="'Estado de los ' + m.funnel.reported + ' expedientes'">
+          @if (statusMoves(); as moves) {
+            <app-case-lifecycle [transitions]="moves" [counts]="statusCounts()" />
+          } @else {
             <app-distribution [items]="statusItems()" />
-          </app-card>
+          }
+        </app-card>
 
+        <section class="panels">
           <app-card heading="Recomendación de Arbiter">
             <app-distribution [items]="classificationItems()" />
           </app-card>

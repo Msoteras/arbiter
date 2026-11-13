@@ -56,10 +56,11 @@ public class FastTrackValidator {
         }
 
         // priorClaimsWindowMonths isn't a criterion on its own: it only scopes maxPriorClaims.
+        // requiresUpToDatePolicy=false is the panel's "off", the same as null: it checks nothing.
         if (thresholds.maxClaimedAmountRatio() == null
                 && thresholds.maxPriorClaims() == null
                 && thresholds.minPolicyAgeMonths() == null
-                && thresholds.requiresUpToDatePolicy() == null
+                && !Boolean.TRUE.equals(thresholds.requiresUpToDatePolicy())
                 && (thresholds.requiredDocumentTypes() == null || thresholds.requiredDocumentTypes().isEmpty())) {
             return new Result(false,
                     List.of("Fast Track configurado pero sin criterios activos para " + rules.branchId() + "/" + rules.claimCauseId()),

@@ -72,6 +72,13 @@ import { TableComponent } from '../../../shared/ui/table/table.component';
 import { TabOption, TabsComponent } from '../../../shared/ui/tabs/tabs.component';
 import { CheckboxComponent } from '../../../shared/ui/checkbox/checkbox.component';
 import { SelectComponent, SelectOption } from '../../../shared/ui/select/select.component';
+import {
+  MenuButtonComponent,
+  MenuItem,
+} from '../../../shared/ui/menu-button/menu-button.component';
+import { RuleBlockComponent } from '../../../shared/ui/rule-block/rule-block.component';
+import { RuleGroupComponent } from '../../../shared/ui/rule-group/rule-group.component';
+import { FraudRuleService } from '../fraud-rule.service';
 import { RiskBand } from '../../../core/models/risk-band';
 import { ToastService } from '../../../shared/ui/toast/toast.service';
 import {
@@ -83,6 +90,7 @@ import { OnboardingService } from '../../../core/onboarding/onboarding.service';
 import { accordion, fadeInUp, staggerReveal } from '../../../shared/animations';
 import { OnboardingTargetDirective } from '../../../core/onboarding/onboarding-target.directive';
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
+import { CaseLifecycleReferenceComponent } from '../case-lifecycle-reference/case-lifecycle-reference.component';
 import {
   RulesTreeBranch,
   RulesTreeComponent,
@@ -107,7 +115,20 @@ function wholeMonths(months: number | null): number | null {
 }
 
 /** Right-panel views that don't depend on the selected branch. */
-type GeneralView = 'hardStop' | 'scoring' | 'fraud' | 'providers' | 'target' | 'brand' | 'history';
+type GeneralView =
+  'hardStop' | 'scoring' | 'fraud' | 'providers' | 'target' | 'lifecycle' | 'brand' | 'history';
+
+/** A Fast Track condition the referent adds or removes as a block. */
+type FtCondition = 'age' | 'prior' | 'amount' | 'upToDate' | 'docs';
+
+/** "Agregar condición" offers them in this order, the same the blocks are shown in. */
+const FT_CONDITIONS: { id: FtCondition; label: string }[] = [
+  { id: 'age', label: 'Antigüedad de la póliza' },
+  { id: 'prior', label: 'Siniestros previos' },
+  { id: 'amount', label: 'Monto reclamado' },
+  { id: 'upToDate', label: 'Póliza al día' },
+  { id: 'docs', label: 'Documentos adjuntos' },
+];
 
 /** A tree item and the content beside it: three configuration levels, plus the audit history. */
 type Level = 'insurer' | 'branch' | 'coverage' | 'audit';
@@ -121,6 +142,7 @@ type Level = 'insurer' | 'branch' | 'coverage' | 'audit';
 @Component({
   selector: 'app-rules',
   imports: [
+    CaseLifecycleReferenceComponent,
     OnboardingTargetDirective,
     ButtonComponent,
     IconButtonComponent,
@@ -152,6 +174,9 @@ type Level = 'insurer' | 'branch' | 'coverage' | 'audit';
     TabsComponent,
     CheckboxComponent,
     SelectComponent,
+    MenuButtonComponent,
+    RuleBlockComponent,
+    RuleGroupComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   animations: [staggerReveal, fadeInUp, accordion],
@@ -165,6 +190,7 @@ export class RulesComponent {
   private readonly coveragesService = inject(CoveragesRulesService);
   private readonly exclusionsService = inject(CoverageExclusionsService);
   private readonly hardRulesService = inject(HardRulesService);
+  private readonly fraudRuleService = inject(FraudRuleService);
   private readonly documentsService = inject(DocumentRulesService);
   private readonly documentTypesService = inject(DocumentTypeService);
   private readonly rulesTextService = inject(BusinessRulesTextService);
@@ -332,6 +358,7 @@ export class RulesComponent {
 
   protected discardFastTrack(): void {
     this.restoreSlice('fastTrack');
+    this.ftPending.set(new Set());
     this.ftError.set(null);
   }
 
@@ -373,6 +400,14 @@ export class RulesComponent {
     });
     this.refreshCoverageSummary();
     this.loadInsurerHardRules();
+    // Only to say, on the Fast Track tab, whether a fraud record also takes it away.
+    this.fraudRuleService
+      .get()
+      .pipe(takeUntilDestroyed())
+      .subscribe({
+        next: (rule) => this.fraudBlocksFastTrack.set(rule.blocksFastTrack),
+        error: () => this.fraudBlocksFastTrack.set(false),
+      });
 
     // A link arriving while the screen is already open, e.g. "Siguiente" on the setup toast.
     this.route.queryParamMap.pipe(skip(1), takeUntilDestroyed()).subscribe((params) => {
@@ -654,6 +689,8 @@ export class RulesComponent {
     // Its own entry: a repair shop has nothing to do with fraud.
     { id: 'providers', label: 'Proveedores externos' },
     { id: 'target', label: 'Objetivo de resolución' },
+    // Configures nothing: the state machine to look up, for analyst and referent alike.
+    { id: 'lifecycle', label: 'Ciclo del expediente' },
     { id: 'brand', label: 'Marca', referentOnly: true },
     // 'history' is deliberately not here: it configures nothing and has its own Audit block.
   ];
@@ -1251,6 +1288,7 @@ export class RulesComponent {
           }
         : d,
     );
+    this.ftPending.set(new Set());
     this.markPersisted('fastTrack');
   }
 
@@ -1628,10 +1666,17 @@ export class RulesComponent {
     this.hardStopError.set(null);
   }
 
+  /** `OFF` isn't an `onArrears` value: it is the rule switched off (`enabled=false`). */
   protected readonly onArrearsOptions: SelectOption[] = [
-    { value: 'REJECT', label: 'Rechazar en el alta' },
-    { value: 'STANDBY', label: 'Permitir el alta y evaluar después' },
+    { value: 'REJECT', label: 'No dejar denunciar' },
+    { value: 'STANDBY', label: 'Dejar denunciar' },
+    { value: 'OFF', label: 'No controlar' },
   ];
+
+  protected policyStandingChoice(): string {
+    const rule = this.policyStandingRule();
+    return rule?.enabled ? (rule.onArrears ?? 'STANDBY') : 'OFF';
+  }
 
   private loadInsurerHardRules(): void {
     this.hardStopLoading.set(true);
@@ -1653,26 +1698,27 @@ export class RulesComponent {
     return INSURER_HARD_RULE_LABELS[type];
   }
 
-  protected toggleInsurerHardRule(type: InsurerHardRuleType): void {
+  protected setOnArrears(value: string): void {
     this.insurerHardRules.update((list) =>
-      list.map((r) => (r.ruleType === type ? { ...r, enabled: !r.enabled } : r)),
+      list.map((r) => {
+        if (r.ruleType !== 'POLICY_STANDING') {
+          return r;
+        }
+        // Switching it off keeps the last choice, so turning it back on restores it.
+        return value === 'OFF'
+          ? { ...r, enabled: false }
+          : { ...r, enabled: true, onArrears: value as OnArrears };
+      }),
     );
   }
 
-  protected setOnArrears(value: string): void {
-    this.insurerHardRules.update((list) =>
-      list.map((r) =>
-        r.ruleType === 'POLICY_STANDING' ? { ...r, onArrears: value as OnArrears } : r,
-      ),
-    );
+  /** A link on a locked Fast Track block, to the screen where that rule is set. */
+  protected openGeneralView(section: GeneralView): void {
+    this.leaveCurrentView(() => this.selectGeneral(section));
   }
 
   protected policyStandingRule(): InsurerHardRule | undefined {
     return this.insurerHardRules().find((r) => r.ruleType === 'POLICY_STANDING');
-  }
-
-  protected policyInForceRule(): InsurerHardRule | undefined {
-    return this.insurerHardRules().find((r) => r.ruleType === 'POLICY_IN_FORCE');
   }
 
   protected saveHardStop(): void {
@@ -1814,26 +1860,29 @@ export class RulesComponent {
   }
 
   /** Summary on the branch's coverage cards; unset values are omitted rather than shown as "—". */
-  protected coverageSummary(c: Coverage): string[] {
-    const chips: string[] = [];
+  /** Each threshold as a label and its value, the value in bold on the card. */
+  protected coverageSummary(c: Coverage): { label: string; value: string }[] {
+    const chips: { label: string; value: string }[] = [];
     if (c.deductibleRatio != null) {
-      chips.push(
-        `Franquicia ${this.pctFromRatio(c.deductibleRatio)}%` +
+      chips.push({
+        label: 'Franquicia',
+        value:
+          `${this.pctFromRatio(c.deductibleRatio)}%` +
           (c.deductibleBasis === 'LOSS_AMOUNT' ? ' del monto a indemnizar' : ''),
-      );
+      });
     }
     if (c.waitingPeriodDays != null && !this.hardRuleOff(c, 'WAITING_PERIOD')) {
-      chips.push(`Carencia ${c.waitingPeriodDays} d`);
+      chips.push({ label: 'Carencia', value: `${c.waitingPeriodDays} d` });
     }
     if (c.reportDeadlineHours != null && !this.hardRuleOff(c, 'REPORT_DEADLINE')) {
-      chips.push(`Denuncia ${c.reportDeadlineHours} h`);
+      chips.push({ label: 'Denuncia', value: `${c.reportDeadlineHours} h` });
     }
     const police = this.hardRulesOf(c).find((r) => r.ruleType === 'POLICE_DEADLINE');
     if (police?.deadlineHours != null && police.enabled && this.coversACauseWithPoliceReport(c)) {
-      chips.push(`Policial ${police.deadlineHours} h`);
+      chips.push({ label: 'Policial', value: `${police.deadlineHours} h` });
     }
     if (c.maxAnnualClaims != null && !this.hardRuleOff(c, 'MAX_EVENTS_YEAR')) {
-      chips.push(`Máx. ${c.maxAnnualClaims}/año`);
+      chips.push({ label: 'Máx.', value: `${c.maxAnnualClaims}/año` });
     }
     // Covering everything already has its own badge; an unloaded catalog would read as "none".
     const causes = this.claimCauses();
@@ -1841,8 +1890,8 @@ export class RulesComponent {
       const covered = causes.filter((cause) => this.isCauseCovered(c, cause.id));
       chips.push(
         covered.length > 0
-          ? `Cubre ${covered.map((cause) => cause.name).join(', ')}`
-          : 'No cubre ningún hecho',
+          ? { label: 'Cubre', value: covered.map((cause) => cause.name).join(', ') }
+          : { label: 'No cubre', value: 'ningún hecho' },
       );
     }
     return chips;
@@ -1865,6 +1914,15 @@ export class RulesComponent {
     )
       .map((type) => rules.find((r) => r.ruleType === type))
       .filter((r): r is HardRule => r != null);
+  }
+
+  /** The waiting period stops the claim at intake; the rest only take Fast Track away. */
+  protected rejectingHardRules(c: Coverage): HardRule[] {
+    return this.orderedHardRules(c).filter((r) => r.ruleType === 'WAITING_PERIOD');
+  }
+
+  protected fastTrackHardRules(c: Coverage): HardRule[] {
+    return this.orderedHardRules(c).filter((r) => r.ruleType !== 'WAITING_PERIOD');
   }
 
   /**
@@ -2044,10 +2102,12 @@ export class RulesComponent {
   }
 
   protected setMinPolicyAge(months: number | null): void {
+    this.keepFtCondition('age');
     this.patchFastTrack((ft) => ({ ...ft, minPolicyAgeMonths: wholeMonths(months) }));
   }
 
   protected setMaxPriorClaims(v: string): void {
+    this.keepFtCondition('prior');
     this.patchFastTrack((ft) => ({ ...ft, maxPriorClaims: this.intFromStr(v) }));
   }
 
@@ -2056,12 +2116,139 @@ export class RulesComponent {
   }
 
   protected setFtMaxRatio(v: string): void {
+    this.keepFtCondition('amount');
     this.patchFastTrack((ft) => ({ ...ft, maxClaimedAmountRatio: this.ratioFromPct(v) }));
   }
 
-  protected toggleFtRequiresUpToDate(): void {
-    this.patchFastTrack((ft) => ({ ...ft, requiresUpToDatePolicy: !ft.requiresUpToDatePolicy }));
+  /**
+   * Conditions the referent added or is editing, kept on screen while their value is empty: a
+   * block that vanished on clearing its field would lose the referent's place. Value present means
+   * shown anyway; this only covers the empty ones.
+   */
+  protected readonly ftPending = signal<ReadonlySet<FtCondition>>(new Set());
+
+  private keepFtCondition(id: FtCondition): void {
+    if (!this.ftPending().has(id)) {
+      this.ftPending.update((all) => new Set(all).add(id));
+    }
   }
+
+  /** What the engine evaluates: one block, one active condition (FastTrackValidator). */
+  private ftHasValue(id: FtCondition): boolean {
+    const ft = this.draft()?.fastTrack;
+    if (!ft) {
+      return false;
+    }
+    switch (id) {
+      case 'age':
+        return ft.minPolicyAgeMonths != null;
+      case 'prior':
+        return ft.maxPriorClaims != null;
+      case 'amount':
+        return ft.maxClaimedAmountRatio != null;
+      case 'upToDate':
+        return ft.requiresUpToDatePolicy === true;
+      case 'docs':
+        return ft.requiredDocumentTypes.length > 0;
+    }
+  }
+
+  protected ftShown(id: FtCondition): boolean {
+    return this.ftHasValue(id) || this.ftPending().has(id);
+  }
+
+  /** On screen with nothing to evaluate: the engine would skip it, so it can't be saved that way. */
+  protected ftMissing(id: FtCondition): boolean {
+    return this.ftPending().has(id) && !this.ftHasValue(id);
+  }
+
+  protected readonly ftAddOptions = computed<MenuItem[]>(() =>
+    FT_CONDITIONS.filter((c) => !this.ftShown(c.id)).map((c) => ({
+      value: c.id,
+      label: c.label,
+    })),
+  );
+
+  protected readonly ftEmpty = computed(() => FT_CONDITIONS.every((c) => !this.ftShown(c.id)));
+
+  /** No conditions at all would make every claim Fast Track, so it can't be saved. */
+  protected readonly ftCanSave = computed(
+    () =>
+      !this.ftHasStaleDocs() &&
+      !this.ftEmpty() &&
+      FT_CONDITIONS.every((c) => !this.ftMissing(c.id)),
+  );
+
+  protected addFtCondition(value: string): void {
+    const id = value as FtCondition;
+    switch (id) {
+      case 'age':
+        this.toggleFtThreshold('minPolicyAgeMonths');
+        return;
+      case 'prior':
+        this.toggleFtThreshold('maxPriorClaims');
+        return;
+      case 'amount':
+        this.toggleFtThreshold('maxClaimedAmountRatio');
+        return;
+      case 'upToDate':
+        this.patchFastTrack((ft) => ({ ...ft, requiresUpToDatePolicy: true }));
+        return;
+      case 'docs':
+        this.keepFtCondition('docs');
+        return;
+    }
+  }
+
+  protected removeFtCondition(id: FtCondition): void {
+    this.ftPending.update((all) => {
+      const next = new Set(all);
+      next.delete(id);
+      return next;
+    });
+    switch (id) {
+      case 'age':
+        this.clearFtThreshold('minPolicyAgeMonths');
+        return;
+      case 'prior':
+        this.clearFtThreshold('maxPriorClaims');
+        return;
+      case 'amount':
+        this.clearFtThreshold('maxClaimedAmountRatio');
+        return;
+      case 'upToDate':
+        this.patchFastTrack((ft) => ({ ...ft, requiresUpToDatePolicy: false }));
+        return;
+      case 'docs':
+        this.patchFastTrack((ft) => ({ ...ft, requiredDocumentTypes: [] }));
+        return;
+    }
+  }
+
+  private clearFtThreshold(
+    field: 'minPolicyAgeMonths' | 'maxPriorClaims' | 'maxClaimedAmountRatio',
+  ): void {
+    if (this.draft()?.fastTrack[field] != null) {
+      this.toggleFtThreshold(field);
+    }
+  }
+
+  /** Read from the screen being edited: what applies to this coverage right now. */
+  protected readonly ftTermsApply = computed(() => {
+    const c = this.selectedCoverage();
+    return (
+      c != null &&
+      this.orderedHardRules(c).some((r) => r.enabled && r.ruleType !== 'WAITING_PERIOD')
+    );
+  });
+
+  /** With "Dejar denunciar", arrears takes Fast Track away (TemporalRuleEvaluator). */
+  protected readonly ftArrearsApplies = computed(() => {
+    const rule = this.policyStandingRule();
+    return rule?.enabled === true && rule.onArrears !== 'REJECT' && !this.ftShown('upToDate');
+  });
+
+  protected readonly fraudBlocksFastTrack = signal(false);
 
   /**
    * Fast Track asks for the first round of the coverage's own documents: those the document
@@ -2096,6 +2283,7 @@ export class RulesComponent {
   }
 
   protected toggleFtDoc(code: string): void {
+    this.keepFtCondition('docs');
     this.patchFastTrack((ft) => {
       const has = ft.requiredDocumentTypes.includes(code);
       return {
@@ -2125,7 +2313,7 @@ export class RulesComponent {
   /** Only the open coverage: each has its own FAST_TRACK rule. */
   protected saveFastTrack(): void {
     const d = this.draft();
-    if (!d || this.ftSaving() || this.ftHasStaleDocs()) {
+    if (!d || this.ftSaving() || !this.ftCanSave()) {
       return;
     }
     this.ftError.set(null);

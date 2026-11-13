@@ -11,6 +11,7 @@
   --accent-soft-border: #b9e3de;
   --accent-wash: #f0faf8; /* top of the AI card gradient */
   --accent-veil: rgba(0, 169, 157, 0.15); /* focus ring */
+  --accent-line: #6cc8bf; /* lines of a diagram: lighter than --accent so the arrowheads stand out */
 
   /* ===== Technicolor palette =====
      Reserved for status signals: green=ok, yellow=warning, orange=risk, red=danger, blue=info. */
@@ -25,6 +26,8 @@
   --accent-red-strong: #c4291f;
   --accent-red-deep: #a32119;
   --accent-orange-strong: #b4451a;
+  /* Yellow dark enough to read as text on white (5.3:1); the plain yellow only works as a fill. */
+  --accent-yellow-text: #8a6400;
   --accent-red-soft-border: #f4c9c5;
 
   /* ===== Color: text ===== */
@@ -51,10 +54,14 @@
   /* ===== Color: backgrounds ===== */
   --c-bg: #ffffff;
   --c-bg-soft: #fbfaf7;
-  --c-bg-soft-2: #f4f3ee; /* app canvas */
+  --c-bg-soft-2: #f4f3ee;
   --c-bg-head: #faf9f6;
+  /* The page behind the cards. .theme-zinc leaves it alone: the canvas stays "paper". */
+  --c-canvas: #f4f3ee;
+  --c-grid-dot: #d6d4cc; /* dotted background of a diagram */
 
   /* ===== Spacing (4px base) ===== */
+  --space-0-5: 2px; /* compact chips only */
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -69,7 +76,7 @@
   --font-mono: 'Roboto Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
 
   /* ===== Typography: scale ===== */
-  --font-size-2xs: 10px; /* uppercase labels */
+  --font-size-2xs: 10px; /* counters and badges inside a control */
   --font-size-xs: 11px;
   --font-size-sm: 12px;
   --font-size-body: 13px;
@@ -79,6 +86,14 @@
   --font-size-xl: 22px; /* page titles */
   --font-size-2xl: 28px; /* hero titles (login, portal) */
   --font-size-display: 34px; /* a headline figure: the recommendation, the risk score */
+  /* The spotlight strip: its headline and the one figure it is about. */
+  --font-size-headline: 38px;
+  --font-size-figure: 88px;
+  --font-size-figure-money: 68px;
+  --font-size-figure-sm: 64px; /* the figure on a phone */
+  --font-size-figure-money-sm: 52px;
+  --font-size-count: 30px; /* a count in a cell under the strip */
+  --font-size-figure-xs: 44px; /* a figure beside the strip's headline, in its aside */
 
   /* ===== Typography: weights ===== */
   --font-weight-regular: 400;
@@ -86,14 +101,51 @@
   --font-weight-bold: 700;
 
   /* ===== Chrome layout =====
-     Global because any sticky header on an internal screen must anchor below the fixed topbar. */
+     Global because any sticky header on an internal screen must anchor below the sticky top bar.
+     The internal roles' shell swaps --appbar-h for the compact height while the sidebar shows only
+     its icons, as in shadcn/ui's sidebar blocks. */
   --appbar-h: 56px;
+  --appbar-h-compact: 48px;
+  --sidebar-w: 16rem;
+  --sidebar-w-icon: 3rem;
+  --sidebar-w-mobile: 18rem;
+  --sidebar-item-h: 32px;
+  --sidebar-item-h-lg: 48px;
+  --sidebar-rail-w: 16px;
+  /* The spotlight strip: the frame's padding and gap, its action column, the narrowest its aside
+     gets and the hero's floor. */
+  --spotlight-gap: 6px;
+  --spotlight-actions-w: 280px;
+  --spotlight-aside-min-w: 200px;
+  --spotlight-min-h: 196px;
   /* Progress line pinned to the top of the viewport while a request is in flight. */
   --activity-bar-h: 2px;
   /* Toast width (same as Sonner's): fits a title, a description line and an action. */
   --toast-w: 356px;
   /* Narrowest the referent home's setup checklist gets when it sits beside the main content. */
   --setup-column-min: 400px;
+
+  /* Folder tabs (app-tabs variant="folder"): the label sits nearer the divider than the top. */
+  --folder-tab-pad-top: 9px;
+  --folder-tab-pad-x: 14px;
+  /* A folder card's title lines up with the text of the cards inside its panel: card border +
+     panel padding + inner card border + inner card padding. */
+  --folder-title-inset: 33px;
+
+  /* Rules tree (Reglas sidebar): item padding, the coverages' indent under their branch and the
+     counter column, fixed so the counters line up whether a row has a status dot or not. */
+  --tree-item-pad-y: 6px;
+  --tree-indent: 14px;
+  --tree-count-w: 20px;
+  /* Reglas: the sidebar's and the content's base widths; the content grows, the sidebar wraps on
+     top once both no longer fit. */
+  --rules-sidebar-w: 248px;
+  --rules-content-w: 520px;
+  --cov-card-w: 240px;
+  /* app-empty-state fill: the least it shrinks to inside a short card. */
+  --empty-fill-min-h: 200px;
+  /* Reports: the narrowest a parameter field gets before the row wraps. */
+  --report-field-min-w: 180px;
 
   /* Minimum height of a tappable control on touch layouts (WCAG 2.5.5). */
   --touch-target: 44px;
@@ -140,9 +192,13 @@
   --engine-shimmer: 1.9s;
 
   /* ===== Radii ===== */
+  --radius-chip: 6px; /* square-ish badges */
   --radius-ctl: 8px; /* controls: buttons, inputs */
   --radius-card: 12px;
   --radius-modal: 14px;
+  /* The spotlight strip: the frame and the panels nested in it (frame − 6px padding). */
+  --radius-frame: 22px;
+  --radius-panel: 16px;
   --radius-pill: 999px;
   /* A box nested in another one follows its corner: inner radius = outer radius − padding
      (corner-radii.xyz). A card's padding is larger than its radius, so the rule gives 0;
@@ -190,4 +246,46 @@
   --dur-3: 340ms; /* surface entrance (card/modal) */
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* Neutral palette in the style of shadcn/ui (zinc): cool greys, high text contrast and flat
+   shadows. Only the styleguide carries `.theme-zinc`; the app keeps the warm "paper" palette.
+   _semantic.scss maps its roles again under the same class, so they resolve against these. */
+.theme-zinc {
+  --c-ink: #09090b;
+  --c-ink-strong: #000000;
+  --c-ink-2: #27272a;
+  --c-ink-3: #3f3f46;
+  --c-ink-4: #52525b;
+  --c-ink-raised: #27272a;
+  --c-ink-raised-2: #3f3f46;
+  --c-ink-hair: #27272a;
+  --c-muted: #52525b; /* 7.7:1 on white */
+  --c-muted-2: #a1a1aa;
+  --c-muted-3: #d4d4d8;
+
+  --c-divider: #f4f4f5;
+  --c-border: #e4e4e7;
+  --c-border-2: #e4e4e7;
+  --c-border-3: #d4d4d8;
+  --c-border-strong: #a1a1aa;
+
+  --c-bg: #ffffff;
+  --c-bg-soft: #fafafa;
+  --c-bg-soft-2: #f4f4f5;
+  --c-bg-head: #fafafa;
+
+  --shadow-card: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-card-hover: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
+  --shadow-pop: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+  --shadow-modal: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+  --gloss: none;
+  --shadow-btn: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-btn-hover: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-btn-solid: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-btn-solid-hover: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-pressed: none;
+  --shadow-field: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-knob: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
+  --overlay-backdrop: rgba(0, 0, 0, 0.5);
 }

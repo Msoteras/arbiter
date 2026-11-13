@@ -7,6 +7,7 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 @Component({
   selector: 'app-empty-state',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  host: { '[class.is-fill]': 'fill()' },
   template: `
     <div class="empty">
       <svg
@@ -36,6 +37,17 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
     :host {
       display: block;
     }
+    /* Takes the room its column leaves, centered: a preview with nothing to show. */
+    :host(.is-fill) {
+      flex: 1 1 auto;
+      display: flex;
+      flex-direction: column;
+      min-height: var(--empty-fill-min-h);
+    }
+    :host(.is-fill) .empty {
+      flex: 1 1 auto;
+      justify-content: center;
+    }
     .empty {
       display: flex;
       flex-direction: column;
@@ -55,12 +67,13 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
     .msg {
       margin: 0 0 var(--space-1);
       font-size: var(--font-size-body);
-      color: var(--text-tertiary);
+      font-weight: var(--font-weight-medium);
+      color: var(--text-secondary);
     }
     .sub {
       margin: 0;
-      font-size: var(--font-size-xs);
-      color: var(--text-muted);
+      font-size: var(--font-size-sm);
+      color: var(--text-tertiary);
       text-wrap: pretty;
     }
     .action:not(:empty) {
@@ -73,4 +86,6 @@ export class EmptyStateComponent {
   /** Line under the message, usually a sentence ("Probá con otro rango de fechas"), so it is not
    *  set in capitals. Empty by default: repeating the message adds nothing. */
   readonly sub = input('');
+  /** Stretches to the height its flex column leaves (`min-height` keeps it from collapsing). */
+  readonly fill = input(false);
 }

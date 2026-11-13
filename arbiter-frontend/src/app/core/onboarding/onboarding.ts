@@ -45,10 +45,10 @@ export const ONBOARDING_STEP_LINE: Record<OnboardingStepId, string> = {
   INSURED: 'Invitá a los asegurados con póliza vigente.',
   DOCUMENTS: 'Marcá los documentos necesarios para denunciar cada hecho generador.',
   SCORING: 'Elegí los factores de riesgo y el peso de cada uno.',
-  FAST_TRACK: 'Definí las condiciones para que una denuncia entre en Fast Track.',
+  FAST_TRACK: 'Definí las condiciones para que una denuncia sea Fast Track.',
   PROVIDERS: 'Agregá los peritos y servicios técnicos para derivar los expedientes.',
   AUTHORITIES: 'Definí el monto máximo que un analista puede autorizar por cada ramo.',
-  HARD_STOP: 'Elegí las reglas que se evalúan al dar de alta la denuncia.',
+  HARD_STOP: 'Elegí qué pasa cuando el asegurado hace una denuncia con la póliza en mora.',
   FRAUD:
     'Definí por cuántos meses un antecedente de fraude afecta las denuncias nuevas del asegurado.',
   TARGET: 'Definí el plazo de resolución de los expedientes.',

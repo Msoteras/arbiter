@@ -362,73 +362,17 @@ app-textarea {
   width: 14%;
 }
 
-/* ===== Settlement sheet (approval modal) ===== */
+/* ===== Settlement (approval modal) ===== */
+/* An app-spotlight: the amount first, the sheet and the fields that set it below. */
 .settlement {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
+  margin-bottom: var(--space-4);
 }
-
-.settlement-sheet {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-box);
-  background: var(--surface-soft);
-}
-
-.settlement-line {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--space-3);
-  padding: var(--space-2) var(--space-3);
-}
-
-.settlement-line + .settlement-line {
-  border-top: 1px solid var(--border-subtle);
-}
-
-.settlement-concept {
+.settlement-summary {
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
-  font-size: var(--font-size-body);
-  color: var(--text-primary);
 }
 
-.settlement-amount {
-  font-size: var(--font-size-body);
-  color: var(--text-primary);
-  white-space: nowrap;
-}
-
-.settlement-line.deduction .settlement-concept,
-.settlement-line.deduction .settlement-amount {
-  color: var(--text-secondary);
-}
-
-.settlement-line.total {
-  border-top: 1px solid var(--border-strong);
-  font-weight: var(--font-weight-bold);
-}
-
-/* Calculation notes, not case status: neutral on purpose, status colors are reserved for status. */
-.settlement-notes {
-  list-style: none;
-  margin: 0;
-  padding: var(--space-2) 0 var(--space-2) var(--space-3);
-  border-left: 2px solid var(--border-default);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  font-size: var(--font-size-xs);
-  color: var(--text-secondary);
-}
-
-/* This does change the case flow (it will await a sign-off), so it stands out with the brand accent. */
-.settlement-callout,
 .settlement-suggestion {
   padding: var(--space-2) var(--space-3);
   border: 1px solid var(--selected-border);
@@ -437,11 +381,6 @@ app-textarea {
   font-size: var(--font-size-xs);
   color: var(--text-primary);
 }
-/* Space below: the justification label follows it directly and read as part of the callout. */
-.settlement-callout {
-  margin: 0 0 var(--space-3);
-}
-
 /* Brand accent, not a status color: it is a fill-in suggestion, not a finding about the claim. */
 .settlement-suggestion {
   display: flex;
@@ -465,22 +404,11 @@ app-textarea {
   color: var(--text-muted);
 }
 
-/* Side by side so the sign-off stays above the fold; they stack on narrow screens. */
+/* The fields that set the amount, stacked in their panel. */
 .settlement-money {
   display: flex;
+  flex-direction: column;
   gap: var(--space-3);
-  align-items: flex-start;
-}
-
-.settlement-money app-field {
-  flex: 1 1 0;
-  min-width: 0;
-}
-
-@media (max-width: 560px) {
-  .settlement-money {
-    flex-direction: column;
-  }
 }
 
 /* Amount and recalculate button share a row so it's clear typing alone applies nothing. */

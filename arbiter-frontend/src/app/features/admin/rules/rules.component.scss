@@ -4,116 +4,139 @@
 @use 'media';
 
 :host {
-  display: block;
+  /* Fills the main column, so the two cards reach the bottom of the screen. */
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
   padding: var(--space-5);
 }
 
 .rules-page {
+  flex: 1 1 auto;
   display: flex;
   flex-direction: column;
-  gap: var(--space-5);
 }
 
-.rules-head {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-}
-
-.rules-head .t-page-title {
-  margin: 0;
-}
-
+/* Sidebar and content side by side; narrow, the sidebar goes on top. */
 .rules-layout {
-  display: grid;
-  grid-template-columns: minmax(220px, 260px) 1fr;
-  gap: var(--space-5);
-  align-items: start;
-}
-/* ───────── Left column ───────── */
-.master-col {
+  flex: 1 1 auto;
   display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-  position: sticky;
-  top: calc(var(--appbar-h) + var(--space-5));
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: var(--space-5);
 }
 
-/* After .master-col on purpose: same specificity, so the later rule wins. Stacked, a sticky
-   column slides over the editor below it. */
-@include media.phone {
-  .rules-layout {
-    grid-template-columns: 1fr;
-  }
-  .master-col {
-    position: static;
-  }
-  .editor {
-    min-height: calc(100vh - var(--appbar-h));
-  }
+/* ───────── Left column: a card ───────── */
+.master-col {
+  flex: 1 1 var(--rules-sidebar-w);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  padding: var(--space-4) var(--space-2);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+}
+.master-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-2);
+}
+.master-title {
+  margin: 0;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-primary);
 }
 
 .branch-name {
   font-weight: var(--font-weight-medium);
 }
 
-/* ───────── Audit ─────────
-   Styled apart on purpose: it's a record, not configuration. */
-.audit-block {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-.audit-label {
-  margin: 0;
-  color: var(--accent-fg);
-}
-.audit-entry {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  text-align: left;
-  font: inherit;
-  padding: var(--space-3);
-  border: 1px dashed var(--selected-border);
-  border-radius: var(--radius-card);
-  background: var(--selected-bg);
-  color: var(--text-secondary);
-  cursor: pointer;
-}
-.audit-entry:hover {
-  border-color: var(--accent-fg);
-}
-.audit-entry.active {
-  border-style: solid;
-  border-left: 3px solid var(--accent-fg);
-  padding-left: calc(var(--space-3) - 2px);
-  color: var(--text-primary);
-}
-.audit-entry .branch-name {
-  color: var(--accent-fg);
-}
-.audit-icon {
-  width: 1.25em;
-  height: 1.25em;
-  flex-shrink: 0;
-  color: var(--accent-fg);
-}
-.audit-text {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  min-width: 0;
-}
-
 /* ───────── Detail ───────── */
 .editor {
+  flex: 999 1 var(--rules-content-w);
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
   min-width: 0;
   scroll-margin-top: calc(var(--appbar-h) + var(--space-5));
+}
+
+/* ───────── Branch and coverage: one card, title and folder tabs on top ───────── */
+.folder-card {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+  /* The title starts where the text of the cards inside starts. */
+  --folder-lead-inset: var(--folder-title-inset);
+}
+.title-lead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  min-width: 0;
+  padding-bottom: var(--space-2);
+}
+.folder-title {
+  margin: 0;
+  font-size: var(--font-size-title);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+.title-edit {
+  display: grid;
+  place-items: center;
+  width: var(--icon-btn-sm);
+  height: var(--icon-btn-sm);
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-ctl);
+  background: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition:
+    color var(--dur-1) ease,
+    background var(--dur-1) ease;
+}
+.title-edit svg {
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+}
+.title-edit:hover {
+  color: var(--text-primary);
+  background: var(--surface-sunken);
+}
+.title-edit:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+@include media.touch {
+  .title-edit {
+    width: var(--touch-target);
+    height: var(--touch-target);
+  }
+}
+/* The cards inside the panel are flat: the folder card already carries the shadow. */
+.folder-panel {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+  padding: var(--space-4);
+  --card-shadow: none;
+  --card-shadow-hover: none;
 }
 
 /* flex-end: the field carries its label on top, so top-aligned the button floated above the input. */
@@ -123,7 +146,6 @@
   justify-content: space-between;
   gap: var(--space-3);
   flex-wrap: wrap;
-  padding-bottom: var(--space-3);
 }
 .editor-title {
   display: flex;
