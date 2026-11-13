@@ -26,13 +26,16 @@ import { OverlayPosition, anchorToTrigger } from '../overlay-position';
         type="button"
         class="trigger"
         [class.warning]="tone() === 'warning'"
+        [class.with-label]="!!label()"
         [attr.aria-expanded]="open()"
         [attr.aria-label]="
-          open()
-            ? 'Ocultar información'
-            : tone() === 'warning'
-              ? 'Ver advertencia'
-              : 'Más información'
+          label()
+            ? null
+            : open()
+              ? 'Ocultar información'
+              : tone() === 'warning'
+                ? 'Ver advertencia'
+                : 'Más información'
         "
         (click)="toggle($event)"
       >
@@ -53,6 +56,9 @@ import { OverlayPosition, anchorToTrigger } from '../overlay-position';
             <path d="M8 7.2v4.1" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" />
             <circle cx="8" cy="4.9" r="0.9" fill="currentColor" />
           </svg>
+        }
+        @if (label()) {
+          <span class="trigger-label">{{ label() }}</span>
         }
       </button>
       @if (open()) {
@@ -105,12 +111,26 @@ import { OverlayPosition, anchorToTrigger } from '../overlay-position';
       width: 15px;
       height: 15px;
     }
+    /* With words: a small text button in a card's header ("Criterios de detección"). */
+    .trigger.with-label {
+      width: auto;
+      gap: var(--space-1);
+      padding: var(--space-1);
+      border-radius: var(--radius-ctl);
+      color: var(--text-tertiary);
+      font: inherit;
+      font-size: var(--font-size-sm);
+    }
+    .trigger.with-label:hover,
+    .trigger.with-label[aria-expanded='true'] {
+      color: var(--text-primary);
+    }
 
     .bubble {
       position: fixed;
       z-index: 50;
       width: max-content;
-      /* Do not inherit the host label's text treatment (e.g. uppercase in app-stat-tile). */
+      /* Do not inherit the host label's text treatment (e.g. the weight of app-stat-tile's label). */
       text-transform: none;
       letter-spacing: normal;
       text-align: left;
@@ -130,6 +150,8 @@ import { OverlayPosition, anchorToTrigger } from '../overlay-position';
 })
 export class InfoTipComponent {
   readonly tone = input<'info' | 'warning'>('info');
+  /** Words next to the icon; they are the trigger's name, so it reads as what it opens. */
+  readonly label = input<string | null>(null);
 
   /** Used to pick the opening side without measuring the bubble first. */
   private static readonly ESTIMATED_HEIGHT = 140;

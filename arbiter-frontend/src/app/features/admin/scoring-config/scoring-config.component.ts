@@ -128,6 +128,11 @@ export class ScoringConfigComponent {
       ids: ['document_inconsistency', 'image_reuse', 'image_web_match'],
       heavy: true,
     },
+    {
+      title: 'Análisis del modelo',
+      hint: '',
+      ids: ['llm_recommendation'],
+    },
   ];
 
   protected factorsOf(group: { ids: string[] }): { id: string; label: string }[] {

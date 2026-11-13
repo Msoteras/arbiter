@@ -92,3 +92,121 @@
     background: var(--accent-fg);
   }
 }
+
+/*
+ * `variant="folder"`: folder tabs over a card. The divider is drawn in pieces (the fill before the
+ * tabs, every inactive tab, the fill after) so there is no piece under the active tab. Each side of
+ * a tab's border is written apart: a full border with a different bottom color, or a -1px margin
+ * over one continuous line, left the line showing under the active tab.
+ *
+ * When the lead (the screen title) and the tabs do not fit on one row, `.is-stacked` puts the tabs
+ * on their own row under the title; if even that row is too short, `.is-overflowing` fades its end
+ * so the cut-off tabs read as "more this way". Both classes are set from code (folder-fit.ts).
+ */
+@mixin folder-styles {
+  .folder {
+    display: flex;
+    align-items: stretch;
+    padding-top: var(--space-3);
+  }
+  .folder-fill {
+    flex: 0 0 var(--space-4);
+    border-bottom: 1px solid var(--border-default);
+  }
+  .folder-lead {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    border-bottom: 1px solid var(--border-default);
+  }
+  .folder-lead:not(:has(.folder-lead-content > *)) {
+    flex: 0 0 var(--space-4);
+  }
+  .folder-lead-content {
+    display: inline-flex;
+    align-items: center;
+    min-width: 0;
+    padding-left: var(--folder-lead-inset, var(--space-4));
+  }
+  .folder.align-start .folder-lead {
+    flex: 0 0 auto;
+  }
+  .folder.align-start .folder-trail {
+    flex: 1 1 auto;
+  }
+  .folder-trail {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+  }
+  .folder .tablist {
+    display: flex;
+    align-items: stretch;
+    flex: 0 1 auto;
+    min-width: 0;
+    gap: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+  }
+  .folder .tablist::-webkit-scrollbar {
+    display: none;
+  }
+  .folder .tab {
+    flex: none;
+    margin: 0;
+    /* Closer to the line than to the top edge: the label belongs to the panel below. */
+    padding: var(--folder-tab-pad-top) var(--folder-tab-pad-x) var(--space-1);
+    border-top: 1px solid transparent;
+    border-right: 1px solid transparent;
+    border-bottom: 1px solid var(--border-default);
+    border-left: 1px solid transparent;
+    border-radius: var(--radius-card) var(--radius-card) 0 0;
+    background: transparent;
+    color: var(--text-tertiary);
+    font-size: var(--font-size-sm);
+    white-space: nowrap;
+  }
+  .folder .tab:hover {
+    background: var(--surface-sunken);
+    color: var(--text-primary);
+  }
+  .folder .tab:focus-visible {
+    box-shadow: none;
+    outline: 2px solid var(--border-focus);
+    outline-offset: -4px;
+  }
+  .folder .tab.active {
+    border-top: 1px solid var(--border-default);
+    border-right: 1px solid var(--border-default);
+    border-bottom: 1px solid transparent;
+    border-left: 1px solid var(--border-default);
+    background: var(--surface);
+    color: var(--accent-fg);
+    font-weight: var(--font-weight-medium);
+  }
+
+  /* Tabs on their own row: the title keeps its row without a divider, the tabs start after a
+     short fill and the fill after them takes the rest. */
+  .folder.is-stacked {
+    flex-wrap: wrap;
+  }
+  .folder.is-stacked .folder-lead {
+    flex: 1 0 100%;
+    padding-bottom: var(--space-2);
+    border-bottom: none;
+  }
+  .folder.is-stacked .folder-trail {
+    flex: 1 1 auto;
+  }
+  .folder:not(.is-stacked) .folder-pre {
+    display: none;
+  }
+  .folder.is-overflowing .tablist {
+    mask-image: linear-gradient(to right, black calc(100% - var(--space-7)), transparent);
+  }
+  .folder.is-overflowing.is-scrolled-end .tablist {
+    mask-image: none;
+  }
+}

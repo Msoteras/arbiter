@@ -50,113 +50,117 @@
   <main class="det-content">
     <!-- One band: what Arbiter recommends, the fraud risk, what to weigh and the decision itself.
          Anything longer goes to the notices below so no column stretches the band. -->
-    <section class="decision-strip" @staggerReveal>
-      <!-- Wording depends on the source: a non-binding LLM recommendation or an objective rules
-           check (no confidence to show). Missing documentation is the insured's action, not the analyst's. -->
-      <div class="strip-col">
-        <h2 class="strip-label">
-          <span class="ai-mark" aria-hidden="true">✦</span>
-          {{
-            isDeterministicOutcome()
-              ? 'Resultado del motor de reglas de Arbiter'
-              : 'Recomendación de Arbiter'
-          }}
-        </h2>
-        @if (classificationLabel()) {
-          <p
-            class="reco-value"
-            @fadeInUp
-            [attr.data-tone]="classificationTone() !== 'neutral' ? classificationTone() : null"
-          >
-            {{ classificationLabel() }}
-          </p>
-          @if (!isDeterministicOutcome()) {
-            @if (analysisReasons().length > 0) {
-              <p class="note">
-                <button type="button" class="brief-link" (click)="viewAnalysis()">
-                  Ver motivos ({{ analysisReasons().length }})
+    <app-spotlight class="decision-strip" [tone]="spotlightTone()" @staggerReveal>
+      <!-- Who recommends, then the verdict word in its tone. Rules outcomes say so instead of
+           showing a confidence: the backend's 100% is a fixed value, not a measurement. -->
+      <span spotlightLabel>
+        <app-logo />
+        @if (isFastTrack()) {
+          <span>· Fast Track</span>
+        } @else if (isDeterministicOutcome() && classificationLabel()) {
+          <span>· Motor de reglas</span>
+        }
+      </span>
+      @let verdict = spotlightVerdict();
+      <h2 spotlightTitle>
+        {{ verdict.lead }}<span class="spotlight-tone">{{ verdict.word }}</span
+        >{{ verdict.end }}
+      </h2>
+      <div spotlightSummary class="strip-below">
+        <!-- Why, under the verdict: the first reasons (or the Fast Track criteria); the rest are
+             one click away in their tab. -->
+        @if (isFastTrack() && fastTrackCriteria().length > 0) {
+          <section class="strip-why">
+            <div class="spotlight-aside-head">
+              <h3 class="spotlight-panel-label">Criterios de Fast Track</h3>
+              @if (fastTrackCriteria().length > asideRows) {
+                <button type="button" class="summary-link panel-more" (click)="setTab('rules')">
+                  Ver los {{ fastTrackCriteria().length }}
                 </button>
-              </p>
-            }
-          } @else if (needsDocs()) {
-            <p class="note">Falta documentación para su nivel de riesgo.</p>
-          } @else if (!isFastTrack()) {
-            <!-- Coverage exclusion or prescription: the model never ran. -->
-            <p class="note">El detalle está en «Evaluación de reglas».</p>
-          } @else {
-            <p class="note">
-              Cumplió los criterios objetivos de Fast Track.
-              <app-info-tip>
-                Fast Track es la vía express para un siniestro que cumple ciertos criterios
-                objetivos.
-              </app-info-tip>
-            </p>
-          }
-        } @else if (d.status === 'PENDING_CLASSIFICATION') {
-          <app-classification-progress [since]="classificationSince()" />
-        } @else {
-          <p class="nodata">Arbiter todavía no generó una recomendación.</p>
-        }
-      </div>
-
-      <div class="strip-col">
-        <h2 class="strip-label">Riesgo de fraude</h2>
-        @if (riskScorePct() !== null) {
-          <div class="risk-head">
-            <span class="risk-score tabular">{{ riskScorePct() }}</span>
-            <span class="risk-max">/100</span>
-            @if (riskBandText(); as band) {
-              <span class="band-chip" [attr.data-tone]="riskTone()">{{ band }}</span>
-            }
-          </div>
-          <!-- Low to critical, left to right; the marker is where this claim's score falls. -->
-          <div
-            class="risk-bar"
-            role="img"
-            [attr.aria-label]="'Puntaje ' + riskScorePct() + ' de 100'"
-          >
-            <span class="risk-marker" [style.left.%]="riskScorePct()"></span>
-          </div>
-        } @else {
-          <p class="nodata">{{ riskGaugeEmptyLabel() }}</p>
-        }
-      </div>
-
-      <!-- What to weigh before deciding: the evidence already on the case, never a suggestion. -->
-      @if (showBeforeDeciding()) {
-        <div class="strip-col">
-          <h2 class="strip-label">Pendientes</h2>
-          <ul class="weigh-list">
-            @for (a of decisionAlerts(); track a.tab) {
-              <li>
-                <span class="weigh-dot" [class.is-danger]="a.danger" aria-hidden="true"></span>
-                <button type="button" class="weigh-link" (click)="onAlert(a)">{{ a.label }}</button>
-              </li>
-            }
-            @for (p of answeredDerivations(); track p.id) {
-              <li>
-                <span
-                  class="weigh-dot"
-                  [attr.data-tone]="derivationResultTone(p)"
-                  aria-hidden="true"
-                ></span>
-                {{ derivationResult(p) }}
-              </li>
-            }
-            <!-- Hidden at zero: it means an input is missing, not that nothing is owed. -->
-            @if (displayedSettlement(); as s) {
-              @if (s.calculatedAmount > 0) {
-                <li class="weigh-amount">
-                  Monto a pagar
-                  <strong class="tabular">{{ exactAmount(s.calculatedAmount) }}</strong>
+              }
+            </div>
+            <ul class="spotlight-rows is-compact">
+              @for (c of fastTrackCriteria().slice(0, asideRows); track c.id) {
+                <li class="spotlight-row">
+                  <span class="row-icon" aria-hidden="true">{{
+                    c.result === 'PASS' ? '✓' : '·'
+                  }}</span>
+                  <span class="row-text">{{ ruleTypeLabel(c.ruleType) }}</span>
+                  <span></span>
                 </li>
               }
+            </ul>
+          </section>
+        } @else if (spotlightReasons().length > 0) {
+          <section class="strip-why">
+            <div class="spotlight-aside-head">
+              <h3 class="spotlight-panel-label">Motivos</h3>
+              @if (analysisReasons().length > spotlightReasons().length) {
+                <button type="button" class="summary-link panel-more" (click)="viewAnalysis()">
+                  Ver los {{ analysisReasons().length }}
+                </button>
+              }
+            </div>
+            <ul class="spotlight-rows is-compact">
+              @for (r of spotlightReasons(); track $index) {
+                <li class="spotlight-row">
+                  <span class="row-icon" aria-hidden="true">→</span>
+                  <span class="row-text" [title]="r">{{ r }}</span>
+                  <span></span>
+                </li>
+              }
+            </ul>
+          </section>
+        }
+        <!-- One line: how sure Arbiter is, then what to weigh before deciding, each pointing at its tab. -->
+        <div class="strip-summary">
+          @if (classificationLabel()) {
+            @if (!isDeterministicOutcome()) {
+              <span
+                >Confianza <strong class="tabular">{{ confidencePercent() }}%</strong></span
+              >
+            } @else if (needsDocs()) {
+              <span>Falta documentación para su nivel de riesgo.</span>
+            } @else if (isFastTrack()) {
+              <span>Sin pedido de documentación</span>
+            } @else {
+              <button type="button" class="summary-link" (click)="setTab('rules')">
+                Ver la evaluación de reglas
+              </button>
             }
-          </ul>
+            @if (showBeforeDeciding()) {
+              @for (a of decisionAlerts(); track a.tab) {
+                <button
+                  type="button"
+                  class="summary-link"
+                  [class.is-danger]="a.danger"
+                  (click)="onAlert(a)"
+                >
+                  {{ a.label }}
+                </button>
+              }
+              @for (p of answeredDerivations(); track p.id) {
+                <span [attr.data-tone]="derivationResultTone(p)">{{ derivationResult(p) }}</span>
+              }
+              <!-- Hidden at zero: it means an input is missing, not that nothing is owed. -->
+              @if (displayedSettlement(); as s) {
+                @if (s.calculatedAmount > 0) {
+                  <span>
+                    Monto a pagar
+                    <strong class="tabular">{{ exactAmount(s.calculatedAmount) }}</strong>
+                  </span>
+                }
+              }
+            }
+          } @else if (d.status === 'PENDING_CLASSIFICATION') {
+            <app-classification-progress [since]="classificationSince()" />
+          } @else {
+            <span>Arbiter todavía no generó una recomendación.</span>
+          }
         </div>
-      }
+      </div>
 
-      <div class="strip-col strip-actions">
+      <div spotlightActions class="strip-actions">
         <!-- With only the action buttons below, the label says nothing they don't: screen readers only. -->
         <h2
           class="strip-label"
@@ -265,8 +269,8 @@
                       @if (recommendedVerdict(); as rec) {
                         <app-button
                           class="verdict-main"
-                          [tone]="rec === 'reject' ? 'danger' : 'ok'"
                           [block]="true"
+                          [hoverTone]="rec === 'reject' ? 'danger' : 'ok'"
                           [disabled]="decisionSaving()"
                           (click)="askDecision(rec)"
                           >{{
@@ -277,26 +281,28 @@
                           class="span-all"
                           variant="secondary"
                           [block]="true"
+                          [hoverTone]="rec === 'reject' ? 'ok' : 'danger'"
                           [disabled]="decisionSaving()"
                           (click)="askDecision(rec === 'reject' ? 'approve' : 'reject')"
                           >{{ rec === 'reject' ? 'Aprobar' : 'Rechazar' }}</app-button
                         >
                       } @else {
+                        <!-- No recommendation to lean on: both verdicts look the same. -->
                         <app-button
                           variant="secondary"
-                          tone="ok"
                           [block]="true"
+                          hoverTone="ok"
                           [disabled]="decisionSaving()"
                           (click)="askDecision('approve')"
-                          >✓ Aprobar</app-button
+                          >Aprobar</app-button
                         >
                         <app-button
                           variant="secondary"
-                          tone="danger"
                           [block]="true"
+                          hoverTone="danger"
                           [disabled]="decisionSaving()"
                           (click)="askDecision('reject')"
-                          >✕ Rechazar</app-button
+                          >Rechazar</app-button
                         >
                       }
                     }
@@ -457,7 +463,59 @@
           <p class="rcard-note error">{{ decisionError() }}</p>
         }
       </div>
-    </section>
+
+      <!-- The risk, beside the verdict: the score on its thermometer, over the factors that add
+           to it. The full breakdown is in Análisis. -->
+      @if (classificationLabel() || riskScorePct() !== null) {
+        <div spotlightAside>
+          <section class="spotlight-aside-section strip-risk">
+            <h3 class="spotlight-panel-label">Riesgo de fraude</h3>
+            @if (riskScorePct() !== null) {
+              @let score = riskScorePct()!;
+              <p
+                class="strip-risk-line"
+                role="img"
+                [attr.aria-label]="
+                  'Riesgo de fraude ' +
+                  score +
+                  ' de 100' +
+                  (riskBandText() ? ', ' + riskBandText() : '')
+                "
+              >
+                <span class="strip-risk-number">{{ score }}</span>
+                <span class="spotlight-unit">
+                  <span>/ 100</span>
+                  @if (riskBandText(); as band) {
+                    <b [attr.data-tone]="riskTone()">riesgo {{ band.toLowerCase() }}</b>
+                  }
+                </span>
+              </p>
+              <app-risk-scale [score]="score" [band]="riskBand()" [labels]="true" />
+            } @else {
+              <p class="strip-risk-line">
+                <span class="strip-risk-number is-empty">—</span>
+                <span class="spotlight-unit"
+                  ><span>{{ riskGaugeEmptyLabel() }}</span></span
+                >
+              </p>
+            }
+            @if (spotlightFactors().length > 0) {
+              <ul class="spotlight-rows is-compact">
+                @for (f of spotlightFactors(); track f.label) {
+                  <li class="spotlight-row">
+                    <span class="row-icon" aria-hidden="true">+</span>
+                    <span class="row-text" [title]="f.label">{{ f.label }}</span>
+                    <span class="row-value" [class.is-hot]="f.contribution >= 40"
+                      >+{{ f.contribution }}</span
+                    >
+                  </li>
+                }
+              </ul>
+            }
+          </section>
+        </div>
+      }
+    </app-spotlight>
 
     @if (hasWarnings()) {
       <div class="notice-list">
@@ -1176,81 +1234,89 @@
         @case ('assessment') {
           @for (p of derivations(); track p.id) {
             @let isRepair = p.providerType === 'SERVICIO_TECNICO';
-            <app-card class="assessment-card">
-              <!-- Who it went to and how it came back, then the two steps on a timeline. -->
-              <div class="provider-head">
+            @let head = referralHeadline(p);
+            @let answered = !!(p.verdict || p.repairOutcome);
+            <!-- Who it went to and how it came back, then the two steps on a timeline. -->
+            <app-spotlight class="assessment-card" [tone]="referralTone(p)">
+              <span spotlightLabel class="provider-label">
                 <span class="provider-avatar" aria-hidden="true">{{
                   initialsOf(p.providerName)
                 }}</span>
-                <div class="provider-text">
-                  <h2 class="provider-name">{{ p.providerName }}</h2>
-                  <span class="t-note">
-                    {{ isRepair ? 'Servicio técnico' : 'Perito' }}
-                    @if (p.zone) {
-                      · {{ p.zone }}
-                    }
-                  </span>
-                </div>
-                @if (p.verdict) {
-                  <app-badge variant="solid" [tone]="verdictTone(p.verdict)">{{
-                    verdictLabel(p.verdict)
-                  }}</app-badge>
-                } @else if (p.repairOutcome) {
-                  <app-badge variant="solid">{{ repairOutcomeLabel(p.repairOutcome) }}</app-badge>
-                } @else {
-                  <app-badge variant="dashed">Sin respuesta</app-badge>
+                <strong class="provider-name">{{ p.providerName }}</strong>
+                <span
+                  >· {{ isRepair ? 'Servicio técnico' : 'Perito'
+                  }}{{ p.zone ? ' · ' + p.zone : '' }}</span
+                >
+              </span>
+              <h2 spotlightTitle>
+                {{ head.lead }}<span class="spotlight-tone">{{ head.word }}</span
+                >{{ head.end }}
+              </h2>
+              <div spotlightFigure>
+                <span class="spotlight-number" [class.is-empty]="answered">{{
+                  referralDays(p)
+                }}</span>
+                <span class="spotlight-unit">
+                  <span>{{ referralDays(p) === 1 ? 'día' : 'días' }}</span>
+                  <span>{{
+                    answered ? (isRepair ? 'tardó la respuesta' : 'tardó el informe') : 'esperando'
+                  }}</span>
+                </span>
+              </div>
+              <div spotlightSummary>
+                @if (answered) {
+                  {{ isRepair ? 'La respuesta' : 'El informe' }} queda en
+                  <strong>Documentación</strong>.
+                } @else if (!p.notified) {
+                  <span class="referral-warning"
+                    >No se pudo avisarle por mail. Contactalo por fuera antes de esperar la
+                    respuesta.</span
+                  >
                 }
               </div>
-
-              <ol class="referral-steps">
-                <li class="referral-step done">
-                  <span class="t-note"
-                    >{{ formatDateTime(p.derivedAt) }} · Derivado por {{ p.derivedByName }}</span
-                  >
-                  <span class="step-title">Motivo de la derivación</span>
-                  <p class="t-body">{{ p.reason }}</p>
-                  @if (!p.notified) {
-                    <p class="rcard-note error">
-                      No se pudo avisarle por mail. Contactalo por fuera antes de esperar la
-                      respuesta.
-                    </p>
-                  }
-                </li>
-                <li class="referral-step" [class.done]="p.verdict || p.repairOutcome">
-                  @if (p.verdict || p.repairOutcome) {
+              <div spotlightActions>
+                @if (answered) {
+                  <app-button variant="secondary" [block]="true" (click)="setTab('documents')">
+                    {{ isRepair ? 'Ver la respuesta' : 'Ver el informe' }}
+                  </app-button>
+                } @else if (canManage()) {
+                  <app-button [block]="true" (click)="askReport(p.providerType)">
+                    {{ isRepair ? 'Cargar respuesta' : 'Cargar informe' }}
+                  </app-button>
+                }
+              </div>
+              <section class="spotlight-panel">
+                <ol class="referral-steps">
+                  <li class="referral-step done">
                     <span class="t-note"
-                      >{{ formatDateTime(p.reportReceivedAt) }} ·
-                      {{
-                        isRepair ? 'Respuesta del servicio técnico' : 'Resultado del perito'
-                      }}</span
+                      >{{ formatDateTime(p.derivedAt) }} · Derivado por {{ p.derivedByName }}</span
                     >
-                    <span class="step-title">{{
-                      p.verdict
-                        ? verdictLabel(p.verdict)
-                        : repairOutcomeLabel(p.repairOutcome ?? '')
-                    }}</span>
-                    @if (p.verdictNote) {
-                      <p class="t-body">{{ p.verdictNote }}</p>
+                    <span class="step-title">Motivo de la derivación</span>
+                    <p class="t-body">{{ p.reason }}</p>
+                  </li>
+                  <li class="referral-step" [class.done]="answered">
+                    @if (answered) {
+                      <span class="t-note"
+                        >{{ formatDateTime(p.reportReceivedAt) }} ·
+                        {{
+                          isRepair ? 'Respuesta del servicio técnico' : 'Resultado del perito'
+                        }}</span
+                      >
+                      <span class="step-title">{{ head.word }}</span>
+                      @if (p.verdictNote) {
+                        <p class="t-body">{{ p.verdictNote }}</p>
+                      }
+                    } @else {
+                      <span class="step-title">{{
+                        isRepair
+                          ? 'Esperando la respuesta del servicio técnico'
+                          : 'Esperando el informe del perito'
+                      }}</span>
                     }
-                    <p class="t-note">
-                      {{ isRepair ? 'La respuesta' : 'El informe' }} queda como adjunto del
-                      expediente, en la solapa Documentación.
-                    </p>
-                  } @else {
-                    <span class="step-title">{{
-                      isRepair
-                        ? 'Esperando la respuesta del servicio técnico'
-                        : 'Esperando el informe del perito'
-                    }}</span>
-                    @if (canManage()) {
-                      <app-button variant="secondary" size="sm" (click)="askReport(p.providerType)">
-                        {{ isRepair ? 'Cargar respuesta' : 'Cargar informe' }}
-                      </app-button>
-                    }
-                  }
-                </li>
-              </ol>
-            </app-card>
+                  </li>
+                </ol>
+              </section>
+            </app-spotlight>
           }
           @if (reportError()) {
             <p class="rcard-note error">{{ reportError() }}</p>
@@ -1259,7 +1325,29 @@
         @case ('history') {
           @if (history().length > 0) {
             <app-card heading="Historial de estados">
-              <app-status-timeline [history]="history()" [currentStatus]="d.status" />
+              <app-chip-group
+                cardAside
+                size="sm"
+                ariaLabel="Vista del historial"
+                [options]="historyViewOptions"
+                [value]="historyView()"
+                (valueChange)="showHistoryView($event)"
+              />
+              @if (historyView() === 'diagram') {
+                @if (statusMoves(); as moves) {
+                  <app-case-lifecycle
+                    [transitions]="moves"
+                    [history]="history()"
+                    [currentStatus]="d.status"
+                  />
+                } @else if (statusMovesFailed()) {
+                  <app-empty-state message="No pudimos cargar el diagrama." />
+                } @else {
+                  <app-inline-loading [size]="26" message="Cargando el diagrama…" />
+                }
+              } @else {
+                <app-status-timeline [history]="history()" [currentStatus]="d.status" />
+              }
             </app-card>
           } @else {
             <app-empty-state message="Historial / auditoría del expediente" />
@@ -1297,16 +1385,13 @@
   </header>
   <div class="det-content">
     <app-skeleton class="sk-note" [lines]="0" note="Cargando expediente…" />
-    <div class="decision-strip" aria-hidden="true">
-      @for (col of [1, 2, 3]; track col) {
-        <div class="strip-col">
-          <app-skeleton class="sk-label" [lines]="1" />
-          <app-skeleton class="sk-figure" shape="block" />
-          <app-skeleton [lines]="2" />
-        </div>
-      }
+    <div class="strip-skeleton" aria-hidden="true">
       <div class="strip-col">
         <app-skeleton class="sk-label" [lines]="1" />
+        <app-skeleton class="sk-figure" shape="block" />
+        <app-skeleton [lines]="1" />
+      </div>
+      <div class="strip-col">
         <app-skeleton class="sk-action" shape="block" />
         <app-skeleton class="sk-action" shape="block" />
       </div>
@@ -1368,143 +1453,166 @@
 >
   @if (pendingDecision() === 'approve') {
     @if (settlement(); as s) {
-      <div class="settlement">
-        <span class="t-section-label">Cómo se llega al monto</span>
-        <ul class="settlement-sheet">
-          @for (line of s.breakdown; track $index) {
-            <li
-              class="settlement-line"
-              [class.deduction]="line.kind === 'DEDUCTION'"
-              [class.total]="line.kind === 'TOTAL'"
+      @let head = settlementHeadline();
+      <!-- Laid out like a price: the amount first, the sheet that arrives at it below. -->
+      <app-spotlight class="settlement" [tone]="head.tone">
+        <span spotlightLabel>Monto a pagar</span>
+        <h3 spotlightTitle>
+          {{ head.lead }}<span class="spotlight-tone">{{ head.word }}</span
+          >.
+        </h3>
+        <div spotlightFigure>
+          <span class="spotlight-number is-money" [class.is-empty]="baseAmountMissing()">{{
+            baseAmountMissing() ? '—' : formatAmount(amountToAuthorize() ?? s.calculatedAmount)
+          }}</span>
+        </div>
+        <div spotlightSummary class="settlement-summary">
+          @if (needsReferent()) {
+            <span
+              >Supera tu atribución para el ramo,
+              <strong>{{ exactAmount(s.authorityLimit) }}</strong
+              >. Lo autoriza el referente.</span
             >
-              <span class="settlement-concept">
-                {{ line.concept }}
-                @if (line.detail) {
-                  <span class="t-note">{{ line.detail }}</span>
-                }
-              </span>
-              <!-- A dash while the base amount is missing: a zero would read as a result. -->
-              <span class="settlement-amount tabular">
-                @if (sheetAmount(line); as amount) {
-                  @if (line.kind === 'DEDUCTION') {
-                    −
-                  }
-                  {{ amount }}
-                } @else {
-                  —
-                }
-              </span>
-            </li>
+          } @else if (adjustmentFieldShown()) {
+            <span
+              >Calculado <strong>{{ exactAmount(s.calculatedAmount) }}</strong
+              >.</span
+            >
+          } @else if (s.authorityLimit != null && !baseAmountMissing()) {
+            <span
+              >Dentro de tu atribución para el ramo,
+              <strong>{{ exactAmount(s.authorityLimit) }}</strong
+              >.</span
+            >
           }
-        </ul>
+          @for (warning of s.warnings; track $index) {
+            <span>{{ warning }}</span>
+          }
+        </div>
+        <div class="spotlight-panels">
+          <section class="spotlight-panel">
+            <h4 class="spotlight-panel-label">Cómo se llega al monto</h4>
+            <ul class="spotlight-rows">
+              @for (line of s.breakdown; track $index) {
+                <li
+                  class="spotlight-row"
+                  [class.is-deduction]="line.kind === 'DEDUCTION'"
+                  [class.is-total]="line.kind === 'TOTAL'"
+                >
+                  <span class="row-icon" aria-hidden="true">{{
+                    line.kind === 'DEDUCTION' ? '−' : line.kind === 'TOTAL' ? '=' : '+'
+                  }}</span>
+                  <span>{{ line.concept }}</span>
+                  <!-- A dash while the base amount is missing: a zero would read as a result. -->
+                  <span class="row-value">
+                    @if (sheetAmount(line); as amount) {
+                      @if (line.kind === 'DEDUCTION') {
+                        −
+                      }
+                      {{ amount }}
+                    } @else {
+                      —
+                    }
+                  </span>
+                  @if (line.detail) {
+                    <span class="row-detail">{{ line.detail }}</span>
+                  }
+                </li>
+              }
+            </ul>
+          </section>
+          <section class="spotlight-panel settlement-money">
+            <!-- Only where it changes the result; for REPAIR it is the base amount itself. -->
+            @if (needsAccreditedAmount()) {
+              <app-field
+                [label]="
+                  s.formula === 'REPAIR'
+                    ? 'Presupuesto de reparación'
+                    : 'Cuánto cuesta reponer el bien'
+                "
+                for="settlement-base"
+                [required]="true"
+              >
+                <app-input
+                  id="settlement-base"
+                  prefix="$"
+                  align="end"
+                  inputmode="decimal"
+                  [normalize]="amountInputDisplay"
+                  [value]="amountInputLabel(replacementInput())"
+                  (valueChange)="replacementInput.set(amountInputValue($event))"
+                  placeholder="Sin cargar"
+                />
+                @if (s.formula !== 'REPAIR') {
+                  <span class="justification-hint">Precio actual de un equipo idéntico.</span>
+                }
 
-        @if (s.warnings.length) {
-          <ul class="settlement-notes">
-            @for (warning of s.warnings; track $index) {
-              <li>{{ warning }}</li>
+                <!-- A provider's amount comes prefilled, so this shows again only if the analyst clears
+                   it. A document value was read by the model and is never applied without the click. -->
+                @if (suggestionAvailable()) {
+                  <p class="settlement-suggestion">
+                    <span>
+                      @switch (s.suggestedFrom) {
+                        @case ('expert_report') {
+                          El perito determinó
+                          <strong>{{ exactAmount(s.suggestedAmount) }}</strong> al verificar el
+                          siniestro.
+                        }
+                        @case ('repair_report') {
+                          El servicio técnico presupuestó
+                          <strong>{{ exactAmount(s.suggestedAmount) }}</strong> para arreglarlo.
+                        }
+                        @default {
+                          En «{{ documentLabel(s.suggestedFrom ?? '') }}» figura
+                          <strong>{{ exactAmount(s.suggestedAmount) }}</strong
+                          >. Verificalo antes de usarlo.
+                        }
+                      }
+                    </span>
+                    <app-button variant="secondary" (click)="takeSuggestion()">Usar</app-button>
+                  </p>
+                }
+              </app-field>
             }
-          </ul>
-        }
 
-        <!-- The replacement value only lowers the ceiling on coverages that settle by the lesser
-             of the two; elsewhere it is recorded as backing for the amount. -->
-        <div class="settlement-money">
-          <!-- Only where it changes the result; for REPAIR it is the base amount itself. -->
-          @if (needsAccreditedAmount()) {
-            <app-field
-              [label]="
-                s.formula === 'REPAIR'
-                  ? 'Presupuesto de reparación'
-                  : 'Cuánto cuesta reponer el bien'
-              "
-              for="settlement-base"
-              [required]="true"
-            >
+            <app-field label="Monto a pagar" for="settlement-amount">
               <app-input
-                id="settlement-base"
+                id="settlement-amount"
                 prefix="$"
                 align="end"
                 inputmode="decimal"
                 [normalize]="amountInputDisplay"
-                [value]="amountInputLabel(replacementInput())"
-                (valueChange)="replacementInput.set(amountInputValue($event))"
-                placeholder="Sin cargar"
+                [value]="amountInputLabel(settledAmountInput())"
+                (valueChange)="settledAmountInput.set(amountInputValue($event))"
+                [placeholder]="
+                  baseAmountMissing() ? 'Sin calcular' : exactAmount(s.calculatedAmount)
+                "
               />
-              @if (s.formula !== 'REPAIR') {
-                <span class="justification-hint">Precio actual de un equipo idéntico.</span>
-              }
 
-              <!-- A provider's amount comes prefilled, so this shows again only if the analyst clears
-                   it. A document value was read by the model and is never applied without the click. -->
-              @if (suggestionAvailable()) {
+              <!-- The expert's amount is what to pay, not a replacement value; taking it records an adjustment. -->
+              @if (amountSuggestionAvailable()) {
                 <p class="settlement-suggestion">
                   <span>
-                    @switch (s.suggestedFrom) {
-                      @case ('expert_report') {
-                        El perito determinó
-                        <strong>{{ exactAmount(s.suggestedAmount) }}</strong> al verificar el
-                        siniestro.
-                      }
-                      @case ('repair_report') {
-                        El servicio técnico presupuestó
-                        <strong>{{ exactAmount(s.suggestedAmount) }}</strong> para arreglarlo.
-                      }
-                      @default {
-                        En «{{ documentLabel(s.suggestedFrom ?? '') }}» figura
-                        <strong>{{ exactAmount(s.suggestedAmount) }}</strong
-                        >. Verificalo antes de usarlo.
-                      }
-                    }
+                    El perito determinó <strong>{{ exactAmount(s.suggestedAmount) }}</strong
+                    >. Usarlo queda como un ajuste sobre lo calculado.
                   </span>
-                  <app-button variant="secondary" (click)="takeSuggestion()">Usar</app-button>
+                  <app-button variant="secondary" (click)="takeAmountSuggestion()">Usar</app-button>
                 </p>
               }
             </app-field>
-          }
-
-          <app-field label="Monto a pagar" for="settlement-amount">
-            <app-input
-              id="settlement-amount"
-              prefix="$"
-              align="end"
-              inputmode="decimal"
-              [normalize]="amountInputDisplay"
-              [value]="amountInputLabel(settledAmountInput())"
-              (valueChange)="settledAmountInput.set(amountInputValue($event))"
-              [placeholder]="baseAmountMissing() ? 'Sin calcular' : exactAmount(s.calculatedAmount)"
-            />
-
-            <!-- The expert's amount is what to pay, not a replacement value; taking it records an adjustment. -->
-            @if (amountSuggestionAvailable()) {
-              <p class="settlement-suggestion">
-                <span>
-                  El perito determinó <strong>{{ exactAmount(s.suggestedAmount) }}</strong
-                  >. Usarlo queda como un ajuste sobre lo calculado.
-                </span>
-                <app-button variant="secondary" (click)="takeAmountSuggestion()">Usar</app-button>
-              </p>
+            @if (adjustmentFieldShown()) {
+              <app-field label="Justificación del ajuste" for="settlement-adjustment">
+                <app-textarea
+                  id="settlement-adjustment"
+                  [rows]="2"
+                  placeholder="Por qué el monto difiere del calculado…"
+                  [(value)]="adjustmentReason"
+                />
+              </app-field>
             }
-          </app-field>
+          </section>
         </div>
-
-        @if (needsReferent() && settlement(); as s) {
-          <p class="settlement-callout">
-            Este monto supera tu atribución para el ramo ({{ exactAmount(s.authorityLimit) }}). Al
-            confirmar, el expediente queda esperando la autorización del referente.
-          </p>
-        }
-
-        @if (adjustmentFieldShown()) {
-          <app-field label="Justificación del ajuste" for="settlement-adjustment">
-            <app-textarea
-              id="settlement-adjustment"
-              [rows]="2"
-              placeholder="Por qué el monto difiere del calculado…"
-              [(value)]="adjustmentReason"
-            />
-          </app-field>
-        }
-      </div>
+      </app-spotlight>
     } @else {
       <p class="nodata">No se pudo calcular el monto a pagar para este expediente.</p>
     }
@@ -1544,12 +1652,48 @@
 
 <app-modal [open]="showAuthorize()" heading="Autorizar la liquidación" (close)="cancelSign()">
   @if (settlement(); as s) {
-    <p class="t-body">
-      Vas a autorizar el pago de <strong class="tabular">{{ exactAmount(s.settledAmount) }}</strong
-      >, por encima del tope del ramo de {{ exactAmount(s.authorityLimit) }}.
-    </p>
+    <app-spotlight class="settlement" tone="warning">
+      <span spotlightLabel>Monto a autorizar</span>
+      <h3 spotlightTitle>Supera el <span class="spotlight-tone">tope del ramo</span>.</h3>
+      <div spotlightFigure>
+        <span class="spotlight-number is-money">{{
+          formatAmount(s.settledAmount ?? s.calculatedAmount)
+        }}</span>
+      </div>
+      <div spotlightSummary class="settlement-summary">
+        <span
+          >Tope del ramo <strong>{{ exactAmount(s.authorityLimit) }}</strong
+          >.</span
+        >
+        <span>Al autorizar, el expediente queda aprobado y se le avisa al asegurado.</span>
+      </div>
+      <div class="spotlight-panels">
+        <section class="spotlight-panel">
+          <h4 class="spotlight-panel-label">Cómo se llega al monto</h4>
+          <ul class="spotlight-rows">
+            @for (line of s.breakdown; track $index) {
+              <li
+                class="spotlight-row"
+                [class.is-deduction]="line.kind === 'DEDUCTION'"
+                [class.is-total]="line.kind === 'TOTAL'"
+              >
+                <span class="row-icon" aria-hidden="true">{{
+                  line.kind === 'DEDUCTION' ? '−' : line.kind === 'TOTAL' ? '=' : '+'
+                }}</span>
+                <span>{{ line.concept }}</span>
+                <span class="row-value"
+                  >{{ line.kind === 'DEDUCTION' ? '− ' : '' }}{{ exactAmount(line.amount) }}</span
+                >
+                @if (line.detail) {
+                  <span class="row-detail">{{ line.detail }}</span>
+                }
+              </li>
+            }
+          </ul>
+        </section>
+      </div>
+    </app-spotlight>
   }
-  <p class="t-note">El expediente queda aprobado y se le avisa al asegurado.</p>
   <ng-container modalActions>
     <app-button variant="secondary" (click)="cancelSign()">Cancelar</app-button>
     <app-button variant="accent" [disabled]="signing()" (click)="confirmAuthorize()">

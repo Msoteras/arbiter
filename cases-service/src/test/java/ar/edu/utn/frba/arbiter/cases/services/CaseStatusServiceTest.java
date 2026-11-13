@@ -458,6 +458,31 @@ class CaseStatusServiceTest {
                 CaseStatus.PENDING_CLASSIFICATION, StatusChangeActor.SYSTEM)).contains(requeuedAt);
     }
 
+    @Test
+    void transitions_listEveryStatusInEnumOrder() {
+        var transitions = CaseStatusService.transitions();
+
+        assertThat(transitions).extracting(t -> t.from()).containsExactly(CaseStatus.values());
+        assertThat(transitions).filteredOn(t -> t.from() == CaseStatus.PENDING_EXPERT_REPORT)
+                .singleElement().satisfies(t -> assertThat(t.to()).containsExactly(CaseStatus.PENDING_ANALYST_REVIEW));
+    }
+
+    /** What the endpoint publishes is what {@code assertCanMove} enforces, both ways. */
+    @Test
+    void transitions_matchTheMovesTheServiceAccepts() {
+        for (var t : CaseStatusService.transitions()) {
+            for (CaseStatus to : CaseStatus.values()) {
+                boolean listed = t.to().contains(to);
+                if (listed) {
+                    caseStatusService.assertCanMove(t.from(), to);
+                } else {
+                    assertThatThrownBy(() -> caseStatusService.assertCanMove(t.from(), to))
+                            .isInstanceOf(InvalidStatusTransitionException.class);
+                }
+            }
+        }
+    }
+
     private void signIn(String email) {
         SecurityContextHolder.getContext().setAuthentication(
                 new UsernamePasswordAuthenticationToken(email, "n/a", List.of()));

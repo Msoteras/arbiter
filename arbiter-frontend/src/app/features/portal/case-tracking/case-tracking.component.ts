@@ -23,6 +23,7 @@ import { CaseDocumentsComponent } from '../../cases/case-documents/case-document
 import { CaseMessagesService } from '../../cases/case-messages.service';
 import { InsurerLogoService } from '../../../core/services/insurer-logo.service';
 import { SkeletonComponent } from '../../../shared/ui/skeleton/skeleton.component';
+import { SpotlightComponent } from '../../../shared/ui/spotlight/spotlight.component';
 import {
   InsuredChatComponent,
   initialsOf,
@@ -50,6 +51,7 @@ interface Movement {
     CaseDocumentsComponent,
     InsuredChatComponent,
     SkeletonComponent,
+    SpotlightComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './case-tracking.component.html',
@@ -121,6 +123,21 @@ export class CaseTrackingComponent {
   protected readonly heroTitle = computed(() => {
     const code = this.status();
     return code ? insuredStatusTitle(code, this.history()) : '';
+  });
+
+  /** The title with its last word apart, so that word carries the status tone. */
+  protected readonly heroTitleParts = computed(() => {
+    const title = this.heroTitle();
+    const cut = title.lastIndexOf(' ');
+    return cut < 0
+      ? { lead: '', word: title }
+      : { lead: title.slice(0, cut + 1), word: title.slice(cut + 1) };
+  });
+
+  /** In progress reads plain; only a result or a pending step takes a status color. */
+  protected readonly heroTone = computed<StatusTone>(() => {
+    const tone = this.statusTone();
+    return tone === 'info' ? 'neutral' : tone;
   });
 
   // The filing is always behind: the insured is never told the case is still being classified.

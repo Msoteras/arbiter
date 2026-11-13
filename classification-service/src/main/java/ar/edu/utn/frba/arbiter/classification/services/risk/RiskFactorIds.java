@@ -11,6 +11,7 @@ public final class RiskFactorIds {
     public static final String IMAGE_REUSE = "image_reuse";
     public static final String IMAGE_WEB_MATCH = "image_web_match";
     public static final String FRAUD_HISTORY = "fraud_history";
+    public static final String LLM_RECOMMENDATION = "llm_recommendation";
 
     private RiskFactorIds() {}
 }

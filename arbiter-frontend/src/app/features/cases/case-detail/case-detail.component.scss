@@ -174,49 +174,38 @@
 
 /* ===== Expert assessment ===== */
 /* Measure is capped on the card, not the text: `.measure` on paragraphs left a gap that looked like a bug. */
-.assessment-card {
-  max-width: 72ch;
-}
 .assessment-card + .assessment-card {
-  display: block;
   margin-top: var(--space-4);
 }
-.provider-head {
-  display: flex;
+.provider-label {
+  display: inline-flex;
   align-items: center;
-  gap: var(--space-3);
-  padding-bottom: var(--space-4);
-  border-bottom: 1px solid var(--border-subtle);
+  gap: var(--space-2);
 }
 .provider-avatar {
   flex: none;
   display: grid;
   place-items: center;
-  width: var(--space-7);
-  height: var(--space-7);
-  border-radius: var(--radius-card);
+  width: var(--space-6);
+  height: var(--space-6);
+  border-radius: var(--radius-ctl);
   background: var(--surface-sunken);
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-xs);
   font-weight: var(--font-weight-bold);
   color: var(--text-secondary);
 }
-.provider-text {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-}
 .provider-name {
-  margin: 0;
-  font-size: var(--font-size-md);
-  font-weight: var(--font-weight-bold);
+  font-weight: var(--font-weight-medium);
   color: var(--text-primary);
+}
+.referral-warning {
+  color: var(--status-warning-text);
 }
 /* Derivation → result: a dot per step on a rail, teal once it happened. */
 .referral-steps {
   display: flex;
   flex-direction: column;
-  margin: var(--space-4) 0 0;
+  margin: 0;
   padding: 0;
   list-style: none;
 }

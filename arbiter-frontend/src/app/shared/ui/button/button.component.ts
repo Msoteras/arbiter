@@ -22,6 +22,8 @@ const SAVED_MS = 1600;
 /**
  * `tone` is for actions whose outcome is a status, such as approving or rejecting a case: on a
  * secondary it tints border and text; on a primary it fills it (the verdict the model recommends).
+ * `hoverTone` leaves the button as it is and fills it with that status color only on hover, so the
+ * color says what the click does without weighing on the choice.
  *
  * `saving` turns it into a save button: Guardar → Guardando (the button fills up) → Guardado. When
  * `saving` goes back to false without `saveFailed`, it reads "Guardado" for a moment and then emits
@@ -42,6 +44,7 @@ const SAVED_MS = 1600;
       [class.secondary]="variant() === 'secondary'"
       [class.accent]="variant() === 'accent'"
       [attr.data-tone]="tone()"
+      [attr.data-hover-tone]="hoverTone()"
       [class.sm]="size() === 'sm'"
       [class.loading]="loading()"
       [class.saving]="phase() === 'saving'"
@@ -193,6 +196,16 @@ const SAVED_MS = 1600;
       background: var(--action-accent-bg-hover);
       border-color: var(--action-accent-bg-hover);
     }
+    .btn[data-hover-tone='ok']:hover:not(:disabled) {
+      background: var(--status-ok-strong);
+      border-color: var(--status-ok-strong);
+      color: var(--text-on-emphasis);
+    }
+    .btn[data-hover-tone='danger']:hover:not(:disabled) {
+      background: var(--status-danger-strong);
+      border-color: var(--status-danger-strong);
+      color: var(--text-on-emphasis);
+    }
     /* Click ripple: a disc of the text color growing from the pointer, then fading. */
     .btn {
       position: relative;
@@ -308,6 +321,7 @@ export class ButtonComponent {
   readonly disabled = input(false);
   readonly block = input(false);
   readonly tone = input<'ok' | 'danger' | null>(null);
+  readonly hoverTone = input<'ok' | 'danger' | null>(null);
   /** Shows an inline spinner and disables the button. */
   readonly loading = input(false);
   /** `null`: not a save button. See the class comment. */

@@ -221,12 +221,13 @@ describe('RulesComponent', () => {
     return [...group.querySelectorAll('.item .label')].map((l) => text(l));
   }
 
+  /** A branch or a coverage titles its folder card; an insurer section, the panel. */
   function title(): string {
-    return text(el().querySelector('.level-title .branch-title'));
+    return text(el().querySelector('.title-lead .folder-title, .level-title .branch-title'));
   }
 
   function levelBadge(): string {
-    return text(el().querySelector('.level-title app-badge'));
+    return text(el().querySelector('.title-lead app-badge, .level-title app-badge'));
   }
 
   function button(label: string): HTMLButtonElement {
@@ -256,7 +257,7 @@ describe('RulesComponent', () => {
     await mount([coverage()]);
 
     expect(title()).toBe('Celulares');
-    expect(levelBadge()).toBe('Ramo');
+    expect(levelBadge()).toBe('');
     expect(activeTab()).toBe('Resumen');
     expect(tabLabels()).toEqual([
       'Resumen',
@@ -277,7 +278,7 @@ describe('RulesComponent', () => {
     expect(treeItem('Celulares').getAttribute('aria-current')).toBe('page');
   });
 
-  it('opens a coverage on its own tabs, with the path back to its branch', async () => {
+  it('opens a coverage on its own tabs, with the way back to its branch', async () => {
     await mount([coverage()]);
 
     openCoverage();
@@ -291,12 +292,9 @@ describe('RulesComponent', () => {
       'Liquidación',
       'Fast Track',
     ]);
-    expect(
-      [...el().querySelectorAll('.crumbs li')].map((li) => text(li).replace(/\s*›$/, '')),
-    ).toEqual(['Ramos', 'Celulares', 'Daño accidental']);
     expect(text(el().querySelector('.inherited'))).toContain('También aplica, del ramo Celulares:');
 
-    click(el().querySelector<HTMLElement>('.crumb-link'));
+    click(treeItem('Celulares'));
 
     expect(title()).toBe('Celulares');
     expect(activeTab()).toBe('Resumen');
@@ -308,7 +306,8 @@ describe('RulesComponent', () => {
 
     click(button('Agenda documental'));
 
-    expect(levelBadge()).toBe('Ramo');
+    expect(title()).toBe('Celulares');
+    expect(levelBadge()).toBe('');
     expect(activeTab()).toBe('Agenda documental');
   });
 
@@ -453,8 +452,8 @@ describe('RulesComponent', () => {
 
   describe('a hard rule of the coverage', () => {
     function ruleRow(label: string): HTMLElement {
-      return [...el().querySelectorAll<HTMLElement>('.rule-row')].find((row) =>
-        row.querySelector('.rule-text')?.textContent?.includes(label),
+      return [...el().querySelectorAll<HTMLElement>('app-rule-block')].find((block) =>
+        block.textContent?.includes(label),
       )!;
     }
 
@@ -489,6 +488,23 @@ describe('RulesComponent', () => {
       expect(ruleRow('Carencia').querySelector('input')?.value).toBe('30');
     });
 
+    /** Only the waiting period stops the claim at intake; each group says its own effect. */
+    it('puts the waiting period in its own group', async () => {
+      await openTerms();
+
+      const groups = [...el().querySelectorAll('app-rule-group')].map((g) => ({
+        heading: text(g.querySelector('h3')),
+        rules: [...g.querySelectorAll('app-rule-block')].length,
+      }));
+      expect(groups).toEqual([
+        { heading: 'Si no se cumple, el asegurado no puede hacer la denuncia', rules: 1 },
+        {
+          heading: 'Si no se cumple, la denuncia no es Fast Track y el analista ve el motivo',
+          rules: 2,
+        },
+      ]);
+    });
+
     it('leaves the switched off ones out of the summary', async () => {
       await mount([coverage()]);
 
@@ -496,6 +512,107 @@ describe('RulesComponent', () => {
       expect(summary).toContain('Denuncia 72 h');
       expect(summary).not.toContain('Carencia');
       expect(summary).not.toContain('Máx.');
+    });
+  });
+
+  describe('the Fast Track conditions', () => {
+    beforeEach(() => {
+      ftConfig = { ...NO_FAST_TRACK, maxPriorClaims: 0, requiresUpToDatePolicy: true };
+    });
+
+    async function openFastTrack(): Promise<void> {
+      await mount([coverage()]);
+      openCoverage();
+      await openTab('Fast Track');
+    }
+
+    function blocks(): string[] {
+      return [...el().querySelectorAll('app-rule-block')].map((b) => text(b));
+    }
+
+    function saveButton(): HTMLButtonElement {
+      return [...el().querySelectorAll<HTMLButtonElement>('app-save-bar button')].find((b) =>
+        text(b).startsWith('Guardar'),
+      )!;
+    }
+
+    it('shows one block per active condition, in one list', async () => {
+      await openFastTrack();
+
+      expect(text(el().querySelector('app-rule-group h3'))).toBe(
+        'Es Fast Track si cumple todas las condiciones',
+      );
+      expect(blocks().some((b) => b.startsWith('Hasta'))).toBeTrue();
+      expect(blocks()).toContain('Póliza al día con sus pagos');
+      expect(blocks().some((b) => b.startsWith('Monto reclamado'))).toBeFalse();
+    });
+
+    /** With no condition the engine would make every claim Fast Track. */
+    it("doesn't save once every condition is removed", async () => {
+      await openFastTrack();
+
+      for (const remove of [
+        ...el().querySelectorAll<HTMLButtonElement>(
+          'app-rule-block button[aria-label="Quitar condición"]',
+        ),
+      ]) {
+        click(remove);
+      }
+
+      expect(el().textContent).toContain('Agregá al menos una condición.');
+      expect(saveButton().disabled).toBeTrue();
+    });
+
+    it('keeps a cleared condition on screen and asks for its value', async () => {
+      await openFastTrack();
+      const prior = [...el().querySelectorAll<HTMLElement>('app-rule-block')].find((b) =>
+        text(b).startsWith('Hasta'),
+      )!;
+      const input = prior.querySelector<HTMLInputElement>('input')!;
+
+      input.value = '';
+      input.dispatchEvent(new Event('input'));
+      fixture.detectChanges();
+
+      expect(text(prior)).toContain('Escribí un valor o quitá la condición.');
+      expect(saveButton().disabled).toBeTrue();
+    });
+
+    it('shows the coverage terms as a locked condition while one is on', async () => {
+      hardRules = [{ ruleType: 'REPORT_DEADLINE', enabled: true, deadlineHours: null }];
+      await openFastTrack();
+
+      expect(blocks()).toContain('Cumple los plazos y topes de la cobertura Plazos y topes');
+    });
+  });
+
+  describe('Hard Stop', () => {
+    async function openHardStop(): Promise<void> {
+      await mount();
+      click(treeItem('Hard Stop'));
+    }
+
+    it('shows the policy term with its fixed effect', async () => {
+      insurerRules = [
+        { ruleType: 'POLICY_IN_FORCE', enabled: false, onArrears: null },
+        { ruleType: 'POLICY_STANDING', enabled: false, onArrears: 'STANDBY' },
+      ];
+      await openHardStop();
+
+      const [term, arrears] = [...el().querySelectorAll('app-rule-block')].map((b) => text(b));
+      expect(term).toContain('Póliza no vigente');
+      expect(term).toContain('No deja denunciar');
+      expect(arrears).toContain('No controlar');
+    });
+
+    it('shows the arrears choice by its effect on the claim', async () => {
+      insurerRules = [
+        { ruleType: 'POLICY_IN_FORCE', enabled: true, onArrears: null },
+        { ruleType: 'POLICY_STANDING', enabled: true, onArrears: 'REJECT' },
+      ];
+      await openHardStop();
+
+      expect(text(el().querySelectorAll('app-rule-block')[1])).toContain('No dejar denunciar');
     });
   });
 
@@ -702,7 +819,8 @@ describe('RulesComponent', () => {
 
       click(button('Descartar cambios'));
 
-      expect(levelBadge()).toBe('Ramo');
+      expect(title()).toBe('Celulares');
+      expect(levelBadge()).toBe('');
       expect(el().querySelector('app-save-bar')?.textContent ?? '').not.toContain(
         'Cambios sin guardar',
       );
@@ -726,8 +844,8 @@ describe('RulesComponent', () => {
   it('lets the referente rename the branch and open Marca', async () => {
     await mount([coverage()]);
 
-    expect(el().querySelector('.rules-head app-badge')).toBeNull();
-    expect(el().querySelector('[aria-label="Renombrar el ramo"]')).not.toBeNull();
+    expect(el().querySelector('.master-head app-badge')).toBeNull();
+    expect(el().querySelector('[aria-label="Editar el ramo Celulares"]')).not.toBeNull();
     expect(sectionLabels()).toContain('Marca');
     expect(treeItem('Celulares').closest('li')?.textContent).toContain('+ Agregar cobertura');
   });
@@ -840,8 +958,8 @@ describe('RulesComponent', () => {
     it('labels the screen as read-only and hides the rename pencil', async () => {
       await mount([coverage()], 'ANALISTA_SINIESTROS');
 
-      expect(text(el().querySelector('.rules-head app-badge'))).toBe('Solo lectura');
-      expect(el().querySelector('[aria-label="Renombrar el ramo"]')).toBeNull();
+      expect(text(el().querySelector('.master-head app-badge'))).toBe('Solo lectura');
+      expect(el().querySelector('[aria-label="Editar el ramo Celulares"]')).toBeNull();
     });
 
     it('lists every insurer section except Marca', async () => {
@@ -853,6 +971,7 @@ describe('RulesComponent', () => {
         'Gestión de fraude',
         'Proveedores externos',
         'Objetivo de resolución',
+        'Ciclo del expediente',
       ]);
     });
 
@@ -861,7 +980,7 @@ describe('RulesComponent', () => {
       click(treeItem('Hard Stop'));
 
       expect(levelBadge()).toBe('Aseguradora');
-      expect(el().querySelectorAll('.editor [role="switch"]').length).toBe(2);
+      expect(el().querySelectorAll('.editor app-rule-block').length).toBe(2);
       expect(el().querySelector('.editor app-save-bar')).toBeNull();
       expect(editableControls()).toEqual([]);
     });

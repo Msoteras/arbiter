@@ -1,5 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
-import { DOCUMENT } from '@angular/common';
+import { ChangeDetectionStrategy, Component, ElementRef, inject, signal } from '@angular/core';
 
 import { ButtonComponent } from '../../shared/ui/button/button.component';
 import { BadgeComponent } from '../../shared/ui/badge/badge.component';
@@ -29,10 +28,14 @@ import { InlineLoadingComponent } from '../../shared/ui/inline-loading/inline-lo
 import { SkeletonComponent } from '../../shared/ui/skeleton/skeleton.component';
 import { ActivityBarComponent } from '../../shared/ui/activity-bar/activity-bar.component';
 import { SaveBarComponent } from '../../shared/ui/save-bar/save-bar.component';
+import { RuleBlockComponent } from '../../shared/ui/rule-block/rule-block.component';
+import { RuleGroupComponent } from '../../shared/ui/rule-group/rule-group.component';
 import { ChipGroupComponent, ChipOption } from '../../shared/ui/chip-group/chip-group.component';
 import { TabOption, TabsComponent } from '../../shared/ui/tabs/tabs.component';
 import { TabLink, TabNavComponent } from '../../shared/ui/tabs/tab-nav.component';
 import { IconButtonComponent } from '../../shared/ui/icon-button/icon-button.component';
+import { IconComponent, IconName } from '../../shared/ui/icon/icon.component';
+import { SidebarTriggerComponent } from '../../shared/ui/sidebar/sidebar-trigger.component';
 import { SwitchComponent } from '../../shared/ui/switch/switch.component';
 import {
   DatePickerComponent,
@@ -46,9 +49,12 @@ import {
   DistributionItem,
 } from '../../shared/ui/distribution/distribution.component';
 import { StatTileComponent } from '../../shared/ui/stat-tile/stat-tile.component';
+import { SpotlightComponent } from '../../shared/ui/spotlight/spotlight.component';
+import { RiskScaleComponent } from '../../shared/ui/risk-scale/risk-scale.component';
 import { ToastService } from '../../shared/ui/toast/toast.service';
 import { StatusTransition } from '../../core/models/case';
 import { Policy } from '../../core/models/policy';
+import { StyleguideStatesComponent } from './states/styleguide-states.component';
 
 interface Token {
   name: string;
@@ -73,12 +79,15 @@ interface Swatch {
 @Component({
   selector: 'app-styleguide',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  host: { class: 'theme-zinc' },
   imports: [
     RatePipe,
     ChipGroupComponent,
     TabsComponent,
     TabNavComponent,
     IconButtonComponent,
+    IconComponent,
+    SidebarTriggerComponent,
     ButtonComponent,
     BadgeComponent,
     InfoTipComponent,
@@ -103,14 +112,19 @@ interface Swatch {
     SpinnerComponent,
     InlineLoadingComponent,
     SaveBarComponent,
+    RuleBlockComponent,
+    RuleGroupComponent,
     SwitchComponent,
     DistributionComponent,
     StatTileComponent,
+    SpotlightComponent,
+    RiskScaleComponent,
     DatePickerComponent,
     TimePickerComponent,
     DateRangePickerComponent,
     SkeletonComponent,
     ActivityBarComponent,
+    StyleguideStatesComponent,
   ],
   template: `
     <div class="sg">
@@ -299,11 +313,17 @@ interface Swatch {
           <app-button variant="secondary">Secondary</app-button>
           <app-button variant="secondary" tone="danger">✕ Rechazar</app-button>
           <app-button variant="secondary" tone="ok">✓ Aprobar</app-button>
+          <app-button hoverTone="ok">Aprobar siniestro</app-button>
+          <app-button variant="secondary" hoverTone="danger">Rechazar</app-button>
           <app-button variant="accent">Accent</app-button>
           <app-button variant="primary" [disabled]="true">Disabled</app-button>
           <app-button variant="primary" [loading]="true">Loading</app-button>
           <app-button variant="secondary" [loading]="true">Loading</app-button>
         </div>
+        <p class="sg-p">
+          <span class="mono">hoverTone</span> deja el botón como está y lo pinta del color de estado
+          solo al pasar el mouse: es el de la decisión del expediente.
+        </p>
         <p class="sg-p">
           Botón de guardado (<span class="mono">saving</span>): Guardar → Guardando (se va pintando)
           → Guardado. Con <span class="mono">saveFailed</span> vuelve a Guardar sin pasar por
@@ -335,6 +355,36 @@ interface Swatch {
           <app-icon-button icon="settings" label="Configurar" />
           <app-icon-button icon="edit" label="Editar" [disabled]="true" />
           <app-icon-button icon="edit" label="Editar" size="sm" />
+        </div>
+      </section>
+
+      <section class="sg-block">
+        <h3 class="sg-h3">Icon</h3>
+        <p class="sg-p">
+          Íconos de Lucide, el set de shadcn/ui, copiados como markup. Conjunto cerrado: un ícono
+          nuevo es un caso nuevo en <span class="mono">app-icon</span>. Son decorativos; el nombre
+          accesible lo lleva el control que los contiene.
+        </p>
+        <div class="row">
+          @for (name of iconNames; track name) {
+            <span class="sg-icon" [title]="name"><app-icon [name]="name" /></span>
+          }
+        </div>
+      </section>
+
+      <section class="sg-block">
+        <h3 class="sg-h3">Sidebar</h3>
+        <p class="sg-p">
+          La barra lateral de los roles internos, como el bloque de shadcn/ui que colapsa a íconos:
+          <span class="mono">app-sidebar</span> con los slots
+          <span class="mono">[sidebarHeader]</span> y <span class="mono">[sidebarFooter]</span>,
+          <span class="mono">app-sidebar-group</span> y
+          <span class="mono">a[app-sidebar-link]</span>. Plegada, cada entrada muestra su nombre en
+          un tooltip. Se pliega con el disparador, con el borde o con Ctrl+B; en el teléfono se abre
+          sobre la pantalla.
+        </p>
+        <div class="row">
+          <app-sidebar-trigger />
         </div>
       </section>
 
@@ -1031,6 +1081,24 @@ interface Swatch {
             ariaLabel="Solapas con estado"
           />
         </div>
+        <p class="sg-p">
+          <span class="mono">variant="folder"</span> va arriba de una card: el título de la pantalla
+          a la izquierda (<span class="mono">[tabsLead]</span>) y las solapas como carpetas a la
+          derecha. Debajo de la activa no hay línea. Si el título y las solapas no entran en una
+          fila, las solapas bajan a una fila propia; si tampoco entran ahí, el final de la fila se
+          desvanece.
+        </p>
+        <div class="sg-folder">
+          <app-tabs
+            variant="folder"
+            [tabs]="tabsDemo"
+            [(value)]="tabsDemoValue"
+            ariaLabel="Solapas carpeta de ejemplo"
+          >
+            <h4 tabsLead class="sg-folder-title">Celulares</h4>
+          </app-tabs>
+          <div class="sg-folder-panel"><p class="sg-p">Contenido de la solapa.</p></div>
+        </div>
       </section>
 
       <section class="sg-block">
@@ -1067,6 +1135,40 @@ interface Swatch {
           (save)="noop()"
           (discard)="noop()"
         />
+      </section>
+
+      <section class="sg-block">
+        <h3 class="sg-h3">Rule block y rule group</h3>
+        <p class="sg-p">
+          Una regla escrita como frase: palabras y campos juntos, dentro de un bloque. El
+          <span class="mono">app-rule-group</span> dice el efecto común en su título, así cada
+          bloque dice solo su condición. Entre bloques no va "Y": el título ya dice si hay que
+          cumplir todas.
+        </p>
+        <p class="sg-p">
+          <span class="mono">removable</span> es para una lista donde el usuario elige qué reglas
+          aplican; un catálogo fijo no lo usa. <span class="mono">locked</span> es una regla que
+          aplica pero se edita en otra pantalla: va con candado y un enlace en
+          <span class="mono">[blockAside]</span>. <span class="mono">missing</span> marca una regla
+          activa sin valor, con su aviso en <span class="mono">[blockError]</span>.
+        </p>
+        <app-rule-group heading="Es Fast Track si cumple todas las condiciones">
+          <app-rule-block [removable]="true" (remove)="noop()">
+            <span>Monto reclamado de hasta el</span>
+            <app-input class="sg-number" type="number" value="50" />
+            <span>% de la suma asegurada</span>
+          </app-rule-block>
+          <app-rule-block [removable]="true" [missing]="true" (remove)="noop()">
+            <span>Hasta</span>
+            <app-input class="sg-number" type="number" />
+            <span>siniestros previos</span>
+            <p blockError>Escribí un valor o quitá la condición.</p>
+          </app-rule-block>
+          <app-rule-block [locked]="true">
+            <span>Cumple los plazos y topes de la cobertura</span>
+            <span blockAside class="t-note">Plazos y topes</span>
+          </app-rule-block>
+        </app-rule-group>
       </section>
 
       <section class="sg-block">
@@ -1185,6 +1287,80 @@ interface Swatch {
       </section>
 
       <section class="sg-block">
+        <h3 class="sg-h3">Risk scale</h3>
+        <p class="sg-p">
+          El termómetro del riesgo de fraude (<span class="mono">app-risk-scale</span>): de bajo a
+          crítico, con la marca en el puntaje. Con <span class="mono">labels</span> nombra las
+          cuatro bandas y resalta la del expediente. El puntaje y la banda van siempre escritos al
+          lado: el termómetro es solo visual.
+        </p>
+        <div class="sg-risk-scale">
+          <app-risk-scale [score]="64" band="HIGH" [labels]="true" />
+        </div>
+      </section>
+
+      <section class="sg-block">
+        <h3 class="sg-h3">Spotlight</h3>
+        <p class="sg-p">
+          Una franja sobre una sola cosa: el titular, la cifra de la que trata y las acciones que
+          pide (<span class="mono">app-spotlight</span>). La usan la decisión del expediente, la
+          liquidación, los inicios del analista y del referente, la derivación y el seguimiento del
+          asegurado. El <span class="mono">tone</span> colorea la palabra del titular marcada con
+          <span class="mono">.spotlight-tone</span>, la etiqueta de la cifra y el campo de glifos
+          (<span class="mono">app-ascii-field</span>), que se aquieta con movimiento reducido.
+          <span class="mono">spotlightAside</span> es un resumen corto al costado, del mismo alto:
+          en una franja ancha va entre la cifra y las acciones, y en una angosta, debajo de la
+          cifra. <span class="mono">[brand]</span> pinta la franja con el degradé de la marca: es la
+          bienvenida de cada inicio.
+        </p>
+        <app-spotlight tone="ok">
+          <span spotlightLabel><app-logo /><span>· Fast Track</span></span>
+          <h4 spotlightTitle>Recomienda <span class="spotlight-tone">aprobar</span>.</h4>
+          <div spotlightFigure>
+            <span class="spotlight-number">29</span>
+            <span class="spotlight-unit"><span>/ 100</span><b>riesgo bajo</b></span>
+          </div>
+          <p spotlightSummary>Sin pedido de documentación</p>
+          <div spotlightActions>
+            <app-button [block]="true">Aprobar siniestro</app-button>
+            <app-button variant="secondary" [block]="true">Rechazar</app-button>
+          </div>
+          <div spotlightAside>
+            <section class="spotlight-aside-section">
+              <h5 class="spotlight-panel-label">Criterios de Fast Track</h5>
+              <ul class="spotlight-rows is-compact">
+                <li class="spotlight-row">
+                  <span class="row-icon" aria-hidden="true">✓</span>
+                  <span class="row-text">Póliza vigente y al día</span>
+                  <span></span>
+                </li>
+                <li class="spotlight-row">
+                  <span class="row-icon" aria-hidden="true">✓</span>
+                  <span class="row-text">Monto bajo el tope del ramo</span>
+                  <span></span>
+                </li>
+              </ul>
+            </section>
+            <section class="spotlight-aside-section">
+              <h5 class="spotlight-panel-label">Factores de riesgo</h5>
+              <ul class="spotlight-rows is-compact">
+                <li class="spotlight-row">
+                  <span class="row-icon" aria-hidden="true">+</span>
+                  <span class="row-text">Inconsistencias en la documentación</span>
+                  <span class="row-value">+20</span>
+                </li>
+                <li class="spotlight-row">
+                  <span class="row-icon" aria-hidden="true">+</span>
+                  <span class="row-text">Frecuencia de siniestros</span>
+                  <span class="row-value">+6</span>
+                </li>
+              </ul>
+            </section>
+          </div>
+        </app-spotlight>
+      </section>
+
+      <section class="sg-block">
         <h3 class="sg-h3">Distribution</h3>
         <p class="sg-p">
           El dibujo de una proporción más su leyenda. La leyenda es la parte que no se negocia:
@@ -1225,11 +1401,25 @@ interface Swatch {
           <app-distribution shape="ring" centerLabel="expedientes" [items]="causeDistribution" />
         </div>
       </section>
+
+      <!-- ================= STATES ================= -->
+      <h2 class="sg-h2">Estados</h2>
+      <p class="sg-p">
+        Cada estado de cada máquina, con los componentes y los labels reales. Borde punteado: el
+        estado no tiene literal y el código lo deriva de otros campos.
+      </p>
+      <app-styleguide-states />
     </div>
   `,
   styles: `
     :host {
       display: block;
+      min-height: 100%;
+      background: var(--surface);
+      color: var(--text-primary);
+    }
+    .sg-risk-scale {
+      max-width: calc(var(--spotlight-actions-w) + var(--space-7));
     }
     .sg {
       padding: var(--space-5) var(--space-5) var(--space-7);
@@ -1266,9 +1456,7 @@ interface Swatch {
     }
     .sg-h3 {
       margin: 0 0 var(--space-3);
-      font-size: var(--font-size-2xs);
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
+      font-size: var(--font-size-sm);
       color: var(--text-tertiary);
       font-weight: var(--font-weight-medium);
     }
@@ -1289,6 +1477,32 @@ interface Swatch {
     }
     .sg-skeleton-block {
       height: calc(var(--space-7) * 2);
+    }
+    .sg-folder {
+      --folder-lead-inset: var(--folder-title-inset);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-card);
+      background: var(--surface);
+      box-shadow: var(--shadow-card);
+      margin-top: var(--space-3);
+      overflow: hidden;
+    }
+    .sg-folder-title {
+      margin: 0;
+      font-size: var(--font-size-title);
+      font-weight: var(--font-weight-bold);
+    }
+    .sg-folder-panel {
+      padding: var(--space-4);
+    }
+    .sg-icon {
+      display: grid;
+      place-items: center;
+      width: var(--icon-btn);
+      height: var(--icon-btn);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-ctl);
+      color: var(--text-secondary);
     }
     .row {
       display: flex;
@@ -1515,6 +1729,22 @@ interface Swatch {
   `,
 })
 export class StyleguideComponent {
+  protected readonly iconNames: IconName[] = [
+    'home',
+    'inbox',
+    'messages',
+    'dashboard',
+    'reports',
+    'rules',
+    'users',
+    'settlements',
+    'panel-left',
+    'chevrons-up-down',
+    'log-out',
+    'rotate-ccw',
+    'bell',
+    'arrow-left',
+  ];
   /** Status palette: a case status does communicate an outcome. */
   protected readonly statusDistribution: DistributionItem[] = [
     { label: 'Aprobado', count: 24, tone: 'ok' },
@@ -1649,7 +1879,7 @@ export class StyleguideComponent {
   ];
   protected readonly claimTypeDemoValue = signal('theft');
 
-  private readonly doc = inject(DOCUMENT);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   protected readonly toastService = inject(ToastService);
 
   protected showToastWithAction(): void {
@@ -1663,7 +1893,7 @@ export class StyleguideComponent {
 
   protected showToastWithDescription(): void {
     this.toastService.show('Configurá el Fast Track', 'info', 8000, {
-      description: 'Definí las condiciones para que una denuncia entre en Fast Track.',
+      description: 'Definí las condiciones para que una denuncia sea Fast Track.',
     });
   }
 
@@ -1862,10 +2092,10 @@ export class StyleguideComponent {
   /** Live theme knobs: they write to :root, re-theming the whole app. */
   protected readonly brandKnobs: Knob[] = [
     { name: 'Acento (estados activos)', v: '--accent', default: '#00a99d' },
-    { name: 'Texto (ink)', v: '--c-ink', default: '#191c1f' },
+    { name: 'Texto (ink)', v: '--c-ink', default: '#09090b' },
     { name: 'Fondo', v: '--c-bg', default: '#ffffff' },
-    { name: 'Fondo tenue', v: '--c-bg-soft', default: '#fbfaf7' },
-    { name: 'Borde', v: '--c-border', default: '#e5e4dd' },
+    { name: 'Fondo tenue', v: '--c-bg-soft', default: '#fafafa' },
+    { name: 'Borde', v: '--c-border', default: '#e4e4e7' },
   ];
 
   protected readonly colors = signal<Record<string, string>>(
@@ -1873,13 +2103,13 @@ export class StyleguideComponent {
   );
 
   protected setColor(v: string, value: string): void {
-    this.doc.documentElement.style.setProperty(v, value);
+    this.host.nativeElement.style.setProperty(v, value);
     this.colors.update((c) => ({ ...c, [v]: value }));
   }
 
   protected resetColors(): void {
     for (const k of this.brandKnobs) {
-      this.doc.documentElement.style.removeProperty(k.v);
+      this.host.nativeElement.style.removeProperty(k.v);
     }
     this.colors.set(Object.fromEntries(this.brandKnobs.map((k) => [k.v, k.default])));
   }

@@ -39,8 +39,8 @@ const IDLE: SearchState = { items: [], loading: false, failed: false };
 
 /**
  * Uses the same `GET /cases?q=` as the inbox (see `CaseSpecifications.freeText`); it can't search by
- * analyst, so the placeholder must not promise it. Not `app-input`: the kit input is calibrated for
- * light surfaces and this sits on the dark top bar, styled with the `--chrome-*` roles.
+ * analyst, so the placeholder must not promise it. Not `app-input`: it is a combobox with its own
+ * results panel; it is drawn like a kit field, with the top bar's `--chrome-*` text roles.
  */
 @Component({
   selector: 'app-global-search',
@@ -135,15 +135,19 @@ const IDLE: SearchState = { items: [], loading: false, failed: false };
       align-items: center;
       gap: var(--space-2);
       padding: 0 var(--space-3);
-      height: 34px;
-      border-radius: var(--radius-pill);
-      background: var(--chrome-item-active);
-      border: 1px solid transparent;
+      height: var(--icon-btn);
+      border-radius: var(--radius-ctl);
+      background: var(--surface);
+      border: 1px solid var(--border-control);
+      box-shadow: var(--shadow-field);
       color: var(--chrome-muted);
-      transition: border-color var(--dur-1) ease;
+      transition:
+        border-color var(--dur-1) ease,
+        box-shadow var(--dur-1) ease;
     }
     .gsearch:focus-within {
       border-color: var(--border-focus);
+      box-shadow: var(--focus-ring);
     }
     .gsearch-icon {
       flex: none;

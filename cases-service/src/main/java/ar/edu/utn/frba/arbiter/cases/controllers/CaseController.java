@@ -31,9 +31,11 @@ import ar.edu.utn.frba.arbiter.cases.dto.IntakeDocumentsResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.EligibilityCheckResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.LensSummaryResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.ReopenCaseRequest;
+import ar.edu.utn.frba.arbiter.cases.dto.StatusMovesResponse;
 import ar.edu.utn.frba.arbiter.cases.models.entities.CaseDocument;
 import ar.edu.utn.frba.arbiter.cases.services.CaseMessageService;
 import ar.edu.utn.frba.arbiter.cases.services.CaseService;
+import ar.edu.utn.frba.arbiter.cases.services.CaseStatusService;
 import ar.edu.utn.frba.arbiter.cases.services.ClaimCauseCorrectionService;
 import ar.edu.utn.frba.arbiter.cases.services.SettlementService;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
@@ -128,6 +130,14 @@ public class CaseController {
                     + "Varios estados internos comparten uno.")
     public ResponseEntity<List<InsuredStatusResponse>> insuredStatuses() {
         return ResponseEntity.ok(caseService.insuredStatuses());
+    }
+
+    @GetMapping("/status-transitions")
+    @PreAuthorize("hasAnyRole('ANALISTA_SINIESTROS', 'REFERENTE_ASEGURADORA')")
+    @Operation(summary = "Transiciones entre estados del expediente",
+            description = "Cada estado con los estados a los que puede pasar. Es la misma tabla que valida cada cambio de estado.")
+    public ResponseEntity<List<StatusMovesResponse>> statusTransitions() {
+        return ResponseEntity.ok(CaseStatusService.transitions());
     }
 
     @GetMapping("/{caseId}")

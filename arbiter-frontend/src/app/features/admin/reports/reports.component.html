@@ -1,13 +1,16 @@
-<header class="rep-head">
-  <h1 class="t-page-title">Reportes</h1>
-</header>
+<!-- One card at full width and height: the title and the folder tabs on top, the report below. -->
+<div class="rep-card">
+  <!-- They carry the shared filters only: the claim cause means nothing on the fraud tab. -->
+  <app-tab-nav
+    variant="folder"
+    [tabs]="tabs"
+    [queryParams]="filters.sharedQueryParams()"
+    ariaLabel="Reporte a mostrar"
+  >
+    <h1 tabsLead class="rep-title">Reportes</h1>
+  </app-tab-nav>
 
-<!-- They carry the shared filters only: the claim cause means nothing on the fraud tab. -->
-<app-tab-nav
-  class="rep-tabs"
-  [tabs]="tabs"
-  [queryParams]="filters.sharedQueryParams()"
-  ariaLabel="Reporte a mostrar"
-/>
-
-<router-outlet />
+  <div class="rep-panel">
+    <router-outlet />
+  </div>
+</div>

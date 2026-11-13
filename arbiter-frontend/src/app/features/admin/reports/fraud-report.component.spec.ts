@@ -395,7 +395,7 @@ describe('FraudReportComponent', () => {
 
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
     expect(text).toContain('Ninguna denuncia con señales de fraude en el período');
-    expect(text).toContain('Ninguna de las denuncias del período disparó una señal de fraude');
+    expect(text).toContain('Probá con otro rango de fechas, otro ramo o sin filtrar por score');
   });
 
   it('with no claims at all, says the period is empty', () => {

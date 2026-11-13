@@ -29,3 +29,13 @@ $wide-min: 1180px;
     @content;
   }
 }
+
+/* Below this width the sidebar leaves the layout and opens as a sheet over the content (shadcn/ui's
+   mobile breakpoint). SidebarService reads the same cut through matchMedia. */
+$sidebar-sheet-max: 767.98px;
+
+@mixin sidebar-sheet {
+  @media (max-width: $sidebar-sheet-max) {
+    @content;
+  }
+}

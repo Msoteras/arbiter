@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 
-import { InputComponent } from '../../../shared/ui/input/input.component';
+import { DatePickerComponent } from '../../../shared/ui/date-picker/date-picker.component';
 import { SelectComponent } from '../../../shared/ui/select/select.component';
 import { ReportFiltersStore } from './report-filters.store';
 
@@ -10,15 +10,14 @@ import { ReportFiltersStore } from './report-filters.store';
  */
 @Component({
   selector: 'app-report-filters',
-  imports: [InputComponent, SelectComponent],
+  imports: [DatePickerComponent, SelectComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { style: 'display: contents' },
   template: `
     <div class="field">
       <label class="t-field-label" for="rep-from">Desde</label>
-      <app-input
+      <app-date-picker
         id="rep-from"
-        type="date"
         [max]="filters.today"
         [value]="filters.from()"
         (valueChange)="filters.from.set($event)"
@@ -27,9 +26,8 @@ import { ReportFiltersStore } from './report-filters.store';
 
     <div class="field">
       <label class="t-field-label" for="rep-to">Hasta</label>
-      <app-input
+      <app-date-picker
         id="rep-to"
-        type="date"
         [min]="filters.from()"
         [max]="filters.today"
         [value]="filters.to()"
@@ -37,7 +35,7 @@ import { ReportFiltersStore } from './report-filters.store';
       />
     </div>
 
-    <div class="field field-wide">
+    <div class="field">
       <label class="t-field-label" for="rep-branch">Ramo</label>
       <app-select
         id="rep-branch"
@@ -49,7 +47,7 @@ import { ReportFiltersStore } from './report-filters.store';
       />
     </div>
 
-    <div class="field" [class.field-wide]="filters.comparisonMode() !== 'CUSTOM'">
+    <div class="field">
       <label class="t-field-label" for="rep-compare">Comparar con</label>
       <app-select
         id="rep-compare"
@@ -62,9 +60,8 @@ import { ReportFiltersStore } from './report-filters.store';
     @if (filters.comparisonMode() === 'CUSTOM') {
       <div class="field">
         <label class="t-field-label" for="rep-compare-from">Comparar desde</label>
-        <app-input
+        <app-date-picker
           id="rep-compare-from"
-          type="date"
           [max]="filters.today"
           [value]="filters.compareFrom()"
           (valueChange)="filters.compareFrom.set($event)"
@@ -73,9 +70,8 @@ import { ReportFiltersStore } from './report-filters.store';
 
       <div class="field">
         <label class="t-field-label" for="rep-compare-to">Comparar hasta</label>
-        <app-input
+        <app-date-picker
           id="rep-compare-to"
-          type="date"
           [min]="filters.compareFrom()"
           [max]="filters.today"
           [value]="filters.compareTo()"

@@ -15,7 +15,7 @@ import { ReportFormat } from './resolution-report';
       </app-button>
 
       <div class="export" role="group" aria-label="Exportar reporte">
-        <span class="t-field-label">Exportar</span>
+        <span class="export-label">Exportar</span>
         @for (format of formats; track format) {
           <app-button
             variant="secondary"
@@ -42,6 +42,11 @@ import { ReportFormat } from './resolution-report';
       display: flex;
       align-items: center;
       gap: var(--space-2);
+    }
+    .export-label {
+      margin-right: var(--space-1);
+      font-size: var(--font-size-sm);
+      color: var(--text-tertiary);
     }
 
     @media (max-width: 480px) {
