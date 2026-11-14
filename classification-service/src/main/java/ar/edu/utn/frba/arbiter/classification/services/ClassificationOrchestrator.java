@@ -394,7 +394,7 @@ public class ClassificationOrchestrator {
                 fastTrack.reasons(), temporal.reasons(), scope.reasons(), fraud.blocksFastTrack());
         Map<String, DocumentExtraction> extractions =
                 extractAllAttachments(documents, gateExtractions, causeNames, itemAttributes, recorded);
-        ClaimReport claimWithOcr = withAttachmentsOcr(claim, renderAttachments(documents, extractions));
+        ClaimReport claimWithOcr = withAttachmentsOcr(claim, renderAttachments(documents, extractions, claim, ctx.rules()));
 
         // Re-evaluated with every document read: the affected party can be in any of them.
         CoverageScopeEvaluator.Result fullScope =
@@ -804,10 +804,14 @@ public class ClassificationOrchestrator {
         return documentAnalyzer.extract(doc.content(), doc.contentType(), causeNames, itemAttributes);
     }
 
-    private List<String> renderAttachments(
-            List<AttachmentDocument> documents, Map<String, DocumentExtraction> extractions) {
+    private List<String> renderAttachments(List<AttachmentDocument> documents,
+                                           Map<String, DocumentExtraction> extractions,
+                                           ClaimReport claim, BusinessRules rules) {
+        Map<String, String> catalogNames = rules == null ? null : rules.documentTypeNames();
         return documents.stream()
-                .map(doc -> promptBuilder.renderAttachment(doc.type(), extractions.get(doc.type())))
+                .map(doc -> promptBuilder.renderAttachment(
+                        PromptBuilder.documentName(doc.type(), catalogNames, claim.analystDocumentNotes()),
+                        extractions.get(doc.type())))
                 .toList();
     }
 

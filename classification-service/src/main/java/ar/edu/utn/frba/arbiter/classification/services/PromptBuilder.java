@@ -132,10 +132,35 @@ public class PromptBuilder {
         if (notes == null || notes.isEmpty()) {
             return "El analista no pidió documentos fuera del catálogo.";
         }
+        // Named as in the attachments block: the model ties each request to its attachment by that name.
         return notes.stream()
-                .map(note -> "- %s: %s. Motivo del pedido: %s".formatted(
-                        note.type(), note.description(), note.reason()))
+                .map(note -> "- %s. Motivo del pedido: %s".formatted(analystNoteName(note), note.reason()))
                 .collect(Collectors.joining("\n"));
+    }
+
+    /**
+     * The name the model sees for an attachment and cites back. The frontend links a reason to a
+     * document by that name, so it has to be the catalog's or the one the analyst wrote, never one
+     * the model makes up from the code.
+     */
+    public static String documentName(
+            String documentType, Map<String, String> catalogNames, List<AnalystDocumentNote> analystNotes) {
+        String catalogName = catalogNames == null ? null : catalogNames.get(documentType);
+        if (catalogName != null && !catalogName.isBlank()) {
+            return catalogName;
+        }
+        if (analystNotes != null) {
+            for (AnalystDocumentNote note : analystNotes) {
+                if (documentType.equals(note.type())) {
+                    return analystNoteName(note);
+                }
+            }
+        }
+        return documentType;
+    }
+
+    private static String analystNoteName(AnalystDocumentNote note) {
+        return note.description() == null || note.description().isBlank() ? note.type() : note.description();
     }
 
     private static String formatAmount(BigDecimal amount) {
@@ -146,8 +171,8 @@ public class PromptBuilder {
      * Visual findings go under their own heading so the model doesn't read them as document content;
      * the classification prompt refers to that heading.
      */
-    public String renderAttachment(String documentType, DocumentExtraction extraction) {
-        String rendered = documentType + ": " + extraction.transcription();
+    public String renderAttachment(String documentName, DocumentExtraction extraction) {
+        String rendered = documentName + ": " + extraction.transcription();
         List<String> findings = extraction.visualFindings();
         if (findings.isEmpty()) {
             return rendered;
