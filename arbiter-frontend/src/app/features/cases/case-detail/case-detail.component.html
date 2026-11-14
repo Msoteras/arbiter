@@ -105,7 +105,22 @@
               @for (r of spotlightReasons(); track $index) {
                 <li class="spotlight-row">
                   <span class="row-icon" aria-hidden="true">→</span>
-                  <span class="row-text" [title]="r">{{ r }}</span>
+                  <span class="row-text" [title]="r.text">
+                    @for (s of r.segments; track $index) {
+                      @if (s.code) {
+                        <button
+                          type="button"
+                          class="brief-link"
+                          [attr.aria-label]="'Ver ' + s.text"
+                          (click)="openDocument(s.code)"
+                        >
+                          {{ s.text }}
+                        </button>
+                      } @else {
+                        <span>{{ s.text }}</span>
+                      }
+                    }
+                  </span>
                   <span></span>
                 </li>
               }

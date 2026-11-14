@@ -73,9 +73,16 @@ export class DocumentTypeService {
     return withDocumentLabels(text, this.named());
   }
 
-  /** Like `withLabels`, split around the documents it names; see `documentMentions`. */
-  mentions(text: string, available: ReadonlySet<string>): ReasonSegment[] {
-    return documentMentions(text, this.named(), available);
+  /**
+   * Like `withLabels`, split around the documents it names; see `documentMentions`. `caseNamed` are
+   * the case's own documents the catalog doesn't name (`other_<n>`, by what the analyst asked for).
+   */
+  mentions(
+    text: string,
+    available: ReadonlySet<string>,
+    caseNamed: readonly DocumentTypeDef[] = [],
+  ): ReasonSegment[] {
+    return documentMentions(text, [...this.named(), ...caseNamed], available);
   }
 
   /** For pure functions that take the names as an argument. */

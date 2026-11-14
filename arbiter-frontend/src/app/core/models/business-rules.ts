@@ -150,9 +150,9 @@ const escapeRegExp = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\
 
 /**
  * Splits a reason around the documents it names, by code ("police_report", from the engine and the
- * prompt) or by name ("la denuncia policial", in the model's own words). A code becomes its name; a
- * name keeps the model's wording. Only documents in `available` get a `code`, so a link never
- * points to a file the case doesn't have.
+ * prompt) or by name ("la denuncia policial", in the model's own words), also without its trailing
+ * parenthesis. A code becomes its name; a name keeps the model's wording. Only documents in
+ * `available` get a `code`, so a link never points to a file the case doesn't have.
  */
 export function documentMentions(
   reason: string,
@@ -163,6 +163,12 @@ export function documentMentions(
   for (const d of types) {
     byKey.set(d.code.toLowerCase(), d);
     byKey.set(d.label.toLowerCase(), d);
+  }
+  // The model drops a trailing qualifier ("Baja de IMEI (ENACOM)" → "la baja de IMEI"). Added
+  // last, so a full name another document has keeps pointing to that one.
+  for (const d of types) {
+    const short = d.label.replace(/\s*\([^)]*\)\s*$/, '').toLowerCase();
+    if (short && !byKey.has(short)) byKey.set(short, d);
   }
   if (byKey.size === 0) return [{ text: reason, code: null }];
 
