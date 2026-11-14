@@ -13,8 +13,12 @@ RUN pip install --no-cache-dir torch torchvision --index-url https://download.py
 COPY embedding-service/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Bake the CLIP weights into the image so startup doesn't depend on network
+# Bake the CLIP weights into the image so startup doesn't depend on network. The cache lives under
+# /app, not root's home: the runtime user can't read /root and would download them again on every start.
+# HF_HUB_OFFLINE makes a missing cache fail fast instead of hanging on a slow download.
+ENV HF_HOME=/app/.cache/huggingface
 RUN python -c "import open_clip; open_clip.create_model_and_transforms('ViT-B-32', pretrained='openai')"
+ENV HF_HUB_OFFLINE=1
 
 COPY embedding-service/app.py .
 
