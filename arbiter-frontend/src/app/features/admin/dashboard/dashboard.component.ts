@@ -22,7 +22,8 @@ import {
   comparisonLabel,
   comparisonReference,
 } from '../../../core/models/comparison';
-import { caseStatusLabel, caseStatusTone } from '../../../core/models/case-status';
+import { StatusMoves, caseStatusLabel, caseStatusTone } from '../../../core/models/case-status';
+import { CaseLifecycleComponent } from '../../../shared/ui/case-lifecycle/case-lifecycle.component';
 import { RiskBand, riskBandLabel, riskBandTone } from '../../../core/models/risk-band';
 import { ruleTypeDescription, ruleTypeLabel } from '../../../core/models/rule-type';
 import { StatusTone } from '../../../core/models/status-tone';
@@ -105,6 +106,7 @@ function legalTone(rate: number | null): StatusTone {
   imports: [
     ButtonComponent,
     CardComponent,
+    CaseLifecycleComponent,
     ChartComponent,
     EmptyStateComponent,
     InfoTipComponent,
@@ -209,6 +211,11 @@ export class DashboardComponent {
   });
 
   constructor() {
+    this.caseService
+      .statusMoves()
+      .pipe(takeUntilDestroyed())
+      .subscribe({ next: (moves) => this.statusMoves.set(moves), error: () => undefined });
+
     toObservable(this.request)
       .pipe(
         tap(() => {
@@ -612,6 +619,17 @@ export class DashboardComponent {
         description: ruleTypeDescription(raw),
       };
     }),
+  );
+
+  /** The diagram replaces the bar once the state machine is read; until then, or if it fails, the bar. */
+  protected readonly statusMoves = signal<StatusMoves[] | null>(null);
+
+  protected readonly statusCounts = computed<Record<string, number>>(() =>
+    Object.fromEntries(
+      (this.data()?.byStatus ?? [])
+        .filter((count) => count.label !== null)
+        .map((count) => [count.label as string, count.count]),
+    ),
   );
 
   protected readonly statusItems = computed<DistributionItem[]>(() =>

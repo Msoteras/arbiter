@@ -429,8 +429,12 @@ public class ClassificationOrchestrator {
                 .build();
         progress.report(ClassificationStep.of(ClassificationStage.RISK));
         try {
+            // One way only: the prompt never sees the score, so the model's reading isn't biased by it.
+            Classification modelRecommendation =
+                    classification.resolvedByRules() ? null : classification.classification();
             RiskScore riskScore = riskScoringService.score(new RiskContext(
-                    claim, ctx.policy(), ctx.history(), ctx.rules(), forensic, extractions, ctx.fraudRecords()));
+                    claim, ctx.policy(), ctx.history(), ctx.rules(), forensic, extractions, ctx.fraudRecords(),
+                    modelRecommendation));
             log.info("[Orchestrator] Risk score attached — scored={} score={} band={}",
                     riskScore.scored(), String.format("%.3f", riskScore.score()), riskScore.band());
             return enriched.toBuilder().riskScore(riskScore).build();

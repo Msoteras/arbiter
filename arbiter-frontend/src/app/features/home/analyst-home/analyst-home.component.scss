@@ -5,7 +5,6 @@
 }
 
 @include home-dashboard.layout;
-@include home-dashboard.hero;
 @include home-dashboard.rows;
 
 // ───────────────── Queue ─────────────────
@@ -135,21 +134,22 @@
 // ───────────────── Unassigned ─────────────────
 .unassigned {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
+  flex-direction: column;
+  gap: var(--space-1);
+  margin-top: var(--space-2);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border-subtle);
 }
 .unassigned-count {
   margin: 0;
-  font-size: var(--font-size-md);
-  font-weight: var(--font-weight-medium);
-}
-.unassigned-count .tabular {
-  font-size: var(--font-size-2xl);
-  font-weight: var(--font-weight-bold);
+  font-size: var(--font-size-xl);
+  letter-spacing: -0.02em;
 }
 .unassigned .t-note {
-  margin: var(--space-1) 0 0;
+  margin: 0;
+}
+.unassigned app-button {
+  margin-top: var(--space-2);
 }
 
 // ───────────────── Caseload ─────────────────

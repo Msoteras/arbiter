@@ -87,6 +87,12 @@ describe('ScoringConfigComponent', () => {
     expect(row.textContent).toContain('No se evalúa');
   });
 
+  it('offers the model recommendation as a factor with its weight', async () => {
+    await render([{ factorId: 'llm_recommendation', weight: 1 }]);
+
+    expect(factorRow('Recomendación del modelo').querySelector('input')!.value).toBe('100');
+  });
+
   it('shows the total of the active weights', async () => {
     await render([
       { factorId: 'amount_ratio', weight: 0.6 },

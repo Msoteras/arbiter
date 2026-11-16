@@ -31,10 +31,28 @@ import { GlobalSearchComponent } from './features/cases/global-search/global-sea
 import { ActivityBarComponent } from './shared/ui/activity-bar/activity-bar.component';
 import { silentRequest } from './core/cache/query-cache';
 import { InsurerLogoService } from './core/services/insurer-logo.service';
+import { IconComponent } from './shared/ui/icon/icon.component';
+import { SidebarComponent } from './shared/ui/sidebar/sidebar.component';
+import { SidebarGroupComponent } from './shared/ui/sidebar/sidebar-group.component';
+import { SidebarLinkComponent, SidebarLinkIcon } from './shared/ui/sidebar/sidebar-link.component';
+import { SidebarTriggerComponent } from './shared/ui/sidebar/sidebar-trigger.component';
+import { SidebarService } from './shared/ui/sidebar/sidebar.service';
 
-/** Below this width the nav panel overlays the content instead of pushing it. */
-const OVERLAY_NAV_QUERY = '(max-width: 1024px)';
-const NAV_OPEN_KEY = 'arbiter.nav-open';
+interface NavItem {
+  path: string;
+  label: string;
+  icon: SidebarLinkIcon;
+  /** Shows the unread chats counter. */
+  unread?: boolean;
+  /** Setup checklist area whose pending steps mark the entry. */
+  pending?: 'users' | 'rules';
+}
+
+interface NavGroup {
+  label: string;
+  items: NavItem[];
+}
+
 const LOGOUT_DELAY_MS = 900;
 const UNREAD_POLL_MS = 30_000;
 
@@ -53,6 +71,11 @@ const UNREAD_POLL_MS = 30_000;
     NotificationsPanelComponent,
     LoadingComponent,
     ActivityBarComponent,
+    IconComponent,
+    SidebarComponent,
+    SidebarGroupComponent,
+    SidebarLinkComponent,
+    SidebarTriggerComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   // CSS animations honor prefers-reduced-motion via media queries; @angular/animations don't, so
@@ -71,6 +94,7 @@ export class App {
   private readonly toast = inject(ToastService);
   private readonly appReady = inject(AppReadyService);
   protected readonly insurerLogo = inject(InsurerLogoService);
+  protected readonly sidebar = inject(SidebarService);
 
   private readonly reduceMotionMql =
     typeof window !== 'undefined' && window.matchMedia
@@ -78,20 +102,8 @@ export class App {
       : null;
   protected readonly reduceMotion = signal(this.reduceMotionMql?.matches ?? false);
 
-  private readonly overlayNavMql =
-    typeof window !== 'undefined' && window.matchMedia
-      ? window.matchMedia(OVERLAY_NAV_QUERY)
-      : null;
-  protected readonly overlayNav = signal(this.overlayNavMql?.matches ?? false);
-
   constructor() {
     this.reduceMotionMql?.addEventListener('change', (e) => this.reduceMotion.set(e.matches));
-    this.overlayNavMql?.addEventListener('change', (e) => {
-      this.overlayNav.set(e.matches);
-      // Narrowing must not leave an unrequested overlay covering the screen; widening restores
-      // the user's stored preference.
-      this.navOpen.set(e.matches ? false : this.storedNavOpen());
-    });
 
     // Tied to the session and not to the constructor: the session lives in memory, so on reload
     // it's null for an instant and the count would come back empty.
@@ -199,39 +211,63 @@ export class App {
     this.router.navigateByUrl('/inbox');
   }
 
-  // Nav panel: on wide screens it pushes the content and its state is remembered; on narrow ones
-  // it overlays and always starts closed.
-  protected readonly navOpen = signal(
-    (this.overlayNavMql?.matches ?? false) ? false : this.storedNavOpen(),
-  );
-
-  private storedNavOpen(): boolean {
-    if (typeof localStorage === 'undefined') return true;
-    return localStorage.getItem(NAV_OPEN_KEY) !== 'false';
-  }
-
-  private readonly persistNavOpen = effect(() => {
-    const open = this.navOpen();
-    // Opening the mobile overlay is a one-off action, not a layout preference.
-    if (!this.overlayNav() && typeof localStorage !== 'undefined') {
-      localStorage.setItem(NAV_OPEN_KEY, String(open));
+  // Each role sees only its own entries, even the referente, who has full permissions.
+  protected readonly navGroups = computed<NavGroup[]>(() => {
+    const home: NavItem = { path: this.homeLink(), label: 'Inicio', icon: 'home' };
+    const insight: NavItem[] = [
+      { path: '/insurer/dashboard', label: 'Dashboard', icon: 'dashboard' },
+      { path: '/insurer/reports', label: 'Reportes', icon: 'reports' },
+      { path: '/engine', label: 'Arbiter', icon: 'arbiter' },
+    ];
+    const messages: NavItem = {
+      path: '/messages',
+      label: 'Mensajes',
+      icon: 'messages',
+      unread: true,
+    };
+    if (this.showAnalystNav()) {
+      return [
+        {
+          label: 'Operación',
+          items: [
+            home,
+            { path: '/inbox', label: 'Bandeja', icon: 'inbox' },
+            messages,
+            ...insight,
+            { path: '/insurer/rules', label: 'Reglas', icon: 'rules' },
+          ],
+        },
+      ];
     }
+    if (this.showAdminNav()) {
+      return [
+        {
+          label: 'Operación',
+          items: [
+            home,
+            { path: '/inbox', label: 'Expedientes', icon: 'inbox' },
+            messages,
+            ...insight,
+          ],
+        },
+        {
+          label: 'Gestión',
+          items: [
+            { path: '/insurer/users', label: 'Usuarios', icon: 'users', pending: 'users' },
+            { path: '/insurer/rules', label: 'Reglas', icon: 'rules', pending: 'rules' },
+            { path: '/insurer/settlements', label: 'Autorizaciones', icon: 'settlements' },
+          ],
+        },
+      ];
+    }
+    return [];
   });
 
-  private readonly closeNavOnNavigate = effect(() => {
+  // The phone sheet is a one-off: picking a screen closes it.
+  private readonly closeSheetOnNavigate = effect(() => {
     this.currentUrl();
-    if (this.overlayNav()) {
-      this.navOpen.set(false);
-    }
+    untracked(() => this.sidebar.closeMobile());
   });
-
-  protected toggleNav(): void {
-    this.navOpen.update((open) => !open);
-  }
-
-  protected closeNav(): void {
-    this.navOpen.set(false);
-  }
 
   protected readonly profileOpen = signal(false);
 
@@ -264,7 +300,6 @@ export class App {
     this.profileOpen.set(false);
     this.portalNavOpen.set(false);
     this.showNotifications.set(false);
-    if (this.overlayNav() && this.navOpen()) this.navOpen.set(false);
   }
 
   protected readonly showNotifications = signal(false);
@@ -291,14 +326,14 @@ export class App {
     return userRoleLabel(rol);
   }
 
-  protected initials(firstName: string, lastName: string): string {
-    return `${firstName?.[0] ?? ''}${lastName?.[0] ?? ''}`.toUpperCase() || '—';
-  }
-
   /** Initials of the insurer's first two words: "Seguros del Sur" → "SD". */
   protected monogram(insurerName: string): string {
     const [first = '', second = ''] = insurerName.trim().split(/\s+/);
     return `${first[0] ?? ''}${second[0] ?? ''}`.toUpperCase();
+  }
+
+  protected initials(firstName: string, lastName: string): string {
+    return `${firstName?.[0] ?? ''}${lastName?.[0] ?? ''}`.toUpperCase() || '—';
   }
 
   /** Testing aid: walks the setup checklist again without touching the configuration. */

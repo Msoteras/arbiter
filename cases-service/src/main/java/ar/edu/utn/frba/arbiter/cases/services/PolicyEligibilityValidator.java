@@ -45,16 +45,16 @@ public class PolicyEligibilityValidator {
             return;
         }
         assertInForceOnEventDate(eventDate, policy);
-        assertOutsideWaitingPeriod(eventDate, policy, coverage == null ? null : coverage.getWaitingPeriodDays());
+        assertOutsideWaitingPeriod(eventDate, policy, coverage);
         assertPolicyStanding(policy);
         assertCoverageIncludesClaimCause(claimCause, coverage);
     }
 
     /**
      * The same gate when rules-service is down and the coverage that answers for the cause isn't
-     * known. The waiting period lives in the coverage, so it is still checked, against the shortest
-     * one among the candidates: only a claim that every candidate would reject is rejected. The
-     * coverage exclusions need rules-service and are left to the recheck.
+     * known. The waiting period isn't checked: whether its rule is on is also in rules-service, and a
+     * referent who switched it off must never see a claim rejected for it. The coverage exclusions
+     * are left to the recheck.
      */
     public void validateWithoutCoverage(String policyNumber, LocalDateTime eventDate,
                                         LocalDateTime policeReportAt, List<Coverage> candidates) {
@@ -62,26 +62,12 @@ public class PolicyEligibilityValidator {
 
         PolicyResponse policy = insurerAdapter.findPolicy(policyNumber).orElse(null);
         if (policy == null) {
-            log.warn("[PolicyEligibility] Policy {} isn't in the insurer DB — coverage window and "
-                    + "waiting period aren't validated", policyNumber);
+            log.warn("[PolicyEligibility] Policy {} isn't in the insurer DB — coverage window isn't "
+                    + "validated", policyNumber);
             return;
         }
         assertInForceOnEventDate(eventDate, policy);
-        assertOutsideWaitingPeriod(eventDate, policy, shortestWaitingPeriod(candidates));
         assertPolicyStanding(policy);
-    }
-
-    /** Null as soon as one candidate has none: that one would cover from day one. */
-    private static Integer shortestWaitingPeriod(List<Coverage> candidates) {
-        Integer shortest = null;
-        for (Coverage candidate : candidates) {
-            Integer days = candidate.getWaitingPeriodDays();
-            if (days == null) {
-                return null;
-            }
-            shortest = shortest == null ? days : Math.min(shortest, days);
-        }
-        return shortest;
     }
 
     /**
@@ -167,20 +153,35 @@ public class PolicyEligibilityValidator {
 
     /**
      * During the waiting period the contract doesn't respond at all, so it is a rejection: it keeps
-     * a policy from being bought against an event that already happened.
+     * a policy from being bought against an event that already happened. Only while the coverage's
+     * {@code WAITING_PERIOD} rule is on: switching it off is how the referent says there is none.
      */
     private void assertOutsideWaitingPeriod(LocalDateTime requestedEventDate, PolicyResponse policy,
-                                            Integer waitingPeriodDays) {
-        if (requestedEventDate == null || policy.effectiveFrom() == null || waitingPeriodDays == null) {
+                                            Coverage coverage) {
+        if (requestedEventDate == null || policy.effectiveFrom() == null || coverage == null
+                || coverage.getId() == null || coverage.getWaitingPeriodDays() == null) {
             return;
         }
+        int waitingPeriodDays = coverage.getWaitingPeriodDays();
         LocalDateTime coverageStart = policy.effectiveFrom().plusDays(waitingPeriodDays);
-        if (requestedEventDate.isBefore(coverageStart)) {
-            throw new PolicyNotEligibleException(String.format(
-                    "La cobertura tiene una carencia de %d días desde el alta de la póliza (%s): recién "
-                            + "cubre siniestros ocurridos a partir del %s.",
-                    waitingPeriodDays, DISPLAY_FORMAT.format(policy.effectiveFrom()),
-                    DISPLAY_FORMAT.format(coverageStart)));
+        if (!requestedEventDate.isBefore(coverageStart)) {
+            return;
         }
+        boolean active;
+        try {
+            active = rulesServiceClient.waitingPeriodActive(coverage.getId());
+        } catch (RulesUnavailableException e) {
+            log.warn("[PolicyEligibility] Couldn't reach rules-service for WAITING_PERIOD — "
+                    + "waiting period isn't validated at intake for this claim: {}", e.getMessage());
+            return;
+        }
+        if (!active) {
+            return;
+        }
+        throw new PolicyNotEligibleException(String.format(
+                "La cobertura tiene una carencia de %d días desde el alta de la póliza (%s): recién "
+                        + "cubre siniestros ocurridos a partir del %s.",
+                waitingPeriodDays, DISPLAY_FORMAT.format(policy.effectiveFrom()),
+                DISPLAY_FORMAT.format(coverageStart)));
     }
 }

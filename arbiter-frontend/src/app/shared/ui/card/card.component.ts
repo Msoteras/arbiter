@@ -13,6 +13,7 @@ type Variant = 'default' | 'soft' | 'ai';
 @Component({
   selector: 'app-card',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  host: { '[class.is-fill]': 'fill()' },
   template: `
     <section
       class="card"
@@ -20,6 +21,7 @@ type Variant = 'default' | 'soft' | 'ai';
       [class.ai]="variant() === 'ai'"
       [class.flush]="flush()"
       [class.bare]="bare()"
+      [class.fill]="fill()"
     >
       @if (heading()) {
         @if (isCollapsible()) {
@@ -69,7 +71,8 @@ type Variant = 'default' | 'soft' | 'ai';
       border-radius: var(--radius-box);
       background: var(--surface);
       padding: var(--space-4);
-      box-shadow: var(--shadow-card);
+      /* A container can flatten the cards inside it (a folder card's panel) through these. */
+      box-shadow: var(--card-shadow, var(--shadow-card));
       /* min-height, not height: fills a stretched grid/flex cell but never shrinks below its
          content (height:100% does inside an auto-height flex column). */
       min-height: 100%;
@@ -84,12 +87,28 @@ type Variant = 'default' | 'soft' | 'ai';
     }
     .card:not(.bare):hover {
       border-color: var(--border-control);
-      box-shadow: var(--shadow-card-hover);
+      box-shadow: var(--card-shadow-hover, var(--shadow-card-hover));
     }
     @media (prefers-reduced-motion: reduce) {
       .card {
         transition: none;
       }
+    }
+    /* Body stretches to the card's height, so content inside can fill it (a preview's empty state).
+       The host must be stretched by its own parent (flex: 1 in a column). */
+    :host(.is-fill) {
+      display: flex;
+      flex-direction: column;
+    }
+    .card.fill {
+      flex: 1 1 auto;
+      display: flex;
+      flex-direction: column;
+    }
+    .card.fill > .card-body {
+      flex: 1 1 auto;
+      display: flex;
+      flex-direction: column;
     }
     .card.soft {
       background: var(--surface-soft);
@@ -178,19 +197,11 @@ type Variant = 'default' | 'soft' | 'ai';
     .card-aside:empty {
       display: none;
     }
+    /* sm reads like .t-section-label. */
     .card-title {
       margin: 0;
-      font-size: var(--font-size-xs);
-      font-weight: var(--font-weight-medium);
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      color: var(--text-tertiary);
-    }
-    .card-title.md,
-    .card-title.lg {
+      font-size: var(--font-size-body);
       font-weight: var(--font-weight-bold);
-      text-transform: none;
-      letter-spacing: normal;
       color: var(--text-primary);
     }
     .card-title.md {
@@ -213,6 +224,8 @@ export class CardComponent {
   readonly flush = input(false);
   /** No border/background/padding, for when the outer container already is the box. */
   readonly bare = input(false);
+  /** Body takes the card's full height; for a card stretched by its parent. */
+  readonly fill = input(false);
   /** Requires `heading`. */
   readonly collapsible = input(false);
   /** Initial state; only applies with `collapsible`. */

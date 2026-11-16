@@ -20,6 +20,7 @@ export type IconButtonIcon = 'edit' | 'delete' | 'confirm' | 'settings';
       type="button"
       class="icon-btn"
       [class.sm]="size() === 'sm'"
+      [class.ghost]="ghost()"
       [class.danger]="icon() === 'delete'"
       [attr.aria-label]="label()"
       [attr.title]="label()"
@@ -101,6 +102,14 @@ export type IconButtonIcon = 'edit' | 'delete' | 'confirm' | 'settings';
       border-color: var(--selected-border);
       background: var(--selected-bg);
     }
+    /* No box: for a card's own settings, next to its title. */
+    .icon-btn.ghost {
+      border-color: transparent;
+    }
+    .icon-btn.ghost:hover:not(:disabled) {
+      border-color: transparent;
+      background: var(--surface-sunken);
+    }
     /* Destructive but sober: colored icon and hover border, no red fill. */
     .icon-btn.danger {
       color: var(--status-danger);
@@ -129,4 +138,6 @@ export class IconButtonComponent {
   readonly label = input.required<string>();
   readonly disabled = input(false);
   readonly size = input<'md' | 'sm'>('md');
+  /** Without the border, until hovered. */
+  readonly ghost = input(false);
 }

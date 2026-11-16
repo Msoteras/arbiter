@@ -3,58 +3,7 @@
 
 @use 'media';
 
-/* ───────── Level header: breadcrumb, title and level ───────── */
-.level-head {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-}
-.crumbs ol {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-1) var(--space-2);
-  font-size: var(--font-size-xs);
-  color: var(--text-secondary);
-}
-.crumbs li {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-.crumb-sep {
-  color: var(--text-muted);
-}
-.crumb-current {
-  color: var(--text-primary);
-  font-weight: var(--font-weight-medium);
-}
-.crumb-link,
-.inherited-link {
-  padding: 0;
-  border: 0;
-  background: none;
-  font: inherit;
-  cursor: pointer;
-  text-decoration: underline;
-  text-underline-offset: 0.2em;
-}
-.crumb-link {
-  color: var(--text-secondary);
-  text-decoration-color: var(--border-strong);
-}
-.crumb-link:hover {
-  color: var(--text-primary);
-}
-.crumb-link:focus-visible,
-.inherited-link:focus-visible {
-  outline: none;
-  box-shadow: var(--focus-ring);
-  border-radius: var(--radius-ctl);
-}
+/* ───────── Level header: title and level, for the insurer's sections ───────── */
 .level-title {
   display: flex;
   flex-wrap: wrap;
@@ -80,7 +29,19 @@
   font-weight: var(--font-weight-medium);
 }
 .inherited-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
   color: var(--accent-fg);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+.inherited-link:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: var(--radius-ctl);
 }
 .inherited-link:hover {
   color: var(--text-primary);
@@ -92,10 +53,23 @@
 }
 
 /* ───────── Branch summary ───────── */
+/* Same height across a row; each card at least --cov-card-w wide. */
 .cov-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(calc(var(--control-w-value) * 1.25), 1fr));
-  gap: var(--space-3);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: var(--space-4);
+}
+.cov-grid > app-card {
+  flex: 1 1 var(--cov-card-w);
+}
+.chip-label {
+  white-space: pre;
+  color: var(--text-secondary);
+}
+.chip-value {
+  color: var(--text-primary);
+  font-weight: var(--font-weight-bold);
 }
 .cov-aside {
   display: inline-flex;

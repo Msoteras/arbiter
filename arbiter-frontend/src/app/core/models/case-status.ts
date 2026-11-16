@@ -103,3 +103,9 @@ export function riskBandEmptyLabel(status: string, classification: string | null
   }
   return 'Sin evaluar';
 }
+
+/** One status and the statuses a case can move to from it (`GET /api/v1/cases/status-transitions`). */
+export interface StatusMoves {
+  from: CaseStatus;
+  to: CaseStatus[];
+}

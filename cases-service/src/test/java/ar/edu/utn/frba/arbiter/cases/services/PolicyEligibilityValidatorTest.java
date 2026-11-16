@@ -68,41 +68,73 @@ class PolicyEligibilityValidatorTest {
     }
 
     @Test
-    void anEventInsideTheWaitingPeriod_isRejected() {
+    void anEventInsideTheWaitingPeriod_isRejectedWhenTheRuleIsActive() {
         givenPolicy(LocalDate.of(2026, 6, 8), LocalDate.of(2027, 6, 8));
+        when(rulesServiceClient.waitingPeriodActive(1L)).thenReturn(true);
 
-        assertThatThrownBy(() -> validate(LocalDateTime.of(2026, 6, 13, 20, 0), null, coverage(30)))
+        assertThatThrownBy(() -> validate(LocalDateTime.of(2026, 6, 13, 20, 0), null, coverage(30, 1L, "Robo")))
                 .isInstanceOf(PolicyNotEligibleException.class)
                 .hasMessageContaining("carencia de 30 días");
     }
 
-    /** Rules-service down: the coverage isn't known, but every candidate is still in its waiting period. */
+    /** The panel shows "Sin carencia" when the rule is off, even with the days still on the coverage. */
     @Test
-    void withoutTheCoverage_anEventInsideEveryCandidatesWaitingPeriod_isRejected() {
+    void anEventInsideTheWaitingPeriod_isAcceptedWhenTheRuleIsOff() {
         givenPolicy(LocalDate.of(2026, 6, 8), LocalDate.of(2027, 6, 8));
+        when(rulesServiceClient.waitingPeriodActive(1L)).thenReturn(false);
 
-        assertThatThrownBy(() -> validator.validateWithoutCoverage(POLICY_NUMBER,
-                LocalDateTime.of(2026, 6, 13, 20, 0), null, List.of(coverage(30), coverage(15))))
-                .isInstanceOf(PolicyNotEligibleException.class)
-                .hasMessageContaining("carencia de 15 días");
+        assertThatCode(() -> validate(LocalDateTime.of(2026, 6, 13, 20, 0), null, coverage(30, 1L, "Robo")))
+                .doesNotThrowAnyException();
     }
 
-    /** One candidate would already cover it, and it may be the one that answers: not rejected. */
+    /** Same fail-open reasoning as {@code whenRulesServiceIsUnreachable_arrearsIsNotValidated}. */
     @Test
-    void withoutTheCoverage_aCandidateWithoutWaitingPeriod_letsTheClaimIn() {
+    void whenRulesServiceIsUnreachable_theWaitingPeriodIsNotValidated() {
+        givenPolicy(LocalDate.of(2026, 6, 8), LocalDate.of(2027, 6, 8));
+        when(rulesServiceClient.waitingPeriodActive(1L))
+                .thenThrow(new RulesUnavailableException(new IllegalStateException("rules-service down")));
+
+        assertThatCode(() -> validate(LocalDateTime.of(2026, 6, 13, 20, 0), null, coverage(30, 1L, "Robo")))
+                .doesNotThrowAnyException();
+    }
+
+    /** Outside the waiting period there is nothing to ask rules-service. */
+    @Test
+    void anEventAfterTheWaitingPeriod_doesNotReadTheRule() {
+        givenPolicy(LocalDate.of(2026, 1, 1), LocalDate.of(2027, 1, 1));
+
+        assertThatCode(() -> validate(LocalDateTime.of(2026, 6, 13, 20, 0), null, coverage(30, 1L, "Robo")))
+                .doesNotThrowAnyException();
+        verify(rulesServiceClient, never()).waitingPeriodActive(any());
+    }
+
+    /** Rules-service down: whether the waiting period rule is on can't be known, so it isn't checked. */
+    @Test
+    void withoutTheCoverage_theWaitingPeriodIsNotChecked() {
         givenPolicy(LocalDate.of(2026, 6, 8), LocalDate.of(2027, 6, 8));
 
         assertThatCode(() -> validator.validateWithoutCoverage(POLICY_NUMBER,
-                LocalDateTime.of(2026, 6, 13, 20, 0), null, List.of(coverage(30), coverage(null))))
+                LocalDateTime.of(2026, 6, 13, 20, 0), null, List.of(coverage(30), coverage(15))))
                 .doesNotThrowAnyException();
+    }
+
+    @Test
+    void withoutTheCoverage_anEventOutsideThePolicyPeriod_isStillRejected() {
+        givenPolicy(LocalDate.of(2024, 1, 1), LocalDate.of(2026, 1, 1));
+
+        assertThatThrownBy(() -> validator.validateWithoutCoverage(POLICY_NUMBER,
+                LocalDateTime.of(2026, 6, 13, 20, 0), null, List.of(coverage(30))))
+                .isInstanceOf(PolicyNotEligibleException.class)
+                .hasMessageContaining("no estaba vigente");
     }
 
     /** The day the waiting period ends is already covered (start 05/14 + 30 days = 06/13). */
     @Test
     void theDayTheWaitingPeriodEnds_isAlreadyCovered() {
         givenPolicy(LocalDate.of(2026, 5, 14), LocalDate.of(2027, 5, 14));
+        when(rulesServiceClient.waitingPeriodActive(1L)).thenReturn(true);
 
-        assertThatCode(() -> validate(LocalDateTime.of(2026, 6, 13, 20, 0), null, coverage(30)))
+        assertThatCode(() -> validate(LocalDateTime.of(2026, 6, 13, 20, 0), null, coverage(30, 1L, "Robo")))
                 .doesNotThrowAnyException();
     }
 

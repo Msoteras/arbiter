@@ -206,13 +206,6 @@
     position: absolute;
     left: 0;
     top: 0;
-    image-rendering: pixelated;
-    // One-pixel gap between cells, so the fan reads as a grid of squares.
-    mask-image:
-      linear-gradient(to right, transparent 1px, black 1px),
-      linear-gradient(to bottom, transparent 1px, black 1px);
-    mask-size: var(--cell) var(--cell);
-    mask-composite: intersect;
   }
 }
 

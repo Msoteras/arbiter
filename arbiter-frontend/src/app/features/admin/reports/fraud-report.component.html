@@ -1,19 +1,16 @@
 <div class="report-page" @staggerReveal>
   <app-card heading="Parámetros del reporte">
-    <p class="rep-hint">
-      Criterios de detección
-      <app-info-tip>
-        Aparecen acá las denuncias del período sobre las que se disparó al menos una señal: score de
-        riesgo alto (banda Alto o Crítico del motor de scoring), incoherencias en el análisis
-        forense de las imágenes, o contradicciones entre la documentación adjunta y lo declarado en
-        la denuncia.
-      </app-info-tip>
-    </p>
+    <app-info-tip cardAside label="Criterios de detección">
+      Aparecen acá las denuncias del período sobre las que se disparó al menos una señal: score de
+      riesgo alto (banda Alto o Crítico del motor de scoring), incoherencias en el análisis forense
+      de las imágenes, o contradicciones entre la documentación adjunta y lo declarado en la
+      denuncia.
+    </app-info-tip>
 
     <div class="params">
       <app-report-filters />
 
-      <div class="field field-wide">
+      <div class="field">
         <label class="t-field-label" for="rep-riesgo">Score de riesgo</label>
         <app-select
           id="rep-riesgo"
@@ -38,7 +35,7 @@
     />
   </app-card>
 
-  <app-card heading="Vista previa">
+  <app-card class="preview-card" heading="Vista previa" [fill]="true">
     @if (loading()) {
       <app-skeleton shape="table" [rows]="5" [columns]="7" note="Buscando denuncias con señales…" />
     } @else if (report(); as current) {
@@ -53,11 +50,13 @@
         <!-- With claims in the period, "0 of 84" is a finding, not "nothing". -->
         @if (current.summary.totalClaims > 0) {
           <app-empty-state
+            [fill]="true"
             message="Ninguna denuncia con señales de fraude en el período"
-            sub="Ninguna de las denuncias del período disparó una señal de fraude. Probá con otro rango de fechas, otro ramo o sin filtrar por score de riesgo."
+            sub="Probá con otro rango de fechas, otro ramo o sin filtrar por score de riesgo."
           />
         } @else {
           <app-empty-state
+            [fill]="true"
             message="No hay denuncias en el período"
             sub="Probá con otro rango de fechas u otro ramo."
           />
@@ -248,6 +247,7 @@
       }
     } @else {
       <app-empty-state
+        [fill]="true"
         message="Todavía no hay vista previa"
         sub="Elegí el período y tocá «Ver vista previa»."
       />

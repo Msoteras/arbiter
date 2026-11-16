@@ -7,6 +7,7 @@ import ar.edu.utn.frba.arbiter.classification.dto.InsuredPolicy;
 import ar.edu.utn.frba.arbiter.classification.models.entities.InsuredFraudRecord;
 import ar.edu.utn.frba.arbiter.common.dto.ClaimReport;
 import ar.edu.utn.frba.arbiter.common.dto.ImageForensicReport;
+import ar.edu.utn.frba.arbiter.common.enums.Classification;
 
 import java.util.List;
 import java.util.Map;
@@ -14,7 +15,8 @@ import java.util.Map;
 /**
  * Everything the evaluators need, reusing the data the orchestrator already fetched so no evaluator
  * calls an adapter again. A null {@code imageFraud} or empty {@code documents} means "not analyzed",
- * which evaluators treat as not evaluable, never as "nothing wrong".
+ * which evaluators treat as not evaluable, never as "nothing wrong". So does a null
+ * {@code modelRecommendation}: the rules settled the path and the model never ran.
  */
 public record RiskContext(
         ClaimReport claim,
@@ -23,7 +25,8 @@ public record RiskContext(
         BusinessRules rules,
         ImageForensicReport imageFraud,
         Map<String, DocumentExtraction> documents,
-        List<InsuredFraudRecord> fraudRecords
+        List<InsuredFraudRecord> fraudRecords,
+        Classification modelRecommendation
 ) {
 
     public RiskContext {
@@ -32,11 +35,17 @@ public record RiskContext(
     }
 
     public RiskContext(ClaimReport claim, InsuredPolicy policy, InsuredHistory history, BusinessRules rules) {
-        this(claim, policy, history, rules, null, Map.of(), List.of());
+        this(claim, policy, history, rules, null, Map.of(), List.of(), null);
     }
 
     public RiskContext(ClaimReport claim, InsuredPolicy policy, InsuredHistory history, BusinessRules rules,
                        ImageForensicReport imageFraud, Map<String, DocumentExtraction> documents) {
-        this(claim, policy, history, rules, imageFraud, documents, List.of());
+        this(claim, policy, history, rules, imageFraud, documents, List.of(), null);
+    }
+
+    public RiskContext(ClaimReport claim, InsuredPolicy policy, InsuredHistory history, BusinessRules rules,
+                       ImageForensicReport imageFraud, Map<String, DocumentExtraction> documents,
+                       List<InsuredFraudRecord> fraudRecords) {
+        this(claim, policy, history, rules, imageFraud, documents, fraudRecords, null);
     }
 }

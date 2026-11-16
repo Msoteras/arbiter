@@ -2,6 +2,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  DestroyRef,
   effect,
   ElementRef,
   inject,
@@ -36,6 +37,7 @@ import {
 } from '../case.service';
 import { DocumentAgendaService } from '../document-agenda.service';
 import { ChipGroupComponent, ChipOption } from '../../../shared/ui/chip-group/chip-group.component';
+import { CaseLifecycleComponent } from '../../../shared/ui/case-lifecycle/case-lifecycle.component';
 import { CaseNavigationService } from '../case-navigation.service';
 import { CaseMessagesService } from '../case-messages.service';
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
@@ -92,6 +94,7 @@ import {
   fraudRecordOriginLabel,
 } from '../../../core/models/fraud-record';
 import {
+  StatusMoves,
   workStatusLabel,
   caseStatusTone,
   isFinalStatus,
@@ -129,6 +132,9 @@ import {
   MenuItem,
 } from '../../../shared/ui/menu-button/menu-button.component';
 import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
+import { SpotlightComponent } from '../../../shared/ui/spotlight/spotlight.component';
+import { RiskScaleComponent } from '../../../shared/ui/risk-scale/risk-scale.component';
+import { LogoComponent } from '../../../shared/ui/logo/logo.component';
 import { SkeletonComponent } from '../../../shared/ui/skeleton/skeleton.component';
 import { TabOption, TabsComponent } from '../../../shared/ui/tabs/tabs.component';
 import { accordion, fadeInUp, staggerReveal, tabSwitch } from '../../../shared/animations';
@@ -197,6 +203,7 @@ interface BriefAlert {
     InfoTipComponent,
     EmptyStateComponent,
     StatusTimelineComponent,
+    CaseLifecycleComponent,
     ForensicAnalysisComponent,
     ClassificationProgressComponent,
     CaseDocumentsComponent,
@@ -214,6 +221,9 @@ interface BriefAlert {
     SkeletonComponent,
     TabsComponent,
     DocumentRequestModalComponent,
+    SpotlightComponent,
+    RiskScaleComponent,
+    LogoComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   animations: [accordion, fadeInUp, staggerReveal, tabSwitch],
@@ -371,15 +381,17 @@ export class CaseDetailComponent {
     return band ? riskBandLabel(band) : null;
   });
 
-  protected readonly riskTone = computed(() => riskBandTone(this.data()?.riskBand ?? null));
+  protected readonly riskBand = computed(() => this.data()?.riskBand ?? null);
+  protected readonly riskTone = computed(() => riskBandTone(this.riskBand()));
 
   /**
-   * The verdict the model points to, shown first and filled. Only for its two directional outputs:
-   * Fast Track, missing documents and manual review leave both verdicts on equal footing.
+   * The verdict Arbiter points to, shown first and filled. Fast Track points to approving: the rules
+   * found nothing to hold it back. Missing documents and manual review leave both on equal footing.
    */
   protected readonly recommendedVerdict = computed<'approve' | 'reject' | null>(() => {
     switch (this.data()?.analysisClassification) {
       case 'LLM_RECOMIENDA_APROBAR':
+      case 'FAST_TRACK':
         return 'approve';
       case 'LLM_NO_RECOMIENDA_APROBAR':
         return 'reject';
@@ -387,6 +399,63 @@ export class CaseDetailComponent {
         return null;
     }
   });
+
+  /**
+   * The strip's headline, split so the verdict word takes the tone. Past tense once the case is
+   * resolved: by then it reads as what Arbiter said, next to what was decided.
+   */
+  protected readonly spotlightVerdict = computed<{ lead: string; word: string; end: string }>(
+    () => {
+      const d = this.data();
+      const past = this.decisionState() !== 'pending';
+      const recommends = past ? 'Recomendó ' : 'Recomienda ';
+      const asks = past ? 'Solicitó ' : 'Solicita ';
+      switch (d?.analysisClassification) {
+        case 'LLM_RECOMIENDA_APROBAR':
+        case 'FAST_TRACK':
+          return { lead: recommends, word: 'aprobar', end: '.' };
+        case 'LLM_NO_RECOMIENDA_APROBAR':
+          return { lead: recommends, word: 'rechazar', end: '.' };
+        case 'LLM_SOLICITA_REVISION_MANUAL':
+          return { lead: asks, word: 'revisión manual', end: '.' };
+        case 'FALTA_DOCUMENTACION':
+          return { lead: asks, word: 'documentación', end: '.' };
+      }
+      return d?.status === 'PENDING_CLASSIFICATION'
+        ? { lead: 'Analizando la ', word: 'denuncia', end: '…' }
+        : { lead: 'Sin ', word: 'recomendación', end: '.' };
+    },
+  );
+
+  protected readonly spotlightTone = computed<StatusTone>(() => {
+    switch (this.data()?.analysisClassification) {
+      case 'LLM_RECOMIENDA_APROBAR':
+      case 'FAST_TRACK':
+        return 'ok';
+      case 'LLM_NO_RECOMIENDA_APROBAR':
+        return 'danger';
+      case 'LLM_SOLICITA_REVISION_MANUAL':
+      case 'FALTA_DOCUMENTACION':
+        return 'warning';
+      default:
+        return 'neutral';
+    }
+  });
+
+  /** How many rows each list beside the verdict shows: three keep it as tall as the verdict. */
+  protected readonly asideRows = 3;
+
+  /** The first reasons, beside the verdict; the rest are one click away in Análisis. */
+  protected readonly spotlightReasons = computed(() =>
+    this.analysisReasons().slice(0, this.asideRows),
+  );
+
+  /** The factors that added the most to the score, the biggest first. */
+  protected readonly spotlightFactors = computed(() =>
+    this.scoreSegments()
+      .slice(0, this.asideRows)
+      .map((s) => ({ label: riskFactorLabel(s.factorId), contribution: s.contribution })),
+  );
 
   protected readonly riskScorePct = computed<number | null>(() => {
     const score = this.data()?.riskScore;
@@ -801,6 +870,31 @@ export class CaseDetailComponent {
   }
 
   protected readonly history = computed<StatusTransition[]>(() => this.data()?.statusHistory ?? []);
+
+  protected readonly historyViewOptions: ChipOption[] = [
+    { value: 'timeline', label: 'Línea de tiempo' },
+    { value: 'diagram', label: 'Diagrama' },
+  ];
+  protected readonly historyView = signal('timeline');
+  /** Read the first time the diagram is shown; the cache keeps it for the session. */
+  protected readonly statusMoves = signal<StatusMoves[] | null>(null);
+  protected readonly statusMovesFailed = signal(false);
+  private readonly destroyRef = inject(DestroyRef);
+
+  protected showHistoryView(view: string): void {
+    this.historyView.set(view);
+    if (view !== 'diagram' || this.statusMoves()) {
+      return;
+    }
+    this.statusMovesFailed.set(false);
+    this.service
+      .statusMoves()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (moves) => this.statusMoves.set(moves),
+        error: () => this.statusMovesFailed.set(true),
+      });
+  }
 
   protected readonly hasImageAnalysis = computed(
     () => (this.data()?.forensicReport?.findings?.length ?? 0) > 0,
@@ -1297,6 +1391,18 @@ export class CaseDetailComponent {
     this.isAdjustment(this.stableAmountToAuthorize()),
   );
 
+  /** The approval dialog's headline: what is still missing before paying, or that nothing is. */
+  protected readonly settlementHeadline = computed<{
+    lead: string;
+    word: string;
+    tone: StatusTone;
+  }>(() => {
+    if (this.baseAmountMissing()) return { lead: 'Falta un ', word: 'dato', tone: 'warning' };
+    if (this.needsReferent()) return { lead: 'Necesita ', word: 'autorización', tone: 'warning' };
+    if (this.adjustmentFieldShown()) return { lead: 'Monto ', word: 'ajustado', tone: 'warning' };
+    return { lead: 'Listo para ', word: 'liquidar', tone: 'ok' };
+  });
+
   /** The sum insured is the indemnity ceiling (art. 3). */
   protected readonly settlementAboveSumInsured = computed(() => {
     const settlement = this.settlement();
@@ -1668,6 +1774,35 @@ export class CaseDetailComponent {
     // A repair outcome already names its source; the prefix made the badge overflow the card.
     const badgeText = isRepairDerivation ? outcome : `Perito: ${outcome}`;
     return parsedAmount != null ? `${badgeText} · ${this.formatAmount(parsedAmount)}` : badgeText;
+  }
+
+  /** A referral's strip: its result in the tone of the verdict, or the wait while there is none. */
+  protected referralHeadline(p: Derivation): { lead: string; word: string; end: string } {
+    const isRepairDerivation = p.providerType === 'SERVICIO_TECNICO';
+    if (p.verdict) return { lead: '', word: verdictLabel(p.verdict), end: '.' };
+    if (p.repairOutcome) return { lead: '', word: repairOutcomeLabel(p.repairOutcome), end: '.' };
+    return isRepairDerivation
+      ? { lead: 'Esperando la ', word: 'respuesta', end: '…' }
+      : { lead: 'Esperando el ', word: 'informe', end: '…' };
+  }
+
+  protected referralTone(p: Derivation): StatusTone {
+    if (p.verdict) return verdictTone(p.verdict);
+    switch (p.repairOutcome) {
+      case 'REPAIRED':
+        return 'ok';
+      case 'IRREPARABLE':
+        return 'warning';
+      default:
+        return 'neutral';
+    }
+  }
+
+  /** Whole days from the referral to the answer, or to today while it is still out. */
+  protected referralDays(p: Derivation): number {
+    const end = p.reportReceivedAt ? new Date(p.reportReceivedAt) : new Date();
+    const days = (end.getTime() - new Date(p.derivedAt).getTime()) / 86_400_000;
+    return Math.max(0, Math.floor(days));
   }
 
   protected derivationResultTone(p: Derivation): StatusTone {

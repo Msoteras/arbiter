@@ -1,5 +1,6 @@
 package ar.edu.utn.frba.arbiter.cases.services;
 
+import ar.edu.utn.frba.arbiter.cases.dto.StatusMovesResponse;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CaseNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidStatusTransitionException;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
@@ -20,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -83,6 +85,14 @@ public class CaseStatusService {
     private final CaseStateCatalog caseStateCatalog;
     private final CaseNotificationService notificationService;
     private final Clock clock;
+
+    /** The state machine as data, so the front draws the same transitions this service enforces. */
+    public static List<StatusMovesResponse> transitions() {
+        return Arrays.stream(CaseStatus.values())
+                .map(from -> new StatusMovesResponse(from,
+                        VALID_TRANSITIONS.getOrDefault(from, Set.of()).stream().sorted().toList()))
+                .toList();
+    }
 
     public CaseState initialStatus() {
         return caseStateCatalog.resolve(PENDING_CLASSIFICATION);

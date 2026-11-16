@@ -1,3 +1,4 @@
+import { NgTemplateOutlet } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -9,6 +10,8 @@ import {
   model,
   viewChild,
 } from '@angular/core';
+
+import { watchFolderFit } from './folder-fit';
 
 export interface TabOption {
   id: string;
@@ -31,6 +34,9 @@ const STATUS_LABELS: Record<NonNullable<TabOption['status']>, string> = {
 };
 
 /**
+ * `underline` (the default) is the strip over a section; `folder` sits at the top of a card, with
+ * the screen title as its lead (`[tabsLead]`) and the tabs on the right (`align="end"`) or after it.
+ *
  * Tab strip that switches between sections of one screen. It only owns the strip: the parent
  * renders the panel for `value`. A real `tablist`, so the arrow keys move between tabs and only the
  * selected one sits in the tab order. Content projected into it sits at the end of the strip, on
@@ -38,40 +44,58 @@ const STATUS_LABELS: Record<NonNullable<TabOption['status']>, string> = {
  */
 @Component({
   selector: 'app-tabs',
+  imports: [NgTemplateOutlet],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="strip" [class.is-scrollable]="scrollable()">
-      <div class="tablist" role="tablist" [attr.aria-label]="ariaLabel()">
-        <span class="ink" #ink aria-hidden="true"></span>
-        @for (tab of tabs(); track tab.id) {
-          <button
-            type="button"
-            role="tab"
-            class="tab"
-            [class.active]="value() === tab.id"
-            [attr.aria-selected]="value() === tab.id"
-            [attr.tabindex]="value() === tab.id ? 0 : -1"
-            (click)="value.set(tab.id)"
-            (keydown)="onKeydown($event)"
-          >
-            {{ tab.label }}
-            @if (tab.count != null) {
-              <span class="tab-count">{{ tab.count }}</span>
-            }
-            @if (tab.status) {
-              <span
-                class="tab-dot"
-                [class.is-required]="tab.status === 'required'"
-                [class.is-notice]="tab.status === 'notice'"
-                aria-hidden="true"
-              ></span>
-              <span class="sr-only">({{ tab.statusLabel ?? statusLabels[tab.status] }})</span>
-            }
-          </button>
-        }
+    @if (variant() === 'folder') {
+      <div class="folder" [class.align-start]="align() === 'start'">
+        <div class="folder-lead">
+          <div class="folder-lead-content"><ng-content select="[tabsLead]" /></div>
+        </div>
+        <span class="folder-fill folder-pre" aria-hidden="true"></span>
+        <div class="tablist" role="tablist" [attr.aria-label]="ariaLabel()">
+          <ng-container *ngTemplateOutlet="tabButtons" />
+        </div>
+        <div class="folder-fill folder-trail"><ng-content /></div>
       </div>
-      <ng-content />
-    </div>
+    } @else {
+      <div class="strip" [class.is-scrollable]="scrollable()">
+        <div class="tablist" role="tablist" [attr.aria-label]="ariaLabel()">
+          <span class="ink" #ink aria-hidden="true"></span>
+          <ng-container *ngTemplateOutlet="tabButtons" />
+        </div>
+        <ng-content />
+      </div>
+    }
+
+    <ng-template #tabButtons>
+      @for (tab of tabs(); track tab.id) {
+        <button
+          type="button"
+          role="tab"
+          class="tab"
+          [class.active]="value() === tab.id"
+          [attr.aria-selected]="value() === tab.id"
+          [attr.tabindex]="value() === tab.id ? 0 : -1"
+          (click)="value.set(tab.id)"
+          (keydown)="onKeydown($event)"
+        >
+          {{ tab.label }}
+          @if (tab.count != null) {
+            <span class="tab-count">{{ tab.count }}</span>
+          }
+          @if (tab.status) {
+            <span
+              class="tab-dot"
+              [class.is-required]="tab.status === 'required'"
+              [class.is-notice]="tab.status === 'notice'"
+              aria-hidden="true"
+            ></span>
+            <span class="sr-only">({{ tab.statusLabel ?? statusLabels[tab.status] }})</span>
+          }
+        </button>
+      }
+    </ng-template>
   `,
   styles: `
     @use 'tab-strip';
@@ -80,7 +104,8 @@ const STATUS_LABELS: Record<NonNullable<TabOption['status']>, string> = {
       display: block;
     }
     @include tab-strip.styles;
-    .tablist {
+    @include tab-strip.folder-styles;
+    .strip .tablist {
       position: relative;
       display: flex;
       flex-wrap: inherit;
@@ -125,12 +150,16 @@ export class TabsComponent {
   readonly ariaLabel = input<string | null>(null);
   /** On touch screens, one row that scrolls sideways instead of wrapping: for many tabs. */
   readonly scrollable = input(false);
+  readonly variant = input<'underline' | 'folder'>('underline');
+  /** Folder only: tabs on the right of the lead (`end`) or right after it (`start`). */
+  readonly align = input<'start' | 'end'>('end');
 
   protected readonly statusLabels = STATUS_LABELS;
 
-  private readonly ink = viewChild.required<ElementRef<HTMLElement>>('ink');
+  private readonly ink = viewChild<ElementRef<HTMLElement>>('ink');
 
   constructor() {
+    watchFolderFit(this.host.nativeElement, inject(DestroyRef));
     // Re-placed on every selection and whenever the strip changes size (fonts, wrapping, counts).
     const observer = new ResizeObserver(() => this.placeInk());
     inject(DestroyRef).onDestroy(() => observer.disconnect());
@@ -147,7 +176,8 @@ export class TabsComponent {
   }
 
   private placeInk(): void {
-    const ink = this.ink().nativeElement;
+    const ink = this.ink()?.nativeElement;
+    if (!ink) return;
     const list = ink.parentElement as HTMLElement;
     const active = list.querySelector<HTMLElement>('.tab.active');
     const tabs = list.querySelectorAll<HTMLElement>('.tab');
@@ -178,7 +208,7 @@ export class TabsComponent {
     event.preventDefault();
     this.value.set(tabs[next].id);
     const buttons =
-      this.host.nativeElement.querySelectorAll<HTMLButtonElement>('.tablist > [role="tab"]');
+      this.host.nativeElement.querySelectorAll<HTMLButtonElement>('.tablist [role="tab"]');
     buttons[next]?.focus();
   }
 }

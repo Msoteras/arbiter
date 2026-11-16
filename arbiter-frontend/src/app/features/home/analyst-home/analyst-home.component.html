@@ -5,40 +5,85 @@
   <app-home-skeleton />
 } @else {
   <div class="home fit" @staggerReveal>
-    <header class="hero">
-      <div class="hero-head">
-        <div class="hero-text">
-          <h1 class="t-hero-title">{{ greeting }}, {{ firstName() }}</h1>
-          <!-- Segments, not inline text: the template's line breaks would leave a space before the period. -->
-          <p class="hero-sub">
-            @for (part of heroLine(); track $index) {
-              @if (part.bold) {
-                <strong>{{ part.text }}</strong>
-              } @else {
-                <span>{{ part.text }}</span>
-              }
-            }
-          </p>
-        </div>
-        <app-button class="hero-cta" variant="secondary" routerLink="/inbox" tabindex="-1">
-          Ir a mi bandeja ›
-        </app-button>
+    <!-- How the day stands: what waits on your decision, then the counts that open the inbox filtered. -->
+    @let waiting = pending();
+    <app-spotlight
+      class="hero"
+      [brand]="true"
+      [tone]="overdue() > 0 ? 'danger' : waiting ? 'ok' : 'neutral'"
+    >
+      <span spotlightLabel
+        ><app-logo /><span>· {{ today }}</span></span
+      >
+      <h1 spotlightTitle>{{ greeting }}, {{ firstName() }}.</h1>
+      <div spotlightFigure>
+        <span class="spotlight-number" [class.is-empty]="!waiting">{{ waiting ?? '—' }}</span>
+        <span class="spotlight-unit">
+          <span>{{ waiting === 1 ? 'expediente espera' : 'expedientes esperan' }}</span>
+          <span>tu decisión</span>
+        </span>
       </div>
-
-      <nav class="shortcuts" aria-label="Para hoy">
-        @for (s of shortcuts(); track s.label) {
-          <a class="shortcut" [routerLink]="s.link" [queryParams]="s.query">
-            <span class="shortcut-top">
-              <span class="shortcut-value tabular">{{ summary() ? s.value : '—' }}</span>
-              @if (s.flag) {
-                <span class="shortcut-flag">{{ s.flag }}</span>
+      <p spotlightSummary>
+        @if (overdue() > 0) {
+          <strong class="spotlight-tone"
+            >{{ overdue() }} {{ overdue() === 1 ? 'está vencido' : 'están vencidos' }}</strong
+          >.
+        } @else if (waiting) {
+          Ninguno está vencido.
+        } @else if (waiting === 0) {
+          No tenés expedientes esperando tu decisión.
+        }
+      </p>
+      <div spotlightActions>
+        <app-button [block]="true" routerLink="/inbox" tabindex="-1">Ir a mi bandeja</app-button>
+        <!-- The cases nobody took yet: the other thing the analyst can act on from here. -->
+        <div class="unassigned">
+          <p class="unassigned-count">
+            <span class="tabular">{{ summary()?.unassigned ?? '—' }}</span> sin asignar
+          </p>
+          @let days = oldestUnassignedDays();
+          <!-- Not "as days": 0 is falsy, and a case that came in today has to show too. -->
+          @if (days !== null) {
+            <p class="t-note">
+              @if (days === 0) {
+                El más antiguo entró hoy
+              } @else {
+                El más antiguo espera hace {{ days }} {{ days === 1 ? 'día' : 'días' }}
               }
-            </span>
-            <span class="shortcut-label">{{ s.label }}</span>
+            </p>
+          } @else if (summary()?.unassigned === 0) {
+            <p class="t-note">No hay expedientes sin analista</p>
+          }
+          @if (summary()?.unassigned) {
+            <app-button
+              variant="secondary"
+              [block]="true"
+              routerLink="/inbox"
+              [queryParams]="{ unassigned: 'true' }"
+              tabindex="-1"
+            >
+              Ver y tomar
+            </app-button>
+          }
+        </div>
+      </div>
+      <nav class="spotlight-cells" aria-label="Para hoy">
+        @for (s of shortcuts(); track s.label) {
+          <a
+            class="spotlight-cell"
+            [class.is-zero]="summary() && !s.value"
+            [routerLink]="s.link"
+            [queryParams]="s.query"
+          >
+            <span class="cell-value">{{ summary() ? s.value : '—' }}</span>
+            <span class="cell-label">{{ s.label }}</span>
+            @if (s.flag) {
+              <span class="cell-flag">{{ s.flag }}</span>
+            }
           </a>
         }
       </nav>
-    </header>
+    </app-spotlight>
 
     <div class="cols">
       <div class="col col-main" #mainCol>
@@ -121,37 +166,6 @@
       </div>
 
       <div class="col col-side">
-        <app-card>
-          <div class="unassigned">
-            <div>
-              <h2 class="unassigned-count">
-                <span class="tabular">{{ summary()?.unassigned ?? '—' }}</span> sin asignar
-              </h2>
-              @let days = oldestUnassignedDays();
-              <!-- Not "as days": 0 is falsy, and a case that came in today has to show too. -->
-              @if (days !== null) {
-                <p class="t-note">
-                  @if (days === 0) {
-                    El más antiguo entró hoy
-                  } @else {
-                    El más antiguo espera hace {{ days }} {{ days === 1 ? 'día' : 'días' }}
-                  }
-                </p>
-              } @else if (summary()?.unassigned === 0) {
-                <p class="t-note">No hay expedientes sin analista</p>
-              }
-            </div>
-            <app-button
-              size="sm"
-              routerLink="/inbox"
-              [queryParams]="{ unassigned: 'true' }"
-              tabindex="-1"
-            >
-              Ver y tomar
-            </app-button>
-          </div>
-        </app-card>
-
         <app-card heading="Tu bandeja" headingSize="md">
           @if (caseload(); as c) {
             <span cardAside class="t-note"

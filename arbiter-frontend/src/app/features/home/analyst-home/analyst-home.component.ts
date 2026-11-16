@@ -41,6 +41,8 @@ import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { EmptyStateComponent } from '../../../shared/ui/empty-state/empty-state.component';
 import { LoadingComponent } from '../../../shared/ui/loading/loading.component';
+import { SpotlightComponent } from '../../../shared/ui/spotlight/spotlight.component';
+import { LogoComponent } from '../../../shared/ui/logo/logo.component';
 import { HomeSkeletonComponent } from '../home-skeleton/home-skeleton.component';
 import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
 import { AppReadyService } from '../../../core/app-ready.service';
@@ -95,6 +97,8 @@ interface CaseloadRow {
     LoadingComponent,
     HomeSkeletonComponent,
     InlineLoadingComponent,
+    SpotlightComponent,
+    LogoComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   animations: [staggerReveal, listStagger],
@@ -188,26 +192,6 @@ export class AnalystHomeComponent {
   });
 
   protected readonly overdue = computed(() => this.summary()?.deadlines.overdue ?? 0);
-
-  protected readonly heroLine = computed<{ text: string; bold: boolean }[]>(() => {
-    const parts = [{ text: this.today, bold: false }];
-    const pending = this.pending();
-    if (pending === null) return parts;
-    if (pending > 0) {
-      const waiting = pending === 1 ? 'expediente espera' : 'expedientes esperan';
-      parts.push({ text: ' · ', bold: false }, { text: `${pending} ${waiting}`, bold: true });
-      parts.push({ text: ' tu decisión', bold: false });
-    } else {
-      parts.push({ text: ' · no tenés expedientes esperando tu decisión', bold: false });
-    }
-    const overdue = this.overdue();
-    if (overdue > 0) {
-      const late = overdue === 1 ? 'está vencido' : 'están vencidos';
-      parts.push({ text: ' y ', bold: false }, { text: `${overdue} ${late}`, bold: true });
-    }
-    parts.push({ text: '.', bold: false });
-    return parts;
-  });
 
   protected readonly unreadMessages = computed(() =>
     (this.data()?.chats ?? []).reduce((sum, chat) => sum + chat.unreadCount, 0),

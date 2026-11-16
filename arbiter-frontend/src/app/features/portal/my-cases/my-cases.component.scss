@@ -116,10 +116,8 @@
   color: var(--text-secondary);
 }
 .next-tag {
-  font-size: var(--font-size-2xs);
+  font-size: var(--font-size-sm);
   font-weight: var(--font-weight-medium);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
   color: var(--accent-fg);
   background: var(--selected-bg);
   padding: 2px var(--space-2);

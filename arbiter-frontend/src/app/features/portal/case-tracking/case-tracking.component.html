@@ -1,80 +1,47 @@
 @if (data(); as d) {
   <a class="breadcrumb" routerLink="/portal">‹ Mis siniestros</a>
 
-  <header class="hero">
-    @if (insurerLogo(); as logo) {
-      <img class="hero-insurer-logo" [src]="logo" [alt]="d.insurerName ?? 'Aseguradora'" />
-    }
-    <span class="eyebrow">Siniestro #{{ d.id }} · {{ d.claimCause }}</span>
-    <h1 class="t-hero-title">{{ heroTitle() }}</h1>
-    <p class="hero-sub measure">{{ statusDescription() }}</p>
-
-    <div class="simple-progress">
-      @for (s of progressSteps; track s; let i = $index; let last = $last) {
-        <span
-          class="simple-step"
-          [class.done]="i < progressIndex()"
-          [class.current]="i === progressIndex()"
-        >
-          @if (i < progressIndex()) {
-            <span class="simple-check" aria-hidden="true">✓</span>
-          }
-          {{ s }}
-        </span>
-        @if (!last) {
-          <span class="simple-sep" [class.done]="i < progressIndex()"></span>
-        }
+  <!-- Where the claim stands, in the insurer's name: the next step is the only action, if there is one. -->
+  <app-spotlight class="hero" [tone]="heroTone()">
+    <span spotlightLabel>
+      @if (insurerLogo(); as logo) {
+        <img class="hero-insurer-logo" [src]="logo" [alt]="d.insurerName ?? 'Aseguradora'" />
+      } @else if (d.insurerName) {
+        <strong class="hero-insurer">{{ d.insurerName }}</strong>
       }
-    </div>
-  </header>
-
-  @if (needsDocs()) {
-    <div class="action-required" data-tone="warning">
-      <span class="action-icon" aria-hidden="true">
-        <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-          <rect
-            x="4"
-            y="2.5"
-            width="10"
-            height="13"
-            rx="1.6"
-            stroke="currentColor"
-            stroke-width="1.5"
-          />
-          <line x1="6.5" y1="6" x2="11.5" y2="6" stroke="currentColor" stroke-width="1.5" />
-          <line x1="6.5" y1="9" x2="11.5" y2="9" stroke="currentColor" stroke-width="1.5" />
-        </svg>
-      </span>
-      <div class="action-body">
-        <span class="action-tag">Una cosa pendiente</span>
-        <p class="action-text">
-          Necesitamos algunos documentos para poder continuar con tu siniestro.
-        </p>
-      </div>
-      <app-button (click)="goToDocuments()">Cargar documentación</app-button>
-    </div>
-  } @else if (isResolved()) {
-    <div class="action-required resolved" [attr.data-tone]="statusTone()">
-      <span class="action-icon" aria-hidden="true">
-        <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-          <path
-            d="M4 9.5l3 3 7-7"
-            stroke="currentColor"
-            stroke-width="1.8"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          />
-        </svg>
-      </span>
-      <div class="action-body">
-        <span class="action-tag">{{ d.insuredStatus.label }}</span>
-        <p class="action-text">
-          Te enviamos la notificación con el detalle por correo electrónico. No quedan pasos
-          pendientes.
-        </p>
+      <span>· Siniestro #{{ d.id }} · {{ d.claimCause }}</span>
+    </span>
+    @let title = heroTitleParts();
+    <h1 spotlightTitle>
+      {{ title.lead }}<span class="spotlight-tone">{{ title.word }}</span
+      >.
+    </h1>
+    <div spotlightSummary>
+      <p class="hero-sub measure">{{ statusDescription() }}</p>
+      <div class="simple-progress">
+        @for (s of progressSteps; track s; let i = $index; let last = $last) {
+          <span
+            class="simple-step"
+            [class.done]="i < progressIndex()"
+            [class.current]="i === progressIndex()"
+          >
+            @if (i < progressIndex()) {
+              <span class="simple-check" aria-hidden="true">✓</span>
+            }
+            {{ s }}
+          </span>
+          @if (!last) {
+            <span class="simple-sep" [class.done]="i < progressIndex()"></span>
+          }
+        }
       </div>
     </div>
-  }
+    @if (needsDocs()) {
+      <div spotlightActions>
+        <app-button [block]="true" (click)="goToDocuments()">Cargar documentación</app-button>
+      </div>
+    }
+  </app-spotlight>
 
   <!-- Repair is the only referral disclosed to the insured; the expert assessment stays hidden. -->
   @if (technicalService(); as sv) {

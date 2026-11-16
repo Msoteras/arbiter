@@ -1,9 +1,20 @@
 /* Styles shared by both report tabs; the .params grid is in report-params.scss. */
 
-.report-page {
+/* The tab fills the reports card; its last card, the preview, takes the height left. */
+:host {
+  flex: 1 1 auto;
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  min-width: 0;
+}
+.report-page {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.report-page > app-card:last-child {
+  flex: 1 1 auto;
 }
 
 .rep-hint {

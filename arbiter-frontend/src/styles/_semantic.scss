@@ -1,6 +1,9 @@
 /* Layer 2: semantic roles mapped onto the primitives. Components consume only these, so theming
-   (dark mode, per-insurer branding) happens here without touching components. */
-:root {
+   (dark mode, per-insurer branding) happens here without touching components.
+   Repeated under `.theme-zinc`: a role is resolved where it is declared, so a scope that redefines
+   the primitives has to map the roles again to pick them up. */
+:root,
+.theme-zinc {
   /* ===== Text ===== */
   --text-primary: var(--c-ink);
   --text-secondary: var(--c-ink-2);
@@ -13,6 +16,7 @@
   --surface-soft: var(--c-bg-soft);
   --surface-sunken: var(--c-bg-soft-2);
   --surface-head: var(--c-bg-head);
+  --surface-canvas: var(--c-canvas);
 
   /* ===== Borders ===== */
   --border-subtle: var(--c-divider);
@@ -62,13 +66,27 @@
   );
   --brand-panel-fg: var(--c-on-ink);
 
-  /* ===== App chrome (fixed topbar + nav panel) ===== */
-  --chrome-bg: var(--c-ink);
-  --chrome-fg: var(--c-on-ink);
-  --chrome-muted: var(--c-muted-2);
-  --chrome-item-active: var(--c-ink-raised);
-  --chrome-hair: var(--c-ink-hair);
-  --chrome-avatar-bg: var(--c-ink-raised-2);
+  /* ===== App chrome: top bar =====
+     White over the canvas, split from the screen by a hairline (shadcn/ui blocks). */
+  --chrome-bg: var(--c-bg);
+  --chrome-fg: var(--c-ink);
+  --chrome-muted: var(--c-muted);
+  --chrome-item-active: var(--c-bg-soft-2);
+  --chrome-hair: var(--c-border);
+  --chrome-avatar-bg: var(--c-border);
+
+  /* ===== App chrome: sidebar =====
+     Dark, like the old nav panel: the navigation reads as a frame around the light screens. The
+     active icon takes the plain teal, which holds contrast on ink where --accent-fg would not. */
+  --sidebar-bg: var(--c-ink);
+  --sidebar-fg: var(--c-muted-3);
+  --sidebar-muted: var(--c-muted-2);
+  --sidebar-accent: var(--c-ink-raised);
+  --sidebar-accent-fg: var(--c-on-ink);
+  --sidebar-border: var(--c-ink-hair);
+  --sidebar-avatar-bg: var(--c-ink-raised-2);
+  --sidebar-active-icon: var(--accent);
+  --sidebar-focus-ring: 0 0 0 2px var(--accent);
 
   /* ===== Secondary action (outlined button) ===== */
   --action-secondary-bg: var(--c-bg);
@@ -95,8 +113,66 @@
   --status-risk-strong: var(--accent-orange-strong);
   --status-danger-strong: var(--accent-red-strong);
   --status-danger-strong-hover: var(--accent-red-deep);
+  /* Status as the color of text itself (a verdict word, a figure label). */
+  --status-ok-text: var(--accent-strong);
+  --status-warning-text: var(--accent-yellow-text);
+  --status-risk-text: var(--accent-orange-strong);
+  --status-danger-text: var(--accent-red-strong);
+  --status-info-text: var(--accent-blue);
 
   /* Tinted surface + border pair for cards that communicate risk. */
   --surface-danger-soft: var(--accent-red-soft);
   --border-danger-soft: var(--accent-red-soft-border);
+
+  /* ===== Badge ===== */
+  --badge-radius: var(--radius-pill);
+  --badge-pad-y: var(--space-1);
+  --badge-pad-x: var(--space-3);
+  --badge-pad-x-dot: var(--space-3);
+  --badge-weight: var(--font-weight-regular);
+  --badge-bg: var(--surface-head);
+  --badge-border: var(--border-control);
+  --badge-fg: var(--text-secondary);
+  --badge-strong-bg: var(--surface-head);
+  --badge-strong-border: var(--text-tertiary);
+
+  /* ===== Diagrams (case lifecycle) ===== */
+  --diagram-canvas: var(--surface-soft);
+  --diagram-grid-dot: var(--c-grid-dot);
+  --diagram-edge: var(--c-border-3);
+  --diagram-edge-active: var(--accent-line);
+
+  /* ===== Chip group ===== */
+  --chip-radius: var(--radius-pill);
+  --chip-pad-x: var(--space-5);
+  --chip-pad-x-sm: var(--space-3);
+  --chip-fg: var(--text-secondary);
+  --chip-active-bg: var(--selected-bg);
+  --chip-active-border: var(--selected-border);
+  --chip-active-fg: var(--accent-fg);
+}
+
+/* Badges in the style of shadcn/ui: square-ish, compact, medium weight. `solid` is its outline
+   badge and `strong` its secondary one, filled without a visible border. */
+.theme-zinc {
+  --badge-radius: var(--radius-chip);
+  --badge-pad-y: var(--space-1);
+  --badge-pad-x: calc(var(--space-2) + var(--space-0-5));
+  --badge-pad-x-dot: calc(var(--space-1) + var(--space-0-5));
+  --badge-weight: var(--font-weight-medium);
+  --badge-bg: var(--surface);
+  --badge-border: var(--border-default);
+  --badge-fg: var(--text-primary);
+  --badge-strong-bg: var(--surface-sunken);
+  --badge-strong-border: var(--surface-sunken);
+
+  /* Chip group as shadcn's outline toggle group: square-ish, compact, and the active option
+     filled in grey with a darker border instead of the brand tint. */
+  --chip-radius: var(--radius-chip);
+  --chip-pad-x: var(--space-3);
+  --chip-pad-x-sm: var(--space-2);
+  --chip-fg: var(--text-secondary);
+  --chip-active-bg: var(--surface-sunken);
+  --chip-active-border: var(--border-strong);
+  --chip-active-fg: var(--text-primary);
 }

@@ -58,10 +58,8 @@ app-card {
 .day {
   align-self: center;
   margin: var(--space-2) 0;
-  font-size: var(--font-size-2xs);
+  font-size: var(--font-size-sm);
   font-weight: var(--font-weight-medium);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
   color: var(--text-muted);
 }
 

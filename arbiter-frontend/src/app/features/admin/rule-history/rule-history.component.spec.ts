@@ -159,7 +159,7 @@ describe('RuleHistoryComponent', () => {
       }),
     ]);
 
-    expect(text()).toContain('Rechazar en el alta');
+    expect(text()).toContain('No dejar denunciar');
     expect(text()).not.toContain('STANDBY');
   });
 

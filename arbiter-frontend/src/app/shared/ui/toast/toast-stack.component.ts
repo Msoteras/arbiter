@@ -171,7 +171,9 @@ const SWIPE_DISMISS_PX = 45;
       bottom: 0;
       width: 100%;
       box-sizing: border-box;
-      padding: var(--space-3) var(--space-4);
+      /* Height of the title's first line: the icon and the close button center on it. */
+      --first-line: calc(var(--font-size-sm) * 1.4);
+      padding: var(--space-4);
       border-radius: var(--radius-card);
       border: 1px solid var(--border-default);
       background: var(--surface);
@@ -230,20 +232,20 @@ const SWIPE_DISMISS_PX = 45;
       display: flex;
       align-items: flex-start;
       gap: var(--space-3);
-      padding-right: var(--space-4);
+      padding-right: calc(var(--icon-sm) + var(--space-3));
       transition: opacity 0.4s ease;
     }
     .icon {
       flex-shrink: 0;
       display: inline-flex;
+      align-items: center;
       width: var(--icon-md);
-      height: var(--icon-md);
-      margin-top: var(--space-1);
+      height: var(--first-line);
       color: var(--status-info);
     }
     .icon svg {
-      width: 100%;
-      height: 100%;
+      width: var(--icon-md);
+      height: var(--icon-md);
     }
     .toast[data-tone='ok'] .icon {
       color: var(--status-ok);
@@ -263,7 +265,7 @@ const SWIPE_DISMISS_PX = 45;
       color: var(--text-primary);
       font-size: var(--font-size-sm);
       font-weight: var(--font-weight-medium);
-      line-height: 1.4;
+      line-height: 1.4; /* --first-line repeats it */
     }
     .description {
       margin: var(--space-1) 0 0;
@@ -278,9 +280,11 @@ const SWIPE_DISMISS_PX = 45;
 
     .close {
       position: absolute;
-      top: var(--space-2);
-      right: var(--space-2);
+      top: var(--space-4);
+      right: var(--space-4);
       display: inline-flex;
+      align-items: center;
+      height: var(--first-line);
       padding: 0;
       border: none;
       background: none;

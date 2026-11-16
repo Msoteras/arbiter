@@ -76,8 +76,11 @@ const RING_Z = 400;
 const RING_LIFT = 250;
 const WIDE: [number, number] = [340, 136];
 const TALL: [number, number] = [232, 282];
-// Cell of the pixel fan; "Fino" in the design.
-const FAN_CELL = 3;
+// Glyph cell of the fan, in px before the depth scale: the monospace grid of the spotlight's field.
+const FAN_CELL_W = 9;
+const FAN_CELL_H = 12;
+/** From empty to dense, like `app-ascii-field`: the denser the glyph, the nearer the blade. */
+const FAN_GLYPHS = ' ·.:-+=*#%@';
 
 type Zone = 'queue' | 'engine' | 'pool';
 const ZONES: Zone[] = ['queue', 'engine', 'pool'];
@@ -173,12 +176,12 @@ export class EngineBoardComponent {
   private fan?: {
     canvas: HTMLCanvasElement;
     ctx: CanvasRenderingContext2D;
-    image: ImageData;
     buffer: Float32Array;
     noise: Float32Array;
     w: number;
     h: number;
-    cell: number;
+    cellW: number;
+    cellH: number;
     rgb: [number, number, number];
   };
   private startedAt = performance.now();
@@ -426,49 +429,55 @@ export class EngineBoardComponent {
     });
   }
 
-  /** A slowly turning helix of teal cells behind the ring, drawn on a coarse canvas. */
+  /** A slowly turning helix of teal glyphs behind the ring, on a grid of monospace cells. */
   private drawFan(root: HTMLElement, t: number): void {
     const canvas = this.fanCanvas()?.nativeElement;
     const plane = this.fanPlane()?.nativeElement;
     if (!canvas || !plane) return;
     const scale = (PERSPECTIVE + FAN_Z) / PERSPECTIVE;
-    const cell = Math.round(FAN_CELL * scale);
-    const w = Math.ceil((root.clientWidth * scale) / cell);
-    const h = Math.ceil((root.clientHeight * scale) / cell);
+    const cellW = Math.round(FAN_CELL_W * scale);
+    const cellH = Math.round(FAN_CELL_H * scale);
+    const w = Math.ceil((root.clientWidth * scale) / cellW);
+    const h = Math.ceil((root.clientHeight * scale) / cellH);
     let fan = this.fan;
     if (!fan || fan.canvas !== canvas || fan.w !== w || fan.h !== h) {
       const ctx = canvas.getContext('2d');
       if (!ctx || !w || !h) return;
-      canvas.width = w;
-      canvas.height = h;
-      canvas.style.width = `${w * cell}px`;
-      canvas.style.height = `${h * cell}px`;
-      plane.style.width = `${w * cell}px`;
-      plane.style.height = `${h * cell}px`;
-      canvas.style.setProperty('--cell', `${cell}px`);
+      const dpr = Math.min(2, window.devicePixelRatio || 1);
+      canvas.width = Math.round(w * cellW * dpr);
+      canvas.height = Math.round(h * cellH * dpr);
+      canvas.style.width = `${w * cellW}px`;
+      canvas.style.height = `${h * cellH}px`;
+      plane.style.width = `${w * cellW}px`;
+      plane.style.height = `${h * cellH}px`;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      const mono = getComputedStyle(root).getPropertyValue('--font-mono').trim() || 'monospace';
+      ctx.font = `500 ${Math.round(cellH * 0.85)}px ${mono}`;
+      ctx.textBaseline = 'top';
       const noise = new Float32Array(w * h);
       for (let i = 0; i < noise.length; i++) noise[i] = 0.78 + 0.22 * Math.random();
       fan = this.fan = {
         canvas,
         ctx,
-        image: ctx.createImageData(w, h),
         buffer: new Float32Array(w * h),
         noise,
         w,
         h,
-        cell,
+        cellW,
+        cellH,
         rgb: accentRgb(root),
       };
     }
 
-    const { buffer, image, noise, rgb } = fan;
+    const { buffer, noise, rgb, ctx } = fan;
     buffer.fill(0);
     const cx = w / 2;
     const cy = h * 0.5;
     const reach = h * 0.62;
     const radius = w * 0.36;
     const turn = t * 0.16;
-    const rows = Math.round(h * 0.9);
+    // Enough samples to touch every row and column of the glyph grid, which is coarser than a pixel.
+    const rows = Math.round(h * 1.4);
     for (let blade = 0; blade < 4; blade++) {
       for (let i = 0; i < rows; i++) {
         const s = -1 + (2 * i) / (rows - 1);
@@ -478,7 +487,7 @@ export class EngineBoardComponent {
         const rmax = w * 0.014 + radius * Math.pow(Math.abs(s), 1.35);
         const y = Math.round(cy - s * reach);
         if (y < 0 || y >= h) continue;
-        const steps = Math.max(2, Math.round(rmax / 2.4));
+        const steps = Math.max(2, Math.round(rmax / 1.1));
         for (let j = 1; j <= steps; j++) {
           const x = Math.round(
             cx + (2 + ((rmax - 2) * (j - 0.5 * ((i + blade) & 1))) / steps) * cos,
@@ -491,20 +500,19 @@ export class EngineBoardComponent {
         }
       }
     }
-    const data = image.data;
+    ctx.clearRect(0, 0, w * cellW, h * cellH);
+    const color = rgb.join(',');
     for (let m = 0; m < buffer.length; m++) {
-      const o = m * 4;
       const v = buffer[m];
-      if (v) {
-        data[o] = rgb[0];
-        data[o + 1] = rgb[1];
-        data[o + 2] = rgb[2];
-        data[o + 3] = Math.round(255 * v * noise[m]);
-      } else {
-        data[o + 3] = 0;
-      }
+      if (!v) continue;
+      // Each cell flickers a little around its level, so the blades shimmer as they turn.
+      const flicker = 0.12 * Math.sin(t * 2.4 + m * 0.37);
+      const f = clamp(v * noise[m] + flicker, 0.05, 1);
+      const glyph =
+        FAN_GLYPHS[Math.min(FAN_GLYPHS.length - 1, Math.ceil(f * (FAN_GLYPHS.length - 1)))];
+      ctx.fillStyle = `rgba(${color},${(0.35 + 0.65 * f).toFixed(2)})`;
+      ctx.fillText(glyph, (m % w) * cellW, Math.floor(m / w) * cellH);
     }
-    fan.ctx.putImageData(image, 0, 0);
   }
 
   // ---------- gestures ----------

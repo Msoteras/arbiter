@@ -102,9 +102,8 @@ export const routes: Routes = [
       import('./features/engine/engine-board.component').then((m) => m.EngineBoardComponent),
   },
   {
-    // No roles in data: any authenticated session gets in, but it is not public in production.
+    // Public: it only renders the design system with sample data, nothing from the backend.
     path: 'styleguide',
-    canActivate: [roleGuard],
     loadComponent: () =>
       import('./features/styleguide/styleguide.component').then((m) => m.StyleguideComponent),
   },

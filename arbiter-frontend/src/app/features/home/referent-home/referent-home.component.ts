@@ -31,6 +31,8 @@ import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
 import { ButtonComponent } from '../../../shared/ui/button/button.component';
 import { EmptyStateComponent } from '../../../shared/ui/empty-state/empty-state.component';
 import { LoadingComponent } from '../../../shared/ui/loading/loading.component';
+import { SpotlightComponent } from '../../../shared/ui/spotlight/spotlight.component';
+import { LogoComponent } from '../../../shared/ui/logo/logo.component';
 import { HomeSkeletonComponent } from '../home-skeleton/home-skeleton.component';
 import { AppReadyService } from '../../../core/app-ready.service';
 import { fitRows } from '../fit-rows';
@@ -78,6 +80,8 @@ interface DeadlineSegment {
     LoadingComponent,
     HomeSkeletonComponent,
     SetupCardComponent,
+    SpotlightComponent,
+    LogoComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   animations: [staggerReveal, listStagger, growBar],
@@ -170,11 +174,14 @@ export class ReferentHomeComponent {
     Math.max(1, ...(this.workload() ?? []).map((a) => a.activeCases)),
   );
 
+  /** What the settlements awaiting a signature add up to; the hero's figure counts them. */
+  protected readonly settlementsTotal = computed(() =>
+    formatMoney((this.settlements() ?? []).reduce((sum, p) => sum + p.settledAmount, 0)),
+  );
+
   protected readonly shortcuts = computed<Shortcut[]>(() => {
     const lens = this.data()?.lens;
     const s = this.summary();
-    const pending = this.settlements();
-    const pendingTotal = (pending ?? []).reduce((sum, p) => sum + p.settledAmount, 0);
     const analystsOverdue = (this.workload() ?? []).filter((a) => a.overdueCases > 0).length;
     const oldest = this.oldestUnassignedDays();
     const items: Shortcut[] = [
@@ -201,13 +208,6 @@ export class ReferentHomeComponent {
         flag: null,
         link: '/inbox',
         query: { unassigned: 'true' },
-      },
-      {
-        value: pending?.length ?? null,
-        label: pending?.length ? `Para autorizar · ${formatMoney(pendingTotal)}` : 'Para autorizar',
-        flag: null,
-        link: '/insurer/settlements',
-        query: null,
       },
       {
         value: s?.deadlines.overdue ?? null,
