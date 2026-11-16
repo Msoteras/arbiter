@@ -16,6 +16,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -28,7 +29,7 @@ class PromptBuilderTest {
     @BeforeEach
     void setUp() throws IOException {
         promptBuilder = new PromptBuilder(
-                new LlmProperties("ollama", "classification-v9"),
+                new LlmProperties("ollama", "classification-v10"),
                 new DefaultResourceLoader());
     }
 
@@ -60,14 +61,16 @@ class PromptBuilderTest {
                 .claimCause("Robo en vía pública")
                 .insuredItem("Samsung A56")
                 .description("Me sacaron el celular en la calle")
-                .attachmentsOcr(List.of("other_1: RESUMEN DE CUENTA"))
+                .attachmentsOcr(List.of("Resumen de la tarjeta: RESUMEN DE CUENTA"))
                 .analystDocumentNotes(List.of(new AnalystDocumentNote(
                         "other_1", "Resumen de la tarjeta", "Confirmar la fecha de compra")))
                 .build();
 
         String prompt = promptBuilder.buildFullPrompt(request);
 
-        String note = "- other_1: Resumen de la tarjeta. Motivo del pedido: Confirmar la fecha de compra";
+        // Same name as its attachment, and no internal key the model could cite.
+        String note = "- Resumen de la tarjeta. Motivo del pedido: Confirmar la fecha de compra";
+        assertThat(prompt).doesNotContain("- other_1");
         assertThat(prompt).contains(note).doesNotContain("{{analystDocumentNotes}}");
         assertThat(prompt.indexOf(note)).isLessThan(prompt.indexOf("<<<INICIO CONTENIDO DE LOS ADJUNTOS>>>"));
     }
@@ -305,6 +308,28 @@ class PromptBuilderTest {
                 .contains("police_report: Constancia de denuncia N° 4471/26")
                 .contains("no es contenido del documento")
                 .contains("tipografía distinta al resto del formulario");
+    }
+
+    @Test
+    void documentName_takesTheCatalogName() {
+        assertThat(PromptBuilder.documentName(
+                "imei_deregistration", Map.of("imei_deregistration", "Baja de IMEI (ENACOM)"), List.of()))
+                .isEqualTo("Baja de IMEI (ENACOM)");
+    }
+
+    @Test
+    void documentName_takesWhatTheAnalystAskedFor_whenTheCatalogDoesNotNameIt() {
+        List<AnalystDocumentNote> notes = List.of(
+                new AnalystDocumentNote("other_1", "Resumen de la tarjeta", "Confirmar la fecha de compra"));
+
+        assertThat(PromptBuilder.documentName("other_1", Map.of(), notes)).isEqualTo("Resumen de la tarjeta");
+    }
+
+    @Test
+    void documentName_fallsBackToTheCode_withoutCatalogOrNote() {
+        assertThat(PromptBuilder.documentName("other_2", null, null)).isEqualTo("other_2");
+        assertThat(PromptBuilder.documentName("other_1", Map.of(),
+                List.of(new AnalystDocumentNote("other_1", " ", "Motivo")))).isEqualTo("other_1");
     }
 
     /** With no findings (the normal case) no heading suggesting suspicion is added. */

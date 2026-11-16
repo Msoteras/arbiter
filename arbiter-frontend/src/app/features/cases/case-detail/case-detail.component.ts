@@ -447,7 +447,9 @@ export class CaseDetailComponent {
 
   /** The first reasons, beside the verdict; the rest are one click away in Análisis. */
   protected readonly spotlightReasons = computed(() =>
-    this.analysisReasons().slice(0, this.asideRows),
+    this.analysisReasons()
+      .slice(0, this.asideRows)
+      .map((text, i) => ({ text, segments: this.reasonSegments()[i] ?? [{ text, code: null }] })),
   );
 
   /** The factors that added the most to the score, the biggest first. */
@@ -546,9 +548,15 @@ export class CaseDetailComponent {
 
   /** The reasons with the documents they name linked, when the case has that document. */
   protected readonly reasonSegments = computed<ReasonSegment[][]>(() => {
-    const available = new Set(this.documents().map((d) => d.type));
+    const documents = this.documents();
+    const available = new Set(documents.map((d) => d.type));
+    // The prompt names an `other_<n>` by what the analyst asked for, so the model cites that.
+    const requested = documents.flatMap((d) => {
+      const label = d.description?.trim();
+      return label ? [{ code: d.type, label }] : [];
+    });
     return (this.data()?.analysisReasons ?? []).map((reason) =>
-      this.documentTypes.mentions(reason, available),
+      this.documentTypes.mentions(reason, available, requested),
     );
   });
 

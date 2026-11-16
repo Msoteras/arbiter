@@ -34,6 +34,7 @@ import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -41,6 +42,7 @@ import java.util.stream.Collectors;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -252,6 +254,40 @@ class ClassificationOrchestratorDocumentGateTest {
         ArgumentCaptor<ClassificationRequest> sent = ArgumentCaptor.forClass(ClassificationRequest.class);
         verify(classifier).classify(sent.capture());
         assertThat(sent.getValue().analystDocumentNotes()).containsExactly(note);
+    }
+
+    /** The frontend links a reason to a document by the name the model cites, so the model has to see that name. */
+    @Test
+    void attachmentsReachThePrompt_withTheNameTheAnalystReads() {
+        when(fastTrackValidator.evaluate(any(), any(), any(), any(), any()))
+                .thenReturn(new FastTrackValidator.Result(false, List.of("no aplica"), List.of()));
+        when(classifier.classify(any())).thenReturn(ClassificationResponse.builder()
+                .classification(Classification.LLM_RECOMIENDA_APROBAR)
+                .factors(List.of("documentación consistente"))
+                .confidence(0.8)
+                .resolvedByRules(false)
+                .build());
+        when(promptBuilder.renderRulesAndPolicy(any(), any())).thenReturn("");
+        when(promptBuilder.renderHistory(any())).thenReturn("");
+        ClaimReport claim = RiskFixtures.claim(new BigDecimal("100000"));
+        ClaimReport withNote = ClaimReport.builder()
+                .branch(claim.branch()).product(claim.product()).claimCause(claim.claimCause())
+                .insuredItem(claim.insuredItem()).insuredId(claim.insuredId()).policyNumber(claim.policyNumber())
+                .description(claim.description()).eventDate(claim.eventDate()).eventLocation(claim.eventLocation())
+                .claimedAmount(claim.claimedAmount())
+                .analystDocumentNotes(List.of(new AnalystDocumentNote(
+                        "other_1", "Resumen de la tarjeta", "Confirmar la fecha de compra")))
+                .documentationRequestedByAnalyst(true)
+                .build();
+        List<String> types = new ArrayList<>(AGENDA);
+        types.add("other_1");
+
+        orchestrator.classify(withNote, attachments(types));
+
+        verify(promptBuilder).renderAttachment(eq("Denuncia policial"), any());
+        verify(promptBuilder).renderAttachment(eq("Resumen de la tarjeta"), any());
+        // Not in this fixture's catalog: the code is all there is.
+        verify(promptBuilder).renderAttachment(eq("imei_deregistration"), any());
     }
 
     /** Complete schedule, no Fast Track: goes on to the model. */
