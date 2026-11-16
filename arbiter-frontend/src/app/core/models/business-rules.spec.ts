@@ -73,6 +73,36 @@ describe('documentMentions', () => {
     ]);
   });
 
+  it('links a name cited without its trailing parenthesis', () => {
+    // Case #37: the model wrote "constancia de baja de IMEI" for "Baja de IMEI (ENACOM)".
+    expect(
+      documentMentions(
+        'La constancia de baja de IMEI es posterior al hecho',
+        TYPES,
+        new Set(['imei_deregistration']),
+      ),
+    ).toEqual([
+      { text: 'La constancia de ', code: null },
+      { text: 'baja de IMEI', code: 'imei_deregistration' },
+      { text: ' es posterior al hecho', code: null },
+    ]);
+  });
+
+  it('links a document the analyst asked for by what they asked for', () => {
+    const requested = [...TYPES, { code: 'other_1', label: 'Resumen de la tarjeta' }];
+    expect(
+      documentMentions(
+        'El Resumen de la tarjeta confirma la compra',
+        requested,
+        new Set(['other_1']),
+      ),
+    ).toEqual([
+      { text: 'El ', code: null },
+      { text: 'Resumen de la tarjeta', code: 'other_1' },
+      { text: ' confirma la compra', code: null },
+    ]);
+  });
+
   it('leaves a reason that names no document as a single piece', () => {
     const reason = 'El monto reclamado supera el promedio del ramo';
     expect(documentMentions(reason, TYPES, available)).toEqual([{ text: reason, code: null }]);
