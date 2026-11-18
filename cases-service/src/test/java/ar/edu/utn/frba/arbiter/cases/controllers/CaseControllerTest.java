@@ -10,12 +10,15 @@ import ar.edu.utn.frba.arbiter.cases.dto.LensSummaryResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.StatusTransitionResponse;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CaseExceptionHandler;
 import ar.edu.utn.frba.arbiter.cases.exceptions.CaseNotFoundException;
+import ar.edu.utn.frba.arbiter.cases.exceptions.DocumentCorrectionNotAllowedException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidStatusTransitionException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.RulesMisconfiguredException;
+import ar.edu.utn.frba.arbiter.cases.models.entities.ExtractedField;
 import ar.edu.utn.frba.arbiter.cases.models.entities.StatusChangeActor;
 import ar.edu.utn.frba.arbiter.cases.services.CaseMessageService;
 import ar.edu.utn.frba.arbiter.cases.services.CaseService;
 import ar.edu.utn.frba.arbiter.cases.services.ClaimCauseCorrectionService;
+import ar.edu.utn.frba.arbiter.cases.services.DocumentCorrectionService;
 import ar.edu.utn.frba.arbiter.cases.services.SettlementService;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 import ar.edu.utn.frba.arbiter.common.enums.Classification;
@@ -64,6 +67,9 @@ class CaseControllerTest {
 
     @MockitoBean
     private ClaimCauseCorrectionService claimCauseCorrectionService;
+
+    @MockitoBean
+    private DocumentCorrectionService documentCorrectionService;
 
     @MockitoBean
     private CaseMessageService messageService;
@@ -375,7 +381,7 @@ class CaseControllerTest {
                 // Only the item attributes the document states: the IMEI it doesn't carry is
                 // simply absent, never a mismatch.
                 List.of(new DocumentAnalysisSummary(
-                        "purchase_proof", "Factura de compra…",
+                        "purchase_proof", 90L, "Factura de compra…",
                         LocalDate.of(2026, 5, 30), new BigDecimal("150000"),
                         "Motorola Edge 50 Pro",
                         List.of(new DocumentAnalysisSummary.Detail("marca", "Motorola"),
@@ -383,7 +389,10 @@ class CaseControllerTest {
                         "TITULAR",
                         List.of("La tipografía del encabezado no coincide con el resto"),
                         List.of(new DocumentAnalysisSummary.Detail("N° de factura", "0001-00034521")),
-                        "COMPLETE")),
+                        "COMPLETE",
+                        List.of(new DocumentAnalysisSummary.Correction(ExtractedField.AMOUNT, null,
+                                "150000.00", "145000.00", "Lucas Gómez",
+                                Instant.parse("2026-11-17T15:20:00Z"))))),
                 List.of(), null, null, List.of()
         );
         when(caseService.getCase(1L, (String) null)).thenReturn(response);
@@ -406,7 +415,54 @@ class CaseControllerTest {
                 .andExpect(jsonPath("$.documentAnalyses[0].itemAttributes.length()").value(2))
                 .andExpect(jsonPath("$.documentAnalyses[0].itemAttributes[0].name").value("marca"))
                 .andExpect(jsonPath("$.documentAnalyses[0].itemAttributes[0].value").value("Motorola"))
-                .andExpect(jsonPath("$.documentAnalyses[0].visualFindings.length()").value(1));
+                .andExpect(jsonPath("$.documentAnalyses[0].visualFindings.length()").value(1))
+                .andExpect(jsonPath("$.documentAnalyses[0].documentId").value(90))
+                .andExpect(jsonPath("$.documentAnalyses[0].corrections[0].field").value("AMOUNT"))
+                .andExpect(jsonPath("$.documentAnalyses[0].corrections[0].previousValue").value("150000.00"))
+                .andExpect(jsonPath("$.documentAnalyses[0].corrections[0].newValue").value("145000.00"))
+                .andExpect(jsonPath("$.documentAnalyses[0].corrections[0].analystName").value("Lucas Gómez"))
+                .andExpect(jsonPath("$.documentAnalyses[0].corrections[0].correctedAt").exists())
+                .andExpect(jsonPath("$.documentAnalyses[0].currentAmount").doesNotExist());
+    }
+
+    @Test
+    void correctDocument_returns201WithTheCorrection() throws Exception {
+        when(documentCorrectionService.correct(eq(1L), eq(90L), any())).thenReturn(
+                new DocumentAnalysisSummary.Correction(ExtractedField.AMOUNT, null, "120000.00", "95000.00",
+                        "Lucas Gómez", Instant.parse("2026-11-17T15:20:00Z")));
+
+        mockMvc.perform(post("/api/v1/cases/1/documents/90/corrections")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"field": "AMOUNT", "value": "95000"}
+                                """))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.newValue").value("95000.00"))
+                .andExpect(jsonPath("$.analystName").value("Lucas Gómez"));
+    }
+
+    @Test
+    void correctDocument_blankValue_returns400() throws Exception {
+        mockMvc.perform(post("/api/v1/cases/1/documents/90/corrections")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"field": "AMOUNT", "value": " "}
+                                """))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void correctDocument_refused_returns422WithTheReason() throws Exception {
+        when(documentCorrectionService.correct(eq(1L), eq(90L), any()))
+                .thenThrow(DocumentCorrectionNotAllowedException.sameValue());
+
+        mockMvc.perform(post("/api/v1/cases/1/documents/90/corrections")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"field": "AMOUNT", "value": "120000"}
+                                """))
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.detail").value("El documento ya tiene ese dato."));
     }
 
     @Test

@@ -251,6 +251,30 @@ class CaseSecurityTest extends AbstractPersistenceIT {
     }
 
     @Test
+    void correctDocument_asInsuredOrReferent_returns403() throws Exception {
+        for (String rol : List.of("ASEGURADO", "REFERENTE_ASEGURADORA")) {
+            mockMvc.perform(post("/api/v1/cases/999999/documents/1/corrections")
+                            .header("Authorization", "Bearer " + tokenFor(rol))
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                    {"field": "AMOUNT", "value": "95000"}
+                                    """))
+                    .andExpect(status().isForbidden());
+        }
+    }
+
+    @Test
+    void correctDocument_asAnalyst_passesTheRoleGate() throws Exception {
+        mockMvc.perform(post("/api/v1/cases/999999/documents/1/corrections")
+                        .header("Authorization", "Bearer " + tokenFor("ANALISTA_SINIESTROS"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"field": "AMOUNT", "value": "95000"}
+                                """))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
     void classificationFinished_withoutToken_returns401() throws Exception {
         mockMvc.perform(post("/api/v1/cases/999999/classification-finished")
                         .contentType(MediaType.APPLICATION_JSON)

@@ -9,6 +9,7 @@ import ar.edu.utn.frba.arbiter.cases.dto.SettlementSuggestionTarget;
 import ar.edu.utn.frba.arbiter.cases.exceptions.InvalidSettlementException;
 import ar.edu.utn.frba.arbiter.cases.exceptions.SettlementNotFoundException;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Case;
+import ar.edu.utn.frba.arbiter.cases.models.entities.ExtractedField;
 import ar.edu.utn.frba.arbiter.cases.models.entities.CaseSettlement;
 import ar.edu.utn.frba.arbiter.cases.models.entities.CaseReferral;
 import ar.edu.utn.frba.arbiter.cases.models.entities.Policy;
@@ -383,6 +384,21 @@ class SettlementServiceTest {
         assertThat(response.calculatedAmount()).isEqualByComparingTo("0.00");
     }
 
+    @Test
+    void suggestsTheAmountTheAnalystCorrectedOnTheRepairQuote() {
+        claim.setCoverage(repairCoverage());
+        when(documentAnalysisRepository.findByCaseId(1L)).thenReturn(List.of(new DocumentAnalysisSummary(
+                "repair_quote", 90L, "…", null, new BigDecimal("120000.00"), null, List.of(), "TITULAR",
+                List.of(), List.of(), "COMPLETE",
+                List.of(new DocumentAnalysisSummary.Correction(ExtractedField.AMOUNT, null, "120000.00",
+                        "95000.00", "Lucas Gómez", Instant.parse("2026-11-17T12:00:00Z"))))));
+
+        SettlementResponse response = settlementService.forCase(1L, null);
+
+        assertThat(response.suggestedAmount()).isEqualByComparingTo("95000.00");
+        assertThat(response.suggestedFrom()).isEqualTo("repair_quote");
+    }
+
     /** The invoice is what the item cost back then; without an expert the analyst sets today's value. */
     @Test
     void thePurchaseProofIsNotSuggestedAsTheReplacementValue() {
@@ -547,8 +563,8 @@ class SettlementServiceTest {
     }
 
     private DocumentAnalysisSummary document(String type, BigDecimal amount) {
-        return new DocumentAnalysisSummary(type, "…", null, amount, null, List.of(), "TITULAR",
-                List.of(), List.of(), "COMPLETE");
+        return new DocumentAnalysisSummary(type, null, "…", null, amount, null, List.of(), "TITULAR",
+                List.of(), List.of(), "COMPLETE", List.of());
     }
 
     private Coverage repairCoverage() {

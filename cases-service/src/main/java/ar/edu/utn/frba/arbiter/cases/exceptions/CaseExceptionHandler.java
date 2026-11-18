@@ -168,6 +168,11 @@ public class CaseExceptionHandler extends ResponseEntityExceptionHandler {
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(422), ex.getMessage());
     }
 
+    @ExceptionHandler(DocumentCorrectionNotAllowedException.class)
+    public ProblemDetail handleDocumentCorrectionNotAllowed(DocumentCorrectionNotAllowedException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(422), ex.getMessage());
+    }
+
     @ExceptionHandler(DerivationNotAllowedException.class)
     public ProblemDetail handleDerivationNotAllowed(DerivationNotAllowedException ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(422), ex.getMessage());
