@@ -31,6 +31,13 @@ describe('cacheInvalidationInterceptor', () => {
     expect(invalidate).toHaveBeenCalledWith('cases:');
   });
 
+  it('correcting a document makes the cases stale', () => {
+    http.post('/api/v1/cases/7/documents/90/corrections', {}).subscribe();
+    controller.expectOne('/api/v1/cases/7/documents/90/corrections').flush({});
+
+    expect(invalidate).toHaveBeenCalledWith('cases:');
+  });
+
   it('a chat message leaves the case lists alone', () => {
     http.post('/api/v1/cases/7/messages', {}).subscribe();
     controller.expectOne('/api/v1/cases/7/messages').flush({});

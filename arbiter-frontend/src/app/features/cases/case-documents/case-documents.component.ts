@@ -1,3 +1,4 @@
+import { HttpErrorResponse } from '@angular/common/http';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -6,6 +7,8 @@ import {
   effect,
   inject,
   input,
+  linkedSignal,
+  output,
   signal,
   untracked,
 } from '@angular/core';
@@ -16,8 +19,14 @@ import { catchError, combineLatest, map, of, startWith, switchMap } from 'rxjs';
 import { CaseService } from '../case.service';
 import { DocumentAgendaService } from '../document-agenda.service';
 import { DocumentTypeService } from '../../../core/services/document-type.service';
-import { DocumentAnalysis, ExtractionStatus } from '../../../core/models/case';
-import { formatDate } from '../../../core/util/datetime';
+import {
+  CorrectableField,
+  DocumentAnalysis,
+  DocumentCorrection,
+  ExtractionStatus,
+} from '../../../core/models/case';
+import { formatDate, formatDateTime } from '../../../core/util/datetime';
+import { amountInputDisplay, amountInputLabel, amountInputValue } from '../../../core/util/money';
 import {
   CaseDocument,
   CaseDocumentType,
@@ -28,6 +37,10 @@ import {
 } from '../../../core/models/case-document';
 import { CardComponent } from '../../../shared/ui/card/card.component';
 import { BadgeComponent } from '../../../shared/ui/badge/badge.component';
+import { ButtonComponent } from '../../../shared/ui/button/button.component';
+import { DatePickerComponent } from '../../../shared/ui/date-picker/date-picker.component';
+import { IconButtonComponent } from '../../../shared/ui/icon-button/icon-button.component';
+import { InputComponent } from '../../../shared/ui/input/input.component';
 import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
 import { SkeletonComponent } from '../../../shared/ui/skeleton/skeleton.component';
 
@@ -36,7 +49,35 @@ interface ExtractedField {
   label: string;
   value: string | null;
   mono?: boolean;
+  target?: CorrectionTarget;
+  correction?: { read: string | null; by: string; at: string };
 }
+
+type CorrectionKind = 'date' | 'amount' | 'text';
+
+type TypedField = 'DOCUMENT_DATE' | 'AMOUNT' | 'ITEM_DESCRIPTION';
+
+interface CorrectionTarget {
+  field: CorrectableField;
+  name: string | null;
+  kind: CorrectionKind;
+}
+
+interface CorrectionLine {
+  label: string;
+  previous: string;
+  current: string;
+  by: string;
+  at: string;
+}
+
+const TYPED_FIELDS: Record<TypedField, { label: string; kind: CorrectionKind }> = {
+  DOCUMENT_DATE: { label: 'Fecha del documento', kind: 'date' },
+  AMOUNT: { label: 'Importe', kind: 'amount' },
+  ITEM_DESCRIPTION: { label: 'Bien que nombra', kind: 'text' },
+};
+
+const isTyped = (field: CorrectableField): field is TypedField => field in TYPED_FIELDS;
 
 type ListState =
   { status: 'loading' } | { status: 'ok'; data: CaseDocument[] } | { status: 'error' };
@@ -67,7 +108,16 @@ type PreviewState =
 @Component({
   selector: 'app-case-documents',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CardComponent, BadgeComponent, InlineLoadingComponent, SkeletonComponent],
+  imports: [
+    CardComponent,
+    BadgeComponent,
+    ButtonComponent,
+    DatePickerComponent,
+    IconButtonComponent,
+    InputComponent,
+    InlineLoadingComponent,
+    SkeletonComponent,
+  ],
   templateUrl: './case-documents.component.html',
   styleUrl: './case-documents.component.scss',
 })
@@ -99,6 +149,23 @@ export class CaseDocumentsComponent {
   readonly claimCause = input<string | null>(null);
   /** Document type to open instead of the first one (a link from the model's reasons). */
   readonly focusType = input<string | null>(null);
+  readonly canCorrect = input(false);
+  readonly corrected = output<void>();
+
+  protected readonly editing = signal<CorrectionTarget | null>(null);
+  protected readonly draft = signal('');
+  protected readonly correctionSaving = signal(false);
+  protected readonly correctionError = signal<string | null>(null);
+  private readonly savedCorrections = linkedSignal<
+    DocumentAnalysis[],
+    { documentId: number; correction: DocumentCorrection }[]
+  >({
+    source: () => this.extractions(),
+    computation: () => [],
+  });
+  protected readonly amountInputDisplay = amountInputDisplay;
+  protected readonly amountInputLabel = amountInputLabel;
+  protected readonly amountInputValue = amountInputValue;
 
   private readonly requiredTypes = toSignal(
     toObservable(computed(() => ({ branch: this.branch(), claimCause: this.claimCause() }))).pipe(
@@ -200,7 +267,14 @@ export class CaseDocumentsComponent {
   protected readonly selectedExtraction = computed<DocumentAnalysis | null>(() => {
     const p = this.preview();
     if (p.status === 'empty') return null;
-    return this.extractions().find((e) => e.documentType === p.doc.type) ?? null;
+    const extraction = this.extractions().find((e) => e.documentType === p.doc.type);
+    if (!extraction) return null;
+    const saved = this.savedCorrections()
+      .filter((s) => s.documentId === extraction.documentId)
+      .map((s) => s.correction);
+    return saved.length === 0
+      ? extraction
+      : { ...extraction, corrections: [...extraction.corrections, ...saved] };
   });
 
   /**
@@ -241,6 +315,7 @@ export class CaseDocumentsComponent {
 
   protected select(doc: CaseDocument): void {
     if (this.selectedId() === doc.id) return;
+    this.cancelCorrection();
     this.revokeCurrent();
     this.preview.set({ status: 'loading', doc });
 
@@ -297,24 +372,160 @@ export class CaseDocumentsComponent {
 
   /** A field the document doesn't carry is `null` ("No aplica"), never a mismatch. */
   protected extractedFields(doc: DocumentAnalysis): ExtractedField[] {
+    const typed = (field: TypedField, read: string | null): ExtractedField =>
+      this.fieldWithCorrection(
+        doc,
+        { field, name: null, kind: TYPED_FIELDS[field].kind },
+        TYPED_FIELDS[field].label,
+        read,
+      );
     return [
-      // DATE column, no time part.
-      {
-        label: 'Fecha del documento',
-        value: doc.documentDate ? formatDate(doc.documentDate) : null,
-      },
-      { label: 'Importe', value: doc.amount == null ? null : `$${doc.amount.toLocaleString()}` },
-      { label: 'Bien que nombra', value: doc.itemDescription },
+      typed('DOCUMENT_DATE', doc.documentDate),
+      typed('AMOUNT', doc.amount == null ? null : String(doc.amount)),
+      typed('ITEM_DESCRIPTION', doc.itemDescription),
       // Named by the policy, so they vary with the line of insurance. All-digit ones are identifiers.
-      ...(doc.itemAttributes ?? []).map((attribute) => ({
-        label: attribute.name.charAt(0).toUpperCase() + attribute.name.slice(1),
-        value: attribute.value,
-        mono: /^\d+$/.test(attribute.value),
-      })),
+      ...this.namedFields(doc, 'ITEM_ATTRIBUTE', doc.itemAttributes ?? []).map((attribute) => {
+        const shown = this.fieldWithCorrection(
+          doc,
+          { field: 'ITEM_ATTRIBUTE', name: attribute.name, kind: 'text' },
+          attribute.name.charAt(0).toUpperCase() + attribute.name.slice(1),
+          attribute.value,
+        );
+        return { ...shown, mono: /^\d+$/.test(shown.value ?? '') };
+      }),
       { label: 'Damnificado', value: this.affectedPartyLabel(doc.affectedParty) },
       // Untyped extras exist only when the document carries them, so they never render "No aplica".
-      ...(doc.details ?? []).map((detail) => ({ label: detail.name, value: detail.value })),
+      ...this.namedFields(doc, 'DETAIL', doc.details ?? []).map((detail) =>
+        this.fieldWithCorrection(
+          doc,
+          { field: 'DETAIL', name: detail.name, kind: 'text' },
+          detail.name,
+          detail.value,
+        ),
+      ),
     ];
+  }
+
+  private namedFields(
+    doc: DocumentAnalysis,
+    field: 'ITEM_ATTRIBUTE' | 'DETAIL',
+    read: { name: string; value: string }[],
+  ): { name: string; value: string | null }[] {
+    const correctedOnly = doc.corrections
+      .filter((c) => c.field === field && c.fieldName && !read.some((r) => r.name === c.fieldName))
+      .map((c) => c.fieldName as string);
+    return [...read, ...[...new Set(correctedOnly)].map((name) => ({ name, value: null }))];
+  }
+
+  private fieldWithCorrection(
+    doc: DocumentAnalysis,
+    target: CorrectionTarget,
+    label: string,
+    read: string | null,
+  ): ExtractedField {
+    const latest = this.latestCorrection(doc, target);
+    return {
+      label,
+      value: this.display(target.kind, latest ? latest.newValue : read),
+      target,
+      correction: latest
+        ? {
+            read: this.display(target.kind, read),
+            by: latest.analystName,
+            at: formatDateTime(latest.correctedAt),
+          }
+        : undefined,
+    };
+  }
+
+  private latestCorrection(
+    doc: DocumentAnalysis,
+    target: CorrectionTarget,
+  ): DocumentCorrection | null {
+    return (
+      [...doc.corrections]
+        .reverse()
+        .find((c) => c.field === target.field && c.fieldName === target.name) ?? null
+    );
+  }
+
+  private readValue(doc: DocumentAnalysis, target: CorrectionTarget): string | null {
+    switch (target.field) {
+      case 'DOCUMENT_DATE':
+        return doc.documentDate;
+      case 'AMOUNT':
+        return doc.amount == null ? null : String(doc.amount);
+      case 'ITEM_DESCRIPTION':
+        return doc.itemDescription;
+      case 'ITEM_ATTRIBUTE':
+        return doc.itemAttributes.find((pair) => pair.name === target.name)?.value ?? null;
+      case 'DETAIL':
+        return doc.details.find((pair) => pair.name === target.name)?.value ?? null;
+    }
+  }
+
+  private display(kind: CorrectionKind, value: string | null): string | null {
+    if (value == null) return null;
+    if (kind === 'date') return formatDate(value);
+    if (kind === 'amount') return `$${Number(value).toLocaleString()}`;
+    return value;
+  }
+
+  protected correctionLines(doc: DocumentAnalysis): CorrectionLine[] {
+    return [...doc.corrections].reverse().map((c) => {
+      const kind = isTyped(c.field) ? TYPED_FIELDS[c.field].kind : 'text';
+      return {
+        label: isTyped(c.field) ? TYPED_FIELDS[c.field].label : (c.fieldName ?? ''),
+        previous: this.display(kind, c.previousValue) ?? 'Sin dato',
+        current: this.display(kind, c.newValue) ?? '',
+        by: c.analystName,
+        at: formatDateTime(c.correctedAt),
+      };
+    });
+  }
+
+  protected isEditing(target: CorrectionTarget | undefined): boolean {
+    const editing = this.editing();
+    return !!target && !!editing && editing.field === target.field && editing.name === target.name;
+  }
+
+  protected startCorrection(doc: DocumentAnalysis, target: CorrectionTarget): void {
+    this.draft.set(
+      this.latestCorrection(doc, target)?.newValue ?? this.readValue(doc, target) ?? '',
+    );
+    this.correctionError.set(null);
+    this.editing.set(target);
+  }
+
+  protected cancelCorrection(): void {
+    this.editing.set(null);
+    this.correctionError.set(null);
+  }
+
+  protected saveCorrection(doc: DocumentAnalysis): void {
+    const target = this.editing();
+    const value = this.draft().trim();
+    if (!target || !value || this.correctionSaving()) return;
+    this.correctionSaving.set(true);
+    this.correctionError.set(null);
+    this.service
+      .correctDocument(this.caseId(), doc.documentId, target.field, target.name, value)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (correction) => {
+          this.correctionSaving.set(false);
+          this.savedCorrections.update((saved) => [
+            ...saved,
+            { documentId: doc.documentId, correction },
+          ]);
+          this.editing.set(null);
+          this.corrected.emit();
+        },
+        error: (err: HttpErrorResponse) => {
+          this.correctionSaving.set(false);
+          this.correctionError.set(err.error?.detail || 'No se pudo guardar la corrección.');
+        },
+      });
   }
 
   /** `DESCONOCIDO` is a value, not missing data: the family-group rule simply doesn't apply. */
