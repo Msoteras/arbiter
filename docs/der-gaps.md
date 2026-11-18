@@ -93,7 +93,7 @@ suma `version_definiciones`. Las líneas `metrica_dia` y `hecho_generador` 1—0
 
 ## Para editar en el `.mdj`
 
-El `.mdj` del 03/11 coincide con el esquema, salvo esta columna:
+El `.mdj` del 03/11 coincide con el esquema, salvo estas dos entradas:
 
 ### 40 · `expediente.documentos_pedidos` — columna nueva (23/10)
 
@@ -105,6 +105,27 @@ Los documentos que el analista le pide al asegurado
 | `documentos_pedidos` (`requested_documents`) | JSONB | no | default `'[]'` |
 
 **Acción:** agregar la columna a `expediente`.
+
+### 47 · `correccion_analisis_documento` — tabla nueva (17/11)
+
+Los datos de un documento que corrigió el analista
+(`2026-11-17-correcciones-de-datos-extraidos.sql`). Es de solo inserción: cada corrección es una
+fila nueva. Cuelga de `documento_expediente` y no de `analisis_documento`, porque una relectura
+borra y vuelve a crear el análisis.
+
+| Columna | Tipo de dato | Nulo | Restricciones |
+|---|---|---|---|
+| `id` | BIGINT | no | PK |
+| `campo` (`field`) | VARCHAR(20) | no | `DOCUMENT_DATE`, `AMOUNT`, `ITEM_DESCRIPTION`, `ITEM_ATTRIBUTE` o `DETAIL` |
+| `nombre_campo` (`field_name`) | VARCHAR(100) | sí | solo con `ITEM_ATTRIBUTE` y `DETAIL` |
+| `valor_anterior` (`previous_value`) | TEXT | sí | |
+| `valor_nuevo` (`new_value`) | TEXT | no | |
+| `fecha_correccion` (`corrected_at`) | TIMESTAMPTZ | no | default `NOW()` |
+| `analista_id` (`analyst_id`) | BIGINT | no | FK → `analista_siniestro` |
+| `documento_expediente_id` (`case_document_id`) | BIGINT | no | FK → `documento_expediente` |
+
+**Acción:** agregar la entidad con el borde por defecto (esquema de aseguradora). Dibujar
+`documento_expediente` 1—0..* y `analista_siniestro` 1—0..* contra ella.
 
 ---
 
