@@ -1,7 +1,7 @@
--- 2026-11-17 · document_analysis_correction: los datos de un documento que el analista corrigió.
--- Aplicar antes de desplegar el código (ddl-auto=validate). Idempotente.
--- Después de aplicarla, volver a correr el bloque de create_tenant_schema de init-multitenant.sql,
--- así las aseguradoras nuevas nacen con la tabla.
+-- 2026-11-17 · document_analysis_correction: the document data an analyst corrected.
+-- Apply before deploying the code (ddl-auto=validate). Idempotent.
+-- Afterwards run the CREATE OR REPLACE FUNCTION arbiter_common.create_tenant_schema block from
+-- init-multitenant.sql, so new insurers are created with the table.
 
 BEGIN;
 
