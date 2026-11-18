@@ -227,6 +227,52 @@ button.doc-btn.selected {
 .field dd.nodata {
   color: var(--text-muted);
 }
+.field-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.field dd.field-correction {
+  margin-top: var(--space-1);
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+.field-edit {
+  display: grid;
+  gap: var(--space-2);
+}
+.field-edit-actions {
+  display: flex;
+  gap: var(--space-2);
+}
+.field-edit-error {
+  margin: 0;
+  font-size: var(--font-size-xs);
+  color: var(--status-danger);
+}
+
+.corrections {
+  margin-top: var(--space-3);
+}
+.corrections summary {
+  cursor: pointer;
+}
+.corrections ul {
+  margin: var(--space-2) 0 0;
+  padding-left: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.corrections li {
+  display: grid;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+.correction-meta {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
 
 /* Something to check, not document content: a faint warning tint and border, never a fill. */
 .visual-findings {

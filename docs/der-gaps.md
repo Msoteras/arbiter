@@ -71,6 +71,9 @@ Salieron las tres `metrica_diaria_*` y entró `metrica_diaria_valor`, una fila p
 suma `version_definiciones`. Las líneas `metrica_dia` y `hecho_generador` 1—0..* quedaron contra
 `metrica_diaria_valor`, y se borraron las de las tablas que salieron.
 
+El 17/11 entró `correccion_analisis_documento` (`2026-11-17-correcciones-de-datos-extraidos.sql`), y
+quedó aplicada el mismo día: `documento_expediente` y `analista_siniestro` 1—0..* contra ella.
+
 **Criterios que valen para todas las entradas:**
 
 - **Cada línea se compara dibujo contra modelo.** Una línea que se ve entre dos entidades pero cuya

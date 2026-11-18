@@ -134,15 +134,96 @@
             <dl class="fields">
               @for (f of extractedFields(extraction); track f.label) {
                 <div class="field">
-                  <dt class="t-field-label">{{ f.label }}</dt>
-                  @if (f.value) {
-                    <dd [class.mono]="f.mono">{{ f.value }}</dd>
+                  <dt class="field-head">
+                    <span class="t-field-label">{{ f.label }}</span>
+                    @if (f.correction) {
+                      <app-badge>Corregido</app-badge>
+                    }
+                    @if (canCorrect() && f.target && !isEditing(f.target)) {
+                      <app-icon-button
+                        icon="edit"
+                        size="sm"
+                        [ghost]="true"
+                        [label]="'Corregir ' + f.label"
+                        (click)="startCorrection(extraction, f.target)"
+                      />
+                    }
+                  </dt>
+                  @if (f.target && isEditing(f.target)) {
+                    <dd class="field-edit">
+                      @switch (f.target.kind) {
+                        @case ('date') {
+                          <app-date-picker [(value)]="draft" />
+                        }
+                        @case ('amount') {
+                          <app-input
+                            prefix="$"
+                            align="end"
+                            inputmode="decimal"
+                            [normalize]="amountInputDisplay"
+                            [value]="amountInputLabel(draft())"
+                            (valueChange)="draft.set(amountInputValue($event))"
+                            (enter)="saveCorrection(extraction)"
+                          />
+                        }
+                        @default {
+                          <app-input [(value)]="draft" (enter)="saveCorrection(extraction)" />
+                        }
+                      }
+                      <div class="field-edit-actions">
+                        <app-button
+                          size="sm"
+                          [loading]="correctionSaving()"
+                          [disabled]="!draft().trim()"
+                          (click)="saveCorrection(extraction)"
+                        >
+                          Guardar
+                        </app-button>
+                        <app-button
+                          size="sm"
+                          variant="secondary"
+                          [disabled]="correctionSaving()"
+                          (click)="cancelCorrection()"
+                        >
+                          Cancelar
+                        </app-button>
+                      </div>
+                      @if (correctionError(); as error) {
+                        <p class="field-edit-error" role="alert">{{ error }}</p>
+                      }
+                    </dd>
                   } @else {
-                    <dd class="nodata">No aplica</dd>
+                    @if (f.value) {
+                      <dd [class.mono]="f.mono">{{ f.value }}</dd>
+                    } @else {
+                      <dd class="nodata">No aplica</dd>
+                    }
+                    @if (f.correction) {
+                      <dd class="field-correction">
+                        Arbiter leyó {{ f.correction.read ?? 'sin dato' }} · {{ f.correction.by }},
+                        {{ f.correction.at }}
+                      </dd>
+                    }
                   }
                 </div>
               }
             </dl>
+
+            @if (extraction.corrections.length > 0) {
+              <details class="corrections">
+                <summary class="t-field-label">
+                  Ver las correcciones ({{ extraction.corrections.length }})
+                </summary>
+                <ul>
+                  @for (line of correctionLines(extraction); track $index) {
+                    <li>
+                      <span>{{ line.label }}: {{ line.previous }} → {{ line.current }}</span>
+                      <span class="correction-meta">{{ line.by }}, {{ line.at }}</span>
+                    </li>
+                  }
+                </ul>
+              </details>
+            }
           }
 
           <!-- Observations about the image itself, kept apart so they don't read as document content. -->

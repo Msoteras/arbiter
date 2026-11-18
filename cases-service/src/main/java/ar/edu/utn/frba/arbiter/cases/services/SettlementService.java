@@ -214,9 +214,9 @@ public class SettlementService {
             }
             return documentAnalysisRepository.findByCaseId(caseId).stream()
                     .filter(doc -> REPAIR_QUOTE.equals(doc.documentType()))
-                    .filter(doc -> isPositive(doc.amount()))
+                    .filter(doc -> isPositive(doc.currentAmount()))
                     .findFirst()
-                    .map(doc -> new Suggestion(doc.amount(), doc.documentType(),
+                    .map(doc -> new Suggestion(doc.currentAmount(), doc.documentType(),
                             SettlementSuggestionTarget.ACCREDITED_AMOUNT))
                     .orElse(null);
         }

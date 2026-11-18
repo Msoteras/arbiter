@@ -5,7 +5,7 @@ import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import { CacheReadOptions, QueryCache, paramsKey } from '../../core/cache/query-cache';
 import { InsuredStatus, InsuredStatusCode } from '../../core/models/insured-status';
-import { CaseResponse } from '../../core/models/case';
+import { CaseResponse, CorrectableField, DocumentCorrection } from '../../core/models/case';
 import { StatusMoves } from '../../core/models/case-status';
 import {
   CaseDocument,
@@ -474,6 +474,19 @@ export class CaseService {
   /** The coverage follows from the cause and the case goes back to classification. */
   correctClaimCause(caseId: number, claimCauseId: number, reason: string): Observable<unknown> {
     return this.http.post(`${this.baseUrl}/${caseId}/claim-cause`, { claimCauseId, reason });
+  }
+
+  correctDocument(
+    caseId: number,
+    documentId: number,
+    field: CorrectableField,
+    fieldName: string | null,
+    value: string,
+  ): Observable<DocumentCorrection> {
+    return this.http.post<DocumentCorrection>(
+      `${this.baseUrl}/${caseId}/documents/${documentId}/corrections`,
+      { field, fieldName, value },
+    );
   }
 
   /** Back to analyst review without reverting the previous decision. 409 from a non-terminal status. */
