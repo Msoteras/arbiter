@@ -574,6 +574,22 @@ export class CaseDetailComponent {
     () => this.data()?.documentAnalyses ?? [],
   );
 
+  protected readonly canCorrectDocuments = computed(
+    () => this.canDecide() && !isFinalStatus(this.data()?.status ?? ''),
+  );
+
+  private readonly documentsCorrected = signal(0);
+
+  protected onDocumentCorrected(): void {
+    const id = this.data()?.id;
+    if (id == null) return;
+    this.documentsCorrected.update((v) => v + 1);
+    this.service.getById(id, null, silentRequest()).subscribe({
+      next: (fresh) => this.polled.set(fresh),
+      error: () => undefined,
+    });
+  }
+
   protected documentLabel(type: string): string {
     return this.documentTypes.label(type);
   }
@@ -1195,6 +1211,7 @@ export class CaseDetailComponent {
       this.route.paramMap.pipe(map((params) => params.get('id') ?? '')),
       toObservable(this.reloadTrigger),
       toObservable(this.replacementApplied),
+      toObservable(this.documentsCorrected),
     ]).pipe(
       switchMap(([id, , replacementValue]) =>
         this.service.settlement(id as unknown as number, replacementValue).pipe(

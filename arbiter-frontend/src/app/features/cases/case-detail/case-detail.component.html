@@ -1240,6 +1240,8 @@
             [extractions]="documentAnalyses()"
             [focusType]="focusedDocType()"
             [showMissingReadings]="d.status !== 'PENDING_CLASSIFICATION'"
+            [canCorrect]="canCorrectDocuments()"
+            (corrected)="onDocumentCorrected()"
           />
         }
         @case ('images') {

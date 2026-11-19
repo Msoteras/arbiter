@@ -18,6 +18,8 @@ import ar.edu.utn.frba.arbiter.cases.dto.CaseScope;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.CaseResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.CloseCaseRequest;
+import ar.edu.utn.frba.arbiter.cases.dto.DocumentAnalysisSummary;
+import ar.edu.utn.frba.arbiter.cases.dto.DocumentCorrectionRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.DocumentRequestRequest;
 import ar.edu.utn.frba.arbiter.cases.dto.PendingDocumentResponse;
 import ar.edu.utn.frba.arbiter.cases.dto.RequestableDocumentResponse;
@@ -37,6 +39,7 @@ import ar.edu.utn.frba.arbiter.cases.services.CaseMessageService;
 import ar.edu.utn.frba.arbiter.cases.services.CaseService;
 import ar.edu.utn.frba.arbiter.cases.services.CaseStatusService;
 import ar.edu.utn.frba.arbiter.cases.services.ClaimCauseCorrectionService;
+import ar.edu.utn.frba.arbiter.cases.services.DocumentCorrectionService;
 import ar.edu.utn.frba.arbiter.cases.services.SettlementService;
 import ar.edu.utn.frba.arbiter.common.enums.CaseStatus;
 import ar.edu.utn.frba.arbiter.common.enums.InsuredStatus;
@@ -50,6 +53,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -70,6 +74,7 @@ public class CaseController {
     private final CaseService caseService;
     private final SettlementService settlementService;
     private final ClaimCauseCorrectionService claimCauseCorrectionService;
+    private final DocumentCorrectionService documentCorrectionService;
     private final CaseMessageService messageService;
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -549,6 +554,26 @@ public class CaseController {
     ) {
         claimCauseCorrectionService.correct(caseId, request);
         return ResponseEntity.accepted().body(new CaseActionResponse(caseId, "claim-cause-corrected"));
+    }
+
+    @PostMapping("/{caseId}/documents/{documentId}/corrections")
+    @PreAuthorize("hasRole('ANALISTA_SINIESTROS')")
+    @Operation(summary = "Corregir un dato que leyó Arbiter en un documento",
+            description = """
+                    Corrige la fecha, el importe, el bien, un atributo del bien o un detalle. La
+                    lectura del modelo no se borra, y cada corrección se suma a las anteriores. No
+                    cambia el estado, la clasificación, el puntaje ni la banda. Solo el analista
+                    asignado y con el expediente abierto; 422 si el dato no es válido, si es el mismo
+                    o si Arbiter no leyó ese documento. Queda una línea en el historial; el asegurado
+                    no la ve.
+                    """)
+    public ResponseEntity<DocumentAnalysisSummary.Correction> correctDocument(
+            @PathVariable Long caseId,
+            @PathVariable Long documentId,
+            @RequestBody @Valid DocumentCorrectionRequest request
+    ) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(documentCorrectionService.correct(caseId, documentId, request));
     }
 
     // The insurer lead may also retry: unblocking a stuck case is supervision, not a decision.

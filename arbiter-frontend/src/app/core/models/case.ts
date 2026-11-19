@@ -35,6 +35,7 @@ export interface RiskBreakdownItem {
 export interface DocumentAnalysis {
   /** The document requirement slot the attachment fulfils (`police_report`, …). */
   documentType: string;
+  documentId: number;
   transcription: string;
   documentDate: string | null;
   amount: number | null;
@@ -58,9 +59,22 @@ export interface DocumentAnalysis {
    * does not say": `PARTIAL` kept the transcription alone, `FAILED` read nothing.
    */
   extractionStatus: ExtractionStatus;
+  corrections: DocumentCorrection[];
 }
 
 export type ExtractionStatus = 'COMPLETE' | 'PARTIAL' | 'FAILED';
+
+export type CorrectableField =
+  'DOCUMENT_DATE' | 'AMOUNT' | 'ITEM_DESCRIPTION' | 'ITEM_ATTRIBUTE' | 'DETAIL';
+
+export interface DocumentCorrection {
+  field: CorrectableField;
+  fieldName: string | null;
+  previousValue: string | null;
+  newValue: string;
+  analystName: string;
+  correctedAt: string;
+}
 
 export interface ExtractedDetail {
   name: string;

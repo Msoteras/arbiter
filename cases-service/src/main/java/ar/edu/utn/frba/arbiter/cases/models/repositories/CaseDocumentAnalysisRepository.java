@@ -1,6 +1,7 @@
 package ar.edu.utn.frba.arbiter.cases.models.repositories;
 
 import ar.edu.utn.frba.arbiter.cases.dto.DocumentAnalysisSummary;
+import ar.edu.utn.frba.arbiter.cases.models.entities.ExtractedField;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import org.hibernate.Session;
@@ -43,7 +44,7 @@ public class CaseDocumentAnalysisRepository {
     private List<DocumentAnalysisSummary> query(NamedParameterJdbcTemplate jdbcTemplate, Long caseId) {
         List<Row> rows = jdbcTemplate.query("""
                 SELECT a.id, a.transcription, a.document_date, a.amount, a.item_description,
-                       a.affected_party, a.extraction_status, d.type
+                       a.affected_party, a.extraction_status, d.type, d.id AS document_id
                   FROM document_analysis a
                   JOIN case_documents d ON d.id = a.case_document_id
                  WHERE d.case_id = :caseId
@@ -53,6 +54,7 @@ public class CaseDocumentAnalysisRepository {
             return new Row(
                     rs.getLong("id"),
                     rs.getString("type"),
+                    rs.getLong("document_id"),
                     rs.getString("transcription"),
                     documentDate == null ? null : documentDate.toLocalDate(),
                     rs.getBigDecimal("amount"),
@@ -71,10 +73,13 @@ public class CaseDocumentAnalysisRepository {
                 pairsFrom("document_attribute", jdbcTemplate, analysisIds);
         Map<Long, List<DocumentAnalysisSummary.Detail>> detailsByAnalysis =
                 pairsFrom("document_detail", jdbcTemplate, analysisIds);
+        Map<Long, List<DocumentAnalysisSummary.Correction>> correctionsByDocument =
+                correctionsFor(jdbcTemplate, rows.stream().map(Row::documentId).toList());
 
         return rows.stream()
                 .map(row -> new DocumentAnalysisSummary(
                         row.documentType(),
+                        row.documentId(),
                         row.transcription(),
                         row.documentDate(),
                         row.amount(),
@@ -83,7 +88,8 @@ public class CaseDocumentAnalysisRepository {
                         row.affectedParty(),
                         findingsByAnalysis.getOrDefault(row.analysisId(), List.of()),
                         detailsByAnalysis.getOrDefault(row.analysisId(), List.of()),
-                        row.extractionStatus()))
+                        row.extractionStatus(),
+                        correctionsByDocument.getOrDefault(row.documentId(), List.of())))
                 .toList();
     }
 
@@ -122,9 +128,32 @@ public class CaseDocumentAnalysisRepository {
         return byAnalysis;
     }
 
+    private Map<Long, List<DocumentAnalysisSummary.Correction>> correctionsFor(
+            NamedParameterJdbcTemplate jdbcTemplate, List<Long> documentIds) {
+        Map<Long, List<DocumentAnalysisSummary.Correction>> byDocument = new HashMap<>();
+        jdbcTemplate.query("""
+                SELECT c.case_document_id, c.field, c.field_name, c.previous_value, c.new_value,
+                       c.corrected_at, an.name, an.surname
+                  FROM document_analysis_correction c
+                  JOIN claims_analyst an ON an.id = c.analyst_id
+                 WHERE c.case_document_id IN (:documentIds)
+                 ORDER BY c.corrected_at, c.id
+                """, Map.of("documentIds", documentIds), (rs, rowNum) ->
+                byDocument.computeIfAbsent(rs.getLong("case_document_id"), key -> new ArrayList<>())
+                        .add(new DocumentAnalysisSummary.Correction(
+                                ExtractedField.valueOf(rs.getString("field")),
+                                rs.getString("field_name"),
+                                rs.getString("previous_value"),
+                                rs.getString("new_value"),
+                                (rs.getString("name") + " " + rs.getString("surname")).trim(),
+                                rs.getTimestamp("corrected_at").toInstant())));
+        return byDocument;
+    }
+
     private record Row(
             Long analysisId,
             String documentType,
+            Long documentId,
             String transcription,
             LocalDate documentDate,
             BigDecimal amount,
