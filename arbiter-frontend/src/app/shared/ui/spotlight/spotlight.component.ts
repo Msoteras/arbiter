@@ -22,6 +22,7 @@ import { AsciiFieldComponent } from '../ascii-field/ascii-field.component';
  *   narrower one, under the figure.
  * - `spotlightActions`: the column on the right; without it the strip takes the whole width.
  * - default content: what goes below, inside the frame (`.spotlight-panels`, `.spotlight-cells`).
+ *   Without it there is no frame: around the hero alone it reads as a second border.
  *
  * The tone colors the headline word, the figure's label and the glyph field right of the figure.
  * `brand` paints the hero with the drifting brand gradient (the welcome on each home) and turns its
@@ -101,11 +102,13 @@ import { AsciiFieldComponent } from '../ascii-field/ascii-field.component';
       container: spotlight / inline-size;
       display: grid;
       gap: var(--spotlight-gap);
+      color: var(--text-primary);
+    }
+    app-spotlight:has(> .sl-hero ~ *) {
       padding: var(--spotlight-gap);
       border-radius: var(--radius-frame);
       background: var(--surface-sunken);
       border: 1px solid var(--border-default);
-      color: var(--text-primary);
     }
     app-spotlight .sl-hero,
     app-spotlight .spotlight-panel,
