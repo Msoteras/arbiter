@@ -51,14 +51,11 @@
     <!-- One band: what Arbiter recommends, the fraud risk, what to weigh and the decision itself.
          Anything longer goes to the notices below so no column stretches the band. -->
     <app-spotlight class="decision-strip" [tone]="spotlightTone()" @staggerReveal>
-      <!-- Who recommends, then the verdict word in its tone. Rules outcomes say so instead of
-           showing a confidence: the backend's 100% is a fixed value, not a measurement. -->
+      <!-- Who recommends, then the verdict word in its tone. -->
       <span spotlightLabel>
         <app-logo />
         @if (isFastTrack()) {
           <span>· Fast Track</span>
-        } @else if (isDeterministicOutcome() && classificationLabel()) {
-          <span>· Motor de reglas</span>
         }
       </span>
       @let verdict = spotlightVerdict();
