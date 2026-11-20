@@ -1,27 +1,20 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 
-import { SpinnerComponent } from '../spinner/spinner.component';
-
 type Shape = 'text' | 'block' | 'table' | 'card';
 
 /**
  * Placeholder with the shape of the content that is on its way, so the screen doesn't jump when it
  * arrives. `text`: a paragraph of `lines`; `block`: one surface that fills the host (the consumer
  * sets its height); `table`: a header and `rows` × `columns` cells inside a card; `card`: a card with
- * a heading and `rows` list rows. `note` shows a spinner and that text above the shape, for a load
- * long enough to need saying what is on its way.
+ * a heading and `rows` list rows. Nothing visible says "loading": the shape and the turning logo in
+ * the top bar do. `label` says what is on its way, for the screen reader.
  */
 @Component({
   selector: 'app-skeleton',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [SpinnerComponent],
   template: `
     <div class="skeleton" role="status" aria-live="polite">
-      @if (note()) {
-        <p class="note"><app-spinner [size]="16" />{{ note() }}</p>
-      } @else {
-        <span class="sr-only">{{ label() }}</span>
-      }
+      <span class="sr-only">{{ label() }}</span>
       @switch (shape()) {
         @case ('text') {
           @for (width of lineWidths(); track $index) {
@@ -69,14 +62,6 @@ type Shape = 'text' | 'block' | 'table' | 'card';
       display: flex;
       flex-direction: column;
       gap: var(--space-2);
-    }
-    .note {
-      display: flex;
-      align-items: center;
-      gap: var(--space-2);
-      margin: 0 0 var(--space-1);
-      font-size: var(--font-size-sm);
-      color: var(--text-secondary);
     }
     /* --skeleton-radius lets a consumer match a pill, like a chip. */
     .bone {
@@ -179,8 +164,6 @@ export class SkeletonComponent {
   readonly columns = input(5);
   /** What the screen reader announces. */
   readonly label = input('Cargando');
-  /** Visible "Cargando…" line above the shape; it replaces `label` for the screen reader. */
-  readonly note = input('');
 
   /** The last line of a paragraph is shorter; a single line is as wide as the host. */
   protected readonly lineWidths = computed(() =>

@@ -30,6 +30,7 @@ import { NewClaimComponent } from './features/cases/new-claim/new-claim.componen
 import { GlobalSearchComponent } from './features/cases/global-search/global-search.component';
 import { ActivityBarComponent } from './shared/ui/activity-bar/activity-bar.component';
 import { silentRequest } from './core/cache/query-cache';
+import { HttpActivityService } from './core/http/http-activity';
 import { InsurerLogoService } from './core/services/insurer-logo.service';
 import { IconComponent } from './shared/ui/icon/icon.component';
 import { SidebarComponent } from './shared/ui/sidebar/sidebar.component';
@@ -95,6 +96,8 @@ export class App {
   private readonly appReady = inject(AppReadyService);
   protected readonly insurerLogo = inject(InsurerLogoService);
   protected readonly sidebar = inject(SidebarService);
+  /** The top bar's logo turns while there is a request someone is waiting for. */
+  protected readonly activity = inject(HttpActivityService);
 
   private readonly reduceMotionMql =
     typeof window !== 'undefined' && window.matchMedia

@@ -23,7 +23,7 @@
   }
 
   @if (loading()) {
-    <app-skeleton shape="table" [rows]="6" [columns]="5" note="Cargando usuarios…" />
+    <app-skeleton shape="table" [rows]="6" [columns]="5" label="Cargando usuarios…" />
   } @else if (hasError()) {
     <app-card><p class="t-note">No se pudo cargar el listado de usuarios.</p></app-card>
   } @else if (isEmpty()) {
