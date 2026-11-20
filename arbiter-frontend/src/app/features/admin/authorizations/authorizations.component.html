@@ -67,7 +67,7 @@
         shape="table"
         [rows]="4"
         [columns]="4"
-        note="Cargando liquidaciones pendientes…"
+        label="Cargando liquidaciones pendientes…"
       />
     } @else if (pending().length === 0) {
       <app-empty-state
@@ -129,7 +129,7 @@
         shape="table"
         [rows]="4"
         [columns]="3"
-        note="Cargando liquidaciones autorizadas…"
+        label="Cargando liquidaciones autorizadas…"
       />
     } @else if (authorized().length === 0) {
       <app-empty-state

@@ -51,14 +51,11 @@
     <!-- One band: what Arbiter recommends, the fraud risk, what to weigh and the decision itself.
          Anything longer goes to the notices below so no column stretches the band. -->
     <app-spotlight class="decision-strip" [tone]="spotlightTone()" @staggerReveal>
-      <!-- Who recommends, then the verdict word in its tone. Rules outcomes say so instead of
-           showing a confidence: the backend's 100% is a fixed value, not a measurement. -->
+      <!-- Who recommends, then the verdict word in its tone. -->
       <span spotlightLabel>
         <app-logo />
         @if (isFastTrack()) {
           <span>· Fast Track</span>
-        } @else if (isDeterministicOutcome() && classificationLabel()) {
-          <span>· Motor de reglas</span>
         }
       </span>
       @let verdict = spotlightVerdict();
@@ -80,7 +77,7 @@
               }
             </div>
             <ul class="spotlight-rows is-compact">
-              @for (c of fastTrackCriteria().slice(0, asideRows); track c.id) {
+              @for (c of spotlightCriteria(); track c.id) {
                 <li class="spotlight-row">
                   <span class="row-icon" aria-hidden="true">{{
                     c.result === 'PASS' ? '✓' : '·'
@@ -137,7 +134,7 @@
             } @else if (needsDocs()) {
               <span>Falta documentación para su nivel de riesgo.</span>
             } @else if (isFastTrack()) {
-              <span>Sin pedido de documentación</span>
+              <span>Sin pedido de documentación adicional</span>
             } @else {
               <button type="button" class="summary-link" (click)="setTab('rules')">
                 Ver la evaluación de reglas
@@ -1401,7 +1398,7 @@
     </div>
   </header>
   <div class="det-content">
-    <app-skeleton class="sk-note" [lines]="0" note="Cargando expediente…" />
+    <app-skeleton [lines]="0" label="Cargando expediente…" />
     <div class="strip-skeleton" aria-hidden="true">
       <div class="strip-col">
         <app-skeleton class="sk-label" [lines]="1" />

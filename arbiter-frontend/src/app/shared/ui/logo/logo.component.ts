@@ -1,12 +1,27 @@
-import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  DestroyRef,
+  effect,
+  inject,
+  input,
+  signal,
+  untracked,
+} from '@angular/core';
 
 /** Each instance needs its own mask id, or the second one would override the first. */
 let uid = 0;
+
+/** A wait shorter than this never turns the mark, like app-activity-bar: a twitch reads as noise. */
+const SPIN_DELAY_MS = 180;
 
 /**
  * Deliberate differences from the SVG export in public/brand/: strokes use `currentColor` so one
  * component works on light and dark backgrounds, and the wordmark is HTML text so it uses the app
  * font (--font-sans) instead of the export's Helvetica/Arial.
+ * `spinning` turns the mark like app-spinner; once it goes false the mark ends its turn, so it never
+ * snaps back mid-way.
  */
 @Component({
   selector: 'app-logo',
@@ -15,6 +30,8 @@ let uid = 0;
     <span class="logo" [class.symbol-only]="variant() === 'symbol'">
       <svg
         class="mark"
+        [class.is-turning]="turning()"
+        (animationiteration)="onTurnEnd()"
         viewBox="0 0 88 88"
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
@@ -84,13 +101,50 @@ let uid = 0;
       width: 1.3em;
       height: 1.3em;
     }
+
+    .mark.is-turning {
+      animation: logo-turn 1.15s linear infinite;
+    }
+    @keyframes logo-turn {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .mark.is-turning {
+        animation: none;
+      }
+    }
   `,
 })
 export class LogoComponent {
   /** `lockup` = symbol + wordmark; `symbol` = symbol only (narrow spaces). */
   readonly variant = input<'lockup' | 'symbol'>('lockup');
+  /** True while something is loading (the top bar binds it to the pending requests). */
+  readonly spinning = input(false);
+
+  protected readonly turning = signal(false);
+  private startTimer: ReturnType<typeof setTimeout> | undefined;
 
   private readonly id = `arbiter-logo-gap-${uid++}`;
   protected readonly maskId = computed(() => this.id);
   protected readonly maskRef = computed(() => `url(#${this.id})`);
+
+  constructor() {
+    effect(() => {
+      const spinning = this.spinning();
+      untracked(() => {
+        clearTimeout(this.startTimer);
+        if (spinning && !this.turning()) {
+          this.startTimer = setTimeout(() => this.turning.set(true), SPIN_DELAY_MS);
+        }
+      });
+    });
+    inject(DestroyRef).onDestroy(() => clearTimeout(this.startTimer));
+  }
+
+  /** At the end of each turn the mark is upright again: the only moment it can stop unseen. */
+  protected onTurnEnd(): void {
+    if (!this.spinning()) this.turning.set(false);
+  }
 }
