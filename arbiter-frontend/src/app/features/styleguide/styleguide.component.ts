@@ -1188,16 +1188,17 @@ interface Swatch {
           así la pantalla no salta. <span class="mono">text</span> (párrafo),
           <span class="mono">block</span> (el consumidor fija la altura) y
           <span class="mono">table</span> (encabezado + filas) y
-          <span class="mono">card</span> (card con título + filas de lista).
-          <span class="mono">note</span> suma arriba un spinner con el texto de qué se está
-          cargando. Sin shimmer con movimiento reducido.
+          <span class="mono">card</span> (card con título + filas de lista). No muestra un texto de
+          carga: lo indican la forma y el logo de la barra, que gira.
+          <span class="mono">label</span> es lo que anuncia el lector de pantalla. Sin shimmer con
+          movimiento reducido.
         </p>
         <div class="sg-skeletons">
           <app-skeleton [lines]="3" />
           <app-skeleton class="sg-skeleton-block" shape="block" />
         </div>
         <div class="sg-skeletons">
-          <app-skeleton shape="card" [rows]="3" note="Cargando proveedores…" />
+          <app-skeleton shape="card" [rows]="3" label="Cargando proveedores…" />
           <app-skeleton shape="table" [rows]="4" [columns]="5" />
         </div>
       </section>
@@ -1208,10 +1209,13 @@ interface Swatch {
           Línea de 2 px fija arriba de todo mientras hay un pedido al backend en curso. Aparece
           recién a los 180 ms, avanza hacia el 90% y completa al terminar el último pedido. Los
           pedidos marcados con <span class="mono">SILENT_RETRY</span> (precarga, polls) no la
-          disparan. Se monta una vez en <span class="mono">app.html</span>.
+          disparan. Se monta una vez en <span class="mono">app.html</span>. Mientras tanto gira el
+          logo de la barra (<span class="mono">spinning</span> de
+          <span class="mono">app-logo</span>), con la misma demora; al terminar completa la vuelta.
         </p>
         <app-activity-bar [active]="activityDemo()" />
         <div class="row">
+          <app-logo variant="symbol" [spinning]="activityDemo()" />
           <app-button variant="secondary" size="sm" (click)="activityDemo.set(!activityDemo())">
             {{ activityDemo() ? 'Terminar' : 'Simular pedido' }}
           </app-button>

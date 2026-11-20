@@ -33,7 +33,7 @@
         </button>
 
         <div class="topbar-brand">
-          <app-logo variant="symbol" class="topbar-logo" />
+          <app-logo variant="symbol" class="topbar-logo" [spinning]="activity.active()" />
           <span class="topbar-brand-name">Arbiter</span>
         </div>
 
@@ -221,7 +221,7 @@
         <span class="appbar-sep" aria-hidden="true"></span>
 
         <a class="appbar-brand" [routerLink]="homeLink()">
-          <app-logo variant="symbol" class="appbar-logo" />
+          <app-logo variant="symbol" class="appbar-logo" [spinning]="activity.active()" />
           <span class="appbar-brand-name">Arbiter</span>
         </a>
 

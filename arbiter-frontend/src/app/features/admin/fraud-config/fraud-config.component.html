@@ -1,5 +1,5 @@
 @if (loading()) {
-  <app-skeleton shape="card" [rows]="4" note="Cargando gestión de fraude…" />
+  <app-skeleton shape="card" [rows]="4" label="Cargando gestión de fraude…" />
 } @else if (rule(); as r) {
   <app-card
     class="gf-card"
