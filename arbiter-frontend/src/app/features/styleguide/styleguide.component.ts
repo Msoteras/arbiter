@@ -1320,7 +1320,7 @@ interface Swatch {
             <span class="spotlight-number">29</span>
             <span class="spotlight-unit"><span>/ 100</span><b>riesgo bajo</b></span>
           </div>
-          <p spotlightSummary>Sin pedido de documentación</p>
+          <p spotlightSummary>Sin pedido de documentación adicional</p>
           <div spotlightActions>
             <app-button [block]="true">Aprobar siniestro</app-button>
             <app-button variant="secondary" [block]="true">Rechazar</app-button>

@@ -49,6 +49,16 @@
   text-decoration: underline;
 }
 
+.hero {
+  padding: 0;
+  border: 0;
+  background: none;
+}
+.hero ::ng-deep .sl-hero {
+  border-color: var(--border-default);
+  border-radius: var(--radius-box);
+}
+
 /* The insurer of this claim, at the head of the strip. */
 .hero-insurer-logo {
   height: var(--space-6);
