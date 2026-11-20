@@ -675,6 +675,15 @@ export class CaseDetailComponent {
     this.ruleResults().filter((r) => isFastTrackCriterion(r.ruleType)),
   );
 
+  protected readonly spotlightCriteria = computed(() =>
+    [...this.fastTrackCriteria()]
+      .sort(
+        (a, b) =>
+          Number(b.ruleType === 'FT_REQUIRED_DOCS') - Number(a.ruleType === 'FT_REQUIRED_DOCS'),
+      )
+      .slice(0, this.asideRows),
+  );
+
   protected readonly isFastTrack = computed(
     () => this.data()?.analysisClassification === 'FAST_TRACK',
   );

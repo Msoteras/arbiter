@@ -80,7 +80,7 @@
               }
             </div>
             <ul class="spotlight-rows is-compact">
-              @for (c of fastTrackCriteria().slice(0, asideRows); track c.id) {
+              @for (c of spotlightCriteria(); track c.id) {
                 <li class="spotlight-row">
                   <span class="row-icon" aria-hidden="true">{{
                     c.result === 'PASS' ? '✓' : '·'
@@ -137,7 +137,7 @@
             } @else if (needsDocs()) {
               <span>Falta documentación para su nivel de riesgo.</span>
             } @else if (isFastTrack()) {
-              <span>Sin pedido de documentación</span>
+              <span>Sin pedido de documentación adicional</span>
             } @else {
               <button type="button" class="summary-link" (click)="setTab('rules')">
                 Ver la evaluación de reglas
