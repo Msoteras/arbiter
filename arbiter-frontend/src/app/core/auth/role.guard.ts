@@ -6,15 +6,16 @@ import { AuthSessionService } from './auth-session.service';
 
 /**
  * `route.data['roles']` lists the allowed roles; the referent always passes. A disallowed role is
- * redirected to its own home instead of an error page.
+ * redirected to its own home instead of an error page. Without a session it goes to the login,
+ * which brings the user back to `returnUrl` (a link from a mail opens a new tab, with no session).
  */
-export const roleGuard: CanActivateFn = (route) => {
+export const roleGuard: CanActivateFn = (route, state) => {
   const session = inject(AuthSessionService);
   const router = inject(Router);
 
   const current = session.session();
   if (!current) {
-    return router.parseUrl('/login');
+    return router.createUrlTree(['/login'], { queryParams: { returnUrl: state.url } });
   }
 
   if (current.rol === 'REFERENTE_ASEGURADORA') {
