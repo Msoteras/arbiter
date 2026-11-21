@@ -2,6 +2,16 @@
 // to fit one laptop screen with no scrolling, so the first look already says how the day stands.
 @use 'media';
 
+// Where the home can't be one screen tall: the page scrolls and the columns keep their content.
+@mixin unfitted {
+  @include media.phone {
+    @content;
+  }
+  @include media.short {
+    @content;
+  }
+}
+
 @mixin layout {
   .home {
     box-sizing: border-box;
@@ -18,10 +28,12 @@
 
   // `.fit`: exactly one screen tall, so a card can fill the height left instead of growing it.
   // By width only, not pointer: a touch laptop has the same columns and needs the same height.
+  // On a phone or a short screen the content can't fit, so the page scrolls as a whole instead:
+  // a fixed height there clipped the main column, and only the side one scrolled.
   .home.fit {
     height: calc(100dvh - var(--appbar-h));
 
-    @include media.phone {
+    @include unfitted {
       height: auto;
     }
   }
@@ -35,7 +47,7 @@
   .home.fit .col {
     max-height: 100%;
 
-    @include media.phone {
+    @include unfitted {
       max-height: none;
     }
   }
@@ -46,7 +58,7 @@
     padding: var(--space-1) var(--space-4) var(--space-5);
     margin: calc(var(--space-1) * -1) calc(var(--space-4) * -1) calc(var(--space-5) * -1);
 
-    @include media.phone {
+    @include unfitted {
       padding: 0;
       margin: 0;
     }
@@ -54,14 +66,14 @@
   .home.fit .col-main {
     overflow: hidden;
 
-    @include media.phone {
+    @include unfitted {
       overflow: visible;
     }
   }
   .home.fit .col-side {
     overflow-y: auto;
 
-    @include media.phone {
+    @include unfitted {
       overflow-y: visible;
     }
   }
