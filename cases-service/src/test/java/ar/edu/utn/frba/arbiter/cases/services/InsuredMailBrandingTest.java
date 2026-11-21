@@ -16,6 +16,7 @@ import java.time.Instant;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -37,7 +38,8 @@ class InsuredMailBrandingTest {
         branding = new InsuredMailBranding(insurerRepository, insurerLogoRepository,
                 "https://arbiter-prod.up.railway.app/");
         TenantContext.set("arbiter_bbva");
-        when(insurerRepository.findBySchemaName("arbiter_bbva")).thenReturn(Optional.of(
+        // Lenient: the case links never read the insurer.
+        lenient().when(insurerRepository.findBySchemaName("arbiter_bbva")).thenReturn(Optional.of(
                 Insurer.builder().id(BBVA).name("BBVA Seguros").schemaName("arbiter_bbva").build()));
     }
 
@@ -69,5 +71,21 @@ class InsuredMailBrandingTest {
                 .thenReturn(Optional.of(new InsurerLogo(BBVA, PNG, "image/svg+xml", Instant.now())));
 
         assertThat(branding.signature()).isEqualTo(InsuredMailBranding.DEFAULT_SIGNATURE);
+    }
+
+    /** Case ids repeat across insurers: the link names the one the case belongs to. */
+    @Test
+    void linksTheCaseInTheInsuredPortalOfItsInsurer() {
+        assertThat(branding.caseUrl(42L))
+                .isEqualTo("https://arbiter-prod.up.railway.app/portal/cases/42?insurer=bbva");
+    }
+
+    /** The common schema is no insurer's: naming it would make the portal look in the wrong place. */
+    @Test
+    void withoutATenantTheLinkNamesNoInsurer() {
+        TenantContext.clear();
+
+        assertThat(branding.caseUrl(42L))
+                .isEqualTo("https://arbiter-prod.up.railway.app/portal/cases/42");
     }
 }

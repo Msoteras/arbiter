@@ -48,7 +48,8 @@ export class LoginComponent {
     this.authService.login({ email: this.email().trim(), password: this.password() }).subscribe({
       next: (response) => {
         this.session.start(response);
-        this.router.navigateByUrl(homeRouteFor(response.rol));
+        // A URL of another role's area is fine: roleGuard sends the user to their own home.
+        this.router.navigateByUrl(this.returnUrl() ?? homeRouteFor(response.rol));
       },
       error: (err: HttpErrorResponse) => {
         this.submitting.set(false);
@@ -57,6 +58,18 @@ export class LoginComponent {
         this.errorMessage.set(this.messageFor(err));
       },
     });
+  }
+
+  /**
+   * Where roleGuard was taking the user. Only a path inside the app: the query param comes from a
+   * link, and an absolute or protocol-relative URL would send the user to another site.
+   */
+  private returnUrl(): string | null {
+    const url = this.route.snapshot.queryParamMap.get('returnUrl');
+    if (!url || !url.startsWith('/') || url.startsWith('//') || url.startsWith('/\\')) {
+      return null;
+    }
+    return url;
   }
 
   private messageFor(err: HttpErrorResponse): string {
