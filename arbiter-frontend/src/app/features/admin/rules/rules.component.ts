@@ -855,24 +855,11 @@ export class RulesComponent {
 
   // ───────── Header ─────────
 
-  protected readonly heading = computed<{
-    crumbs: { label: string; branchId?: string }[];
-    title: string;
-    level: string | null;
-  }>(() => {
+  /** Only a branch or a coverage titles its folder card; an insurer section titles its own card. */
+  protected readonly folderTitle = computed<string>(() => {
     switch (this.level()) {
-      case 'audit':
-        return { crumbs: [{ label: 'Auditoría' }], title: 'Historial de cambios', level: null };
-      case 'insurer': {
-        const section = this.generalSections.find((s) => s.id === this.view());
-        return {
-          crumbs: [{ label: 'Aseguradora' }],
-          title: section?.label ?? '',
-          level: 'Aseguradora',
-        };
-      }
       case 'branch':
-        return { crumbs: [{ label: 'Ramos' }], title: this.renameFrom(), level: 'Ramo' };
+        return this.renameFrom();
       case 'coverage': {
         const branchId = this.selectedId() ?? '';
         const id = this.selectedCoverageId();
@@ -880,12 +867,10 @@ export class RulesComponent {
           this.selectedCoverage()?.name ??
           this.treeCoverages()[branchId]?.find((c) => c.id === id)?.name ??
           '';
-        return {
-          crumbs: [{ label: 'Ramos' }, { label: this.renameFrom(), branchId }],
-          title: name || 'Cobertura sin nombre',
-          level: 'Cobertura',
-        };
+        return name || 'Cobertura sin nombre';
       }
+      default:
+        return '';
     }
   });
 

@@ -26,15 +26,7 @@
 
     <!-- ───────── Right panel ───────── -->
     <div #editor class="editor">
-      @if (view() !== 'branch') {
-        <div class="level-title">
-          <h2 class="branch-title">{{ heading().title }}</h2>
-          @if (heading().level; as levelLabel) {
-            <app-badge variant="strong">{{ levelLabel }}</app-badge>
-          }
-        </div>
-      }
-
+      <!-- An insurer section has no header of its own: its card's title already names it. -->
       @if (view() === 'scoring') {
         <app-scoring-config [readOnly]="readOnly()" />
       } @else if (view() === 'fraud') {
@@ -140,7 +132,7 @@
                   </div>
                 </div>
               } @else {
-                <h2 class="folder-title">{{ heading().title }}</h2>
+                <h2 class="folder-title">{{ folderTitle() }}</h2>
                 @if (level() === 'coverage') {
                   <app-badge variant="strong">Cobertura</app-badge>
                 }
@@ -148,8 +140,8 @@
                   <button
                     type="button"
                     class="title-edit"
-                    [attr.aria-label]="'Editar el ramo ' + heading().title"
-                    [title]="'Editar el ramo ' + heading().title"
+                    [attr.aria-label]="'Editar el ramo ' + folderTitle()"
+                    [title]="'Editar el ramo ' + folderTitle()"
                     (click)="startNameEdit()"
                   >
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
@@ -235,10 +227,7 @@
               <!-- Derivations and authorities: rendered above, with their own loading. -->
             } @else if (detailLoading() || tabRendering()) {
               <ng-container
-                *ngTemplateOutlet="
-                  tabSkeleton;
-                  context: { $implicit: 'Cargando ' + heading().title }
-                "
+                *ngTemplateOutlet="tabSkeleton; context: { $implicit: 'Cargando ' + folderTitle() }"
               />
             } @else if (level() === 'coverage') {
               @if (selectedCoverage(); as c) {
