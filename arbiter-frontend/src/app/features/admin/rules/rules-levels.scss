@@ -1,16 +1,7 @@
-/* Third part of the rules screen styles: the header of each level, what a coverage inherits from
-   its branch, and the branch summary. Concatenated after the other two (see rules-sections.scss). */
+/* Third part of the rules screen styles: what a coverage inherits from its branch, and the branch
+   summary. Concatenated after the other two (see rules-sections.scss). */
 
 @use 'media';
-
-/* ───────── Level header: title and level, for the insurer's sections ───────── */
-.level-title {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2) var(--space-3);
-  min-width: 0;
-}
 
 /* ───────── Coverage: what applies from its branch ───────── */
 .inherited {

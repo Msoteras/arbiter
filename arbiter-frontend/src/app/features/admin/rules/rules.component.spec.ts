@@ -221,13 +221,17 @@ describe('RulesComponent', () => {
     return [...group.querySelectorAll('.item .label')].map((l) => text(l));
   }
 
-  /** A branch or a coverage titles its folder card; an insurer section, the panel. */
+  /** A branch or a coverage titles its folder card. */
   function title(): string {
-    return text(el().querySelector('.title-lead .folder-title, .level-title .branch-title'));
+    return text(el().querySelector('.title-lead .folder-title'));
   }
 
   function levelBadge(): string {
-    return text(el().querySelector('.title-lead app-badge, .level-title app-badge'));
+    return text(el().querySelector('.title-lead app-badge'));
+  }
+
+  function editorHeadings(): string[] {
+    return [...el().querySelectorAll('.editor h2')].map((h) => text(h));
   }
 
   function button(label: string): HTMLButtonElement {
@@ -979,7 +983,8 @@ describe('RulesComponent', () => {
       await mount([], 'ANALISTA_SINIESTROS');
       click(treeItem('Hard Stop'));
 
-      expect(levelBadge()).toBe('Aseguradora');
+      expect(editorHeadings()).toEqual(['Hard Stop']);
+      expect(el().querySelector('.editor app-badge')).toBeNull();
       expect(el().querySelectorAll('.editor app-rule-block').length).toBe(2);
       expect(el().querySelector('.editor app-save-bar')).toBeNull();
       expect(editableControls()).toEqual([]);

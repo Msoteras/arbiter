@@ -161,13 +161,6 @@
 .branch-name-field {
   width: min(360px, 100%);
 }
-.branch-title {
-  margin: 0;
-  font-size: var(--font-size-title);
-  font-weight: var(--font-weight-bold);
-  color: var(--text-primary);
-  overflow-wrap: anywhere;
-}
 .tab-panel {
   display: flex;
   flex-direction: column;
