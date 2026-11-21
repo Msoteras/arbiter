@@ -24,6 +24,15 @@ $wide-min: 1180px;
   }
 }
 
+/* Tall enough for the analyst's and referente's home to fit one screen; below it the page scrolls. */
+$fit-min-height: 720px;
+
+@mixin short {
+  @media (max-height: $fit-min-height - 0.02px) {
+    @content;
+  }
+}
+
 @mixin desktop {
   @media (min-width: 640px) and (pointer: fine) {
     @content;

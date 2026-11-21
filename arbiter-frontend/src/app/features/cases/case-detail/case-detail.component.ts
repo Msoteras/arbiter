@@ -95,6 +95,7 @@ import {
   workStatusLabel,
   caseStatusTone,
   isFinalStatus,
+  isPausingStatus,
   riskBandEmptyLabel,
 } from '../../../core/models/case-status';
 import {
@@ -1632,8 +1633,12 @@ export class CaseDetailComponent {
 
   protected readonly deadlineText = computed(() => {
     const d = this.data();
-    if (!d?.responseDeadline) {
+    if (!d?.responseDeadline || isFinalStatus(d.status)) {
       return null;
+    }
+    // The stored date means nothing while paused: it is recalculated when the pause ends.
+    if (isPausingStatus(d.status)) {
+      return 'Plazo en pausa';
     }
     const dateLabel = formatDate(d.responseDeadline);
     return isDeadlinePrioritized(d.deadlinePriority)
