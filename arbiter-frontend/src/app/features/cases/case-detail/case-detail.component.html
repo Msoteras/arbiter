@@ -55,7 +55,9 @@
       <span spotlightLabel>
         <app-logo />
         @if (isFastTrack()) {
-          <span>· Fast Track</span>
+          <app-badge class="strip-ft-badge" variant="strong" [tone]="spotlightTone()"
+            >Fast Track</app-badge
+          >
         }
       </span>
       @let verdict = spotlightVerdict();

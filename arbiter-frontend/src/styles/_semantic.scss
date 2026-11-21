@@ -123,6 +123,8 @@
   /* Tinted surface + border pair for cards that communicate risk. */
   --surface-danger-soft: var(--accent-red-soft);
   --border-danger-soft: var(--accent-red-soft-border);
+  /* Faint ok tint behind a positive mark (the Fast Track label on the decision band). */
+  --surface-ok-soft: var(--accent-soft);
 
   /* ===== Badge ===== */
   --badge-radius: var(--radius-pill);

@@ -1318,7 +1318,11 @@ interface Swatch {
           bienvenida de cada inicio.
         </p>
         <app-spotlight tone="ok">
-          <span spotlightLabel><app-logo /><span>· Fast Track</span></span>
+          <span spotlightLabel
+            ><app-logo /><app-badge class="sg-ft-badge" variant="strong" tone="ok"
+              >Fast Track</app-badge
+            ></span
+          >
           <h4 spotlightTitle>Recomienda <span class="spotlight-tone">aprobar</span>.</h4>
           <div spotlightFigure>
             <span class="spotlight-number">29</span>
@@ -1424,6 +1428,11 @@ interface Swatch {
     }
     .sg-risk-scale {
       max-width: calc(var(--spotlight-actions-w) + var(--space-7));
+    }
+    /* As on the case's decision band (.strip-ft-badge). */
+    .sg-ft-badge {
+      --badge-strong-bg: var(--surface-ok-soft);
+      --badge-strong-border: var(--surface-ok-soft);
     }
     .sg {
       padding: var(--space-5) var(--space-5) var(--space-7);

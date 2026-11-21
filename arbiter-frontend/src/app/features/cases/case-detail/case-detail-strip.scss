@@ -59,6 +59,11 @@
 .decision-strip {
   margin: 0 0 var(--space-4);
 }
+/* Fast Track tinted, not only its dot: in grey it went unnoticed beside the logo. */
+.strip-ft-badge {
+  --badge-strong-bg: var(--surface-ok-soft);
+  --badge-strong-border: var(--surface-ok-soft);
+}
 .strip-below {
   display: grid;
   gap: var(--space-4);
