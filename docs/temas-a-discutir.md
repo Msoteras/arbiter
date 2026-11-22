@@ -35,15 +35,16 @@ La edición del analista no entró en este cierre: sigue en alcance y se trata e
 había que reescribir la HU. No es así: el analista **sí** puede corregir un dato extraído si le
 parece que el modelo lo leyó mal. Lo que pasa es que todavía no está implementado.
 
-**Qué hay que resolver al implementarla.** Son los dos problemas que se habían usado para dejarla
-afuera; ahora son requisitos de diseño:
+**Decidido (30/10/2026): corregir un dato no dispara una reclasificación.** La corrección queda como
+constancia para el analista.
+
+**Requisitos de diseño para implementarla:**
 
 - **Auditoría (decisión #7).** Si la corrección pisa `document_analysis`, cambia el dato que
   fundamentó la recomendación y el log queda mintiendo. La corrección tiene que guardarse aparte
   (quién, cuándo, valor anterior y nuevo) sin tocar lo que leyó el modelo.
-- **Reclasificación.** `document_analysis` se reemplaza en cada corrida, así que una corrección
-  guardada ahí se pierde en la próxima. Además hay que decidir si corregir un dato dispara una
-  reclasificación o solo queda como constancia para el analista.
+- **Persistencia.** `document_analysis` se reemplaza en cada corrida, así que una corrección guardada
+  ahí se pierde en la próxima.
 
 **Qué bloquea:** nada hoy. El analista ve el dato mal leído y lo tiene que tener en cuenta a mano.
 
@@ -165,10 +166,10 @@ desde el panel con sus reglas. Faltan Robo y Hurto en Tecnología Portátil: los
 `2026-10-23-coberturas-de-robo-y-hurto-en-tecnologia-provincia.sql`, con sus exclusiones, reglas
 duras y Fast Track. Aplicada en Railway el 23/10 (coberturas 9 y 10).
 
-**En Railway se va a ver todas las noches hasta que se creen.** La BD Aseguradora de Provincia sí tiene una
+**Hasta el 23/10 esto se vio en Railway todas las noches.** La BD Aseguradora de Provincia sí tiene una
 cobertura de robo en dos pólizas de Tecnología (bajo el nombre "Robo de celular", que es el único
-literal de robo que admite el CHECK de `cobertura.nombre`). Como el ramo no la tiene configurada del
-lado de Arbiter, `PolicyResyncScheduler` la va a saltear y dejar el warning *"coverage(s) not
+literal de robo que admite el CHECK de `cobertura.nombre`). Como el ramo no la tenía configurada del
+lado de Arbiter, `PolicyResyncScheduler` la salteaba y dejaba el warning *"coverage(s) not
 configured on this tenant for its branch, skipped: [Robo de celular]"* en cada corrida. Es
 deliberado: sin el chequeo de ramo, el sync le colgaría a una notebook la cobertura de Celulares,
 con sus plazos y su carencia.
@@ -295,7 +296,7 @@ Desde que el expediente pasa a "Falta documentación", el plazo del art. 56 se c
 un documento de la agenda: ese tiempo corre por cuenta del asegurado. Cuando el asegurado sube lo que
 falta, el expediente se reclasifica. El pedido queda en el historial del expediente.
 
-**Implementado (23/10/2026), sin commitear:**
+**Implementado (23/10/2026), en `main` desde el 28/10/2026:**
 
 - Acción "Pedir documentación" en el detalle del expediente, con un paso de confirmación antes de
   enviar. El chat sigue sin mover el expediente (`CaseMessageService`).

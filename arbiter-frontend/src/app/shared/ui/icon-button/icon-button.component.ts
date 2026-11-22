@@ -1,13 +1,13 @@
 import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 
-export type IconButtonIcon = 'edit' | 'delete' | 'confirm' | 'settings';
+export type IconButtonIcon = 'edit' | 'delete' | 'confirm' | 'settings' | 'send';
 
 /**
  * Square button that shows only an icon, for a row's own actions (edit, remove) where a text button
  * per row would crowd the list, or for a card's way into its own settings (`settings`). `label` is
  * required: it is the accessible name and the tooltip, the only words the action has. The icons are a closed set on purpose, so the same action always
  * looks the same. `size="sm"` sits next to a line of text, like the role in a table cell; on touch
- * layouts both sizes keep the full touch target.
+ * layouts both sizes keep the full touch target. `send` is a chat composer's send action.
  */
 @Component({
   selector: 'app-icon-button',
@@ -43,6 +43,14 @@ export type IconButtonIcon = 'edit' | 'delete' | 'confirm' | 'settings';
             <path
               d="M5 13l4 4L19 7"
               stroke-width="2.2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          }
+          @case ('send') {
+            <path
+              d="M5 12h14M13 6l6 6-6 6"
+              stroke-width="2"
               stroke-linecap="round"
               stroke-linejoin="round"
             />

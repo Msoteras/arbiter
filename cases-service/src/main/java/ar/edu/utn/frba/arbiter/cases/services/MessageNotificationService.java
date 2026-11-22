@@ -112,11 +112,15 @@ public class MessageNotificationService {
         }
     }
 
+    /** The case number and "Ver tu siniestro" open the case in the portal, where the chat is. */
     private String body(Notification notification) {
-        return """
+        Long caseId = notification.getCaseEntity().getId();
+        String url = mailBranding.caseUrl(caseId);
+        String content = """
                 <p>Hola,</p>
                 <p>%s</p>
-                <p>Siniestro <strong>#%d</strong>.</p>
-                %s""".formatted(TO_INSURED, notification.getCaseEntity().getId(), mailBranding.signature());
+                <p>Siniestro <strong>#%d</strong>.</p>""".formatted(TO_INSURED, caseId);
+        return InsuredMailBranding.linkCaseNumbers(content, caseId, url)
+                + CaseNotificationService.caseLink(url) + "\n" + mailBranding.signature();
     }
 }

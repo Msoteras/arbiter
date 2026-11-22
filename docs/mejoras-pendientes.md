@@ -23,9 +23,3 @@ Anotadas durante la validación del 14/10/2026. Ninguna está implementada.
   puede subir el presupuesto o sacar del bundle principal algo que no haga falta al arrancar.
 - **Liquidaciones pendientes no tuvo prueba en el navegador**: La Segunda no tiene liquidaciones por
   autorizar. Usa el mismo mecanismo que la Bandeja, que sí se probó.
-
-## Otras pantallas
-
-- **"Ninguna póliza de este ramo tiene esta cobertura."** La cobertura Robo de Celulares en La Segunda
-  muestra ese aviso: su nombre no coincide con ninguno de las pólizas. Es un dato de prueba, pero el
-  aviso no dice qué hacer.

@@ -345,14 +345,16 @@ interface Swatch {
           la lista. <span class="mono">label</span> es obligatorio: es el nombre accesible y el
           tooltip, las únicas palabras que tiene la acción. Los íconos son un conjunto cerrado
           (<span class="mono">edit</span>, <span class="mono">delete</span>,
-          <span class="mono">confirm</span>) para que la misma acción se vea siempre igual;
-          <span class="mono">delete</span> va en tono peligro, sin relleno.
+          <span class="mono">confirm</span>, <span class="mono">send</span>) para que la misma
+          acción se vea siempre igual; <span class="mono">delete</span> va en tono peligro, sin
+          relleno.
         </p>
         <div class="row">
           <app-icon-button icon="edit" label="Editar" />
           <app-icon-button icon="delete" label="Quitar" />
           <app-icon-button icon="confirm" label="Listo" />
           <app-icon-button icon="settings" label="Configurar" />
+          <app-icon-button icon="send" label="Enviar" />
           <app-icon-button icon="edit" label="Editar" [disabled]="true" />
           <app-icon-button icon="edit" label="Editar" size="sm" />
         </div>

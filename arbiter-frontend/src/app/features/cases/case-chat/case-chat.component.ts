@@ -30,14 +30,15 @@ import {
 } from '../../../core/models/case-message';
 import { chatDayLabel, formatTime } from '../../../core/util/datetime';
 import { CardComponent } from '../../../shared/ui/card/card.component';
-import { ButtonComponent } from '../../../shared/ui/button/button.component';
+import { IconButtonComponent } from '../../../shared/ui/icon-button/icon-button.component';
 import { TextareaComponent } from '../../../shared/ui/textarea/textarea.component';
 import { SkeletonComponent } from '../../../shared/ui/skeleton/skeleton.component';
 import { QuickReply } from './quick-replies';
+import { MessagePart, messageParts } from './message-links';
 
 type ThreadRow =
   | { kind: 'day'; label: string }
-  | { kind: 'msg'; message: CaseMessage }
+  | { kind: 'msg'; message: CaseMessage; parts: MessagePart[] }
   | { kind: 'event'; event: ChatEvent };
 
 /**
@@ -55,7 +56,7 @@ const POLL_MS = 60_000;
 @Component({
   selector: 'app-case-chat',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, CardComponent, ButtonComponent, TextareaComponent, SkeletonComponent],
+  imports: [RouterLink, CardComponent, IconButtonComponent, TextareaComponent, SkeletonComponent],
   host: { '[class.full-height]': 'fullHeight()' },
   templateUrl: './case-chat.component.html',
   styleUrl: './case-chat.component.scss',
@@ -123,7 +124,7 @@ export class CaseChatComponent {
     const timeline = [
       ...this.messages().map((message) => ({
         at: message.createdAt,
-        row: { kind: 'msg', message } as ThreadRow,
+        row: { kind: 'msg', message, parts: messageParts(message.body) } as ThreadRow,
       })),
       ...this.events().map((event) => ({
         at: event.at,
@@ -142,6 +143,16 @@ export class CaseChatComponent {
       rows.push(row);
     }
     return rows;
+  });
+
+  /** Each side opens a case number on its own screen; the insured's carries the insurer, like the mails. */
+  protected readonly caseLink = computed(() => {
+    const insured = this.thread()?.viewerSide === 'INSURED';
+    const insurer = this.insurer();
+    return {
+      path: insured ? '/portal/cases' : '/cases',
+      queryParams: insured && insurer ? { insurer } : {},
+    };
   });
 
   protected rowKey(row: ThreadRow): string {

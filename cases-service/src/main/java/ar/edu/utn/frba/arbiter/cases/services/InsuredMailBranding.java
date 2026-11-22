@@ -12,11 +12,14 @@ import org.springframework.web.util.UriComponentsBuilder;
 
 import java.util.Optional;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * The signature of the mails to the insured: the insurer's logo and name. The logo is an image by
  * URL, not an attachment: embedded (CID), mail clients list it as one more attached file. Also the
- * links from those mails back to the insured's portal, on the same public URL.
+ * links from those mails back to Arbiter, on the same public URL: the insured's portal, and the
+ * case screen for the analysts' own mails.
  */
 @Slf4j
 @Component
@@ -63,6 +66,23 @@ public class InsuredMailBranding {
             url.queryParam("insurer", InsurerSlug.fromSchema(schema));
         }
         return url.buildAndExpand(caseId).encode().toUriString();
+    }
+
+    /** The case as the analyst sees it. An analyst works for one insurer: the session sets the tenant. */
+    public String analystCaseUrl(Long caseId) {
+        return UriComponentsBuilder.fromUriString(publicBaseUrl)
+                .path("/cases/{id}")
+                .buildAndExpand(caseId).encode().toUriString();
+    }
+
+    /**
+     * Turns every "#{caseId}" in {@code html} into a link to {@code url}. Not followed by a digit,
+     * so case 12 never links inside "#123". {@code html} must already be escaped.
+     */
+    public static String linkCaseNumbers(String html, long caseId, String url) {
+        String anchor = "<a href=\"%s\">#%d</a>".formatted(HtmlUtils.htmlEscape(url), caseId);
+        return Pattern.compile("#" + caseId + "(?!\\d)").matcher(html)
+                .replaceAll(Matcher.quoteReplacement(anchor));
     }
 
     /** Best-effort: a logo nobody could read must not stop the notification. */

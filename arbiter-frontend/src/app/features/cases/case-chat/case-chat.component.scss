@@ -129,6 +129,18 @@ app-card {
   overflow-wrap: anywhere;
 }
 
+/* Inherits the bubble's color, so it reads on both sides; the underline is what marks it. */
+.case-link {
+  color: inherit;
+  font-weight: var(--font-weight-medium);
+  text-decoration: underline;
+}
+.case-link:focus-visible {
+  outline: none;
+  border-radius: var(--radius-ctl);
+  box-shadow: var(--focus-ring);
+}
+
 .meta {
   margin: var(--space-1) var(--space-1) 0;
   font-size: var(--font-size-2xs);
@@ -205,10 +217,6 @@ app-card {
   background: transparent;
   resize: none;
   box-shadow: none;
-}
-
-.composer-box app-button ::ng-deep .btn {
-  border-radius: var(--radius-ctl);
 }
 
 .hint {
