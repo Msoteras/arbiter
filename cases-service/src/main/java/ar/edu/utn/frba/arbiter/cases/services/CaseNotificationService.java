@@ -22,6 +22,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.web.util.HtmlUtils;
 
 import java.text.NumberFormat;
 import java.time.Instant;
@@ -336,9 +337,18 @@ public class CaseNotificationService {
         return """
                 <p>Hola,</p>
                 <p>%s</p>%s
-                <p>Siniestro <strong>#%d</strong>.</p>
+                <p>Siniestro <strong>#%d</strong>.</p>%s
                 %s""".formatted(message.body(), approvedAmountLine(caseRecord, type), caseRecord.getId(),
-                mailBranding.signature());
+                approvedCaseLink(caseRecord, type), mailBranding.signature());
+    }
+
+    /** Opens the case in the insured's portal; the login brings them back to it. */
+    private String approvedCaseLink(Case caseRecord, String type) {
+        if (!CaseStatus.APPROVED.name().equals(type)) {
+            return "";
+        }
+        return "\n<p><a href=\"%s\">Ver tu siniestro</a></p>"
+                .formatted(HtmlUtils.htmlEscape(mailBranding.caseUrl(caseRecord.getId())));
     }
 
     /** Empty without a settlement; best-effort, so a failed read never stops the approval email. */

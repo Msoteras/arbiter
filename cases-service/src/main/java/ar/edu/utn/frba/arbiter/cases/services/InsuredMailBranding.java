@@ -8,13 +8,15 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.util.HtmlUtils;
+import org.springframework.web.util.UriComponentsBuilder;
 
 import java.util.Optional;
 import java.util.Set;
 
 /**
  * The signature of the mails to the insured: the insurer's logo and name. The logo is an image by
- * URL, not an attachment: embedded (CID), mail clients list it as one more attached file.
+ * URL, not an attachment: embedded (CID), mail clients list it as one more attached file. Also the
+ * links from those mails back to the insured's portal, on the same public URL.
  */
 @Slf4j
 @Component
@@ -47,6 +49,20 @@ public class InsuredMailBranding {
                         """.formatted(publicBaseUrl, InsurerSlug.of(insurer),
                         HtmlUtils.htmlEscape(insurer.getName()), HtmlUtils.htmlEscape(insurer.getName())))
                 .orElse(DEFAULT_SIGNATURE);
+    }
+
+    /**
+     * The case as the insured sees it in the portal. Case ids repeat across insurers, so it names
+     * the resolved tenant's: without it the portal would look the case up in the insured's default one.
+     */
+    public String caseUrl(Long caseId) {
+        UriComponentsBuilder url = UriComponentsBuilder.fromUriString(publicBaseUrl)
+                .path("/portal/cases/{id}");
+        String schema = TenantContext.get();
+        if (!TenantContext.COMMON_SCHEMA.equals(schema)) {
+            url.queryParam("insurer", InsurerSlug.fromSchema(schema));
+        }
+        return url.buildAndExpand(caseId).encode().toUriString();
     }
 
     /** Best-effort: a logo nobody could read must not stop the notification. */

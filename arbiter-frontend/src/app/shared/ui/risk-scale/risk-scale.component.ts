@@ -6,9 +6,12 @@ import { RISK_BANDS, RiskBand, riskBandLabel } from '../../../core/models/risk-b
 const BAND_WIDTHS = [30, 30, 20, 20];
 
 /**
- * The fraud risk thermometer: a low-to-critical gradient with a marker on the score. With
- * `labels`, the four bands are named under it and the case's band is the one in bold.
+ * The fraud risk thermometer: a low-to-critical gradient with a marker in the middle of the case's
+ * band. With `labels`, the four bands are named under it and the case's band is the one in bold.
  * Decorative for screen readers: the score and band are always written next to it.
+ *
+ * The marker goes by band, not by score: each insurer sets its own cuts, so a 33 can be High and
+ * would otherwise sit on the Medium color. The score places it only when there is no band.
  */
 @Component({
   selector: 'app-risk-scale',
@@ -88,7 +91,15 @@ export class RiskScaleComponent {
   /** Names the four bands under the bar. */
   readonly labels = input(false);
 
-  protected readonly position = computed(() => Math.min(100, Math.max(0, this.score())));
+  protected readonly position = computed(() => {
+    const band = this.band();
+    if (band === null) {
+      return Math.min(100, Math.max(0, this.score()));
+    }
+    const i = RISK_BANDS.indexOf(band);
+    const start = BAND_WIDTHS.slice(0, i).reduce((sum, width) => sum + width, 0);
+    return start + BAND_WIDTHS[i] / 2;
+  });
   protected readonly bands = RISK_BANDS.map((band, i) => ({
     band,
     label: riskBandLabel(band),

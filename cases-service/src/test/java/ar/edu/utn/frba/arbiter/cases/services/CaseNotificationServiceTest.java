@@ -74,6 +74,7 @@ class CaseNotificationServiceTest {
     @BeforeEach
     void signsAsArbiter() {
         lenient().when(mailBranding.signature()).thenReturn("<p>Arbiter</p>");
+        lenient().when(mailBranding.caseUrl(any())).thenReturn("https://arbiter.test/portal/cases/42");
     }
 
     @AfterEach
@@ -113,6 +114,28 @@ class CaseNotificationServiceTest {
 
         assertThat(firstSaved().isSent()).isFalse();
         assertThat(firstSaved().getSentAt()).isNull();
+    }
+
+    @Test
+    void notifyStatusChange_linksTheApprovalToTheCaseInThePortal() {
+        savesWhatItIsGiven();
+        when(mailBranding.caseUrl(42L))
+                .thenReturn("https://arbiter.test/portal/cases/42?insurer=bbva&x=1");
+
+        service.notifyStatusChange(caseWith(insuredWith(INSURED_EMAIL)), CaseStatus.APPROVED);
+
+        assertThat(sentBody()).contains(
+                "<a href=\"https://arbiter.test/portal/cases/42?insurer=bbva&amp;x=1\">Ver tu siniestro</a>");
+    }
+
+    @Test
+    void notifyStatusChange_linksOnlyTheApproval() {
+        savesWhatItIsGiven();
+
+        service.notifyStatusChange(caseWith(insuredWith(INSURED_EMAIL)), CaseStatus.REJECTED);
+
+        assertThat(sentBody()).doesNotContain("<a ");
+        verify(mailBranding, never()).caseUrl(any());
     }
 
     /** Only what asks the insured for something or is the outcome; the rest is internal traffic. */
@@ -344,6 +367,12 @@ class CaseNotificationServiceTest {
     private void savesWhatItIsGiven() {
         when(notificationRepository.save(any(Notification.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
+    }
+
+    private String sentBody() {
+        ArgumentCaptor<String> body = ArgumentCaptor.forClass(String.class);
+        verify(sendGridAdapter).send(anyString(), anyString(), body.capture());
+        return body.getValue();
     }
 
     private Notification firstSaved() {

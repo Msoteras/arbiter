@@ -42,7 +42,7 @@ export type SidebarLinkIcon = IconName | 'arbiter';
       @if (name === 'arbiter') {
         <span class="link-icon link-logo"><app-logo variant="symbol" /></span>
       } @else {
-        <app-icon [name]="name" class="link-icon" />
+        <app-icon [name]="name" size="lg" class="link-icon" />
       }
     }
     <span class="link-label">{{ label() }}</span>
@@ -67,7 +67,7 @@ export type SidebarLinkIcon = IconName | 'arbiter';
       height: var(--sidebar-item-h);
       padding: 0 var(--space-2);
       border-radius: var(--radius-ctl);
-      font-size: var(--font-size-md);
+      font-size: var(--font-size-lg);
       color: var(--sidebar-fg);
       text-decoration: none;
       white-space: nowrap;
@@ -96,9 +96,9 @@ export type SidebarLinkIcon = IconName | 'arbiter';
       flex: none;
       display: grid;
       place-items: center;
-      width: var(--icon-md);
-      height: var(--icon-md);
-      --logo-size: var(--font-size-sm);
+      width: var(--icon-lg);
+      height: var(--icon-lg);
+      --logo-size: var(--font-size-body);
     }
     :host(.is-collapsed) {
       width: var(--sidebar-item-h);
