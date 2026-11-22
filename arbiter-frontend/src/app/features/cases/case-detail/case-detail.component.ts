@@ -1,4 +1,5 @@
 import {
+  afterNextRender,
   ChangeDetectionStrategy,
   Component,
   computed,
@@ -6,6 +7,7 @@ import {
   effect,
   ElementRef,
   inject,
+  Injector,
   linkedSignal,
   signal,
   untracked,
@@ -194,6 +196,8 @@ interface BriefAlert {
   tab: TabId | 'chat';
   /** Strong fraud signal: only the ▲ turns red, the label keeps its color. */
   danger?: boolean;
+  /** Id of the card to scroll to inside the tab; without it, the tabs themselves. */
+  anchor?: string;
 }
 
 @Component({
@@ -239,6 +243,8 @@ interface BriefAlert {
 })
 export class CaseDetailComponent {
   private readonly route = inject(ActivatedRoute);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly injector = inject(Injector);
   private readonly service = inject(CaseService);
   private readonly toast = inject(ToastService);
   private readonly caseNav = inject(CaseNavigationService);
@@ -1014,18 +1020,37 @@ export class CaseDetailComponent {
     if (briefAlert.tab === 'chat') {
       this.chatOpen.set(true);
     } else {
-      this.setTab(briefAlert.tab);
+      this.goToTab(briefAlert.tab, briefAlert.anchor);
     }
+  }
+
+  /**
+   * Opens the tab and scrolls down to it, or to one of its cards: changing the tab alone happens
+   * below the summary, out of sight, and the click looks like a no-op.
+   */
+  protected goToTab(tab: TabId, anchor?: string): void {
+    this.setTab(tab);
+    afterNextRender(
+      () => {
+        const host = this.host.nativeElement;
+        const card = anchor ? host.querySelector<HTMLElement>(`#${anchor}`) : null;
+        const target = card ?? this.tabsNav().nativeElement;
+        // Stop below the pinned header, or it covers the start of what the click pointed at.
+        const header = host.querySelector<HTMLElement>('.det-header');
+        const covered = header ? header.getBoundingClientRect().bottom : 0;
+        target.style.scrollMarginTop = `calc(${covered}px + var(--space-3))`;
+        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      },
+      { injector: this.injector },
+    );
   }
 
   private readonly tabsNav = viewChild.required<string, ElementRef<HTMLElement>>('tabsNav', {
     read: ElementRef,
   });
 
-  /** The tabs sit below the fold on mobile: without the scroll the click would look like a no-op. */
   protected viewAnalysis(): void {
-    this.setTab('analysis');
-    this.tabsNav().nativeElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    this.goToTab('analysis');
   }
 
   private readonly verbLabels: Record<Verb, string> = {
@@ -1857,6 +1882,7 @@ export class CaseDetailComponent {
         label:
           failedFindings === 1 ? '1 regla no cumplida' : `${failedFindings} reglas no cumplidas`,
         tab: 'rules',
+        anchor: 'rules-evaluated',
       });
     }
     // One alert per source, so the label says where the image was seen before.

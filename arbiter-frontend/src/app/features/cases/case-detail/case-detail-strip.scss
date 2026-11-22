@@ -232,39 +232,8 @@
 .band-chip[data-tone='danger'] {
   background: var(--status-danger-strong);
 }
-.risk-bar {
-  position: relative;
-  height: var(--space-2);
+.risk-scale {
   margin-top: var(--space-2);
-  border-radius: var(--radius-pill);
-  background: linear-gradient(
-    90deg,
-    var(--status-ok) 0%,
-    var(--status-warning) 45%,
-    var(--status-risk) 70%,
-    var(--status-danger) 100%
-  );
-}
-.risk-marker {
-  position: absolute;
-  top: calc(var(--space-1) * -1);
-  width: var(--space-1);
-  height: calc(var(--space-2) + var(--space-2));
-  border-radius: var(--radius-pill);
-  background: var(--text-primary);
-  box-shadow: 0 0 0 calc(var(--space-1) / 2) var(--surface);
-  transform: translateX(-50%);
-  animation: risk-marker-in var(--dur-3) var(--ease-out);
-}
-@keyframes risk-marker-in {
-  from {
-    left: 0;
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .risk-marker {
-    animation: none;
-  }
 }
 .weigh-dot {
   flex: none;

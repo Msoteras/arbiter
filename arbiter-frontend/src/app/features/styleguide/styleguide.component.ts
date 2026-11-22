@@ -1294,9 +1294,9 @@ interface Swatch {
         <h3 class="sg-h3">Risk scale</h3>
         <p class="sg-p">
           El termómetro del riesgo de fraude (<span class="mono">app-risk-scale</span>): de bajo a
-          crítico, con la marca en el puntaje. Con <span class="mono">labels</span> nombra las
-          cuatro bandas y resalta la del expediente. El puntaje y la banda van siempre escritos al
-          lado: el termómetro es solo visual.
+          crítico, con la marca en el medio de la banda del expediente (sin banda, en el puntaje).
+          Con <span class="mono">labels</span> nombra las cuatro bandas y resalta la del expediente.
+          El puntaje y la banda van siempre escritos al lado: el termómetro es solo visual.
         </p>
         <div class="sg-risk-scale">
           <app-risk-scale [score]="64" band="HIGH" [labels]="true" />

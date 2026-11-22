@@ -71,7 +71,7 @@
             <div class="spotlight-aside-head">
               <h3 class="spotlight-panel-label">Criterios de Fast Track</h3>
               @if (fastTrackCriteria().length > asideRows) {
-                <button type="button" class="summary-link panel-more" (click)="setTab('rules')">
+                <button type="button" class="summary-link panel-more" (click)="goToTab('rules')">
                   Ver los {{ fastTrackCriteria().length }}
                 </button>
               }
@@ -136,7 +136,7 @@
             } @else if (isFastTrack()) {
               <span>Sin pedido de documentación adicional</span>
             } @else {
-              <button type="button" class="summary-link" (click)="setTab('rules')">
+              <button type="button" class="summary-link" (click)="goToTab('rules')">
                 Ver la evaluación de reglas
               </button>
             }
@@ -839,45 +839,9 @@
         }
 
         @case ('analysis') {
-          <!-- Without reasons (a rules outcome) the score takes the whole row. -->
+          <!-- The score first, the reasons beside it. Without reasons (a rules outcome) the score takes
+               the whole row. -->
           <div class="analysis-grid" [class.single]="analysisReasons().length === 0">
-            @if (analysisReasons().length > 0) {
-              <app-card heading="Razones">
-                <span cardAside class="t-note"
-                  >{{ analysisReasons().length }}
-                  {{ analysisReasons().length === 1 ? 'motivo' : 'motivos' }}</span
-                >
-                <ol class="reason-list">
-                  @for (segments of reasonSegments(); track $index) {
-                    <li class="reason-item">
-                      <span class="reason-num mono" aria-hidden="true">{{
-                        ($index + 1).toString().padStart(2, '0')
-                      }}</span>
-                      <!-- A document the model names opens in «Documentación», to check it there. -->
-                      <span class="t-body">
-                        @for (s of segments; track $index) {
-                          @if (s.code) {
-                            <button
-                              type="button"
-                              class="brief-link"
-                              [attr.aria-label]="'Ver ' + s.text"
-                              (click)="openDocument(s.code)"
-                            >
-                              {{ s.text }}
-                            </button>
-                          } @else {
-                            <span>{{ s.text }}</span>
-                          }
-                        }
-                      </span>
-                    </li>
-                  }
-                </ol>
-                @if (classificationLabel() && !isDeterministicOutcome()) {
-                  <p class="t-note">Confianza de Arbiter: {{ confidencePercent() }}%</p>
-                }
-              </app-card>
-            }
             <app-card heading="Score de fraude">
               @if (riskScorePct() !== null) {
                 <div class="risk-head">
@@ -887,13 +851,7 @@
                     <span class="band-chip" [attr.data-tone]="riskTone()">{{ band }}</span>
                   }
                 </div>
-                <div
-                  class="risk-bar"
-                  role="img"
-                  [attr.aria-label]="'Score de fraude ' + riskScorePct() + ' sobre 100'"
-                >
-                  <span class="risk-marker" [style.left.%]="riskScorePct()"></span>
-                </div>
+                <app-risk-scale class="risk-scale" [score]="riskScorePct()!" [band]="riskBand()" />
                 @if (fastTrackScoreScope() === 'partial') {
                   <p class="t-note">
                     Fast Track: score parcial, solo con datos estructurados. El análisis de
@@ -947,56 +905,104 @@
                 <app-empty-state message="Este expediente todavía no tiene score de fraude" />
               }
             </app-card>
+            @if (analysisReasons().length > 0) {
+              <app-card heading="Razones">
+                <span cardAside class="t-note"
+                  >{{ analysisReasons().length }}
+                  {{ analysisReasons().length === 1 ? 'motivo' : 'motivos' }}</span
+                >
+                <ol class="reason-list">
+                  @for (segments of reasonSegments(); track $index) {
+                    <li class="reason-item">
+                      <span class="reason-num mono" aria-hidden="true">{{
+                        ($index + 1).toString().padStart(2, '0')
+                      }}</span>
+                      <!-- A document the model names opens in «Documentación», to check it there. -->
+                      <span class="t-body">
+                        @for (s of segments; track $index) {
+                          @if (s.code) {
+                            <button
+                              type="button"
+                              class="brief-link"
+                              [attr.aria-label]="'Ver ' + s.text"
+                              (click)="openDocument(s.code)"
+                            >
+                              {{ s.text }}
+                            </button>
+                          } @else {
+                            <span>{{ s.text }}</span>
+                          }
+                        }
+                      </span>
+                    </li>
+                  }
+                </ol>
+                @if (classificationLabel() && !isDeterministicOutcome()) {
+                  <p class="t-note">Confianza de Arbiter: {{ confidencePercent() }}%</p>
+                }
+              </app-card>
+            }
           </div>
         }
 
         <!-- Nothing is fetched live here: everything was persisted at classification time. -->
         @case ('rules') {
           <div class="trace">
-            @if (advisoryChecks().length > 0) {
-              <app-card heading="Para revisar antes de resolver">
-                <p class="t-note trace-intro">
-                  @if (hasAdvisoryWarning()) {
-                    @if (advisoryWarningTypes().has('CLAIM_CAUSE_MATCH')) {
-                      La documentación narra otro hecho que el declarado.
+            <div class="rules-grid">
+              <!-- Separate card: failing a Fast Track criterion is not a coverage exclusion. -->
+              @if (fastTrackCriteria().length > 0) {
+                <app-card heading="Criterios de Fast Track" [fill]="true">
+                  <app-badge cardAside variant="strong" [tone]="isFastTrack() ? 'ok' : 'neutral'">
+                    {{ isFastTrack() ? 'Aplicó' : 'No aplicó' }}
+                  </app-badge>
+                  <ul class="criteria">
+                    @for (c of fastTrackCriteria(); track c.id) {
+                      <li class="criterion">
+                        <span class="criterion-text">
+                          <span class="criterion-name">{{ ruleTypeLabel(c.ruleType) }}</span>
+                          <span class="t-note">{{
+                            ruleEvaluationText(c.ruleType, c.evaluatedValue)
+                          }}</span>
+                        </span>
+                        <app-badge variant="solid" [tone]="ruleResultTone(c.result)">
+                          {{ ruleResultLabel(c.result) }}
+                        </app-badge>
+                      </li>
                     }
-                    @if (advisoryWarningTypes().has('VISUAL_TAMPERING')) {
-                      Hay señales de adulteración en la documentación.
-                    }
-                  } @else {
-                    La documentación narra el mismo hecho que declaró el asegurado.
-                  }
-                </p>
-                <div class="trace-scroll">
-                  <table class="trace-table">
-                    <thead>
-                      <tr>
-                        <th>Control</th>
-                        <th>Resultado</th>
-                        <th>Qué se comparó</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      @for (a of advisoryChecks(); track a.id) {
-                        <tr>
-                          <td>{{ ruleTypeLabel(a.ruleType) }}</td>
-                          <td>
-                            <app-badge variant="solid" [tone]="advisoryResultTone(a.result)">
-                              {{ advisoryResultLabel(a.result) }}
-                            </app-badge>
-                          </td>
-                          <td class="trace-value">
-                            {{ ruleEvaluationText(a.ruleType, a.evaluatedValue) }}
-                          </td>
-                        </tr>
-                      }
-                    </tbody>
-                  </table>
-                </div>
-              </app-card>
-            }
+                  </ul>
+                </app-card>
+              }
 
-            <app-card heading="Reglas evaluadas">
+              <app-card heading="Datos de clasificación" [fill]="true">
+                @if (policySnapshot(); as s) {
+                  @for (g of snapshotGroups(); track $index) {
+                    @if (g.heading) {
+                      <h4 class="t-section-label trace-subhead">{{ g.heading }}</h4>
+                    }
+                    <dl class="fields">
+                      @for (f of g.fields; track f.label) {
+                        <div class="field">
+                          <dt class="t-field-label">{{ f.label }}</dt>
+                          @if (f.value) {
+                            <dd [class.mono]="f.mono">{{ f.value }}</dd>
+                          } @else {
+                            <dd class="nodata">Sin datos</dd>
+                          }
+                        </div>
+                      }
+                    </dl>
+                  }
+                  <span class="t-note">
+                    Valores al {{ formatDateTime(s.queriedAt) }}. La suma asegurada es la de esa
+                    cobertura.
+                  </span>
+                } @else {
+                  <p class="nodata">Todavía no hay foto: se toma al clasificar.</p>
+                }
+              </app-card>
+            </div>
+
+            <app-card id="rules-evaluated" heading="Reglas evaluadas">
               @if (hardRuleResults().length > 0) {
                 <app-chip-group
                   cardAside
@@ -1050,59 +1056,48 @@
               }
             </app-card>
 
-            <div class="rules-grid">
-              <!-- Separate card: failing a Fast Track criterion is not a coverage exclusion. -->
-              @if (fastTrackCriteria().length > 0) {
-                <app-card heading="Criterios de Fast Track">
-                  <app-badge cardAside variant="strong" [tone]="isFastTrack() ? 'ok' : 'neutral'">
-                    {{ isFastTrack() ? 'Aplicó' : 'No aplicó' }}
-                  </app-badge>
-                  <ul class="criteria">
-                    @for (c of fastTrackCriteria(); track c.id) {
-                      <li class="criterion">
-                        <span class="criterion-text">
-                          <span class="criterion-name">{{ ruleTypeLabel(c.ruleType) }}</span>
-                          <span class="t-note">{{
-                            ruleEvaluationText(c.ruleType, c.evaluatedValue)
-                          }}</span>
-                        </span>
-                        <app-badge variant="solid" [tone]="ruleResultTone(c.result)">
-                          {{ ruleResultLabel(c.result) }}
-                        </app-badge>
-                      </li>
+            @if (advisoryChecks().length > 0) {
+              <app-card heading="Para revisar antes de resolver">
+                <p class="t-note trace-intro">
+                  @if (hasAdvisoryWarning()) {
+                    @if (advisoryWarningTypes().has('CLAIM_CAUSE_MATCH')) {
+                      La documentación narra otro hecho que el declarado.
                     }
-                  </ul>
-                </app-card>
-              }
-
-              <app-card heading="Datos de clasificación">
-                @if (policySnapshot(); as s) {
-                  @for (g of snapshotGroups(); track $index) {
-                    @if (g.heading) {
-                      <h4 class="t-section-label trace-subhead">{{ g.heading }}</h4>
+                    @if (advisoryWarningTypes().has('VISUAL_TAMPERING')) {
+                      Hay señales de adulteración en la documentación.
                     }
-                    <dl class="fields">
-                      @for (f of g.fields; track f.label) {
-                        <div class="field">
-                          <dt class="t-field-label">{{ f.label }}</dt>
-                          @if (f.value) {
-                            <dd [class.mono]="f.mono">{{ f.value }}</dd>
-                          } @else {
-                            <dd class="nodata">Sin datos</dd>
-                          }
-                        </div>
-                      }
-                    </dl>
+                  } @else {
+                    La documentación narra el mismo hecho que declaró el asegurado.
                   }
-                  <span class="t-note">
-                    Valores al {{ formatDateTime(s.queriedAt) }}. La suma asegurada es la de esa
-                    cobertura.
-                  </span>
-                } @else {
-                  <p class="nodata">Todavía no hay foto: se toma al clasificar.</p>
-                }
+                </p>
+                <div class="trace-scroll">
+                  <table class="trace-table">
+                    <thead>
+                      <tr>
+                        <th>Control</th>
+                        <th>Resultado</th>
+                        <th>Qué se comparó</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      @for (a of advisoryChecks(); track a.id) {
+                        <tr>
+                          <td>{{ ruleTypeLabel(a.ruleType) }}</td>
+                          <td>
+                            <app-badge variant="solid" [tone]="advisoryResultTone(a.result)">
+                              {{ advisoryResultLabel(a.result) }}
+                            </app-badge>
+                          </td>
+                          <td class="trace-value">
+                            {{ ruleEvaluationText(a.ruleType, a.evaluatedValue) }}
+                          </td>
+                        </tr>
+                      }
+                    </tbody>
+                  </table>
+                </div>
               </app-card>
-            </div>
+            }
           </div>
         }
         @case ('insured') {
