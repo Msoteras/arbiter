@@ -7,7 +7,7 @@ quedan afuera del backlog de Trello por eso.
 El DER sigue siendo la fuente de verdad (`CLAUDE.md`). Este documento no propone desvíos: es la
 lista de qué hay que corregirle. Cuando una entrada queda aplicada en el `.mdj`, se borra de acá.
 
-**Última revisión: 24/10/2026, duodécima pasada.** No queda nada abierto.
+**Última revisión: 24/10/2026, duodécima pasada.** Queda abierta la entrada 47.
 
 **Revisado el 16/10/2026, novena pasada** contra el `.mdj` editado ese día y contra
 `db/init-multitenant.sql`. Salieron las entradas 5, 6, 8, 9, 13 (`analisis_llm.fecha_analisis`), 16,
@@ -96,9 +96,9 @@ quedó aplicada el mismo día: `documento_expediente` y `analista_siniestro` 1�
 
 ## Para editar en el `.mdj`
 
-El `.mdj` del 03/11 coincide con el esquema, salvo esta columna:
+El `.mdj` del 03/11 coincide con el esquema, salvo esta columna, que ya está en `main`:
 
-### 40 · `expediente.documentos_pedidos` — columna nueva (23/10)
+### 47 · `expediente.documentos_pedidos` — columna nueva (23/10)
 
 Los documentos que el analista le pide al asegurado
 (`2026-10-23-documentos-pedidos-por-el-analista.sql`).

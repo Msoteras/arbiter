@@ -1,0 +1,10 @@
+{
+  "perfil": "demoBbva",
+  "cambia": "robo de un Samsung Galaxy A16 en Primera Junta, ayer — caso de Fast Track de la presentación",
+  "antes": "correr scripts/reset-asegurados-de-prueba.sql si Sofía ya tiene expedientes",
+  "seDetectaEn": [
+    "rule_result: criterios de FAST_TRACK en PASS (ratio 0,48; 0 siniestros previos; póliza al día)"
+  ],
+  "resultadoEsperado": "FAST_TRACK",
+  "notas": []
+}
