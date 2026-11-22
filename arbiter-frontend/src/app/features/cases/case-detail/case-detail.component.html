@@ -952,7 +952,37 @@
 
         <!-- Nothing is fetched live here: everything was persisted at classification time. -->
         @case ('rules') {
+          <!-- Separate card: failing a Fast Track criterion is not a coverage exclusion. -->
+          <ng-template #fastTrackCard>
+            <app-card heading="Criterios de Fast Track">
+              <app-badge cardAside variant="strong" [tone]="isFastTrack() ? 'ok' : 'neutral'">
+                {{ isFastTrack() ? 'Aplicó' : 'No aplicó' }}
+              </app-badge>
+              <ul class="criteria">
+                @for (c of fastTrackCriteria(); track c.id) {
+                  <li class="criterion">
+                    <span class="criterion-text">
+                      <span class="criterion-name">{{ ruleTypeLabel(c.ruleType) }}</span>
+                      <span class="t-note">{{
+                        ruleEvaluationText(c.ruleType, c.evaluatedValue)
+                      }}</span>
+                    </span>
+                    <app-badge variant="solid" [tone]="ruleResultTone(c.result)">
+                      {{ ruleResultLabel(c.result) }}
+                    </app-badge>
+                  </li>
+                }
+              </ul>
+            </app-card>
+          </ng-template>
+
           <div class="trace">
+            <!-- When it applied, Fast Track is the reason for the verdict, so it goes first. When it
+                 did not, the hard rules weigh more and it stays next to the classification data. -->
+            @if (isFastTrack() && fastTrackCriteria().length > 0) {
+              <ng-container [ngTemplateOutlet]="fastTrackCard" />
+            }
+
             @if (advisoryChecks().length > 0) {
               <app-card heading="Para revisar antes de resolver">
                 <p class="t-note trace-intro">
@@ -1051,28 +1081,8 @@
             </app-card>
 
             <div class="rules-grid">
-              <!-- Separate card: failing a Fast Track criterion is not a coverage exclusion. -->
-              @if (fastTrackCriteria().length > 0) {
-                <app-card heading="Criterios de Fast Track">
-                  <app-badge cardAside variant="strong" [tone]="isFastTrack() ? 'ok' : 'neutral'">
-                    {{ isFastTrack() ? 'Aplicó' : 'No aplicó' }}
-                  </app-badge>
-                  <ul class="criteria">
-                    @for (c of fastTrackCriteria(); track c.id) {
-                      <li class="criterion">
-                        <span class="criterion-text">
-                          <span class="criterion-name">{{ ruleTypeLabel(c.ruleType) }}</span>
-                          <span class="t-note">{{
-                            ruleEvaluationText(c.ruleType, c.evaluatedValue)
-                          }}</span>
-                        </span>
-                        <app-badge variant="solid" [tone]="ruleResultTone(c.result)">
-                          {{ ruleResultLabel(c.result) }}
-                        </app-badge>
-                      </li>
-                    }
-                  </ul>
-                </app-card>
+              @if (!isFastTrack() && fastTrackCriteria().length > 0) {
+                <ng-container [ngTemplateOutlet]="fastTrackCard" />
               }
 
               <app-card heading="Datos de clasificación">

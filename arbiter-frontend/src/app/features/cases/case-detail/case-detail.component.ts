@@ -14,6 +14,7 @@ import {
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
+import { NgTemplateOutlet } from '@angular/common';
 import {
   catchError,
   combineLatest,
@@ -199,6 +200,7 @@ interface BriefAlert {
 @Component({
   selector: 'app-case-detail',
   imports: [
+    NgTemplateOutlet,
     ChipGroupComponent,
     RouterLink,
     InfoTipComponent,
