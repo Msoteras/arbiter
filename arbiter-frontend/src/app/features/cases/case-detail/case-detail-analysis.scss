@@ -46,9 +46,9 @@
 
 .analysis-grid {
   display: grid;
-  /* The reasons first, and with the room: they're sentences, the score is a figure and a list of
-     factors. */
-  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  /* The score on the left; the reasons get the room: they're sentences, the score is a figure and
+     a list of factors. */
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
   align-items: start;
   gap: var(--space-4);
 }
@@ -142,7 +142,6 @@
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr));
   gap: var(--space-4);
-  align-items: start;
 }
 
 .criteria {
@@ -155,7 +154,7 @@
   justify-content: space-between;
   align-items: flex-start;
   gap: var(--space-3);
-  padding: var(--space-2) 0;
+  padding: var(--space-3) 0;
   border-top: 1px solid var(--border-subtle);
 }
 .criterion-text {
@@ -164,7 +163,7 @@
   min-width: 0;
 }
 .criterion-name {
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-md);
   color: var(--text-primary);
 }
 

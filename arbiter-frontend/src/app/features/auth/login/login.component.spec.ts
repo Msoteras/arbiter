@@ -1,11 +1,12 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
-import { throwError } from 'rxjs';
+import { provideRouter, Router } from '@angular/router';
+import { RouterTestingHarness } from '@angular/router/testing';
+import { of, throwError } from 'rxjs';
 
 import { LoginComponent } from './login.component';
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
-import { AuthService } from '../../../core/auth/auth.service';
+import { AuthService, LoginResponse } from '../../../core/auth/auth.service';
 
 interface LoginInternals {
   email: { set: (value: string) => void };
@@ -64,5 +65,57 @@ describe('LoginComponent · locked account', () => {
     const message = await errorShownFor(null);
 
     expect(message).toBe('Cuenta bloqueada temporalmente. Probá de nuevo más tarde.');
+  });
+});
+
+describe('LoginComponent · return URL', () => {
+  const insured: LoginResponse = {
+    token: 'jwt',
+    expiresAt: '2026-11-21T20:00:00Z',
+    id: 7,
+    email: 'martina@example.com',
+    rol: 'ASEGURADO',
+    nombre: 'Martina',
+    apellido: 'López',
+    insuredId: '42.987.654',
+    onboardingComplete: true,
+    insurerName: null,
+    insurerLogoVersion: null,
+  };
+
+  /** Logs in from `url` and returns where the login navigated to. */
+  async function landingAfterLoginFrom(url: string): Promise<string> {
+    TestBed.configureTestingModule({
+      providers: [
+        provideRouter([{ path: 'login', component: LoginComponent }]),
+        { provide: AuthService, useValue: { login: () => of(insured) } },
+        { provide: AuthSessionService, useValue: { start: () => undefined } },
+      ],
+    });
+    const harness = await RouterTestingHarness.create(url);
+    const navigate = spyOn(TestBed.inject(Router), 'navigateByUrl').and.resolveTo(true);
+    const login = harness.routeDebugElement!.componentInstance as LoginInternals;
+    login.email.set(insured.email);
+    login.password.set('secret');
+    login.submit();
+    return navigate.calls.mostRecent().args[0] as string;
+  }
+
+  it('brings the insured back to the case the mail linked', async () => {
+    const landing = await landingAfterLoginFrom(
+      '/login?returnUrl=%2Fportal%2Fcases%2F42%3Finsurer%3Dbbva',
+    );
+
+    expect(landing).toBe('/portal/cases/42?insurer=bbva');
+  });
+
+  it('goes home without a return URL', async () => {
+    expect(await landingAfterLoginFrom('/login')).toBe('/portal/home');
+  });
+
+  it('ignores a return URL to another site', async () => {
+    const landing = await landingAfterLoginFrom('/login?returnUrl=%2F%2Fevil.example%2Fphish');
+
+    expect(landing).toBe('/portal/home');
   });
 });

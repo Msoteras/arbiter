@@ -27,7 +27,7 @@ import { SidebarService } from './sidebar.service';
       padding: 0 var(--space-2);
       overflow: hidden;
       white-space: nowrap;
-      font-size: var(--font-size-sm);
+      font-size: var(--font-size-body);
       font-weight: var(--font-weight-medium);
       color: var(--sidebar-muted);
       transition:
