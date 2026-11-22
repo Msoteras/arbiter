@@ -113,6 +113,86 @@ const PROFILES = {
     g: MASCULINO,
     ...VALENTIN,
   },
+  // The final presentation's Fast Track case (db/migrations/2026-11-18-asegurados-demo-fast-track.sql):
+  // a phone in BBVA. Invoice and story live in casos-demo-celulares.js. Wiped with
+  // scripts/reset-asegurados-de-prueba.sql.
+  demoBbva: {
+    folder: path.join('demo', 'bbva'),
+    disclaimer: false,
+    g: FEMENINO,
+    insured: {
+      formal: 'MONTENEGRO, Sofía',
+      display: 'Sofía Montenegro',
+      dni: '40.218.736',
+      cuil: '27-40218736-6',
+      birth: '08/07/1997',
+      address: 'Av. Pedro Goyena 1240, piso 5° "D", C.A.B.A.',
+      phone: '11-5555-0512',
+      email: 'sofiamontenegro.1899@gmail.com',
+      civil: 'soltera',
+      job: 'empleada administrativa',
+    },
+    policies: {
+      celulares: {
+        number: 'POL-CEL-2026-612',
+        product: 'Celular Protegido Básico',
+        imei: '354816270935167',
+        serial: 'R58X70JKQ2M',
+        device: { brand: 'SAMSUNG', model: 'Galaxy A16', color: 'Negro (Black)', storage: '128 GB' },
+      },
+    },
+  },
+  // The presentation's second case, filed live: accidental damage of a laptop with a reused photo
+  // (casos-demo-tecnologia.js). BBVA, db/migrations/2026-11-21-tecnologia-demo-bbva.sql and
+  // 2026-11-21-tomas-caso2.sql. Wiped with scripts/reset-asegurados-de-prueba.sql.
+  demoTomas: {
+    folder: path.join('demo', 'tomas'),
+    disclaimer: false,
+    g: MASCULINO,
+    demo: 'tomas',
+    insured: {
+      formal: 'IBARRA, Tomás',
+      display: 'Tomás Ibarra',
+      dni: '37.905.162',
+      cuil: '20-37905162-7',
+      birth: '23/01/1993',
+      address: 'Calle 49 N° 812, piso 3° "B", La Plata, Provincia de Buenos Aires',
+      phone: '221-555-0640',
+      email: 'ibarratomas087@gmail.com',
+      civil: 'soltero',
+      job: 'analista contable',
+    },
+    policies: {
+      tecnologia: { number: 'POL-TEC-2026-640', serial: 'PF5N7R2X' },
+    },
+  },
+  // Tomás's case filed by Valentín, kept as a backup, and Roman's earlier claim with the same photo
+  // (casos-demo-tecnologia.js).
+  demoValentin: {
+    folder: path.join('demo', 'caso2'),
+    disclaimer: false,
+    g: MASCULINO,
+    demo: 'valentin',
+    insured: { ...VALENTIN.insured, email: 'aylusandu@gmail.com' },
+    policies: { tecnologia: { number: 'POL-TEC-2026-782', serial: 'PF5M3K9Q' } },
+  },
+  demoSemilla: {
+    folder: path.join('demo', 'semilla'),
+    disclaimer: false,
+    g: MASCULINO,
+    demo: 'semilla',
+    insured: {
+      formal: 'CASTILLO, Roman',
+      display: 'Roman Castillo',
+      dni: '33.845.219',
+      cuil: '20-33845219-6',
+      birth: '02/09/1988',
+      address: 'Av. Warnes 1470, piso 2° "A", C.A.B.A.',
+      phone: '11-5555-0007',
+      email: 'asandoval01228@gmail.com',
+    },
+    policies: { tecnologia: { number: 'POL-TEC-2026-352', serial: 'NXKHGAL00R4421' } },
+  },
   // A clean insured for the regular sets and for the history sequence (historial-celulares.js),
   // which files three claims in a row on purpose to watch prior claims kick in. Wiped before each
   // run with scripts/reset-asegurados-de-prueba.sql. Her account was created by the bulk
@@ -146,8 +226,15 @@ const PROFILES = {
   },
 };
 
-/** `--sin-marca`, `--camila`, `--mutaciones` o `--nuevos` en la línea de comandos; sin flag, el juego con leyenda. */
+/**
+ * `--sin-marca`, `--camila`, `--mutaciones`, `--nuevos`, `--demo-bbva`, `--demo-tomas`,
+ * `--demo-caso2` o `--demo-semilla` en la línea de comandos; sin flag, el juego con leyenda.
+ */
 function variantFromArgv(argv = process.argv) {
+  if (argv.includes('--demo-bbva')) return 'demoBbva';
+  if (argv.includes('--demo-tomas')) return 'demoTomas';
+  if (argv.includes('--demo-caso2')) return 'demoValentin';
+  if (argv.includes('--demo-semilla')) return 'demoSemilla';
   if (argv.includes('--nuevos')) return 'nuevos';
   if (argv.includes('--mutaciones')) return 'mutaciones';
   if (argv.includes('--camila')) return 'camila';

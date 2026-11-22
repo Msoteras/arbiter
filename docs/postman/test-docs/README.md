@@ -14,6 +14,10 @@ docs/postman/test-docs/
 ├── generar-fixtures-tecnologia.js  ramo Tecnología Portátil — 3 hechos generadores
 ├── mutaciones-celulares.js         el robo de Celulares con UNA cosa cambiada (ver §9)
 ├── historial-celulares.js          tres casos de Camila en orden, para ver pesar el historial (ver §10)
+├── casos-demo-celulares.js         el Fast Track de la presentación en BBVA (ver §12)
+├── casos-demo-tecnologia.js        el Fast Track de Provincia (§12), el caso 2 y su semilla (§13)
+├── foto_notebook_rota.jpg          Acer Extensa con la pantalla rota → item_photo del caso 2 (ver §13)
+├── documentos-demo.js              acta y Factura B con el formato de las reales, solo para §12
 ├── generar-todo.js                 regenera todos los sets de una
 ├── foto_equipo_para_fraude.jpg     foto de un A56 → item_photo de Celulares
 ├── foto_notebook_para_fraude.jpg   foto de un MacBook Air → item_photo de Tecnología Portátil
@@ -23,6 +27,8 @@ docs/postman/test-docs/
 │   └── tec-portatil/{robo, hurto, danio_acc}/
 ├── sinMarca/
 │   └── (la misma estructura, otra variante)
+├── demo/bbva/celulares/robo/   Fast Track de la presentación (ver §12)
+├── demo/{tomas, caso2, semilla}/tec-portatil/rotura/   caso 2 de la presentación (ver §13)
 ├── camila/celulares/{robo, hurto}/   set limpio de Camila Ferreyra (ver §10)
 │   └── historial/{1-primer-robo, 2-segundo-robo, 3-hurto}/
 └── mutaciones/celulares/<mutación>/  PDFs + payload + esperado.json (ver §9)
@@ -355,7 +361,7 @@ una**:
 psql -f scripts/reset-asegurados-de-prueba.sql   # borra los expedientes de Valentín y de Camila, y de nadie más
 ```
 
-El script tiene los dos DNI fijos y no acepta otro. Como también limpia a Camila, **no lo corras en
+El script tiene los DNI fijos (los de §9, §10 y §12) y no acepta otro. Como también limpia a Camila, **no lo corras en
 medio de su secuencia de historial** (§10). Borra los expedientes con todo lo que cuelga de ellos
 (documentos, análisis, liquidación, clasificación, snapshot de póliza) en una sola transacción.
 
@@ -456,3 +462,116 @@ los PDFs de la carpeta.
 Cargá **el hurto primero**: cada caso cuenta como siniestro previo del siguiente. Para volver a
 empezar, `scripts/reset-asegurados-de-prueba.sql` borra los expedientes de Valentín y de nadie más
 fuera de Camila (ver §9).
+
+## 12 · Presentación final: Fast Track
+
+Una asegurada nueva, sin siniestros ni historial, con un robo de ayer. Trae solo los dos documentos
+que el wizard pide primero: el acta y la factura. Sin leyenda de simulado. Los precios y las sumas
+son de mercado.
+
+| Aseguradora | Asegurada | Póliza | Equipo | Reclamo / suma de Robo | Carpeta |
+|---|---|---|---|---|---|
+| BBVA · Celulares | Sofía Montenegro — DNI 40.218.736 | `POL-CEL-2026-612` (Básico) | Samsung Galaxy A16 128 GB | 429.999 / 900.000 (0,48) | `demo/bbva/celulares/robo/` |
+
+**Los documentos tienen el formato de los reales** ([`documentos-demo.js`](documentos-demo.js)):
+
+- La factura es una Factura B electrónica: banda "ORIGINAL", recuadro con la letra y el código 006,
+  emisor y receptor, grilla de ítems, totales, el recuadro de IVA contenido de la Ley 27.743, el QR
+  y el CAE bajo el nombre de ARCA.
+- El acta tiene la redacción de una comisaría: "comparece... MANIFIESTA: Que...", las preguntas con
+  su respuesta, la fórmula de cierre, las firmas, el sello y el número de actuación (en Provincia, la
+  I.P.P. y la U.F.I.J.).
+
+Los otros sets siguen con el layout de siempre: las mutaciones tapan campos en posiciones fijas y no
+se pueden mover.
+
+**Por qué da Fast Track:** el acta y la factura son los documentos que exige la regla; el monto está
+por debajo del 50 % de la suma de Robo; no hay siniestros previos; la póliza está al día y vigente
+desde el 01/07/2026, pasada la carencia de 30 días; el acta es de la misma tarde y narra un tirón,
+así que se lee como robo. Los datos de cada caso están en
+[`casos-demo-celulares.js`](casos-demo-celulares.js) y [`casos-demo-tecnologia.js`](casos-demo-tecnologia.js).
+
+### Puesta en marcha, una sola vez
+
+1. Correr las migraciones, en orden. Solo escriben en las BD de las aseguradoras y son idempotentes:
+   ```bash
+   python scripts/db-railway-migrate.py db/migrations/2026-11-18-asegurados-demo-fast-track.sql
+   ```
+   ```bash
+   python scripts/db-railway-migrate.py db/migrations/2026-11-21-mail-sofia-demo.sql
+   ```
+   ```bash
+   python scripts/db-railway-migrate.py db/migrations/2026-11-21-tecnologia-demo-bbva.sql
+   ```
+   ```bash
+   python scripts/db-railway-migrate.py db/migrations/2026-11-21-tomas-caso2.sql
+   ```
+   ```bash
+   python scripts/db-railway-migrate.py db/migrations/2026-11-21-tomas-siniestro-previo.sql
+   ```
+2. En cada aseguradora, el referente aprieta **"Dar de alta asegurados"** en el panel de usuarios.
+3. Sofía y Tomás aceptan la invitación desde sus casillas: `sofiamontenegro.1899@gmail.com` y
+   `ibarratomas087@gmail.com`.
+
+### La víspera de la presentación
+
+1. Regenerar el set. Las fechas son relativas a "ayer"; el plazo de denuncia de Celulares es de 72
+   horas:
+   ```bash
+   node docs/postman/test-docs/generar-fixtures.js --demo-bbva
+   ```
+2. Si ya se cargó antes, limpiar: `scripts/reset-asegurados-de-prueba.sql` borra sus expedientes.
+3. Cargar el caso desde el portal, como Sofía: póliza, "Robo en vía pública", el equipo, el relato y
+   la fecha del `caso_robo.json`, y los dos PDFs de la carpeta.
+4. Confirmar en la Bandeja del analista que el expediente muestra Fast Track.
+
+**Un solo caso por asegurado.** Un segundo expediente cuenta como siniestro previo y saca al
+siguiente de Fast Track.
+
+## 13 · Presentación final: caso 2, rotura con una foto de internet
+
+Tomás Ibarra, con su póliza de Tecnología Portátil en BBVA (`POL-TEC-2026-640`), denuncia que su Lenovo
+IdeaPad Slim 3 se cayó de la mesa del living y se rompió la pantalla. Reclama 445.000 sobre los 600.000
+de daño accidental (0,74): pasa el 0,6 de Fast Track y llega a la analista con Falta documentación,
+porque la agenda pide la foto del bien. La analista se la pide y Tomás la sube. Su carpeta es
+`demo/tomas/tec-portatil/rotura/` (`--demo-tomas`). Tiene un siniestro previo en la BD Aseguradora,
+de una póliza vencida (`2026-11-21-tomas-siniestro-previo.sql`).
+
+La foto es la señal. Tiene dos:
+
+| Señal | Quién la detecta | Dónde se ve |
+|---|---|---|
+| La foto está publicada en internet: Wikimedia Commons y videos de reparación | Google Vision (Web Detection), sin el modelo de lenguaje | Score de fraude: imagen publicada en internet |
+| La foto muestra una Acer Extensa de 2009 con Windows 7, no la Lenovo de la factura y del presupuesto | El modelo, que mira la imagen | Razones de la recomendación |
+
+La factura y el presupuesto son coherentes entre sí. Los datos están en
+[`casos-demo-tecnologia.js`](casos-demo-tecnologia.js) (`tomas`).
+
+**La foto**, `foto_notebook_rota.jpg` en esta carpeta: Wikimedia Commons,
+[`File:Acer Extensa 5235 laptop-2891.jpg`](https://commons.wikimedia.org/wiki/File:Acer_Extensa_5235_laptop-2891.jpg)
+— Raimond Spekking, CC BY-SA 4.0, redimensionada a 1920 px.
+
+**Google Vision solo se consulta si la foto no coincide con otra de la misma aseguradora.** La
+comparación por embeddings (pgvector) va primero. Si la misma foto ya está en otro expediente de BBVA,
+la señal pasa a ser "imagen reutilizada" y Vision no se consulta. Por eso:
+
+- Antes de cada ensayo, correr `scripts/reset-asegurados-de-prueba.sql`: borra el caso anterior de
+  Tomás, y con él su copia de la foto.
+- Nadie más carga esa foto en BBVA. Ni la semilla de Roman (`--demo-semilla`) ni el set de Valentín
+  (`--demo-caso2`) se usan en esta versión del caso: los dos la adjuntan.
+- Vision está encendido en Railway (`GOOGLE_VISION_ENABLED`). Solo recibe la imagen, y solo si el
+  asegurado dio su consentimiento al denunciar.
+
+### La víspera, después de §12
+
+1. Generar el set. El hecho es de anteayer, así el service atiende en horario comercial; el plazo de
+   96 horas deja dos días para cargar:
+   ```bash
+   node docs/postman/test-docs/generar-fixtures-tecnologia.js --demo-tomas
+   ```
+2. Correr `scripts/reset-asegurados-de-prueba.sql`.
+3. Ensayar el caso completo con Tomás: denuncia, pedido de la foto, foto, reclasificación. Confirmar
+   que el score marca la imagen publicada en internet y que Razones menciona el equipo de la foto.
+4. Si se quiere un respaldo, dejar cargado ese ensayo y no correr el reset: en la demo, Tomás carga
+   uno nuevo en vivo y la analista cambia al ensayado después de pedir la foto. El nuevo va a coincidir
+   con el ensayado por embeddings, así que en vivo no se muestra la solapa Imágenes del nuevo.

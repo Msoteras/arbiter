@@ -42,14 +42,17 @@ class AnalystNotificationServiceTest {
     private ClaimsAnalystRepository claimsAnalystRepository;
     @Mock
     private SendGridAdapter sendGridAdapter;
+    @Mock
+    private InsuredMailBranding mailBranding;
 
     private AnalystNotificationService service;
 
     @BeforeEach
     void setUp() {
         service = new AnalystNotificationService(
-                notificationRepository, claimsAnalystRepository, sendGridAdapter);
+                notificationRepository, claimsAnalystRepository, sendGridAdapter, mailBranding);
         lenient().when(notificationRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        lenient().when(mailBranding.analystCaseUrl(any())).thenReturn("https://arbiter.test/cases/1");
     }
 
     @Test
@@ -127,6 +130,35 @@ class AnalystNotificationServiceTest {
         ArgumentCaptor<String> mailBody = ArgumentCaptor.forClass(String.class);
         verify(sendGridAdapter).send(eq("ana@aseg.com"), anyString(), mailBody.capture());
         assertThat(mailBody.getValue()).contains("<b>#1</b>");
+    }
+
+    @Test
+    void theMailLinksEveryCaseNumberToTheCase() {
+        ClaimsAnalyst assigned = analyst(10L, 100L, "ana@aseg.com");
+
+        service.notifyDocumentationToConfirm(caseWith(assigned, TODAY.plusDays(10)));
+
+        ArgumentCaptor<String> mailBody = ArgumentCaptor.forClass(String.class);
+        verify(sendGridAdapter).send(eq("ana@aseg.com"), anyString(), mailBody.capture());
+        assertThat(mailBody.getValue()).contains(
+                "Al expediente <a href=\"https://arbiter.test/cases/1\"><b>#1</b></a> (");
+        // The panel renders plain text: no link there.
+        ArgumentCaptor<Notification> saved = ArgumentCaptor.forClass(Notification.class);
+        verify(notificationRepository, atLeastOnce()).save(saved.capture());
+        assertThat(saved.getValue().getContent()).doesNotContain("<a ");
+    }
+
+    @Test
+    void theMailEscapesTheInsuredName() {
+        ClaimsAnalyst assigned = analyst(10L, 100L, "ana@aseg.com");
+        Case caseRecord = caseWith(assigned, TODAY.minusDays(1));
+        caseRecord.getInsured().setSurname("<script>");
+
+        service.notifyDeadline(caseRecord, DeadlinePriority.OVERDUE, TODAY);
+
+        ArgumentCaptor<String> mailBody = ArgumentCaptor.forClass(String.class);
+        verify(sendGridAdapter).send(eq("ana@aseg.com"), anyString(), mailBody.capture());
+        assertThat(mailBody.getValue()).contains("Laura &lt;script&gt;").doesNotContain("<script>");
     }
 
     @Test

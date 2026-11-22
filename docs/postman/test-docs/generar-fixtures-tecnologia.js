@@ -20,7 +20,7 @@
 // `DocumentInconsistencyEvaluator.checkImei` no participa acá porque la póliza del ramo no tiene
 // IMEI (poliza.imei = NULL en el seed), así que no hay cruce que falsear.
 //
-// Uso: node generar-fixtures-tecnologia.js [directorio-destino] [--sin-marca]
+// Uso: node generar-fixtures-tecnologia.js [directorio-destino] [--sin-marca | --demo-tomas | --demo-caso2 | --demo-semilla]
 //      Sin argumentos escribe en docs/postman/test-docs/conMarcaDePrueba/tec-portatil/<hecho>/
 
 const fs = require('fs');
@@ -29,6 +29,7 @@ const {
   plus, d, hm, hms, iso, pdfDate, cuit, Page, letterhead, footer, build, afipQrUrl, afipBlock, MARGIN,
 } = require('./lib-pdf');
 const { PROFILES, variantFromArgv, outDirFromArgv } = require('./perfiles');
+const { buildDemo } = require('./casos-demo-tecnologia');
 
 const VARIANT = variantFromArgv();
 const PROFILE = PROFILES[VARIANT];
@@ -72,7 +73,10 @@ const BRANCH = 'Tecnología Portátil';
 const PRODUCT = 'Seguro de Tecnología Portátil';
 const POLICY_NUMBER = PROFILE.policies.tecnologia.number;
 
-const DEVICE = {
+// The presentation's insureds bring their own device, invoice, shop and story.
+const DEMO = PROFILE.demo ? buildDemo(PROFILE.demo, { G, ayerA, INSURED }) : null;
+
+const DEVICE = DEMO ? { ...DEMO.device, serial: PROFILE.policies.tecnologia.serial } : {
   brand: 'APPLE',
   model: 'MacBook Air 15" (M3, 2024)',
   specs: '16 GB RAM / 512 GB SSD',
@@ -81,7 +85,7 @@ const DEVICE = {
   mac: VARIANT === 'sinMarca' ? 'B6:1A:C4:7E:03:9D' : 'A4:83:E7:2C:91:5B',
 };
 
-const PURCHASE = {
+const PURCHASE = DEMO ? DEMO.purchase : {
   date: '26/02/2026',
   invoice: '0005-00019432',
   total: '2.100.000,00',
@@ -92,13 +96,13 @@ const PURCHASE = {
 };
 
 // Empresas ficticias a propósito: no queremos comprobantes que aparenten ser de una empresa real.
-const RETAILER = { name: 'Tecnodata Distribuidora S.A.', address: 'Av. Corrientes 3470, C.A.B.A.' };
+const RETAILER = DEMO ? DEMO.retailer : { name: 'Tecnodata Distribuidora S.A.', address: 'Av. Corrientes 3470, C.A.B.A.' };
 const SERVICE = {
   name: 'TecnoService Argentina S.R.L.',
   address: 'Centro de Servicio Autorizado — Av. Scalabrini Ortiz 1240, C.A.B.A.',
 };
 
-RETAILER.cuit = cuit('30', '70914628');
+RETAILER.cuit ??= cuit('30', '70914628');
 SERVICE.cuit = cuit('30', '68427915');
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -277,7 +281,7 @@ const DANIO = {
   },
 };
 
-const SCENARIOS = [ROBO, HURTO, DANIO];
+const SCENARIOS = DEMO ? DEMO.scenarios : [ROBO, HURTO, DANIO];
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 1 · police_report — acta de denuncia
@@ -286,7 +290,7 @@ function policeReport(sc) {
   const p = new Page();
   const { police, lock } = sc;
 
-  p.text('POLICÍA DE LA CIUDAD DE BUENOS AIRES', { font: 'F2', size: 12, center: true, leading: 13 });
+  p.text(police.agency ?? 'POLICÍA DE LA CIUDAD DE BUENOS AIRES', { font: 'F2', size: 12, center: true, leading: 13 });
   p.text(police.station, { size: 9, center: true });
   p.text(police.stationAddress, { size: 8.5, center: true });
   p.gap(4).rule().gap(8);
@@ -322,21 +326,27 @@ function policeReport(sc) {
   p.text(`Una (1) computadora portátil marca ${DEVICE.brand}, modelo ${DEVICE.model},`, { size: 9 });
   p.text(`color ${DEVICE.color}, ${DEVICE.specs}, N° de serie ${DEVICE.serial}.`, { size: 9 });
   p.text('El equipo no posee IMEI por no contar con módem de telefonía móvil; se identifica por', { size: 9 });
-  p.text('su número de serie. Una (1) mochila de tela color negro, sin valor declarado.', { size: 9 });
+  p.text(`su número de serie. ${police.bag ?? 'Una (1) mochila de tela color negro, sin valor declarado.'}`, { size: 9 });
   p.text(`${G.El} denunciante manifiesta haber solicitado el bloqueo remoto del equipo el mismo`, { size: 9 });
   p.text(`día del hecho, a las ${hm(lock.requested)} hs.`, { size: 9 });
   p.gap(5);
 
   p.section('CONSTANCIAS');
-  p.text(`•  Se dio intervención a la Fiscalía Penal, Contravencional y de Faltas ${police.fiscalia} del`, { size: 9 });
-  p.text('   Poder Judicial de la C.A.B.A.', { size: 9 });
-  if (police.camaras) {
-    p.text('•  Se solicitó el resguardo de las imágenes de las cámaras del Sistema de Monitoreo', { size: 9 });
-    p.text('   Público correspondientes a la fecha y franja horaria del hecho.', { size: 9 });
-  } else {
-    p.text('•  Se libró oficio a la institución a fin de requerir el resguardo de las imágenes del', { size: 9 });
-    p.text('   hall de ingreso correspondientes a la fecha y franja horaria del hecho.', { size: 9 });
-  }
+  // A report from another jurisdiction brings its own prosecutor's office and monitoring center.
+  const constancias = police.constancias ?? [
+    `•  Se dio intervención a la Fiscalía Penal, Contravencional y de Faltas ${police.fiscalia} del`,
+    '   Poder Judicial de la C.A.B.A.',
+    ...(police.camaras
+      ? [
+        '•  Se solicitó el resguardo de las imágenes de las cámaras del Sistema de Monitoreo',
+        '   Público correspondientes a la fecha y franja horaria del hecho.',
+      ]
+      : [
+        '•  Se libró oficio a la institución a fin de requerir el resguardo de las imágenes del',
+        '   hall de ingreso correspondientes a la fecha y franja horaria del hecho.',
+      ]),
+  ];
+  constancias.forEach((l) => p.text(l, { size: 9 }));
   p.text(`•  Se extiende la presente constancia ${G.al} denunciante a los fines que estime corresponder.`, { size: 9 });
   p.gap(12);
   p.text(`Previa lectura y ratificación, firma ${G.el} denunciante por ante el funcionario actuante.`, { size: 9 });
@@ -360,7 +370,7 @@ function policeReport(sc) {
 function purchaseProof() {
   const p = new Page();
 
-  letterhead(p, RETAILER.name, `${RETAILER.address} — Tel. (011) 4864-7700`, RETAILER.cuit);
+  letterhead(p, RETAILER.name, `${RETAILER.address} — Tel. ${RETAILER.phone ?? '(011) 4864-7700'}`, RETAILER.cuit);
 
   p.text('FACTURA  B', { font: 'F2', size: 14, center: true, leading: 15 });
   p.text('Documento no válido como crédito fiscal — Consumidor Final', { size: 8, center: true });
@@ -369,7 +379,7 @@ function purchaseProof() {
   p.field('Comprobante N°:', PURCHASE.invoice);
   p.field('Fecha de emisión:', PURCHASE.date);
   p.field('Condición frente al IVA:', 'Responsable Inscripto');
-  p.field('Ingresos Brutos:', '901-914628-3    Inicio de actividades: 07/2008');
+  p.field('Ingresos Brutos:', RETAILER.iibb ?? '901-914628-3    Inicio de actividades: 07/2008');
   p.gap(6).rule();
 
   p.section('DATOS DEL COMPRADOR');
@@ -393,7 +403,7 @@ function purchaseProof() {
   p.moneyRow('TOTAL', `$ ${PURCHASE.total}`, { size: 11, bold: true, leading: 16 });
 
   p.rule();
-  p.field('Forma de pago:', 'Tarjeta de crédito — 12 cuotas sin interés');
+  p.field('Forma de pago:', PURCHASE.payment ?? 'Tarjeta de crédito — 12 cuotas sin interés');
   p.field('CAE N°:', PURCHASE.cae);
   p.field('Vencimiento del CAE:', PURCHASE.caeDue);
   p.gap(8);
@@ -410,7 +420,7 @@ function purchaseProof() {
     title: `Factura B ${PURCHASE.invoice}`,
     author: RETAILER.name,
     subject: 'Comprobante de compra del equipo portatil - documento simulado de prueba',
-    created: "20260226164500-03'00'",
+    created: PURCHASE.created ?? "20260226164500-03'00'",
   });
 }
 
@@ -648,6 +658,20 @@ const BUILDERS = {
   repair_quote: [repairQuote, 'presupuesto_reparacion_tecnologia.pdf'],
 };
 
+// The presentation's documents are drawn like the real ones (documentos-demo.js).
+if (DEMO) {
+  const { actaDenuncia, facturaB, presupuestoServicio } = require('./documentos-demo');
+  BUILDERS.police_report[0] = (sc) => actaDenuncia({
+    police: sc.police, insured: INSURED, g: G, event: sc.event, place: sc.place, disclaimer: PROFILE.disclaimer,
+  });
+  BUILDERS.purchase_proof[0] = () => facturaB({
+    retailer: RETAILER, purchase: PURCHASE, buyer: DEMO.buyer, item: DEMO.item, disclaimer: PROFILE.disclaimer,
+  });
+  BUILDERS.repair_quote[0] = (sc) => presupuestoServicio({
+    shop: DEMO.shop, repair: sc.repair, device: DEVICE, insured: INSURED, disclaimer: PROFILE.disclaimer,
+  });
+}
+
 const root = outDirFromArgv() || path.join(__dirname, PROFILE.folder, 'tec-portatil');
 console.log(`Destino: ${root}\n`);
 
@@ -667,7 +691,7 @@ for (const sc of SCENARIOS) {
     branch: BRANCH,
     product: PRODUCT,
     claimCause: sc.claimCause,
-    insuredItem: `Apple MacBook Air 15" M3 512 GB`,
+    insuredItem: DEMO ? DEMO.insuredItem : `Apple MacBook Air 15" M3 512 GB`,
     insuredId: INSURED.dni,
     policyNumber: POLICY_NUMBER,
     description: sc.description,
@@ -685,10 +709,13 @@ for (const sc of SCENARIOS) {
   const payloadName = `caso_${sc.folder}.json`;
   fs.writeFileSync(path.join(dir, payloadName), JSON.stringify(payload, null, 2) + '\n');
   console.log(`  ${'case (payload)'.padEnd(20)} ${payloadName.padEnd(40)} ${d(sc.event)} ${hm(sc.event)}`);
-  console.log(`  ${'item_photo'.padEnd(20)} ${'../foto_notebook_para_fraude.jpg  (adjuntar desde la raíz)'}`);
+  // The MacBook photo would contradict the demo's device; Fast Track doesn't ask for one.
+  if (!DEMO) console.log(`  ${'item_photo'.padEnd(20)} ${'../foto_notebook_para_fraude.jpg  (adjuntar desde la raíz)'}`);
+  // The photo isn't asked at filing: the analyst requests it, and it's attached from test-docs' root.
+  if (sc.photo) console.log(`  ${'item_photo'.padEnd(20)} ${sc.photo}  (cuando la analista la pida; está en la raíz de test-docs)`);
   console.log();
 }
 
-const expira = plus(ROBO.event, 96 * 60);
+const expira = plus(new Date(Math.min(...SCENARIOS.map((sc) => sc.event.getTime()))), 96 * 60);
 console.log(`Los sets vencen el ${d(expira)} ${hm(expira)} — después D11 (plazo de denuncia, 96 hs`);
 console.log('de la cobertura del ramo) bloquea el Fast Track. Volvé a correr este script para renovarlos.');

@@ -129,13 +129,23 @@ class CaseNotificationServiceTest {
     }
 
     @Test
-    void notifyStatusChange_linksOnlyTheApproval() {
+    void notifyStatusChange_linksTheCaseNumberAndTheCaseInEveryMail() {
         savesWhatItIsGiven();
 
         service.notifyStatusChange(caseWith(insuredWith(INSURED_EMAIL)), CaseStatus.REJECTED);
 
-        assertThat(sentBody()).doesNotContain("<a ");
-        verify(mailBranding, never()).caseUrl(any());
+        assertThat(sentBody()).contains(
+                "Siniestro <strong><a href=\"https://arbiter.test/portal/cases/42\">#42</a></strong>.",
+                "<a href=\"https://arbiter.test/portal/cases/42\">Ver tu siniestro</a>");
+    }
+
+    @Test
+    void notifyReopened_linksTheCaseNumber() {
+        savesWhatItIsGiven();
+
+        service.notifyReopened(caseWith(insuredWith(INSURED_EMAIL)));
+
+        assertThat(sentBody()).contains("<a href=\"https://arbiter.test/portal/cases/42\">#42</a>");
     }
 
     /** Only what asks the insured for something or is the outcome; the rest is internal traffic. */

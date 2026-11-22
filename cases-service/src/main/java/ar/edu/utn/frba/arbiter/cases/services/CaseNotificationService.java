@@ -333,22 +333,21 @@ public class CaseNotificationService {
         return userRepository.findByEmail(authentication.getName()).map(User::getId);
     }
 
+    /** The case number and "Ver tu siniestro" both open the case in the insured's portal. */
     private String body(Message message, Case caseRecord, String type) {
-        return """
+        String url = mailBranding.caseUrl(caseRecord.getId());
+        String content = """
                 <p>Hola,</p>
                 <p>%s</p>%s
-                <p>Siniestro <strong>#%d</strong>.</p>%s
-                %s""".formatted(message.body(), approvedAmountLine(caseRecord, type), caseRecord.getId(),
-                approvedCaseLink(caseRecord, type), mailBranding.signature());
+                <p>Siniestro <strong>#%d</strong>.</p>""".formatted(message.body(),
+                approvedAmountLine(caseRecord, type), caseRecord.getId());
+        return InsuredMailBranding.linkCaseNumbers(content, caseRecord.getId(), url)
+                + caseLink(url) + "\n" + mailBranding.signature();
     }
 
-    /** Opens the case in the insured's portal; the login brings them back to it. */
-    private String approvedCaseLink(Case caseRecord, String type) {
-        if (!CaseStatus.APPROVED.name().equals(type)) {
-            return "";
-        }
-        return "\n<p><a href=\"%s\">Ver tu siniestro</a></p>"
-                .formatted(HtmlUtils.htmlEscape(mailBranding.caseUrl(caseRecord.getId())));
+    /** The login brings them back to it. Shared with {@link MessageNotificationService}. */
+    static String caseLink(String url) {
+        return "\n<p><a href=\"%s\">Ver tu siniestro</a></p>".formatted(HtmlUtils.htmlEscape(url));
     }
 
     /** Empty without a settlement; best-effort, so a failed read never stops the approval email. */

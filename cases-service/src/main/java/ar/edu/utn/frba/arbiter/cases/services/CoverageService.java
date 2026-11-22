@@ -20,7 +20,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Coverages of an insurer's branches: the read-only catalog other modules' selectors use and the
@@ -47,13 +49,25 @@ public class CoverageService {
     /**
      * What the referent can name a coverage of the branch: the names on the insurer's policies. A
      * coverage named otherwise never matches a policy, and no claim can be filed under it.
+     *
+     * <p>A policy name some coverage already answers to comes back under that coverage's own name, the
+     * one the screen compares against: a renamed coverage ("Robo" for "Robo de celular") still matches.
      */
     @Transactional(readOnly = true)
     public List<String> insurerCoverageNames(Long branchId) {
         Branch branch = branchRepository.findById(branchId)
                 .orElseThrow(() -> new UnresolvedCaseReferenceException("ramo", String.valueOf(branchId)));
         String externalName = branch.getExternalName() != null ? branch.getExternalName() : branch.getName();
-        return insurerAdapter.findCoverageNames(externalName);
+        Map<String, String> nameByExternalName = new HashMap<>();
+        for (Coverage coverage : coverageRepository.findByBranchIdOrderByNameAsc(branchId)) {
+            if (coverage.getExternalName() != null) {
+                nameByExternalName.put(coverage.getExternalName(), coverage.getName());
+            }
+        }
+        return insurerAdapter.findCoverageNames(externalName).stream()
+                .map(name -> nameByExternalName.getOrDefault(name, name))
+                .distinct()
+                .toList();
     }
 
     @Transactional(readOnly = true)

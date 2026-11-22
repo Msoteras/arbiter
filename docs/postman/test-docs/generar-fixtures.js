@@ -13,11 +13,12 @@
 // Todos los documentos de un caso salen de un único objeto de escenario, así que no pueden
 // contradecirse entre sí. El motor PDF vive en lib-pdf.js; quién firma, en perfiles.js.
 //
-// Uso: node generar-fixtures.js [directorio-destino] [--sin-marca | --camila | --mutaciones | --nuevos]
+// Uso: node generar-fixtures.js [directorio-destino] [--sin-marca | --camila | --mutaciones | --nuevos | --demo-bbva]
 //      Sin argumentos escribe en docs/postman/test-docs/conMarcaDePrueba/celulares/<hecho>/
 //      Con --mutaciones escribe solo las mutaciones, en docs/postman/test-docs/mutaciones/celulares/
 //      Con --camila escribe robo y hurto más la secuencia de historial, en .../camila/celulares/
 //      Con --nuevos escribe los dos casos de Valentín, en .../nuevos/celulares/
+//      Con --demo-bbva escribe el Fast Track de la presentación, en .../demo/bbva/celulares/
 
 const fs = require('fs');
 const os = require('os');
@@ -29,6 +30,7 @@ const { PROFILES, variantFromArgv, outDirFromArgv } = require('./perfiles');
 const { buildMutations } = require('./mutaciones-celulares');
 const { buildHistory } = require('./historial-celulares');
 const { buildNuevos } = require('./casos-nuevos-celulares');
+const { buildDemoCelulares } = require('./casos-demo-celulares');
 
 const VARIANT = variantFromArgv();
 const PROFILE = PROFILES[VARIANT];
@@ -80,7 +82,7 @@ function appendLines(p, sc, type) {
 // Constantes del ramo — el equipo, la póliza y las empresas son las mismas en los cuatro casos
 // ─────────────────────────────────────────────────────────────────────────────
 const BRANCH = 'Celulares';
-const PRODUCT = 'Celular Protegido Premium';
+const PRODUCT = PROFILE.policies.celulares.product ?? 'Celular Protegido Premium';
 // De perfiles.js: cada variante tiene SU propia póliza (mismos montos, número propio) —
 // ver el comentario de policies.sinMarca ahí para el porqué.
 const POLICY_NUMBER = PROFILE.policies.celulares.number;
@@ -709,6 +711,17 @@ const BUILDERS = {
   repair_quote: [repairQuote, 'presupuesto_reparacion_celulares.pdf'],
 };
 
+// The presentation's documents are drawn like the real ones (documentos-demo.js).
+if (VARIANT === 'demoBbva') {
+  const { actaDenuncia, facturaB } = require('./documentos-demo');
+  BUILDERS.police_report[0] = (sc) => actaDenuncia({
+    police: sc.police, insured: INSURED, g: G, event: sc.event, place: sc.place, disclaimer: PROFILE.disclaimer,
+  });
+  BUILDERS.purchase_proof[0] = (sc) => facturaB({
+    retailer: sc.retailer, purchase: purchaseOf(sc), buyer: sc.buyer, item: sc.item, disclaimer: PROFILE.disclaimer,
+  });
+}
+
 const root = outDirFromArgv() || path.join(__dirname, PROFILE.folder, 'celulares');
 console.log(`Destino: ${root}\n`);
 
@@ -776,12 +789,14 @@ const mutations = VARIANT === 'mutaciones'
   ? buildMutations({ base: ROBO, G, INSURED, spouse: PROFILE.spouse, policyImei: DEVICE.imei, NOW })
   : [];
 // A profile whose policy doesn't cover every claim cause lists the ones it can file.
-const scenarios = VARIANT === 'mutaciones' || VARIANT === 'nuevos'
+const scenarios = VARIANT === 'mutaciones' || VARIANT === 'nuevos' || VARIANT === 'demoBbva'
   ? []
   : SCENARIOS.filter((sc) => !PROFILE.scenarios || PROFILE.scenarios.includes(sc.folder));
 // History: claims filed in order WITHOUT resetting in between, to watch prior claims kick in.
 const history = VARIANT === 'camila' ? buildHistory({ robo: ROBO, hurto: HURTO }) : [];
-const nuevos = VARIANT === 'nuevos' ? buildNuevos({ G, ayerA, NOW }) : [];
+const nuevos = VARIANT === 'nuevos' ? buildNuevos({ G, ayerA, NOW })
+  : VARIANT === 'demoBbva' ? buildDemoCelulares({ G, ayerA, DEVICE, INSURED })
+  : [];
 
 for (const sc of scenarios) {
   console.log(`${sc.folder}/  (${sc.claimCause})`);

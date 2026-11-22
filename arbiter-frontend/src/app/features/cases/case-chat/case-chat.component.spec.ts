@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
 import { Subject, of } from 'rxjs';
 
 import { CaseChatComponent } from './case-chat.component';
@@ -166,5 +167,189 @@ describe('CaseChatComponent · messages over the socket', () => {
       createdAt: '2026-08-30T12:09:00Z',
     });
     expect(markRead).not.toHaveBeenCalled();
+  });
+});
+
+describe('CaseChatComponent · composer', () => {
+  let fixture: ComponentFixture<CaseChatComponent>;
+  let posted: Subject<CaseMessage>;
+  let post: jasmine.Spy;
+
+  const thread: CaseMessageThread = {
+    messages: [],
+    unread: 0,
+    canPost: true,
+    closedNotice: null,
+    topic: '/topic/cases.bbva.29',
+    viewerSide: 'ANALYST',
+  };
+
+  beforeEach(async () => {
+    posted = new Subject<CaseMessage>();
+    post = jasmine.createSpy('post').and.callFake(() => posted.asObservable());
+
+    await TestBed.configureTestingModule({
+      imports: [CaseChatComponent],
+      providers: [
+        {
+          provide: CaseMessagesService,
+          useValue: {
+            thread: () => of(thread),
+            markRead: () => of(void 0),
+            post,
+            recordLatest: () => undefined,
+            clearUnread: () => undefined,
+          },
+        },
+        { provide: CaseMessagesSocketService, useValue: { watch: () => new Subject() } },
+      ],
+    }).compileComponents();
+
+    fixture = TestBed.createComponent(CaseChatComponent);
+    fixture.componentRef.setInput('caseId', 29);
+    fixture.detectChanges();
+  });
+
+  function field(): HTMLTextAreaElement {
+    return fixture.nativeElement.querySelector('.composer textarea');
+  }
+
+  function sendButton(): HTMLButtonElement {
+    return fixture.nativeElement.querySelector('.composer app-icon-button button');
+  }
+
+  function type(text: string): void {
+    field().value = text;
+    field().dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+  }
+
+  function pressEnter(init: KeyboardEventInit = {}): KeyboardEvent {
+    const event = new KeyboardEvent('keydown', { key: 'Enter', cancelable: true, ...init });
+    field().dispatchEvent(event);
+    fixture.detectChanges();
+    return event;
+  }
+
+  it('sends the message with Enter', () => {
+    type('  Ya la subí.  ');
+    const event = pressEnter();
+
+    expect(post).toHaveBeenCalledOnceWith(29, 'Ya la subí.', null);
+    expect(event.defaultPrevented).toBeTrue();
+  });
+
+  it('breaks the line with Shift+Enter instead of sending', () => {
+    type('Primera línea');
+    const event = pressEnter({ shiftKey: true });
+
+    expect(post).not.toHaveBeenCalled();
+    expect(event.defaultPrevented).toBeFalse();
+  });
+
+  it('does not send an empty or blank message with Enter', () => {
+    pressEnter();
+    type('   ');
+    pressEnter();
+
+    expect(post).not.toHaveBeenCalled();
+  });
+
+  it('does not send twice while the first send is on its way', () => {
+    type('Ya la subí.');
+    pressEnter();
+    pressEnter();
+
+    expect(post).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows an arrow button named "Enviar", disabled until there is text', () => {
+    expect(sendButton().getAttribute('aria-label')).toBe('Enviar');
+    expect(sendButton().textContent!.trim()).toBe('');
+    expect(sendButton().disabled).toBeTrue();
+
+    type('Hola');
+
+    expect(sendButton().disabled).toBeFalse();
+  });
+
+  it('sends the message with the arrow button', () => {
+    type('Hola');
+    fixture.nativeElement.querySelector('.composer app-icon-button').click();
+
+    expect(post).toHaveBeenCalledOnceWith(29, 'Hola', null);
+  });
+});
+
+describe('CaseChatComponent · case numbers in a message', () => {
+  const body = 'Revisá el #42 y el expediente 7.\nGracias';
+
+  async function render(viewerSide: 'ANALYST' | 'INSURED', insurer: string | null) {
+    const thread: CaseMessageThread = {
+      messages: [
+        {
+          id: 1,
+          sender: viewerSide === 'ANALYST' ? 'INSURED' : 'ANALYST',
+          mine: false,
+          body,
+          createdAt: '2026-08-30T12:05:00Z',
+          readAt: null,
+        },
+      ],
+      unread: 0,
+      canPost: true,
+      closedNotice: null,
+      topic: '/topic/cases.bbva.29',
+      viewerSide,
+    };
+    await TestBed.configureTestingModule({
+      imports: [CaseChatComponent],
+      providers: [
+        provideRouter([]),
+        {
+          provide: CaseMessagesService,
+          useValue: {
+            thread: () => of(thread),
+            markRead: () => of(void 0),
+            post: () => new Subject(),
+            recordLatest: () => undefined,
+            clearUnread: () => undefined,
+          },
+        },
+        { provide: CaseMessagesSocketService, useValue: { watch: () => new Subject() } },
+      ],
+    }).compileComponents();
+
+    const fixture = TestBed.createComponent(CaseChatComponent);
+    fixture.componentRef.setInput('caseId', 29);
+    fixture.componentRef.setInput('insurer', insurer);
+    fixture.detectChanges();
+    return fixture.nativeElement as HTMLElement;
+  }
+
+  function hrefs(host: HTMLElement): (string | null)[] {
+    return Array.from(host.querySelectorAll('.body a')).map((a) => a.getAttribute('href'));
+  }
+
+  it('links each case number to the case screen for the analyst', async () => {
+    const host = await render('ANALYST', null);
+
+    expect(hrefs(host)).toEqual(['/cases/42', '/cases/7']);
+    expect(Array.from(host.querySelectorAll('.body a')).map((a) => a.textContent)).toEqual([
+      '#42',
+      'expediente 7',
+    ]);
+  });
+
+  it('links each case number to the portal, with the insurer, for the insured', async () => {
+    const host = await render('INSURED', 'bbva');
+
+    expect(hrefs(host)).toEqual(['/portal/cases/42?insurer=bbva', '/portal/cases/7?insurer=bbva']);
+  });
+
+  it('keeps the message text exactly as written', async () => {
+    const host = await render('ANALYST', null);
+
+    expect(host.querySelector('.body')!.textContent).toBe(body);
   });
 });

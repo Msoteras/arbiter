@@ -88,4 +88,25 @@ class InsuredMailBrandingTest {
         assertThat(branding.caseUrl(42L))
                 .isEqualTo("https://arbiter-prod.up.railway.app/portal/cases/42");
     }
+
+    @Test
+    void linksTheAnalystToTheCaseScreen() {
+        assertThat(branding.analystCaseUrl(42L))
+                .isEqualTo("https://arbiter-prod.up.railway.app/cases/42");
+    }
+
+    @Test
+    void linksEveryCaseNumberInTheText() {
+        String html = InsuredMailBranding.linkCaseNumbers(
+                "<p>El expediente #42 vence hoy. Revisá el #42.</p>", 42L, "https://a.test/cases/42?x=1&y=2");
+
+        assertThat(html).isEqualTo("<p>El expediente <a href=\"https://a.test/cases/42?x=1&amp;y=2\">#42</a>"
+                + " vence hoy. Revisá el <a href=\"https://a.test/cases/42?x=1&amp;y=2\">#42</a>.</p>");
+    }
+
+    @Test
+    void leavesALongerNumberAlone() {
+        assertThat(InsuredMailBranding.linkCaseNumbers("#420 y #4", 42L, "https://a.test/cases/42"))
+                .isEqualTo("#420 y #4");
+    }
 }

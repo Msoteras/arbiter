@@ -1,0 +1,19 @@
+{
+  "branch": "Celulares",
+  "product": "Celular Protegido Básico",
+  "claimCause": "Robo en vía pública",
+  "insuredItem": "SAMSUNG Galaxy A16 128 GB",
+  "insuredId": "40.218.736",
+  "policyNumber": "POL-CEL-2026-612",
+  "description": "Salía del subte en Primera Junta mirando el celular. Un hombre que venía corriendo me lo arrancó de la mano y escapó por Emilio Mitre. Pedí el bloqueo del IMEI desde la compu de una amiga y fui a hacer la denuncia a la comisaría de Caballito.",
+  "eventDate": "2026-11-20T19:40:00",
+  "eventLocation": "Av. Rivadavia 5400, a la salida de la estación Primera Junta de la línea A",
+  "locality": "Caballito",
+  "province": "Ciudad Autónoma de Buenos Aires",
+  "policeReportAt": "2026-11-20T20:55:00",
+  "claimedAmount": 429999,
+  "pep": false,
+  "imageConsent": true,
+  "contactEmail": "sofiamontenegro.1899@gmail.com",
+  "contactPhone": "11-5555-0512"
+}

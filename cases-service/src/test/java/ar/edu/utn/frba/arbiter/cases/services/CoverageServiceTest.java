@@ -45,6 +45,21 @@ class CoverageServiceTest {
                 .containsExactly("Daño accidental", "Robo de celular");
     }
 
+    /** The screen compares a coverage's own name, so a renamed one must not read as unmatched. */
+    @Test
+    void insurerCoverageNames_returnsARenamedCoverageUnderItsOwnName() {
+        when(branchRepository.findById(1L)).thenReturn(Optional.of(
+                Branch.builder().id(1L).name("Celulares").externalName("Celulares").build()));
+        when(coverageRepository.findByBranchIdOrderByNameAsc(1L)).thenReturn(List.of(
+                Coverage.builder().id(1L).branchId(1L).name("Robo").externalName("Robo de celular").build(),
+                Coverage.builder().id(2L).branchId(1L).name("Hurto").externalName("Hurto").build()));
+        when(insurerAdapter.findCoverageNames("Celulares"))
+                .thenReturn(List.of("Daño accidental", "Hurto", "Robo de celular"));
+
+        assertThat(coverageService.insurerCoverageNames(1L))
+                .containsExactly("Daño accidental", "Hurto", "Robo");
+    }
+
     @Test
     void insurerCoverageNames_withoutAnExternalName_usesTheBranchName() {
         when(branchRepository.findById(1L)).thenReturn(Optional.of(

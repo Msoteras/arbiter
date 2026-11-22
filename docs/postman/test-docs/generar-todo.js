@@ -13,6 +13,10 @@ const RUNS = [
   ['generar-fixtures.js', '--mutaciones'],
   ['generar-fixtures-tecnologia.js'],
   ['generar-fixtures-tecnologia.js', '--sin-marca'],
+  ['generar-fixtures.js', '--demo-bbva'],
+  ['generar-fixtures-tecnologia.js', '--demo-tomas'],
+  ['generar-fixtures-tecnologia.js', '--demo-semilla'],
+  ['generar-fixtures-tecnologia.js', '--demo-caso2'],
 ];
 
 for (const [script, ...args] of RUNS) {
