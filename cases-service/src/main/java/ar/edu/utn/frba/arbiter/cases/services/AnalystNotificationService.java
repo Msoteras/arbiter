@@ -10,6 +10,7 @@ import ar.edu.utn.frba.arbiter.common.models.entities.tenant.ClaimsAnalyst;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.web.util.HtmlUtils;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -32,6 +33,7 @@ public class AnalystNotificationService {
     private final NotificationRepository notificationRepository;
     private final ClaimsAnalystRepository claimsAnalystRepository;
     private final SendGridAdapter sendGridAdapter;
+    private final InsuredMailBranding mailBranding;
 
     /**
      * Idempotent per (case, recipient, level): a case escalating from CRITICAL to OVERDUE notifies
@@ -116,7 +118,8 @@ public class AnalystNotificationService {
             return;
         }
         try {
-            sendGridAdapter.send(email, message.subject(), message.htmlBody());
+            sendGridAdapter.send(email, message.subject(),
+                    message.htmlBody(mailBranding.analystCaseUrl(caseRecord.getId())));
             notification.setSent(true);
             notification.setSentAt(Instant.now());
             notificationRepository.save(notification);
@@ -155,12 +158,15 @@ public class AnalystNotificationService {
 
     /**
      * {@code body} is plain text because the in-app panel renders {@code notification.content} as is;
-     * {@code htmlBody} is derived from it for the email so the two can't drift apart.
+     * {@code htmlBody} is derived from it for the email so the two can't drift apart. In the mail
+     * the case number is a link to the case.
      */
     private record Message(String subject, String body, long caseId) {
 
-        String htmlBody() {
-            return body.replace("#" + caseId, "<b>#" + caseId + "</b>");
+        String htmlBody(String caseUrl) {
+            String html = InsuredMailBranding.linkCaseNumbers(
+                    HtmlUtils.htmlEscape(body, "UTF-8"), caseId, caseUrl);
+            return html.replace(">#" + caseId + "</a>", "><b>#" + caseId + "</b></a>");
         }
     }
 }

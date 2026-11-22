@@ -39,7 +39,20 @@
           <li class="msg" [class.mine]="row.message.mine">
             <div class="bubble">
               <span class="sr-only">{{ authorLabel(row.message) }}:</span>
-              <p class="body">{{ row.message.body }}</p>
+              <p class="body">
+                @for (part of row.parts; track $index) {
+                  @if (part.caseId === null) {
+                    <ng-container>{{ part.text }}</ng-container>
+                  } @else {
+                    <a
+                      class="case-link"
+                      [routerLink]="[caseLink().path, part.caseId]"
+                      [queryParams]="caseLink().queryParams"
+                      >{{ part.text }}</a
+                    >
+                  }
+                }
+              </p>
             </div>
             <p class="meta tabular">{{ meta(row.message) }}</p>
           </li>
@@ -74,9 +87,7 @@
             [submitOnEnter]="true"
             (enter)="send()"
           />
-          <app-button [disabled]="!canSend()" [loading]="sending()" (click)="send()">
-            Enviar
-          </app-button>
+          <app-icon-button icon="send" label="Enviar" [disabled]="!canSend()" (click)="send()" />
         </div>
         @if (nearLimit()) {
           <p class="hint count tabular" [class.over]="draft().length > maxLength">
