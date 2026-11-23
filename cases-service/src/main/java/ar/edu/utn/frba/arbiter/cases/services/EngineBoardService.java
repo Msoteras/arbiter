@@ -40,6 +40,8 @@ public class EngineBoardService {
 
     private static final List<ClassificationStage> TERMINAL =
             List.of(ClassificationStage.FINISHED, ClassificationStage.FAILED);
+    /** Calendar days the classified pile covers, today included: a single day left it empty every morning. */
+    private static final int CLASSIFIED_DAYS = 7;
 
     private final ClassificationStepRepository stepRepository;
     private final CaseRepository caseRepository;
@@ -65,14 +67,15 @@ public class EngineBoardService {
     @Transactional(readOnly = true)
     public EngineBoardResponse board() {
         Instant now = clock.instant();
-        Instant startOfDay = LocalDate.now(clock).atStartOfDay(clock.getZone()).toInstant();
+        Instant since = LocalDate.now(clock).minusDays(CLASSIFIED_DAYS - 1L)
+                .atStartOfDay(clock.getZone()).toInstant();
 
         List<Case> pending = caseRepository.findByStatus(CaseStatus.PENDING_CLASSIFICATION);
-        List<Long> finishedToday = stepRepository.findByStageInAndOccurredAtGreaterThanEqual(TERMINAL, startOfDay)
+        List<Long> finishedRecently = stepRepository.findByStageInAndOccurredAtGreaterThanEqual(TERMINAL, since)
                 .stream().map(ClassificationStepRecord::getCaseId).distinct().toList();
 
         Map<Long, Case> cases = pending.stream().collect(Collectors.toMap(Case::getId, Function.identity()));
-        caseRepository.findAllById(finishedToday).forEach(c -> cases.putIfAbsent(c.getId(), c));
+        caseRepository.findAllById(finishedRecently).forEach(c -> cases.putIfAbsent(c.getId(), c));
         Map<Long, List<ClassificationStepRecord>> stepsByCase = stepsOf(cases.keySet());
 
         List<Long> pendingIds = pending.stream().map(Case::getId).toList();
@@ -84,12 +87,12 @@ public class EngineBoardService {
                 .sorted(Comparator.comparing(EngineCaseResponse::queuedAt))
                 .toList();
 
-        // A case reclassified later today shows its latest run only.
-        List<EngineCaseResponse> classified = finishedToday.stream()
+        // A case reclassified later shows its latest run only.
+        List<EngineCaseResponse> classified = finishedRecently.stream()
                 .filter(cases::containsKey)
                 .map(id -> latestRun(stepsByCase.getOrDefault(id, List.of()))
                         .filter(run -> run.current().getStage().terminal()
-                                && !run.current().getOccurredAt().isBefore(startOfDay))
+                                && !run.current().getOccurredAt().isBefore(since))
                         .map(run -> toResponse(cases.get(id), run)))
                 .flatMap(Optional::stream)
                 .sorted(Comparator.comparing(EngineCaseResponse::stageAt).reversed())

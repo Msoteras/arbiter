@@ -134,7 +134,7 @@ class EngineBoardServiceTest {
         assertThat(board.active()).extracting(EngineCaseResponse::caseId).containsExactly(2L, 1L);
         assertThat(board.active().get(0).stage()).isEqualTo(ClassificationStage.MODEL);
         assertThat(board.active().get(1).startedAt()).isNull();
-        assertThat(board.classifiedToday()).singleElement().satisfies(classified -> {
+        assertThat(board.recentlyClassified()).singleElement().satisfies(classified -> {
             assertThat(classified.caseId()).isEqualTo(3L);
             assertThat(classified.result()).isEqualTo(Classification.LLM_RECOMIENDA_APROBAR);
             assertThat(classified.startedAt()).isEqualTo(at("14:00:02"));
@@ -161,17 +161,30 @@ class EngineBoardServiceTest {
             assertThat(active.stage()).isEqualTo(ClassificationStage.QUEUED);
             assertThat(active.queuedAt()).isEqualTo(at("14:59:50"));
         });
-        assertThat(board.classifiedToday()).isEmpty();
+        assertThat(board.recentlyClassified()).isEmpty();
+    }
+
+    /** The pile covers seven calendar days, today included: the 19th is in, the 18th is out. */
+    @Test
+    void whatFinishedInTheLastSevenDays_staysOnThePile() {
+        Case lastWeek = givenCase(6L);
+        when(caseRepository.findByStatus(CaseStatus.PENDING_CLASSIFICATION)).thenReturn(List.of());
+        when(caseRepository.findAllById(anyCollection())).thenReturn(List.of(lastWeek));
+        stored.add(record(6L, ClassificationStage.QUEUED, "2026-10-19T00:00:00Z"));
+        stored.add(finished(6L, "2026-10-19T00:01:00Z"));
+
+        assertThat(service.board().recentlyClassified())
+                .extracting(EngineCaseResponse::caseId).containsExactly(6L);
     }
 
     @Test
-    void whatFinishedBeforeToday_isLeftOut() {
+    void whatFinishedBeforeTheLastSevenDays_isLeftOut() {
         when(caseRepository.findByStatus(CaseStatus.PENDING_CLASSIFICATION)).thenReturn(List.of());
         when(caseRepository.findAllById(anyCollection())).thenReturn(List.of());
-        stored.add(record(5L, ClassificationStage.QUEUED, "2026-10-24T22:00:00Z"));
-        stored.add(finished(5L, "2026-10-24T22:01:00Z"));
+        stored.add(record(5L, ClassificationStage.QUEUED, "2026-10-18T22:00:00Z"));
+        stored.add(finished(5L, "2026-10-18T23:59:00Z"));
 
-        assertThat(service.board().classifiedToday()).isEmpty();
+        assertThat(service.board().recentlyClassified()).isEmpty();
     }
 
     private Case givenCase(Long id) {

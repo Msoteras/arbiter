@@ -115,7 +115,7 @@ interface MiniCard {
 
 /**
  * The classification engine at work, live: the cases being classified turn on a ring in the
- * middle, the queue waits on the left and what was classified today piles up on the right. Every
+ * middle, the queue waits on the left and what was classified in the last seven days piles up on the right. Every
  * number on it comes from the steps classification-service reports; nothing is simulated.
  */
 @Component({
@@ -266,7 +266,7 @@ export class EngineBoardComponent {
       .subscribe({
         next: (board) => {
           this.serverOffset = Date.parse(board.serverTime) - Date.now();
-          this.state.update((s) => resync(s, board.active, board.classifiedToday));
+          this.state.update((s) => resync(s, board.active, board.recentlyClassified));
           board.active.forEach((c) => this.trackGate(c));
           this.listen(board.topic);
         },
@@ -285,9 +285,9 @@ export class EngineBoardComponent {
     this.service.board().subscribe({
       next: (board) => {
         this.serverOffset = Date.parse(board.serverTime) - Date.now();
-        board.classifiedToday.forEach((c) => this.seenInPool.add(c.caseId));
+        board.recentlyClassified.forEach((c) => this.seenInPool.add(c.caseId));
         board.active.forEach((c) => this.trackGate(c));
-        this.state.set(fromBoard(board.active, board.classifiedToday));
+        this.state.set(fromBoard(board.active, board.recentlyClassified));
         this.listen(board.topic);
       },
       error: () => this.failed.set(true),
