@@ -215,7 +215,7 @@ LIMIT :maxResults
 | Umbral de similitud | 0,90 | `EMBEDDING_SIMILARITY_THRESHOLD` |
 | Máximo de coincidencias | 5 | `EMBEDDING_MAX_RESULTS` |
 
-La búsqueda excluye el propio expediente, para que una imagen no coincida consigo misma ni con otros adjuntos del mismo caso, y se ejecuta antes de guardar el vector nuevo. Una coincidencia marca el análisis como sospechoso (`INTERNAL_DUPLICATE`) y guarda el adjunto más parecido y su similitud. El analista la ve como «Imagen '<tipo de documento>': 93% similar a un adjunto del siniestro #N ('<archivo>')».
+La búsqueda excluye el propio expediente, para que una imagen no coincida consigo misma ni con otros adjuntos del mismo caso, y se ejecuta antes de guardar el vector nuevo. Una coincidencia marca el análisis como sospechoso (`INTERNAL_DUPLICATE`) y guarda el adjunto más parecido y su similitud. El analista la ve como «Foto del bien: 93% similar a un adjunto del expediente EXP-N.».
 
 ### 6.3. Cascada de detección de imágenes reutilizadas
 
