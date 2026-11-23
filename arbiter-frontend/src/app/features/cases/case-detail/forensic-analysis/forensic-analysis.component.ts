@@ -81,6 +81,21 @@ export class ForensicAnalysisComponent implements OnDestroy {
     return !!web && (web.fullMatches > 0 || web.partialMatches > 0 || web.pages.length > 0);
   }
 
+  protected webMatches(web: ImageForensicWebFinding): string {
+    const full = `${web.fullMatches} ${web.fullMatches === 1 ? 'copia exacta' : 'copias exactas'}`;
+    const partial = `${web.partialMatches} ${web.partialMatches === 1 ? 'parcial' : 'parciales'}`;
+    return `${full} y ${partial}.`;
+  }
+
+  /** The site, without "www.": what the analyst recognizes before opening the page. */
+  protected host(url: string): string {
+    try {
+      return new URL(url).hostname.replace(/^www\./, '');
+    } catch {
+      return url;
+    }
+  }
+
   /** Keyed by type, not filename: `case_documents` is UNIQUE (case_id, type), filenames may repeat. */
   protected matchKey(match: ImageForensicInternalMatch): string {
     return `${match.matchedCaseId}:${match.matchedDocumentType}`;

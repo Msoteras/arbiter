@@ -33,7 +33,7 @@
                 class="doc-btn"
                 [class.selected]="selectedId() === row.doc.id"
                 [attr.aria-current]="selectedId() === row.doc.id ? 'true' : null"
-                (click)="select(row.doc)"
+                (click)="open(row.doc)"
               >
                 <span class="doc-head">
                   <span class="doc-label">{{ row.label }}</span>
@@ -72,8 +72,13 @@
     </app-card>
 
     <div class="docs-viewer-col">
-      <!-- Collapsed by default: the model's reading below is what the analyst looks at first. -->
-      <app-card class="docs-viewer" heading="Vista previa" [collapsible]="true" [collapsed]="true">
+      <!-- Collapsed until the analyst opens a document: the model's reading below comes first. -->
+      <app-card
+        class="docs-viewer"
+        heading="Vista previa"
+        [collapsible]="true"
+        [(collapsed)]="previewCollapsed"
+      >
         @let p = preview();
 
         @switch (p.status) {
@@ -103,6 +108,9 @@
           @case ('ok') {
             <div class="viewer-bar">
               <span class="viewer-name" [title]="p.doc.filename">{{ p.doc.filename }}</span>
+              <app-button variant="secondary" size="sm" (click)="maximized.set(true)">
+                Ampliar
+              </app-button>
               <a class="doc-download" [href]="p.objectUrl" [download]="p.doc.filename">Descargar</a>
             </div>
 
@@ -113,6 +121,22 @@
             } @else if (isPdf(p.doc.contentType)) {
               <iframe class="viewer-frame pdf" [src]="p.safeUrl" [title]="p.doc.filename"></iframe>
             }
+
+            <app-modal
+              [open]="maximized()"
+              [heading]="p.doc.filename"
+              size="full"
+              [hideActions]="true"
+              (close)="maximized.set(false)"
+            >
+              @if (isImage(p.doc.contentType)) {
+                <div class="maximized-frame image">
+                  <img [src]="p.objectUrl" [alt]="p.doc.filename" />
+                </div>
+              } @else if (isPdf(p.doc.contentType)) {
+                <iframe class="maximized-frame" [src]="p.safeUrl" [title]="p.doc.filename"></iframe>
+              }
+            </app-modal>
           }
         }
       </app-card>

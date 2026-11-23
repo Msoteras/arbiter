@@ -1,3 +1,5 @@
+@use 'media';
+
 :host {
   display: block;
 }
@@ -6,20 +8,27 @@
   margin: 0 0 var(--space-4);
 }
 
+// One card per row: each card lays the image and what was found side by side.
 .findings-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
   gap: var(--space-4);
 }
 
 .finding-body {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+  align-items: start;
+  gap: var(--space-5);
+
+  @include media.phone {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-3);
+  }
 }
 
 .finding-image {
-  position: relative;
+  position: sticky;
+  top: var(--space-4);
   aspect-ratio: 4 / 3;
   border-radius: var(--radius-ctl);
   overflow: hidden;
@@ -136,23 +145,68 @@
 }
 
 .verify-note {
-  margin: var(--space-2) 0 var(--space-1);
-  font-size: var(--font-size-xs);
-  color: var(--text-muted);
+  margin: var(--space-3) 0 var(--space-1);
 }
 
 .web-links {
   margin: 0;
   padding: 0;
   list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
+}
+
+.web-links li + li {
+  border-top: 1px solid var(--border-subtle);
 }
 
 .web-links a {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2);
+  margin: 0 calc(var(--space-2) * -1);
+  border-radius: var(--radius-ctl);
+  text-decoration: none;
+  transition: background var(--dur-1) ease;
+
+  &:hover {
+    background: var(--surface-soft);
+  }
+
+  &:hover .web-link-title {
+    text-decoration: underline;
+  }
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+  }
+}
+
+.web-link-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.web-link-title {
   font-size: var(--font-size-sm);
-  color: var(--action-primary-bg);
-  text-decoration: underline;
-  word-break: break-word;
+  font-weight: var(--font-weight-medium);
+  color: var(--accent-fg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.web-link-host {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.web-link-icon {
+  flex: none;
+  color: var(--text-muted);
 }

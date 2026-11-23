@@ -634,7 +634,7 @@ export class CaseDetailComponent {
       { label: 'PEP', value: d ? (d.pep ? 'Sí' : 'No') : null },
       { label: 'N° de póliza', value: d?.policyNumber ?? null, mono: true },
       { label: 'Producto', value: d?.product ?? null },
-      { label: 'Rama', value: d?.branch ?? null },
+      { label: 'Ramo', value: d?.branch ?? null },
       // Contact outside the chat: the insured may not open the portal.
       {
         label: 'Mail',

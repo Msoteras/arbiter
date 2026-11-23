@@ -42,6 +42,7 @@ import { DatePickerComponent } from '../../../shared/ui/date-picker/date-picker.
 import { IconButtonComponent } from '../../../shared/ui/icon-button/icon-button.component';
 import { InputComponent } from '../../../shared/ui/input/input.component';
 import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
+import { ModalComponent } from '../../../shared/ui/modal/modal.component';
 import { SkeletonComponent } from '../../../shared/ui/skeleton/skeleton.component';
 
 /** `value` null renders as "No aplica": the document doesn't state it. */
@@ -116,6 +117,7 @@ type PreviewState =
     IconButtonComponent,
     InputComponent,
     InlineLoadingComponent,
+    ModalComponent,
     SkeletonComponent,
   ],
   templateUrl: './case-documents.component.html',
@@ -306,11 +308,21 @@ export class CaseDocumentsComponent {
         return;
       }
       const stillThere = current.status !== 'empty' && docs.some((d) => d.id === current.doc.id);
-      if (focused) this.select(focused);
+      if (focused) untracked(() => this.open(focused));
       else if (!stillThere) this.select(docs[0]);
     });
 
     this.destroyRef.onDestroy(() => this.revokeCurrent());
+  }
+
+  /** Starts collapsed; opening a document, from the list or from a link, opens it. */
+  protected readonly previewCollapsed = signal(true);
+  protected readonly maximized = signal(false);
+
+  /** What the analyst asked for: the document, with the preview open to show it. */
+  protected open(doc: CaseDocument): void {
+    this.select(doc);
+    this.previewCollapsed.set(false);
   }
 
   protected select(doc: CaseDocument): void {

@@ -312,8 +312,8 @@
                         <!-- Warns, doesn't block: covering the whole branch can be correct. -->
                         @if (claimCauses().length > 0 && !hasExcludedCauses(c)) {
                           <app-info-tip cardTip tone="warning">
-                            Si la póliza contrata varias, esta responde por
-                            {{ coveredCausesLabel() }} con su suma asegurada y su franquicia.
+                            Responde por {{ coveredCausesLabel() }}, aunque la póliza contrate otras
+                            coberturas.
                           </app-info-tip>
                         }
                         @if (claimCauses().length === 0) {
@@ -946,10 +946,11 @@
                       appOnboardingTarget="DOCUMENTS"
                     >
                       <app-info-tip cardTip>
-                        @if (!readOnly()) {
+                        @if (readOnly()) {
+                          Si falta un documento, el analista elige cuáles le pide al asegurado.
+                        } @else {
                           {{ stepLine.DOCUMENTS }}
                         }
-                        Si falta un documento, el analista elige cuáles le pide al asegurado.
                       </app-info-tip>
                       @if (claimCauses().length === 0) {
                         <p class="section-hint">
@@ -1102,8 +1103,7 @@
       >{{ hardRuleLabel(rule.ruleType) }}
       @if (rule.ruleType === 'MAX_EVENTS_YEAR') {
         <app-info-tip>
-          Cuenta los siniestros liquidados en esta póliza, de todas sus coberturas, en el año de
-          vigencia.
+          Siniestros liquidados de la póliza en el año de vigencia, en todas sus coberturas.
         </app-info-tip>
       }
     </span>

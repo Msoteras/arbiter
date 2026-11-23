@@ -91,7 +91,7 @@
         } @else if (spotlightReasons().length > 0) {
           <section class="strip-why">
             <div class="spotlight-aside-head">
-              <h3 class="spotlight-panel-label">Motivos</h3>
+              <h3 class="spotlight-panel-label">Razones</h3>
               @if (analysisReasons().length > spotlightReasons().length) {
                 <button type="button" class="summary-link panel-more" (click)="viewAnalysis()">
                   Ver los {{ analysisReasons().length }}
@@ -909,7 +909,7 @@
               <app-card heading="Razones">
                 <span cardAside class="t-note"
                   >{{ analysisReasons().length }}
-                  {{ analysisReasons().length === 1 ? 'motivo' : 'motivos' }}</span
+                  {{ analysisReasons().length === 1 ? 'razón' : 'razones' }}</span
                 >
                 <ol class="reason-list">
                   @for (segments of reasonSegments(); track $index) {
