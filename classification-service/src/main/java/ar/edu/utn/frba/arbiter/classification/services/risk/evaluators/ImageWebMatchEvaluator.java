@@ -1,5 +1,6 @@
 package ar.edu.utn.frba.arbiter.classification.services.risk.evaluators;
 
+import ar.edu.utn.frba.arbiter.classification.services.ImageFraudAnalysisService;
 import ar.edu.utn.frba.arbiter.classification.services.risk.RiskContext;
 import ar.edu.utn.frba.arbiter.classification.services.risk.RiskFactorEvaluator;
 import ar.edu.utn.frba.arbiter.classification.services.risk.RiskFactorIds;
@@ -43,12 +44,11 @@ public class ImageWebMatchEvaluator implements RiskFactorEvaluator {
 
         if (strongest == null) {
             return new Contribution(factorId(), 0.0,
-                    "Ninguna imagen fue encontrada publicada en internet");
+                    "Ninguna imagen aparece en internet.");
         }
 
-        return new Contribution(factorId(), score, String.format(
-                "Una imagen está publicada en internet (%d exacta(s), %d parcial(es), %d página(s)) — posible foto de catálogo/publicación",
-                strongest.fullMatches(), strongest.partialMatches(), strongest.pages().size()));
+        return new Contribution(factorId(), score,
+                "Una imagen aparece en internet, " + ImageFraudAnalysisService.webMatches(strongest) + ".");
     }
 
     private double gradeWebFinding(WebFinding web) {

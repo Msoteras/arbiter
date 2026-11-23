@@ -118,7 +118,7 @@ class ImageFraudAnalysisServiceTest {
         List<String> traces = service.renderTraces(report);
 
         assertThat(traces).anySatisfy(t -> assertThat(t).contains("no dio su consentimiento"));
-        assertThat(traces).noneSatisfy(t -> assertThat(t).contains("tampoco se encontró"));
+        assertThat(traces).noneSatisfy(t -> assertThat(t).contains("no aparece en internet."));
     }
 
     @Test
@@ -156,7 +156,7 @@ class ImageFraudAnalysisServiceTest {
 
         List<String> traces = service.renderTraces(service.analyze(1L, List.of(image("damage_photo")), false));
 
-        assertThat(traces.getFirst()).contains("no se pudo comparar").doesNotContain("sin coincidencias");
+        assertThat(traces.getFirst()).contains("no se pudo comparar").doesNotContain("no coincide");
     }
 
     @Test
@@ -199,7 +199,7 @@ class ImageFraudAnalysisServiceTest {
         List<String> traces = service.renderTraces(report);
 
         assertThat(traces).hasSize(1);
-        assertThat(traces.getFirst()).contains("97%").contains("#42").contains("stolen.jpg");
+        assertThat(traces.getFirst()).isEqualTo("damage_photo: 97% similar a un adjunto del expediente EXP-42.");
     }
 
     @Test
@@ -211,7 +211,23 @@ class ImageFraudAnalysisServiceTest {
 
         List<String> traces = service.renderTraces(report);
 
-        assertThat(traces).anySatisfy(t -> assertThat(t).contains("sin coincidencias"));
-        assertThat(traces).anySatisfy(t -> assertThat(t).contains("tampoco se encontró"));
+        assertThat(traces).anySatisfy(t -> assertThat(t).contains("no coincide con adjuntos"));
+        assertThat(traces).anySatisfy(t -> assertThat(t).contains("no aparece en internet."));
+    }
+
+    /** No URLs and no "(s)": the pages are in the forensic tab, and the counts take their plural. */
+    @Test
+    void renderTracesDescribesAWebMatchInOneReadableLine() {
+        internalReturns();
+        when(googleVisionClient.isEnabled()).thenReturn(true);
+        when(googleVisionClient.detectWebMatches(anyString())).thenReturn(new WebImageMatch(
+                1, 2, List.of(new WebImageMatch.MatchedPage("https://ml.com/pub", "Publicación")),
+                "acer extensa 5235"));
+        ImageForensicReport report = service.analyze(1L, List.of(image("damage_photo")), true);
+
+        List<String> traces = service.renderTraces(report);
+
+        assertThat(traces).contains("damage_photo: aparece en internet, con 1 copia exacta y 2 parciales "
+                + "en 1 página. Se identificó como acer extensa 5235.");
     }
 }

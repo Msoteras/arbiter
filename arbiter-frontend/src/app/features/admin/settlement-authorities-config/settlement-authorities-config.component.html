@@ -17,10 +17,7 @@
           <label class="t-field-label" [for]="'tope-' + a.branchId"
             >Tope que autoriza el analista</label
           >
-          <app-info-tip>
-            Sin tope, el analista autoriza cualquier monto. Por encima del tope, la liquidación
-            espera al referente.
-          </app-info-tip>
+          <app-info-tip> Por encima del tope, autoriza el referente. </app-info-tip>
         </div>
         <app-input
           [id]="'tope-' + a.branchId"

@@ -140,6 +140,14 @@
   }
 }
 
+// The hourglass fills the left of this zone, so the pile starts right of it and takes as many
+// columns as the rest of the width holds.
+.zone.pool .zwrap {
+  left: 32%;
+  width: calc(68% - var(--space-6));
+  transform: translate(0, -50%);
+}
+
 .zwrap {
   position: absolute;
   left: 50%;
@@ -181,18 +189,16 @@
 
 .grid-pool {
   display: grid;
-  grid-template-columns: repeat(5, var(--engine-pool-col));
+  grid-template-columns: repeat(auto-fill, var(--engine-pool-col));
   gap: var(--space-3);
   transform-style: preserve-3d;
 
-  .mini:nth-child(n + 6) {
+  // Older ones fade, by position in the list rather than by row: the columns vary with the width.
+  .mini:nth-child(n + 5) {
     opacity: 0.85;
   }
-  .mini:nth-child(n + 11) {
+  .mini:nth-child(n + 9) {
     opacity: 0.7;
-  }
-  .mini:nth-child(n + 16) {
-    opacity: 0.55;
   }
 }
 
@@ -430,6 +436,12 @@
   justify-content: center;
   align-items: flex-start;
   gap: var(--space-1);
+  min-width: 0;
+
+  // A long result ("Recomienda rechazar") wraps inside the card instead of spilling over its edge.
+  app-badge {
+    max-width: 100%;
+  }
 
   p {
     margin: 0;
@@ -526,6 +538,27 @@
 
   .case .num {
     font-size: var(--font-size-md);
+
+    // The number's link covers the whole card, so a click anywhere opens the case. On the ring
+    // it stays on the number: dragging a ring card turns the ring.
+    &::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: var(--radius-card);
+    }
+
+    &:focus-visible {
+      box-shadow: none;
+    }
+
+    &:focus-visible::after {
+      box-shadow: var(--focus-ring);
+    }
+  }
+
+  &:has(.num:hover) {
+    border-color: var(--border-strong);
   }
 }
 

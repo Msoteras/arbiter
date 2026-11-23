@@ -75,43 +75,51 @@ public class ImageFraudAnalysisService {
                 imagesAnalyzed, webSearchesPerformed, imageConsent, List.copyOf(findings));
     }
 
+    /**
+     * One factor per finding, as "<document>: <what was found>." The document goes by its code: the
+     * front shows its name and links it.
+     */
     public List<String> renderTraces(ImageForensicReport report) {
         List<String> traces = new ArrayList<>();
         for (ImageFinding f : report.findings()) {
             if (!f.internalMatches().isEmpty()) {
                 f.internalMatches().forEach(m -> traces.add(String.format(
-                        "⚠ Imagen '%s': %.0f%% similar a un adjunto del siniestro #%d ('%s')",
-                        f.documentType(), m.similarity() * 100, m.matchedCaseId(), m.matchedFilename())));
+                        "%s: %.0f%% similar a un adjunto del expediente EXP-%d.",
+                        f.documentType(), m.similarity() * 100, m.matchedCaseId())));
                 continue;
             }
             traces.add(String.format(Boolean.TRUE.equals(f.internalCheckFailed())
-                    ? "⚠ Imagen '%s': no se pudo comparar con adjuntos de siniestros previos"
-                    : "Imagen '%s': sin coincidencias con adjuntos de siniestros previos", f.documentType()));
+                    ? "%s: no se pudo comparar con adjuntos de siniestros previos."
+                    : "%s: no coincide con adjuntos de siniestros previos.", f.documentType()));
 
             if (f.webFinding() == null) {
                 // Only an explicit refusal is explained ("not allowed to look" vs "no evidence");
                 // null means the report predates the field.
                 if (Boolean.FALSE.equals(report.imageConsent())) {
                     traces.add(String.format(
-                            "Imagen '%s': no se buscó en internet — el asegurado no dio su consentimiento",
+                            "%s: no se buscó en internet porque el asegurado no dio su consentimiento.",
                             f.documentType()));
                 }
                 continue;
             }
             if (!f.webFinding().found()) {
-                traces.add(String.format("Imagen '%s': tampoco se encontró publicada en internet", f.documentType()));
+                traces.add(String.format("%s: no aparece en internet.", f.documentType()));
             } else {
-                String where = f.webFinding().pages().stream()
-                        .limit(3).map(WebFinding.Page::url)
-                        .reduce((a, b) -> a + ", " + b).orElse("");
-                traces.add(String.format(
-                        "⚠ Imagen '%s': publicada en internet — %d exacta(s), %d parcial(es), %d página(s). "
-                                + "Identificada como '%s'. Ej.: %s",
-                        f.documentType(), f.webFinding().fullMatches(), f.webFinding().partialMatches(),
-                        f.webFinding().pages().size(), f.webFinding().bestGuessLabel(), where));
+                String guess = f.webFinding().bestGuessLabel();
+                traces.add(String.format("%s: aparece en internet, %s.%s",
+                        f.documentType(), webMatches(f.webFinding()),
+                        guess == null || guess.isBlank() ? "" : " Se identificó como " + guess + "."));
             }
         }
         return traces;
+    }
+
+    /** "4 copias exactas y 2 parciales en 10 páginas", for the factors and the score's rationale. */
+    public static String webMatches(WebFinding web) {
+        return String.format("con %d %s y %d %s en %d %s",
+                web.fullMatches(), web.fullMatches() == 1 ? "copia exacta" : "copias exactas",
+                web.partialMatches(), web.partialMatches() == 1 ? "parcial" : "parciales",
+                web.pages().size(), web.pages().size() == 1 ? "página" : "páginas");
     }
 
     private ImageAnalysisOutcome analyseInternally(

@@ -133,7 +133,7 @@ class ClassificationOrchestratorDocumentGateTest {
                 RiskFixtures.claim(new BigDecimal("100000")), attachments(MINIMUM_DOCS));
 
         assertThat(response.classification()).isEqualTo(Classification.FAST_TRACK);
-        assertThat(response.factors()).anyMatch(f -> f.contains("describe «Hurto»"));
+        assertThat(response.factors()).anyMatch(f -> f.contains("describe Hurto"));
         assertThat(response.ruleFindings())
                 .filteredOn(finding -> finding.ruleType().equals("CLAIM_CAUSE_MATCH"))
                 .singleElement()

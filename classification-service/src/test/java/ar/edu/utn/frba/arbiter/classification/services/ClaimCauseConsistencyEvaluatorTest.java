@@ -52,7 +52,9 @@ class ClaimCauseConsistencyEvaluatorTest {
                     .isEqualTo("declared=Robo en vía pública described=Hurto documents=police_report");
         });
         assertThat(result.reasons()).singleElement().asString()
-                .contains("«Hurto»", "«Robo en vía pública»", "que esta cobertura no cubre");
+                .contains("describe Hurto, que esta cobertura no cubre",
+                        "el hecho generador declarado es Robo en vía pública.")
+                .doesNotContain("«");
     }
 
     /** Covered or not is the engine's word, and the warning only says it when it's true. */
@@ -62,7 +64,7 @@ class ClaimCauseConsistencyEvaluatorTest {
                 declared(ROBBERY), Map.of("police_report", narrating("Caída")), CATALOG);
 
         assertThat(result.reasons()).singleElement().asString()
-                .contains("«Caída»")
+                .contains("describe Caída, pero")
                 .doesNotContain("no cubre");
     }
 

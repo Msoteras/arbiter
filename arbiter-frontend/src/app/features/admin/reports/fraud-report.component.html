@@ -1,9 +1,7 @@
 <div class="report-page" @staggerReveal>
   <app-card heading="Parámetros del reporte">
     <app-info-tip cardAside label="Criterios de detección">
-      Aparecen acá las denuncias del período sobre las que se disparó al menos una señal: score de
-      riesgo alto (banda Alto o Crítico del motor de scoring), incoherencias en el análisis forense
-      de las imágenes, o contradicciones entre la documentación adjunta y lo declarado en la
+      Una señal es un score Alto o Crítico, una imagen reutilizada o un documento que contradice la
       denuncia.
     </app-info-tip>
 
@@ -76,8 +74,7 @@
                 [sub]="totalClaimsTrend()"
               >
                 <app-info-tip>
-                  Todas las denuncias registradas en el período y el ramo elegidos, tengan indicios
-                  o no. Es la población contra la que se leen los porcentajes de al lado.
+                  Todas las denuncias del período y el ramo: la base de los porcentajes.
                 </app-info-tip>
               </app-stat-tile>
               <app-stat-tile
@@ -89,23 +86,14 @@
                 [progress]="totals.flaggedRate"
                 progressTone="warning"
               >
-                <app-info-tip>
-                  Una señal es un criterio que se disparó sobre la denuncia, y hay dos: score de
-                  riesgo alto, o incoherencias en el análisis forense de las imágenes. Acá se
-                  cuentan las denuncias con al menos una: son las que lista la tabla de abajo. Es un
-                  indicio para revisar, no una conclusión.
-                </app-info-tip>
+                <app-info-tip> Son las denuncias de la tabla de abajo. </app-info-tip>
               </app-stat-tile>
               <app-stat-tile
                 label="Con dos o más señales"
                 [value]="totals.multiSignal"
                 [sub]="multiSignalTrend() || 'Las primeras para mirar'"
               >
-                <app-info-tip>
-                  De las denuncias con al menos una señal, cuántas tienen dos o más a la vez. Es un
-                  subconjunto de la cifra anterior, no otra población: una señal sola es un indicio,
-                  dos coincidiendo es lo que conviene mirar primero.
-                </app-info-tip>
+                <app-info-tip> Son parte de las denuncias con al menos una señal. </app-info-tip>
               </app-stat-tile>
               <app-stat-tile
                 label="Fraude determinado"
@@ -123,11 +111,7 @@
                 [tone]="totals.fraudDetermined > 0 ? 'danger' : 'default'"
               >
                 <app-info-tip>
-                  Cuántas de las denuncias del período fueron determinadas como fraude por un
-                  analista. Arbiter no determina fraude: señala indicios y una persona decide, sobre
-                  el expediente. En 0 quiere decir que todavía nadie determinó ninguna, no que no
-                  haya indicios. La cifra sube con el tiempo: los expedientes más recientes del
-                  período siguen abiertos.
+                  Lo determina un analista al resolver el expediente, así que sube con el tiempo.
                 </app-info-tip>
               </app-stat-tile>
             </div>
@@ -139,22 +123,18 @@
               </section>
 
               <section class="distribution">
-                <h3 class="t-section-label">Por señal</h3>
+                <div class="distribution-head">
+                  <h3 class="t-section-label">Por señal</h3>
+                  <app-info-tip>
+                    Los porcentajes son sobre las {{ totals.flagged }} denuncias con señal y no
+                    suman 100%, porque una denuncia puede tener varias.
+                  </app-info-tip>
+                </div>
                 <app-distribution [items]="signalItems()" [total]="totals.flagged" />
-                <p class="t-note distribution-note">
-                  Los porcentajes se leen sobre las denuncias con al menos una señal ({{
-                    totals.flagged
-                  }}), no sobre el total del período. Una denuncia puede tener más de una señal, así
-                  que no suman 100%.
-                </p>
               </section>
             </div>
           </section>
         }
-
-        <p class="order-note t-note">
-          Ordenadas por cantidad de señales y, entre las que empatan, por score de riesgo.
-        </p>
 
         <app-table
           [fixed]="true"
@@ -181,7 +161,14 @@
               <th scope="col">Tipo</th>
               <th scope="col">Denuncia</th>
               <th scope="col">Score de riesgo</th>
-              <th scope="col">Señales</th>
+              <th scope="col">
+                <span class="th-with-tip"
+                  >Señales
+                  <app-info-tip>
+                    Ordenadas por cantidad de señales y, si empatan, por score de riesgo.
+                  </app-info-tip>
+                </span>
+              </th>
               <th scope="col">Estado</th>
             </tr>
           </thead>

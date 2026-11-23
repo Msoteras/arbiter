@@ -53,7 +53,7 @@ describe('CaseDocumentsComponent · provider reports', () => {
     fixture = TestBed.createComponent(CaseDocumentsComponent);
     fixture.componentRef.setInput('caseId', 37);
     fixture.componentRef.setInput('showMissing', showMissing);
-    fixture.componentRef.setInput('focusType', focusType);
+    fixture.componentRef.setInput('focus', focusType ? { type: focusType } : null);
     fixture.detectChanges();
     await fixture.whenStable();
     fixture.detectChanges();

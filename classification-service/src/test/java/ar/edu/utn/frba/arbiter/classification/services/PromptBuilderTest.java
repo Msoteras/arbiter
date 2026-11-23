@@ -29,7 +29,7 @@ class PromptBuilderTest {
     @BeforeEach
     void setUp() throws IOException {
         promptBuilder = new PromptBuilder(
-                new LlmProperties("ollama", "classification-v10"),
+                new LlmProperties("ollama", "classification-v11"),
                 new DefaultResourceLoader());
     }
 

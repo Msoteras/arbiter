@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, input, linkedSignal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, input, model } from '@angular/core';
 
 type Variant = 'default' | 'soft' | 'ai';
 
@@ -228,19 +228,18 @@ export class CardComponent {
   readonly fill = input(false);
   /** Requires `heading`. */
   readonly collapsible = input(false);
-  /** Initial state; only applies with `collapsible`. */
-  readonly collapsed = input(false);
+  /** Only applies with `collapsible`. Two-way: bind `[(collapsed)]` to open it from outside. */
+  readonly collapsed = model(false);
 
   protected readonly isCollapsible = computed(() => this.collapsible() && !!this.heading());
 
-  /** Resets to `collapsed` when the binding changes; the user controls it in between. */
-  protected readonly expanded = linkedSignal(() => !this.collapsed());
+  protected readonly expanded = computed(() => !this.collapsed());
 
   private readonly instanceId = `card-${++CardComponent.instances}`;
 
   protected readonly bodyId = computed(() => `${this.instanceId}-body`);
 
   protected toggle(): void {
-    this.expanded.update((v) => !v);
+    this.collapsed.update((v) => !v);
   }
 }

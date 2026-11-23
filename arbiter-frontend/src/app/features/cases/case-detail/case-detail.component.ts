@@ -119,7 +119,7 @@ import { ForensicAnalysisComponent } from './forensic-analysis/forensic-analysis
 import { ClassificationProgressComponent } from './classification-progress/classification-progress.component';
 import { silentRequest } from '../../../core/cache/query-cache';
 import { ToastService } from '../../../shared/ui/toast/toast.service';
-import { CaseDocumentsComponent } from '../case-documents/case-documents.component';
+import { CaseDocumentsComponent, DocumentFocus } from '../case-documents/case-documents.component';
 import { CaseChatPopupComponent } from '../case-chat-popup/case-chat-popup.component';
 import { analystQuickReplies } from '../case-chat/quick-replies';
 import { CardComponent } from '../../../shared/ui/card/card.component';
@@ -567,12 +567,15 @@ export class CaseDetailComponent {
     );
   });
 
-  /** Read by the documents tab to open this document instead of the first one. */
-  protected readonly focusedDocType = signal<string | null>(null);
+  /**
+   * Read by the documents tab to open this document instead of the first one. A new object per
+   * click: the same document asked for twice still reaches the tab and opens its preview.
+   */
+  protected readonly focusedDoc = signal<DocumentFocus | null>(null);
 
   protected openDocument(type: string): void {
     this.setTab('documents');
-    this.focusedDocType.set(type);
+    this.focusedDoc.set({ type });
     this.tabsNav().nativeElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
@@ -634,7 +637,7 @@ export class CaseDetailComponent {
       { label: 'PEP', value: d ? (d.pep ? 'Sí' : 'No') : null },
       { label: 'N° de póliza', value: d?.policyNumber ?? null, mono: true },
       { label: 'Producto', value: d?.product ?? null },
-      { label: 'Rama', value: d?.branch ?? null },
+      { label: 'Ramo', value: d?.branch ?? null },
       // Contact outside the chat: the insured may not open the portal.
       {
         label: 'Mail',
@@ -1013,7 +1016,7 @@ export class CaseDetailComponent {
 
   setTab(t: TabId): void {
     this.selectedTab.set(t);
-    this.focusedDocType.set(null);
+    this.focusedDoc.set(null);
   }
 
   protected onAlert(briefAlert: BriefAlert): void {

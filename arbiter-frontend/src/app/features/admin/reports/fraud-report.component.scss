@@ -2,14 +2,20 @@
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
-.distribution-note {
-  margin: var(--space-3) 0 0;
-  color: var(--text-muted);
+.distribution-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-bottom: var(--space-3);
+}
+.distribution .distribution-head h3 {
+  margin: 0;
 }
 
-.order-note {
-  margin: 0 0 var(--space-3);
-  color: var(--text-muted);
+.th-with-tip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
 }
 
 /* The short columns get what they need; Señales and Estado a share of the width; Asegurado and Tipo
