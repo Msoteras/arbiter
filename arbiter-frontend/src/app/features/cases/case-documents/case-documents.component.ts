@@ -102,6 +102,11 @@ type PreviewState =
   | { status: 'unsupported'; doc: CaseDocument; objectUrl: string }
   | { status: 'error'; doc: CaseDocument };
 
+/** A request to open one document. A new object per request, so asking again still opens it. */
+export interface DocumentFocus {
+  type: string;
+}
+
 /**
  * Document checklist plus an embedded viewer. Downloads go through HttpClient (the endpoint needs
  * the JWT) into object URLs, which must be revoked manually to avoid leaking memory.
@@ -149,8 +154,8 @@ export class CaseDocumentsComponent {
   /** With both branch and claim cause the checklist uses the configured agenda; otherwise the full catalog. */
   readonly branch = input<string | null>(null);
   readonly claimCause = input<string | null>(null);
-  /** Document type to open instead of the first one (a link from the model's reasons). */
-  readonly focusType = input<string | null>(null);
+  /** Document to open instead of the first one (a link from the model's reasons). */
+  readonly focus = input<DocumentFocus | null>(null);
   readonly canCorrect = input(false);
   readonly corrected = output<void>();
 
@@ -301,7 +306,7 @@ export class CaseDocumentsComponent {
     // re-upload.
     effect(() => {
       const docs = this.documents();
-      const focused = docs.find((d) => d.type === this.focusType());
+      const focused = docs.find((d) => d.type === this.focus()?.type);
       const current = untracked(() => this.preview());
       if (docs.length === 0) {
         if (current.status !== 'empty') this.clearPreview();

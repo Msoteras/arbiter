@@ -1230,7 +1230,7 @@
             [branch]="d.branch"
             [claimCause]="d.claimCause"
             [extractions]="documentAnalyses()"
-            [focusType]="focusedDocType()"
+            [focus]="focusedDoc()"
             [showMissingReadings]="d.status !== 'PENDING_CLASSIFICATION'"
             [canCorrect]="canCorrectDocuments()"
             (corrected)="onDocumentCorrected()"
