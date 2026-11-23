@@ -210,7 +210,13 @@
     </div>
     <div class="b">
       <div class="case">
-        <a class="num" [routerLink]="['/cases', m.caseId]">#{{ m.caseId }}</a>
+        <a
+          class="num"
+          draggable="false"
+          [routerLink]="['/cases', m.caseId]"
+          [attr.aria-label]="'Abrir el expediente ' + m.caseId"
+          >#{{ m.caseId }}</a
+        >
         <span>{{ m.who }}</span>
       </div>
       <div class="slot-content">

@@ -538,6 +538,27 @@
 
   .case .num {
     font-size: var(--font-size-md);
+
+    // The number's link covers the whole card, so a click anywhere opens the case. On the ring
+    // it stays on the number: dragging a ring card turns the ring.
+    &::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: var(--radius-card);
+    }
+
+    &:focus-visible {
+      box-shadow: none;
+    }
+
+    &:focus-visible::after {
+      box-shadow: var(--focus-ring);
+    }
+  }
+
+  &:has(.num:hover) {
+    border-color: var(--border-strong);
   }
 }
 
