@@ -35,6 +35,7 @@ import {
   EMPTY_STATE,
   EngineState,
   POOL_MAX,
+  POOL_STAGE_MAX,
   applyStep,
   estimateProgress,
   expireHolds,
@@ -230,9 +231,7 @@ export class EngineBoardComponent {
   protected readonly poolCards = computed<MiniCard[]>(() =>
     this.state()
       .done.slice(0, POOL_MAX)
-      .map((c, i) => {
-        const z = -((i * 37) % 5) * 45 - Math.floor(i / 5) * 40;
-        const y = (((i * 53) % 7) - 3) * 4;
+      .map((c) => {
         const isNew = !this.seenInPool.has(c.caseId);
         this.seenInPool.add(c.caseId);
         return {
@@ -244,11 +243,14 @@ export class EngineBoardComponent {
           clock: '',
           result: engineResultLabel(c),
           tone: engineResultTone(c),
-          depth: `translate3d(0, ${y}px, ${z}px)`,
+          // A tidy grid: with a week of cases, a scattered pile read as cards out of place.
+          depth: 'none',
           isNew,
         };
       }),
   );
+
+  protected readonly stagePoolCards = computed(() => this.poolCards().slice(0, POOL_STAGE_MAX));
 
   constructor() {
     const phoneQuery = window.matchMedia('(max-width: 639.98px)');

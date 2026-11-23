@@ -5,6 +5,8 @@ export const HOLD_MS = 1800;
 
 /** The pool shows the latest ones; the counter still counts them all. */
 export const POOL_MAX = 20;
+/** On the 3D stage: what fits right of the hourglass without scrolling. The count shows them all. */
+export const POOL_STAGE_MAX = 12;
 
 export interface EngineState {
   /** Queued or running, as the server last described them. */

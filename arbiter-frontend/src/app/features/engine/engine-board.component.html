@@ -110,7 +110,7 @@
               Clasificados en la semana <span class="n">{{ doneCount() }}</span>
             </h2>
             <div class="grid-pool">
-              @for (d of poolCards(); track d.caseId) {
+              @for (d of stagePoolCards(); track d.caseId) {
                 <ng-container *ngTemplateOutlet="mini; context: { $implicit: d, queued: false }" />
               } @empty {
                 <p class="t-note zone-empty">No se clasificó ningún expediente en la semana.</p>
@@ -218,7 +218,7 @@
           <div class="wait">En espera</div>
         } @else {
           <div class="res">
-            <app-badge variant="solid" [tone]="m.tone">{{ m.result }}</app-badge>
+            <app-badge variant="solid" [tone]="m.tone" [wrap]="true">{{ m.result }}</app-badge>
           </div>
         }
       </div>
