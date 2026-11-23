@@ -258,3 +258,91 @@ describe('CaseDocumentsComponent · corrections', () => {
     expect(buttonWithText('Cancelar')).toBeDefined();
   });
 });
+
+describe('CaseDocumentsComponent · preview', () => {
+  const file = (id: number, type: string, contentType: string): CaseDocument => ({
+    id,
+    type,
+    filename: `${type}.${contentType === 'image/jpeg' ? 'jpg' : 'pdf'}`,
+    contentType,
+    sizeBytes: 1024,
+    uploadedAt: '2026-11-21T12:00:00Z',
+    description: null,
+  });
+  const docs = [
+    file(1, 'police_report', 'application/pdf'),
+    file(2, 'item_photo', 'image/jpeg'),
+    file(3, 'purchase_proof', 'image/jpeg'),
+  ];
+  let fixture: ComponentFixture<CaseDocumentsComponent>;
+
+  /** Mounts the tab as a link from the model's reasons leaves it. */
+  async function openFromReason(type: string): Promise<void> {
+    await TestBed.configureTestingModule({
+      imports: [CaseDocumentsComponent],
+      providers: [
+        provideDocumentTypesStub(),
+        {
+          provide: CaseService,
+          useValue: {
+            listDocuments: () => of(docs),
+            downloadDocument: (_: number, id: number) =>
+              of(new Blob(['x'], { type: docs.find((d) => d.id === id)!.contentType })),
+          },
+        },
+        {
+          provide: DocumentAgendaService,
+          useValue: {
+            slotsFor: () =>
+              of(DOCUMENT_TYPES_FIXTURE.map(({ code, label }) => ({ type: code, label }))),
+          },
+        },
+      ],
+    }).compileComponents();
+
+    fixture = TestBed.createComponent(CaseDocumentsComponent);
+    fixture.componentRef.setInput('caseId', 37);
+    fixture.componentRef.setInput('showMissing', true);
+    fixture.componentRef.setInput('focus', { type });
+    await settle();
+  }
+
+  async function settle(): Promise<void> {
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+  }
+
+  /** Whether the "Vista previa" card shows its body. */
+  function previewOpen(): boolean {
+    const body = (fixture.nativeElement as HTMLElement).querySelector<HTMLElement>(
+      'app-card.docs-viewer .card-body',
+    );
+    return !!body && !body.hidden;
+  }
+
+  it('opens on the photo of the damage', async () => {
+    await openFromReason('item_photo');
+    expect(previewOpen()).toBeTrue();
+  });
+
+  it('stays closed on a paper document, under what Arbiter read from it', async () => {
+    await openFromReason('police_report');
+    expect(previewOpen()).toBeFalse();
+  });
+
+  it('stays closed on a paper document sent as a photo', async () => {
+    await openFromReason('purchase_proof');
+    expect(previewOpen()).toBeFalse();
+  });
+
+  it('opens on any document the analyst picks from the list', async () => {
+    await openFromReason('purchase_proof');
+    const buttons = (fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>(
+      'button.doc-btn',
+    );
+    [...buttons].find((b) => b.textContent?.includes('police_report.pdf'))!.click();
+    await settle();
+    expect(previewOpen()).toBeTrue();
+  });
+});
