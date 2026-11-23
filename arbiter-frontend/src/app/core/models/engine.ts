@@ -40,7 +40,7 @@ export interface EngineCase {
 /** Mirrors cases-service's EngineBoardResponse. */
 export interface EngineBoard {
   active: EngineCase[];
-  classifiedToday: EngineCase[];
+  recentlyClassified: EngineCase[];
   serverTime: string;
   topic: string;
 }

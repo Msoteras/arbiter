@@ -59,8 +59,10 @@ export function fitRows(
   const padding = parseFloat(colStyle.paddingTop) + parseFloat(colStyle.paddingBottom);
   const room = Math.floor(col.clientHeight - padding - othersHeight - gap * others.length - chrome);
   const rows = Math.max(1, Math.floor(room / rowHeight));
-  // Spread only when the rows really fill the card; with fewer items the rest stays below.
-  const extra = available >= rows ? Math.max(0, Math.floor((room - rows * rowHeight) / rows)) : 0;
+  // Spread only when the rows really fill the card; with fewer items the rest stays below. A lone
+  // row would take up to a whole row's height as padding and look broken, so it doesn't spread.
+  const spread = available >= rows && rows > 1;
+  const extra = spread ? Math.max(0, Math.floor((room - rows * rowHeight) / rows)) : 0;
   return { rows, extra };
 }
 

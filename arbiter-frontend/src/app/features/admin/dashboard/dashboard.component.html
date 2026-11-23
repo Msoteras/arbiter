@@ -35,8 +35,7 @@
           Recalcular período
         </app-button>
         <app-info-tip>
-          Los totales de un período ya cerrado quedan guardados y no cambian solos. Recalculalos si
-          se reabrió o corrigió un expediente de esas fechas.
+          Recalculá si se corrigió un expediente de un período ya cerrado.
         </app-info-tip>
       }
     </div>
@@ -149,10 +148,10 @@
       <!-- ─── Amounts ──────────────────────────────────────────────────────────── -->
       @if (money(); as cash) {
         <app-card heading="Montos del período">
-          <p class="card-note">
-            Sólo liquidaciones ya firmadas: una que espera la firma del referente todavía puede
-            volver y rehacerse por otro monto
-          </p>
+          <app-info-tip cardTip>
+            Cuenta solo las liquidaciones firmadas, porque una sin firma todavía puede cambiar de
+            monto.
+          </app-info-tip>
           <div class="money">
             <div class="money-figure">
               <span class="money-label t-field-label">Liquidado</span>
@@ -220,9 +219,6 @@
           </app-card>
 
           <app-card heading="Requiere atención">
-            <p class="card-note">
-              De toda la cartera, no sólo del período: lo que está frenado hoy lo está igual
-            </p>
             @if (attentionItems().length === 0) {
               <app-empty-state message="Nada pendiente de atención" sub="Todo al día" />
             } @else {
@@ -282,9 +278,6 @@
           </app-card>
 
           <app-card heading="Reglas que más frenan">
-            <p class="card-note">
-              De las reglas evaluadas sobre lo que entró en el período, cuáles no se cumplieron
-            </p>
             @if (blockingRuleItems().length === 0) {
               <app-empty-state
                 message="Ninguna regla frenó un expediente"
@@ -296,10 +289,6 @@
           </app-card>
 
           <app-card heading="Respuesta de los terceros">
-            <p class="card-note">
-              Derivaciones salidas en el período. Mientras están afuera, el plazo legal está
-              interrumpido
-            </p>
             @if (derivations().length === 0) {
               <app-empty-state
                 message="No se derivó ningún expediente"

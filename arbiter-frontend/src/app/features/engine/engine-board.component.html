@@ -25,7 +25,7 @@
         <dd>{{ queued() }}</dd>
       </div>
       <div class="stat">
-        <dt>Clasificados hoy</dt>
+        <dt>Clasificados en la semana</dt>
         <dd>{{ doneCount() }}</dd>
       </div>
     </dl>
@@ -61,12 +61,12 @@
       </section>
       <section aria-labelledby="flat-done">
         <h2 id="flat-done" class="t-section-label">
-          Clasificados hoy <span class="n">{{ doneCount() }}</span>
+          Clasificados en la semana <span class="n">{{ doneCount() }}</span>
         </h2>
         @for (d of poolCards(); track d.caseId) {
           <ng-container *ngTemplateOutlet="mini; context: { $implicit: d, queued: false }" />
         } @empty {
-          <p class="t-note">Todavía no se clasificó ningún expediente hoy.</p>
+          <p class="t-note">No se clasificó ningún expediente en la semana.</p>
         }
       </section>
     </div>
@@ -107,13 +107,13 @@
         <section class="zone pool" aria-labelledby="zone-pool">
           <div class="zwrap">
             <h2 class="zone-title" id="zone-pool">
-              Clasificados hoy <span class="n">{{ doneCount() }}</span>
+              Clasificados en la semana <span class="n">{{ doneCount() }}</span>
             </h2>
             <div class="grid-pool">
-              @for (d of poolCards(); track d.caseId) {
+              @for (d of stagePoolCards(); track d.caseId) {
                 <ng-container *ngTemplateOutlet="mini; context: { $implicit: d, queued: false }" />
               } @empty {
-                <p class="t-note zone-empty">Todavía no se clasificó ningún expediente hoy.</p>
+                <p class="t-note zone-empty">No se clasificó ningún expediente en la semana.</p>
               }
             </div>
           </div>
@@ -210,7 +210,13 @@
     </div>
     <div class="b">
       <div class="case">
-        <a class="num" [routerLink]="['/cases', m.caseId]">#{{ m.caseId }}</a>
+        <a
+          class="num"
+          draggable="false"
+          [routerLink]="['/cases', m.caseId]"
+          [attr.aria-label]="'Abrir el expediente ' + m.caseId"
+          >#{{ m.caseId }}</a
+        >
         <span>{{ m.who }}</span>
       </div>
       <div class="slot-content">
@@ -218,7 +224,7 @@
           <div class="wait">En espera</div>
         } @else {
           <div class="res">
-            <app-badge variant="solid" [tone]="m.tone">{{ m.result }}</app-badge>
+            <app-badge variant="solid" [tone]="m.tone" [wrap]="true">{{ m.result }}</app-badge>
           </div>
         }
       </div>

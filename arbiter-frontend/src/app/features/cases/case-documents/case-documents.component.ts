@@ -42,6 +42,7 @@ import { DatePickerComponent } from '../../../shared/ui/date-picker/date-picker.
 import { IconButtonComponent } from '../../../shared/ui/icon-button/icon-button.component';
 import { InputComponent } from '../../../shared/ui/input/input.component';
 import { InlineLoadingComponent } from '../../../shared/ui/inline-loading/inline-loading.component';
+import { ModalComponent } from '../../../shared/ui/modal/modal.component';
 import { SkeletonComponent } from '../../../shared/ui/skeleton/skeleton.component';
 
 /** `value` null renders as "No aplica": the document doesn't state it. */
@@ -101,6 +102,11 @@ type PreviewState =
   | { status: 'unsupported'; doc: CaseDocument; objectUrl: string }
   | { status: 'error'; doc: CaseDocument };
 
+/** A request to open one document. A new object per request, so asking again still opens it. */
+export interface DocumentFocus {
+  type: string;
+}
+
 /**
  * Document checklist plus an embedded viewer. Downloads go through HttpClient (the endpoint needs
  * the JWT) into object URLs, which must be revoked manually to avoid leaking memory.
@@ -116,6 +122,7 @@ type PreviewState =
     IconButtonComponent,
     InputComponent,
     InlineLoadingComponent,
+    ModalComponent,
     SkeletonComponent,
   ],
   templateUrl: './case-documents.component.html',
@@ -147,8 +154,8 @@ export class CaseDocumentsComponent {
   /** With both branch and claim cause the checklist uses the configured agenda; otherwise the full catalog. */
   readonly branch = input<string | null>(null);
   readonly claimCause = input<string | null>(null);
-  /** Document type to open instead of the first one (a link from the model's reasons). */
-  readonly focusType = input<string | null>(null);
+  /** Document to open instead of the first one (a link from the model's reasons). */
+  readonly focus = input<DocumentFocus | null>(null);
   readonly canCorrect = input(false);
   readonly corrected = output<void>();
 
@@ -299,18 +306,28 @@ export class CaseDocumentsComponent {
     // re-upload.
     effect(() => {
       const docs = this.documents();
-      const focused = docs.find((d) => d.type === this.focusType());
+      const focused = docs.find((d) => d.type === this.focus()?.type);
       const current = untracked(() => this.preview());
       if (docs.length === 0) {
         if (current.status !== 'empty') this.clearPreview();
         return;
       }
       const stillThere = current.status !== 'empty' && docs.some((d) => d.id === current.doc.id);
-      if (focused) this.select(focused);
+      if (focused) untracked(() => this.open(focused));
       else if (!stillThere) this.select(docs[0]);
     });
 
     this.destroyRef.onDestroy(() => this.revokeCurrent());
+  }
+
+  /** Starts collapsed; opening a document, from the list or from a link, opens it. */
+  protected readonly previewCollapsed = signal(true);
+  protected readonly maximized = signal(false);
+
+  /** What the analyst asked for: the document, with the preview open to show it. */
+  protected open(doc: CaseDocument): void {
+    this.select(doc);
+    this.previewCollapsed.set(false);
   }
 
   protected select(doc: CaseDocument): void {

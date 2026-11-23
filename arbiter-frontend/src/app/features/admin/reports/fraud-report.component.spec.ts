@@ -192,6 +192,10 @@ describe('FraudReportComponent', () => {
     expect(rows[0].classList).toContain('multi-signal');
     // A single signal isn't a coincidence: no mark.
     expect(rows[1].classList).not.toContain('multi-signal');
+    // The order is behind the tip on the Señales header, not a note over the table.
+    expect(host.textContent).not.toContain('Ordenadas por cantidad de señales');
+    host.querySelector<HTMLElement>('thead app-info-tip button')!.click();
+    fixture.detectChanges();
     expect(host.textContent).toContain('Ordenadas por cantidad de señales');
   });
 
@@ -270,7 +274,7 @@ describe('FraudReportComponent', () => {
 
     determinedTile.querySelector<HTMLElement>('app-info-tip button')!.click();
     fixture.detectChanges();
-    expect(determinedTile.textContent).toContain('Arbiter no determina fraude');
+    expect(determinedTile.textContent).toContain('Lo determina un analista');
   });
 
   it('paints the determination as an alert once there is one', () => {
@@ -331,13 +335,13 @@ describe('FraudReportComponent', () => {
   it('keeps the detection criteria behind the info tip until it is opened', () => {
     const host = fixture.nativeElement as HTMLElement;
     expect(host.textContent).toContain('Criterios de detección');
-    expect(host.textContent).not.toContain('score de riesgo alto (banda Alto');
+    expect(host.textContent).not.toContain('una imagen reutilizada');
 
     host.querySelector<HTMLElement>('app-info-tip button')!.click();
     fixture.detectChanges();
 
-    expect(host.textContent).toContain('score de riesgo alto (banda Alto');
-    expect(host.textContent).toContain('lo declarado en la denuncia.');
+    expect(host.textContent).toContain('una imagen reutilizada');
+    expect(host.textContent).toContain('un documento que contradice la denuncia.');
   });
 
   it('exports the same filters it previews, in the requested format', () => {

@@ -28,6 +28,7 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
           class="modal"
           [class.side]="variant() === 'side'"
           [class.lg]="size() === 'lg'"
+          [class.full]="size() === 'full'"
           [class.no-actions]="hideActions()"
           role="dialog"
           aria-modal="true"
@@ -147,6 +148,17 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
     .modal.lg {
       max-width: 680px;
     }
+    /* Almost the whole screen, for looking at a document: the body takes the height left. */
+    .modal.full {
+      max-width: none;
+      width: calc(100vw - 2 * var(--space-5));
+      height: calc(100dvh - 2 * var(--space-5));
+      max-height: none;
+    }
+    .modal.full .modal-body {
+      display: flex;
+      flex-direction: column;
+    }
     .modal.side {
       max-width: 420px;
       height: 100%;
@@ -250,7 +262,7 @@ export class ModalComponent {
   readonly open = input(false);
   readonly heading = input('');
   readonly variant = input<'center' | 'side'>('center');
-  readonly size = input<'md' | 'lg'>('md');
+  readonly size = input<'md' | 'lg' | 'full'>('md');
   /** For bodies that bring their own action buttons. */
   readonly hideActions = input(false);
   /**

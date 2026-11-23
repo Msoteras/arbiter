@@ -46,21 +46,19 @@ import { OnboardingTargetDirective } from '../../../core/onboarding/onboarding-t
         @fadeInUp
         appOnboardingTarget="TARGET"
       >
-        @if (!readOnly()) {
-          <app-info-tip cardTip>{{ stepLine.TARGET }}</app-info-tip>
-        }
+        <app-info-tip cardTip>
+          @if (!readOnly()) {
+            {{ stepLine.TARGET }}
+          }
+          Sin objetivo, el tablero muestra el tiempo promedio sin compararlo con nada.
+        </app-info-tip>
         <label class="row" [class.read-only]="readOnly()">
           <app-switch
             [(checked)]="enabled"
             ariaLabel="Fijar un objetivo de resolución"
             [disabled]="readOnly()"
           />
-          <span class="row-text">
-            <span class="row-label">Medir contra un objetivo</span>
-            <span class="t-note">
-              Apagado, el tablero muestra el tiempo promedio sin compararlo con nada.
-            </span>
-          </span>
+          <span class="row-label">Medir contra un objetivo</span>
         </label>
 
         @if (enabled()) {
@@ -108,17 +106,12 @@ import { OnboardingTargetDirective } from '../../../core/onboarding/onboarding-t
     }
     .row {
       display: flex;
-      align-items: flex-start;
+      align-items: center;
       gap: var(--space-3);
       cursor: pointer;
     }
     .row.read-only {
       cursor: default;
-    }
-    .row-text {
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
     }
     .row-label {
       font-size: var(--font-size-body);

@@ -11,7 +11,6 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 /**
  * Whether the cause the documents narrate is the declared one. Off the LLM path nobody compared them:
@@ -82,16 +81,17 @@ public class ClaimCauseConsistencyEvaluator {
                     .findFirst()
                     .ifPresent(option -> uncovered.add(option.name()));
         }
-        String quoted = narrated.stream().map(cause -> "«" + cause + "»").collect(Collectors.joining(" y "));
+        // Catalog names as they are, without quotes: they are the terms the analyst sees in the UI.
         StringBuilder text = new StringBuilder("La documentación adjunta describe ")
-                .append(quoted)
-                .append(", no el hecho generador declarado («").append(claim.claimCause()).append("»)");
-        if (!uncovered.isEmpty()) {
-            text.append(narrated.size() == 1
-                    ? ", que esta cobertura no cubre"
-                    : ", y esta cobertura no cubre " + String.join(" ni ", uncovered));
+                .append(String.join(" y ", narrated));
+        if (narrated.size() == 1 && !uncovered.isEmpty()) {
+            text.append(", que esta cobertura no cubre");
         }
-        return text.append(". Revisar el relato y el acta antes de resolver.").toString();
+        text.append(", pero el hecho generador declarado es ").append(claim.claimCause()).append('.');
+        if (narrated.size() > 1 && !uncovered.isEmpty()) {
+            text.append(" Esta cobertura no cubre ").append(String.join(" ni ", uncovered)).append('.');
+        }
+        return text.append(" Revisar el relato y el acta antes de resolver.").toString();
     }
 
     private static RuleFinding finding(boolean passed, String evaluatedValue) {

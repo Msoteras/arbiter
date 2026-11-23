@@ -117,6 +117,8 @@ button.doc-btn.selected {
 }
 
 .viewer-name {
+  /* Pushes "Ampliar" and "Descargar" together to the right. */
+  margin-right: auto;
   font-size: var(--font-size-sm);
   font-family: var(--font-mono);
   color: var(--text-tertiary);
@@ -173,6 +175,29 @@ button.doc-btn.selected {
   object-fit: contain;
   outline: 1px solid rgb(0 0 0 / 0.1);
   outline-offset: -1px;
+}
+
+/* Fills the maximized modal's body: the document gets the whole screen. */
+.maximized-frame {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-ctl);
+  background: var(--surface-sunken);
+}
+
+.maximized-frame.image {
+  display: grid;
+  place-items: center;
+  padding: var(--space-3);
+  overflow: auto;
+}
+
+.maximized-frame.image img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
 }
 
 .viewer-state {

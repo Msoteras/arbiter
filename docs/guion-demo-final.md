@@ -86,7 +86,7 @@ Respaldo: el expediente de Tomás Ibarra (BBVA · Tecnología Portátil · Robo)
     - **Impacto:** "El pedido y la respuesta quedan en el expediente. Con la foto, el caso pasa al motor de análisis."
 5. **Analista · Arbiter** (0:45)
     - **Hacer:** en el perfil Analista, abrir la solapa Arbiter.
-    - **Dice la analista:** "En la solapa Arbiter veo qué está analizando el motor: los expedientes en cola, en análisis y los clasificados hoy. El de Valentín está en análisis. Mientras termina, la referente nos muestra cómo se configura."
+    - **Dice la analista:** "En la solapa Arbiter veo qué está analizando el motor: los expedientes en cola, en análisis y los clasificados en la semana. El de Valentín está en análisis. Mientras termina, la referente nos muestra cómo se configura."
     - **Impacto:** "El análisis corre en segundo plano. Nadie espera frente a la pantalla."
 6. **Referente · Reglas** (2:00)
     - **Hacer:** en el perfil Referente, Reglas → Aseguradora → Puntaje de riesgo. Después, Tecnología Portátil → Agenda documental.
