@@ -1,9 +1,6 @@
 @if (report(); as r) {
   @if (r.findings.length > 0) {
-    <p class="t-note summary">
-      {{ r.imagesAnalyzed }} imagen(es) analizada(s) · {{ r.webSearchesPerformed }} búsqueda(s) en
-      internet
-    </p>
+    <p class="t-note summary">{{ summaryLine(r) }}</p>
 
     <div class="findings-grid">
       @for (finding of r.findings; track finding.label) {

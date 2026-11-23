@@ -44,6 +44,14 @@ describe('ForensicAnalysisComponent · internal comparison', () => {
     return (fixture.nativeElement as HTMLElement).textContent ?? '';
   }
 
+  /** One image and no search: each count takes its own number, never "imagen(es)". */
+  it('writes the summary with real plurals', () => {
+    const text = render({});
+
+    expect(text).toContain('1 imagen analizada · 0 búsquedas en internet');
+    expect(text).not.toContain('(s)');
+  });
+
   it('says the image was not compared when the internal check failed', () => {
     const text = render({ internalCheckFailed: true });
 

@@ -81,6 +81,16 @@ export class ForensicAnalysisComponent implements OnDestroy {
     return !!web && (web.fullMatches > 0 || web.partialMatches > 0 || web.pages.length > 0);
   }
 
+  /** "1 imagen analizada · 2 búsquedas en internet", each count with its own plural. */
+  protected summaryLine(report: ImageForensicReport): string {
+    const images = report.imagesAnalyzed;
+    const searches = report.webSearchesPerformed;
+    return (
+      `${images} ${images === 1 ? 'imagen analizada' : 'imágenes analizadas'} · ` +
+      `${searches} ${searches === 1 ? 'búsqueda' : 'búsquedas'} en internet`
+    );
+  }
+
   protected webMatches(web: ImageForensicWebFinding): string {
     const full = `${web.fullMatches} ${web.fullMatches === 1 ? 'copia exacta' : 'copias exactas'}`;
     const partial = `${web.partialMatches} ${web.partialMatches === 1 ? 'parcial' : 'parciales'}`;
