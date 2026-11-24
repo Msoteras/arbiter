@@ -146,6 +146,8 @@
   --empty-fill-min-h: 200px;
   /* Reports: the narrowest a parameter field gets before the row wraps. */
   --report-field-min-w: 180px;
+  /* Usuarios: the narrowest the search gets next to the tabs before it wraps to its own row. */
+  --users-search-min-w: 240px;
 
   /* Minimum height of a tappable control on touch layouts (WCAG 2.5.5). */
   --touch-target: 44px;

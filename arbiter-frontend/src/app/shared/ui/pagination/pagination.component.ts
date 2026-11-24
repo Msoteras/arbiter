@@ -16,7 +16,7 @@ import { ChangeDetectionStrategy, Component, computed, input, output } from '@an
       </span>
 
       <div class="controls">
-        <div class="size-picker" role="group" aria-label="Expedientes por página">
+        <div class="size-picker" role="group" aria-label="Filas por página">
           <span class="size-label">Por página</span>
           <div class="segmented">
             @for (s of sizeOptions(); track s) {

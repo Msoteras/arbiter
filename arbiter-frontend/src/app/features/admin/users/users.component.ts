@@ -18,6 +18,7 @@ import {
   MenuItem,
 } from '../../../shared/ui/menu-button/menu-button.component';
 import { ModalComponent } from '../../../shared/ui/modal/modal.component';
+import { PaginationComponent } from '../../../shared/ui/pagination/pagination.component';
 import { TableComponent } from '../../../shared/ui/table/table.component';
 import { TabOption, TabsComponent } from '../../../shared/ui/tabs/tabs.component';
 import { SkeletonComponent } from '../../../shared/ui/skeleton/skeleton.component';
@@ -64,6 +65,7 @@ function matchesLens(user: UserResponse, lens: UserLens): boolean {
     InputComponent,
     MenuButtonComponent,
     ModalComponent,
+    PaginationComponent,
     TableComponent,
     TabsComponent,
     SkeletonComponent,
@@ -135,9 +137,26 @@ export class UsersComponent {
     }));
   });
 
-  protected readonly visibleUsers = computed(() =>
+  private readonly filteredUsers = computed(() =>
     this.searchedUsers().filter((u) => matchesLens(u, this.lens())),
   );
+
+  // Paged in the browser: the backend returns the whole list in one call.
+  protected readonly pageSize = signal(20);
+  private readonly requestedPage = signal(0);
+
+  protected readonly totalElements = computed(() => this.filteredUsers().length);
+  protected readonly totalPages = computed(() => Math.ceil(this.totalElements() / this.pageSize()));
+
+  /** Clamped, so deleting the last row of the last page falls back to the previous one. */
+  protected readonly page = computed(() =>
+    Math.min(this.requestedPage(), Math.max(0, this.totalPages() - 1)),
+  );
+
+  protected readonly visibleUsers = computed(() => {
+    const start = this.page() * this.pageSize();
+    return this.filteredUsers().slice(start, start + this.pageSize());
+  });
 
   /** Built once per list change, so each row's menu keeps the same items between checks. */
   protected readonly rowActions = computed(
@@ -155,6 +174,25 @@ export class UsersComponent {
 
   constructor() {
     this.load();
+  }
+
+  protected onQueryChange(value: string): void {
+    this.query.set(value);
+    this.requestedPage.set(0);
+  }
+
+  protected onLensChange(value: UserLens): void {
+    this.lens.set(value);
+    this.requestedPage.set(0);
+  }
+
+  protected onPageChange(page: number): void {
+    this.requestedPage.set(page);
+  }
+
+  protected onSizeChange(size: number): void {
+    this.pageSize.set(size);
+    this.requestedPage.set(0);
   }
 
   /** The backend answers 202 and keeps working, so there's no summary: only "started". */
@@ -229,6 +267,8 @@ export class UsersComponent {
 
   protected onCreated(user: UserResponse): void {
     this.users.update((list) => [user, ...list]);
+    // The new user goes first in the list, so it shows on the first page.
+    this.requestedPage.set(0);
     this.showCreatePanel.set(false);
   }
 
