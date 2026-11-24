@@ -34,7 +34,7 @@
         <app-input
           class="search"
           [value]="query()"
-          (valueChange)="query.set($event)"
+          (valueChange)="onQueryChange($event)"
           placeholder="Buscar por nombre o email"
         />
         <app-tabs
@@ -42,7 +42,7 @@
           ariaLabel="Filtrar usuarios"
           [tabs]="lensTabs()"
           [value]="lens()"
-          (valueChange)="lens.set($any($event))"
+          (valueChange)="onLensChange($any($event))"
         />
       </div>
 
@@ -99,6 +99,17 @@
         </app-table>
       }
     </app-card>
+
+    @if (totalElements() > 0) {
+      <app-pagination
+        [page]="page()"
+        [size]="pageSize()"
+        [totalPages]="totalPages()"
+        [totalElements]="totalElements()"
+        (pageChange)="onPageChange($event)"
+        (sizeChange)="onSizeChange($event)"
+      />
+    }
   }
 </div>
 
