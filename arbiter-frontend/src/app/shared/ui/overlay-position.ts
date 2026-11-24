@@ -8,10 +8,14 @@ export interface OverlayPosition {
   bottom: number | null;
   left: number | null;
   right: number | null;
-  width: number | null;
+  minWidth: number | null;
+  maxWidth: number | null;
 }
 
-/** `stretch` = same width as the trigger (selects); `start`/`end` = anchored to that edge (menus). */
+/**
+ * `stretch` = at least as wide as the trigger, growing toward the side with more room (selects);
+ * `start`/`end` = anchored to that edge (menus).
+ */
 export type OverlayAlign = 'start' | 'end' | 'stretch';
 
 const GAP = 4;
@@ -29,13 +33,20 @@ export function anchorToTrigger(
   const spaceBelow = viewportHeight - trigger.bottom;
   const dropUp = spaceBelow < estimatedHeight && trigger.top > spaceBelow;
 
+  // A stretched panel wider than its trigger grows away from the nearer viewport edge.
+  const roomRight = viewportWidth - trigger.left - GAP;
+  const roomLeft = trigger.right - GAP;
+  const anchorEnd = align === 'end' || (align === 'stretch' && roomLeft > roomRight);
+
   // Pin the edge opposite to the opening side so the panel need not be measured before rendering.
   return {
     top: dropUp ? null : trigger.bottom + GAP,
     bottom: dropUp ? viewportHeight - trigger.top + GAP : null,
-    left: align === 'end' ? null : trigger.left,
-    right: align === 'end' ? viewportWidth - trigger.right : null,
-    width: align === 'stretch' ? trigger.width : null,
+    left: anchorEnd ? null : trigger.left,
+    right: anchorEnd ? viewportWidth - trigger.right : null,
+    minWidth: align === 'stretch' ? trigger.width : null,
+    maxWidth:
+      align === 'stretch' ? Math.max(trigger.width, anchorEnd ? roomLeft : roomRight) : null,
   };
 }
 

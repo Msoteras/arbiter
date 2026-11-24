@@ -260,7 +260,8 @@ export class MenuButtonComponent implements ClosableMenu {
     bottom: null,
     left: null,
     right: null,
-    width: null,
+    minWidth: null,
+    maxWidth: null,
   });
 
   protected toggle(): void {

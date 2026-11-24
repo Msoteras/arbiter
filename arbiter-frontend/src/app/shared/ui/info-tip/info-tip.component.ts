@@ -164,7 +164,8 @@ export class InfoTipComponent {
     bottom: null,
     left: null,
     right: null,
-    width: null,
+    minWidth: null,
+    maxWidth: null,
   });
 
   protected toggle(event: MouseEvent): void {
