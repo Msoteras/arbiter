@@ -426,7 +426,7 @@ export class CaseDetailComponent {
         case 'LLM_SOLICITA_REVISION_MANUAL':
           return { lead: asks, word: 'revisión manual', end: '.' };
         case 'FALTA_DOCUMENTACION':
-          return { lead: asks, word: 'documentación', end: '.' };
+          return { lead: past ? 'Faltaba ' : 'Falta ', word: 'documentación', end: '.' };
       }
       return d?.status === 'PENDING_CLASSIFICATION'
         ? { lead: 'Analizando la ', word: 'denuncia', end: '…' }

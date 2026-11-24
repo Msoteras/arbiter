@@ -118,7 +118,9 @@ function normalize(text: string): string {
           [style.top.px]="panelPos().top"
           [style.bottom.px]="panelPos().bottom"
           [style.left.px]="panelPos().left"
-          [style.width.px]="panelPos().width"
+          [style.right.px]="panelPos().right"
+          [style.min-width.px]="panelPos().minWidth"
+          [style.max-width.px]="panelPos().maxWidth"
         >
           @for (opt of visibleOptions(); track opt.value; let i = $index) {
             <!-- eslint-disable-next-line @angular-eslint/template/click-events-have-key-events, @angular-eslint/template/interactive-supports-focus -- The combobox drives the options from the keyboard (aria-activedescendant). -->
@@ -250,6 +252,9 @@ function normalize(text: string): string {
     .panel {
       position: fixed;
       z-index: 50;
+      /* Grows past the trigger so long options read whole; the ellipsis only kicks in at maxWidth. */
+      width: max-content;
+      box-sizing: border-box;
       margin: 0;
       padding: var(--space-1);
       list-style: none;
@@ -337,7 +342,8 @@ export class SelectComponent {
     bottom: null,
     left: null,
     right: null,
-    width: null,
+    minWidth: null,
+    maxWidth: null,
   });
 
   constructor() {

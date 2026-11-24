@@ -80,6 +80,9 @@ const TYPED_FIELDS: Record<TypedField, { label: string; kind: CorrectionKind }> 
 
 const isTyped = (field: CorrectableField): field is TypedField => field in TYPED_FIELDS;
 
+/** The photo of the damage. */
+const ITEM_PHOTO = 'item_photo';
+
 type ListState =
   { status: 'loading' } | { status: 'ok'; data: CaseDocument[] } | { status: 'error' };
 
@@ -313,14 +316,14 @@ export class CaseDocumentsComponent {
         return;
       }
       const stillThere = current.status !== 'empty' && docs.some((d) => d.id === current.doc.id);
-      if (focused) untracked(() => this.open(focused));
+      if (focused) untracked(() => this.openFromReason(focused));
       else if (!stillThere) this.select(docs[0]);
     });
 
     this.destroyRef.onDestroy(() => this.revokeCurrent());
   }
 
-  /** Starts collapsed; opening a document, from the list or from a link, opens it. */
+  /** Starts collapsed; a document opened from the list opens it. */
   protected readonly previewCollapsed = signal(true);
   protected readonly maximized = signal(false);
 
@@ -328,6 +331,15 @@ export class CaseDocumentsComponent {
   protected open(doc: CaseDocument): void {
     this.select(doc);
     this.previewCollapsed.set(false);
+  }
+
+  /**
+   * A link from the model's reasons. Only the photo of the damage opens with its preview: for any
+   * other document, also one sent as a photo, what Arbiter read from it comes first.
+   */
+  private openFromReason(doc: CaseDocument): void {
+    this.select(doc);
+    this.previewCollapsed.set(doc.type !== ITEM_PHOTO);
   }
 
   protected select(doc: CaseDocument): void {
