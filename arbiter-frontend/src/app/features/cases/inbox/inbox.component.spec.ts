@@ -56,7 +56,6 @@ describe('InboxComponent · lifecycle scope', () => {
           useValue: {
             list: (params: CaseListParams) => listPage(params),
             cachedList: (params: CaseListParams) => listPage(params),
-            hasNewerList: () => false,
             lensSummary: (params: CaseListParams) => {
               lensCalls.push(params);
               return of(summary);
