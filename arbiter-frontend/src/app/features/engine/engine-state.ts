@@ -1,7 +1,7 @@
 import { ClassificationStage, EngineCase, isDone } from '../../core/models/engine';
 
 /** How long a finished case stays in the ring, showing its result, before it moves to the pool. */
-export const HOLD_MS = 1800;
+export const HOLD_MS = 10_000;
 
 /** The pool shows the latest ones; the counter still counts them all. */
 export const POOL_MAX = 20;
