@@ -88,6 +88,49 @@ describe('documentMentions', () => {
     ]);
   });
 
+  it('links a name the model wrote without its accents', () => {
+    expect(
+      documentMentions(
+        'El presupuesto de reparacion supera la suma asegurada',
+        TYPES,
+        new Set(['repair_quote']),
+      ),
+    ).toEqual([
+      { text: 'El ', code: null },
+      { text: 'presupuesto de reparacion', code: 'repair_quote' },
+      { text: ' supera la suma asegurada', code: null },
+    ]);
+  });
+
+  it('links a name cited by its first word alone', () => {
+    // Case #24 (Provincia): "Los documentos adjuntos de compra y presupuesto contienen leyendas…".
+    expect(
+      documentMentions(
+        'El presupuesto del servicio tecnico es anterior al hecho',
+        TYPES,
+        new Set(['repair_quote']),
+      ),
+    ).toEqual([
+      { text: 'El ', code: null },
+      { text: 'presupuesto', code: 'repair_quote' },
+      { text: ' del servicio tecnico es anterior al hecho', code: null },
+    ]);
+  });
+
+  it("doesn't link a short first word, which is an ordinary word on its own", () => {
+    const reason = 'La foto tiene una resolución baja';
+    expect(documentMentions(reason, TYPES, new Set(['item_photo', 'imei_deregistration']))).toEqual(
+      [{ text: reason, code: null }],
+    );
+  });
+
+  it("doesn't link a first word two documents share", () => {
+    const types = [...TYPES, { code: 'other_1', label: 'Presupuesto de otro taller' }];
+    expect(
+      documentMentions('Revisar el presupuesto', types, new Set(['repair_quote', 'other_1'])),
+    ).toEqual([{ text: 'Revisar el presupuesto', code: null }]);
+  });
+
   it('links a document the analyst asked for by what they asked for', () => {
     const requested = [...TYPES, { code: 'other_1', label: 'Resumen de la tarjeta' }];
     expect(

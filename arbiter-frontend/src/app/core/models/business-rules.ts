@@ -149,10 +149,27 @@ export interface ReasonSegment {
 const escapeRegExp = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 /**
+ * Without diacritics, one character for one, so an index in the folded text is valid in the
+ * original. The model often writes the names without their accents ("presupuesto de reparacion").
+ */
+function withoutAccents(text: string): string {
+  return text.replace(/\p{L}/gu, (c) => {
+    const base = c.normalize('NFD').replace(/\p{M}/gu, '');
+    return base.length === c.length ? base : c;
+  });
+}
+
+const matchKey = (name: string): string => withoutAccents(name.toLowerCase());
+
+/** Shorter first words ("baja", "foto") are ordinary words in reasons about other things. */
+const MIN_HEAD_LENGTH = 6;
+
+/**
  * Splits a reason around the documents it names, by code ("police_report", from the engine and the
- * prompt) or by name ("la denuncia policial", in the model's own words), also without its trailing
- * parenthesis. A code becomes its name; a name keeps the model's wording. Only documents in
- * `available` get a `code`, so a link never points to a file the case doesn't have.
+ * prompt) or by name ("la denuncia policial", in the model's own words), with or without accents,
+ * without its trailing parenthesis, or by its first word alone ("el presupuesto"). A code becomes
+ * its name; a name keeps the model's wording. Only documents in `available` get a `code`, so a link
+ * never points to a file the case doesn't have.
  */
 export function documentMentions(
   reason: string,
@@ -161,14 +178,26 @@ export function documentMentions(
 ): ReasonSegment[] {
   const byKey = new Map<string, DocumentTypeDef>();
   for (const d of types) {
-    byKey.set(d.code.toLowerCase(), d);
-    byKey.set(d.label.toLowerCase(), d);
+    byKey.set(matchKey(d.code), d);
+    byKey.set(matchKey(d.label), d);
   }
   // The model drops a trailing qualifier ("Baja de IMEI (ENACOM)" → "la baja de IMEI"). Added
   // last, so a full name another document has keeps pointing to that one.
   for (const d of types) {
-    const short = d.label.replace(/\s*\([^)]*\)\s*$/, '').toLowerCase();
+    const short = matchKey(d.label.replace(/\s*\([^)]*\)\s*$/, ''));
     if (short && !byKey.has(short)) byKey.set(short, d);
+  }
+  // Or drops the complement ("Presupuesto de reparación" → "compra y presupuesto"): the first word
+  // names the document when no other one starts with it.
+  const heads = new Map<string, DocumentTypeDef | null>();
+  for (const d of types) {
+    const head = matchKey(d.label).match(/^(\p{L}+)\s+del?\s/u)?.[1];
+    if (!head || head.length < MIN_HEAD_LENGTH) continue;
+    const other = heads.get(head);
+    heads.set(head, other === undefined || other?.code === d.code ? d : null);
+  }
+  for (const [head, d] of heads) {
+    if (d && !byKey.has(head)) byKey.set(head, d);
   }
   if (byKey.size === 0) return [{ text: reason, code: null }];
 
@@ -186,16 +215,20 @@ export function documentMentions(
     if (last && last.code === null) last.text += text;
     else if (text) segments.push({ text, code: null });
   };
+  // Matched without accents, cut from the original: the link keeps the model's spelling.
+  const original = reason.normalize('NFC');
   let cursor = 0;
-  for (const match of reason.matchAll(pattern)) {
-    const type = byKey.get(match[0].toLowerCase());
+  for (const match of withoutAccents(original).matchAll(pattern)) {
+    const key = matchKey(match[0]);
+    const type = byKey.get(key);
     if (!type) continue;
-    pushText(reason.slice(cursor, match.index));
-    const text = match[0].toLowerCase() === type.code.toLowerCase() ? type.label : match[0];
+    const end = match.index + match[0].length;
+    pushText(original.slice(cursor, match.index));
+    const text = key === matchKey(type.code) ? type.label : original.slice(match.index, end);
     if (available.has(type.code)) segments.push({ text, code: type.code });
     else pushText(text);
-    cursor = match.index + match[0].length;
+    cursor = end;
   }
-  pushText(reason.slice(cursor));
+  pushText(original.slice(cursor));
   return segments;
 }
