@@ -276,8 +276,9 @@ Volver a una pantalla muestra sus datos al instante y los refresca detrás. Lo h
   segundo valor y pierde lo instantáneo; usar `switchMap` o `subscribe`.
 - **Pantalla editable** (tiene `dirty()`): `read(..., { apply: () => !this.dirty() })`, y "Descartar"
   vuelve a leer, así toma lo que llegó mientras se editaba. Un refresco nunca pisa un borrador.
-- **Listas que cambian otras personas** (Bandeja, Liquidaciones pendientes): `apply: () => false` y un
-  botón "Actualizar" que aparece con `cache.hasNewer(clave)`.
+- **Listas que cambian otras personas** (Liquidaciones pendientes): `apply: () => false` y un
+  botón "Actualizar" que aparece con `cache.hasNewer(clave)`. La Bandeja no: aplica sola el refresco
+  al abrirla, así muestra el expediente que el analista ya vio entrar en el tablero.
 - **Cada escritura invalida lo que afecta**, en `core/http/cache-invalidation.interceptor.ts`: una
   tabla URL → prefijos. Endpoint nuevo que escribe: sumarle su fila. Lo invalidado y leído en los
   últimos 5 minutos se vuelve a pedir enseguida.

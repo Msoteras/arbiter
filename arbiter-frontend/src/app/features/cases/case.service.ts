@@ -3,7 +3,7 @@ import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 
 import { environment } from '../../../environments/environment';
-import { CacheReadOptions, QueryCache, paramsKey } from '../../core/cache/query-cache';
+import { QueryCache, paramsKey } from '../../core/cache/query-cache';
 import { InsuredStatus, InsuredStatusCode } from '../../core/models/insured-status';
 import { CaseResponse, CorrectableField, DocumentCorrection } from '../../core/models/case';
 import { StatusMoves } from '../../core/models/case-status';
@@ -290,24 +290,10 @@ export class CaseService {
     });
   }
 
-  /**
-   * The inbox and "Mis expedientes": one cache key per combination of filters and page. With
-   * `apply` returning false, a refresh waits for "Actualizar" (`hasNewerList`).
-   */
-  cachedList(
-    params: CaseListParams,
-    options?: CacheReadOptions,
-  ): Observable<PagedResponse<CaseResponse>> {
+  /** The inbox and "Mis expedientes": one cache key per combination of filters and page. */
+  cachedList(params: CaseListParams): Observable<PagedResponse<CaseResponse>> {
     const query = this.listQuery(params);
-    return this.cache.read(
-      this.listKey(query),
-      (context) => this.fetchList(query, context),
-      options,
-    );
-  }
-
-  hasNewerList(params: CaseListParams): boolean {
-    return this.cache.hasNewer(this.listKey(this.listQuery(params)));
+    return this.cache.read(this.listKey(query), (context) => this.fetchList(query, context));
   }
 
   prefetchList(params: CaseListParams): void {
