@@ -1169,6 +1169,7 @@ export class CaseDetailComponent {
     this.replacementApplied.set(null);
     this.settledAmountInput.set('');
     this.settledAmountStable.set('');
+    this.settledAmountEdited.set(false);
     this.adjustmentReason.set('');
     if (v === 'approve') {
       this.prefillProviderAmount();
@@ -1380,6 +1381,7 @@ export class CaseDetailComponent {
     if (amount == null) {
       return;
     }
+    this.settledAmountEdited.set(true);
     this.settledAmountInput.set(String(amount));
     this.settledAmountStable.set(String(amount));
   }
@@ -1409,6 +1411,25 @@ export class CaseDetailComponent {
   /** Empty = pay the calculated amount. */
   protected readonly settledAmountInput = signal('');
   protected readonly adjustmentReason = signal('');
+
+  /** Until the analyst types, the field shows the calculated amount and follows each recalculation. */
+  private readonly settledAmountEdited = signal(false);
+  protected readonly settledAmountShown = computed(() => {
+    // Without the base amount the field is disabled: there is nothing to pay yet.
+    if (this.baseAmountMissing()) {
+      return '';
+    }
+    if (this.settledAmountEdited()) {
+      return this.settledAmountInput();
+    }
+    const calculated = this.settlement()?.calculatedAmount;
+    return calculated == null ? '' : String(calculated);
+  });
+
+  protected editSettledAmount(typed: string): void {
+    this.settledAmountEdited.set(true);
+    this.settledAmountInput.set(amountInputValue(typed));
+  }
 
   /**
    * The amount once the analyst stops typing. The fields and notices it brings follow this one, so
@@ -1460,7 +1481,11 @@ export class CaseDetailComponent {
     word: string;
     tone: StatusTone;
   }>(() => {
-    if (this.baseAmountMissing()) return { lead: 'Falta un ', word: 'dato', tone: 'warning' };
+    if (this.baseAmountMissing()) {
+      const missing =
+        this.settlement()?.formula === 'REPAIR' ? 'presupuesto' : 'valor de reposición';
+      return { lead: 'Falta el ', word: missing, tone: 'warning' };
+    }
     if (this.needsReferent()) return { lead: 'Necesita ', word: 'autorización', tone: 'warning' };
     if (this.adjustmentFieldShown()) return { lead: 'Monto ', word: 'ajustado', tone: 'warning' };
     return { lead: 'Listo para ', word: 'liquidar', tone: 'ok' };
@@ -1479,7 +1504,7 @@ export class CaseDetailComponent {
       return 'No se pudo calcular el monto a pagar.';
     }
     if (this.needsReplacementValue() && this.replacementApplied() == null) {
-      return 'Cargá cuánto cuesta hoy reponer el bien.';
+      return 'Cargá el valor de reposición.';
     }
     // The quote is the base of a repair: without it the amount is a zero nobody calculated.
     if (this.settlement()?.formula === 'REPAIR' && this.baseAmountMissing()) {

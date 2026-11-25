@@ -455,7 +455,7 @@ public class SettlementService {
             warnings.add("Cargá el presupuesto de reparación: sin él no se puede aprobar.");
         }
         if (needsReplacementValue(proposal) && !accredited) {
-            warnings.add("Cargá cuánto cuesta hoy reponer el bien: sin ese valor no se puede aprobar.");
+            warnings.add("Cargá el valor de reposición: sin él no se puede aprobar.");
         }
         // A reference, not a cap: the claimed amount is the insured's own guess, and the policy
         // pays the loss, not what was asked for. Paying more than asked is still worth a look.
@@ -606,7 +606,7 @@ public class SettlementService {
                 .formatted(money(s.getSumInsured()));
         return irreparable
                 ? "el servicio técnico declaró el equipo irreparable: se paga lo que vale hoy · " + cap
-                : "cuánto cuesta hoy reponer el bien · " + cap;
+                : "precio actual de un equipo idéntico · " + cap;
     }
 
     private BigDecimal accreditedCeiling(CaseSettlement s) {
