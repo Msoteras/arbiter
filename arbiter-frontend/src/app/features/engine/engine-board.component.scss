@@ -113,11 +113,15 @@
   }
 }
 
+// In a 3D scene the browser hit-tests by depth: the zones and grids sit at z = 0, in front of the
+// queued cards pushed back with translateZ, and took their clicks. Only the cards take the pointer;
+// a press anywhere else falls through to the stage, which pans.
 .world {
   position: absolute;
   inset: 0;
   transform-style: preserve-3d;
   will-change: transform;
+  pointer-events: none;
 }
 
 .zone {
@@ -140,12 +144,13 @@
   }
 }
 
-// The hourglass fills the left of this zone, so the pile starts right of it and takes as many
-// columns as the rest of the width holds.
+// The hourglass is narrowest at the height of the pile, so the pile is wide and low: up to four
+// columns of the twelve cards, centered right of the hourglass's waist, three when the width
+// runs short. `zoom` scales the cards and their gaps but not the percentages.
 .zone.pool .zwrap {
-  left: 32%;
-  width: calc(68% - var(--space-6));
-  transform: translate(0, -50%);
+  left: 58%;
+  width: min(calc(4 * var(--engine-pool-col) + 3 * var(--space-3)), calc(84% - var(--space-6)));
+  zoom: var(--engine-pool-zoom);
 }
 
 .zwrap {
@@ -236,6 +241,7 @@
 .card {
   display: flex;
   flex-direction: column;
+  pointer-events: auto;
   border: 1px solid var(--border-default);
   border-radius: var(--radius-card);
   background: var(--surface);

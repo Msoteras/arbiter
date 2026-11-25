@@ -219,7 +219,7 @@ class SettlementServiceTest {
         assertThatThrownBy(() -> settlementService.confirm(claim, 7L, "Documentación completa",
                 new SettlementDecisionRequest(null, new BigDecimal("720000.00"), "Vale eso")))
                 .isInstanceOf(InvalidSettlementException.class)
-                .hasMessageContaining("reponer el bien");
+                .hasMessageContaining("valor de reposición");
     }
 
     @Test

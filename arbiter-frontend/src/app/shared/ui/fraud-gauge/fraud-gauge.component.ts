@@ -13,7 +13,7 @@ type Band = 1 | 2 | 3 | 4 | null;
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { '[attr.data-tone]': "tone() !== 'neutral' ? tone() : null" },
   template: `
-    <div class="gauge" role="img" [attr.aria-label]="'Riesgo de fraude: ' + label()">
+    <div class="gauge" role="img" [attr.aria-label]="'Puntaje de riesgo: ' + label()">
       @for (seg of segments; track seg) {
         <span
           class="seg"

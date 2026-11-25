@@ -481,14 +481,14 @@
       @if (classificationLabel() || riskScorePct() !== null) {
         <div spotlightAside>
           <section class="spotlight-aside-section strip-risk">
-            <h3 class="spotlight-panel-label">Riesgo de fraude</h3>
+            <h3 class="spotlight-panel-label">Puntaje de riesgo</h3>
             @if (riskScorePct() !== null) {
               @let score = riskScorePct()!;
               <p
                 class="strip-risk-line"
                 role="img"
                 [attr.aria-label]="
-                  'Riesgo de fraude ' +
+                  'Puntaje de riesgo ' +
                   score +
                   ' de 100' +
                   (riskBandText() ? ', ' + riskBandText() : '')
@@ -842,7 +842,7 @@
           <!-- The score first, the reasons beside it. Without reasons (a rules outcome) the score takes
                the whole row. -->
           <div class="analysis-grid" [class.single]="analysisReasons().length === 0">
-            <app-card heading="Score de fraude">
+            <app-card heading="Puntaje de riesgo">
               @if (riskScorePct() !== null) {
                 <div class="risk-head">
                   <span class="risk-score tabular">{{ riskScorePct() }}</span>
@@ -902,7 +902,7 @@
                   </ul>
                 }
               } @else {
-                <app-empty-state message="Este expediente todavía no tiene score de fraude" />
+                <app-empty-state message="Este expediente todavía no tiene puntaje de riesgo" />
               }
             </app-card>
             @if (analysisReasons().length > 0) {
@@ -1535,9 +1535,7 @@
             @if (needsAccreditedAmount()) {
               <app-field
                 [label]="
-                  s.formula === 'REPAIR'
-                    ? 'Presupuesto de reparación'
-                    : 'Cuánto cuesta reponer el bien'
+                  s.formula === 'REPAIR' ? 'Presupuesto de reparación' : 'Valor de reposición'
                 "
                 for="settlement-base"
                 [required]="true"
@@ -1591,11 +1589,10 @@
                 align="end"
                 inputmode="decimal"
                 [normalize]="amountInputDisplay"
-                [value]="amountInputLabel(settledAmountInput())"
-                (valueChange)="settledAmountInput.set(amountInputValue($event))"
-                [placeholder]="
-                  baseAmountMissing() ? 'Sin calcular' : exactAmount(s.calculatedAmount)
-                "
+                [value]="amountInputLabel(settledAmountShown())"
+                (valueChange)="editSettledAmount($event)"
+                [disabled]="baseAmountMissing()"
+                [placeholder]="baseAmountMissing() ? '—' : exactAmount(s.calculatedAmount)"
               />
 
               <!-- The expert's amount is what to pay, not a replacement value; taking it records an adjustment. -->

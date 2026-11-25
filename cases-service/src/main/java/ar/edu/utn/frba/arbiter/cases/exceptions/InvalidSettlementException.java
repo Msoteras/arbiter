@@ -37,7 +37,7 @@ public class InvalidSettlementException extends RuntimeException {
     /** On a lesser-of total loss the replacement value is the base of the amount, not an extra. */
     public static InvalidSettlementException missingReplacementValue() {
         return new InvalidSettlementException(
-                "Para aprobar hay que cargar cuánto cuesta hoy reponer el bien.");
+                "Para aprobar hay que cargar el valor de reposición.");
     }
 
     /** The quote is the base of a repair: without it the calculation is zero, not an amount. */

@@ -156,7 +156,7 @@ const PROFILES = {
       dni: '37.905.162',
       cuil: '20-37905162-7',
       birth: '23/01/1993',
-      address: 'Calle 49 N° 812, piso 3° "B", La Plata, Provincia de Buenos Aires',
+      address: 'Bulnes 865, piso 3° "B", Ciudad Autónoma de Buenos Aires',
       phone: '221-555-0640',
       email: 'ibarratomas087@gmail.com',
       civil: 'soltero',
