@@ -531,7 +531,8 @@ siguiente de Fast Track.
 ## 13 · Presentación final: caso 2, rotura con una foto de internet
 
 Tomás Ibarra, con su póliza de Tecnología Portátil en BBVA (`POL-TEC-2026-640`), denuncia que su Lenovo
-IdeaPad Slim 3 se cayó de la mesa del living y se rompió la pantalla. Reclama 445.000 sobre los 600.000
+IdeaPad Slim 3 se rajó al cerrarla con una lapicera sobre el teclado. No es una caída: "Caída" es
+otro hecho generador de BBVA, y el relato tiene que coincidir con "Rotura accidental". Reclama 445.000 sobre los 600.000
 de daño accidental (0,74): pasa el 0,6 de Fast Track y llega a la analista con Falta documentación,
 porque la agenda pide la foto del bien. La analista se la pide y Tomás la sube. Su carpeta es
 `demo/tomas/tec-portatil/rotura/` (`--demo-tomas`). Tiene un siniestro previo en la BD Aseguradora,

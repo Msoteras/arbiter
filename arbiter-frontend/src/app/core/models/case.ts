@@ -114,7 +114,7 @@ export interface CaseResponse {
   eventLocation: string;
   claimedAmount: number | null;
   riskBand: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' | null;
-  /** Normalized fraud score in [0,1]; null when not scored. */
+  /** Normalized risk score in [0,1]; null when not scored. */
   riskScore: number | null;
   /** Analyst-only. */
   riskBreakdown: RiskBreakdownItem[] | null;

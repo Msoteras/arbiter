@@ -206,7 +206,7 @@ export class InboxComponent {
       ? { value: 'assigned', label: 'Asignados' }
       : { value: 'mine', label: 'Mis asignados' },
     { value: 'unassigned', label: 'Sin asignar' },
-    { value: 'fraud', label: 'Riesgo de fraude' },
+    { value: 'fraud', label: 'Puntaje alto o crítico' },
   ]);
 
   protected setLifecycle(lifecycle: Lifecycle): void {
@@ -597,7 +597,7 @@ export class InboxComponent {
     if (this.riskBandFilter())
       chips.push({
         key: 'riskBand',
-        label: `Fraude: ${this.riskBandLabel(this.riskBandFilter())}`,
+        label: `Puntaje de riesgo: ${this.riskBandLabel(this.riskBandFilter())}`,
       });
     if (this.analystFilter())
       chips.push({ key: 'analyst', label: `Analista: ${this.analystName(this.analystFilter())}` });

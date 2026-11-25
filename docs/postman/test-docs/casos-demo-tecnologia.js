@@ -14,8 +14,8 @@ const { cuit, plus } = require('./lib-pdf');
 
 // ─── The second case: accidental damage with a reused photo ────────────────
 //
-// Valentín (BBVA, POL-TEC-2026-782) says his Lenovo fell off the living room table and the screen
-// broke. He files the invoice and the repair quote; 445.000 over a 600.000 damage sum (0.74) is past
+// Valentín (BBVA, POL-TEC-2026-782) says he closed his Lenovo on a pen and the screen cracked.
+// He files the invoice and the repair quote; 445.000 over a 600.000 damage sum (0.74) is past
 // Fast Track's 0.6, so the claim reaches the analyst, who asks for the photo of the device. The photo
 // he sends (foto_notebook_rota.jpg) carries the two signals:
 //   · it is published on the web (Wikimedia Commons): Google Vision's web detection finds it,
@@ -86,28 +86,31 @@ function valentin({ ayerA, INSURED }) {
       eventLocation: 'Av. Scalabrini Ortiz 1920, piso 3° "C" - domicilio particular',
       locality: 'Palermo',
       province: 'Ciudad Autónoma de Buenos Aires',
+      // Not a fall: BBVA has "Caída" as its own claim cause, and a fall narrated under "Rotura
+      // accidental" fails the claim cause match. The lid closed on a pen also fits the photo's
+      // cracked screen.
       description:
-        'Estaba trabajando en el living con la notebook sobre la mesa ratona. Me levanté, enganché el '
-        + 'cable del cargador y la notebook se cayó al piso de golpe. La pantalla quedó rota. La llevé '
-        + 'al service y me pasaron el presupuesto.',
+        'Estaba trabajando en el living. Cerré la notebook sin ver que había quedado una lapicera '
+        + 'sobre el teclado. Al apretar la tapa, la pantalla se rajó. La llevé al service y me pasaron '
+        + 'el presupuesto.',
       repair: {
         order: '0012874',
         received: plus(event, 13 * 60 + 15),
         issued: plus(event, 15 * 60 + 40),
         accessories: 'Cargador original',
-        condition: 'Pantalla rota. Enciende.',
+        condition: 'Pantalla rajada. Enciende.',
         reported:
-          'El cliente manifiesta que el equipo se cayó de la mesa del living la noche anterior y que la '
-          + 'pantalla quedó rota. Enciende y se escucha el arranque.',
+          'El cliente manifiesta que la noche anterior cerró el equipo con una lapicera sobre el teclado '
+          + 'y que la pantalla se rajó al apretar la tapa. Enciende y se escucha el arranque.',
         diagnosis: [
-          'Panel LED de 15,6" con rotura del vidrio y del cristal líquido por impacto. Con monitor externo el '
-          + 'equipo arranca y funciona normalmente.',
-          'Bisagra derecha con el anclaje de la tapa fisurado. Teclado, touchpad, placa y batería sin daños.',
+          'Panel LED de 15,6" rajado por presión puntual desde el lado del teclado, sin golpes en la '
+          + 'carcasa. Con monitor externo el equipo arranca y funciona normalmente.',
+          'Teclado, touchpad, bisagras, placa y batería sin daños.',
         ],
         items: [
           ['LCD-156-FHD30', 'Panel LED 15,6" FHD IPS 30 pines - original', 1, 352000],
-          ['BIS-LS3-DER', 'Bisagra derecha IdeaPad Slim 3', 1, 38000],
-          ['MO-PANT', 'Mano de obra: desarme, reemplazo de panel y bisagra, prueba', 1, 55000],
+          ['MAR-LS3-FR', 'Marco frontal de pantalla IdeaPad Slim 3 (no se reutiliza al desarmar)', 1, 38000],
+          ['MO-PANT', 'Mano de obra: desarme, reemplazo de panel y marco, prueba', 1, 55000],
         ],
         technician: 'Martín D. Olivera',
       },
@@ -116,9 +119,9 @@ function valentin({ ayerA, INSURED }) {
 }
 
 // Valentín's story filed by Tomás (BBVA, POL-TEC-2026-640): his account has a mailbox the demo can
-// open. Only what places it changes: the buyer, his home in La Plata and a repair shop there. His
-// damage sum is 600.000 like Valentín's (db/migrations/2026-11-21-tomas-caso2.sql), so 445.000 still
-// misses Fast Track.
+// open. Only what places it changes: the buyer, his home in Almagro, near UTN FRBA, and a repair
+// shop there. His damage sum is 600.000 like Valentín's (db/migrations/2026-11-21-tomas-caso2.sql),
+// so 445.000 still misses Fast Track.
 function tomas(ctx) {
   const base = valentin(ctx);
   return {
@@ -126,22 +129,22 @@ function tomas(ctx) {
     buyer: {
       dni: ctx.INSURED.dni,
       name: 'IBARRA TOMAS',
-      address: 'Calle 49 N° 812 Piso:3 Dpto:B - La Plata, Buenos Aires',
+      address: 'Bulnes 865 Piso:3 Dpto:B - Ciudad de Buenos Aires',
     },
     // The serial matches perfiles.js, which the repair quote reads.
     item: { ...base.item, details: ['Modelo 15IRU9 - N° de serie: PF5N7R2X', 'Garantía oficial 12 meses'] },
     shop: {
-      name: 'Platense Notebooks',
-      legalName: 'PLATENSE SERVICIOS INFORMATICOS S.R.L.',
-      address: 'Calle 8 N° 1020, La Plata',
-      phone: '(0221) 555-0318',
+      name: 'Almagro Notebooks',
+      legalName: 'ALMAGRO SERVICIOS INFORMATICOS S.R.L.',
+      address: 'Av. Rivadavia 4250, C.A.B.A.',
+      phone: '(011) 5555-0318',
       cuit: cuit('30', '71902336'),
     },
     scenarios: base.scenarios.map((sc) => ({
       ...sc,
-      eventLocation: 'Calle 49 N° 812, piso 3° "B" - domicilio particular',
-      locality: 'La Plata',
-      province: 'Buenos Aires',
+      eventLocation: 'Bulnes 865, piso 3° "B" - domicilio particular',
+      locality: 'Almagro',
+      province: 'Ciudad Autónoma de Buenos Aires',
     })),
   };
 }

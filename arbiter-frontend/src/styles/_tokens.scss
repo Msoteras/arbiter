@@ -184,6 +184,8 @@
   --engine-mini-case-col: 84px;
   --engine-queue-col: 300px;
   --engine-pool-col: 236px;
+  /* The pool's cards read larger; at most this much, or four columns stop fitting at 1332px. */
+  --engine-pool-zoom: 1.1;
   --engine-slot-h: 58px;
   --engine-slot-h-mini: 48px;
   --engine-slot-h-tall: 74px;
