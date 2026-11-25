@@ -117,7 +117,7 @@ Se muestra uno. El otro queda de respaldo.
 | 1:00 | **Analista y celular:** chat → Valentín responde y sube la constancia de última conexión | "Además tienen un chat dentro del expediente. El asegurado puede consultar y la analista puede pedirle algo directamente: 'Cargame esto para seguir'. Mientras espera documentación, el plazo legal queda congelado, porque depende del asegurado." |
 | 0:15 | **Analista:** muestra el expediente en clasificación → cambia al ya clasificado | "Cargar la constancia dispara la reclasificación. Para no esperar, seguimos con un expediente que ya pasó por este punto." |
 | 1:15 | **Analista:** recomendación, solapa de análisis → Razones | "Acá trabaja la IA. El prompt recibe campos estructurados, el relato, los documentos y las reglas de la aseguradora. La recomendación no es vinculante y explica sus motivos. El relato dice que el celular se perdió en un bar. Pero la constancia lo ubica toda la noche bajo la antena del domicilio de Valentín. Ninguna regla cruza esos datos. Lo detecta el modelo." |
-| 1:00 | **Analista:** Score de fraude → desglose → imagen | "El score se muestra desglosado por factor. La foto se compara por embeddings contra las de otras denuncias. Esa comparación no usa el modelo de lenguaje. `[VALIDAR: mencionar Google Vision solo si queda encendido]`" |
+| 1:00 | **Analista:** Puntaje de riesgo → desglose → imagen | "El score se muestra desglosado por factor. La foto se compara por embeddings contra las de otras denuncias. Esa comparación no usa el modelo de lenguaje. `[VALIDAR: mencionar Google Vision solo si queda encendido]`" |
 | 0:30 | **Analista:** solapa de reglas → Para revisar y Reglas evaluadas | "Las reglas evalúan condiciones objetivas y el modelo aporta la lectura interpretativa. Todo queda en un registro inmutable: resultado, factores, decisión y fecha." |
 | 0:30 | **Analista:** Derivar a… → peritaje | "La analista no resuelve con una sospecha: deriva a un perito. El plazo vuelve a congelarse, porque ahora depende de un tercero." |
 | 0:30 | **Celular:** estado del expediente, junto a la vista del analista | "Comparen las dos pantallas. Valentín ve el estado del trámite. No ve la clasificación, el score ni la sospecha." |
@@ -153,7 +153,7 @@ Se muestra uno. El otro queda de respaldo.
 1. **Enfoque:** los roles de la aseguradora llevan la demo. El asegurado aparece en el caso 2 y al final del caso 1.
 2. **Reglas a mostrar:** Fast Track en el caso 1. Hard Stop y Puntaje de riesgo en el caso 2. Nada más.
 3. **Liquidación:** la idea inicial dice "no llegamos a liquidación" y también "se liquida el monto". Arbiter calcula el monto, y el referente autoriza si supera la atribución del analista. Por eso el guion dice que Arbiter calcula y que **el pago** queda afuera.
-4. **Sin "thinking trace":** esa pantalla no existe en el frontend. Se muestran Razones, Score de fraude, Para revisar antes de resolver y Reglas evaluadas.
+4. **Sin "thinking trace":** esa pantalla no existe en el frontend. Se muestran Razones, Puntaje de riesgo, Para revisar antes de resolver y Reglas evaluadas.
 5. **Caso "fraudulento":** una denuncia con documentos adulterados que cumple el gate da Fast Track, y el LLM no corre (`docs/postman/test-docs/README.md` §9). Por eso el caso 2 usa `hurto-bar`, que no entra en Fast Track.
 
 ### Datos de la demo

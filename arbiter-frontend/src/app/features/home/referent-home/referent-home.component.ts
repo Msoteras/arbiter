@@ -194,7 +194,7 @@ export class ReferentHomeComponent {
       },
       {
         value: lens?.open.fraud ?? null,
-        label: 'Riesgo de fraude',
+        label: 'Puntaje alto o crítico',
         flag: null,
         link: '/inbox',
         query: { fraudAlert: 'true' },

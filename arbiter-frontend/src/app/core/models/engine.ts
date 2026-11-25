@@ -78,7 +78,7 @@ const RUNNING: Record<Exclude<ClassificationStage, 'QUEUED' | 'FINISHED' | 'FAIL
   DOCUMENT_SCHEDULE: { text: 'Revisando la agenda documental…', actor: 'rule', icon: 'schedule' },
   MODEL: { text: 'Interpretando el caso…', actor: 'model', icon: 'model' },
   IMAGES: { text: 'Comparando las imágenes…', actor: 'data', icon: 'image' },
-  RISK: { text: 'Calculando el riesgo de fraude…', actor: 'data', icon: 'risk' },
+  RISK: { text: 'Calculando el puntaje de riesgo…', actor: 'data', icon: 'risk' },
 };
 
 const FALLBACK: StageDef = { text: 'Clasificando…', actor: 'data', icon: 'result' };
